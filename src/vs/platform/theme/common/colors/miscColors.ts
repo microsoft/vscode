@@ -30,6 +30,22 @@ export const badgeForeground = registerColor('badge.foreground',
 	{ dark: Color.white, light: '#333', hcDark: Color.white, hcLight: Color.white },
 	nls.localize('badgeForeground', "Badge foreground color. Badges are small information labels, e.g. for search results count."));
 
+export const activityWarningBadgeForeground = registerColor('activityWarningBadge.foreground',
+	{ dark: Color.black.lighten(0.2), light: Color.white, hcDark: null, hcLight: Color.black.lighten(0.2) },
+	nls.localize('activityWarningBadge.foreground', 'Foreground color of the warning activity badge'));
+
+export const activityWarningBadgeBackground = registerColor('activityWarningBadge.background',
+	{ dark: '#CCA700', light: '#BF8803', hcDark: null, hcLight: '#CCA700' },
+	nls.localize('activityWarningBadge.background', 'Background color of the warning activity badge'));
+
+export const activityErrorBadgeForeground = registerColor('activityErrorBadge.foreground',
+	{ dark: Color.black.lighten(0.2), light: Color.white, hcDark: null, hcLight: Color.black.lighten(0.2) },
+	nls.localize('activityErrorBadge.foreground', 'Foreground color of the error activity badge'));
+
+export const activityErrorBadgeBackground = registerColor('activityErrorBadge.background',
+	{ dark: '#F14C4C', light: '#E51400', hcDark: null, hcLight: '#F14C4C' },
+	nls.localize('activityErrorBadge.background', 'Background color of the error activity badge'));
+
 
 // ----- scrollbar
 
