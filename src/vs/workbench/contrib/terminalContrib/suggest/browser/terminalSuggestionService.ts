@@ -113,22 +113,28 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		});
 	}
 
-	async provideCompletions(value: string, shellType: TerminalShellType): Promise<ITerminalCompletionItem[] | undefined> {
-		const result: ITerminalCompletionItem[] = [];
-		for (const providers of this._providers.values()) {
-			for (const provider of providers.values()) {
+	async provideCompletions(promptValue: string, shellType: TerminalShellType): Promise<ITerminalCompletionItem[] | undefined> {
+		const completionItems: ITerminalCompletionItem[] = [];
+
+		if (!this._providers || !this._providers.values) {
+			return undefined;
+		}
+
+		for (const providerMap of this._providers.values()) {
+			for (const [extensionId, provider] of providerMap) {
 				if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
 					continue;
 				}
-				const completions = await provider.provideCompletions(value);
+				const completions = await provider.provideCompletions(promptValue);
 				if (completions) {
-					for (const c of completions) {
-						// TODO: distinguish in some way when in terminal dev mode
-						result.push(c);
+					for (const completion of completions) {
+						// TODO: check if in dev mode and only then add the extension name to the label
+						completion.detail = `(${extensionId}) ${completion.detail ?? ''}`;
+						completionItems.push(completion);
 					}
 				}
 			}
 		}
-		return result.length > 0 ? result : undefined;
+		return completionItems.length > 0 ? completionItems : undefined;
 	}
 }
