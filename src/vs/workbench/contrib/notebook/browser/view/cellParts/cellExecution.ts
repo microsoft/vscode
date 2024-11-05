@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { disposableTimeout } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { disposableTimeout } from '../../../../../../base/common/async.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { clamp } from '../../../../../../base/common/numbers.js';
+import { ICellViewModel, INotebookEditorDelegate } from '../../notebookBrowser.js';
+import { CellViewModelStateChangeEvent } from '../../notebookViewEvents.js';
+import { CellContentPart } from '../cellPart.js';
+import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
+import { NotebookCellInternalMetadata } from '../../../common/notebookCommon.js';
+import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
 
 const UPDATE_EXECUTION_ORDER_GRACE_PERIOD = 200;
 

@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { CancelablePromise, createCancelablePromise, disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
-import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
-import { IActiveCodeEditor, ICodeEditor, IViewZoneChangeAccessor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
-import { CodeLens, Command } from 'vs/editor/common/languages';
-import { CodeLensItem, CodeLensModel, getCodeLensModel } from 'vs/editor/contrib/codelens/browser/codelens';
-import { ICodeLensCache } from 'vs/editor/contrib/codelens/browser/codeLensCache';
-import { CodeLensHelper, CodeLensWidget } from 'vs/editor/contrib/codelens/browser/codelensWidget';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { CancelablePromise, createCancelablePromise, disposableTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
+import { onUnexpectedError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { StableEditorScrollState } from '../../../browser/stableEditorScroll.js';
+import { IActiveCodeEditor, ICodeEditor, IViewZoneChangeAccessor, MouseTargetType } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { EditorOption, EDITOR_FONT_DEFAULTS } from '../../../common/config/editorOptions.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { IModelDecorationsChangeAccessor } from '../../../common/model.js';
+import { CodeLens, Command } from '../../../common/languages.js';
+import { CodeLensItem, CodeLensModel, getCodeLensModel } from './codelens.js';
+import { ICodeLensCache } from './codeLensCache.js';
+import { CodeLensHelper, CodeLensWidget } from './codelensWidget.js';
+import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 
 export class CodeLensContribution implements IEditorContribution {
 

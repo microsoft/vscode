@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { Emitter } from 'vs/base/common/event';
-import * as path from 'vs/base/common/path';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { promiseWithResolvers } from 'vs/base/common/async';
+import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { Emitter } from '../../../../base/common/event.js';
+import * as path from '../../../../base/common/path.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { promiseWithResolvers } from '../../../../base/common/async.js';
 
 export class DeltaExtensionsResult {
 	constructor(

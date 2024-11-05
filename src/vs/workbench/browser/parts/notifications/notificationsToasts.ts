@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notificationsToasts';
-import { localize } from 'vs/nls';
-import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
-import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow } from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { INotificationsToastController } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Severity, NotificationsFilter, NotificationPriority } from 'vs/platform/notification/common/notification';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IntervalCounter } from 'vs/base/common/async';
-import { assertIsDefined } from 'vs/base/common/types';
-import { NotificationsToastsVisibleContext } from 'vs/workbench/common/contextkeys';
-import { mainWindow } from 'vs/base/browser/window';
+import './media/notificationsToasts.css';
+import { localize } from '../../../../nls.js';
+import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from '../../../common/notifications.js';
+import { IDisposable, dispose, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow } from '../../../../base/browser/dom.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { NotificationsList } from './notificationsList.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from '../../../common/theme.js';
+import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { INotificationsToastController } from './notificationsCommands.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { Severity, NotificationsFilter, NotificationPriority } from '../../../../platform/notification/common/notification.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IntervalCounter } from '../../../../base/common/async.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { NotificationsToastsVisibleContext } from '../../../common/contextkeys.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 interface INotificationToast {
 	readonly item: INotificationViewItem;

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ExtHostSpeechShape, IMainContext, MainContext, MainThreadSpeechShape } from 'vs/workbench/api/common/extHost.protocol';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ExtHostSpeechShape, IMainContext, MainContext, MainThreadSpeechShape } from './extHost.protocol.js';
 import type * as vscode from 'vscode';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 
 export class ExtHostSpeech implements ExtHostSpeechShape {
 

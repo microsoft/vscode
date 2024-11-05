@@ -7,17 +7,17 @@
  * This module contains utility functions related to the environment, cwd and paths.
  */
 
-import * as path from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
-import { IShellLaunchConfig, ITerminalBackend, ITerminalEnvironment, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { IProcessEnvironment, isWindows, isMacintosh, language, OperatingSystem } from 'vs/base/common/platform';
-import { escapeNonWindowsPath, sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
-import { isString } from 'vs/base/common/types';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { ILogService } from 'vs/platform/log/common/log';
+import * as path from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { sanitizeProcessEnvironment } from '../../../../base/common/processes.js';
+import { IShellLaunchConfig, ITerminalBackend, ITerminalEnvironment, TerminalShellType, WindowsShellType } from '../../../../platform/terminal/common/terminal.js';
+import { IProcessEnvironment, isWindows, isMacintosh, language, OperatingSystem } from '../../../../base/common/platform.js';
+import { escapeNonWindowsPath, sanitizeCwd } from '../../../../platform/terminal/common/terminalEnvironment.js';
+import { isString } from '../../../../base/common/types.js';
+import { IHistoryService } from '../../../services/history/common/history.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export function mergeEnvironments(parent: IProcessEnvironment, other: ITerminalEnvironment | undefined): void {
 	if (!other) {

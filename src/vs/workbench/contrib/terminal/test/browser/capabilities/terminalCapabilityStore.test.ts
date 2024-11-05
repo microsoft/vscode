@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { TerminalCapabilityStore, TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalCapabilityStore, TerminalCapabilityStoreMultiplexer } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 
 suite('TerminalCapabilityStore', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IClipboardService = createDecorator<IClipboardService>('clipboardService');
 
@@ -53,4 +53,10 @@ export interface IClipboardService {
 	 * Used for implementations such as web which do not always support using the real clipboard.
 	 */
 	clearInternalState?(): void;
+
+	/**
+	 * Reads resources from the system clipboard as an image. If the clipboard does not contain an
+	 * image, an empty buffer is returned.
+	 */
+	readImage(): Promise<Uint8Array>;
 }

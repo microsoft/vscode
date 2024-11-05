@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
-import { Color } from 'vs/base/common/color';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import * as nls from '../../../../nls.js';
+import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
+import { IColorRegistry, Extensions as ColorRegistryExtensions } from '../../../../platform/theme/common/colorRegistry.js';
+import { Color } from '../../../../base/common/color.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../extensionManagement/common/extensionFeatures.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 interface IColorExtensionPoint {
 	id: string;

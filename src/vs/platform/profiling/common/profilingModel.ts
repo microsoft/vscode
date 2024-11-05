@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IV8Profile, IV8ProfileNode } from 'vs/platform/profiling/common/profiling';
+import type { IV8Profile, IV8ProfileNode } from './profiling.js';
 
 // #region
 // https://github.com/microsoft/vscode-js-profile-visualizer/blob/6e7401128ee860be113a916f80fcfe20ac99418e/packages/vscode-js-profile-core/src/cpu/model.ts#L4

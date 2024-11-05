@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { throttle } from 'vs/base/common/decorators';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ILogService, LogLevel } from '../../../../log/common/log.js';
+import type { ITerminalCommand } from '../capabilities.js';
+import { throttle } from '../../../../../base/common/decorators.js';
 
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
 import type { Terminal, IMarker, IBufferCell, IBufferLine, IBuffer } from '@xterm/headless';
 
 const enum PromptInputState {

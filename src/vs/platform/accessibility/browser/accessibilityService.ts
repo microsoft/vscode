@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener } from 'vs/base/browser/dom';
-import { alert, status } from 'vs/base/browser/ui/aria/aria';
-import { mainWindow } from 'vs/base/browser/window';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { AccessibilitySupport, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { addDisposableListener } from '../../../base/browser/dom.js';
+import { alert, status } from '../../../base/browser/ui/aria/aria.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { AccessibilitySupport, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IAccessibilityService } from '../common/accessibility.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../contextkey/common/contextkey.js';
+import { ILayoutService } from '../../layout/browser/layoutService.js';
 
 export class AccessibilityService extends Disposable implements IAccessibilityService {
 	declare readonly _serviceBrand: undefined;

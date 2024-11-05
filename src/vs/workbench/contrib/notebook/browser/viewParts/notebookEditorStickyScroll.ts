@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { EventType as TouchEventType } from 'vs/base/browser/touch';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, type IReference } from 'vs/base/common/lifecycle';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { CellFoldingState, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
-import { NotebookCellOutlineDataSource } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineDataSource';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { Delayer } from 'vs/base/common/async';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { foldingCollapsedIcon, foldingExpandedIcon } from 'vs/editor/contrib/folding/browser/foldingDecorations';
-import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { FoldingController } from 'vs/workbench/contrib/notebook/browser/controller/foldingController';
-import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { NotebookSectionArgs } from 'vs/workbench/contrib/notebook/browser/controller/sectionActions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookCellOutlineDataSourceFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineDataSourceFactory';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, type IReference } from '../../../../../base/common/lifecycle.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { CellFoldingState, INotebookEditor } from '../notebookBrowser.js';
+import { INotebookCellList } from '../view/notebookRenderingCommon.js';
+import { OutlineEntry } from '../viewModel/OutlineEntry.js';
+import { NotebookCellOutlineDataSource } from '../viewModel/notebookOutlineDataSource.js';
+import { CellKind } from '../../common/notebookCommon.js';
+import { Delayer } from '../../../../../base/common/async.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { foldingCollapsedIcon, foldingExpandedIcon } from '../../../../../editor/contrib/folding/browser/foldingDecorations.js';
+import { MarkupCellViewModel } from '../viewModel/markupCellViewModel.js';
+import { FoldingController } from '../controller/foldingController.js';
+import { NotebookOptionsChangeEvent } from '../notebookOptions.js';
+import { NotebookSectionArgs } from '../controller/sectionActions.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotebookCellOutlineDataSourceFactory } from '../viewModel/notebookOutlineDataSourceFactory.js';
 
 export class NotebookStickyLine extends Disposable {
 	constructor(

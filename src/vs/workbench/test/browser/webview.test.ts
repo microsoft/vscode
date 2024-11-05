@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { parentOriginHash } from 'vs/base/browser/iframe';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { parentOriginHash } from '../../../base/browser/iframe.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 
 suite('parentOriginHash', () => {
 

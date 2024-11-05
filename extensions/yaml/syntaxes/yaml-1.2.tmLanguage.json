@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/d4dca9f38a654ebbb13c1b72b7881e3c5864a778",
+	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/71a88711ec184b7dde5240c8f150ad3c2dbbd5f1",
 	"name": "YAML 1.2",
 	"scopeName": "source.yaml.1.2",
 	"comment": "https://yaml.org/spec/1.2.2",
@@ -654,25 +654,22 @@
 			"patterns": [
 				{
 					"comment": "https://yaml.org/spec/1.2.2/#8111-block-indentation-indicator",
-					"begin": "([\t ]*+)(?>(\\|)|(>))(?<chomp>[+-])?+((1)|(2)|(3)|(4)|(5)|(6)|(7)|(8)|(9))(?(<chomp>)|([+-]))?+",
-					"while": "\\G(?>(?>(?!\\6) |(?!\\7) {2}|(?!\\8) {3}|(?!\\9) {4}|(?!\\10) {5}|(?!\\11) {6}|(?!\\12) {7}|(?!\\13) {8}|(?!\\14) {9})| *+($|[^#]))",
+					"begin": "(?>(\\|)|(>))(?<chomp>[+-])?+((1)|(2)|(3)|(4)|(5)|(6)|(7)|(8)|(9))(?(<chomp>)|([+-]))?+",
+					"while": "\\G(?>(?>(?!\\5) |(?!\\6) {2}|(?!\\7) {3}|(?!\\8) {4}|(?!\\9) {5}|(?!\\10) {6}|(?!\\11) {7}|(?!\\12) {8}|(?!\\13) {9})| *+($|[^#]))",
 					"beginCaptures": {
 						"1": {
-							"name": "punctuation.whitespace.separator.yaml"
-						},
-						"2": {
 							"name": "keyword.control.flow.block-scalar.literal.yaml"
 						},
-						"3": {
+						"2": {
 							"name": "keyword.control.flow.block-scalar.folded.yaml"
 						},
-						"4": {
+						"3": {
 							"name": "storage.modifier.chomping-indicator.yaml"
 						},
-						"5": {
+						"4": {
 							"name": "constant.numeric.indentation-indicator.yaml"
 						},
-						"15": {
+						"14": {
 							"name": "storage.modifier.chomping-indicator.yaml"
 						}
 					},
@@ -710,19 +707,16 @@
 				{
 					"comment": "https://yaml.org/spec/1.2.2/#rule-c-b-block-header",
 					"//": "Soooooooo many edge cases",
-					"begin": "([\t ]*+)(?>(\\|)|(>))([+-]?+)",
+					"begin": "(?>(\\|)|(>))([+-]?+)",
 					"while": "\\G",
 					"beginCaptures": {
 						"1": {
-							"name": "punctuation.whitespace.separator.yaml"
-						},
-						"2": {
 							"name": "keyword.control.flow.block-scalar.literal.yaml"
 						},
-						"3": {
+						"2": {
 							"name": "keyword.control.flow.block-scalar.folded.yaml"
 						},
-						"4": {
+						"3": {
 							"name": "storage.modifier.chomping-indicator.yaml"
 						}
 					},

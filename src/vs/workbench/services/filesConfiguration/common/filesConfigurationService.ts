@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata, IFileService, IBaseFileStat, hasReadonlyCapability, IFilesConfigurationNode } from 'vs/platform/files/common/files';
-import { equals } from 'vs/base/common/objects';
-import { URI } from 'vs/base/common/uri';
-import { isWeb } from 'vs/base/common/platform';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
-import { GlobalIdleValue } from 'vs/base/common/async';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { LRUCache, ResourceMap } from 'vs/base/common/map';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorResourceAccessor, SaveReason, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IStringDictionary } from 'vs/base/common/collections';
+import { localize } from '../../../../nls.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { RawContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata, IFileService, IBaseFileStat, hasReadonlyCapability, IFilesConfigurationNode } from '../../../../platform/files/common/files.js';
+import { equals } from '../../../../base/common/objects.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ResourceGlobMatcher } from '../../../common/resources.js';
+import { GlobalIdleValue } from '../../../../base/common/async.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { LRUCache, ResourceMap } from '../../../../base/common/map.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { EditorResourceAccessor, SaveReason, SideBySideEditor } from '../../../common/editor.js';
+import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
 
 export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false, true);
 

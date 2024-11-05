@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import type { IView } from 'vs/workbench/common/views';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import type { IView } from '../../../common/views.js';
 
 export const enum OutlineSortOrder {
 	ByPosition,

@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownRenderOptions, MarkedOptions, renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { IMarkdownString, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./renderedMarkdown';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { MarkdownRenderOptions, MarkedOptions, renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { IMarkdownString, MarkdownStringTrustedOptions } from '../../../../../base/common/htmlContent.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import './renderedMarkdown.css';
+import { applyFontInfo } from '../../../config/domFontInfo.js';
+import { ICodeEditor } from '../../../editorBrowser.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../common/languages/modesRegistry.js';
+import { tokenizeToString } from '../../../../common/languages/textToHtmlTokenizer.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 
 export interface IMarkdownRenderResult extends IDisposable {
 	readonly element: HTMLElement;
@@ -105,10 +105,14 @@ export class MarkdownRenderer {
 			},
 			asyncRenderCallback: () => this._onDidRenderAsync.fire(),
 			actionHandler: {
-				callback: (link) => openLinkFromMarkdown(this._openerService, link, markdown.isTrusted),
+				callback: (link) => this.openMarkdownLink(link, markdown),
 				disposables: disposables
 			}
 		};
+	}
+
+	protected async openMarkdownLink(link: string, markdown: IMarkdownString) {
+		await openLinkFromMarkdown(this._openerService, link, markdown.isTrusted);
 	}
 }
 

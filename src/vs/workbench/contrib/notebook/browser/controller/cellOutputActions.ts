@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INotebookOutputActionContext, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS, NOTEBOOK_CELL_HAS_OUTPUTS } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { ILogService } from 'vs/platform/log/common/log';
-import { copyCellOutput } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ICellOutputViewModel, ICellViewModel, INotebookEditor, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { localize } from '../../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { INotebookOutputActionContext, NOTEBOOK_ACTIONS_CATEGORY } from './coreActions.js';
+import { NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS, NOTEBOOK_CELL_HAS_OUTPUTS } from '../../common/notebookContextKeys.js';
+import * as icons from '../notebookIcons.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { copyCellOutput } from '../contrib/clipboard/cellOutputClipboard.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ICellOutputViewModel, ICellViewModel, INotebookEditor, getNotebookEditorFromEditorPane } from '../notebookBrowser.js';
+import { CellKind, CellUri } from '../../common/notebookCommon.js';
+import { CodeCellViewModel } from '../viewModel/codeCellViewModel.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { INotebookEditorModelResolverService } from '../../common/notebookEditorModelResolverService.js';
 
 export const COPY_OUTPUT_COMMAND_ID = 'notebook.cellOutput.copy';
 
@@ -157,6 +158,7 @@ registerAction2(class OpenCellOutputInEditorAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel } | undefined): Promise<void> {
 		const notebookEditor = this.getNoteboookEditor(accessor.get(IEditorService), outputContext);
+		const notebookModelService = accessor.get(INotebookEditorModelResolverService);
 
 		if (!notebookEditor) {
 			return;
@@ -172,7 +174,10 @@ registerAction2(class OpenCellOutputInEditorAction extends Action2 {
 		const openerService = accessor.get(IOpenerService);
 
 		if (outputViewModel?.model.outputId && notebookEditor.textModel?.uri) {
-			openerService.open(CellUri.generateCellOutputUri(notebookEditor.textModel.uri, outputViewModel.model.outputId));
+			// reserve notebook document reference since the active notebook editor might not be pinned so it can be replaced by the output editor
+			const ref = await notebookModelService.resolve(notebookEditor.textModel.uri);
+			await openerService.open(CellUri.generateCellOutputUri(notebookEditor.textModel.uri, outputViewModel.model.outputId));
+			ref.dispose();
 		}
 	}
 });

@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBoundarySashes, ISashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ISettableObservable, autorun, observableValue } from 'vs/base/common/observable';
-import { DiffEditorOptions } from '../diffEditorOptions';
-import { derivedWithSetter } from 'vs/base/common/observableInternal/derived';
+import { IBoundarySashes, ISashEvent, Orientation, Sash, SashState } from '../../../../../base/browser/ui/sash/sash.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, IReader, ISettableObservable, autorun, derivedWithSetter, observableValue } from '../../../../../base/common/observable.js';
+import { DiffEditorOptions } from '../diffEditorOptions.js';
 
 export class SashLayout {
 	public readonly sashLeft = derivedWithSetter(this, reader => {

@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { EDITOR_FONT_DEFAULTS, type IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalConfigurationService, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
-import type { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, FontWeight, ITerminalConfiguration, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MINIMUM_LETTER_SPACING, TERMINAL_CONFIG_SECTION, type ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { EDITOR_FONT_DEFAULTS, type IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ITerminalConfigurationService, LinuxDistro } from './terminal.js';
+import type { IXtermCore } from './xterm-private.js';
+import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, FontWeight, ITerminalConfiguration, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MINIMUM_LETTER_SPACING, TERMINAL_CONFIG_SECTION, type ITerminalFont } from '../common/terminal.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 
 // #region TerminalConfigurationService
 
@@ -125,6 +126,13 @@ export class TerminalFontMetrics extends Disposable {
 
 		// Always fallback to monospace, otherwise a proportional font may become the default
 		fontFamily += ', monospace';
+
+		// Always fallback to AppleBraille on macOS, otherwise braille will render with filled and
+		// empty circles in all 8 positions, instead of just filled circles
+		// See https://github.com/microsoft/vscode/issues/174521
+		if (isMacintosh) {
+			fontFamily += ', AppleBraille';
+		}
 
 		const letterSpacing = this._terminalConfigurationService.config.letterSpacing ? Math.max(Math.floor(this._terminalConfigurationService.config.letterSpacing), MINIMUM_LETTER_SPACING) : DEFAULT_LETTER_SPACING;
 		const lineHeight = this._terminalConfigurationService.config.lineHeight ? Math.max(this._terminalConfigurationService.config.lineHeight, 1) : DEFAULT_LINE_HEIGHT;

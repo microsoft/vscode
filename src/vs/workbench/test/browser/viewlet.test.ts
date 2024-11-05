@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { PaneCompositeDescriptor, Extensions, PaneCompositeRegistry, PaneComposite } from 'vs/workbench/browser/panecomposite';
-import { isFunction } from 'vs/base/common/types';
-import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { PaneCompositeDescriptor, Extensions, PaneCompositeRegistry, PaneComposite } from '../../browser/panecomposite.js';
+import { isFunction } from '../../../base/common/types.js';
+import { IBoundarySashes } from '../../../base/browser/ui/sash/sash.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 
 suite('Viewlets', () => {
 

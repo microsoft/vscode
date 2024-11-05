@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Lazy } from 'vs/base/common/lazy';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Lazy } from '../../common/lazy.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Lazy', () => {
 

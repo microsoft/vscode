@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Barrier } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { isEqual, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { Change, IRemoteUserData, IResourcePreview as IBaseResourcePreview, IUserDataResourceManifest, IUserDataSyncConfiguration, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+import { Barrier } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { isEqual, joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IFileService } from '../../../files/common/files.js';
+import { IStorageService, StorageScope } from '../../../storage/common/storage.js';
+import { IUserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
+import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from '../../common/abstractSynchronizer.js';
+import { Change, IRemoteUserData, IResourcePreview as IBaseResourcePreview, IUserDataResourceManifest, IUserDataSyncConfiguration, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, USER_DATA_SYNC_SCHEME } from '../../common/userDataSync.js';
+import { UserDataSyncClient, UserDataSyncTestServer } from './userDataSyncClient.js';
 
 interface ITestResourcePreview extends IResourcePreview {
 	ref: string;

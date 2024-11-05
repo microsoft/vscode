@@ -5,12 +5,12 @@
 
 import * as fs from 'fs';
 import assert from 'assert';
-import * as path from 'vs/base/common/path';
-import { SingleModifierChord, ResolvedKeybinding, Keybinding } from 'vs/base/common/keybindings';
-import { Promises } from 'vs/base/node/pfs';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
-import { FileAccess } from 'vs/base/common/network';
+import * as path from '../../../../../base/common/path.js';
+import { SingleModifierChord, ResolvedKeybinding, Keybinding } from '../../../../../base/common/keybindings.js';
+import { Promises } from '../../../../../base/node/pfs.js';
+import { IKeyboardEvent } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IKeyboardMapper } from '../../../../../platform/keyboardLayout/common/keyboardMapper.js';
+import { FileAccess } from '../../../../../base/common/network.js';
 
 export interface IResolvedKeybinding {
 	label: string | null;

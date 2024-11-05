@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
-import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { URI, UriComponents, UriDto } from '../../../../base/common/uri.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { ILoggerResource, LogLevel } from '../../../../platform/log/common/log.js';
+import { IRemoteConnectionData } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 
 export interface IExtensionDescriptionSnapshot {
 	readonly versionId: number;
@@ -83,8 +83,8 @@ export interface IStaticWorkspaceData {
 
 export interface MessagePortLike {
 	postMessage(message: any, transfer?: any[]): void;
-	addEventListener(type: 'message', listener: (e: any) => any): void;
-	removeEventListener(type: 'message', listener: (e: any) => any): void;
+	addEventListener(type: 'message', listener: (e: any) => unknown): void;
+	removeEventListener(type: 'message', listener: (e: any) => unknown): void;
 	start(): void;
 }
 

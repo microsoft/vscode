@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionManifest, TargetPlatform, IExtension } from 'vs/platform/extensions/common/extensions';
-import { isWeb, Language } from 'vs/base/common/platform';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { builtinExtensionsPath, FileAccess } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITranslations, localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
-import { ILogService } from 'vs/platform/log/common/log';
-import { mainWindow } from 'vs/base/browser/window';
+import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionManifest, TargetPlatform, IExtension } from '../../../../platform/extensions/common/extensions.js';
+import { isWeb, Language } from '../../../../base/common/platform.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { builtinExtensionsPath, FileAccess } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ITranslations, localizeManifest } from '../../../../platform/extensionManagement/common/extensionNls.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 interface IBundledExtension {
 	extensionPath: string;

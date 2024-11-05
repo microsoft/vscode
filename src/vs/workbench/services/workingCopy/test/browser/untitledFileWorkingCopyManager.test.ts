@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
-import { NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/storedFileWorkingCopy.test';
-import { TestUntitledFileWorkingCopyModel, TestUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/untitledFileWorkingCopy.test';
-import { TestInMemoryFileSystemProvider, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { FileWorkingCopyManager, IFileWorkingCopyManager } from '../../common/fileWorkingCopyManager.js';
+import { NO_TYPE_ID, WorkingCopyCapabilities } from '../../common/workingCopy.js';
+import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from './storedFileWorkingCopy.test.js';
+import { TestUntitledFileWorkingCopyModel, TestUntitledFileWorkingCopyModelFactory } from './untitledFileWorkingCopy.test.js';
+import { TestInMemoryFileSystemProvider, TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('UntitledFileWorkingCopyManager', () => {
 

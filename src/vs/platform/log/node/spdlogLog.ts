@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as spdlog from '@vscode/spdlog';
-import { ByteSize } from 'vs/platform/files/common/files';
-import { AbstractMessageLogger, ILogger, LogLevel } from 'vs/platform/log/common/log';
+import { ByteSize } from '../../files/common/files.js';
+import { AbstractMessageLogger, ILogger, LogLevel } from '../common/log.js';
 
 enum SpdLogLevel {
 	Trace,

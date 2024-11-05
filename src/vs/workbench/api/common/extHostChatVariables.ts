@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostChatVariablesShape, IChatVariableResolverProgressDto, IMainContext, MainContext, MainThreadChatVariablesShape } from 'vs/workbench/api/common/extHost.protocol';
-import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { onUnexpectedExternalError } from '../../../base/common/errors.js';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtHostChatVariablesShape, IChatVariableResolverProgressDto, IMainContext, MainContext, MainThreadChatVariablesShape } from './extHost.protocol.js';
+import * as typeConvert from './extHostTypeConverters.js';
+import * as extHostTypes from './extHostTypes.js';
+import { IChatRequestVariableValue, IChatVariableData } from '../../contrib/chat/common/chatVariables.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import type * as vscode from 'vscode';
 
 export class ExtHostChatVariables implements ExtHostChatVariablesShape {

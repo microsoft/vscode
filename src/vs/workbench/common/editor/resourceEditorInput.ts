@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Verbosity, EditorInputWithPreferredResource, EditorInputCapabilities, IFileLimitedEditorInputOptions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { URI } from 'vs/base/common/uri';
-import { ByteSize, IFileReadLimits, IFileService, getLargeFileConfirmationLimit } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { dirname, isEqual } from 'vs/base/common/resources';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { isConfigured } from 'vs/platform/configuration/common/configuration';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { ICustomEditorLabelService } from 'vs/workbench/services/editor/common/customEditorLabelService';
+import { Verbosity, EditorInputWithPreferredResource, EditorInputCapabilities, IFileLimitedEditorInputOptions } from '../editor.js';
+import { EditorInput } from './editorInput.js';
+import { URI } from '../../../base/common/uri.js';
+import { ByteSize, IFileReadLimits, IFileService, getLargeFileConfirmationLimit } from '../../../platform/files/common/files.js';
+import { ILabelService } from '../../../platform/label/common/label.js';
+import { dirname, isEqual } from '../../../base/common/resources.js';
+import { IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { isConfigured } from '../../../platform/configuration/common/configuration.js';
+import { ITextResourceConfigurationService } from '../../../editor/common/services/textResourceConfiguration.js';
+import { ICustomEditorLabelService } from '../../services/editor/common/customEditorLabelService.js';
 
 /**
  * The base class for all editor inputs that open resources.

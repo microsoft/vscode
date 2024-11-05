@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { Event } from 'vs/base/common/event';
-import { isChrome, isEdge, isFirefox, isLinux, isMacintosh, isSafari, isWeb, isWindows } from 'vs/base/common/platform';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { Scanner, LexingError, Token, TokenType } from 'vs/platform/contextkey/common/scanner';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { localize } from 'vs/nls';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { illegalArgument } from 'vs/base/common/errors';
+import { CharCode } from '../../../base/common/charCode.js';
+import { Event } from '../../../base/common/event.js';
+import { isChrome, isEdge, isFirefox, isLinux, isMacintosh, isSafari, isWeb, isWindows } from '../../../base/common/platform.js';
+import { isFalsyOrWhitespace } from '../../../base/common/strings.js';
+import { Scanner, LexingError, Token, TokenType } from './scanner.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { localize } from '../../../nls.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { illegalArgument } from '../../../base/common/errors.js';
 
 const CONSTANT_VALUES = new Map<string, boolean>();
 CONSTANT_VALUES.set('false', false);

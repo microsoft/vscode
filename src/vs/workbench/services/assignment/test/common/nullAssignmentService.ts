@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
+import { IWorkbenchAssignmentService } from '../../common/assignmentService.js';
 
 export class NullWorkbenchAssignmentService implements IWorkbenchAssignmentService {
 	_serviceBrand: undefined;

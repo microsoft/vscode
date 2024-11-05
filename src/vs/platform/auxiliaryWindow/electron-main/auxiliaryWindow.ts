@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateService } from 'vs/platform/state/node/state';
-import { hasNativeTitlebar, TitlebarStyle } from 'vs/platform/window/common/window';
-import { IBaseWindow, WindowMode } from 'vs/platform/window/electron-main/window';
-import { BaseWindow } from 'vs/platform/windows/electron-main/windowImpl';
+import { isLinux, isWindows } from '../../../base/common/platform.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { IStateService } from '../../state/node/state.js';
+import { hasNativeTitlebar, TitlebarStyle } from '../../window/common/window.js';
+import { IBaseWindow, WindowMode } from '../../window/electron-main/window.js';
+import { BaseWindow } from '../../windows/electron-main/windowImpl.js';
 
 export interface IAuxiliaryWindow extends IBaseWindow {
 	readonly parentId: number;

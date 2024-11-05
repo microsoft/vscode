@@ -11,7 +11,7 @@ const pickle = require('chromium-pickle-js');
 const Filesystem = require('asar/lib/filesystem');
 const VinylFile = require("vinyl");
 const minimatch = require("minimatch");
-function createAsar(folderPath, unpackGlobs, skipGlobs, destFilename) {
+function createAsar(folderPath, unpackGlobs, skipGlobs, duplicateGlobs, destFilename) {
     const shouldUnpackFile = (file) => {
         for (let i = 0; i < unpackGlobs.length; i++) {
             if (minimatch(file.relative, unpackGlobs[i])) {
@@ -23,6 +23,16 @@ function createAsar(folderPath, unpackGlobs, skipGlobs, destFilename) {
     const shouldSkipFile = (file) => {
         for (const skipGlob of skipGlobs) {
             if (minimatch(file.relative, skipGlob)) {
+                return true;
+            }
+        }
+        return false;
+    };
+    // Files that should be duplicated between
+    // node_modules.asar and node_modules
+    const shouldDuplicateFile = (file) => {
+        for (const duplicateGlob of duplicateGlobs) {
+            if (minimatch(file.relative, duplicateGlob)) {
                 return true;
             }
         }
@@ -73,7 +83,21 @@ function createAsar(folderPath, unpackGlobs, skipGlobs, destFilename) {
             throw new Error(`unknown item in stream!`);
         }
         if (shouldSkipFile(file)) {
+            this.queue(new VinylFile({
+                base: '.',
+                path: file.path,
+                stat: file.stat,
+                contents: file.contents
+            }));
             return;
+        }
+        if (shouldDuplicateFile(file)) {
+            this.queue(new VinylFile({
+                base: '.',
+                path: file.path,
+                stat: file.stat,
+                contents: file.contents
+            }));
         }
         const shouldUnpack = shouldUnpackFile(file);
         insertFile(file.relative, { size: file.contents.length, mode: file.stat.mode }, shouldUnpack);

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Range } from 'vs/editor/common/core/range';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel, shouldSynchronizeModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { formatDocumentRangesWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/browser/format';
-import * as nls from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { getOriginalResource } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
-import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { EditorAction, registerEditorAction, ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { ITextModel, shouldSynchronizeModel } from '../../../../editor/common/model.js';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { formatDocumentRangesWithSelectedProvider, FormattingMode } from '../../../../editor/contrib/format/browser/format.js';
+import * as nls from '../../../../nls.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Progress } from '../../../../platform/progress/common/progress.js';
+import { getOriginalResource } from '../../scm/browser/dirtydiffDecorator.js';
+import { IQuickDiffService } from '../../scm/common/quickDiff.js';
 
 registerEditorAction(class FormatModifiedAction extends EditorAction {
 

@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/statusbarpart';
-import { localize } from 'vs/nls';
-import { Disposable, DisposableStore, dispose, disposeIfDisposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { MultiWindowParts, Part } from 'vs/workbench/browser/part';
-import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarStyleOverride, isStatusbarEntryLocation, IStatusbarEntryLocation, isStatusbarEntryPriority, IStatusbarEntryPriority } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IAction, Separator, toAction } from 'vs/base/common/actions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, STATUS_BAR_ITEM_FOCUS_BORDER, STATUS_BAR_FOCUS_BORDER } from 'vs/workbench/common/theme';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { EventHelper, createStyleSheet, addDisposableListener, EventType, clearNode, getWindow } from 'vs/base/browser/dom';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { equals } from 'vs/base/common/arrays';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
-import { hash } from 'vs/base/common/hash';
-import { WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
-import { HideStatusbarEntryAction, ToggleStatusbarEntryVisibilityAction } from 'vs/workbench/browser/parts/statusbar/statusbarActions';
-import { IStatusbarViewModelEntry, StatusbarViewModel } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
-import { StatusbarEntryItem } from 'vs/workbench/browser/parts/statusbar/statusbarItem';
-import { StatusBarFocused } from 'vs/workbench/common/contextkeys';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IView } from 'vs/base/browser/ui/grid/grid';
+import './media/statusbarpart.css';
+import { localize } from '../../../../nls.js';
+import { Disposable, DisposableStore, dispose, disposeIfDisposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { MultiWindowParts, Part } from '../../part.js';
+import { EventType as TouchEventType, Gesture, GestureEvent } from '../../../../base/browser/touch.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarStyleOverride, isStatusbarEntryLocation, IStatusbarEntryLocation, isStatusbarEntryPriority, IStatusbarEntryPriority } from '../../../services/statusbar/browser/statusbar.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, STATUS_BAR_ITEM_FOCUS_BORDER, STATUS_BAR_FOCUS_BORDER } from '../../../common/theme.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { contrastBorder, activeContrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { EventHelper, createStyleSheet, addDisposableListener, EventType, clearNode, getWindow } from '../../../../base/browser/dom.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { Parts, IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { equals } from '../../../../base/common/arrays.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { ToggleStatusbarVisibilityAction } from '../../actions/layoutActions.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { isHighContrast } from '../../../../platform/theme/common/theme.js';
+import { hash } from '../../../../base/common/hash.js';
+import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
+import { HideStatusbarEntryAction, ToggleStatusbarEntryVisibilityAction } from './statusbarActions.js';
+import { IStatusbarViewModelEntry, StatusbarViewModel } from './statusbarModel.js';
+import { StatusbarEntryItem } from './statusbarItem.js';
+import { StatusBarFocused } from '../../../common/contextkeys.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IView } from '../../../../base/browser/ui/grid/grid.js';
 
 export interface IStatusbarEntryContainer extends IDisposable {
 

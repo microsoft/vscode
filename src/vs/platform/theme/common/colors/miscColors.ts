@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls.js';
 
 // Import the effects we need
-import { Color } from 'vs/base/common/color';
-import { registerColor, transparent } from 'vs/platform/theme/common/colorUtils';
+import { Color } from '../../../../base/common/color.js';
+import { registerColor, transparent } from '../colorUtils.js';
 
 // Import the colors we need
-import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colors/baseColors';
+import { contrastBorder, focusBorder } from './baseColors.js';
 
 
 // ----- sash

@@ -3,28 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/common/async';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
-import * as semver from 'vs/base/common/semver/semver';
-import { isBoolean } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { Promises as FSPromises } from 'vs/base/node/pfs';
-import { buffer, CorruptZipMessage } from 'vs/base/node/zip';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ExtensionVerificationStatus, toExtensionManagementError } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
-import { ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionKey, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { fromExtractError } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
-import { ExtensionSignatureVerificationError, ExtensionSignatureVerificationCode, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
-import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Promises } from '../../../base/common/async.js';
+import { getErrorMessage } from '../../../base/common/errors.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { joinPath } from '../../../base/common/resources.js';
+import * as semver from '../../../base/common/semver/semver.js';
+import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { Promises as FSPromises } from '../../../base/node/pfs.js';
+import { buffer, CorruptZipMessage } from '../../../base/node/zip.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { toExtensionManagementError } from '../common/abstractExtensionManagementService.js';
+import { ExtensionManagementError, ExtensionManagementErrorCode, ExtensionSignatureVerificationCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from '../common/extensionManagement.js';
+import { ExtensionKey, groupByExtension } from '../common/extensionManagementUtil.js';
+import { fromExtractError } from './extensionManagementUtil.js';
+import { IExtensionSignatureVerificationService } from './extensionSignatureVerificationService.js';
+import { TargetPlatform } from '../../extensions/common/extensions.js';
+import { IFileService, IFileStatWithMetadata } from '../../files/common/files.js';
+import { ILogService } from '../../log/common/log.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 type RetryDownloadClassification = {
 	owner: 'sandy081';
@@ -49,7 +47,6 @@ export class ExtensionsDownloader extends Disposable {
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionSignatureVerificationService private readonly extensionSignatureVerificationService: IExtensionSignatureVerificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
@@ -60,42 +57,39 @@ export class ExtensionsDownloader extends Disposable {
 		this.cleanUpPromise = this.cleanUp();
 	}
 
-	async download(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean, clientTargetPlatform?: TargetPlatform): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionVerificationStatus }> {
+	async download(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean, clientTargetPlatform?: TargetPlatform): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionSignatureVerificationCode | undefined }> {
 		await this.cleanUpPromise;
 
 		const location = await this.downloadVSIX(extension, operation);
 
-		let verificationStatus: ExtensionVerificationStatus = false;
+		if (!verifySignature || !extension.isSigned) {
+			return { location, verificationStatus: undefined };
+		}
 
-		if (verifySignature && this.shouldVerifySignature(extension)) {
-
-			let signatureArchiveLocation;
-			try {
-				signatureArchiveLocation = await this.downloadSignatureArchive(extension);
-			} catch (error) {
+		let signatureArchiveLocation;
+		try {
+			signatureArchiveLocation = await this.downloadSignatureArchive(extension);
+			const verificationStatus = (await this.extensionSignatureVerificationService.verify(extension.identifier.id, extension.version, location.fsPath, signatureArchiveLocation.fsPath, clientTargetPlatform))?.code;
+			if (verificationStatus === ExtensionSignatureVerificationCode.PackageIsInvalidZip || verificationStatus === ExtensionSignatureVerificationCode.SignatureArchiveIsInvalidZip) {
 				try {
-					// Delete the downloaded VSIX if signature archive download fails
+					// Delete the downloaded vsix if VSIX or signature archive is invalid
 					await this.delete(location);
 				} catch (error) {
 					this.logService.error(error);
 				}
-				throw error;
+				throw new ExtensionManagementError(CorruptZipMessage, ExtensionManagementErrorCode.CorruptZip);
 			}
-
+			return { location, verificationStatus };
+		} catch (error) {
 			try {
-				verificationStatus = await this.extensionSignatureVerificationService.verify(extension, location.fsPath, signatureArchiveLocation.fsPath, clientTargetPlatform);
+				// Delete the downloaded VSIX if signature archive download fails
+				await this.delete(location);
 			} catch (error) {
-				verificationStatus = (error as ExtensionSignatureVerificationError).code;
-				if (verificationStatus === ExtensionSignatureVerificationCode.PackageIsInvalidZip || verificationStatus === ExtensionSignatureVerificationCode.SignatureArchiveIsInvalidZip) {
-					try {
-						// Delete the downloaded vsix if VSIX or signature archive is invalid
-						await this.delete(location);
-					} catch (error) {
-						this.logService.error(error);
-					}
-					throw new ExtensionManagementError(CorruptZipMessage, ExtensionManagementErrorCode.CorruptZip);
-				}
-			} finally {
+				this.logService.error(error);
+			}
+			throw error;
+		} finally {
+			if (signatureArchiveLocation) {
 				try {
 					// Delete signature archive always
 					await this.delete(signatureArchiveLocation);
@@ -104,18 +98,6 @@ export class ExtensionsDownloader extends Disposable {
 				}
 			}
 		}
-
-		return { location, verificationStatus };
-	}
-
-	private shouldVerifySignature(extension: IGalleryExtension): boolean {
-		if (!extension.isSigned) {
-			this.logService.info(`Extension is not signed: ${extension.identifier.id}`);
-			return false;
-		}
-
-		const value = this.configurationService.getValue('extensions.verifySignature');
-		return isBoolean(value) ? value : true;
 	}
 
 	private async downloadVSIX(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {

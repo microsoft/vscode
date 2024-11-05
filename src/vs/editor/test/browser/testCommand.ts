@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IRange } from 'vs/editor/common/core/range';
-import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { ICommand, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { instantiateTestCodeEditor, createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
-import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { IRange } from '../../common/core/range.js';
+import { Selection, ISelection } from '../../common/core/selection.js';
+import { ICommand, IEditOperationBuilder } from '../../common/editorCommon.js';
+import { ITextModel } from '../../common/model.js';
+import { instantiateTestCodeEditor, createCodeEditorServices } from './testCodeEditor.js';
+import { instantiateTextModel } from '../common/testTextModel.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { ISingleEditOperation } from '../../common/core/editOperation.js';
 
 export function testCommand(
 	lines: string[],

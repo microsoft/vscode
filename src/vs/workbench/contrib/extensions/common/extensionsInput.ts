@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ExtensionEditorTab, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { join } from 'vs/base/common/path';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { ExtensionEditorTab, IExtension } from './extensions.js';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { join } from '../../../../base/common/path.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 
 const ExtensionEditorIcon = registerIcon('extensions-editor-label-icon', Codicon.extensions, localize('extensionsEditorLabelIcon', 'Icon of the extensions editor label.'));
 

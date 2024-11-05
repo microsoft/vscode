@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NotSupportedError } from 'vs/base/common/errors';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Registry } from 'vs/platform/registry/common/platform';
-import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { NotSupportedError } from '../../../../base/common/errors.js';
+import { IDisposable, Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from '../../../../platform/files/common/files.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import * as JSONContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 

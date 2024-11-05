@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Schemas, matchesSomeScheme } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { ISelection } from 'vs/editor/common/core/selection';
-import * as languages from 'vs/editor/common/languages';
-import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
-import { validateWhenClauses } from 'vs/platform/contextkey/common/contextkey';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { ICallHierarchyItemDto, IIncomingCallDto, IInlineValueContextDto, IOutgoingCallDto, IRawColorInfo, ITypeHierarchyItemDto, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import { TransientCellMetadata, TransientDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import * as search from 'vs/workbench/contrib/search/common/search';
+import { isFalsyOrEmpty } from '../../../base/common/arrays.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { Schemas, matchesSomeScheme } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
+import { IPosition } from '../../../editor/common/core/position.js';
+import { IRange } from '../../../editor/common/core/range.js';
+import { ISelection } from '../../../editor/common/core/selection.js';
+import * as languages from '../../../editor/common/languages.js';
+import { decodeSemanticTokensDto } from '../../../editor/common/services/semanticTokensDto.js';
+import { validateWhenClauses } from '../../../platform/contextkey/common/contextkey.js';
+import { ITextEditorOptions } from '../../../platform/editor/common/editor.js';
+import { ICallHierarchyItemDto, IIncomingCallDto, IInlineValueContextDto, IOutgoingCallDto, IRawColorInfo, ITypeHierarchyItemDto, IWorkspaceEditDto } from './extHost.protocol.js';
+import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from './extHostCommands.js';
+import { CustomCodeAction } from './extHostLanguageFeatures.js';
+import * as typeConverters from './extHostTypeConverters.js';
+import * as types from './extHostTypes.js';
+import { TransientCellMetadata, TransientDocumentMetadata } from '../../contrib/notebook/common/notebookCommon.js';
+import * as search from '../../contrib/search/common/search.js';
 import type * as vscode from 'vscode';
 
 //#region --- NEW world

@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { MetadataConsts, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IndentAction, IndentationRule } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { EndOfLinePreference, EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModelEventDispatcher';
-import { ITestCodeEditor, TestCodeEditorInstantiationOptions, createCodeEditorServices, instantiateTestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { CoreEditingCommands, CoreNavigationCommands } from '../../../browser/coreCommands.js';
+import { IEditorOptions } from '../../../common/config/editorOptions.js';
+import { EditOperation } from '../../../common/core/editOperation.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { ICursorPositionChangedEvent } from '../../../common/cursorEvents.js';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../../../common/editorCommon.js';
+import { MetadataConsts, StandardTokenType } from '../../../common/encodedTokenAttributes.js';
+import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from '../../../common/languages.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { IndentAction, IndentationRule } from '../../../common/languages/languageConfiguration.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { NullState } from '../../../common/languages/nullTokenize.js';
+import { EndOfLinePreference, EndOfLineSequence, ITextModel } from '../../../common/model.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { ViewModel } from '../../../common/viewModel/viewModelImpl.js';
+import { OutgoingViewModelEventKind } from '../../../common/viewModelEventDispatcher.js';
+import { ITestCodeEditor, TestCodeEditorInstantiationOptions, createCodeEditorServices, instantiateTestCodeEditor, withTestCodeEditor } from '../testCodeEditor.js';
+import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel } from '../../common/testTextModel.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 // --------- utils
 

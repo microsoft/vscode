@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterable } from 'vs/base/common/iterator';
+import { Iterable } from './iterator.js';
 
 const unset = Symbol('unset');
 

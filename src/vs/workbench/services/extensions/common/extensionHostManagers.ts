@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
-import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
-import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup } from 'vs/workbench/services/extensions/common/extensions';
-import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
+import { Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionHostKind } from './extensionHostKind.js';
+import { IExtensionDescriptionDelta } from './extensionHostProtocol.js';
+import { IResolveAuthorityResult } from './extensionHostProxy.js';
+import { ExtensionRunningLocation } from './extensionRunningLocation.js';
+import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup } from './extensions.js';
+import { ResponsiveState } from './rpcProtocol.js';
 
 export interface IExtensionHostManager {
 	readonly pid: number | null;

@@ -16,7 +16,6 @@ const vfs = require("vinyl-fs");
 const ext = require("./extensions");
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
-const mkdirp = require('mkdirp');
 const root = path.dirname(path.dirname(__dirname));
 const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
 const builtInExtensions = productjson.builtInExtensions || [];
@@ -107,7 +106,7 @@ function readControlFile() {
     }
 }
 function writeControlFile(control) {
-    mkdirp.sync(path.dirname(controlFilePath));
+    fs.mkdirSync(path.dirname(controlFilePath), { recursive: true });
     fs.writeFileSync(controlFilePath, JSON.stringify(control, null, 2));
 }
 function getBuiltInExtensions() {

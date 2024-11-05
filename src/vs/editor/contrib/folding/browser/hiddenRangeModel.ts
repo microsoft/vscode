@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findFirstIdxMonotonousOrArrLen } from 'vs/base/common/arraysFind';
+import { findFirstIdxMonotonousOrArrLen } from '../../../../base/common/arraysFind.js';
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { countEOL } from 'vs/editor/common/core/eolCounter';
-import { FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
+import { countEOL } from '../../../common/core/eolCounter.js';
+import { FoldingModel } from './foldingModel.js';
 
 export class HiddenRangeModel {
 

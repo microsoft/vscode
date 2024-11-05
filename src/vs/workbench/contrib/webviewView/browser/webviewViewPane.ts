@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, Dimension, EventType, findParentWithClass, getWindow } from 'vs/base/browser/dom';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewPane, ViewPaneShowActions } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { IViewBadge, IViewDescriptorService } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { ExtensionKeyedWebviewOriginStore, IOverlayWebview, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
-import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { addDisposableListener, Dimension, EventType, findParentWithClass, getWindow } from '../../../../base/browser/dom.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
+import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
+import { Memento, MementoObject } from '../../../common/memento.js';
+import { IViewBadge, IViewDescriptorService } from '../../../common/views.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ExtensionKeyedWebviewOriginStore, IOverlayWebview, IWebviewService, WebviewContentPurpose } from '../../webview/browser/webview.js';
+import { WebviewWindowDragMonitor } from '../../webview/browser/webviewWindowDragMonitor.js';
+import { IWebviewViewService, WebviewView } from './webviewViewService.js';
+import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 declare const ResizeObserver: any;
 

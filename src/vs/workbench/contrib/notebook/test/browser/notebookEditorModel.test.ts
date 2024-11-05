@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, IOutputDto, NotebookData, NotebookSetting, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookFileWorkingCopyModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { setupInstantiationService } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../../base/common/mime.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { CellKind, IOutputDto, NotebookData, NotebookSetting, TransientOptions } from '../../common/notebookCommon.js';
+import { NotebookFileWorkingCopyModel } from '../../common/notebookEditorModel.js';
+import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from '../../common/notebookService.js';
+import { setupInstantiationService } from './testNotebookEditor.js';
+import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
 
 suite('NotebookFileWorkingCopyModel', function () {
 

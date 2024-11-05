@@ -3,35 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { OutputService } from 'vs/workbench/contrib/output/browser/outputServices';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT } from 'vs/workbench/services/output/common/output';
-import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IQuickPickItem, IQuickInputService, IQuickPickSeparator, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { assertIsDefined } from 'vs/base/common/types';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { ILoggerService, LogLevel, LogLevelToLocalizedString, LogLevelToString } from 'vs/platform/log/common/log';
-import { IDefaultLogLevelsService } from 'vs/workbench/contrib/logs/common/defaultLogLevels';
+import * as nls from '../../../../nls.js';
+import { KeyMod, KeyChord, KeyCode } from '../../../../base/common/keyCodes.js';
+import { ModesRegistry } from '../../../../editor/common/languages/modesRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { OutputService } from './outputServices.js';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT } from '../../../services/output/common/output.js';
+import { OutputViewPane } from './outputView.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from '../../../common/views.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IQuickPickItem, IQuickInputService, IQuickPickSeparator, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import { AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, IEditorService } from '../../../services/editor/common/editorService.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { ILoggerService, LogLevel, LogLevelToLocalizedString, LogLevelToString } from '../../../../platform/log/common/log.js';
+import { IDefaultLogLevelsService } from '../../logs/common/defaultLogLevels.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
+import { IsWindowsContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { FocusedViewContext } from '../../../common/contextkeys.js';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
@@ -540,4 +545,29 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['output']
 		}
 	}
+});
+
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'cursorWordAccessibilityLeft',
+	when: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
+	primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+	weight: KeybindingWeight.WorkbenchContrib
+});
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'cursorWordAccessibilityLeftSelect',
+	when: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
+	weight: KeybindingWeight.WorkbenchContrib
+});
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'cursorWordAccessibilityRight',
+	when: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
+	primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
+	weight: KeybindingWeight.WorkbenchContrib
+});
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'cursorWordAccessibilityRightSelect',
+	when: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow,
+	weight: KeybindingWeight.WorkbenchContrib
 });

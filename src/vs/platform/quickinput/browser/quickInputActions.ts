@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { isMacintosh } from 'vs/base/common/platform';
-import { PartialExcept } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
-import { ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
-import { ICommandAndKeybindingRule, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { endOfQuickInputBoxContext, inQuickInputContext, quickInputTypeContextKeyValue } from 'vs/platform/quickinput/browser/quickInput';
-import { IQuickInputService, IQuickPick, QuickInputType, QuickPickFocus } from 'vs/platform/quickinput/common/quickInput';
+import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
+import { isMacintosh } from '../../../base/common/platform.js';
+import { PartialExcept } from '../../../base/common/types.js';
+import { localize } from '../../../nls.js';
+import { ICommandHandler } from '../../commands/common/commands.js';
+import { ContextKeyExpr } from '../../contextkey/common/contextkey.js';
+import { InputFocusedContext } from '../../contextkey/common/contextkeys.js';
+import { ICommandAndKeybindingRule, KeybindingWeight, KeybindingsRegistry } from '../../keybinding/common/keybindingsRegistry.js';
+import { endOfQuickInputBoxContext, inQuickInputContext, quickInputTypeContextKeyValue } from './quickInput.js';
+import { IQuickInputService, IQuickPick, QuickInputType, QuickPickFocus } from '../common/quickInput.js';
 
 const defaultCommandAndKeybindingRule = {
 	weight: KeybindingWeight.WorkbenchContrib,

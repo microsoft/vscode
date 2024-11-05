@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Color, HSLA, HSVA, RGBA } from 'vs/base/common/color';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Color, HSLA, HSVA, RGBA } from '../../common/color.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Color', () => {
 
@@ -251,6 +251,73 @@ suite('Color', () => {
 				assert.deepStrictEqual(Color.Format.CSS.parseHex('#CFA')!.rgba, new RGBA(204, 255, 170, 1));
 				assert.deepStrictEqual(Color.Format.CSS.parseHex('#CFA8')!.rgba, new RGBA(204, 255, 170, 0.533));
 			});
+		});
+	});
+
+	const rgbaFromInt = (int: number) => new Color(new RGBA(
+		(int >> 24) & 0xff,
+		(int >> 16) & 0xff,
+		(int >> 8) & 0xff,
+		(int) & 0xff
+	));
+
+	const assertContrastRatio = (background: number, foreground: number, ratio: number, expected = foreground) => {
+		const bgColor = rgbaFromInt(background);
+		const fgColor = rgbaFromInt(foreground);
+		assert.deepStrictEqual(bgColor.ensureConstrast(fgColor, ratio).rgba, rgbaFromInt(expected).rgba);
+	};
+
+	// https://github.com/xtermjs/xterm.js/blob/44f9fa39ae03e2ca6d28354d88a399608686770e/src/common/Color.test.ts#L355
+	suite('ensureContrastRatio', () => {
+		test('should return undefined if the color already meets the contrast ratio (black bg)', () => {
+			assertContrastRatio(0x000000ff, 0x606060ff, 1, undefined);
+			assertContrastRatio(0x000000ff, 0x606060ff, 2, undefined);
+			assertContrastRatio(0x000000ff, 0x606060ff, 3, undefined);
+		});
+		test('should return a color that meets the contrast ratio (black bg)', () => {
+			assertContrastRatio(0x000000ff, 0x606060ff, 4, 0x707070ff);
+			assertContrastRatio(0x000000ff, 0x606060ff, 5, 0x7f7f7fff);
+			assertContrastRatio(0x000000ff, 0x606060ff, 6, 0x8c8c8cff);
+			assertContrastRatio(0x000000ff, 0x606060ff, 7, 0x989898ff);
+			assertContrastRatio(0x000000ff, 0x606060ff, 8, 0xa3a3a3ff);
+			assertContrastRatio(0x000000ff, 0x606060ff, 9, 0xadadadff);
+			assertContrastRatio(0x000000ff, 0x606060ff, 10, 0xb6b6b6ff);
+			assertContrastRatio(0x000000ff, 0x606060ff, 11, 0xbebebeff);
+			assertContrastRatio(0x000000ff, 0x606060ff, 12, 0xc5c5c5ff);
+			assertContrastRatio(0x000000ff, 0x606060ff, 13, 0xd1d1d1ff);
+			assertContrastRatio(0x000000ff, 0x606060ff, 14, 0xd6d6d6ff);
+			assertContrastRatio(0x000000ff, 0x606060ff, 15, 0xdbdbdbff);
+			assertContrastRatio(0x000000ff, 0x606060ff, 16, 0xe3e3e3ff);
+			assertContrastRatio(0x000000ff, 0x606060ff, 17, 0xe9e9e9ff);
+			assertContrastRatio(0x000000ff, 0x606060ff, 18, 0xeeeeeeff);
+			assertContrastRatio(0x000000ff, 0x606060ff, 19, 0xf4f4f4ff);
+			assertContrastRatio(0x000000ff, 0x606060ff, 20, 0xfafafaff);
+			assertContrastRatio(0x000000ff, 0x606060ff, 21, 0xffffffff);
+		});
+		test('should return undefined if the color already meets the contrast ratio (white bg)', () => {
+			assertContrastRatio(0xffffffff, 0x606060ff, 1, undefined);
+			assertContrastRatio(0xffffffff, 0x606060ff, 2, undefined);
+			assertContrastRatio(0xffffffff, 0x606060ff, 3, undefined);
+			assertContrastRatio(0xffffffff, 0x606060ff, 4, undefined);
+			assertContrastRatio(0xffffffff, 0x606060ff, 5, undefined);
+			assertContrastRatio(0xffffffff, 0x606060ff, 6, undefined);
+		});
+		test('should return a color that meets the contrast ratio (white bg)', () => {
+			assertContrastRatio(0xffffffff, 0x606060ff, 7, 0x565656ff);
+			assertContrastRatio(0xffffffff, 0x606060ff, 8, 0x4d4d4dff);
+			assertContrastRatio(0xffffffff, 0x606060ff, 9, 0x454545ff);
+			assertContrastRatio(0xffffffff, 0x606060ff, 10, 0x3e3e3eff);
+			assertContrastRatio(0xffffffff, 0x606060ff, 11, 0x373737ff);
+			assertContrastRatio(0xffffffff, 0x606060ff, 12, 0x313131ff);
+			assertContrastRatio(0xffffffff, 0x606060ff, 13, 0x313131ff);
+			assertContrastRatio(0xffffffff, 0x606060ff, 14, 0x272727ff);
+			assertContrastRatio(0xffffffff, 0x606060ff, 15, 0x232323ff);
+			assertContrastRatio(0xffffffff, 0x606060ff, 16, 0x1f1f1fff);
+			assertContrastRatio(0xffffffff, 0x606060ff, 17, 0x1b1b1bff);
+			assertContrastRatio(0xffffffff, 0x606060ff, 18, 0x151515ff);
+			assertContrastRatio(0xffffffff, 0x606060ff, 19, 0x101010ff);
+			assertContrastRatio(0xffffffff, 0x606060ff, 20, 0x080808ff);
+			assertContrastRatio(0xffffffff, 0x606060ff, 21, 0x000000ff);
 		});
 	});
 });

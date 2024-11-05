@@ -3,17 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { COMMENTS_VIEW_ID, CommentsMenus } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
-import { CommentsPanel, CONTEXT_KEY_COMMENT_FOCUSED } from 'vs/workbench/contrib/comments/browser/commentsView';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { COMMENTS_VIEW_ID, CommentsMenus } from './commentsTreeViewer.js';
+import { CommentsPanel, CONTEXT_KEY_COMMENT_FOCUSED } from './commentsView.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ICommentService } from './commentService.js';
+import { CommentContextKeys } from '../common/commentContextKeys.js';
+import { moveToNextCommentInThread as findNextCommentInThread, revealCommentThread } from './commentsController.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { URI } from '../../../../base/common/uri.js';
+import { CommentThread, Comment } from '../../../../editor/common/languages.js';
+import { IRange } from '../../../../editor/common/core/range.js';
 
 export class CommentsAccessibleView extends Disposable implements IAccessibleViewImplentation {
 	readonly priority = 90;
@@ -26,6 +35,7 @@ export class CommentsAccessibleView extends Disposable implements IAccessibleVie
 		const menuService = accessor.get(IMenuService);
 		const commentsView = viewsService.getActiveViewWithId<CommentsPanel>(COMMENTS_VIEW_ID);
 		const focusedCommentNode = commentsView?.focusedCommentNode;
+
 		if (!commentsView || !focusedCommentNode) {
 			return;
 		}
@@ -38,6 +48,28 @@ export class CommentsAccessibleView extends Disposable implements IAccessibleVie
 		super();
 	}
 }
+
+
+export class CommentThreadAccessibleView extends Disposable implements IAccessibleViewImplentation {
+	readonly priority = 85;
+	readonly name = 'commentThread';
+	readonly when = CommentContextKeys.commentFocused;
+	readonly type = AccessibleViewType.View;
+	getProvider(accessor: ServicesAccessor) {
+		const commentService = accessor.get(ICommentService);
+		const editorService = accessor.get(IEditorService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
+		const threads = commentService.commentsModel.hasCommentThreads();
+		if (!threads) {
+			return;
+		}
+		return new CommentsThreadWidgetAccessibleContentProvider(commentService, editorService, uriIdentityService);
+	}
+	constructor() {
+		super();
+	}
+}
+
 
 class CommentsAccessibleContentProvider extends Disposable implements IAccessibleViewContentProvider {
 	constructor(
@@ -82,5 +114,70 @@ class CommentsAccessibleContentProvider extends Disposable implements IAccessibl
 	providePreviousContent(): string | undefined {
 		this._commentsView.focusPreviousNode();
 		return this.provideContent();
+	}
+}
+
+class CommentsThreadWidgetAccessibleContentProvider extends Disposable implements IAccessibleViewContentProvider {
+	readonly id = AccessibleViewProviderId.CommentThread;
+	readonly verbositySettingKey = AccessibilityVerbositySettingId.Comments;
+	readonly options = { type: AccessibleViewType.View };
+	private _activeCommentInfo: { thread: CommentThread<IRange>; comment?: Comment } | undefined;
+	constructor(@ICommentService private readonly _commentService: ICommentService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+	) {
+		super();
+	}
+
+	private get activeCommentInfo(): { thread: CommentThread<IRange>; comment?: Comment } | undefined {
+		if (!this._activeCommentInfo && this._commentService.lastActiveCommentcontroller) {
+			this._activeCommentInfo = this._commentService.lastActiveCommentcontroller.activeComment;
+		}
+		return this._activeCommentInfo;
+	}
+
+	provideContent(): string {
+		if (!this.activeCommentInfo) {
+			throw new Error('No current comment thread');
+		}
+		const comment = this.activeCommentInfo.comment?.body;
+		const commentLabel = typeof comment === 'string' ? comment : comment?.value ?? '';
+		const resource = this.activeCommentInfo.thread.resource;
+		const range = this.activeCommentInfo.thread.range;
+		let contentLabel = '';
+		if (resource && range) {
+			const editor = this._editorService.findEditors(URI.parse(resource)) || [];
+			const codeEditor = this._editorService.activeEditorPane?.getControl();
+			if (editor?.length && isCodeEditor(codeEditor)) {
+				const content = codeEditor.getModel()?.getValueInRange(range);
+				if (content) {
+					contentLabel = '\nCorresponding code: \n' + content;
+				}
+			}
+		}
+		return commentLabel + contentLabel;
+	}
+	onClose(): void {
+		const lastComment = this._activeCommentInfo;
+		this._activeCommentInfo = undefined;
+		if (lastComment) {
+			revealCommentThread(this._commentService, this._editorService, this._uriIdentityService, lastComment.thread, lastComment.comment);
+		}
+	}
+	provideNextContent(): string | undefined {
+		const newCommentInfo = findNextCommentInThread(this._activeCommentInfo, 'next');
+		if (newCommentInfo) {
+			this._activeCommentInfo = newCommentInfo;
+			return this.provideContent();
+		}
+		return undefined;
+	}
+	providePreviousContent(): string | undefined {
+		const newCommentInfo = findNextCommentInThread(this._activeCommentInfo, 'previous');
+		if (newCommentInfo) {
+			this._activeCommentInfo = newCommentInfo;
+			return this.provideContent();
+		}
+		return undefined;
 	}
 }

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileAccess } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
-import type { INLSConfiguration } from 'vs/nls';
-import { resolveNLSConfiguration } from 'vs/base/node/nls';
-import { Promises } from 'vs/base/node/pfs';
-import product from 'vs/platform/product/common/product';
+import { FileAccess } from '../../base/common/network.js';
+import { join } from '../../base/common/path.js';
+import type { INLSConfiguration } from '../../nls.js';
+import { resolveNLSConfiguration } from '../../base/node/nls.js';
+import { Promises } from '../../base/node/pfs.js';
+import product from '../../platform/product/common/product.js';
 
 const nlsMetadataPath = join(FileAccess.asFileUri('').fsPath);
 const defaultMessagesFile = join(nlsMetadataPath, 'nls.messages.json');

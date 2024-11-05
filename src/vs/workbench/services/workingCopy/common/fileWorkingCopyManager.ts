@@ -3,42 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Promises } from 'vs/base/common/async';
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { toLocalResource, joinPath, isEqual, basename, dirname } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ISaveOptions, SaveSourceRegistry } from 'vs/workbench/common/editor';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopyResolveOptions, StoredFileWorkingCopyState } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
-import { StoredFileWorkingCopyManager, IStoredFileWorkingCopyManager, IStoredFileWorkingCopyManagerResolveOptions } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
-import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
-import { INewOrExistingUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyWithAssociatedResourceOptions, IUntitledFileWorkingCopyManager, UntitledFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopyManager';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IBaseFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
-import { IFileWorkingCopy, SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { Schemas } from 'vs/base/common/network';
-import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
-import { Codicon } from 'vs/base/common/codicons';
-import { listErrorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IProgressService } from 'vs/platform/progress/common/progress';
+import { localize } from '../../../../nls.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Promises } from '../../../../base/common/async.js';
+import { VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { toLocalResource, joinPath, isEqual, basename, dirname } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IFileDialogService, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { ISaveOptions, SaveSourceRegistry } from '../../../common/editor.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IPathService } from '../../path/common/pathService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopyResolveOptions, StoredFileWorkingCopyState } from './storedFileWorkingCopy.js';
+import { StoredFileWorkingCopyManager, IStoredFileWorkingCopyManager, IStoredFileWorkingCopyManagerResolveOptions } from './storedFileWorkingCopyManager.js';
+import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelFactory, UntitledFileWorkingCopy } from './untitledFileWorkingCopy.js';
+import { INewOrExistingUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyWithAssociatedResourceOptions, IUntitledFileWorkingCopyManager, UntitledFileWorkingCopyManager } from './untitledFileWorkingCopyManager.js';
+import { IWorkingCopyFileService } from './workingCopyFileService.js';
+import { IBaseFileWorkingCopyManager } from './abstractFileWorkingCopyManager.js';
+import { IFileWorkingCopy, SnapshotContext } from './fileWorkingCopy.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { IElevatedFileService } from '../../files/common/elevatedFileService.js';
+import { IFilesConfigurationService } from '../../filesConfiguration/common/filesConfigurationService.js';
+import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
+import { IWorkingCopyBackupService } from './workingCopyBackup.js';
+import { IWorkingCopyEditorService } from './workingCopyEditorService.js';
+import { IWorkingCopyService } from './workingCopyService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../decorations/common/decorations.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { listErrorForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
 
 export interface IFileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<S | U, IFileWorkingCopy<S | U>> {
 
