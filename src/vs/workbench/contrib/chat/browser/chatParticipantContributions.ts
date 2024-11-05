@@ -337,18 +337,28 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [viewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
 			storageId: viewContainerId,
 			hideIfEmpty: true,
-			order: 100,
-		}, ViewContainerLocation.AuxiliaryBar);
+			order: 101,
+		}, ViewContainerLocation.AuxiliaryBar, { doNotRegisterOpenCommand: true });
 
 		const id = 'workbench.panel.chat.view.edits';
 		const viewDescriptor: IViewDescriptor[] = [{
-			id: id,
+			id,
 			containerIcon: viewContainer.icon,
 			containerTitle: title.value,
 			singleViewPaneContainerTitle: title.value,
 			name: { value: title.value, original: title.value },
 			canToggleVisibility: false,
 			canMoveView: true,
+			openCommandActionDescriptor: {
+				id: viewContainerId,
+				keybindings: {
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
+					linux: {
+						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI
+					}
+				},
+				order: 101
+			},
 			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.EditingSession }]),
 			when: ChatContextKeys.editingParticipantRegistered
 		}];
