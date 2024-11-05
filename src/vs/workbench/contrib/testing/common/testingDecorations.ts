@@ -31,7 +31,7 @@ export interface ITestingDecorationsService {
 	 * Ensures decorations in the given document URI are up to date,
 	 * and returns them.
 	 */
-	syncDecorations(resource: URI): Iterable<ITestDecoration> & {
+	syncDecorations(editor: unknown, resource: URI): Iterable<ITestDecoration> & {
 		readonly size: number;
 		getById(decorationId: string): ITestDecoration | undefined;
 	};

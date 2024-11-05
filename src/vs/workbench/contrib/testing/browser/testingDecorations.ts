@@ -22,10 +22,12 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Constants } from '../../../../base/common/uint.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { IDimension } from '../../../../editor/common/core/dimension.js';
 import { overviewRulerError, overviewRulerInfo } from '../../../../editor/common/core/editorColorRegistry.js';
+import { Position } from '../../../../editor/common/core/position.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { GlyphMarginLane, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from '../../../../editor/common/model.js';
@@ -49,7 +51,7 @@ import { ITestProfileService } from '../common/testProfileService.js';
 import { ITestResult, LiveTestResult } from '../common/testResult.js';
 import { ITestResultService } from '../common/testResultService.js';
 import { ITestService, getContextForTestItem, simplifyTestsToExecute, testsInFile } from '../common/testService.js';
-import { ITestMessage, ITestRunProfile, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from '../common/testTypes.js';
+import { ITestErrorMessage, ITestMessage, ITestRunProfile, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from '../common/testTypes.js';
 import { ITestDecoration as IPublicTestDecoration, ITestingDecorationsService, TestDecorations } from '../common/testingDecorations.js';
 import { ITestingPeekOpener } from '../common/testingPeekOpener.js';
 import { isFailedState, maxPriority } from '../common/testingStates.js';
@@ -83,9 +85,10 @@ interface ITestDecoration extends IPublicTestDecoration {
 class CachedDecorations {
 	private readonly runByIdKey = new Map<string, RunTestDecoration>();
 	private readonly messages = new Map<ITestMessage, TestMessageDecoration>();
+	private readonly errors = new Map<ITestMessage, TestErrorContentWidget>();
 
 	public get size() {
-		return this.runByIdKey.size + this.messages.size;
+		return this.runByIdKey.size + this.messages.size + this.errors.size;
 	}
 
 	/** Gets a test run decoration that contains exactly the given test IDs */
@@ -107,6 +110,26 @@ class CachedDecorations {
 	/** Adds a new test message decoration */
 	public addMessage(d: TestMessageDecoration) {
 		this.messages.set(d.testMessage, d);
+	}
+
+	/** Gets the decoration that corresponds to the given test message */
+	public getError(message: ITestMessage) {
+		return this.errors.get(message);
+	}
+
+	/** Removes the decoration for the given test messsage */
+	public removeError(message: ITestMessage) {
+		this.errors.delete(message);
+	}
+
+	/** Adds a new test error decoration */
+	public addError(d: TestErrorContentWidget) {
+		this.errors.set(d.message, d);
+	}
+
+	/** Gets error decorations */
+	public getErrors() {
+		return this.errors.values();
 	}
 
 	/** Adds a new test run decroation */
@@ -222,7 +245,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 				return;
 			}
 
-			const currentDecorations = this.syncDecorations(testingDecorations.currentUri);
+			const currentDecorations = this.syncDecorations(context.editor, testingDecorations.currentUri);
 			if (!currentDecorations.size) {
 				return;
 			}
@@ -247,7 +270,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 	}
 
 	/** @inheritdoc */
-	public syncDecorations(resource: URI): CachedDecorations {
+	public syncDecorations(editor: ICodeEditor | undefined, resource: URI): CachedDecorations {
 		const model = this.modelService.getModel(resource);
 		if (!model) {
 			return new CachedDecorations();
@@ -258,7 +281,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 			return cached.value;
 		}
 
-		return this.applyDecorations(model);
+		return this.applyDecorations(editor, model);
 	}
 
 	/** @inheritdoc */
@@ -268,7 +291,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 			return undefined;
 		}
 
-		const decoration = Iterable.find(this.syncDecorations(resource), v => v instanceof RunTestDecoration && v.isForTest(testId));
+		const decoration = Iterable.find(this.syncDecorations(undefined, resource), v => v instanceof RunTestDecoration && v.isForTest(testId));
 		if (!decoration) {
 			return undefined;
 		}
@@ -308,7 +331,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 	/**
 	 * Applies the current set of test decorations to the given text model.
 	 */
-	private applyDecorations(model: ITextModel) {
+	private applyDecorations(editor: ICodeEditor | undefined, model: ITextModel) {
 		const gutterEnabled = getTestingConfiguration(this.configurationService, TestingConfigKeys.GutterEnabled);
 		const uriStr = model.uri.toString();
 		const cached = this.decorationCache.get(model.uri);
@@ -380,23 +403,32 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 			return newDecorations;
 		});
 
-		return newDecorations || lastDecorations;
-	}
-
-	private applyDecorationsFromResult(lastResult: ITestResult, messageLines: Set<Number>, uriStr: string, lastDecorations: CachedDecorations, model: ITextModel, newDecorations: CachedDecorations) {
-		if (!this.testService.showInlineOutput.value || !(lastResult instanceof LiveTestResult)) {
-			return;
-		}
-
-		for (const task of lastResult.tasks) {
-			for (const m of task.otherMessages) {
-				if (!this.invalidatedMessages.has(m) && m.location?.uri.toString() === uriStr) {
-					const decoration = lastDecorations.getMessage(m) || this.instantiationService.createInstance(TestMessageDecoration, m, undefined, model);
-					newDecorations.addMessage(decoration);
+		if (newDecorations) {
+			if (editor) {
+				this.applyContentWidgets(editor, uriStr, lastDecorations, newDecorations);
+			} else {
+				for (const decoration of lastDecorations.getErrors()) { // preserve older widgets
+					newDecorations.addError(decoration);
 				}
 			}
 		}
 
+		return newDecorations || lastDecorations;
+	}
+
+	private applyContentWidgets(editor: ICodeEditor, uriStr: string, lastDecorations: CachedDecorations, newDecorations: CachedDecorations) {
+		if (getTestingConfiguration(this.configurationService, TestingConfigKeys.ShowAllMessages)) {
+			this.results.results.forEach(lastResult => this.applyContentWidgetsFromResult(editor, lastResult, uriStr, lastDecorations, newDecorations));
+		} else if (this.results.results.length) {
+			this.applyContentWidgetsFromResult(editor, this.results.results[0], uriStr, lastDecorations, newDecorations);
+		}
+
+		for (const old of lastDecorations.getErrors()) {
+			editor.removeContentWidget(old);
+		}
+	}
+
+	private applyContentWidgetsFromResult(editor: ICodeEditor, lastResult: ITestResult, uriStr: string, lastDecorations: CachedDecorations, newDecorations: CachedDecorations) {
 		for (const test of lastResult.tests) {
 			for (let taskId = 0; taskId < test.tasks.length; taskId++) {
 				const state = test.tasks[taskId];
@@ -410,23 +442,34 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 					const line: number | undefined = m.location?.uri.toString() === uriStr
 						? m.location.range.startLineNumber
 						: m.stackTrace && mapFindFirst(m.stackTrace, (f) => f.position && f.uri?.toString() === uriStr ? f.position.lineNumber : undefined);
-
-					if (!line || messageLines.has(line)) {
+					if (line === undefined) {
 						continue;
 					}
 
-					// Only add one message per line number. Overlapping messages
-					// don't appear well, and the peek will show all of them (#134129)
-					const decoration = lastDecorations.getMessage(m) || this.instantiationService.createInstance(TestMessageDecoration, m, buildTestUri({
-						type: TestUriType.ResultActualOutput,
-						messageIndex: i,
-						taskIndex: taskId,
-						resultId: lastResult.id,
-						testExtId: test.item.extId,
-					}), model);
+					let deco = lastDecorations.getError(m);
+					if (!deco) {
+						const lineLength = editor.getModel()?.getLineLength(line) ?? 100;
+						deco = lastDecorations.getError(m) ?? new TestErrorContentWidget(new Position(line, lineLength + 1), m);
+						editor.addContentWidget(deco);
+					} else {
+						lastDecorations.removeMessage(m);
+					}
+					newDecorations.addError(deco);
+				}
+			}
+		}
+	}
 
+	private applyDecorationsFromResult(lastResult: ITestResult, messageLines: Set<Number>, uriStr: string, lastDecorations: CachedDecorations, model: ITextModel, newDecorations: CachedDecorations) {
+		if (!this.testService.showInlineOutput.value || !(lastResult instanceof LiveTestResult)) {
+			return;
+		}
+
+		for (const task of lastResult.tasks) {
+			for (const m of task.otherMessages) {
+				if (!this.invalidatedMessages.has(m) && m.location?.uri.toString() === uriStr) {
+					const decoration = lastDecorations.getMessage(m) || this.instantiationService.createInstance(TestMessageDecoration, m, undefined, model);
 					newDecorations.addMessage(decoration);
-					messageLines.add(line);
 				}
 			}
 		}
@@ -461,7 +504,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		this.attachModel(editor.getModel()?.uri);
 		this._register(decorations.onDidChange(() => {
 			if (this._currentUri) {
-				decorations.syncDecorations(this._currentUri);
+				decorations.syncDecorations(editor, this._currentUri);
 			}
 		}));
 
@@ -495,7 +538,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 					return;
 				}
 
-				const cache = decorations.syncDecorations(this.currentUri);
+				const cache = decorations.syncDecorations(editor, this.currentUri);
 				for (const { id } of modelDecorations) {
 					if ((cache.getById(id) as ITestDecoration | undefined)?.click(e)) {
 						e.event.stopPropagation();
@@ -510,7 +553,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				return;
 			}
 
-			const currentDecorations = decorations.syncDecorations(this._currentUri);
+			const currentDecorations = decorations.syncDecorations(editor, this._currentUri);
 			if (!currentDecorations.size) {
 				return;
 			}
@@ -565,7 +608,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			return;
 		}
 
-		this.decorations.syncDecorations(uri);
+		this.decorations.syncDecorations(this.editor, uri);
 
 		(async () => {
 			for await (const _test of testsInFile(this.testService, this.uriIdentityService, uri, false)) {
@@ -1226,5 +1269,40 @@ class TestMessageDecoration implements ITestDecoration {
 
 	getContextMenuActions() {
 		return { object: [], dispose: () => { } };
+	}
+}
+
+class TestErrorContentWidget implements IContentWidget {
+	private readonly id = generateUuid();
+
+	public onDidLayout?: Event<void> | undefined;
+	/** @inheritdoc */
+	public readonly allowEditorOverflow = false;
+
+	private readonly node = dom.h('div.test-error-content-widget', [
+		dom.h(`span.${ThemeIcon.asCSSSelector(testingStatesToIcons.get(TestResultState.Failed)!)}`),
+		dom.h('span@name'),
+	]);
+
+	constructor(
+		private readonly position: Position,
+		public readonly message: ITestErrorMessage,
+	) {
+		this.node.name.innerText = message.
+	}
+
+	public getId(): string {
+		return this.id;
+	}
+
+	public getDomNode(): HTMLElement {
+		return this.node.root;
+	}
+
+	public getPosition(): IContentWidgetPosition | null {
+		return {
+			position: this.position,
+			preference: [ContentWidgetPositionPreference.EXACT],
+		};
 	}
 }
