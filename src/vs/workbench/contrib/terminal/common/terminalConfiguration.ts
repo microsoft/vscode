@@ -24,6 +24,9 @@ const terminalDescriptors = '\n- ' + [
 	'`\${separator}`: ' + localize('separator', "a conditional separator {0} that only shows when surrounded by variables with values or static text.", '(` - `)'),
 	'`\${sequence}`: ' + localize('sequence', "the name provided to the terminal by the process"),
 	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task"),
+	'`\${shellType}`: ' + localize('shellType', "the detected shell type"),
+	'`\${shellCommand}`: ' + localize('shellCommand', "the command being executed according to shell integration"),
+	'`\${shellPrompt}`: ' + localize('shellPrompt', "the shell's full prompt according to shell integration"),
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
 let terminalTitle = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
