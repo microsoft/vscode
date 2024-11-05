@@ -289,7 +289,8 @@
 		width: fit-content;
 		flex-shrink: 0;
 
-		&, .codicon {
+		&,
+		.codicon {
 			color: var(--vscode-textLink-foreground);
 		}
 
@@ -406,15 +407,40 @@
 	color: var(--vscode-testing-message-info-decorationForeground) !important;
 }
 
-.test-message-inline-content-s0 {
-	margin-left: 4em;
+.monaco-workbench .test-error-content-widget {
+	margin-left: 2em;
 	color: var(--vscode-testing-message-error-badgeForeground) !important;
 	background: var(--vscode-testing-message-error-badgeBackground);
-	font-family: var(--vscode-font-family);
-	height: 100%;
-	display: inline-block;
-	border-radius: 3px;
-	padding: 0 3px;
+	border-top-right-radius: 2px;
+	border-bottom-right-radius: 2px;
+	padding-right: 3px;
+	display: flex !important;
+	align-items: center;
+	white-space: nowrap;
+	font-size: 11px;
+	gap: 3px;
+	user-select: none;
+	cursor: pointer;
+
+	&.is-current {
+		display: none !important;
+	}
+
+	.codicon.codicon-testing-failed-icon {
+		color: currentColor !important;
+		font-size: 11px;
+		margin: 1px 0 0 -4px;
+		z-index: 1;
+	}
+
+	.arrow svg {
+		position: absolute;
+		right: calc(100% - 0.4px);
+		height: 100%;
+		top: 0;
+		width: 10px;
+		fill: var(--vscode-testing-message-error-badgeBackground);
+	}
 }
 
 .monaco-editor .testing-inline-message-severity-0 {
@@ -498,7 +524,8 @@
 		}
 	}
 
-	.stat, .action-label {
+	.stat,
+	.action-label {
 		white-space: nowrap;
 		text-overflow: ellipsis;
 		overflow: hidden;
