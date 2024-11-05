@@ -5,9 +5,6 @@
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
 const path = require("path");
-const fs = require("fs");
-const os = require("os");
-const crypto = require("crypto");
 const es = require("event-stream");
 const vfs = require("vinyl-fs");
 const util = require("../lib/util");
@@ -17,13 +14,7 @@ const identity_1 = require("@azure/identity");
 const azure = require('gulp-azure-storage');
 const root = path.dirname(path.dirname(__dirname));
 const commit = process.env['BUILD_SOURCEVERSION'];
-const tokenFilePath = path.join(os.tmpdir(), crypto.randomBytes(20).toString('hex'));
-fs.writeFileSync(tokenFilePath, process.env['AZURE_ID_TOKEN']);
-const credential = new identity_1.WorkloadIdentityCredential({
-    tenantId: process.env['AZURE_TENANT_ID'],
-    clientId: process.env['AZURE_CLIENT_ID'],
-    tokenFilePath
-});
+const credential = new identity_1.ClientAssertionCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], () => Promise.resolve(process.env['AZURE_ID_TOKEN']));
 // optionally allow to pass in explicit base/maps to upload
 const [, , base, maps] = process.argv;
 function src(base, maps = `${base}/**/*.map`) {

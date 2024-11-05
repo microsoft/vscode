@@ -4,28 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import * as fs from 'fs';
-import * as os from 'os';
-import * as crypto from 'crypto';
 import * as es from 'event-stream';
 import * as Vinyl from 'vinyl';
 import * as vfs from 'vinyl-fs';
 import * as util from '../lib/util';
 // @ts-ignore
 import * as deps from '../lib/dependencies';
-import { WorkloadIdentityCredential } from '@azure/identity';
+import { ClientAssertionCredential } from '@azure/identity';
 const azure = require('gulp-azure-storage');
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = process.env['BUILD_SOURCEVERSION'];
-
-const tokenFilePath = path.join(os.tmpdir(), crypto.randomBytes(20).toString('hex'));
-fs.writeFileSync(tokenFilePath, process.env['AZURE_ID_TOKEN']!);
-const credential = new WorkloadIdentityCredential({
-	tenantId: process.env['AZURE_TENANT_ID']!,
-	clientId: process.env['AZURE_CLIENT_ID']!,
-	tokenFilePath
-});
+const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
 
 // optionally allow to pass in explicit base/maps to upload
 const [, , base, maps] = process.argv;
