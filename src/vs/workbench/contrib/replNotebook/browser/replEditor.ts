@@ -28,7 +28,7 @@ import { INotebookKernelService } from '../../notebook/common/notebookKernelServ
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from '../../interactive/browser/interactiveCommon.js';
+import { ReplEditorSettings, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from '../../interactive/browser/interactiveCommon.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { NotebookOptions } from '../../notebook/browser/notebookOptions.js';
 import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
@@ -522,6 +522,22 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 
 		this._widgetDisposableStore.add(this._notebookWidget.value!.onDidScroll(() => this._onDidChangeScroll.fire()));
 
+
+		this._widgetDisposableStore.add(this._notebookWidget.value!.onDidChangeViewCells((e) => {
+			const notebookWidget = this._notebookWidget.value;
+			if (!notebookWidget) {
+				return;
+			}
+
+			for (const splice of e.splices) {
+				const [_start, _delete, addedCells] = splice;
+				if (addedCells.length) {
+					this._notebookWidgetService.handleReplHistoryAppend(notebookWidget);
+					break;
+				}
+			}
+		}));
+
 		this._updateInputHint();
 		this._syncWithKernel();
 	}
@@ -553,7 +569,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		const index = this._notebookWidget.value!.getCellIndex(cvm);
 		if (index === this._notebookWidget.value!.getLength() - 1) {
 			// If we're already at the bottom or auto scroll is enabled, scroll to the bottom
-			if (this._configurationService.getValue<boolean>(InteractiveWindowSetting.interactiveWindowAlwaysScrollOnNewCell) || this._cellAtBottom(cvm)) {
+			if (this._configurationService.getValue<boolean>(ReplEditorSettings.interactiveWindowAlwaysScrollOnNewCell) || this._cellAtBottom(cvm)) {
 				this._notebookWidget.value!.scrollToBottom();
 			}
 		}
@@ -635,7 +651,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 
 		const shouldHide =
 			!this._codeEditorWidget.hasModel() ||
-			this._configurationService.getValue<boolean>(InteractiveWindowSetting.showExecutionHint) === false ||
+			this._configurationService.getValue<boolean>(ReplEditorSettings.showExecutionHint) === false ||
 			this._codeEditorWidget.getModel()!.getValueLength() !== 0 ||
 			this._hasConflictingDecoration();
 

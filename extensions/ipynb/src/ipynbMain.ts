@@ -93,6 +93,28 @@ export function activate(context: vscode.ExtensionContext, serializer: vscode.No
 		await vscode.window.showNotebookDocument(doc);
 	}));
 
+	const controller = vscode.notebooks.createNotebookController('test-notebook-controller', 'github-issues', 'Test Notebook',
+		(cells) => {
+			const cell = cells[0];
+			const execution = controller.createNotebookCellExecution(cell);
+
+			execution.start(Date.now());
+
+			execution.replaceOutput([new vscode.NotebookCellOutput([
+				vscode.NotebookCellOutputItem.text('done')
+			])]);
+
+			execution.end(true, Date.now());
+		}
+	);
+
+	context.subscriptions.push(vscode.commands.registerCommand('ipynb.newRepl', async () => {
+		const doc = await vscode.workspace.openNotebookDocument('github-issues');
+		controller.updateNotebookAffinity(doc, vscode.NotebookControllerAffinity.Preferred);
+
+		await vscode.window.showNotebookDocument(doc, { asRepl: 'my REPL' });
+	}));
+
 	context.subscriptions.push(vscode.commands.registerCommand('ipynb.openIpynbInNotebookEditor', async (uri: vscode.Uri) => {
 		if (vscode.window.activeTextEditor?.document.uri.toString() === uri.toString()) {
 			await vscode.commands.executeCommand('workbench.action.closeActiveEditor');

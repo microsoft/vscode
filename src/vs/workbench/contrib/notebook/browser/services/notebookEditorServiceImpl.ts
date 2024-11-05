@@ -17,10 +17,13 @@ import { GroupIdentifier, GroupModelChangeKind } from '../../../../common/editor
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { InteractiveWindowOpen } from '../../common/notebookContextKeys.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { InteractiveWindowOpen, MOST_RECENT_REPL_EDITOR } from '../../common/notebookContextKeys.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ReplEditorSettings } from '../../../interactive/browser/interactiveCommon.js';
 
 export class NotebookEditorWidgetService implements INotebookEditorService {
 
@@ -38,13 +41,17 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 	readonly onDidAddNotebookEditor = this._onNotebookEditorAdd.event;
 	readonly onDidRemoveNotebookEditor = this._onNotebookEditorsRemove.event;
 
+	private readonly _mostRecentRepl: IContextKey<string | undefined>;
+
 	private readonly _borrowableEditors = new Map<number, ResourceMap<{ widget: NotebookEditorWidget; editorType: string; token: number | undefined; disposableStore: DisposableStore }[]>>();
 
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		const onNewGroup = (group: IEditorGroup) => {
 			const { id } = group;
@@ -105,6 +112,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 			}
 		}));
 
+		this._mostRecentRepl = MOST_RECENT_REPL_EDITOR.bindTo(contextKeyService);
 		const interactiveWindowOpen = InteractiveWindowOpen.bindTo(contextKeyService);
 		this._disposables.add(editorService.onDidEditorsChange(e => {
 			if (e.event.kind === GroupModelChangeKind.EDITOR_OPEN && !interactiveWindowOpen.get()) {
@@ -263,9 +271,13 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 	}
 
 	removeNotebookEditor(editor: INotebookEditor): void {
+		const notebookUri = editor.getViewModel()?.notebookDocument.uri;
 		if (this._notebookEditors.has(editor.getId())) {
 			this._notebookEditors.delete(editor.getId());
 			this._onNotebookEditorsRemove.fire(editor);
+		}
+		if (this._mostRecentRepl.get() === notebookUri?.toString()) {
+			this._mostRecentRepl.reset();
 		}
 	}
 
@@ -275,5 +287,26 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 
 	listNotebookEditors(): readonly INotebookEditor[] {
 		return [...this._notebookEditors].map(e => e[1]);
+	}
+
+	handleReplHistoryAppend(notebookWidget: NotebookEditorWidget): void {
+		const viewModel = notebookWidget.viewModel;
+		if (!viewModel) {
+			return;
+		}
+
+		this._mostRecentRepl.set(viewModel.notebookDocument.uri.toString());
+		const navigateToCell = this.configurationService.getValue(ReplEditorSettings.autoFocusAppendedCell);
+		if ((this.accessibilityService.isScreenReaderOptimized() && navigateToCell !== 'never')
+			|| navigateToCell === 'always') {
+
+			setTimeout(() => {
+				const lastCellIndex = viewModel.length - 1;
+				if (lastCellIndex >= 0) {
+					const cell = viewModel.viewCells[lastCellIndex];
+					notebookWidget.focusNotebookCell(cell, 'container');
+				}
+			}, 0);
+		}
 	}
 }

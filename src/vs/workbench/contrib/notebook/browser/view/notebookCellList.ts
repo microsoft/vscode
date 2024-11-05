@@ -1177,7 +1177,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	domElementOfElement(element: ICellViewModel): HTMLElement | null {
 		const index = this._getViewIndexUpperBound(element);
-		if (index >= 0) {
+		if (index >= 0 && index < this.length) {
 			return this.view.domElement(index);
 		}
 
