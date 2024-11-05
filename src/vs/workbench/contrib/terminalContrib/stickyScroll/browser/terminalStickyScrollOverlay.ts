@@ -110,14 +110,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			}));
 			this._refreshGpuAcceleration();
 
-			this._xtermAddonLoader.importAddon('ligatures').then(LigaturesAddon => {
-				if (this._store.isDisposed || !this._stickyScrollOverlay) {
-					return;
-				}
-				this._ligaturesAddon = new LigaturesAddon();
-				this._stickyScrollOverlay.loadAddon(this._ligaturesAddon);
-			});
-
 			this._register(configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
 					this._syncOptions();
@@ -401,6 +393,14 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 
 		this._stickyScrollOverlay.open(this._element);
+
+		this._xtermAddonLoader.importAddon('ligatures').then(LigaturesAddon => {
+			if (this._store.isDisposed || !this._stickyScrollOverlay) {
+				return;
+			}
+			this._ligaturesAddon = new LigaturesAddon();
+			this._stickyScrollOverlay.loadAddon(this._ligaturesAddon);
+		});
 
 		// Scroll to the command on click
 		this._register(addStandardDisposableListener(hoverOverlay, 'click', () => {

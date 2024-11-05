@@ -341,8 +341,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			}
 		}
 
-		this._refreshLigaturesAddon();
-
 		if (!this.raw.element || !this.raw.textarea) {
 			throw new Error('xterm elements not set after open');
 		}
@@ -364,6 +362,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				this._updateSmoothScrolling();
 			}
 		}, { passive: true }));
+
+		this._refreshLigaturesAddon();
 
 		this._attached = { container, options };
 		// Screen must be created at this point as xterm.open is called
@@ -411,14 +411,16 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			showTopBorder: true,
 		};
 		this._updateSmoothScrolling();
-		if (this._attached?.options.enableGpu) {
-			if (this._shouldLoadWebgl()) {
-				this._enableWebglRenderer();
-			} else {
-				this._disposeOfWebglRenderer();
+		if (this._attached) {
+			if (this._attached.options.enableGpu) {
+				if (this._shouldLoadWebgl()) {
+					this._enableWebglRenderer();
+				} else {
+					this._disposeOfWebglRenderer();
+				}
 			}
+			this._refreshLigaturesAddon();
 		}
-		this._refreshLigaturesAddon();
 	}
 
 	private _updateSmoothScrolling() {
