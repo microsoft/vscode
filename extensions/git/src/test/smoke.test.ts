@@ -128,7 +128,7 @@ suite('git smoke test', function () {
 	});
 
 	test('stages with sparse-checkout', async function () {
-		cp.execSync('git sparse-checkout init', { cwd });
+		cp.execSync('git sparse-checkout init --no-cone', { cwd });
 		cp.execSync('git sparse-checkout set app.js', { cwd });
 
 		const appjs = uri('app.js');
