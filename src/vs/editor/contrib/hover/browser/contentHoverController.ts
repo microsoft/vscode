@@ -90,18 +90,22 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
 			this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
 			this._listenersStore.add(this._editor.onDidChangeModel(() => {
-				this._cancelScheduler();
-				this.hideContentHover();
+				this._cancelSchedulerAndHide();
 			}));
 			this._listenersStore.add(this._editor.onDidChangeModelContent(() => this._cancelScheduler()));
 			this._listenersStore.add(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
 		} else {
-			this.hideContentHover();
+			this._cancelSchedulerAndHide();
 		}
 	}
 
 	private _unhookListeners(): void {
 		this._listenersStore.clear();
+	}
+
+	private _cancelSchedulerAndHide(): void {
+		this._cancelScheduler();
+		this.hideContentHover();
 	}
 
 	private _cancelScheduler() {
