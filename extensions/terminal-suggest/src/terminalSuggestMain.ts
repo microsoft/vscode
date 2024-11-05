@@ -5,8 +5,39 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { execSync } from 'child_process';
 
-const builtinCommands: string[] = ['cd', 'ls', 'which', 'echo'];
+const builtinCommands: string[] | undefined = getBuiltinCommands();
+
+// TODO: use shell type to determine which builtin commands to use
+function getBuiltinCommands(): string[] | undefined {
+	try {
+		// bash
+		const bashOutput = execSync('compgen -b', { encoding: 'utf-8' });
+		const bashResult = bashOutput.split('\n').filter(cmd => cmd);
+		if (bashResult.length) {
+			return bashResult;
+		}
+		// zsh
+		const zshOutput = execSync('printf "%s\n" ${(k)builtins}', { encoding: 'utf-8' });
+		const zshResult = zshOutput.split('\n').filter(cmd => cmd);
+		if (zshResult.length) {
+			return zshResult;
+		}
+		// fish
+		const fishOutput = execSync('functions -n', { encoding: 'utf-8' });
+		const fishResult = fishOutput.split(', ').filter(cmd => cmd);
+		if (fishResult.length) {
+			return fishResult;
+		}
+		// native pwsh completions are builtin to vscode
+		return;
+
+	} catch (error) {
+		console.error('Error fetching builtin commands:', error);
+		return;
+	}
+}
 
 async function findFiles(dir: string, ext: string): Promise<string[]> {
 	let results: string[] = [];
@@ -67,9 +98,11 @@ async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
 		// TODO: Leverage shellType when available https://github.com/microsoft/vscode/issues/230165
 		//       terminal.state.shellType
 
-		const commandsInPath = await getCommandsInPath();
-		const specs = await getCompletionSpecs(commandsInPath);
-		builtinCommands.forEach(command => commandsInPath.add(command));
+		const availableCommands = await getCommandsInPath();
+		const specs = await getCompletionSpecs(availableCommands);
+		console.log('executable commands in path:', availableCommands.size);
+		builtinCommands?.forEach(command => availableCommands.add(command));
+		console.log('builtin commands:', builtinCommands?.length);
 		const result: vscode.SimpleTerminalCompletion[] = [];
 		for (const spec of specs) {
 			let name: string | undefined;
@@ -81,23 +114,19 @@ async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
 			} else {
 				name = spec.name[0];
 			}
-			if (!name || !commandsInPath.has(name)) {
+			if (!name || !availableCommands.has(name)) {
 				continue;
 			}
 
-			const lastWord = terminalContext.commandLine.trim().split(' ').pop() || '';
-			if ((terminalContext.commandLine.endsWith(' ') || terminalContext.commandLine === '') || lastWord && name.startsWith(lastWord)) {
-				result.push({
-					label: name,
-					// kind: (vscode as any).TerminalCompletionItemKind.Method,
-					isFile: false,
-					isDirectory: false,
-					detail: 'description' in spec && spec.description ? spec.description ?? '' : '',
-					// TODO: pass in suggestions and if generators, file type so VS Code handles it
-				});
-			}
+			result.push({
+				label: name,
+				// kind: (vscode as any).TerminalCompletionItemKind.Method,
+				isFile: false,
+				isDirectory: false,
+				detail: 'description' in spec && spec.description ? spec.description ?? '' : '',
+				// TODO: pass in suggestions and if generators, file type so VS Code handles it
+			});
 		}
-		console.log(result.length);
 		// Return the completion results or undefined if no results
 		return result.length ? { items: result } : undefined;
 	}
