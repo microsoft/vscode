@@ -60,6 +60,11 @@ declare module 'vscode' {
 		 * Whether the completion is a keyword.
 		 */
 		isKeyword?: boolean;
+
+		/**
+		 * Whether a file completion should be provided upon accept of this completion item.
+		 */
+		fileArgument?: boolean;
 	}
 
 

@@ -10,6 +10,7 @@ export interface Option {
 
 export interface Arg {
 	name: string;
+	template?: string;
 	description: string;
 	isOptional?: boolean;
 	generators?: () => any; // Replace with the actual type if known

@@ -472,7 +472,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Send the completion
 		this._onAcceptedCompletion.fire(resultSequence);
-
 		this.hideSuggestWidget();
 	}
 

@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { FigSpec, Option, Subcommand } from './types';
+import { Arg, FigSpec, Option, Subcommand } from './types';
 
 const builtinCommands: string[] | undefined = getBuiltinCommands();
 
@@ -109,7 +109,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 				continue;
 			}
 
-			result.push(createCompletionItem(name, spec.description));
+			result.push(createCompletionItem(name, spec.description, spec.args));
 			// TODO:
 			// deal with args on FigSpec, esp if non optional.
 			// args.template = "filepaths", should return our special kind of terminal completion
@@ -171,12 +171,13 @@ function getOptionLabel(spec: FigSpec | Subcommand, option: Option): string | un
 	return `${commandName} ${optionName}`;
 }
 
-function createCompletionItem(label: string, description?: string): vscode.SimpleTerminalCompletion {
+function createCompletionItem(label: string, description?: string, args?: Arg): vscode.SimpleTerminalCompletion {
 	return {
 		label,
 		isFile: false,
 		isDirectory: false,
 		detail: description ?? '',
+		fileArgument: args?.template === 'filepaths'
 	};
 }
 
