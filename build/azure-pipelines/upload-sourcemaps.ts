@@ -15,7 +15,7 @@ const azure = require('gulp-azure-storage');
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = process.env['BUILD_SOURCEVERSION'];
-const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
+const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']! || process.env['AZURE_CLIENT_SECRET2']!);
 
 // optionally allow to pass in explicit base/maps to upload
 const [, , base, maps] = process.argv;
