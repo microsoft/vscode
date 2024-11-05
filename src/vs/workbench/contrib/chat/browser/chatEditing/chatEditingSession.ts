@@ -71,6 +71,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return result;
 	}
 
+	private _removedTransientEntries = new ResourceSet();
+
 	get state(): IObservable<ChatEditingSessionState> {
 		return this._state;
 	}
@@ -126,7 +128,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@IBulkEditService public readonly _bulkEditService: IBulkEditService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IFileService private readonly _fileService: IFileService,
 		@IFileDialogService private readonly _dialogService: IFileDialogService,
@@ -134,7 +136,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	) {
 		super();
 
-		const widget = _chatWidgetService.getWidgetBySessionId(chatSessionId);
+		const widget = chatWidgetService.getWidgetBySessionId(chatSessionId);
 		if (!widget) {
 			return; // Shouldn't happen
 		}
@@ -157,12 +159,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private _trackCurrentEditorsInWorkingSet(e?: IEditorCloseEvent) {
-		const widget = this._chatWidgetService.getWidgetBySessionId(this.chatSessionId);
-		const requests = widget?.viewModel?.getItems();
-		if (requests && requests.length > 0) {
-			return;
-		}
-
 		const closedEditor = e?.editor.resource?.toString();
 
 		const existingTransientEntries = new ResourceSet();
@@ -170,10 +166,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			if (this._workingSet.get(file) === WorkingSetEntryState.Transient) {
 				existingTransientEntries.add(file);
 			}
-		}
-		if (existingTransientEntries.size === 0 && this._workingSet.size > 0) {
-			// The user manually added or removed attachments, don't inherit the visible editors
-			return;
 		}
 
 		const activeEditors = new ResourceSet();
@@ -192,7 +184,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 					// Continue, since we want this to be deleted from the working set
 				} else if (existingTransientEntries.has(uri)) {
 					existingTransientEntries.delete(uri);
-				} else {
+				} else if (!this._workingSet.has(uri) && !this._removedTransientEntries.has(uri)) {
+					// Don't add as a transient entry if it's already part of the working set
+					// or if the user has intentionally removed it from the working set
 					activeEditors.add(uri);
 				}
 			}
@@ -329,7 +323,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		let didRemoveUris = false;
 		for (const uri of uris) {
+			const state = this._workingSet.get(uri);
+			if (state === undefined) {
+				continue;
+			}
 			didRemoveUris = this._workingSet.delete(uri) || didRemoveUris;
+			if (state === WorkingSetEntryState.Transient) {
+				this._removedTransientEntries.add(uri);
+			}
 		}
 
 		if (!didRemoveUris) {
@@ -470,14 +471,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const state = this._workingSet.get(resource);
 		if (state === undefined || state === WorkingSetEntryState.Transient) {
 			this._workingSet.set(resource, WorkingSetEntryState.Attached);
-
-			// Convert all transient entries to attachments
-			for (const file of this._workingSet.keys()) {
-				if (this._workingSet.get(file) === WorkingSetEntryState.Transient) {
-					this._workingSet.set(file, WorkingSetEntryState.Attached);
-				}
-			}
-
 			this._onDidChange.fire();
 		}
 	}
