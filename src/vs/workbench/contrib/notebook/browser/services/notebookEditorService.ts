@@ -31,5 +31,5 @@ export interface INotebookEditorService {
 	removeNotebookEditor(editor: INotebookEditor): void;
 	getNotebookEditor(editorId: string): INotebookEditor | undefined;
 	listNotebookEditors(): readonly INotebookEditor[];
-	handleReplHistoryAppend(notebookWidget: NotebookEditorWidget): void;
+	updateReplContextKey(uri: string): void;
 }

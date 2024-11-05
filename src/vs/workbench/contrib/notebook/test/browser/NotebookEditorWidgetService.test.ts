@@ -20,19 +20,15 @@ import { NotebookEditorInput } from '../../common/notebookEditorInput.js';
 import { setupInstantiationService } from './testNotebookEditor.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 class TestNotebookEditorWidgetService extends NotebookEditorWidgetService {
 	constructor(
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(editorGroupService, editorService, contextKeyService, instantiationService, accessibilityService, configurationService);
+		super(editorGroupService, editorService, contextKeyService, instantiationService);
 	}
 
 	protected override createWidget(): NotebookEditorWidget {

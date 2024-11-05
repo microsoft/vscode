@@ -18,7 +18,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { EditorPaneSelectionChangeReason, IEditorMemento, IEditorOpenContext, IEditorPaneScrollPosition, IEditorPaneSelectionChangeEvent, IEditorPaneWithScrolling } from '../../../common/editor.js';
 import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
-import { ICellViewModel, INotebookEditorOptions, INotebookEditorViewState } from '../../notebook/browser/notebookBrowser.js';
+import { ICellViewModel, INotebookEditorOptions, INotebookEditorViewState, INotebookViewCellsUpdateEvent } from '../../notebook/browser/notebookBrowser.js';
 import { NotebookEditorExtensionsRegistry } from '../../notebook/browser/notebookEditorExtensions.js';
 import { IBorrowValue, INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { getDefaultNotebookCreationOptions, NotebookEditorWidget } from '../../notebook/browser/notebookEditorWidget.js';
@@ -59,6 +59,8 @@ import { ReplInputHintContentWidget } from '../../interactive/browser/replInputH
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { localize } from '../../../../nls.js';
+import { NotebookViewModel } from '../../notebook/browser/viewModel/notebookViewModelImpl.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
 
@@ -130,6 +132,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 		@IExtensionService extensionService: IExtensionService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super(
 			REPL_EDITOR_ID,
@@ -523,23 +526,43 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		this._widgetDisposableStore.add(this._notebookWidget.value!.onDidScroll(() => this._onDidChangeScroll.fire()));
 
 
-		this._widgetDisposableStore.add(this._notebookWidget.value!.onDidChangeViewCells((e) => {
-			const notebookWidget = this._notebookWidget.value;
-			if (!notebookWidget) {
-				return;
-			}
-
-			for (const splice of e.splices) {
-				const [_start, _delete, addedCells] = splice;
-				if (addedCells.length) {
-					this._notebookWidgetService.handleReplHistoryAppend(notebookWidget);
-					break;
-				}
-			}
-		}));
+		this._widgetDisposableStore.add(this._notebookWidget.value!.onDidChangeViewCells(this.handleViewCellChange, this));
 
 		this._updateInputHint();
 		this._syncWithKernel();
+	}
+
+	private handleViewCellChange(e: INotebookViewCellsUpdateEvent) {
+		const notebookWidget = this._notebookWidget.value;
+		if (!notebookWidget) {
+			return;
+		}
+
+		for (const splice of e.splices) {
+			const [_start, _delete, addedCells] = splice;
+			if (addedCells.length) {
+				const viewModel = notebookWidget.viewModel;
+				if (viewModel) {
+					this.handleAppend(notebookWidget, viewModel);
+					break;
+				}
+			}
+		}
+	}
+
+	private handleAppend(notebookWidget: NotebookEditorWidget, viewModel: NotebookViewModel) {
+		const navigateToCell = this._configurationService.getValue(ReplEditorSettings.autoFocusAppendedCell);
+		if ((this._accessibilityService.isScreenReaderOptimized() && navigateToCell !== 'never')
+			|| navigateToCell === 'always') {
+
+			setTimeout(() => {
+				const lastCellIndex = viewModel.length - 1;
+				if (lastCellIndex >= 0) {
+					const cell = viewModel.viewCells[lastCellIndex];
+					notebookWidget.focusNotebookCell(cell, 'container');
+				}
+			}, 0);
+		}
 	}
 
 	override setOptions(options: INotebookEditorOptions | undefined): void {

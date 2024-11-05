@@ -21,9 +21,6 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { InteractiveWindowOpen, MOST_RECENT_REPL_EDITOR } from '../../common/notebookContextKeys.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
-import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ReplEditorSettings } from '../../../interactive/browser/interactiveCommon.js';
 
 export class NotebookEditorWidgetService implements INotebookEditorService {
 
@@ -49,9 +46,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		const onNewGroup = (group: IEditorGroup) => {
 			const { id } = group;
@@ -289,24 +284,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 		return [...this._notebookEditors].map(e => e[1]);
 	}
 
-	handleReplHistoryAppend(notebookWidget: NotebookEditorWidget): void {
-		const viewModel = notebookWidget.viewModel;
-		if (!viewModel) {
-			return;
-		}
-
-		this._mostRecentRepl.set(viewModel.notebookDocument.uri.toString());
-		const navigateToCell = this.configurationService.getValue(ReplEditorSettings.autoFocusAppendedCell);
-		if ((this.accessibilityService.isScreenReaderOptimized() && navigateToCell !== 'never')
-			|| navigateToCell === 'always') {
-
-			setTimeout(() => {
-				const lastCellIndex = viewModel.length - 1;
-				if (lastCellIndex >= 0) {
-					const cell = viewModel.viewCells[lastCellIndex];
-					notebookWidget.focusNotebookCell(cell, 'container');
-				}
-			}, 0);
-		}
+	updateReplContextKey(uri: string): void {
+		this._mostRecentRepl.set(uri);
 	}
 }
