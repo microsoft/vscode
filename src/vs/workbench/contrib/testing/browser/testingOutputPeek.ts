@@ -83,12 +83,30 @@ function* allMessages([result]: readonly ITestResult[]) {
 		for (let taskIndex = 0; taskIndex < test.tasks.length; taskIndex++) {
 			const messages = test.tasks[taskIndex].messages;
 			for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
+
 				if (messages[messageIndex].type === TestMessageType.Error) {
 					yield { result, test, taskIndex, messageIndex };
 				}
 			}
 		}
 	}
+}
+
+interface IMessageIteratedReference {
+	messageIndex: number;
+	taskIndex: number;
+	result: ITestResult;
+	test: TestResultItem;
+}
+
+function messageItReferenceToUri({ result, test, taskIndex, messageIndex }: IMessageIteratedReference) {
+	return buildTestUri({
+		type: TestUriType.ResultMessage,
+		resultId: result.id,
+		testExtId: test.item.extId,
+		taskIndex,
+		messageIndex,
+	});
 }
 
 type TestUriWithDocument = ParsedTestUri & { documentUri: URI };
@@ -522,30 +540,31 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			return;
 		}
 
+		let first: IMessageIteratedReference | undefined;
+
 		let found = false;
-		for (const { messageIndex, taskIndex, result, test } of allMessages(this.testResults.results)) {
-			if (subject instanceof TaskSubject && result.id === subject.result.id) {
+		for (const m of allMessages(this.testResults.results)) {
+			first ??= m;
+			if (subject instanceof TaskSubject && m.result.id === subject.result.id) {
 				found = true; // open the first message found in the current result
 			}
 
 			if (found) {
-				this.openAndShow(buildTestUri({
-					type: TestUriType.ResultMessage,
-					messageIndex,
-					taskIndex,
-					resultId: result.id,
-					testExtId: test.item.extId
-				}));
+				this.openAndShow(messageItReferenceToUri(m));
 				return;
 			}
 
-			if (subject instanceof TestOutputSubject && subject.test.item.extId === test.item.extId && subject.taskIndex === taskIndex && subject.result.id === result.id) {
+			if (subject instanceof TestOutputSubject && subject.test.item.extId === m.test.item.extId && subject.taskIndex === m.taskIndex && subject.result.id === m.result.id) {
 				found = true;
 			}
 
-			if (subject instanceof MessageSubject && subject.test.extId === test.item.extId && subject.messageIndex === messageIndex && subject.taskIndex === taskIndex && subject.result.id === result.id) {
+			if (subject instanceof MessageSubject && subject.test.extId === m.test.item.extId && subject.messageIndex === m.messageIndex && subject.taskIndex === m.taskIndex && subject.result.id === m.result.id) {
 				found = true;
 			}
+		}
+
+		if (first) {
+			this.openAndShow(messageItReferenceToUri(first));
 		}
 	}
 
@@ -558,37 +577,39 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			return;
 		}
 
-		let previous: { messageIndex: number; taskIndex: number; result: ITestResult; test: TestResultItem } | undefined;
+		let previous: IMessageIteratedReference | undefined; // pointer to the last message
+		let previousLockedIn = false; // whether the last message was verified as previous to the current subject
+		let last: IMessageIteratedReference | undefined; // overall last message
 		for (const m of allMessages(this.testResults.results)) {
-			if (subject instanceof TaskSubject) {
-				if (m.result.id === subject.result.id) {
-					break;
+			last = m;
+
+			if (!previousLockedIn) {
+				if (subject instanceof TaskSubject) {
+					if (m.result.id === subject.result.id) {
+						previousLockedIn = true;
+					}
+					continue;
 				}
-				continue;
-			}
 
-			if (subject instanceof TestOutputSubject) {
-				if (m.test.item.extId === subject.test.item.extId && m.result.id === subject.result.id && m.taskIndex === subject.taskIndex) {
-					break;
+				if (subject instanceof TestOutputSubject) {
+					if (m.test.item.extId === subject.test.item.extId && m.result.id === subject.result.id && m.taskIndex === subject.taskIndex) {
+						previousLockedIn = true;
+					}
+					continue;
 				}
-				continue;
-			}
 
-			if (subject.test.extId === m.test.item.extId && subject.messageIndex === m.messageIndex && subject.taskIndex === m.taskIndex && subject.result.id === m.result.id) {
-				break;
-			}
+				if (subject.test.extId === m.test.item.extId && subject.messageIndex === m.messageIndex && subject.taskIndex === m.taskIndex && subject.result.id === m.result.id) {
+					previousLockedIn = true;
+					continue;
+				}
 
-			previous = m;
+				previous = m;
+			}
 		}
 
-		if (previous) {
-			this.openAndShow(buildTestUri({
-				type: TestUriType.ResultMessage,
-				messageIndex: previous.messageIndex,
-				taskIndex: previous.taskIndex,
-				resultId: previous.result.id,
-				testExtId: previous.test.item.extId
-			}));
+		const target = previous || last;
+		if (target) {
+			this.openAndShow(messageItReferenceToUri(target));
 		}
 	}
 

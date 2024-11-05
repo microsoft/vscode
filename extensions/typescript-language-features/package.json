@@ -1506,23 +1506,17 @@
           "description": "%typescript.tsserver.enableRegionDiagnostics%",
           "scope": "window"
         },
-        "javascript.experimental.updateImportsOnPaste": {
+        "javascript.updateImportsOnPaste.enabled": {
           "scope": "window",
           "type": "boolean",
-          "default": false,
-          "description": "%configuration.updateImportsOnPaste%",
-          "tags": [
-            "experimental"
-          ]
+          "default": true,
+          "markdownDescription": "%configuration.updateImportsOnPaste%"
         },
-        "typescript.experimental.updateImportsOnPaste": {
+        "typescript.updateImportsOnPaste.enabled": {
           "scope": "window",
           "type": "boolean",
-          "default": false,
-          "description": "%configuration.updateImportsOnPaste%",
-          "tags": [
-            "experimental"
-          ]
+          "default": true,
+          "markdownDescription": "%configuration.updateImportsOnPaste%"
         },
         "typescript.experimental.expandableHover": {
           "type": "boolean",

@@ -85,7 +85,10 @@ class SubmitWithoutDispatchingAction extends Action2 {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.inputHasText,
 				ChatContextKeys.requestInProgress.negate(),
-				ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel))),
+				ContextKeyExpr.and(ContextKeyExpr.or(
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Editor),
+				))),
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Enter,
@@ -124,7 +127,8 @@ MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
 			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
 			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditingSession),
 			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),
-			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook)
+			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
+			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal)
 		)
 	),
 });
@@ -140,7 +144,8 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 			menu: {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_1',
-				order: 3
+				order: 3,
+				when: ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel)
 			},
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
@@ -185,12 +190,22 @@ class SendToChatEditingAction extends Action2 {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_1',
 				order: 4,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession))
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ChatContextKeys.editingParticipantRegistered,
+					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
+					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Editor)
+				)
 			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession))
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ChatContextKeys.editingParticipantRegistered,
+					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
+					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Editor),
+				)
 			}
 		});
 	}
@@ -258,7 +273,9 @@ class SendToNewChatAction extends Action2 {
 			f1: false,
 			menu: {
 				id: MenuId.ChatExecuteSecondary,
-				group: 'group_2'
+				group: 'group_2',
+				when: ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel)
+
 			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
