@@ -14,6 +14,13 @@ export interface Arg {
 	description: string;
 	isOptional?: boolean;
 	generators?: () => any; // Replace with the actual type if known
+	suggestions?: Suggestion[];
+}
+
+export interface Suggestion {
+	name: string;
+	description: string;
+	hidden?: boolean;
 }
 
 export interface Subcommand {

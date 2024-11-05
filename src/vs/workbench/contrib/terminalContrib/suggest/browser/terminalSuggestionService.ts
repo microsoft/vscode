@@ -6,9 +6,10 @@ import { Disposable, IDisposable, toDisposable } from '../../../../../base/commo
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { ISimpleCompletion } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
-export interface ISimpleTerminalCompletion {
+export interface ITerminalCompletionItem extends ISimpleCompletion {
 	/**
 	 * The completion's label which appears on the left beside the icon.
 	 */
@@ -34,10 +35,39 @@ export interface ISimpleTerminalCompletion {
 	 * Whether the completion is a keyword.
 	 */
 	isKeyword?: boolean;
+
+	replacementIndex?: number;
+
+	replacementLength?: number;
+
+
 }
 
-export interface ICompletionProviderResult {
-	items: ISimpleTerminalCompletion[]; replacementIndex?: number; replacementLength?: number;
+
+export class TerminalCompletionItem {
+	label: string;
+	icon?: ThemeIcon | undefined;
+	detail?: string | undefined;
+	isFile?: boolean | undefined;
+	isDirectory?: boolean | undefined;
+	isKeyword?: boolean | undefined;
+	fileArgument?: boolean | undefined;
+	folderArgument?: boolean | undefined;
+	replacementIndex?: number | undefined;
+	replacementLength?: number | undefined;
+
+	constructor(label: string, icon?: ThemeIcon, detail?: string, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, fileArgument?: boolean, folderArgument?: boolean, replacementIndex?: number, replacementLength?: number) {
+		this.label = label;
+		this.icon = icon;
+		this.detail = detail;
+		this.isFile = isFile;
+		this.isDirectory = isDirectory;
+		this.isKeyword = isKeyword;
+		this.fileArgument = fileArgument;
+		this.folderArgument = folderArgument;
+		this.replacementIndex = replacementIndex;
+		this.replacementLength = replacementLength;
+	}
 }
 
 export enum TerminalCompletionItemKind {
@@ -51,13 +81,13 @@ export enum TerminalCompletionItemKind {
 export interface ITerminalCompletionProvider {
 	// TODO: Trigger chat props? etc.
 	shellTypes?: TerminalShellType[];
-	provideCompletions(value: string): Promise<ICompletionProviderResult | undefined>;
+	provideCompletions(value: string): Promise<ITerminalCompletionItem[] | undefined>;
 }
 
 export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider): IDisposable;
-	provideCompletions(promptValue: string, shellType: TerminalShellType): Promise<ICompletionProviderResult[] | undefined>;
+	provideCompletions(promptValue: string, shellType: TerminalShellType): Promise<ITerminalCompletionItem[] | undefined>;
 }
 
 // TODO: make name consistent
@@ -83,8 +113,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		});
 	}
 
-	async provideCompletions(value: string, shellType: TerminalShellType): Promise<ICompletionProviderResult[] | undefined> {
-		const result: ICompletionProviderResult[] = [];
+	async provideCompletions(value: string, shellType: TerminalShellType): Promise<ITerminalCompletionItem[] | undefined> {
+		const result: ITerminalCompletionItem[] = [];
 		for (const providers of this._providers.values()) {
 			for (const provider of providers.values()) {
 				if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
@@ -92,7 +122,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				}
 				const completions = await provider.provideCompletions(value);
 				if (completions) {
-					result.push(completions);
+					for (const c of completions) {
+						// TODO: distinguish in some way when in terminal dev mode
+						result.push(c);
+					}
 				}
 			}
 		}

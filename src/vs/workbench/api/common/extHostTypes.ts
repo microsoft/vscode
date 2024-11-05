@@ -2136,22 +2136,33 @@ export interface SimpleTerminalCompletion {
 	isKeyword?: boolean;
 }
 
-export class TerminalCompletionProviderResult {
-	items: SimpleTerminalCompletion[];
-	replacementIndex?: number;
-	replacementLength?: number;
-	constructor(items: SimpleTerminalCompletion[], replacementIndex?: number, replacementLength?: number) {
-		this.items = items;
+
+export class TerminalCompletionItem {
+	label: string;
+	icon?: ThemeIcon | undefined;
+	detail?: string | undefined;
+	isFile?: boolean | undefined;
+	isDirectory?: boolean | undefined;
+	isKeyword?: boolean | undefined;
+	fileArgument?: boolean | undefined;
+	folderArgument?: boolean | undefined;
+	replacementIndex?: number | undefined;
+	replacementLength?: number | undefined;
+
+	constructor(label: string, icon?: ThemeIcon, detail?: string, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, fileArgument?: boolean, folderArgument?: boolean, replacementIndex?: number, replacementLength?: number) {
+		this.label = label;
+		this.icon = icon;
+		this.detail = detail;
+		this.isFile = isFile;
+		this.isDirectory = isDirectory;
+		this.isKeyword = isKeyword;
+		this.fileArgument = fileArgument;
+		this.folderArgument = folderArgument;
 		this.replacementIndex = replacementIndex;
 		this.replacementLength = replacementLength;
 	}
 }
 
-
-export class SimpleTerminalCompletion {
-	constructor(label: string, icon?: ThemeIcon, detail?: string, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean) {
-	}
-}
 
 export enum TaskRevealKind {
 	Always = 1,

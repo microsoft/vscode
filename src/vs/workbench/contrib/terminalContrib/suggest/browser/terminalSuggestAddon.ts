@@ -23,11 +23,11 @@ import { ITerminalConfigurationService } from '../../../terminal/browser/termina
 import type { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
 import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
-import { SimpleCompletionItem, type ISimpleCompletion } from '../../../../services/suggest/browser/simpleCompletionItem.js';
+import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import type { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
-import { ITerminalCompletionService } from './terminalSuggestionService.js';
+import { ITerminalCompletionService, TerminalCompletionItem } from './terminalSuggestionService.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export interface ISuggestController {
@@ -56,7 +56,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _enableWidget: boolean = true;
 	private _pathSeparator: string = sep;
 	private _isFilteringDirectories: boolean = false;
-	private _mostRecentCompletion?: ISimpleCompletion;
+	private _mostRecentCompletion?: TerminalCompletionItem;
 
 	// TODO: Remove these in favor of prompt input state
 	private _leadingLineContent?: string;
@@ -139,7 +139,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		this._onDidReceiveCompletions.fire();
 
-		this._replacementIndex = providedCompletions[0].replacementIndex ?? 0;
+		this._replacementIndex = providedCompletions[0].replacementIndex ?? this._promptInputModel.cursorIndex - 1 > 0 ? this._promptInputModel.cursorIndex - 1 : 0;
 		this._replacementLength = providedCompletions[0].replacementLength ?? this._promptInputModel.cursorIndex;
 
 		this._currentPromptInputState = {
@@ -152,8 +152,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		this._leadingLineContent = this._currentPromptInputState.prefix.substring(this._replacementIndex, this._replacementIndex + this._replacementLength + this._cursorIndexDelta);
 
-
-		const completions = providedCompletions.map(p => p.items).flat();
+		const completions = providedCompletions.flat();
 		if (!completions?.length) {
 			return;
 		}
@@ -169,7 +168,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		if (this._mostRecentCompletion?.isDirectory && completions.every(e => e.isDirectory)) {
-			completions.push({ ...new SimpleCompletionItem(this._mostRecentCompletion), label: this._mostRecentCompletion.label + this._pathSeparator });
+			completions.push(this._mostRecentCompletion);
 		}
 		this._mostRecentCompletion = undefined;
 
@@ -188,8 +187,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._pathSeparator = firstDir?.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
 			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
+
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
-		const model = new SimpleCompletionModel(completions.map(c => new SimpleCompletionItem(c)), lineContext, this._replacementIndex, this._replacementLength);
+		const model = new SimpleCompletionModel(completions.filter(c => !!c.label).map(c => new SimpleCompletionItem(c)), lineContext, this._replacementIndex, this._replacementLength);
 		this._showCompletions(model);
 	}
 
@@ -271,7 +271,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// Hide the widget if the cursor moves to the left of the initial position as the
 		// completions are no longer valid
-		if (this._currentPromptInputState.cursorIndex < this._replacementIndex + this._replacementLength) {
+		// to do: get replacement length to be correct, readd this?
+		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex < this._replacementIndex) {
 			this.hideSuggestWidget();
 			return;
 		}
@@ -304,10 +305,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		});
 	}
 
-	// TODO: Needs to be returned by the provider, I think?
 	private _replacementIndex: number = 0;
 	private _replacementLength: number = 0;
-
 
 	private _getTerminalDimensions(): { width: number; height: number } {
 		const cssCellDims = (this._terminal as any as { _core: IXtermCore })._core._renderService.dimensions.css.cell;
@@ -402,7 +401,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// The replacement text is any text after the replacement index for the completions, this
 		// includes any text that was there before the completions were requested and any text added
 		// since to refine the completion.
-		const replacementText = currentPromptInputState.value.substring(this._model.replacementIndex, currentPromptInputState.cursorIndex);
+		const replacementText = currentPromptInputState.value.substring(suggestion.item.completion.replacementIndex ?? this._model.replacementIndex, currentPromptInputState.cursorIndex);
 
 		// Right side of replacement text in the same word
 		let rightSideReplacementText = '';

@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { Arg, FigSpec, Option, Subcommand } from './types';
+import { Arg, FigSpec, Option, Subcommand, Suggestion } from './types';
 
 const builtinCommands: string[] | undefined = getBuiltinCommands();
 
@@ -90,7 +90,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 
 (vscode as any).window.registerTerminalCompletionProvider({
 	id: 'terminal-suggest',
-	async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { commandLine: string }, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionProviderResult | undefined> {
+	async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { commandLine: string }, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | undefined> {
 		// Early cancellation check
 		if (token.isCancellationRequested) {
 			return;
@@ -102,7 +102,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 		const availableCommands = await getCommandsInPath();
 		const specs = await getCompletionSpecs(availableCommands);
 		builtinCommands?.forEach(command => availableCommands.add(command));
-		const result: vscode.SimpleTerminalCompletion[] = [];
+		const result: vscode.TerminalCompletionItem[] = [];
 		for (const spec of specs) {
 			const name = getLabel(spec);
 			if (!name || !availableCommands.has(name)) {
@@ -115,25 +115,34 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 			// args.template = "filepaths", should return our special kind of terminal completion
 			if (spec.options) {
 				for (const option of spec.options) {
-					const optionName = getOptionLabel(spec, option);
+					const optionName = getLabel(option);
 					if (optionName) {
-						result.push(createCompletionItem(optionName, option.description));
+						result.push(createCompletionItem(optionName, `Option for ${name}: ${option.description}`));
 					}
 				}
 			}
 
 			if (spec.subcommands) {
 				for (const subcommand of spec.subcommands) {
-					const subCommandName = getSubcommandLabel(spec, subcommand);
+					const subCommandName = getLabel(subcommand);
 					if (subCommandName) {
 						result.push(createCompletionItem(subCommandName, subcommand.description));
 						if (subcommand.args) {
 							//TODO: deal with generators / isOptional
-							const argName = getOptionLabel(subcommand, subcommand.args);
+							const argName = getLabel(subcommand);
 							if (argName) {
-								result.push(createCompletionItem(argName, subcommand.args.description));
+								result.push(createCompletionItem(argName, `Subcommand of ${name}: ${subcommand.args.description}`));
 							}
-							// TODO: if args is non-optional, make sure it's provided? for example, less --use-color
+						}
+					}
+				}
+			}
+			if (spec.args) {
+				if (spec.args.suggestions) {
+					for (const suggestion of spec.args.suggestions) {
+						const suggestionName = getLabel(suggestion);
+						if (suggestionName) {
+							result.push(createCompletionItem(suggestionName, `Suggestion for ${name}: ${suggestion.description}`));
 						}
 					}
 				}
@@ -142,20 +151,11 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 
 		console.log('extension completion count: ' + result.length);
 		// Return the completion results or undefined if no results
-		return result.length ? { items: result } : undefined;
+		return result.length ? result : undefined;
 	}
 });
 
-function getSubcommandLabel(spec: FigSpec, subcommand: Subcommand): string | undefined {
-	const commandName = getLabel(spec);
-	const optionName = getLabel(subcommand);
-	return `${commandName} ${optionName}`;
-}
-
-function getLabel(spec: FigSpec | Option | Subcommand): string | undefined {
-	if ('displayName' in spec) {
-		return spec.displayName;
-	}
+function getLabel(spec: FigSpec | Option | Subcommand | Suggestion): string | undefined {
 	if (typeof spec.name === 'string') {
 		return spec.name;
 	}
@@ -165,20 +165,30 @@ function getLabel(spec: FigSpec | Option | Subcommand): string | undefined {
 	return spec.name[0];
 }
 
-function getOptionLabel(spec: FigSpec | Subcommand, option: Option): string | undefined {
-	const commandName = getLabel(spec);
-	const optionName = getLabel(option);
-	return `${commandName} ${optionName}`;
-}
-
-function createCompletionItem(label: string, description?: string, args?: Arg): vscode.SimpleTerminalCompletion {
+function createCompletionItem(label: string, description?: string, arg?: Arg): vscode.TerminalCompletionItem {
 	return {
 		label,
 		isFile: false,
 		isDirectory: false,
 		detail: description ?? '',
-		fileArgument: args?.template === 'filepaths'
+		fileArgument: shouldShowFile(arg) && !onlyShowFolders(arg),
+		folderArgument: onlyShowFolders(arg)
 	};
+}
+
+function shouldShowFile(arg?: Arg): boolean {
+	return arg?.template === 'filepaths';
+}
+
+function onlyShowFolders(arg?: Arg): boolean {
+	if (arg?.generators?.name === 'autocomplete_generators_1.filepaths') {
+		if ('showFolders' in arg.generators()) {
+			const showFolders = arg.generators().showFolders;
+			const onlyShowFolders = showFolders === 'only';
+			return onlyShowFolders;
+		}
+	}
+	return false;
 }
 
 async function getCommandsInPath(): Promise<Set<string>> {

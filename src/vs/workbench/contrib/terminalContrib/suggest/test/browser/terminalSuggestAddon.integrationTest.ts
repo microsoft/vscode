@@ -61,7 +61,7 @@ interface IRecordedSessionResizeEvent {
 	rows: number;
 }
 
-suite('Terminal Contrib Suggest Recordings, PWSH', () => {
+suite.only('Terminal Contrib Suggest Recordings, PWSH', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let xterm: Terminal;

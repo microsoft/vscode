@@ -7,11 +7,7 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/226562
 
-	export interface TerminalCompletionProviderResult {
-		items: SimpleTerminalCompletion[]; replacementIndex?: number; replacementLength?: number;
-	}
-
-	export interface TerminalCompletionProvider<T extends TerminalCompletionProviderResult> {
+	export interface TerminalCompletionProvider<T extends TerminalCompletionItem[]> {
 		id: string;
 		/**
 		 * Provide completions for the given position and document.
@@ -34,7 +30,7 @@ declare module 'vscode' {
 	// }
 
 
-	export interface SimpleTerminalCompletion {
+	export interface TerminalCompletionItem {
 		/**
 		 * The completion's label which appears on the left beside the icon.
 		 */
@@ -65,6 +61,15 @@ declare module 'vscode' {
 		 * Whether a file completion should be provided upon accept of this completion item.
 		 */
 		fileArgument?: boolean;
+
+		/**
+		 * Whether a folder completion should be provided upon accept of this completion item.
+		 */
+		folderArgument?: boolean;
+
+		replacementIndex?: number;
+
+		replacementLength?: number;
 	}
 
 
@@ -80,6 +85,6 @@ declare module 'vscode' {
 		 * @param provider The completion provider.
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerTerminalCompletionProvider<T extends TerminalCompletionProviderResult>(provider: TerminalCompletionProvider<T>): Disposable;
+		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem[]>(provider: TerminalCompletionProvider<T>): Disposable;
 	}
 }

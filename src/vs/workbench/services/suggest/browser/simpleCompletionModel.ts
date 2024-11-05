@@ -108,7 +108,7 @@ export class SimpleCompletionModel {
 			// filter and score against. In theory each suggestion uses a
 			// different word, but in practice not - that's why we cache
 			// TODO: Fix
-			const overwriteBefore = this.replacementLength; // item.position.column - item.editStart.column;
+			const overwriteBefore = item.completion.replacementLength ?? this.replacementLength; // item.position.column - item.editStart.column;
 			const wordLen = overwriteBefore + characterCountDelta; // - (item.position.column - this._column);
 			if (word.length !== wordLen) {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
@@ -176,11 +176,9 @@ export class SimpleCompletionModel {
 
 			item.idx = i;
 			target.push(item);
-
 			// update stats
 			labelLengths.push(item.completion.label.length);
 		}
-
 		this._filteredItems = target.sort((a, b) => {
 			// Keywords should always appear at the bottom when they are not an exact match
 			let score = 0;
@@ -214,7 +212,6 @@ export class SimpleCompletionModel {
 			return score;
 		});
 		this._refilterKind = Refilter.Nothing;
-
 		this._stats = {
 			pLabelLen: labelLengths.length ?
 				quickSelect(labelLengths.length - .85, labelLengths, (a, b) => a - b)
