@@ -130,7 +130,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 	registerAuthenticationProvider(id: string, authenticationProvider: IAuthenticationProvider): void {
 		if (!this._declaredProviders.find(p => p.id === id)) {
-			this._logService.warn(`Registering an authentication provider that is not declared in the Extension Manifest. This may cause unexpected behavior. id: ${id}, label: ${authenticationProvider.label}`);
+			this._logService.info(`Registering an authentication provider that is not declared in the Extension Manifest. This may cause unexpected behavior. id: ${id}, label: ${authenticationProvider.label}`);
 		}
 		this._authenticationProviders.set(id, authenticationProvider);
 		const disposableStore = new DisposableStore();
