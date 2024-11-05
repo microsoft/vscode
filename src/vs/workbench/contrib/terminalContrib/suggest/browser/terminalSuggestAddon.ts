@@ -390,7 +390,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			suggestion = this._suggestWidget?.getFocusedItem();
 		}
 		const initialPromptInputState = this._mostRecentPromptInputState;
-		if (!suggestion || !initialPromptInputState || !this._leadingLineContent || !this._model) {
+		if (!suggestion || !initialPromptInputState || this._leadingLineContent === undefined || !this._model) {
 			return;
 		}
 		SuggestAddon.lastAcceptedCompletionTimestamp = Date.now();
