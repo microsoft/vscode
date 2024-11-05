@@ -6269,7 +6269,7 @@ export const EditorOptions = {
 	// Leave these at the end (because they have dependencies!)
 	editorClassName: register(new EditorClassName()),
 	defaultColorDecorators: register(new EditorBooleanOption(
-		EditorOption.defaultColorDecorators, 'defaultColorDecorators', false,
+		EditorOption.defaultColorDecorators, 'defaultColorDecorators', true,
 		{ markdownDescription: nls.localize('defaultColorDecorators', "Controls whether inline color decorations should be shown using the default document color provider") }
 	)),
 	pixelRatio: register(new EditorPixelRatio()),
