@@ -12,14 +12,14 @@ import * as resources from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FolderQuerySearchTree } from './folderQuerySearchTree.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, excludeToGlobPattern, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider, ISearchRange, DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from './search.js';
-import { AITextSearchProvider2, TextSearchComplete2, TextSearchMatch2, TextSearchProviderFolderOptions, TextSearchProvider2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2 } from './searchExtTypes.js';
+import { TextSearchComplete2, TextSearchMatch2, TextSearchProviderFolderOptions, TextSearchProvider2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2, AITextSearchProvider } from './searchExtTypes.js';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
 	toCanonicalName: (encoding: string) => string;
 }
 interface IAITextQueryProviderPair {
-	query: IAITextQuery; provider: AITextSearchProvider2;
+	query: IAITextQuery; provider: AITextSearchProvider;
 }
 
 interface ITextQueryProviderPair {

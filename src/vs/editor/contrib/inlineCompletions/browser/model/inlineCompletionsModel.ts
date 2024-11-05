@@ -13,6 +13,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
 import { EditOperation } from '../../../../common/core/editOperation.js';
 import { LineRange } from '../../../../common/core/lineRange.js';
 import { Position } from '../../../../common/core/position.js';
@@ -48,6 +49,8 @@ export class InlineCompletionsModel extends Disposable {
 	private _isAcceptingPartially = false;
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
 
+	private readonly _editorObs = observableCodeEditor(this._editor);
+
 	constructor(
 		public readonly textModel: ITextModel,
 		public readonly selectedSuggestItem: IObservable<SuggestItemInfo | undefined>,
@@ -59,7 +62,6 @@ export class InlineCompletionsModel extends Disposable {
 		private readonly _inlineSuggestMode: IObservable<'prefix' | 'subword' | 'subwordSmart'>,
 		private readonly _enabled: IObservable<boolean>,
 		private readonly _inlineEditsEnabled: IObservable<boolean>,
-		private readonly _shouldHideInlineEdit: IObservable<boolean>,
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -292,18 +294,18 @@ export class InlineCompletionsModel extends Disposable {
 			const cursorPos = this._primaryPosition.read(reader);
 			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber);
 
-			const shouldShow = this._alwaysShowInlineEdit.read(reader);
-			if (!shouldShow && item.inlineEditCompletion.request.context.triggerKind === InlineCompletionTriggerKind.Automatic && this._shouldHideInlineEdit.read(reader) && !cursorAtInlineEdit) { return undefined; }
-
 			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this._primaryPosition.read(reader).lineNumber);
 			const disableCollapsing = true;
 			const currentItemIsCollapsed = !disableCollapsing && (cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEditCompletion.semanticId);
 
 			const commands = item.inlineEditCompletion.inlineCompletion.source.inlineCompletions.commands;
-			const inlineEdit = new InlineEdit(edit, currentItemIsCollapsed, false, commands ?? []);
+			const renderExplicitly = this._jumpedTo.read(reader);
+			const inlineEdit = new InlineEdit(edit, currentItemIsCollapsed, renderExplicitly, commands ?? []);
 
 			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: item.inlineEditCompletion, edits: [edit], cursorAtInlineEdit };
 		}
+
+		this._jumpedTo.set(false, undefined);
 
 		const suggestItem = this.selectedSuggestItem.read(reader);
 		if (suggestItem) {
@@ -405,6 +407,44 @@ export class InlineCompletionsModel extends Disposable {
 		const v = this.inlineCompletionState.read(reader);
 		if (!v) { return undefined; }
 		return v?.primaryGhostText;
+	});
+
+	private readonly _tabShouldIndent = derived(this, reader => {
+		function isMultiLine(range: Range): boolean {
+			return range.startLineNumber !== range.endLineNumber;
+		}
+
+		function getNonIndentationRange(model: ITextModel, lineNumber: number): Range {
+			const columnStart = model.getLineIndentColumn(lineNumber);
+			const lastNonWsColumn = model.getLineLastNonWhitespaceColumn(lineNumber);
+			const columnEnd = Math.max(lastNonWsColumn, columnStart);
+			return new Range(lineNumber, columnStart, lineNumber, columnEnd);
+		}
+
+		const selections = this._editorObs.selections.read(reader);
+		return selections?.some(s => {
+			if (s.isEmpty()) {
+				return this.textModel.getLineLength(s.startLineNumber) === 0;
+			} else {
+				return isMultiLine(s) || s.containsRange(getNonIndentationRange(this.textModel, s.startLineNumber));
+			}
+		});
+	});
+
+	public readonly tabShouldJumpToInlineEdit = derived(this, reader => {
+		if (this._tabShouldIndent.read(reader)) { return false; }
+
+		const s = this.inlineEditState.read(reader);
+		if (!s) { return false; }
+		return !s.cursorAtInlineEdit;
+	});
+
+	public readonly tabShouldAcceptInlineEdit = derived(this, reader => {
+		if (this._tabShouldIndent.read(reader)) { return false; }
+
+		const s = this.inlineEditState.read(reader);
+		if (!s) { return false; }
+		return s.cursorAtInlineEdit;
 	});
 
 	private async _deltaSelectedInlineCompletionIndex(delta: 1 | -1): Promise<void> {
@@ -610,11 +650,14 @@ export class InlineCompletionsModel extends Disposable {
 		};
 	}
 
+	private _jumpedTo = observableValue(this, false);
+
 	public jump(): void {
 		const s = this.inlineEditState.get();
 		if (!s) { return; }
 
 		transaction(tx => {
+			this._jumpedTo.set(true, tx);
 			this.dontRefetchSignal.trigger(tx);
 			this._editor.setPosition(s.inlineEdit.range.getStartPosition(), 'inlineCompletions.jump');
 			this._editor.revealLine(s.inlineEdit.range.startLineNumber);

@@ -46,7 +46,7 @@ import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
 import { DropdownWithPrimaryActionViewItem, IDropdownWithPrimaryActionViewItemOptions } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { createAndFillInActionBarActions, createAndFillInContextMenuActions, IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatActionBarActions, getFlatContextMenuActions, IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -81,7 +81,7 @@ import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
-import { CancelAction, ChatModelPickerActionId, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
+import { CancelAction, ChatModelPickerActionId, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, ChatSubmitAction } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
@@ -636,8 +636,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			hoverDelegate,
 			hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
 			actionViewItemProvider: (action, options) => {
-				if (this.location === ChatAgentLocation.Panel) {
-					if ((action.id === SubmitAction.ID || action.id === CancelAction.ID) && action instanceof MenuItemAction) {
+				if (this.location === ChatAgentLocation.Panel || this.location === ChatAgentLocation.Editor) {
+					if ((action.id === ChatSubmitAction.ID || action.id === CancelAction.ID) && action instanceof MenuItemAction) {
 						const dropdownAction = this.instantiationService.createInstance(MenuItemAction, { id: 'chat.moreExecuteActions', title: localize('notebook.moreExecuteActionsLabel', "More..."), icon: Codicon.chevronDown }, undefined, undefined, undefined, undefined);
 						return this.instantiationService.createInstance(ChatSubmitDropdownActionItem, action, dropdownAction, options);
 					}
@@ -662,6 +662,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return undefined;
 			}
 		}));
+		this.executeToolbar.getElement().classList.add('chat-execute-toolbar');
 		this.executeToolbar.context = { widget } satisfies IChatExecuteActionContext;
 		this._register(this.executeToolbar.onDidChangeMenuItems(() => {
 			if (this.cachedDimensions && typeof this.cachedExecuteToolbarWidth === 'number' && this.cachedExecuteToolbarWidth !== this.executeToolbar.getItemsWidth()) {
@@ -725,8 +726,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		dom.clearNode(container);
 		const hoverDelegate = store.add(createInstantHoverDelegate());
-		dom.setVisibility(Boolean(this.attachmentModel.size) || Boolean(this.implicitContext?.value), this.attachedContextContainer);
-		if (!this.attachmentModel.size) {
+		const attachments = this.location === ChatAgentLocation.EditingSession
+			// Render as attachments anything that isn't a file, but still render specific ranges in a file
+			? [...this.attachmentModel.attachments.entries()].filter(([_, attachment]) => !attachment.isFile || attachment.isFile && typeof attachment.value === 'object' && !!attachment.value && 'range' in attachment.value)
+			: [...this.attachmentModel.attachments.entries()];
+		dom.setVisibility(Boolean(attachments.length) || Boolean(this.implicitContext?.value), this.attachedContextContainer);
+		if (!attachments.length) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 		}
 
@@ -736,13 +741,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		const attachmentInitPromises: Promise<void>[] = [];
-		for (const [index, attachment] of this.attachmentModel.attachments.entries()) {
-			if (attachment.isFile && this.location === ChatAgentLocation.EditingSession) {
-				return;
-			}
-
+		for (const [index, attachment] of attachments) {
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
-			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate, hoverTargetOverrride: widget });
+			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate, hoverTargetOverride: widget });
 
 			let ariaLabel: string | undefined;
 
@@ -918,9 +919,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					getAnchor: () => event,
 					getActions: () => {
 						const menu = this.menuService.getMenuActions(contextMenuOpts.contextMenuId, contextMenuOpts.contextKeyService, { arg: contextMenuOpts.contextMenuArg });
-						const primary: IAction[] = [];
-						createAndFillInContextMenuActions(menu, primary);
-						return primary;
+						return getFlatContextMenuActions(menu);
 					},
 				});
 			}));
@@ -1080,6 +1079,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Working set
+		const workingSetContainer = innerContainer.querySelector('.chat-editing-session-list') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-list'));
 		if (!this._chatEditList) {
 			this._chatEditList = this._chatEditsListPool.get();
 			const list = this._chatEditList.object;
@@ -1109,7 +1109,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					this._onDidFocus.fire();
 				}
 			}, true));
-			dom.append(innerContainer, list.getHTMLElement());
+			dom.append(workingSetContainer, list.getHTMLElement());
+			dom.append(innerContainer, workingSetContainer);
 		}
 
 		const maxItemsShown = 6;
@@ -1258,8 +1259,7 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 			accessibilityService);
 		const menu = menuService.createMenu(MenuId.ChatExecuteSecondary, contextKeyService);
 		const setActions = () => {
-			const secondary: IAction[] = [];
-			createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, secondary);
+			const secondary = getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 			const secondaryAgent = chatAgentService.getSecondaryAgent();
 			if (secondaryAgent) {
 				secondary.forEach(a => {
@@ -1326,8 +1326,7 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 		if (this.label) {
 			const model = this._languageModelsService.lookupLanguageModel(this.currentLanguageModel);
 			if (model) {
-				this.label.textContent = model.name;
-				dom.reset(this.label, ...renderLabelWithIcons(`${model.name}$(chevron-down)`));
+				dom.reset(this.label, dom.$('span.chat-model-label', undefined, model.name), ...renderLabelWithIcons(`$(chevron-down)`));
 			}
 		}
 	}

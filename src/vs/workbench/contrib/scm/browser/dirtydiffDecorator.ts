@@ -36,7 +36,7 @@ import { IActionBarOptions } from '../../../../base/browser/ui/actionbar/actionb
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ScrollType, IEditorContribution, IDiffEditorModel, IEditorModel, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { OverviewRulerLane, ITextModel, IModelDecorationOptions, MinimapPosition, shouldSynchronizeModel } from '../../../../editor/common/model.js';
 import { equals, sortedDiff } from '../../../../base/common/arrays.js';
@@ -354,12 +354,11 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._disposables.add(previous);
 		this._disposables.add(next);
 
-		const actions: IAction[] = [];
 		if (this.menu) {
 			this.menu.dispose();
 		}
 		this.menu = this.menuService.createMenu(MenuId.SCMChangeContext, this.contextKeyService);
-		createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions);
+		const actions = getFlatActionBarActions(this.menu.getActions({ shouldForwardArgs: true }));
 		this._actionbarWidget.clear();
 		this._actionbarWidget.push(actions.reverse(), { label: false, icon: true });
 		this._actionbarWidget.push([next, previous], { label: false, icon: true });

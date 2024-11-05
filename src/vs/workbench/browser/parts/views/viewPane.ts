@@ -7,7 +7,7 @@ import './media/paneviewlet.css';
 import * as nls from '../../../../nls.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { asCssVariable, foreground } from '../../../../platform/theme/common/colorRegistry.js';
-import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, Dimension, reset } from '../../../../base/browser/dom.js';
+import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, Dimension, reset, isAncestorOfActiveElement, isActiveElement } from '../../../../base/browser/dom.js';
 import { asCssValueWithDefault, asCSSUrl } from '../../../../base/browser/cssValue.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Action, IAction, IActionRunner } from '../../../../base/common/actions.js';
@@ -656,6 +656,8 @@ export abstract class ViewPane extends Pane implements IView {
 			this.viewWelcomeController.focus();
 		} else if (this.element) {
 			this.element.focus();
+		}
+		if (isActiveElement(this.element) || isAncestorOfActiveElement(this.element)) {
 			this._onDidFocus.fire();
 		}
 	}

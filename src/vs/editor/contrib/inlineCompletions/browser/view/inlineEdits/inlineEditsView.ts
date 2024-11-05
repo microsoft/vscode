@@ -4,149 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h, svgElem } from '../../../../../../base/browser/dom.js';
-import { numberComparator } from '../../../../../../base/common/arrays.js';
-import { findFirstMin } from '../../../../../../base/common/arraysFind.js';
-import { createHotClass } from '../../../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedDisposable, derivedOpts, IObservable, observableFromEvent, ObservablePromise } from '../../../../../../base/common/observable.js';
-import { getIndentationLength, splitLines } from '../../../../../../base/common/strings.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { EmbeddedCodeEditorWidget } from '../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
-import { IDiffProviderFactoryService } from '../../../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { appendRemoveOnDispose } from '../../../../../browser/widget/diffEditor/utils.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
-import { SingleLineEdit } from '../../../../../common/core/lineEdit.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
-import { OffsetRange } from '../../../../../common/core/offsetRange.js';
-import { Position } from '../../../../../common/core/position.js';
 import { Range } from '../../../../../common/core/range.js';
-import { AbstractText, SingleTextEdit, StringText, TextEdit } from '../../../../../common/core/textEdit.js';
-import { TextLength } from '../../../../../common/core/textLength.js';
+import { StringText } from '../../../../../common/core/textEdit.js';
 import { lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
-import { TextModelText } from '../../../../../common/model/textModelText.js';
-import { IModelService } from '../../../../../common/services/model.js';
-import { InlineEdit } from '../../model/inlineEdit.js';
 import './inlineEditsView.css';
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineDiffView.js';
-import { applyEditToModifiedRangeMappings, maxLeftInRange, Point, StatusBarViewItem, UniqueUriGenerator } from './utils.js';
+import { applyEditToModifiedRangeMappings, createReindentEdit, maxLeftInRange, PathBuilder, Point, StatusBarViewItem } from './utils.js';
 import { IInlineEditsIndicatorState, InlineEditsIndicator } from './inlineEditsIndicatorView.js';
 import { darken, lighten, registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { diffInserted, diffRemoved } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
 import { Command } from '../../../../../common/languages.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { equalsIfDefined, itemEquals, structuralEquals } from '../../../../../../base/common/equals.js';
+import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { editorLineHighlightBorder } from '../../../../../common/core/editorColorRegistry.js';
 import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
-import { LRUCachedFunction } from '../../../../../../base/common/cache.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-
-export class InlineEditsViewAndDiffProducer extends Disposable {
-	public static readonly hot = createHotClass(InlineEditsViewAndDiffProducer);
-
-	private readonly _modelUriGenerator = new UniqueUriGenerator('inline-edits');
-
-	private readonly _originalModel = derivedDisposable(() => this._modelService.createModel(
-		'', null, this._modelUriGenerator.getUniqueUri())).keepObserved(this._store);
-	private readonly _modifiedModel = derivedDisposable(() => this._modelService.createModel(
-		'', null, this._modelUriGenerator.getUniqueUri())).keepObserved(this._store);
-
-	private readonly _differ = new LRUCachedFunction({ getCacheKey: JSON.stringify }, (arg: { original: string; modified: string }) => {
-		this._originalModel.get().setValue(arg.original);
-		this._modifiedModel.get().setValue(arg.modified);
-
-		const diffAlgo = this._diffProviderFactoryService.createDiffProvider({ diffAlgorithm: 'advanced' });
-
-		return ObservablePromise.fromFn(async () => {
-			const result = await diffAlgo.computeDiff(this._originalModel.get(), this._modifiedModel.get(), {
-				computeMoves: false,
-				ignoreTrimWhitespace: false,
-				maxComputationTimeMs: 1000,
-			}, CancellationToken.None);
-			return result;
-		});
-	});
-
-	private readonly _inlineEditPromise = derived<IObservable<InlineEditWithChanges | undefined> | undefined>(this, (reader) => {
-		const inlineEdit = this._edit.read(reader);
-		if (!inlineEdit) { return undefined; }
-
-		//if (inlineEdit.text.trim() === '') { return undefined; }
-
-		const text = new TextModelText(this._editor.getModel()!);
-		const edit = inlineEdit.edit.extendToFullLine(text);
-
-		const diffResult = this._differ.get({ original: this._editor.getModel()!.getValueInRange(edit.range), modified: edit.text });
-
-		return diffResult.promiseResult.map(p => {
-			if (!p || !p.data) {
-				return undefined;
-			}
-			const result = p.data;
-
-			const rangeStartPos = edit.range.getStartPosition();
-			const innerChanges = result.changes.flatMap(c => c.innerChanges!);
-
-			function addRangeToPos(pos: Position, range: Range): Range {
-				const start = TextLength.fromPosition(range.getStartPosition());
-				return TextLength.ofRange(range).createRange(start.addToPosition(pos));
-			}
-
-			const edits = innerChanges.map(c => new SingleTextEdit(
-				addRangeToPos(rangeStartPos, c.originalRange),
-				this._modifiedModel.get()!.getValueInRange(c.modifiedRange)
-			));
-			const diffEdits = new TextEdit(edits);
-
-			return new InlineEditWithChanges(text, diffEdits, inlineEdit.isCollapsed, true, inlineEdit.commands); //inlineEdit.showInlineIfPossible);
-		});
-	});
-
-	private readonly _inlineEdit = derivedOpts({ owner: this, equalsFn: equalsIfDefined(itemEquals()) }, reader => this._inlineEditPromise.read(reader)?.read(reader));
-
-	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _edit: IObservable<InlineEdit | undefined>,
-		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IDiffProviderFactoryService private readonly _diffProviderFactoryService: IDiffProviderFactoryService,
-		@IModelService private readonly _modelService: IModelService,
-	) {
-		super();
-
-		this._register(this._instantiationService.createInstance(InlineEditsView, this._editor, this._inlineEdit, this._model));
-	}
-}
-
-export class InlineEditWithChanges {
-	public readonly lineEdit = SingleLineEdit.fromSingleTextEdit(this.edit.toSingle(this.originalText), this.originalText);
-
-	public readonly originalLineRange = this.lineEdit.lineRange;
-	public readonly modifiedLineRange = this.lineEdit.toLineEdit().getNewLineRanges()[0];
-
-	constructor(
-		public readonly originalText: AbstractText,
-		public readonly edit: TextEdit,
-		public readonly isCollapsed: boolean,
-		public readonly showInlineIfPossible: boolean,
-		public readonly commands: readonly Command[],
-	) {
-	}
-
-	equals(other: InlineEditWithChanges) {
-		return this.originalText.getValue() === other.originalText.getValue() &&
-			this.edit.equals(other.edit) &&
-			this.isCollapsed === other.isCollapsed &&
-			this.showInlineIfPossible === other.showInlineIfPossible &&
-			this.commands === other.commands;
-	}
-}
+import { InlineEditWithChanges } from './inlineEditsViewAndDiffProducer.js';
 
 export const originalBackgroundColor = registerColor(
 	'inlineEdit.originalBackground',
@@ -183,14 +69,16 @@ export class InlineEditsView extends Disposable {
 			left: '0px',
 		},
 	}, [
+		svgElem('svg@svg', { style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' }, }, []),
 		h('div.editorContainer@editorContainer', { style: { position: 'absolute' } }, [
 			h('div.preview@editor', { style: {} }),
 			h('div.toolbar@toolbar', { style: {} }),
 		]),
-		svgElem('svg@svg', { style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' }, }, [
-
-		]),
+		svgElem('svg@svg2', { style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' }, }, []),
 	]);
+
+	private readonly _useMixedLinesDiff = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useMixedLinesDiff);
+	private readonly _useInterleavedLinesDiff = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useInterleavedLinesDiff);
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -250,6 +138,12 @@ export class InlineEditsView extends Disposable {
 			pathBuilder3.moveTo(layoutInfo.code1);
 			pathBuilder3.lineTo(layoutInfo.code2);
 
+			const pathBuilder4 = new PathBuilder();
+			pathBuilder4.moveTo(layoutInfo.code1);
+			pathBuilder4.lineTo(layoutInfo.code1.deltaX(1000));
+			pathBuilder4.lineTo(layoutInfo.code2.deltaX(1000));
+			pathBuilder4.lineTo(layoutInfo.code2);
+
 			const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 			path1.setAttribute('d', pathBuilder1.build());
 			path1.style.fill = 'var(--vscode-inlineEdit-originalBackground, transparent)';
@@ -262,12 +156,22 @@ export class InlineEditsView extends Disposable {
 			path2.style.stroke = 'var(--vscode-inlineEdit-border)';
 			path2.style.strokeWidth = '1px';
 
+			const pathModifiedBackground = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			pathModifiedBackground.setAttribute('d', pathBuilder2.build());
+			pathModifiedBackground.style.fill = 'var(--vscode-editor-background, transparent)';
+			pathModifiedBackground.style.strokeWidth = '1px';
+
 			const path3 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 			path3.setAttribute('d', pathBuilder3.build());
 			path3.style.stroke = 'var(--vscode-inlineEdit-border)';
 			path3.style.strokeWidth = '1px';
 
-			this._elements.svg.replaceChildren(path1, path2, path3);
+			const path4 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			path4.setAttribute('d', pathBuilder4.build());
+			path4.style.fill = 'var(--vscode-editor-background, transparent)';
+
+			this._elements.svg.replaceChildren(path4, pathModifiedBackground);
+			this._elements.svg2.replaceChildren(path1, path2, path3);
 
 			this._elements.editorContainer.style.top = `${topEdit.y}px`;
 			this._elements.editorContainer.style.left = `${topEdit.x}px`;
@@ -286,27 +190,35 @@ export class InlineEditsView extends Disposable {
 		const edit = this._edit.read(reader);
 		if (!edit) { return undefined; }
 
-		let newText = edit.edit.apply(edit.originalText);
-		const indentationAdjustmentEdit = createReindentEdit(newText, edit.modifiedLineRange);
-		newText = indentationAdjustmentEdit.applyToString(newText);
-
 		let mappings = RangeMapping.fromEdit(edit.edit);
-		mappings = applyEditToModifiedRangeMappings(mappings, indentationAdjustmentEdit);
+		let newText = edit.edit.apply(edit.originalText);
+		let diff = lineRangeMappingFromRangeMappings(mappings, edit.originalText, new StringText(newText));
 
-		const diff = lineRangeMappingFromRangeMappings(mappings, edit.originalText, new StringText(newText));
+		let state: 'collapsed' | 'mixedLines' | 'interleavedLines' | 'sideBySide';
+		if (edit.isCollapsed) {
+			state = 'collapsed';
+		} else if (diff.every(m => OriginalEditorInlineDiffView.supportsInlineDiffRendering(m)) &&
+			(this._useMixedLinesDiff.read(reader) === 'whenPossible' || (edit.userJumpedToIt && this._useMixedLinesDiff.read(reader) === 'afterJumpWhenPossible'))) {
+			state = 'mixedLines';
+		} else if ((this._useInterleavedLinesDiff.read(reader) === 'always' || (edit.userJumpedToIt && this._useInterleavedLinesDiff.read(reader) === 'afterJump'))) {
+			state = 'interleavedLines';
+		} else {
+			state = 'sideBySide';
+		}
+
+		if (state === 'sideBySide') {
+			const indentationAdjustmentEdit = createReindentEdit(newText, edit.modifiedLineRange);
+			newText = indentationAdjustmentEdit.applyToString(newText);
+
+			mappings = applyEditToModifiedRangeMappings(mappings, indentationAdjustmentEdit);
+			diff = lineRangeMappingFromRangeMappings(mappings, edit.originalText, new StringText(newText));
+		}
 
 		const originalDisplayRange = edit.originalText.lineRange.intersect(
 			edit.originalLineRange.join(
 				LineRange.ofLength(edit.originalLineRange.startLineNumber, edit.lineEdit.newLines.length)
 			)
 		)!;
-
-		let state: 'collapsed' | 'inline' | 'sideBySide' = 'sideBySide';
-		if (edit.isCollapsed) {
-			state = 'collapsed';
-		} else if (edit.showInlineIfPossible && diff.every(m => OriginalEditorInlineDiffView.supportsInlineDiffRendering(m))) {
-			state = 'inline';
-		}
 
 		return {
 			state,
@@ -366,6 +278,8 @@ export class InlineEditsView extends Disposable {
 		this._toolbar.setAdditionalPrimaryActions(primaryExtraActions);
 		this._toolbar.setAdditionalSecondaryActions(secondaryExtraActions);
 	}));
+
+	// #region preview editor
 
 	private readonly _previewTextModel = this._register(this._instantiationService.createInstance(
 		TextModel,
@@ -453,7 +367,13 @@ export class InlineEditsView extends Disposable {
 		const maxLeft = maxLeftInRange(this._editorObs, state.originalDisplayRange, reader);
 		const contentLeft = this._editorObs.layoutInfoContentLeft.read(reader);
 
-		return { left: contentLeft + maxLeft };
+		const editorLayoutInfo = this._editorObs.layoutInfo.read(reader);
+
+		const minLeft = (editorLayoutInfo.width - editorLayoutInfo.minimap.minimapWidth) * 0.65;
+
+		const scrollLeft = this._editorObs.scrollLeft.read(reader);
+
+		return { left: Math.min(contentLeft + maxLeft, minLeft + scrollLeft) };
 	});
 
 	/**
@@ -499,6 +419,8 @@ export class InlineEditsView extends Disposable {
 		};
 	});
 
+	// #endregion
+
 	private readonly _inlineDiffViewState = derived<IOriginalEditorInlineDiffViewState | undefined>(this, reader => {
 		const e = this._uiState.read(reader);
 		if (!e) { return undefined; }
@@ -506,11 +428,11 @@ export class InlineEditsView extends Disposable {
 		return {
 			modifiedText: new StringText(e.newText),
 			diff: e.diff,
-			showInline: e.edit.showInlineIfPossible,
+			mode: e.state === 'collapsed' ? 'sideBySide' : e.state,
 			modifiedCodeEditor: this._previewEditor,
 		};
 	});
-	protected readonly _inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState));
+	protected readonly _inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState, this._previewTextModel));
 
 	protected readonly _indicator = this._register(new InlineEditsIndicator(
 		this._editorObs,
@@ -518,59 +440,8 @@ export class InlineEditsView extends Disposable {
 			const state = this._uiState.read(reader);
 			const edit1 = this._previewEditorLayoutInfo.read(reader)?.edit1;
 			if (!edit1 || !state) { return undefined; }
-			return { editTopLeft: edit1, showAlways: state.state === 'collapsed' || state.state === 'inline' };
+			return { editTopLeft: edit1, showAlways: state.state !== 'sideBySide' };
 		}),
 		this._model,
 	));
-}
-
-export function classNames(...classes: (string | false | undefined | null)[]) {
-	return classes.filter(c => typeof c === 'string').join(' ');
-}
-
-function offsetRangeToRange(columnOffsetRange: OffsetRange, startPos: Position): Range {
-	return new Range(
-		startPos.lineNumber,
-		startPos.column + columnOffsetRange.start,
-		startPos.lineNumber,
-		startPos.column + columnOffsetRange.endExclusive,
-	);
-}
-
-function createReindentEdit(text: string, range: LineRange): TextEdit {
-	const newLines = splitLines(text);
-	const edits: SingleTextEdit[] = [];
-	const minIndent = findFirstMin(range.mapToLineArray(l => getIndentationLength(newLines[l - 1])), numberComparator)!;
-	range.forEach(lineNumber => {
-		edits.push(new SingleTextEdit(offsetRangeToRange(new OffsetRange(0, minIndent), new Position(lineNumber, 1)), ''));
-	});
-	return new TextEdit(edits);
-}
-
-class PathBuilder {
-	private _data: string = '';
-
-	public moveTo(point: Point): this {
-		this._data += `M ${point.x} ${point.y} `;
-		return this;
-	}
-
-	public lineTo(point: Point): this {
-		this._data += `L ${point.x} ${point.y} `;
-		return this;
-	}
-
-	public curveTo(cp: Point, to: Point): this {
-		this._data += `Q ${cp.x} ${cp.y} ${to.x} ${to.y} `;
-		return this;
-	}
-
-	public curveTo2(cp1: Point, cp2: Point, to: Point): this {
-		this._data += `C ${cp1.x} ${cp1.y} ${cp2.x} ${cp2.y} ${to.x} ${to.y} `;
-		return this;
-	}
-
-	public build(): string {
-		return this._data;
-	}
 }

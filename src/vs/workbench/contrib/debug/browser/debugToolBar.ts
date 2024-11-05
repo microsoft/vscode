@@ -22,7 +22,7 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { localize } from '../../../../nls.js';
 import { ICommandAction, ICommandActionTitle } from '../../../../platform/action/common/action.js';
 import { DropdownWithPrimaryActionViewItem, IDropdownWithPrimaryActionViewItemOptions } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { createActionViewItem, createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -132,8 +132,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 				return this.hide();
 			}
 
-			const actions: IAction[] = [];
-			createAndFillInActionBarActions(this.debugToolBarMenu, { shouldForwardArgs: true }, actions);
+			const actions = getFlatActionBarActions(this.debugToolBarMenu.getActions({ shouldForwardArgs: true }));
 			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id && first.enabled === second.enabled)) {
 				this.actionBar.clear();
 				this.actionBar.push(actions, { icon: true, label: false });
@@ -364,8 +363,7 @@ export function createDisconnectMenuItemAction(action: MenuItemAction, disposabl
 	const instantiationService = accessor.get(IInstantiationService);
 
 	const menu = menuService.getMenuActions(MenuId.DebugToolBarStop, contextKeyService, { shouldForwardArgs: true });
-	const secondary: IAction[] = [];
-	createAndFillInActionBarActions(menu, secondary);
+	const secondary = getFlatActionBarActions(menu);
 
 	if (!secondary.length) {
 		return undefined;
