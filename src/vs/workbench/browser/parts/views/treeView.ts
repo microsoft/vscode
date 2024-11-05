@@ -375,7 +375,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				private updateEmptyState(nodes: ITreeItem[], childrenGroups: ITreeItem[][]): void {
 					if ((nodes.length === 1) && (nodes[0] instanceof Root)) {
 						const oldEmpty = this._isEmpty;
-						this._isEmpty = childrenGroups[0].length === 0;
+						this._isEmpty = (childrenGroups.length === 0) || (childrenGroups[0].length === 0);
 						if (oldEmpty !== this._isEmpty) {
 							this._onDidChangeEmpty.fire();
 						}
@@ -383,6 +383,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				}
 
 				private findCheckboxesUpdated(nodes: ITreeItem[], childrenGroups: ITreeItem[][]): ITreeItem[] {
+					if (childrenGroups.length === 0) {
+						return [];
+					}
 					const checkboxesUpdated: ITreeItem[] = [];
 
 					for (let i = 0; i < nodes.length; i++) {
@@ -1211,7 +1214,7 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 				}
 				try {
 					const result = await this.batchPromise;
-					resolve(result ? result[indexInBatch] : []);
+					resolve((result && (indexInBatch < result.length)) ? result[indexInBatch] : []);
 				} catch (e) {
 					if (!(<string>e.message).startsWith('Bad progress location:')) {
 						reject(e);

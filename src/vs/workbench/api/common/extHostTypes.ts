@@ -4659,16 +4659,11 @@ export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPa
 	name: string;
 	input: any;
 
-	/** @deprecated */
-	parameters: any;
-
 	constructor(callId: string, name: string, input: any) {
 		this.callId = callId;
 		this.name = name;
 
 		this.input = input;
-		// TODO@API backwards compat, remove
-		this.parameters = input;
 	}
 }
 

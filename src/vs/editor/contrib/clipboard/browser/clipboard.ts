@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from '../../../../base/browser/browser.js';
-import { getActiveDocument } from '../../../../base/browser/dom.js';
+import { getActiveDocument, getActiveWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as platform from '../../../../base/common/platform.js';
 import * as nls from '../../../../nls.js';
@@ -234,11 +234,21 @@ if (PasteAction) {
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasTextFocus()) {
 			// execCommand(paste) does not work with edit context
-			const canDoDocumentExecCommand = !focusedEditor.getOption(EditorOption.experimentalEditContextEnabled);
-			const result = canDoDocumentExecCommand && focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
+			let result: boolean;
+			const experimentalEditContextEnabled = focusedEditor.getOption(EditorOption.experimentalEditContextEnabled);
+			if (experimentalEditContextEnabled) {
+				const currentFocusedElement = getActiveWindow().document.activeElement;
+				focusedEditor.getTextAreaDomNode()?.focus();
+				result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
+				if (isHTMLElement(currentFocusedElement)) {
+					currentFocusedElement.focus();
+				}
+			} else {
+				result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
+			}
 			if (result) {
 				return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
-			} else if (platform.isWeb || !canDoDocumentExecCommand) {
+			} else if (platform.isWeb) {
 				// Use the clipboard service if document.execCommand('paste') was not successful
 				return (async () => {
 					const clipboardText = await clipboardService.readText();

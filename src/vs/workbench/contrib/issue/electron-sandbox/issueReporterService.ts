@@ -173,15 +173,15 @@ export class IssueReporter extends BaseIssueReporterService {
 		const baseUrl = this.getIssueUrlWithTitle((<HTMLInputElement>this.getElementById('issue-title')).value, issueUrl);
 		let url = baseUrl + `&body=${encodeURIComponent(issueBody)}`;
 
-		if (url.length > MAX_URL_LENGTH) {
+		if (this.data.githubAccessToken && gitHubDetails) {
+			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
+		} else if (url.length > MAX_URL_LENGTH) {
 			try {
 				url = await this.writeToClipboard(baseUrl, issueBody);
 			} catch (_) {
 				console.error('Writing to clipboard failed');
 				return false;
 			}
-		} else if (this.data.githubAccessToken && gitHubDetails) {
-			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
 		}
 
 		await this.nativeHostService.openExternal(url);

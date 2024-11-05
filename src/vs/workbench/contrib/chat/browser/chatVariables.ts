@@ -17,7 +17,7 @@ import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from 
 import { ChatRequestDynamicVariablePart, ChatRequestToolPart, ChatRequestVariablePart, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatContentReference } from '../common/chatService.js';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
-import { IChatWidgetService, showChatView } from './chat.js';
+import { IChatWidgetService, showChatView, showEditsView } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 
 interface IChatData {
@@ -161,11 +161,13 @@ export class ChatVariablesService implements IChatVariablesService {
 	}
 
 	async attachContext(name: string, value: string | URI | Location, location: ChatAgentLocation) {
-		if (location !== ChatAgentLocation.Panel) {
+		if (location !== ChatAgentLocation.Panel && location !== ChatAgentLocation.EditingSession) {
 			return;
 		}
 
-		const widget = this.chatWidgetService.lastFocusedWidget ?? await showChatView(this.viewsService);
+		const widget = location === ChatAgentLocation.EditingSession
+			? await showEditsView(this.viewsService)
+			: (this.chatWidgetService.lastFocusedWidget ?? await showChatView(this.viewsService));
 		if (!widget || !widget.viewModel) {
 			return;
 		}

@@ -588,7 +588,7 @@ class InstallChatWithPromptAction extends BaseInstallChatAction {
 	}
 
 	protected getJustification(productService: IProductService): string {
-		return localize('installChatGlobalAction.justification', "AI features in {0} require this extension.", productService.nameShort);
+		return localize('installChatGlobalAction.justification', "AI features in {0} require this extension. Your account already has access to {1}.", productService.nameShort, defaultChat.name);
 	}
 }
 

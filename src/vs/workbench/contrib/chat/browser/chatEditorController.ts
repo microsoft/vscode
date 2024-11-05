@@ -251,32 +251,35 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				const domNode = document.createElement('div');
 				domNode.className = 'chat-editing-original-zone view-lines line-delete monaco-mouse-cursor-text';
 				const result = renderLines(source, renderOptions, decorations, domNode);
-				const viewZoneData: IViewZone = {
-					afterLineNumber: diffEntry.modified.startLineNumber - 1,
-					heightInLines: result.heightInLines,
-					domNode,
-					ordinal: 50000 + 2 // more than https://github.com/microsoft/vscode/blob/bf52a5cfb2c75a7327c9adeaefbddc06d529dcad/src/vs/workbench/contrib/inlineChat/browser/inlineChatZoneWidget.ts#L42
-				};
+				const shouldRenderViewZone = diffEntry.modified.startLineNumber > 1 || result.heightInLines > 1;
+				if (shouldRenderViewZone) {
+					const viewZoneData: IViewZone = {
+						afterLineNumber: diffEntry.modified.startLineNumber - 1,
+						heightInLines: result.heightInLines,
+						domNode,
+						ordinal: 50000 + 2 // more than https://github.com/microsoft/vscode/blob/bf52a5cfb2c75a7327c9adeaefbddc06d529dcad/src/vs/workbench/contrib/inlineChat/browser/inlineChatZoneWidget.ts#L42
+					};
 
-				this._viewZones.push(viewZoneChangeAccessor.addZone(viewZoneData));
+					this._viewZones.push(viewZoneChangeAccessor.addZone(viewZoneData));
+				}
 			}
 
 			this._decorations.set(modifiedDecorations);
 		});
 	}
 
-	revealNext() {
-		this._reveal(true);
+	revealNext(strict = false): boolean {
+		return this._reveal(true, strict);
 	}
 
-	revealPrevious() {
-		this._reveal(false);
+	revealPrevious(strict = false): boolean {
+		return this._reveal(false, strict);
 	}
 
-	private _reveal(next: boolean) {
+	private _reveal(next: boolean, strict: boolean): boolean {
 		const position = this._editor.getPosition();
 		if (!position) {
-			return;
+			return false;
 		}
 
 		const decorations: (Range | undefined)[] = this._decorations
@@ -299,7 +302,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		coalesceInPlace(decorations);
 
 		if (decorations.length === 0) {
-			return;
+			return false;
 		}
 
 		let idx = binarySearch(decorations, Range.fromPositions(position), Range.compareRangesUsingStarts);
@@ -314,12 +317,16 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			target = next ? idx : idx - 1;
 		}
 
-		target = (target + decorations.length) % decorations.length;
+		if (strict && (target < 0 || target >= decorations.length)) {
+			return false;
+		}
 
+		target = (target + decorations.length) % decorations.length;
 
 		const targetPosition = decorations[target].getStartPosition();
 		this._editor.setPosition(targetPosition);
 		this._editor.revealPositionInCenter(targetPosition, ScrollType.Smooth);
 		this._editor.focus();
+		return true;
 	}
 }

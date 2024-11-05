@@ -558,6 +558,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.value.appendChild(renderedError.domNode);
 		}
 
+		if (this.rendererOptions.renderStyle === 'minimal' && isRequestVM(element) && !element.isComplete) {
+			const element = $('span.chat-animated-ellipsis');
+			templateData.value.lastChild?.lastChild?.appendChild(element);
+		}
+
 		const newHeight = templateData.rowContainer.offsetHeight;
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
 		element.currentRenderedHeight = newHeight;

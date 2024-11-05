@@ -1169,18 +1169,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the resource' };
 				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the resource' };
 				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'View type of the notebook editor' };
+				isRepl: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the notebook editor is within a REPL editor' };
 			};
 
 			type WorkbenchNotebookOpenEvent = {
 				scheme: string;
 				ext: string;
 				viewType: string;
+				isRepl: boolean;
 			};
 
 			this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpened', {
 				scheme: textModel.uri.scheme,
 				ext: extname(textModel.uri),
-				viewType: textModel.viewType
+				viewType: textModel.viewType,
+				isRepl: this.isReplHistory
 			});
 		} else {
 			this.restoreListViewState(viewState);
@@ -3062,12 +3065,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const cell = this.viewModel?.viewCells.find(vc => vc.handle === cellInfo.cellHandle);
 		if (cell && cell instanceof CodeCellViewModel) {
 			const outputIndex = cell.outputsViewModels.indexOf(output);
-			this._debug('update cell output', cell.handle, outputHeight);
-			cell.updateOutputHeight(outputIndex, outputHeight, source);
-			this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
+			if (outputIndex > -1) {
+				this._debug('update cell output', cell.handle, outputHeight);
+				cell.updateOutputHeight(outputIndex, outputHeight, source);
+				this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
 
-			if (isInit) {
-				this._onDidRenderOutput.fire(output);
+				if (isInit) {
+					this._onDidRenderOutput.fire(output);
+				}
+			} else {
+				this._debug('tried to update cell output that does not exist');
 			}
 		}
 	}
