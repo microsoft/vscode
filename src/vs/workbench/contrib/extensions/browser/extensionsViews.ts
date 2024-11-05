@@ -803,19 +803,22 @@ export class ExtensionsListView extends ViewPane {
 
 		let positionToUpdate = 0;
 		for (const preferredResult of preferredResults) {
-			for (let j = positionToUpdate; j < pager.firstPage.length; j++) {
-				if (areSameExtensions(pager.firstPage[j].identifier, { id: preferredResult })) {
-					if (positionToUpdate !== j) {
-						const preferredExtension = pager.firstPage.splice(j, 1)[0];
-						pager.firstPage.splice(positionToUpdate, 0, preferredExtension);
-						positionToUpdate++;
+			let found = false;
+			for (let pageIndex = 0; !found && pageIndex < pager.total; pageIndex++) {
+				const page = await pager.getPage(pageIndex, CancellationToken.None);
+				for (let j = positionToUpdate; !found && j < page.length; j++) {
+					if (areSameExtensions(page[j].identifier, { id: preferredResult })) {
+						found = true;
+						if (positionToUpdate !== j) {
+							const preferredExtension = page.splice(j, 1)[0];
+							page.splice(positionToUpdate, 0, preferredExtension);
+							positionToUpdate++;
+						}
 					}
-					break;
 				}
 			}
 		}
 		return this.getPagedModel(pager);
-
 	}
 
 	private sortExtensions(extensions: IExtension[], options: IQueryOptions): IExtension[] {
