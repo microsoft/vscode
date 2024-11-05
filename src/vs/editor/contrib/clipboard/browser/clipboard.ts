@@ -242,10 +242,12 @@ if (PasteAction) {
 				const editorDomNode = focusedEditor.getContainerDomNode();
 				const editorDocument = editorDomNode.ownerDocument;
 				const textAreaDomNode = editorDocument.getElementsByClassName(NativeEditContext.TEXT_AREA_CLASS_NAME).item(0);
-				if (textAreaDomNode && isHTMLElement(textAreaDomNode) && isHTMLElement(currentFocusedElement)) {
+				if (textAreaDomNode && isHTMLElement(textAreaDomNode)) {
 					textAreaDomNode.focus();
 					result = editorDocument.execCommand('paste');
-					currentFocusedElement.focus();
+					if (isHTMLElement(currentFocusedElement)) {
+						currentFocusedElement.focus();
+					}
 				} else {
 					result = false;
 				}
