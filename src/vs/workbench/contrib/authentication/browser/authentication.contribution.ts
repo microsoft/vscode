@@ -18,7 +18,7 @@ import { SignOutOfAccountAction } from './actions/signOutOfAccountAction.js';
 import { AuthenticationProviderInformation, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../../services/extensionManagement/common/extensionFeatures.js';
-import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
+import { ExtensionPointUserDelta, ExtensionsRegistry, IExtensionPointHandler } from '../../../services/extensions/common/extensionsRegistry.js';
 import { ManageTrustedExtensionsForAccountAction } from './actions/manageTrustedExtensionsForAccountAction.js';
 import { ManageAccountPreferencesForExtensionAction } from './actions/manageAccountPreferencesForExtensionAction.js';
 import { IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
@@ -58,6 +58,13 @@ const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<Authent
 		}
 	}
 });
+
+/**
+ * We want to make sure that we capture the initial state of the extension point so that we can
+ * make sure that the declared providers are in sync with the extension point.
+ */
+const initialDeltas = new Array<ExtensionPointUserDelta<AuthenticationProviderInformation[]>>();
+const extPointInitialDisposable = authenticationExtPoint.setHandler((extensions, delta) => initialDeltas.push(delta));
 
 class AuthenticationDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
 
@@ -119,6 +126,7 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 
 	constructor(@IAuthenticationService private readonly _authenticationService: IAuthenticationService) {
 		super();
+		this._register(extensionFeature);
 		this._register(codeExchangeProxyCommand);
 		this._register(extensionFeature);
 
@@ -132,7 +140,7 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 	}
 
 	private _registerAuthenticationExtentionPointHandler(): void {
-		authenticationExtPoint.setHandler((extensions, { added, removed }) => {
+		const handler: IExtensionPointHandler<AuthenticationProviderInformation[]> = (_extensions, { added, removed }) => {
 			added.forEach(point => {
 				for (const provider of point.value) {
 					if (isFalsyOrWhitespace(provider.id)) {
@@ -160,7 +168,10 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 					this._authenticationService.unregisterDeclaredAuthenticationProvider(provider.id);
 				}
 			});
-		});
+		};
+		initialDeltas.forEach(delta => handler([], delta));
+		extPointInitialDisposable.dispose();
+		this._register(authenticationExtPoint.setHandler(handler));
 	}
 
 	private _registerHandlers(): void {
