@@ -126,14 +126,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 				for (const subcommand of spec.subcommands) {
 					const subCommandName = getLabel(subcommand);
 					if (subCommandName) {
-						result.push(createCompletionItem(subCommandName, subcommand.description));
-						if (subcommand.args) {
-							//TODO: deal with generators / isOptional
-							const argName = getLabel(subcommand);
-							if (argName) {
-								result.push(createCompletionItem(argName, `Subcommand of ${name}: ${subcommand.args.description}`));
-							}
-						}
+						result.push(createCompletionItem(name + ' ' + subCommandName, subcommand.description));
 					}
 				}
 			}
