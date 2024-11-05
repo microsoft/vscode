@@ -23,7 +23,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { ClipboardEventUtils } from '../../../browser/controller/editContext/textArea/textAreaEditContextInput.js';
+import { ClipboardEventUtils } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { toExternalVSDataTransfer, toVSDataTransfer } from '../../../browser/dnd.js';
 import { ICodeEditor, PastePayload } from '../../../browser/editorBrowser.js';
 import { IBulkEditService } from '../../../browser/services/bulkEditService.js';
