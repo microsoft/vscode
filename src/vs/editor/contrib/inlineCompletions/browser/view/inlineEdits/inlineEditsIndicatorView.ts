@@ -8,7 +8,7 @@ import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabe
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, constObservable, autorun } from '../../../../../../base/common/observable.js';
-import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { buttonBackground, buttonForeground, buttonSeparator } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { registerColor } from '../../../../../../platform/theme/common/colorUtils.js';
 import { ObservableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { OffsetRange } from '../../../../../common/core/offsetRange.js';
@@ -20,9 +20,12 @@ export interface IInlineEditsIndicatorState {
 	showAlways: boolean;
 }
 
-export const inlineEditIndicatorForeground = registerColor('inlineEdit.indicator.foreground', editorHoverForeground, '');
-export const inlineEditIndicatorBackground = registerColor('inlineEdit.indicator.background', editorHoverBackground, '');
-export const inlineEditIndicatorBorder = registerColor('inlineEdit.indicator.border', editorHoverBorder, '');
+// editorHoverForeground
+export const inlineEditIndicatorForeground = registerColor('inlineEdit.indicator.foreground', buttonForeground, '');
+// editorHoverBackground
+export const inlineEditIndicatorBackground = registerColor('inlineEdit.indicator.background', buttonBackground, '');
+// editorHoverBorder
+export const inlineEditIndicatorBorder = registerColor('inlineEdit.indicator.border', buttonSeparator, '');
 
 export class InlineEditsIndicator extends Disposable {
 	private readonly _indicator = h('div.inline-edits-view-indicator', {

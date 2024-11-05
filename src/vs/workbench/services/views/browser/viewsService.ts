@@ -455,7 +455,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						id,
 						title: mnemonicTitle,
 					},
-					group: defaultLocation === ViewContainerLocation.Sidebar ? '3_views' : '4_panels',
+					group: defaultLocation === ViewContainerLocation.Sidebar ? '3_sidebar' : defaultLocation === ViewContainerLocation.AuxiliaryBar ? '4_auxbar' : '5_panel',
 					when: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
 					order: order ?? Number.MAX_VALUE
 				}));
@@ -524,7 +524,7 @@ export class ViewsService extends Disposable implements IViewsService {
 							id: commandId,
 							title: viewDescriptor.openCommandActionDescriptor.mnemonicTitle,
 						},
-						group: defaultLocation === ViewContainerLocation.Sidebar ? '3_views' : '4_panels',
+						group: defaultLocation === ViewContainerLocation.Sidebar ? '3_sidebar' : defaultLocation === ViewContainerLocation.AuxiliaryBar ? '4_auxbar' : '5_panel',
 						when: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
 						order: viewDescriptor.openCommandActionDescriptor.order ?? Number.MAX_VALUE
 					}));

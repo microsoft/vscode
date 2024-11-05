@@ -4593,7 +4593,8 @@ declare namespace monaco.editor {
 		edits?: {
 			experimental?: {
 				enabled?: boolean;
-				useMixedLinesDiff?: 'never' | 'whenPossible';
+				useMixedLinesDiff?: 'never' | 'whenPossible' | 'afterJumpWhenPossible';
+				useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
 			};
 		};
 	}

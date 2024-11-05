@@ -358,5 +358,5 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 		precondition: CAN_TOGGLE_WORD_WRAP
 	},
 	order: 1,
-	group: '5_editor'
+	group: '6_editor'
 });
