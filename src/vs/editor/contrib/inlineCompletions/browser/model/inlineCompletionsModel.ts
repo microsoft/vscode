@@ -299,10 +299,13 @@ export class InlineCompletionsModel extends Disposable {
 			const currentItemIsCollapsed = !disableCollapsing && (cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEditCompletion.semanticId);
 
 			const commands = item.inlineEditCompletion.inlineCompletion.source.inlineCompletions.commands;
-			const inlineEdit = new InlineEdit(edit, currentItemIsCollapsed, false, commands ?? []);
+			const renderExplicitly = this._jumpedTo.read(reader);
+			const inlineEdit = new InlineEdit(edit, currentItemIsCollapsed, renderExplicitly, commands ?? []);
 
 			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: item.inlineEditCompletion, edits: [edit], cursorAtInlineEdit };
 		}
+
+		this._jumpedTo.set(false, undefined);
 
 		const suggestItem = this.selectedSuggestItem.read(reader);
 		if (suggestItem) {
@@ -647,11 +650,14 @@ export class InlineCompletionsModel extends Disposable {
 		};
 	}
 
+	private _jumpedTo = observableValue(this, false);
+
 	public jump(): void {
 		const s = this.inlineEditState.get();
 		if (!s) { return; }
 
 		transaction(tx => {
+			this._jumpedTo.set(true, tx);
 			this.dontRefetchSignal.trigger(tx);
 			this._editor.setPosition(s.inlineEdit.range.getStartPosition(), 'inlineCompletions.jump');
 			this._editor.revealLine(s.inlineEdit.range.startLineNumber);
