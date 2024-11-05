@@ -181,7 +181,7 @@ export class ViewCursors extends ViewPart {
 		return true;
 	}
 	public override onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
-		this._editorHasFocus = e.isFocused;
+		this._editorHasFocus = true || e.isFocused;
 		this._updateBlinking();
 		return false;
 	}

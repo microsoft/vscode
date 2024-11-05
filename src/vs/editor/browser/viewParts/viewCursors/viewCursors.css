@@ -9,7 +9,7 @@
 
 .monaco-editor .cursors-layer > .cursor {
 	position: absolute;
-	overflow: hidden;
+	/* overflow: hidden; */
 	box-sizing: border-box;
 }
 
@@ -40,10 +40,12 @@
 }
 
 @keyframes monaco-cursor-smooth {
+
 	0%,
 	20% {
 		opacity: 1;
 	}
+
 	60%,
 	100% {
 		opacity: 0;
@@ -51,10 +53,12 @@
 }
 
 @keyframes monaco-cursor-phase {
+
 	0%,
 	20% {
 		opacity: 1;
 	}
+
 	90%,
 	100% {
 		opacity: 0;
@@ -62,10 +66,12 @@
 }
 
 @keyframes monaco-cursor-expand {
+
 	0%,
 	20% {
 		transform: scaleY(1);
 	}
+
 	80%,
 	100% {
 		transform: scaleY(0);
@@ -82,4 +88,29 @@
 
 .cursor-expand > .cursor {
 	animation: monaco-cursor-expand 0.5s ease-in-out 0s 20 alternate;
+}
+
+.smart .cursor {
+	&::after {
+		position: absolute;
+		content: "";
+		left: -1px;
+		height: 110%;
+		width: 300%;
+		transform: scale(0.9) translateZ(0);
+		filter: blur(3px);
+		background: linear-gradient(to left, #ff5770, #e4428d, #c42da8, #9e16c3, #6501de, #9e16c3, #c42da8, #e4428d, #ff5770);
+		background-size: 200%;
+		animation: animateGlow .75s linear infinite;
+	}
+}
+
+@keyframes animateGlow {
+	0% {
+		background-position: 0% 50%;
+	}
+
+	100% {
+		background-position: 200% 50%;
+	}
 }

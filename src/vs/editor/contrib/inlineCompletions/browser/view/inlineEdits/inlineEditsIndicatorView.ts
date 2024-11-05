@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, h } from '../../../../../../base/browser/dom.js';
+import { addDisposableListener, getWindow, h } from '../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -60,6 +60,8 @@ export class InlineEditsIndicator extends Disposable {
 
 		this._register(autorun(reader => {
 			const state = this._state.read(reader);
+			getWindow(this._indicator.root).document.body.classList.toggle('smart', !!state);
+
 			if (!state) {
 				this._indicator.root.style.visibility = 'hidden';
 				return;
