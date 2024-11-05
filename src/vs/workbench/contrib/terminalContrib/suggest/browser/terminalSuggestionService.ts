@@ -87,7 +87,7 @@ export interface ITerminalCompletionProvider {
 export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider): IDisposable;
-	provideCompletions(promptValue: string, shellType: TerminalShellType): Promise<ITerminalCompletionItem[] | undefined>;
+	provideCompletions(promptValue: string, shellType: TerminalShellType, devModeEnabled?: boolean): Promise<ITerminalCompletionItem[] | undefined>;
 }
 
 // TODO: make name consistent
@@ -113,7 +113,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		});
 	}
 
-	async provideCompletions(promptValue: string, shellType: TerminalShellType): Promise<ITerminalCompletionItem[] | undefined> {
+	// TODO: use the configuration service here instead
+	async provideCompletions(promptValue: string, shellType: TerminalShellType, devModeEnabled?: boolean): Promise<ITerminalCompletionItem[] | undefined> {
 		const completionItems: ITerminalCompletionItem[] = [];
 
 		if (!this._providers || !this._providers.values) {
@@ -128,8 +129,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				const completions = await provider.provideCompletions(promptValue);
 				if (completions) {
 					for (const completion of completions) {
-						// TODO: check if in dev mode and only then add the extension name to the label
-						completion.detail = `(${extensionId}) ${completion.detail ?? ''}`;
+						if (devModeEnabled) {
+							completion.detail = `(${extensionId}) ${completion.detail ?? ''}`;
+						}
 						completionItems.push(completion);
 					}
 				}
