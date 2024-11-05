@@ -328,6 +328,10 @@ export function registerNewChatActions() {
 					when: ChatContextKeys.editingParticipantRegistered,
 					group: 'a_chatEdit',
 					order: 1
+				}, {
+					id: MenuId.ChatEditingEditorContent,
+					group: 'navigate',
+					order: 1,
 				}],
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
