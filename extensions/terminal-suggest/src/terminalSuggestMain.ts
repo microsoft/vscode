@@ -100,9 +100,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
 
 		const availableCommands = await getCommandsInPath();
 		const specs = await getCompletionSpecs(availableCommands);
-		console.log('executable commands in path:', availableCommands.size);
 		builtinCommands?.forEach(command => availableCommands.add(command));
-		console.log('builtin commands:', builtinCommands?.length);
 		const result: vscode.SimpleTerminalCompletion[] = [];
 		for (const spec of specs) {
 			let name: string | undefined;
@@ -120,13 +118,32 @@ async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
 
 			result.push({
 				label: name,
-				// kind: (vscode as any).TerminalCompletionItemKind.Method,
 				isFile: false,
 				isDirectory: false,
 				detail: 'description' in spec && spec.description ? spec.description ?? '' : '',
-				// TODO: pass in suggestions and if generators, file type so VS Code handles it
 			});
+			if (spec.options) {
+				// arguments
+				for (const option of spec.options) {
+					let name = option.name;
+					if (typeof spec.name !== 'string') {
+						name = spec.name[0];
+					}
+					if (!name) {
+						continue;
+					}
+					if (option.name) {
+						result.push({
+							label: spec.name + ' ' + option.name,
+							isFile: false,
+							isDirectory: false,
+							detail: 'description' in option && option.description ? option.description ?? '' : '',
+						});
+					}
+				}
+			}
 		}
+		console.log(result.length);
 		// Return the completion results or undefined if no results
 		return result.length ? { items: result } : undefined;
 	}
