@@ -15,7 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
-import { createAndFillInContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -102,9 +102,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 				getAnchor: () => event,
 				getActions: () => {
 					const menu = this.menuService.getMenuActions(MenuId.ChatInputResourceAttachmentContext, scopedContextKeyService, { arg: file });
-					const primary: IAction[] = [];
-					createAndFillInContextMenuActions(menu, primary);
-					return primary;
+					return getFlatContextMenuActions(menu);
 				},
 			});
 		}));
