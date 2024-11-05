@@ -103,52 +103,53 @@ async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
 		builtinCommands?.forEach(command => availableCommands.add(command));
 		const result: vscode.SimpleTerminalCompletion[] = [];
 		for (const spec of specs) {
-			let name: string | undefined;
-			if ('displayName' in spec) {
-				name = spec.displayName;
-			}
-			if (!name && typeof spec.name === 'string') {
-				name = spec.name;
-			} else {
-				name = spec.name[0];
-			}
+			const name = getLabel(spec);
 			if (!name || !availableCommands.has(name)) {
 				continue;
 			}
 
-			result.push({
-				label: name,
-				isFile: false,
-				isDirectory: false,
-				detail: 'description' in spec && spec.description ? spec.description ?? '' : '',
-			});
+			result.push(createCompletionItem(name, spec.description));
+
 			if (spec.options) {
-				// arguments
 				for (const option of spec.options) {
-					let name = option.name;
-					if (typeof spec.name !== 'string') {
-						name = spec.name[0];
-					}
-					if (!name) {
-						continue;
-					}
-					if (option.name) {
-						result.push({
-							label: spec.name + ' ' + option.name,
-							isFile: false,
-							isDirectory: false,
-							detail: 'description' in option && option.description ? option.description ?? '' : '',
-						});
+					const optionName = getArgumentLabel(spec, option);
+					if (optionName) {
+						result.push(createCompletionItem(`${spec.name} ${option.name}`, option.description));
 					}
 				}
 			}
 		}
+
 		console.log(result.length);
 		// Return the completion results or undefined if no results
 		return result.length ? { items: result } : undefined;
 	}
 });
 
+function getLabel(spec: Fig.Spec): string | undefined {
+	if ('displayName' in spec) {
+		return spec.displayName;
+	}
+	if (typeof spec.name === 'string') {
+		return spec.name;
+	}
+	return spec.name[0];
+}
+
+function getArgumentLabel(spec: Fig.Spec, option: any): string | undefined {
+	const commandName = getLabel(spec);
+	const argumentName = getLabel(option);
+	return `${commandName} ${argumentName}`;
+}
+
+function createCompletionItem(label: string, description?: string): vscode.SimpleTerminalCompletion {
+	return {
+		label,
+		isFile: false,
+		isDirectory: false,
+		detail: description ?? '',
+	};
+}
 
 async function getCommandsInPath(): Promise<Set<string>> {
 	// todo: use semicolon for windows
