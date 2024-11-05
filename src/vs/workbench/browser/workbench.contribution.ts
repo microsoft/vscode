@@ -501,8 +501,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'number',
 				'description': localize('workbench.quickOpen.relativeWidth', "Controls the width of Quick Open relative to the total window width."),
 				'default': 0.62,
-				'minimum': 0.1,
-				'maximum': 1.0
+				'minimum': 0.5,
+				'maximum': 0.9
 			},
 			'workbench.settings.openDefaultSettings': {
 				'type': 'boolean',
