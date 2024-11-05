@@ -69,3 +69,37 @@ export function checkAdjacentItems<T>(items: readonly T[], predicate: (item1: T,
 	}
 	return true;
 }
+
+
+// TODO: @legomushroom: move out the assertDefined util
+// TODO: @legomushroom: declare the `AssertionError` correctly
+// TODO: @legomushroom: add unit tests
+
+/**
+ * Error thrown when an assertion fails.
+ */
+export class AssertionError extends Error {
+	// public override readonly errorType: string = 'AssertionError'
+}
+
+/**
+ * Asserts that a provided value is `defined`(not `null` or `undefined`),
+ * throwing an error with the provided error or error message otherwise.
+ *
+ * ## Examples
+ *
+ * ```typescript
+ * // an assert with an error message
+ * assertDefined('some value', 'String constant is not defined.')
+ *
+ * // (throws!) an assert with an error message
+ * assertDefined(null, new Error('Should throw this error.'))
+ * ```
+ */
+export function assertDefined<T>(object: T, error: string | NonNullable<Error>): asserts object is NonNullable<T> {
+	if (object === null || object === undefined) {
+		const errorToThrow = typeof error === 'string' ? new AssertionError(error) : error;
+
+		throw errorToThrow;
+	}
+}

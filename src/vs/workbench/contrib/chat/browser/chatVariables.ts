@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from '../../../../base/common/arrays.js';
+import { assert, assertDefined } from '../../../../base/common/assert.js';
+import * as streams from '../../../../base/common/stream.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../common/chatAgents.js';
 import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from '../common/chatModel.js';
@@ -19,29 +21,350 @@ import { IChatContentReference } from '../common/chatService.js';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
 import { IChatWidgetService, showChatView, showEditsView } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Emitter } from '../../../../editor/editor.api.js';
 
 interface IChatData {
 	data: IChatVariableData;
 	resolver: IChatVariableResolver;
 }
 
+/**
+ * TODO: @legomushroom
+ */
+export interface ICodec<T, K> {
+	/**
+	 * Encode a readable stream of `T`s into a readable stream of `K`s.
+	 */
+	encode: (value: streams.ReadableStream<K>) => streams.ReadableStream<T>;
+
+	/**
+	 * Encode a readable stream of `T`s into a readable stream of `K`s.
+	 */
+	decode: (value: streams.ReadableStream<T>) => streams.ReadableStream<K>;
+}
+
+// /*
+//  * TODO: @legomushroom
+//  */
+// const variableToEntry(value: IChatRequestVariableValue): IChatRequestVariableEntry | undefined {
+// 	if (!value) {
+// 		return undefined;
+// 	}
+
+// 	return { id: data.data.id, modelDescription: data.data.modelDescription, name: part.variableName, range: part.range, value, references, fullName: data.data.fullName, icon: data.data.icon };
+// }
+
+/*
+ * TODO: @legomushroom
+ */
+const runJobsAndGetSuccesses = async (jobs: Promise<IChatRequestVariableEntry | null>[]): Promise<IChatRequestVariableEntry[]> => {
+	return (await Promise.allSettled(jobs))
+		// filter out `failed` and `empty` ones
+		.filter((result) => {
+			return result.status !== 'rejected' && result.value !== null;
+		})
+		// map to the promise value
+		.map((result) => {
+			// must always be true because of the filter logic above
+			assert(
+				result.status === 'fulfilled',
+				`Failed to resolve variables: unexpected promise result status "${result.status}".`,
+			);
+			assert(
+				result.value !== null,
+				`Failed to resolve variables: promise result must not be null.`,
+			);
+
+			return result.value;
+		});
+};
+
+
+/*
+ * TODO: @legomushroom
+ */
+const runJobsAndGetSuccesses2 = async (jobs: Promise<IChatRequestVariableEntry[] | null>[]): Promise<IChatRequestVariableEntry[]> => {
+	return (await Promise.allSettled(jobs))
+		// filter out `failed` and `empty` ones
+		.filter((result) => {
+			return result.status !== 'rejected' && result.value !== null;
+		})
+		// map to the promise value
+		.flatMap((result) => {
+			// must always be true because of the filter logic above
+			assert(
+				result.status === 'fulfilled',
+				`Failed to resolve variables: unexpected promise result status "${result.status}".`,
+			);
+			assert(
+				result.value !== null,
+				`Failed to resolve variables: promise result must not be null.`,
+			);
+
+			return result.value;
+		});
+};
+
+/**
+ * TODO: @legomushroom
+ */
+interface IFileEntry {
+	/**
+	 * TODO: @legomushroom
+	 */
+	range: Range;
+}
+
+/**
+ * TODO: @legomushroom
+ */
+interface IFileText extends IFileEntry {
+	/**
+	 * TODO: @legomushroom
+	 */
+	text: string;
+}
+
+/**
+ * TODO: @legomushroom
+ */
+interface IFileReference extends IFileEntry {
+	/**
+	 * TODO: @legomushroom
+	 */
+	reference: IChatRequestVariableEntry;
+}
+
+/**
+ * TODO: @legomushroom
+ */
+type FileContentsEntry = IFileReference | IFileText;
+
+class FileContentsCodecDecoder extends Disposable implements streams.ReadableStream<FileContentsEntry> {
+	private _onData = this._register(new Emitter<FileContentsEntry>());
+	// public readonly onData = this._onData.event;
+
+	private _onError = this._register(new Emitter<Error>());
+	// public readonly onError = this._onError.event;
+
+	private _onEnd = this._register(new Emitter<void>());
+	// public readonly onEnd = this._onEnd.event;
+
+	constructor(
+		private readonly stream: streams.ReadableStream<VSBuffer>,
+	) {
+		super();
+	}
+
+	on(event: 'data', callback: (data: FileContentsEntry) => void): void;
+	on(event: 'error', callback: (err: Error) => void): void;
+	on(event: 'end', callback: () => void): void;
+	on(event: unknown, callback: unknown): void {
+		if (event === 'data') {
+			this._register(this._onData.event(callback as (data: FileContentsEntry) => void));
+			return;
+		}
+
+		if (event === 'error') {
+			this._register(this._onError.event(callback as (error: Error) => void));
+			return;
+		}
+
+		if (event === 'end') {
+			this._register(this._onEnd.event(callback as () => void));
+			return;
+		}
+
+		// // throw new Error('Method not implemented.');
+		// on(event: 'data', callback: (data: FileContentsEntry) => void) {
+		// 	this._onData.event(callback);
+		// }
+
+		// on(event: 'error', callback: (errror: Error) => void) {
+		// 	this._onError.event(callback);
+		// }
+
+		// on(event: 'end', callback: () => void) {
+		// 	this._onError.event(callback);
+		// }
+	}
+
+	pause(): void {
+		this.stream.pause();
+	}
+
+	resume(): void {
+		this.stream.resume();
+	}
+
+	destroy(): void {
+		this.stream.destroy();
+		this.dispose(); // TODO: @legomushroom - remove this?
+	}
+
+	removeListener(event: string, callback: Function): void {
+		// TODO: @legomushroom - add correct remove listener logic
+		this.stream.removeListener(event, callback);
+	}
+}
+
+/**
+ * TODO: @legomushroom
+ */
+class FileContentsCodec extends Disposable implements ICodec<VSBuffer, FileContentsEntry> {
+	public encode(value: streams.ReadableStream<FileContentsEntry>): streams.ReadableStream<VSBuffer> {
+		throw new Error('Method not implemented.');
+	}
+
+	public decode(value: streams.ReadableStream<VSBuffer>): streams.ReadableStream<FileContentsEntry> {
+		throw new Error('Method not implemented.');
+	}
+}
+
+/**
+ * TODO: @legomushroom
+ */
+class FileReferencesCodec extends Disposable implements ICodec<VSBuffer, IChatRequestVariableEntry> {
+	public encode(value: streams.ReadableStream<IChatRequestVariableEntry>): streams.ReadableStream<VSBuffer> {
+		throw new Error('Method not implemented.');
+	}
+
+	public decode(value: streams.ReadableStream<VSBuffer>): streams.ReadableStream<IChatRequestVariableEntry> {
+		throw new Error('Method not implemented.');
+	}
+}
+
+/**
+ * TODO: @legomushroom
+ */
+class DynamicVariableResolver extends Disposable {
+	constructor(
+		private readonly fileService: IFileService,
+	) {
+		super();
+	}
+
+	/**
+	 * Resolve the provided dynamic variable.
+	 */
+	public async resolve(
+		dynamicVariable: ChatRequestDynamicVariablePart,
+	): Promise<IChatRequestVariableEntry[]> {
+		const mainEntry = this.createVariableEntry(dynamicVariable);
+		// If the dynamic variable is not a file reference with specific file
+		// extension, we can just return it as is
+		if (!this.shouldResolveNestedFileReferences(dynamicVariable)) {
+			return [mainEntry];
+		}
+
+		const { data } = dynamicVariable;
+
+		assertDefined(
+			data,
+			`Failed to resolve nested file references: "dynamicVariable" does not have a data property.`,
+		);
+		assert(
+			data instanceof URI,
+			`Failed to resolve nested file references: "dynamicVariable" must be a URI, got ${data}.`,
+		);
+
+		return [
+			...(await this.resolveNestedFileReferences(data)),
+			mainEntry,
+		];
+	}
+
+	/**
+	 * Resolve nested file references that the file may contain.
+	 */
+	private async resolveNestedFileReferences(
+		fileUri: URI,
+	): Promise<IChatRequestVariableEntry[]> {
+		try {
+			const fileStream = await this.fileService.readFileStream(fileUri);
+			const chunks = [];
+
+			// this._register();
+
+			// TODO: @legomushroom - add to disposables
+			fileStream.value.on('data', (chunk) => { });
+
+			// while (fileStream.value.read()) {
+			// 	chunks.push(chunk);
+			// }
+
+			// // streams.consumeReadable<FileContent>(fileStream, chunks => {
+			// // 	return new FileContent();
+			// // });
+
+			// fileStream.value
+			// TODO: find references in the file
+			// TODO: recursivelly resolve nested file references
+		} catch (error) {
+			// TODO: @legomushroom - add logging / telemetry
+			return [];
+		}
+
+		throw new Error('Method not implemented.');
+	}
+
+	/**
+	 * If the dynamic variable is a file reference and has a specific file extension,
+	 * we need to resolve nested file references that the file may contain.
+	 */
+	private shouldResolveNestedFileReferences(
+		dynamicVariable: ChatRequestDynamicVariablePart,
+	): boolean {
+		if (!dynamicVariable.isFile) {
+			return false;
+		}
+
+		// TODO: @legomushroom add more file extensions
+		return dynamicVariable.referenceText.endsWith('.copilot-prompt');
+	}
+
+	/**
+	 * Convert a `ChatRequestDynamicVariablePart` into `IChatRequestVariableEntry`.
+	 */
+	private createVariableEntry(
+		dynamicVariable: ChatRequestDynamicVariablePart,
+	): IChatRequestVariableEntry {
+		return {
+			id: dynamicVariable.id,
+			name: dynamicVariable.referenceText,
+			range: dynamicVariable.range,
+			value: dynamicVariable.data,
+			fullName: dynamicVariable.fullName,
+			icon: dynamicVariable.icon,
+			isFile: dynamicVariable.isFile,
+		};
+	}
+}
+
 export class ChatVariablesService implements IChatVariablesService {
 	declare _serviceBrand: undefined;
 
-	private _resolver = new Map<string, IChatData>();
+	private readonly _resolver = new Map<string, IChatData>();
+	private readonly dynamicVariableResolver: DynamicVariableResolver;
 
 	constructor(
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IViewsService private readonly viewsService: IViewsService,
+		@IFileService fileService: IFileService,
 	) {
+		this.dynamicVariableResolver = new DynamicVariableResolver(fileService);
 	}
 
-	async resolveVariables(prompt: IParsedChatRequest, attachedContextVariables: IChatRequestVariableEntry[] | undefined, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData> {
-		let resolvedVariables: IChatRequestVariableEntry[] = [];
-		const jobs: Promise<any>[] = [];
-
-		prompt.parts
-			.forEach((part, i) => {
+	async resolveVariables(
+		prompt: IParsedChatRequest,
+		attachedContextVariables: IChatRequestVariableEntry[] | undefined,
+		model: IChatModel,
+		progress: (part: IChatVariableResolverProgress) => void,
+		token: CancellationToken,
+	): Promise<IChatRequestVariableData> {
+		const resolvedVariableJobs: Promise<IChatRequestVariableEntry[] | null>[] = prompt.parts
+			.map(async (part) => {
 				if (part instanceof ChatRequestVariablePart) {
 					const data = this._resolver.get(part.variableName.toLowerCase());
 					if (data) {
@@ -53,22 +376,62 @@ export class ChatVariablesService implements IChatVariablesService {
 							}
 							progress(item);
 						};
-						jobs.push(data.resolver(prompt.text, part.variableArg, model, variableProgressCallback, token).then(value => {
-							if (value) {
-								resolvedVariables[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: part.variableName, range: part.range, value, references, fullName: data.data.fullName, icon: data.data.icon };
+
+						try {
+							const value = await data.resolver(prompt.text, part.variableArg, model, variableProgressCallback, token);
+
+							if (!value) {
+								return null;
 							}
-						}).catch(onUnexpectedExternalError));
+
+							return [{
+								id: data.data.id,
+								modelDescription: data.data.modelDescription,
+								name: part.variableName,
+								range: part.range,
+								value,
+								references,
+								fullName: data.data.fullName,
+								icon: data.data.icon,
+							}];
+						} catch (error) {
+							onUnexpectedExternalError(error);
+
+							throw error;
+						}
 					}
-				} else if (part instanceof ChatRequestDynamicVariablePart) {
-					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data, fullName: part.fullName, icon: part.icon, isFile: part.isFile };
-				} else if (part instanceof ChatRequestToolPart) {
-					resolvedVariables[i] = { id: part.toolId, name: part.toolName, range: part.range, value: undefined, isTool: true, icon: ThemeIcon.isThemeIcon(part.icon) ? part.icon : undefined, fullName: part.displayName };
 				}
+
+				if (part instanceof ChatRequestDynamicVariablePart) {
+					return await this.dynamicVariableResolver.resolve(part);
+					// {
+					// 	id: part.id,
+					// 	name: part.referenceText,
+					// 	range: part.range,
+					// 	value: part.data,
+					// 	fullName: part.fullName,
+					// 	icon: part.icon,
+					// 	isFile: part.isFile,
+					// };
+				}
+
+				if (part instanceof ChatRequestToolPart) {
+					return [{
+						id: part.toolId,
+						name: part.toolName,
+						range: part.range,
+						value: undefined,
+						isTool: true,
+						icon: ThemeIcon.isThemeIcon(part.icon) ? part.icon : undefined,
+						fullName: part.displayName,
+					}];
+				}
+
+				return null;
 			});
 
-		const resolvedAttachedContext: IChatRequestVariableEntry[] = [];
-		attachedContextVariables
-			?.forEach((attachment, i) => {
+		const resolvedAttachedContextJobs: Promise<IChatRequestVariableEntry | null>[] = (attachedContextVariables || [])
+			.map(async (attachment) => {
 				const data = this._resolver.get(attachment.name?.toLowerCase());
 				if (data) {
 					const references: IChatContentReference[] = [];
@@ -79,30 +442,65 @@ export class ChatVariablesService implements IChatVariablesService {
 						}
 						progress(item);
 					};
-					jobs.push(data.resolver(prompt.text, '', model, variableProgressCallback, token).then(value => {
-						if (value) {
-							resolvedAttachedContext[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: attachment.name, fullName: attachment.fullName, range: attachment.range, value, references, icon: attachment.icon };
+
+					try {
+						const value = await data.resolver(prompt.text, '', model, variableProgressCallback, token);
+						if (!value) {
+							return null;
 						}
-					}).catch(onUnexpectedExternalError));
-				} else if (attachment.isDynamic || attachment.isTool) {
-					resolvedAttachedContext[i] = attachment;
+
+						return {
+							id: data.data.id,
+							modelDescription: data.data.modelDescription,
+							name: attachment.name,
+							fullName: attachment.fullName,
+							range: attachment.range,
+							value,
+							references,
+							icon: attachment.icon,
+						};
+					} catch (error) {
+						onUnexpectedExternalError(error);
+
+						throw error;
+					}
 				}
+
+				if (attachment.isDynamic || attachment.isTool) {
+					return attachment;
+				}
+
+				return null;
 			});
 
-		await Promise.allSettled(jobs);
+		// run all jobs in parallel
+		const [resolvedVariables, resolvedAttachedContext] = await Promise.all([
+			runJobsAndGetSuccesses2(resolvedVariableJobs),
+			runJobsAndGetSuccesses(resolvedAttachedContextJobs),
+		]);
 
-		// Make array not sparse
-		resolvedVariables = coalesce<IChatRequestVariableEntry>(resolvedVariables);
+		// "reverse" resolved variables making the high index to go
+		// first so that an upcoming replacement is simple
+		resolvedVariables
+			.sort((left, right) => {
+				assertDefined(
+					left.range,
+					`Failed to sort resolved variables: "left" variable does not have a range.`,
+				);
 
-		// "reverse", high index first so that replacement is simple
-		resolvedVariables.sort((a, b) => b.range!.start - a.range!.start);
+				assertDefined(
+					right.range,
+					`Failed to sort resolved variables: "right" variable does not have a range.`,
+				);
 
-		// resolvedAttachedContext is a sparse array
-		resolvedVariables.push(...coalesce(resolvedAttachedContext));
-
+				return right.range.start - left.range.start;
+			});
 
 		return {
-			variables: resolvedVariables,
+			variables: [
+				...resolvedVariables,
+				...resolvedAttachedContext,
+			],
 		};
 	}
 
