@@ -206,6 +206,7 @@ export class MenuId {
 	static readonly TerminalTabContext = new MenuId('TerminalTabContext');
 	static readonly TerminalTabEmptyAreaContext = new MenuId('TerminalTabEmptyAreaContext');
 	static readonly TerminalStickyScrollContext = new MenuId('TerminalStickyScrollContext');
+	static readonly TerminalCommand = new MenuId('TerminalCommand');
 	static readonly WebviewContext = new MenuId('WebviewContext');
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
 	static readonly InlineEditsActions = new MenuId('InlineEditsActions');

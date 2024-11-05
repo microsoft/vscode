@@ -204,6 +204,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.terminalTabContext', "The terminal tabs context menu")
 	},
 	{
+		key: 'terminal/command',
+		id: MenuId.TerminalCommand,
+		description: localize('menus.terminalCommand', "The terminal command menu that shows when shell integration is enabled")
+	},
+	{
 		key: 'view/title',
 		id: MenuId.ViewTitle,
 		description: localize('view.viewTitle', "The contributed view title menu")

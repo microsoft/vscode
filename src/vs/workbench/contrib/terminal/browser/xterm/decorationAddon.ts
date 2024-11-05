@@ -27,6 +27,9 @@ import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMenuService, MenuId, type IMenu } from '../../../../../platform/actions/common/actions.js';
+import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
 
@@ -37,6 +40,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 	private _placeholderDecoration: IDecoration | undefined;
 	private _showGutterDecorations?: boolean;
 	private _showOverviewRulerDecorations?: boolean;
+	private readonly _menu: IMenu;
+
 	private readonly _registeredMenuItems: Map<ITerminalCommand, IAction[]> = new Map();
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; noNewLine?: boolean }>());
@@ -56,9 +61,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		@ICommandService private readonly _commandService: ICommandService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IHoverService private readonly _hoverService: IHoverService
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IMenuService private readonly _menuService: IMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
+		this._menu = this._register(this._menuService.createMenu(MenuId.TerminalCommand, this._contextKeyService));
 		this._register(toDisposable(() => this._dispose()));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight)) {
@@ -384,7 +392,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 			}),
 			dom.addDisposableListener(element, dom.EventType.CLICK, async (e) => {
 				e.stopImmediatePropagation();
-				const actions = await this._getCommandActions(command);
+				const actions = getFlatContextMenuActions(this._menu.getActions({ shouldForwardArgs: true }));
+				actions.push(...await this._getCommandActions(command));
 				this._contextMenuService.showContextMenu({ getAnchor: () => element, getActions: () => actions });
 			}),
 			dom.addDisposableListener(element, dom.EventType.CONTEXT_MENU, async (e) => {
