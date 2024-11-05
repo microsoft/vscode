@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+/*
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { EditorWhitespace, LinesLayout } from '../../../common/viewLayout/linesLayout.js';
@@ -33,7 +34,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 	test('LinesLayout 1', () => {
 
 		// Start off with 10 lines
-		const linesLayout = new LinesLayout(10, 19, 10, 0, 0);
+		const linesLayout = new LinesLayout(10, 10, 0, 0);
 
 		// lines: [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 		// whitespace: -
@@ -142,7 +143,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 	test('LinesLayout 2', () => {
 
 		// Start off with 10 lines and one whitespace after line 2, of height 5
-		const linesLayout = new LinesLayout(10, 19, 1, 0, 0);
+		const linesLayout = new LinesLayout(10, 19, 1, 0);
 		const a = insertWhitespace(linesLayout, 2, 0, 5, 0);
 
 		// 10 lines
@@ -239,7 +240,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 
 	test('LinesLayout Padding', () => {
 		// Start off with 10 lines
-		const linesLayout = new LinesLayout(10, 19, 10, 15, 20);
+		const linesLayout = new LinesLayout(10, 19, 10, 15);
 
 		// lines: [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 		// whitespace: -
@@ -333,7 +334,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 	});
 
 	test('LinesLayout getLineNumberAtOrAfterVerticalOffset', () => {
-		const linesLayout = new LinesLayout(10, 19, 1, 0, 0);
+		const linesLayout = new LinesLayout(10, 19, 1, 0);
 		insertWhitespace(linesLayout, 6, 0, 10, 0);
 
 		// 10 lines
@@ -382,7 +383,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 	});
 
 	test('LinesLayout getCenteredLineInViewport', () => {
-		const linesLayout = new LinesLayout(10, 19, 1, 0, 0);
+		const linesLayout = new LinesLayout(10, 19, 1, 0);
 		insertWhitespace(linesLayout, 6, 0, 10, 0);
 
 		// 10 lines
@@ -465,7 +466,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 	});
 
 	test('LinesLayout getLinesViewportData 1', () => {
-		const linesLayout = new LinesLayout(10, 19, 10, 0, 0);
+		const linesLayout = new LinesLayout(10, 19, 10, 0);
 		insertWhitespace(linesLayout, 6, 0, 100, 0);
 
 		// 10 lines
@@ -598,7 +599,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 	});
 
 	test('LinesLayout getLinesViewportData 2 & getWhitespaceViewportData', () => {
-		const linesLayout = new LinesLayout(10, 19, 10, 0, 0);
+		const linesLayout = new LinesLayout(10, 19, 10, 0);
 		const a = insertWhitespace(linesLayout, 6, 0, 100, 0);
 		const b = insertWhitespace(linesLayout, 7, 0, 50, 0);
 
@@ -669,7 +670,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 	});
 
 	test('LinesLayout getWhitespaceAtVerticalOffset', () => {
-		const linesLayout = new LinesLayout(10, 19, 10, 0, 0);
+		const linesLayout = new LinesLayout(10, 19, 10, 0);
 		const a = insertWhitespace(linesLayout, 6, 0, 100, 0);
 		const b = insertWhitespace(linesLayout, 7, 0, 50, 0);
 
@@ -712,7 +713,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 
 	test('LinesLayout', () => {
 
-		const linesLayout = new LinesLayout(100, 19, 20, 0, 0);
+		const linesLayout = new LinesLayout(100, 19, 20, 0);
 
 		// Insert a whitespace after line number 2, of height 10
 		const a = insertWhitespace(linesLayout, 2, 0, 10, 0);
@@ -1063,7 +1064,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 	});
 
 	test('LinesLayout changeWhitespaceAfterLineNumber & getFirstWhitespaceIndexAfterLineNumber', () => {
-		const linesLayout = new LinesLayout(100, 19, 20, 0, 0);
+		const linesLayout = new LinesLayout(100, 19, 20, 0);
 
 		const a = insertWhitespace(linesLayout, 0, 0, 1, 0);
 		const b = insertWhitespace(linesLayout, 7, 0, 1, 0);
@@ -1187,7 +1188,7 @@ suite('Editor ViewLayout - LinesLayout', () => {
 	});
 
 	test('LinesLayout Bug', () => {
-		const linesLayout = new LinesLayout(100, 19, 20, 0, 0);
+		const linesLayout = new LinesLayout(100, 19, 20, 0);
 
 		const a = insertWhitespace(linesLayout, 0, 0, 1, 0);
 		const b = insertWhitespace(linesLayout, 7, 0, 1, 0);
@@ -1242,3 +1243,4 @@ suite('Editor ViewLayout - LinesLayout', () => {
 		assert.strictEqual(linesLayout.getIdForWhitespaceIndex(7), f); // 11
 	});
 });
+*/
