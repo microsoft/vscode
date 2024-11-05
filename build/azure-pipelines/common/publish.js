@@ -494,7 +494,7 @@ async function processArtifact(artifact, artifactFilePath) {
     log('Creating asset...', JSON.stringify(asset, undefined, 2));
     await (0, retry_1.retry)(async (attempt) => {
         log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
-        const aadCredentials = new identity_1.ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
+        const aadCredentials = new identity_1.ClientAssertionCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], () => Promise.resolve(process.env['AZURE_ID_TOKEN']));
         const client = new cosmos_1.CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), aadCredentials });
         const scripts = client.database('builds').container(quality).scripts;
         await scripts.storedProcedure('createAsset').execute('', [commit, asset, true]);

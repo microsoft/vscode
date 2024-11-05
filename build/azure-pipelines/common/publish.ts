@@ -12,7 +12,7 @@ import * as yauzl from 'yauzl';
 import * as crypto from 'crypto';
 import { retry } from './retry';
 import { CosmosClient } from '@azure/cosmos';
-import { ClientSecretCredential } from '@azure/identity';
+import { ClientSecretCredential, ClientAssertionCredential } from '@azure/identity';
 import * as cp from 'child_process';
 import * as os from 'os';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
@@ -674,7 +674,7 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 
 	await retry(async (attempt) => {
 		log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
-		const aadCredentials = new ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
+		const aadCredentials = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
 		const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), aadCredentials });
 		const scripts = client.database('builds').container(quality).scripts;
 		await scripts.storedProcedure('createAsset').execute('', [commit, asset, true]);
