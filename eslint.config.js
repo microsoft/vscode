@@ -825,6 +825,7 @@ export default tseslint.config(
 						'string_decoder',
 						'tas-client-umd',
 						'tls',
+						'undici-types',
 						'url',
 						'util',
 						'v8-inspect-profiler',
