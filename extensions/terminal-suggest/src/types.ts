@@ -30,7 +30,7 @@ export class FigSpec {
 	description: string;
 	subcommands: Subcommand[];
 	options: Option[];
-
+	args?: Arg;
 	constructor(name: string, description: string, subcommands: Subcommand[], options: Option[]) {
 		this.name = name;
 		this.description = description;

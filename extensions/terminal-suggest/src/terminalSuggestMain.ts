@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { FigSpec, Option } from './types';
+import { FigSpec, Option, Subcommand } from './types';
 
 const builtinCommands: string[] | undefined = getBuiltinCommands();
 
@@ -110,12 +110,31 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 			}
 
 			result.push(createCompletionItem(name, spec.description));
-
+			// TODO:
+			// deal with args on FigSpec, esp if non optional.
+			// args.template = "filepaths", should return our special kind of terminal completion
 			if (spec.options) {
 				for (const option of spec.options) {
 					const optionName = getOptionLabel(spec, option);
 					if (optionName) {
-						result.push(createCompletionItem(`${spec.name} ${option.name}`, option.description));
+						result.push(createCompletionItem(optionName, option.description));
+					}
+				}
+			}
+
+			if (spec.subcommands) {
+				for (const subcommand of spec.subcommands) {
+					const subCommandName = getSubcommandLabel(spec, subcommand);
+					if (subCommandName) {
+						result.push(createCompletionItem(subCommandName, subcommand.description));
+						if (subcommand.args) {
+							//TODO: deal with generators / isOptional
+							const argName = getOptionLabel(subcommand, subcommand.args);
+							if (argName) {
+								result.push(createCompletionItem(argName, subcommand.args.description));
+							}
+							// TODO: if args is non-optional, make sure it's provided? for example, less --use-color
+						}
 					}
 				}
 			}
@@ -127,17 +146,26 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 	}
 });
 
-function getLabel(spec: FigSpec | Option): string | undefined {
+function getSubcommandLabel(spec: FigSpec, subcommand: Subcommand): string | undefined {
+	const commandName = getLabel(spec);
+	const optionName = getLabel(subcommand);
+	return `${commandName} ${optionName}`;
+}
+
+function getLabel(spec: FigSpec | Option | Subcommand): string | undefined {
 	if ('displayName' in spec) {
 		return spec.displayName;
 	}
 	if (typeof spec.name === 'string') {
 		return spec.name;
 	}
+	if (!Array.isArray(spec.name) || spec.name.length === 0) {
+		return;
+	}
 	return spec.name[0];
 }
 
-function getOptionLabel(spec: FigSpec, option: Option): string | undefined {
+function getOptionLabel(spec: FigSpec | Subcommand, option: Option): string | undefined {
 	const commandName = getLabel(spec);
 	const optionName = getLabel(option);
 	return `${commandName} ${optionName}`;
