@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import { FigSpec, Option } from './types';
 
 const builtinCommands: string[] | undefined = getBuiltinCommands();
 
@@ -54,8 +55,8 @@ async function findFiles(dir: string, ext: string): Promise<string[]> {
 }
 
 
-async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
-	const completionSpecs: Fig.Spec[] = [];
+async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
+	const completionSpecs: FigSpec[] = [];
 	// TODO: try to use typescript instead?
 	try {
 		// Use a relative path to the autocomplete/src folder
@@ -112,7 +113,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
 
 			if (spec.options) {
 				for (const option of spec.options) {
-					const optionName = getArgumentLabel(spec, option);
+					const optionName = getOptionLabel(spec, option);
 					if (optionName) {
 						result.push(createCompletionItem(`${spec.name} ${option.name}`, option.description));
 					}
@@ -120,13 +121,13 @@ async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
 			}
 		}
 
-		console.log(result.length);
+		console.log('extension completion count: ' + result.length);
 		// Return the completion results or undefined if no results
 		return result.length ? { items: result } : undefined;
 	}
 });
 
-function getLabel(spec: Fig.Spec): string | undefined {
+function getLabel(spec: FigSpec | Option): string | undefined {
 	if ('displayName' in spec) {
 		return spec.displayName;
 	}
@@ -136,10 +137,10 @@ function getLabel(spec: Fig.Spec): string | undefined {
 	return spec.name[0];
 }
 
-function getArgumentLabel(spec: Fig.Spec, option: any): string | undefined {
+function getOptionLabel(spec: FigSpec, option: Option): string | undefined {
 	const commandName = getLabel(spec);
-	const argumentName = getLabel(option);
-	return `${commandName} ${argumentName}`;
+	const optionName = getLabel(option);
+	return `${commandName} ${optionName}`;
 }
 
 function createCompletionItem(label: string, description?: string): vscode.SimpleTerminalCompletion {
