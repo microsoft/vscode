@@ -127,7 +127,8 @@ MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
 			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
 			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditingSession),
 			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),
-			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook)
+			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
+			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal)
 		)
 	),
 });
