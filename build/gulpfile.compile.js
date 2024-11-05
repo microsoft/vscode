@@ -25,7 +25,7 @@ function makeCompileBuildTask(disableMangle) {
 }
 
 // Full compile, including nls and inline sources in sourcemaps, mangling, minification, for build
-const compileBuildTask = task.define('compile-build', makeCompileBuildTask(true));
+const compileBuildTask = task.define('compile-build', makeCompileBuildTask(false));
 gulp.task(compileBuildTask);
 exports.compileBuildTask = compileBuildTask;
 
