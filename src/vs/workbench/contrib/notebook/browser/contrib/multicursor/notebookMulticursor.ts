@@ -713,8 +713,45 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			const findResults = notebookTextModel.findAllMatches(this.word, false, true, USUAL_WORD_SEPARATORS);
 
 			// update existing tracked matches with new selections and create new tracked matches for cells that aren't tracked yet
+			for (const res of findResults) {
+				const resultCellViewModel = this.notebookEditor.getCellByHandle(res.cell.handle);
+				if (!resultCellViewModel) {
+					continue;
+				}
 
+				const newSelections = res.matches.map(match => Selection.fromRange(match.range, SelectionDirection.LTR));
+				const trackedMatch = this.trackedCells.find(trackedCell => trackedCell.cellViewModel.handle === res.cell.handle);
+				if (trackedMatch) {
+					trackedMatch.matchSelections = newSelections;
+					if (resultCellViewModel.handle === cell.handle) {
+						resultCellViewModel.setSelections(newSelections);
+					}
+				} else {
+					const initialSelection = resultCellViewModel.getSelections()[0];
+					const textModel = await resultCellViewModel.resolveTextModel();
+					textModel.pushStackElement();
 
+					const editorConfig = this.constructCellEditorOptions(resultCellViewModel);
+					const rawEditorOptions = editorConfig.getRawOptions();
+					const cursorConfig: NotebookCursorConfig = {
+						cursorStyle: cursorStyleFromString(rawEditorOptions.cursorStyle!),
+						cursorBlinking: cursorBlinkingStyleFromString(rawEditorOptions.cursorBlinking!),
+						cursorSmoothCaretAnimation: rawEditorOptions.cursorSmoothCaretAnimation!
+					};
+
+					this.trackedCells.push({
+						cellViewModel: resultCellViewModel,
+						initialSelection: initialSelection,
+						matchSelections: newSelections,
+						editorConfig: editorConfig,
+						cursorConfig: cursorConfig,
+						decorationIds: [],
+						undoRedoHistory: this.undoRedoService.getElements(resultCellViewModel.uri)
+					});
+				}
+			}
+			await this.updateCursorsControllers();
+			this.updateLazyDecorations();
 		} else {
 			// todo: enable running this mid session during the editing state
 			return;
