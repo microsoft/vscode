@@ -222,7 +222,7 @@ export class OrganizeImportsAction extends EditorAction {
 		super({
 			id: organizeImportsCommandId,
 			label: nls.localize('organizeImports.label', "Organize Imports"),
-			alias: 'Organize Imports',
+			alias: 'Organize Imports, Optimize Imports',
 			precondition: ContextKeyExpr.and(
 				EditorContextKeys.writable,
 				contextKeyForSupportedActions(CodeActionKind.SourceOrganizeImports)),
@@ -231,6 +231,14 @@ export class OrganizeImportsAction extends EditorAction {
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyO,
 				weight: KeybindingWeight.EditorContrib
 			},
+			metadata: {
+				description: "Organize imports by removing unused imports, sorting imports and combining imports from the same module",
+				args: [{
+					name: 'mode',
+					description: 'Mode for organizing imports: all, sort, or removeUnused',
+					isOptional: true
+				}]
+			}
 		});
 	}
 
