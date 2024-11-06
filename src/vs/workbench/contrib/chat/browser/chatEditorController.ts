@@ -246,14 +246,18 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				const domNode = document.createElement('div');
 				domNode.className = 'chat-editing-original-zone view-lines line-delete monaco-mouse-cursor-text';
 				const result = renderLines(source, renderOptions, decorations, domNode);
-				const viewZoneData: IViewZone = {
-					afterLineNumber: diffEntry.modified.startLineNumber - 1,
-					heightInLines: result.heightInLines,
-					domNode,
-					ordinal: 50000 + 2 // more than https://github.com/microsoft/vscode/blob/bf52a5cfb2c75a7327c9adeaefbddc06d529dcad/src/vs/workbench/contrib/inlineChat/browser/inlineChatZoneWidget.ts#L42
-				};
 
-				this._viewZones.push(viewZoneChangeAccessor.addZone(viewZoneData));
+				const isCreatedContent = decorations.length === 1 && decorations[0].range.isEmpty() && decorations[0].range.startLineNumber === 1;
+				if (!isCreatedContent) {
+					const viewZoneData: IViewZone = {
+						afterLineNumber: diffEntry.modified.startLineNumber - 1,
+						heightInLines: result.heightInLines,
+						domNode,
+						ordinal: 50000 + 2 // more than https://github.com/microsoft/vscode/blob/bf52a5cfb2c75a7327c9adeaefbddc06d529dcad/src/vs/workbench/contrib/inlineChat/browser/inlineChatZoneWidget.ts#L42
+					};
+
+					this._viewZones.push(viewZoneChangeAccessor.addZone(viewZoneData));
+				}
 			}
 
 			this._decorations.set(modifiedDecorations);
