@@ -2458,7 +2458,7 @@ interface ITerminalLabelTemplateProperties {
 	separator?: string | ISeparator | null | undefined;
 	shellType?: string | undefined;
 	shellCommand?: string | undefined;
-	shellPrompt?: string | undefined;
+	shellPromptInput?: string | undefined;
 }
 
 const enum TerminalLabelType {
@@ -2514,7 +2514,7 @@ export class TerminalLabelComputer extends Disposable {
 			separator: { label: this._terminalConfigurationService.config.tabs.separator },
 			shellType: instance.shellType,
 			shellCommand: promptInputModel?.value,
-			shellPrompt: promptInputModel?.getCombinedString(true),
+			shellPromptInput: promptInputModel?.getCombinedString(true),
 		};
 		templateProperties.workspaceFolderName = instance.workspaceFolder?.name ?? templateProperties.workspaceFolder;
 		labelTemplate = labelTemplate.trim();
