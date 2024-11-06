@@ -121,7 +121,7 @@ configurationRegistry.registerConfiguration({
 		'chat.experimental.offerSetup': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('chat.experimental.offerSetup', "Controls whether setup is offered for setup if not done already."),
+			markdownDescription: nls.localize('chat.experimental.offerSetup', "Controls whether setup is offered for Chat if not done already."),
 			tags: ['experimental', 'onExP']
 		},
 		'chat.editing.alwaysSaveWithGeneratedChanges': {

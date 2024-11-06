@@ -552,7 +552,7 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 			title: defaultChat.welcomeTitle,
 			when: ChatContextKeys.ChatSetup.running,
 			icon: defaultChat.icon,
-			progress: localize('setupChatRunning', "Getting things ready for you..."),
+			progress: localize('setupChatRunning', "Getting Chat ready for you..."),
 			content: new MarkdownString(`\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`, { isTrusted: true }),
 		};
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register(descriptor);
