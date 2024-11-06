@@ -20,12 +20,12 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
-import { truncate, truncateMiddle } from '../../../../base/common/strings.js';
+import { truncateMiddle } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Constants } from '../../../../base/common/uint.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IContentWidgetRenderedCoordinate, IEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { overviewRulerError, overviewRulerInfo } from '../../../../editor/common/core/editorColorRegistry.js';
@@ -88,11 +88,9 @@ interface ITestDecoration extends IPublicTestDecoration {
 /** Value for saved decorations, providing fast accessors for the hot 'syncDecorations' path */
 class CachedDecorations {
 	private readonly runByIdKey = new Map<string, RunTestDecoration>();
-	private readonly messages = new Map<ITestMessage, TestMessageDecoration>();
-	private readonly errors = new Map<ITestMessage, TestErrorContentWidget>();
 
 	public get size() {
-		return this.runByIdKey.size + this.messages.size + this.errors.size;
+		return this.runByIdKey.size;
 	}
 
 	/** Gets a test run decoration that contains exactly the given test IDs */
@@ -100,42 +98,6 @@ class CachedDecorations {
 		const key = testIds.sort().join('\0\0');
 		return this.runByIdKey.get(key);
 	}
-
-	/** Gets the decoration that corresponds to the given test message */
-	public getMessage(message: ITestMessage) {
-		return this.messages.get(message);
-	}
-
-	/** Removes the decoration for the given test messsage */
-	public removeMessage(message: ITestMessage) {
-		this.messages.delete(message);
-	}
-
-	/** Adds a new test message decoration */
-	public addMessage(d: TestMessageDecoration) {
-		this.messages.set(d.testMessage, d);
-	}
-
-	/** Gets the decoration that corresponds to the given test message */
-	public getError(message: ITestMessage) {
-		return this.errors.get(message);
-	}
-
-	/** Removes the decoration for the given test messsage */
-	public removeError(message: ITestMessage) {
-		this.errors.delete(message);
-	}
-
-	/** Adds a new test error decoration */
-	public addError(d: TestErrorContentWidget) {
-		this.errors.set(d.message, d);
-	}
-
-	/** Gets error decorations */
-	public getErrors() {
-		return this.errors.values();
-	}
-
 	/** Adds a new test run decroation */
 	public addTest(d: RunTestDecoration) {
 		const key = d.testIds.sort().join('\0\0');
@@ -149,20 +111,12 @@ class CachedDecorations {
 				return d;
 			}
 		}
-		for (const d of this.messages.values()) {
-			if (d.id === decorationId) {
-				return d;
-			}
-		}
 		return undefined;
 	}
 
 	/** Iterate over all decorations */
 	*[Symbol.iterator](): IterableIterator<ITestDecoration> {
 		for (const d of this.runByIdKey.values()) {
-			yield d;
-		}
-		for (const d of this.messages.values()) {
 			yield d;
 		}
 	}
@@ -1392,7 +1346,7 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 	private readonly node = dom.h('div.test-error-content-widget', [
 		dom.h('div.arrow@arrow'),
 		dom.h(`span${ThemeIcon.asCSSSelector(testingStatesToIcons.get(TestResultState.Failed)!)}`),
-		dom.h('span@name'),
+		dom.h('span.content@name'),
 	]);
 
 	public get line() {
@@ -1400,7 +1354,7 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 	}
 
 	constructor(
-		editor: ICodeEditor,
+		private readonly editor: ICodeEditor,
 		private readonly position: Position,
 		public readonly message: ITestErrorMessage,
 		public readonly resultItem: TestResultItem,
@@ -1413,7 +1367,9 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 		if (message.expected !== undefined && message.actual !== undefined) {
 			text = `${truncateMiddle(message.actual, 15)} != ${truncateMiddle(message.expected, 15)}`;
 		} else {
-			text = truncate(renderStringAsPlaintext(message.message), 30);
+			const msg = renderStringAsPlaintext(message.message);
+			const lf = msg.indexOf('\n');
+			text = lf === -1 ? msg : msg.slice(0, lf);
 		}
 
 		this.node.root.addEventListener('click', e => {
@@ -1458,5 +1414,12 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 			position: this.position,
 			preference: [ContentWidgetPositionPreference.EXACT],
 		};
+	}
+
+	afterRender(_position: ContentWidgetPositionPreference | null, coordinate: IContentWidgetRenderedCoordinate | null): void {
+		if (coordinate) {
+			const { contentWidth, verticalScrollbarWidth } = this.editor.getLayoutInfo();
+			this.node.root.style.maxWidth = `${contentWidth - verticalScrollbarWidth - coordinate.left - 20}px`;
+		}
 	}
 }
