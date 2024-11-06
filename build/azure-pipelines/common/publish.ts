@@ -15,7 +15,7 @@ import { CosmosClient } from '@azure/cosmos';
 import { ClientSecretCredential, ClientAssertionCredential } from '@azure/identity';
 import * as cp from 'child_process';
 import * as os from 'os';
-import { Worker, isMainThread, workerData } from 'node:worker_threads';
+import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 
 function e(name: string): string {
 	const result = process.env[name];
@@ -26,6 +26,9 @@ function e(name: string): string {
 
 	return result;
 }
+
+const quality = e('VSCODE_QUALITY');
+const commit = e('BUILD_SOURCEVERSION');
 
 class Temp {
 	private _files: string[] = [];
@@ -636,7 +639,7 @@ function getRealType(type: string) {
 	}
 }
 
-async function processArtifact(artifact: Artifact, artifactFilePath: string): Promise<void> {
+async function processArtifact(artifact: Artifact, artifactFilePath: string): Promise<Asset> {
 	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
 	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
 
@@ -645,8 +648,6 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 	}
 
 	// getPlatform needs the unprocessedType
-	const quality = e('VSCODE_QUALITY');
-	const commit = e('BUILD_SOURCEVERSION');
 	const { product, os, arch, unprocessedType } = match.groups!;
 	const isLegacy = artifact.name.includes('_legacy');
 	const platform = getPlatform(product, os, arch, unprocessedType, isLegacy);
@@ -669,18 +670,7 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 		artifactFilePath
 	);
 
-	const asset: Asset = { platform, type, url, hash, sha256hash, size, supportsFastUpdate: true };
-	log('Creating asset...', JSON.stringify(asset, undefined, 2));
-
-	await retry(async (attempt) => {
-		log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
-		const aadCredentials = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
-		const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), aadCredentials });
-		const scripts = client.database('builds').container(quality).scripts;
-		await scripts.storedProcedure('createAsset').execute('', [commit, asset, true]);
-	});
-
-	log('Asset successfully created');
+	return { platform, type, url, hash, sha256hash, size, supportsFastUpdate: true };
 }
 
 // It is VERY important that we don't download artifacts too much too fast from AZDO.
@@ -692,7 +682,8 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 async function main() {
 	if (!isMainThread) {
 		const { artifact, artifactFilePath } = workerData;
-		await processArtifact(artifact, artifactFilePath);
+		const asset = await processArtifact(artifact, artifactFilePath);
+		parentPort!.postMessage(asset);
 		return;
 	}
 
@@ -713,6 +704,8 @@ async function main() {
 
 	let resultPromise = Promise.resolve<PromiseSettledResult<void>[]>([]);
 	const operations: { name: string; operation: Promise<void> }[] = [];
+	const aadCredentials = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
+	const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), aadCredentials });
 
 	while (true) {
 		const [timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
@@ -754,12 +747,27 @@ async function main() {
 
 			processing.add(artifact.name);
 			const promise = new Promise<void>((resolve, reject) => {
+				const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
 				const worker = new Worker(__filename, { workerData: { artifact, artifactFilePath } });
 				worker.on('error', reject);
-				worker.on('exit', code => {
-					if (code === 0) {
+				worker.once('message', async (asset: Asset) => {
+					try {
+						log('Creating asset...', JSON.stringify(asset, undefined, 2));
+
+						await retry(async (attempt) => {
+							log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
+							const scripts = client.database('builds').container(quality).scripts;
+							await scripts.storedProcedure('createAsset').execute('', [commit, asset, true]);
+						});
+
+						log('Asset successfully created');
 						resolve();
-					} else {
+					} catch (err) {
+						reject(err);
+					}
+				});
+				worker.on('exit', code => {
+					if (code !== 0) {
 						reject(new Error(`[${artifact.name}] Worker stopped with exit code ${code}`));
 					}
 				});
