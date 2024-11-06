@@ -231,6 +231,9 @@ export class OrganizeImportsAction extends EditorAction {
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyO,
 				weight: KeybindingWeight.EditorContrib
 			},
+			metadata: {
+				description: nls.localize2('organizeImports.description', "Organize imports in the current file. Also called 'Optimize Imports' by some tools")
+			}
 		});
 	}
 
