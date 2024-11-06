@@ -32,7 +32,6 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { ICodeMapperResponse, ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsContextKey, applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../../common/chatModel.js';
@@ -84,7 +83,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
 		@IProgressService private readonly _progressService: IProgressService,
-		@ICodeMapperService private readonly _codeMapperService: ICodeMapperService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IFileService private readonly _fileService: IFileService,
@@ -218,15 +216,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return session;
 	}
 
-	public triggerEditComputation(responseModel: IChatResponseModel): Promise<void> {
-		return this._continueEditingSession(async (builder, token) => {
-			const codeMapperResponse: ICodeMapperResponse = {
-				textEdit: (resource, edits) => builder.textEdits(resource, edits, false, responseModel),
-			};
-			await this._codeMapperService.mapCodeFromResponse(responseModel, codeMapperResponse, token);
-		}, { silent: true });
-	}
-
 	public createSnapshot(requestId: string): void {
 		this._currentSessionObs.get()?.createSnapshot(requestId);
 	}
@@ -253,8 +242,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				// Roll back everything
 				this.restoreSnapshot(responseModel.requestId);
 				this._applyingChatEditsFailedContextKey.set(true);
-			} else if (responseModel.result?.metadata?.autoApplyEdits) {
-				this.triggerEditComputation(responseModel);
 			}
 
 			editsSource?.resolve();
