@@ -133,6 +133,8 @@ export class NativeWindow extends BaseWindow {
 
 		this.registerListeners();
 		this.create();
+
+		console.log(this.nativeEnvironmentService.window.handle);
 	}
 
 	protected registerListeners(): void {

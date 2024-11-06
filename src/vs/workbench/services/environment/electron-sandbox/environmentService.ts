@@ -26,6 +26,7 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 	// --- Window
 	readonly window: {
 		id: number;
+		handle: Uint8Array;
 		colorScheme: IColorScheme;
 		maximized?: boolean;
 		accessibilitySupport?: boolean;
@@ -88,7 +89,8 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 			accessibilitySupport: this.configuration.accessibilitySupport,
 			perfMarks: this.configuration.perfMarks,
 			isInitialStartup: this.configuration.isInitialStartup,
-			isCodeCaching: typeof this.configuration.codeCachePath === 'string'
+			isCodeCaching: typeof this.configuration.codeCachePath === 'string',
+			handle: this.configuration.handle
 		};
 	}
 
