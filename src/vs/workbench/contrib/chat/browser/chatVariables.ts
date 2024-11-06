@@ -420,6 +420,73 @@ export class LinesCodecDecoder extends DecoderBase<Line> implements streams.Read
 	}
 }
 
+
+/**
+ * A token that represent a generic continuous text without `spaces` or `new lines`.
+ */
+export class Text extends Token {
+	constructor(
+		public readonly text: string,
+	) {
+		super();
+	}
+}
+
+/**
+ * A token that represent a `space`.
+ */
+export class Space extends Token { }
+
+/**
+ * A token that represent a `new line`.
+ */
+export class NewLine extends Token { }
+
+/**
+ * TODO: @legomushroom
+ */
+export type TSimpleToken = Text | Space | NewLine;
+
+/**
+ * A decoder that can decode a stream of `Line`s into a stream of `Text`, `Space` and `NewLine` tokens.
+ */
+export class SimpleTokensCodecDecoder extends DecoderBase<TSimpleToken, Line> implements streams.ReadableStream<TSimpleToken> {
+	constructor(
+		stream: streams.ReadableStream<Line>,
+	) {
+		super(stream);
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	protected override onStreamData(line: Line): void {
+		// if an empty line is received, emit a `NewLine` token
+		if (line.text === '') {
+			this._onData.fire(new NewLine());
+			return;
+		}
+
+		todo('@legomushroom - split by spaces and emit the `Text` and `Space` tokens');
+	}
+
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	protected override onStreamError(error: Error): void {
+		// TODO: @legomushroom - move to the base class instead?
+		this._onError.fire(error);
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	protected override onStreamEnd(): void {
+		todo();
+	}
+}
+
 /**
  * TODO: @legomushroom
  */
