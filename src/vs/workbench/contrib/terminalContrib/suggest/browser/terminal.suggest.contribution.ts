@@ -87,7 +87,7 @@ export class TerminalSuggestContribution extends DisposableStore implements ITer
 			console.log('returning,', this._ctx.instance.shellType);
 			return;
 		}
-		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, this._ctx.instance.shellType, this._ctx.instance.capabilities);
+		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, undefined, this._ctx.instance.shellType, this._ctx.instance.capabilities);
 		xterm.loadAddon(pwshCompletionProviderAddon);
 		this.add(pwshCompletionProviderAddon);
 		this.add(pwshCompletionProviderAddon.onAcceptedCompletion(async text => {
