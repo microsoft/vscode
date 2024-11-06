@@ -144,7 +144,8 @@ export class ExtensionHostMain {
 		initData: IExtensionHostInitData,
 		hostUtils: IHostUtils,
 		uriTransformer: IURITransformer | null,
-		messagePorts?: ReadonlyMap<string, MessagePort>
+		messagePorts?: ReadonlyMap<string, MessagePort>,
+		handle?: Uint8Array
 	) {
 		this._hostUtils = hostUtils;
 		this._rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
@@ -154,7 +155,7 @@ export class ExtensionHostMain {
 
 		// bootstrap services
 		const services = new ServiceCollection(...getSingletonServiceDescriptors());
-		services.set(IExtHostInitDataService, { _serviceBrand: undefined, ...initData, messagePorts });
+		services.set(IExtHostInitDataService, { _serviceBrand: undefined, ...initData, messagePorts, handle });
 		services.set(IExtHostRpcService, new ExtHostRpcService(this._rpcProtocol));
 		services.set(IURITransformerService, new URITransformerService(uriTransformer));
 		services.set(IHostUtils, hostUtils);

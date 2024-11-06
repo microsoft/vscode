@@ -152,7 +152,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			workspace: window.openedWorkspace ?? toWorkspaceIdentifier(window.backupPath, window.isExtensionDevelopmentHost),
 			title: window.win?.getTitle() ?? '',
 			filename: window.getRepresentedFilename(),
-			dirty: window.isDocumentEdited()
+			dirty: window.isDocumentEdited(),
+			handle: window.win?.getNativeWindowHandle().toString('base64')
 		}));
 
 		const auxiliaryWindows = [];

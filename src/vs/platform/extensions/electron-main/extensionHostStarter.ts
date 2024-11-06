@@ -105,8 +105,10 @@ export class ExtensionHostStarter extends Disposable implements IDisposable, IEx
 			throw canceled();
 		}
 		const extHost = this._getExtHost(id);
+		const nativeWindowHandle = this._windowsMainService.getWindowById(opts.responseWindowId)?.win?.getNativeWindowHandle().toString('base64');
 		extHost.start({
 			...opts,
+			payload: { nativeWindowHandle },
 			type: 'extensionHost',
 			entryPoint: 'vs/workbench/api/node/extensionHostProcess',
 			args: ['--skipWorkspaceStorageLock'],

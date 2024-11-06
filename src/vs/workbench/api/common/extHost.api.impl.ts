@@ -437,6 +437,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'resolvers');
 				return initData.commit;
 			},
+			get handle(): Uint8Array | undefined {
+				checkProposedApiEnabled(extension, 'nativeWindowHandle');
+				return initData.handle;
+			},
+			async getNativeWindowHandle() {
+				checkProposedApiEnabled(extension, 'nativeWindowHandle');
+				return await extHostWindow.getNativeWindowHandle();
+			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
 			// allow to patch env-function when running tests

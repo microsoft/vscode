@@ -91,6 +91,11 @@ export class ExtHostWindow implements ExtHostWindowShape {
 		const result = await this._proxy.$asExternalUri(uri, options);
 		return URI.from(result);
 	}
+
+	async getNativeWindowHandle(): Promise<Buffer | undefined> {
+		const str = await this._proxy.$getNativeWindowHandle();
+		return str ? Buffer.from(str, 'base64') : undefined;
+	}
 }
 
 export const IExtHostWindow = createDecorator<IExtHostWindow>('IExtHostWindow');

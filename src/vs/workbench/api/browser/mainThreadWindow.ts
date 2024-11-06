@@ -11,6 +11,7 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { ExtHostContext, ExtHostWindowShape, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol.js';
 import { IHostService } from '../../services/host/browser/host.js';
 import { IUserActivityService } from '../../services/userActivity/common/userActivityService.js';
+import { INativeHostService } from '../../../platform/native/common/native.js';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
@@ -21,6 +22,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IHostService private readonly hostService: IHostService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IUserActivityService private readonly userActivityService: IUserActivityService,
 	) {
@@ -62,5 +64,12 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	async $asExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<UriComponents> {
 		const result = await this.openerService.resolveExternalUri(URI.revive(uriComponents), options);
 		return result.resolved;
+	}
+
+	async $getNativeWindowHandle(): Promise<string | undefined> {
+		// TODO check if web?
+		const windows = await this.nativeHostService.getWindows({ includeAuxiliaryWindows: false });
+		const window = windows.find(window => window.id === this.nativeHostService.windowId);
+		return window?.handle;
 	}
 }
