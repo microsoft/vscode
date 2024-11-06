@@ -58,7 +58,9 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		}
 
 		this.checkExtensionInstallation(entitlement);
-		this.registerListeners(entitlement);
+
+		this.registerEntitlementListeners(entitlement);
+		this.registerAuthListeners(entitlement);
 	}
 
 	private async checkExtensionInstallation(entitlement: IGitHubEntitlement): Promise<void> {
@@ -68,7 +70,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		this.updateExtensionInstalled(installed ? true : false);
 	}
 
-	private registerListeners(entitlement: IGitHubEntitlement): void {
+	private registerEntitlementListeners(entitlement: IGitHubEntitlement): void {
 		this._register(this.extensionService.onDidChangeExtensions(result => {
 			for (const extension of result.removed) {
 				if (ExtensionIdentifier.equals(entitlement.extensionId, extension.identifier)) {
@@ -88,10 +90,8 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		this._register(this.authenticationService.onDidChangeSessions(e => {
 			if (e.providerId === entitlement.providerId) {
 				if (e.event.added?.length) {
-					this.chatSetupSignedInContextKey.set(true);
 					this.resolveEntitlement(entitlement, e.event.added[0]);
 				} else if (e.event.removed?.length) {
-					this.chatSetupSignedInContextKey.set(false);
 					this.chatSetupEntitledContextKey.set(false);
 				}
 			}
@@ -99,14 +99,30 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(async e => {
 			if (e.id === entitlement.providerId) {
-				this.chatSetupSignedInContextKey.set(true);
 				this.resolveEntitlement(entitlement, (await this.authenticationService.getSessions(e.id))[0]);
 			}
 		}));
+	}
 
-		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(async e => {
-			if (e.id === entitlement.providerId) {
-				this.chatSetupSignedInContextKey.set(false);
+	private registerAuthListeners(entitlement: IGitHubEntitlement): void {
+		const hasProviderSessions = async () => {
+			const sessions = await this.authenticationService.getSessions(entitlement.providerId);
+			return sessions.length > 0;
+		};
+
+		const handleDeclaredAuthProviders = async () => {
+			if (this.authenticationService.declaredProviders.find(p => p.id === entitlement.providerId)) {
+				this.chatSetupSignedInContextKey.set(await hasProviderSessions());
+			}
+		};
+		this._register(this.authenticationService.onDidChangeDeclaredProviders(handleDeclaredAuthProviders));
+		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(handleDeclaredAuthProviders));
+
+		handleDeclaredAuthProviders();
+
+		this._register(this.authenticationService.onDidChangeSessions(async ({ providerId }) => {
+			if (providerId === entitlement.providerId) {
+				this.chatSetupSignedInContextKey.set(await hasProviderSessions());
 			}
 		}));
 	}
