@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { parse } from '../../../../base/common/marshalling.js';
@@ -19,7 +19,7 @@ import { localize2 } from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -45,6 +45,7 @@ import { NotebookEditorWidget } from '../../notebook/browser/notebookEditorWidge
 import * as icons from '../../notebook/browser/notebookIcons.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CellEditType, CellKind, NotebookSetting, NotebookWorkingCopyTypeIdentifier, REPL_EDITOR_ID } from '../../notebook/common/notebookCommon.js';
+import { MOST_RECENT_REPL_EDITOR } from '../../notebook/common/notebookContextKeys.js';
 import { NotebookEditorInputOptions } from '../../notebook/common/notebookEditorInput.js';
 import { INotebookEditorModelResolverService } from '../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
@@ -223,6 +224,59 @@ registerWorkbenchContribution2(ReplWindowWorkingCopyEditorHandler.ID, ReplWindow
 registerWorkbenchContribution2(ReplDocumentContribution.ID, ReplDocumentContribution, WorkbenchPhase.BlockRestore);
 
 AccessibleViewRegistry.register(new ReplEditorAccessibilityHelp());
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'repl.focusLastItemExecuted',
+			title: localize2('repl.focusLastReplOutput', 'Focus Most Recent REPL Execution'),
+			category: 'REPL',
+			keybinding: [{
+				primary: KeyChord(KeyMod.Alt | KeyCode.End, KeyMod.Alt | KeyCode.End),
+				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+			}],
+			precondition: MOST_RECENT_REPL_EDITOR.notEqualsTo(undefined),
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: UriComponents): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorControl = editorService.activeEditorPane?.getControl();
+		const contextKeyService = accessor.get(IContextKeyService);
+
+		let notebookEditor: NotebookEditorWidget | undefined;
+		if (editorControl && isReplEditorControl(editorControl)) {
+			notebookEditor = editorControl.notebookEditor;
+		} else {
+			const uriString = MOST_RECENT_REPL_EDITOR.getValue(contextKeyService);
+			const uri = uriString ? URI.parse(uriString) : undefined;
+
+			if (!uri) {
+				return;
+			}
+			const replEditor = editorService.findEditors(uri)[0];
+
+			if (replEditor) {
+				const editor = await editorService.openEditor(replEditor.editor, replEditor.groupId);
+				const editorControl = editor?.getControl();
+
+				if (editorControl && isReplEditorControl(editorControl)) {
+					notebookEditor = editorControl.notebookEditor;
+				}
+			}
+		}
+
+		const viewModel = notebookEditor?.getViewModel();
+		if (notebookEditor && viewModel) {
+			// last cell of the viewmodel is the last cell history
+			const lastCellIndex = viewModel.length - 1;
+			if (lastCellIndex >= 0) {
+				const cell = viewModel.viewCells[lastCellIndex];
+				notebookEditor.focusNotebookCell(cell, 'container');
+			}
+		}
+	}
+});
 
 registerAction2(class extends Action2 {
 	constructor() {
