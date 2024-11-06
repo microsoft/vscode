@@ -22,6 +22,7 @@ import { IEnvironmentService } from '../../../../platform/environment/common/env
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { PromiseResult } from '../../../../base/common/observable.js';
 import { Range } from '../../../common/core/range.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 
 const EDITOR_TREESITTER_TELEMETRY = 'editor.experimental.treeSitterTelemetry';
 const MODULE_LOCATION_SUBPATH = `@vscode/tree-sitter-wasm/wasm`;
@@ -43,14 +44,9 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 		private readonly _treeSitterImporter: TreeSitterImporter,
 		private readonly _logService: ILogService,
 		private readonly _telemetryService: ITelemetryService,
-		parseImmediately: boolean = true
 	) {
 		super();
-		if (parseImmediately) {
-			this._register(Event.runAndSubscribe(this.model.onDidChangeLanguage, (e => this._onDidChangeLanguage(e ? e.newLanguage : this.model.getLanguageId()))));
-		} else {
-			this._register(this.model.onDidChangeLanguage(e => this._onDidChangeLanguage(e ? e.newLanguage : this.model.getLanguageId())));
-		}
+		this._register(Event.runAndSubscribe(this.model.onDidChangeLanguage, (e => this._onDidChangeLanguage(e ? e.newLanguage : this.model.getLanguageId()))));
 	}
 
 	private readonly _languageSessionDisposables = this._register(new DisposableStore());
@@ -131,6 +127,7 @@ const enum TelemetryParseType {
 export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResult {
 	private _tree: Parser.Tree | undefined;
 	private _isDisposed: boolean = false;
+	private _firstThreeParseTimes: number[] = Array(3);
 	constructor(public readonly parser: Parser,
 		public /** exposed for tests **/ readonly language: Parser.Language,
 		private readonly _logService: ILogService,
@@ -208,14 +205,15 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 		let time: number = 0;
 		let passes: number = 0;
 		this._newEdits = false;
+		const stopwatch = StopWatch.create();
 		do {
-			const timer = performance.now();
 			try {
 				tree = this.parser.parse((index: number, position?: Parser.Point) => this._parseCallback(model, index), this.tree);
 			} catch (e) {
 				// parsing can fail when the timeout is reached, will resume upon next loop
 			} finally {
-				time += performance.now() - timer;
+				time += stopwatch.elapsed();
+				stopwatch.reset();
 				passes++;
 			}
 
@@ -227,6 +225,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			}
 		} while (!tree && !this._newEdits); // exit if there a new edits, as anhy parsing done while there are new edits is throw away work
 		this.sendParseTimeTelemetry(parseType, language, time, passes);
+		this._trackParseTime(time);
 		return tree;
 	}
 
@@ -237,6 +236,16 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 			this._logService.debug('Error getting chunk for tree-sitter parsing', e);
 		}
 		return null;
+	}
+
+	private _trackParseTime(time: number) {
+		if (this._firstThreeParseTimes.length < 3) {
+			this._firstThreeParseTimes.push(time);
+		}
+	}
+
+	get firstThreeParseTimes(): number[] {
+		return this._firstThreeParseTimes;
 	}
 
 	private sendParseTimeTelemetry(parseType: TelemetryParseType, languageId: string, time: number, passes: number): void {
@@ -469,8 +478,11 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		this._modelService.getModels().forEach(model => this._createTextModelTreeSitter(model));
 	}
 
-	public getTextModelTreeSitter(model: ITextModel): ITextModelTreeSitter {
-		return new TextModelTreeSitter(model, this._treeSitterLanguages, this._treeSitterImporter, this._logService, this._telemetryService, false);
+	public getOrCreateTextModelTreeSitter(model: ITextModel): ITextModelTreeSitter {
+		if (this._textModelTreeSitters.has(model)) {
+			return this._textModelTreeSitters.get(model)!.textModelTreeSitter;
+		}
+		return this._createTextModelTreeSitter(model);
 	}
 
 	private _createTextModelTreeSitter(model: ITextModel) {
@@ -483,6 +495,7 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 			disposables,
 			dispose: disposables.dispose.bind(disposables)
 		});
+		return textModelTreeSitter;
 	}
 
 	private _addGrammar(languageId: string, grammarName: string) {

@@ -13,7 +13,6 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { URI } from '../../../../base/common/uri.js';
 import { TreeSitterTokenizationRegistry } from '../../../../editor/common/languages.js';
 import { ITextFileService } from '../../textfile/common/textfiles.js';
-import { StopWatch } from '../../../../base/common/stopwatch.js';
 
 /**
  * Makes sure the ITreeSitterTokenizationService is instantiated
@@ -32,7 +31,7 @@ registerSingleton(ITreeSitterParserService, TreeSitterTextModelService, Instanti
 
 registerWorkbenchContribution2(TreeSitterTokenizationInstantiator.ID, TreeSitterTokenizationInstantiator, WorkbenchPhase.BlockRestore);
 
-CommandsRegistry.registerCommand('_workbench.colorizeTreeSitterTokens', async (accessor: ServicesAccessor, resource?: URI): Promise<{ parseTime: number; captureTime: number; metadataTime: number }> => {
+CommandsRegistry.registerCommand('_workbench.colorizeTreeSitterTokens', async (accessor: ServicesAccessor, resource?: URI, dispose: boolean = true): Promise<{ parseTime: number; captureTime: number; metadataTime: number }> => {
 	const treeSitterParserService = accessor.get(ITreeSitterParserService);
 	const textModelService = accessor.get(ITextFileService);
 	const textModel = resource ? (await textModelService.files.resolve(resource)).textEditorModel : undefined;
@@ -45,13 +44,13 @@ CommandsRegistry.registerCommand('_workbench.colorizeTreeSitterTokens', async (a
 		throw new Error(`Cannot resolve tokenizer for language ${textModel.getLanguageId()}`);
 	}
 
-	const textModelTreeSitter = treeSitterParserService.getTextModelTreeSitter(textModel);
+	const textModelTreeSitter = treeSitterParserService.getOrCreateTextModelTreeSitter(textModel);
 	if (!textModelTreeSitter) {
 		throw new Error(`Cannot resolve tree sitter parser for language ${textModel.getLanguageId()}`);
 	}
-	const stopwatch = new StopWatch();
-	await textModelTreeSitter.parse();
-	stopwatch.stop();
+
+	const result = await textModelTreeSitter.parse();
+	const parseTime = result?.firstThreeParseTimes[0] ?? 9999;
 
 	let captureTime = 0;
 	let metadataTime = 0;
@@ -62,7 +61,9 @@ CommandsRegistry.registerCommand('_workbench.colorizeTreeSitterTokens', async (a
 			metadataTime += result.metadataTime;
 		}
 	}
-	textModelTreeSitter.dispose();
-	textModel.dispose();
-	return { parseTime: stopwatch.elapsed(), captureTime, metadataTime };
+	if (dispose) {
+		textModelTreeSitter.dispose();
+		textModel.dispose();
+	}
+	return { parseTime, captureTime, metadataTime };
 });

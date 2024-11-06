@@ -23,12 +23,16 @@ export interface ITreeSitterParserService {
 	/**
 	 * For testing purposes so that the time to parse can be measured.
 	*/
-	getTextModelTreeSitter(textModel: ITextModel): ITextModelTreeSitter | undefined;
+	getOrCreateTextModelTreeSitter(textModel: ITextModel): ITextModelTreeSitter | undefined;
 }
 
 export interface ITreeSitterParseResult {
 	readonly tree: Parser.Tree | undefined;
 	readonly language: Parser.Language;
+	/**
+	 * For testing purposes to get the parse time
+	 */
+	readonly firstThreeParseTimes: number[];
 }
 
 export interface ITextModelTreeSitter {

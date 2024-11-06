@@ -10,7 +10,7 @@ import { ITreeSitterParserService, ITreeSitterParseResult, ITextModelTreeSitter 
 import { Range } from '../../../common/core/range.js';
 
 export class TestTreeSitterParserService implements ITreeSitterParserService {
-	getTextModelTreeSitter(textModel: ITextModel): ITextModelTreeSitter | undefined {
+	getOrCreateTextModelTreeSitter(textModel: ITextModel): ITextModelTreeSitter | undefined {
 		throw new Error('Method not implemented.');
 	}
 	getTree(content: string, languageId: string): Promise<Parser.Tree | undefined> {

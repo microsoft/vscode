@@ -14,7 +14,7 @@ import { Range } from '../../common/core/range.js';
  * We use a dummy sertive here to make the build happy.
  */
 export class StandaloneTreeSitterParserService implements ITreeSitterParserService {
-	getTextModelTreeSitter(textModel: ITextModel): ITextModelTreeSitter | undefined {
+	getOrCreateTextModelTreeSitter(textModel: ITextModel): ITextModelTreeSitter | undefined {
 		return undefined;
 	}
 	async getTree(content: string, languageId: string): Promise<Parser.Tree | undefined> {
