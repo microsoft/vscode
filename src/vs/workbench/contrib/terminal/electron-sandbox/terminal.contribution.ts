@@ -19,6 +19,7 @@ import { INativeHostService } from '../../../../platform/native/common/native.js
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../files/browser/fileConstants.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 
 // Register services
 registerMainProcessRemoteService(ILocalPtyService, TerminalIpcChannels.LocalPty);
@@ -44,7 +45,8 @@ registerContextualInstanceAction({
 			const uri = URI.file(cwd);
 			nativeHostService.showItemInFolder(uri.fsPath);
 		}
-	}
+	},
+	precondition: IsWebContext.toNegated()
 });
 registerContextualInstanceAction({
 	id: TerminalCommandId.RevealInExplorer,
@@ -55,7 +57,8 @@ registerContextualInstanceAction({
 			const uri = URI.file(instance.cwd);
 			commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, uri);
 		}
-	}
+	},
+	precondition: IsWebContext.toNegated()
 });
 registerContextualInstanceAction({
 	id: TerminalCommandId.RevealInExternalTerminal,
@@ -66,5 +69,6 @@ registerContextualInstanceAction({
 			const uri = URI.file(instance.cwd);
 			commandService.executeCommand('openInTerminal', uri);
 		}
-	}
+	},
+	precondition: IsWebContext.toNegated()
 });
