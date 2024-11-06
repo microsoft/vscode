@@ -161,7 +161,14 @@ type TFileContentsEntry = IFileReference | IFileText;
 
 type TStreamListenerNames = 'data' | 'error' | 'end';
 
-class DecoderBase<T, K = VSBuffer> extends Disposable implements streams.ReadableStream<T> {
+/**
+ * TODO: @legomushroom
+ */
+export const todo = (message: string = 'Not implemented.'): never => {
+	throw new Error(`TODO: ${message}`);
+};
+
+abstract class DecoderBase<T, K = VSBuffer> extends Disposable implements streams.ReadableStream<T> {
 	protected readonly _onData = this._register(new Emitter<T>());
 	protected readonly _onError = this._register(new Emitter<Error>());
 	protected readonly _onEnd = this._register(new Emitter<void>());
@@ -172,6 +179,14 @@ class DecoderBase<T, K = VSBuffer> extends Disposable implements streams.Readabl
 		protected readonly stream: streams.ReadableStream<K>,
 	) {
 		super();
+
+		this.onStreamData = this.onStreamData.bind(this);
+		this.onStreamError = this.onStreamError.bind(this);
+		this.onStreamEnd = this.onStreamEnd.bind(this);
+
+		stream.on('data', this.onStreamData);
+		stream.on('error', this.onStreamError);
+		stream.on('end', this.onStreamEnd);
 	}
 
 	on(event: 'data', callback: (data: T) => void): void;
@@ -239,6 +254,12 @@ class DecoderBase<T, K = VSBuffer> extends Disposable implements streams.Readabl
 	 * Remove all existing event listeners.
 	 */
 	public removeAllListeners(): void {
+		// remove listeners set up by this class
+		this.stream.removeListener('data', this.onStreamData);
+		this.stream.removeListener('error', this.onStreamError);
+		this.stream.removeListener('end', this.onStreamEnd);
+
+		// remove listeners set up by external consumers
 		for (const [name, listeners] of this._listeners.entries()) {
 			this._listeners.delete(name);
 			for (const [listener, disposable] of listeners) {
@@ -282,58 +303,120 @@ class DecoderBase<T, K = VSBuffer> extends Disposable implements streams.Readabl
 		this.removeAllListeners();
 		super.dispose();
 	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	protected abstract onStreamData(data: K): void;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	protected abstract onStreamError(error: Error): void;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	protected abstract onStreamEnd(): void;
+}
+
+export class Token { }
+
+/**
+ * TODO: @legomushroom
+ */
+export class Line extends Token {
+	constructor(
+		public readonly text: string,
+	) {
+		super();
+	}
 }
 
 /**
  * TODO: @legomushroom
  */
-class FileContentsCodecDecoder extends DecoderBase<TFileContentsEntry> implements streams.ReadableStream<TFileContentsEntry> {
-	private currentEntity: IPartialFileEntry;
+export class LinesCodecDecoder extends DecoderBase<Line> implements streams.ReadableStream<Line> {
+	private currentChunk: string = '';
 
 	constructor(
 		stream: streams.ReadableStream<VSBuffer>,
 	) {
 		super(stream);
-
-		this.onStreamData = this.onStreamData.bind(this);
-		this.onStreamError = this.onStreamError.bind(this);
-		this.onStreamEnd = this.onStreamEnd.bind(this);
-
-		stream.on('data', this.onStreamData);
-		stream.on('error', this.onStreamError);
-		stream.on('end', this.onStreamEnd);
 	}
 
 	/**
 	 * TODO: @legomushroom
 	 */
-	private onStreamData(chunk: VSBuffer): void {
-		throw new Error('Method not implemented.');
+	protected override onStreamData(chunk: VSBuffer): void {
+		this.currentChunk += chunk.toString();
+
+		// TODO: legomushroom: handle `\r\n` too?
+		const maybeLines = this.currentChunk.split('\n');
+
+		// iterate over all lines, emitting `line` objects for each of them and
+		// shorten the `currentChunk` value accordingly
+		for (let i = 0; i < maybeLines.length - 1; i++) {
+			const line = maybeLines[i];
+			const maybeNextLine = maybeLines[i + 1];
+
+			// if there is a next line present, then we can emit the current one
+			if (maybeNextLine !== undefined) {
+				this.emitLine(line);
+
+				continue;
+			}
+
+			// if the next line is `undefined`, and the current line is `empty`, we
+			// can emit it right away because the `currentChunk` string must have had
+			// the `\n` delimiter at the end
+			if (line === '') {
+				this.emitLine(line);
+
+				continue;
+			}
+
+			// there is no next line, but we don't know if the `line` is a full line yet,
+			// so we need to wait for some more data to arrive to be sure;
+			// this can happen only for the last line in the chunk tho, so assert that here
+			// TODO: @legomushroom - emit an `Error` instead?
+			assert(
+				i === maybeLines.length - 1,
+				`The loop must break only on the last line in the chunk, did on ${i}th iteration instead.`,
+			);
+
+			break;
+		}
+	}
+
+	/**
+	 * Emit a provided line to the output stream and shorten
+	 * the `currentChunk` accordingly.
+	 */
+	private emitLine(line: string): void {
+		this._onData.fire(new Line(line));
+		this.currentChunk = this.currentChunk.slice(line.length + 1);
 	}
 
 	/**
 	 * TODO: @legomushroom
 	 */
-	private onStreamError(end: Error): void {
-		throw new Error('Method not implemented.');
+	protected override onStreamError(error: Error): void {
+		this._onError.fire(error);
 	}
 
 	/**
 	 * TODO: @legomushroom
 	 */
-	private onStreamEnd(): void {
-		throw new Error('Method not implemented.');
-	}
+	protected override onStreamEnd(): void {
+		// if the `currentChunk` is not empty when the input stream ends,
+		// emit the `currentChunk` contents as the last available line
+		// before firing the `onEnd` event
+		if (this.currentChunk) {
+			this.emitLine(this.currentChunk);
+		}
 
-	/**
-	 * TODO: @legomushroom
-	 */
-	public override dispose(): void {
-		this.stream.removeListener('data', this.onStreamData);
-		this.stream.removeListener('error', this.onStreamError);
-		this.stream.removeListener('end', this.onStreamEnd);
-
-		super.dispose();
+		this._onEnd.fire();
 	}
 }
 
