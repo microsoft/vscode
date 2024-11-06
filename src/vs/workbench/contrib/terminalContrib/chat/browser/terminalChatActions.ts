@@ -67,11 +67,6 @@ registerActiveXtermAction({
 		weight: KeybindingWeight.WorkbenchContrib,
 	},
 	icon: Codicon.close,
-	menu: {
-		id: MENU_TERMINAL_CHAT_WIDGET,
-		group: 'navigation',
-		order: 2
-	},
 	f1: true,
 	precondition: TerminalChatContextKeys.visible,
 	run: (_xterm, _accessor, activeInstance) => {

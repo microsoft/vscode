@@ -27,6 +27,7 @@ import { IChatService, IChatProgress } from '../../../chat/common/chatService.js
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import type { IChatViewState } from '../../../chat/browser/chatWidget.js';
+import { autorun, observableValue, type IObservable } from '../../../../../base/common/observable.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -44,7 +45,7 @@ const enum Message {
 	ReturnInput = 1 << 6,
 }
 
-const terminalChatPlaceholder = localize('default.placeholder', "Ask how to do something in the terminal");
+const terminalChatPlaceholder = localize('default.placeholder', "Ask Copilot");
 export class TerminalChatWidget extends Disposable {
 
 	private readonly _container: HTMLElement;
@@ -87,6 +88,9 @@ export class TerminalChatWidget extends Disposable {
 	private _currentRequestId: string | undefined;
 	private _activeRequestCts?: CancellationTokenSource;
 
+	private readonly _requestInProgress = observableValue(this, false);
+	readonly requestInProgress: IObservable<boolean> = this._requestInProgress;
+
 	constructor(
 		private readonly _terminalElement: HTMLElement,
 		private readonly _instance: ITerminalInstance,
@@ -104,7 +108,7 @@ export class TerminalChatWidget extends Disposable {
 
 		this._container = document.createElement('div');
 		this._container.classList.add('terminal-inline-chat');
-		_terminalElement.appendChild(this._container);
+		this._terminalElement.appendChild(this._container);
 
 		this._inlineChatWidget = instantiationService.createInstance(
 			InlineChatWidget,
@@ -158,6 +162,11 @@ export class TerminalChatWidget extends Disposable {
 		this._register(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
 		this._register(this._focusTracker.onDidBlur(() => this._focusedContextKey.set(false)));
 
+		this._register(autorun(r => {
+			const isBusy = this._inlineChatWidget.requestInProgress.read(r);
+			this._container.classList.toggle('busy', isBusy);
+		}));
+
 		this.hide();
 
 		this._requestActiveContextKey = TerminalChatContextKeys.requestActive.bindTo(this._contextKeyService);
@@ -191,8 +200,8 @@ export class TerminalChatWidget extends Disposable {
 			return;
 		}
 		const style = getActiveWindow().getComputedStyle(xtermElement);
-		const xtermPadding = parseInt(style.paddingLeft) + parseInt(style.paddingRight);
-		const width = Math.min(640, xtermElement.clientWidth - 12/* padding */ - 2/* border */ - Constants.HorizontalMargin - xtermPadding);
+		const xtermLeftPadding = parseInt(style.paddingLeft);
+		const width = xtermElement.clientWidth - xtermLeftPadding - 12; //Math.min(640, xtermElement.clientWidth - 12/* padding */ - 2/* border */ - Constants.HorizontalMargin - xtermPadding);
 		const terminalWrapperHeight = this._getTerminalWrapperHeight() ?? Number.MAX_SAFE_INTEGER;
 		let height = Math.min(480, heightInPixel, terminalWrapperHeight);
 		const top = this._getTop() ?? 0;
@@ -209,9 +218,9 @@ export class TerminalChatWidget extends Disposable {
 				adjustedHeight = height;
 			}
 		}
-		this._container.style.paddingLeft = style.paddingLeft;
 		this._dimension = new Dimension(width, height);
 		this._inlineChatWidget.layout(this._dimension);
+		this._inlineChatWidget.domNode.style.paddingLeft = `${xtermLeftPadding}px`;
 		this._updateVerticalPosition(adjustedHeight);
 	}
 
