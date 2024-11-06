@@ -239,12 +239,16 @@ if (PasteAction) {
 			const experimentalEditContextEnabled = focusedEditor.getOption(EditorOption.experimentalEditContextEnabled);
 			if (experimentalEditContextEnabled) {
 				const currentFocusedElement = getActiveWindow().document.activeElement;
+				// Since we can not call execCommand('paste') on a dom node with edit context set
+				// we added a hidden text area that receives the paste execution
+				// see nativeEditContext.ts for more details
 				const editorDomNode = focusedEditor.getContainerDomNode();
 				const editorDocument = editorDomNode.ownerDocument;
 				const textAreaDomNode = editorDocument.getElementsByClassName(NativeEditContext.TEXT_AREA_CLASS_NAME).item(0);
 				if (textAreaDomNode && isHTMLElement(textAreaDomNode)) {
 					textAreaDomNode.focus();
 					result = editorDocument.execCommand('paste');
+					textAreaDomNode.textContent = '';
 					if (isHTMLElement(currentFocusedElement)) {
 						currentFocusedElement.focus();
 					}
