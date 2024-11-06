@@ -26,6 +26,7 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 	// --- Window
 	readonly window: {
 		id: number;
+		handle?: string;
 		colorScheme: IColorScheme;
 		maximized?: boolean;
 		accessibilitySupport?: boolean;
@@ -83,6 +84,7 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get window() {
 		return {
 			id: this.configuration.windowId,
+			handle: this.configuration.handle,
 			colorScheme: this.configuration.colorScheme,
 			maximized: this.configuration.maximized,
 			accessibilitySupport: this.configuration.accessibilitySupport,
