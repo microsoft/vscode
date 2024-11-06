@@ -144,6 +144,7 @@ export class TerminalChatWidget extends Disposable {
 			Event.debounce(this._xterm.raw.onCursorMove, () => void 0, MicrotaskDelay),
 		)(() => this._relayout()));
 
+		this._register(this._inlineChatWidget.chatWidget.onDidAcceptInput(() => this.acceptInput()));
 		const observer = new ResizeObserver(() => this._relayout());
 		observer.observe(this._terminalElement);
 		this._register(toDisposable(() => observer.disconnect()));
