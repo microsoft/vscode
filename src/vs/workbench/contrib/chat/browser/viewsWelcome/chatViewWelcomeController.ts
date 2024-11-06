@@ -53,7 +53,7 @@ export class ChatViewWelcomeController extends Disposable {
 
 	private update(force?: boolean): void {
 		const enabled = this.delegate.shouldShowWelcome();
-		if (this.enabled === enabled || force) {
+		if (this.enabled === enabled && !force) {
 			return;
 		}
 
