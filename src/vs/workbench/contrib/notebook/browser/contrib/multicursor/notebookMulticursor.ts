@@ -136,26 +136,33 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 	private async updateCursorsControllers() {
 		this.cursorsDisposables.clear(); // TODO: dial this back for perf and just update the relevant controllers
 		await Promise.all(this.trackedCells.map(async cell => {
-			const textModelRef = await this.textModelService.createModelReference(cell.cellViewModel.uri);
-			const textModel = textModelRef.object.textEditorModel;
-			if (!textModel) {
-				return;
+			const controller = await this.createCursorController(cell);
+			if (controller) {
+				this.cursorsControllers.set(cell.cellViewModel.uri, controller);
 			}
-
-			const cursorSimpleModel = this.constructCursorSimpleModel(cell.cellViewModel);
-			const converter = this.constructCoordinatesConverter();
-			const editorConfig = cell.editorConfig;
-
-			const controller = this.cursorsDisposables.add(new CursorsController(
-				textModel,
-				cursorSimpleModel,
-				converter,
-				new CursorConfiguration(textModel.getLanguageId(), textModel.getOptions(), editorConfig, this.languageConfigurationService)
-			));
-
-			controller.setSelections(new ViewModelEventsCollector(), undefined, cell.matchSelections, CursorChangeReason.Explicit);
-			this.cursorsControllers.set(cell.cellViewModel.uri, controller);
 		}));
+	}
+
+	private async createCursorController(cell: TrackedCell): Promise<CursorsController | undefined> {
+		const textModelRef = await this.textModelService.createModelReference(cell.cellViewModel.uri);
+		const textModel = textModelRef.object.textEditorModel;
+		if (!textModel) {
+			return undefined;
+		}
+
+		const cursorSimpleModel = this.constructCursorSimpleModel(cell.cellViewModel);
+		const converter = this.constructCoordinatesConverter();
+		const editorConfig = cell.editorConfig;
+
+		const controller = this.cursorsDisposables.add(new CursorsController(
+			textModel,
+			cursorSimpleModel,
+			converter,
+			new CursorConfiguration(textModel.getLanguageId(), textModel.getOptions(), editorConfig, this.languageConfigurationService)
+		));
+
+		controller.setSelections(new ViewModelEventsCollector(), undefined, cell.matchSelections, CursorChangeReason.Explicit);
+		return controller;
 	}
 
 	private constructCoordinatesConverter(): ICoordinatesConverter {
@@ -314,54 +321,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 		// core actions
 		this.anchorDisposables.add(this.anchorCell[1].onWillTriggerEditorOperationEvent((e) => {
-			this.trackedCells.forEach(cell => {
-				if (cell.cellViewModel.handle === this.anchorCell?.[0].handle) {
-					return;
-				}
-
-				const eventsCollector = new ViewModelEventsCollector();
-				const controller = this.cursorsControllers.get(cell.cellViewModel.uri);
-				if (!controller) {
-					return;
-				}
-				switch (e.handlerId) {
-					case Handler.CompositionStart:
-						controller.startComposition(eventsCollector);
-						return;
-					case Handler.CompositionEnd:
-						controller.endComposition(eventsCollector, e.source);
-						return;
-					case Handler.ReplacePreviousChar: {
-						const args = <Partial<ReplacePreviousCharPayload>>e.payload;
-						controller.compositionType(eventsCollector, args.text || '', args.replaceCharCnt || 0, 0, 0, e.source);
-						return;
-					}
-					case Handler.CompositionType: {
-						const args = <Partial<CompositionTypePayload>>e.payload;
-						controller.compositionType(eventsCollector, args.text || '', args.replacePrevCharCnt || 0, args.replaceNextCharCnt || 0, args.positionDelta || 0, e.source);
-						return;
-					}
-					case Handler.Paste: {
-						const args = <Partial<PastePayload>>e.payload;
-						controller.paste(eventsCollector, args.text || '', args.pasteOnNewLine || false, args.multicursorText || null, e.source);
-						return;
-
-						// ! this code is for firing the paste event, not sure what that would enable, trace the event listener
-						// const startPos = XYZ
-						// const endPos = XYZ
-						// if (source === 'keyboard') {
-						// 	this._onDidPaste.fire({
-						// 		clipboardEvent,
-						// 		range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
-						// 		languageId: mode
-						// 	});
-						// }
-					}
-					case Handler.Cut:
-						controller.cut(eventsCollector, e.source);
-						return;
-				}
-			});
+			this.handleEditorOperationEvent(e);
 		}));
 
 		// exit mode
@@ -370,6 +330,50 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				this.resetToIdleState();
 			}
 		}));
+	}
+
+	private async handleEditorOperationEvent(e: any) {
+		this.trackedCells.forEach(cell => {
+			if (cell.cellViewModel.handle === this.anchorCell?.[0].handle) {
+				return;
+			}
+
+			const eventsCollector = new ViewModelEventsCollector();
+			const controller = this.cursorsControllers.get(cell.cellViewModel.uri);
+			if (!controller) {
+				return;
+			}
+			this.executeEditorOperation(controller, eventsCollector, e);
+		});
+	}
+
+	private executeEditorOperation(controller: CursorsController, eventsCollector: ViewModelEventsCollector, e: any) {
+		switch (e.handlerId) {
+			case Handler.CompositionStart:
+				controller.startComposition(eventsCollector);
+				break;
+			case Handler.CompositionEnd:
+				controller.endComposition(eventsCollector, e.source);
+				break;
+			case Handler.ReplacePreviousChar: {
+				const args = <Partial<ReplacePreviousCharPayload>>e.payload;
+				controller.compositionType(eventsCollector, args.text || '', args.replaceCharCnt || 0, 0, 0, e.source);
+				break;
+			}
+			case Handler.CompositionType: {
+				const args = <Partial<CompositionTypePayload>>e.payload;
+				controller.compositionType(eventsCollector, args.text || '', args.replacePrevCharCnt || 0, args.replaceNextCharCnt || 0, args.positionDelta || 0, e.source);
+				break;
+			}
+			case Handler.Paste: {
+				const args = <Partial<PastePayload>>e.payload;
+				controller.paste(eventsCollector, args.text || '', args.pasteOnNewLine || false, args.multicursorText || null, e.source);
+				break;
+			}
+			case Handler.Cut:
+				controller.cut(eventsCollector, e.source);
+				break;
+		}
 	}
 
 	private updateFinalUndoRedo() {
