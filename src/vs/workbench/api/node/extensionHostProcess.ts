@@ -6,7 +6,7 @@
 import minimist from 'minimist';
 import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
-import { ProcessTimeRunOnceScheduler } from '../../../base/common/async.js';
+import { DeferredPromise, ProcessTimeRunOnceScheduler } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { isCancellationError, isSigPipeError, onUnexpectedError } from '../../../base/common/errors.js';
 import { Event } from '../../../base/common/event.js';
@@ -348,7 +348,15 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 }
 
 async function startExtensionHostProcess(): Promise<void> {
-
+	// TODO I feel like I need a way to not do this if we're not running in electron
+	const deferredWindowHandle = new DeferredPromise<Buffer | undefined>();
+	process.parentPort.once('message', (e: Electron.MessageEvent) => {
+		if (e.data?.nativeWindowHandle) {
+			const handleBuffer = Buffer.from(e.data.nativeWindowHandle, 'base64');
+			deferredWindowHandle.complete(handleBuffer);
+		}
+		deferredWindowHandle.complete(undefined);
+	});
 	// Print a console message when rejection isn't handled within N seconds. For details:
 	// see https://nodejs.org/api/process.html#process_event_unhandledrejection
 	// and https://nodejs.org/api/process.html#process_event_rejectionhandled
@@ -418,7 +426,9 @@ async function startExtensionHostProcess(): Promise<void> {
 		renderer.protocol,
 		initData,
 		hostUtils,
-		uriTransformer
+		uriTransformer,
+		undefined,
+		await deferredWindowHandle.p,
 	);
 
 	// rewrite onTerminate-function to be a proper shutdown
