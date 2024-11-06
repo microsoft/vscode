@@ -109,18 +109,20 @@ const unsafeHeaders = [
 ];
 
 function patchGlobalFetch(configProvider: ExtHostConfigProvider, mainThreadTelemetry: MainThreadTelemetryShape, initData: IExtensionHostInitData, resolveProxyURL: (url: string) => Promise<string | undefined>, lookupProxyAuthorization: LookupProxyAuthorization, loadAdditionalCertificates: () => Promise<string[]>, disposables: DisposableStore) {
-	if (!initData.remote.isRemote && !(globalThis as any).__vscodeOriginalFetch) {
+	if (!(globalThis as any).__vscodeOriginalFetch) {
 		const originalFetch = globalThis.fetch;
 		(globalThis as any).__vscodeOriginalFetch = originalFetch;
 		const patchedFetch = patchFetch(originalFetch, configProvider, resolveProxyURL, lookupProxyAuthorization, loadAdditionalCertificates);
 		(globalThis as any).__vscodePatchedFetch = patchedFetch;
-		let useElectronFetch = configProvider.getConfiguration('http').get<boolean>('electronFetch', useElectronFetchDefault);
-		disposables.add(configProvider.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('http.electronFetch')) {
-				useElectronFetch = configProvider.getConfiguration('http').get<boolean>('electronFetch', useElectronFetchDefault);
-			}
-		}));
-		const electron = require('electron');
+		let useElectronFetch = false;
+		if (!initData.remote.isRemote) {
+			useElectronFetch = configProvider.getConfiguration('http').get<boolean>('electronFetch', useElectronFetchDefault);
+			disposables.add(configProvider.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration('http.electronFetch')) {
+					useElectronFetch = configProvider.getConfiguration('http').get<boolean>('electronFetch', useElectronFetchDefault);
+				}
+			}));
+		}
 		// https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API
 		globalThis.fetch = async function fetch(input: string | URL | Request, init?: RequestInit) {
 			function getRequestProperty(name: keyof Request & keyof RequestInit) {
@@ -160,6 +162,7 @@ function patchGlobalFetch(configProvider: ExtHostConfigProvider, mainThreadTelem
 			}
 			// Support for URL: https://github.com/electron/electron/issues/43712
 			const electronInput = input instanceof URL ? input.toString() : input;
+			const electron = require('electron');
 			const response = await electron.net.fetch(electronInput, init);
 			monitorResponseProperties(mainThreadTelemetry, response, urlString);
 			return response;

@@ -213,7 +213,7 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 			'http.fetchAdditionalSupport': {
 				type: 'boolean',
 				default: true,
-				description: localize('fetchAdditionalSupport', "Controls whether Node.js' fetch implementation should be extended with additional support."),
+				markdownDescription: localize('fetchAdditionalSupport', "Controls whether Node.js' fetch implementation should be extended with additional support. Currently proxy support ({0}) and system certificates ({1}) are added when the corresponding settings are enabled.", '`#http.proxySupport#`', '`#http.systemCertificates#`'),
 				restricted: true
 			}
 		}
