@@ -50,6 +50,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
+import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -86,6 +87,9 @@ export interface IChatViewOpenRequestEntry {
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	name: product.defaultChatAgent?.name ?? '',
+	providerId: product.defaultChatAgent?.providerId ?? '',
+	providerName: product.defaultChatAgent?.providerName ?? '',
+	providerScopes: product.defaultChatAgent?.providerScopes ?? [],
 	icon: Codicon[product.defaultChatAgent?.icon as keyof typeof Codicon ?? 'commentDiscussion'],
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
 	gettingStartedCommand: product.defaultChatAgent?.gettingStartedCommand ?? '',
@@ -463,6 +467,7 @@ export function registerChatActions() {
 	});
 
 	registerAction2(InstallChatAction);
+	registerAction2(SignInAndInstallChatAction);
 	registerAction2(LearnMoreChatAction);
 }
 
@@ -590,12 +595,22 @@ class InstallChatAction extends Action2 {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_atfirst',
 				order: 1,
-				when: ChatContextKeys.panelParticipantRegistered.negate()
+				when: ContextKeyExpr.and(
+					ChatContextKeys.panelParticipantRegistered.negate(),
+					ContextKeyExpr.or(
+						ChatContextKeys.ChatSetup.entitled,
+						ChatContextKeys.ChatSetup.signedIn
+					)
+				)
 			}
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return InstallChatAction.install(accessor);
+	}
+
+	static async install(accessor: ServicesAccessor) {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const productService = accessor.get(IProductService);
 		const telemetryService = accessor.get(ITelemetryService);
@@ -624,6 +639,40 @@ class InstallChatAction extends Action2 {
 		telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', {
 			installResult
 		});
+	}
+}
+
+class SignInAndInstallChatAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.signInAndInstall';
+	static readonly TITLE = localize2('signInAndInstallChat', "Sign in to use {0}", defaultChat.name);
+
+	constructor() {
+		super({
+			id: SignInAndInstallChatAction.ID,
+			title: SignInAndInstallChatAction.TITLE,
+			category: CHAT_CATEGORY,
+			menu: {
+				id: MenuId.ChatCommandCenter,
+				group: 'a_atfirst',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.panelParticipantRegistered.negate(),
+					ChatContextKeys.ChatSetup.entitled.negate(),
+					ChatContextKeys.ChatSetup.signedIn.negate()
+				)
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const authenticationService = accessor.get(IAuthenticationService);
+		const instantiationService = accessor.get(IInstantiationService);
+
+		const session = await authenticationService.createSession(defaultChat.providerId, defaultChat.providerScopes);
+		if (session) {
+			instantiationService.invokeFunction(accessor => InstallChatAction.install(accessor));
+		}
 	}
 }
 

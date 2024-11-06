@@ -197,6 +197,9 @@ export interface IProductConfiguration {
 
 	readonly defaultChatAgent?: {
 		readonly extensionId: string;
+		readonly providerId: string;
+		readonly providerName: string;
+		readonly providerScopes: string[];
 		readonly name: string;
 		readonly icon: string;
 		readonly documentationUrl: string;
