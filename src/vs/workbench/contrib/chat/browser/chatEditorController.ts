@@ -238,7 +238,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				} else if (diffEntry.modified.isEmpty) {
 					// deletion
 					modifiedDecorations.push({
-						range: new Range(diffEntry.modified.startLineNumber, 1, diffEntry.modified.startLineNumber, 1),
+						range: new Range(diffEntry.modified.startLineNumber - 1, 1, diffEntry.modified.startLineNumber, 1),
 						options: deletedDecoration
 					});
 				} else {
