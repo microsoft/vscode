@@ -2514,8 +2514,8 @@ export class TerminalLabelComputer extends Disposable {
 				: (instance.fixedRows ? `\u2195${instance.fixedRows}` : ''),
 			separator: { label: this._terminalConfigurationService.config.tabs.separator },
 			shellType: instance.shellType,
-			shellCommand: commandDetection?.executingCommand ? promptInputModel?.value : undefined,
-			shellPromptInput: promptInputModel?.getCombinedString(true),
+			shellCommand: commandDetection?.executingCommand && promptInputModel ? `${promptInputModel.value} $(loading~spin)` : undefined,
+			shellPromptInput: commandDetection?.executingCommand && promptInputModel ? `${promptInputModel.getCombinedString(true)} $(loading~spin)` : promptInputModel?.getCombinedString(true),
 		};
 		templateProperties.workspaceFolderName = instance.workspaceFolder?.name ?? templateProperties.workspaceFolder;
 		labelTemplate = labelTemplate.trim();
