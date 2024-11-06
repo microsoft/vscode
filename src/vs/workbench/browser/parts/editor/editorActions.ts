@@ -2696,3 +2696,29 @@ export class NewEmptyEditorWindowAction extends Action2 {
 		auxiliaryEditorPart.activeGroup.focus();
 	}
 }
+
+export class ToggleOvertypeInsertMode extends Action2 {
+
+	constructor() {
+		super({
+			id: 'editor.action.toggleOvertypeInsertMode',
+			title: {
+				...localize2('toggleOvertypeInsertMode', "Toggle Overtype/Insert Mode"),
+				mnemonicTitle: localize({ key: 'mitoggleOvertypeInsertMode', comment: ['&& denotes a mnemonic'] }, "&&Toggle Overtype/Insert Mode"),
+			},
+			metadata: {
+				description: localize2('toggleOvertypeMode.description', "Toggle between overtype and insert mode"),
+			},
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const inputType = configurationService.getValue<'insert' | 'overtype' | undefined>('editor.inputType');
+		const newInputType = inputType ? (inputType === 'insert' ? 'overtype' : 'insert') : 'insert';
+		return configurationService.updateValue('editor.inputType', newInputType);
+	}
+}
+
