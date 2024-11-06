@@ -19,6 +19,7 @@ import { Context as SuggestContext } from '../../../suggest/browser/suggest.js';
 import { inlineSuggestCommitId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 import { InlineCompletionsController } from './inlineCompletionsController.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 
 export class ShowNextInlineSuggestionAction extends EditorAction {
 	public static ID = showNextInlineSuggestionActionId;
@@ -79,6 +80,30 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 			await controller?.model.get()?.triggerExplicitly(tx);
 			controller?.playAccessibilitySignal(tx);
 		});
+	}
+}
+
+export class TriggerInlineEditAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.inlineSuggest.trigger.inlineEdit',
+			label: nls.localize('action.inlineSuggest.trigger.inlineEdit', "Trigger Inline Edit"),
+			alias: 'Trigger Inline Edit',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		const notificationService = accessor!.get(INotificationService);
+		const controller = InlineCompletionsController.get(editor);
+
+		await controller?.model.get()?.triggerExplicitly(undefined, true);
+		if (!controller?.model.get()?.inlineEditAvailable.get()) {
+			notificationService.notify({
+				severity: Severity.Info,
+				message: nls.localize('noInlineEditAvailable', "No inline edit is available.")
+			});
+		}
 	}
 }
 
