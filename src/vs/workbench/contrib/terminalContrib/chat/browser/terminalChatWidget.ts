@@ -201,7 +201,8 @@ export class TerminalChatWidget extends Disposable {
 		}
 		const style = getActiveWindow().getComputedStyle(xtermElement);
 		const xtermLeftPadding = parseInt(style.paddingLeft);
-		const width = xtermElement.clientWidth - xtermLeftPadding - 12; //Math.min(640, xtermElement.clientWidth - 12/* padding */ - 2/* border */ - Constants.HorizontalMargin - xtermPadding);
+		// TODO: Remove magic number https://github.com/microsoft/vscode/issues/233206
+		const width = xtermElement.clientWidth - xtermLeftPadding - 12;
 		const terminalWrapperHeight = this._getTerminalWrapperHeight() ?? Number.MAX_SAFE_INTEGER;
 		let height = Math.min(480, heightInPixel, terminalWrapperHeight);
 		const top = this._getTop() ?? 0;
