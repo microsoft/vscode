@@ -100,7 +100,7 @@ const CUT_FILE_ID = 'filesExplorer.cut';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CUT_FILE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext, WorkbenchTreeFindOpen.toNegated()),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyX,
 	handler: cutFileHandler,
 });
@@ -121,7 +121,7 @@ CommandsRegistry.registerCommand(PASTE_FILE_ID, pasteFileHandler);
 KeybindingsRegistry.registerKeybindingRule({
 	id: `^${PASTE_FILE_ID}`, // the `^` enables pasting files into the explorer by preventing default bubble up
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext, WorkbenchTreeFindOpen.toNegated()),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyV,
 });
 
@@ -479,7 +479,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	command: {
 		id: NEW_FILE_COMMAND_ID,
 		title: NEW_FILE_LABEL,
-		precondition: ExplorerResourceNotReadonlyContext
+		precondition: ContextKeyExpr.and(ExplorerResourceNotReadonlyContext, WorkbenchTreeFindOpen.toNegated())
 	},
 	when: ExplorerFolderContext
 });
@@ -490,7 +490,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	command: {
 		id: NEW_FOLDER_COMMAND_ID,
 		title: NEW_FOLDER_LABEL,
-		precondition: ExplorerResourceNotReadonlyContext
+		precondition: ContextKeyExpr.and(ExplorerResourceNotReadonlyContext, WorkbenchTreeFindOpen.toNegated())
 	},
 	when: ExplorerFolderContext
 });
@@ -538,7 +538,8 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 8,
 	command: {
 		id: CUT_FILE_ID,
-		title: nls.localize('cut', "Cut")
+		title: nls.localize('cut', "Cut"),
+		precondition: WorkbenchTreeFindOpen.toNegated()
 	},
 	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext)
 });
@@ -548,7 +549,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 10,
 	command: {
 		id: COPY_FILE_ID,
-		title: COPY_FILE_LABEL
+		title: COPY_FILE_LABEL,
 	},
 	when: ExplorerRootContext.toNegated()
 });
@@ -559,7 +560,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	command: {
 		id: PASTE_FILE_ID,
 		title: PASTE_FILE_LABEL,
-		precondition: ContextKeyExpr.and(ExplorerResourceNotReadonlyContext, FileCopiedContext)
+		precondition: ContextKeyExpr.and(ExplorerResourceNotReadonlyContext, FileCopiedContext, WorkbenchTreeFindOpen.toNegated())
 	},
 	when: ExplorerFolderContext
 });
@@ -766,32 +767,64 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 });
 
 
-// Chat resource anchor context menu
+// Chat used attachment anchor context menu
 
-MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {
+MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
 	group: 'navigation',
 	order: 10,
 	command: openToSideCommand,
 	when: ContextKeyExpr.and(ResourceContextKey.HasResource, ExplorerFolderContext.toNegated())
 });
 
-MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {
+MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
 	group: 'navigation',
 	order: 20,
 	command: revealInsideBarCommand,
 	when: ResourceContextKey.IsFileSystemResource
 });
 
-MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {
+MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
 	group: '1_cutcopypaste',
 	order: 10,
 	command: copyPathCommand,
 	when: ResourceContextKey.IsFileSystemResource
 });
 
-MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {
+MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
 	group: '1_cutcopypaste',
 	order: 20,
 	command: copyRelativePathCommand,
 	when: ResourceContextKey.IsFileSystemResource
 });
+
+// Chat resource anchor attachments/anchors context menu
+
+for (const menuId of [MenuId.ChatInlineResourceAnchorContext, MenuId.ChatInputResourceAttachmentContext]) {
+	MenuRegistry.appendMenuItem(menuId, {
+		group: 'navigation',
+		order: 10,
+		command: openToSideCommand,
+		when: ContextKeyExpr.and(ResourceContextKey.HasResource, ExplorerFolderContext.toNegated())
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group: 'navigation',
+		order: 20,
+		command: revealInsideBarCommand,
+		when: ResourceContextKey.IsFileSystemResource
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group: '1_cutcopypaste',
+		order: 10,
+		command: copyPathCommand,
+		when: ResourceContextKey.IsFileSystemResource
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group: '1_cutcopypaste',
+		order: 20,
+		command: copyRelativePathCommand,
+		when: ResourceContextKey.IsFileSystemResource
+	});
+}

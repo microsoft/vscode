@@ -309,6 +309,7 @@ export class DebugHoverWidget implements IContentWidget {
 			}));
 			this.valueContainer.title = '';
 			this.editor.layoutContentWidget(this);
+			this.safeTriangle = mouseEvent && new dom.SafeTriangle(mouseEvent.posx, mouseEvent.posy, this.domNode);
 			this.scrollbar.scanDomNode();
 			if (focus) {
 				this.editor.render();
@@ -321,13 +322,12 @@ export class DebugHoverWidget implements IContentWidget {
 		this.valueContainer.hidden = true;
 
 		this.expressionToRender = expression;
-		this.complexValueTitle.textContent = expression.value;
-		this.complexValueTitle.title = expression.value;
+		store.add(this.expressionRenderer.renderValue(this.complexValueTitle, expression, { hover: false, session }));
 		this.editor.layoutContentWidget(this);
+		this.safeTriangle = mouseEvent && new dom.SafeTriangle(mouseEvent.posx, mouseEvent.posy, this.domNode);
 		this.tree.scrollTop = 0;
 		this.tree.scrollLeft = 0;
 		this.complexValueContainer.hidden = false;
-		this.safeTriangle = mouseEvent && new dom.SafeTriangle(mouseEvent.posx, mouseEvent.posy, this.domNode);
 
 		if (focus) {
 			this.editor.render();

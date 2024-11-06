@@ -954,13 +954,33 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.getEnablementState(remoteWorkspaceExtension), EnablementState.EnabledGlobally);
 	});
 
-	test('test canChangeEnablement return true when extension is disabled by dependency if it has a dependency that is disabled by workspace trust', async () => {
+	test('test canChangeEnablement return false when extension is disabled by dependency if it has a dependency that is disabled by workspace trust', async () => {
 		installed.push(...[aLocalExtension2('pub.a', { main: 'hello.js', capabilities: { untrustedWorkspaces: { supported: false, description: '' } } }), aLocalExtension2('pub.b', { extensionDependencies: ['pub.a'], capabilities: { untrustedWorkspaces: { supported: true } } })]);
 		instantiationService.stub(IWorkspaceTrustManagementService, <Partial<IWorkspaceTrustManagementService>>{ isWorkspaceTrusted() { return false; } });
 		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
 		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
 
-		assert.ok(testObject.canChangeEnablement(installed[1]));
+		assert.deepEqual(testObject.canChangeEnablement(installed[1]), false);
+	});
+
+	test('test canChangeEnablement return false when extension is disabled by dependency if it has a dependency that is disabled globally', async () => {
+		installed.push(...[aLocalExtension2('pub.a', {}), aLocalExtension2('pub.b', { extensionDependencies: ['pub.a'] })]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		await testObject.setEnablement([installed[0]], EnablementState.DisabledGlobally);
+
+		assert.deepEqual(testObject.canChangeEnablement(installed[1]), false);
+	});
+
+	test('test canChangeEnablement return false when extension is disabled by dependency if it has a dependency that is disabled workspace', async () => {
+		installed.push(...[aLocalExtension2('pub.a', {}), aLocalExtension2('pub.b', { extensionDependencies: ['pub.a'] })]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		await testObject.setEnablement([installed[0]], EnablementState.DisabledWorkspace);
+
+		assert.deepEqual(testObject.canChangeEnablement(installed[1]), false);
 	});
 
 	test('test extension is not disabled by dependency even if it has a dependency that is disabled when installed extensions are not set', async () => {

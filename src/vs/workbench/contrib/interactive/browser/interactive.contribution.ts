@@ -512,14 +512,13 @@ registerAction2(class extends Action2 {
 			editorControl = editorService.activeEditorPane?.getControl();
 		}
 
-
 		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.activeCodeEditor.getModel();
+			const textModel = editorControl.activeCodeEditor?.getModel();
 			const activeKernel = editorControl.notebookEditor.activeKernel;
 			const language = activeKernel?.supportedLanguages[0] ?? PLAINTEXT_LANGUAGE_ID;
 
-			if (notebookDocument && textModel) {
+			if (notebookDocument && textModel && editorControl.activeCodeEditor) {
 				const index = notebookDocument.length;
 				const value = textModel.getValue();
 
@@ -594,11 +593,12 @@ registerAction2(class extends Action2 {
 
 		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.activeCodeEditor.getModel();
-			const range = editorControl.activeCodeEditor.getModel()?.getFullModelRange();
+			const editor = editorControl.activeCodeEditor;
+			const range = editor?.getModel()?.getFullModelRange();
 
-			if (notebookDocument && textModel && range) {
-				editorControl.activeCodeEditor.executeEdits('', [EditOperation.replace(range, null)]);
+
+			if (notebookDocument && editor && range) {
+				editor.executeEdits('', [EditOperation.replace(range, null)]);
 			}
 		}
 	}
@@ -620,7 +620,7 @@ registerAction2(class extends Action2 {
 				primary: KeyCode.UpArrow,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			precondition: IS_COMPOSITE_NOTEBOOK
+			precondition: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED.negate())
 		});
 	}
 
@@ -633,7 +633,7 @@ registerAction2(class extends Action2 {
 
 		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.activeCodeEditor.getModel();
+			const textModel = editorControl.activeCodeEditor?.getModel();
 
 			if (notebookDocument && textModel) {
 				const previousValue = historyService.getPreviousValue(notebookDocument.uri);
@@ -661,7 +661,7 @@ registerAction2(class extends Action2 {
 				primary: KeyCode.DownArrow,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			precondition: IS_COMPOSITE_NOTEBOOK
+			precondition: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED.negate())
 		});
 	}
 
@@ -672,7 +672,7 @@ registerAction2(class extends Action2 {
 
 		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.activeCodeEditor.getModel();
+			const textModel = editorControl.activeCodeEditor?.getModel();
 
 			if (notebookDocument && textModel) {
 				const nextValue = historyService.getNextValue(notebookDocument.uri);
@@ -756,10 +756,9 @@ registerAction2(class extends Action2 {
 			},
 			keybinding: {
 				when: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED),
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WorkbenchContrib + 5,
 				primary: KeyMod.CtrlCmd | KeyCode.DownArrow
-			},
-			precondition: InteractiveWindowOpen
+			}
 		});
 	}
 
@@ -803,7 +802,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none')),
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WorkbenchContrib + 5,
 				primary: KeyMod.CtrlCmd | KeyCode.UpArrow
 			},
 			{

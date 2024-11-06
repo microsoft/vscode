@@ -44,7 +44,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 
 	constructor(
 		protected readonly logService: ILogService,
-		protected options?: IDiskFileSystemProviderOptions
+		private readonly options?: IDiskFileSystemProviderOptions
 	) {
 		super();
 	}
@@ -107,11 +107,6 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 				if (usePolling.includes(request.path)) {
 					request.pollingInterval = this.options?.watcher?.recursive?.pollingInterval ?? 5000;
 				}
-			}
-
-			// Adjust for next version
-			if (this.options?.watcher?.recursive?.useNext) {
-				request.useNext = true;
 			}
 		}
 

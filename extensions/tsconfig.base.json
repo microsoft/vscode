@@ -1,5 +1,6 @@
 {
 	"compilerOptions": {
+		"esModuleInterop": true,
 		"target": "es2020",
 		"lib": [
 			"ES2016",

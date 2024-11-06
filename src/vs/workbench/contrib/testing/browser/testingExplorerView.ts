@@ -27,11 +27,10 @@ import { fuzzyContains } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import './media/testing.css';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../nls.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { MenuEntryActionViewItem, createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuEntryActionViewItem, createActionViewItem, getActionBarActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -54,16 +53,9 @@ import { ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from './explorerProjections/index.js';
-import { ListProjection } from './explorerProjections/listProjection.js';
-import { getTestItemContextOverlay } from './explorerProjections/testItemContextOverlay.js';
-import { TestingObjectTree } from './explorerProjections/testingObjectTree.js';
-import { ISerializedTestTreeCollapseState } from './explorerProjections/testingViewState.js';
-import { TreeProjection } from './explorerProjections/treeProjection.js';
-import * as icons from './icons.js';
-import { DebugLastRun, ReRunLastRun } from './testExplorerActions.js';
-import { TestingExplorerFilter } from './testingExplorerFilter.js';
-import { CountSummary, collectTestStateCounts, getTestProgressText } from './testingProgressUiService.js';
+import { IActivityService, IconBadge, NumberBadge } from '../../../services/activity/common/activity.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { TestingConfigKeys, TestingCountBadge, getTestingConfiguration } from '../common/configuration.js';
 import { TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, labelForTestInState } from '../common/constants.js';
 import { StoredValue } from '../common/storedValue.js';
@@ -73,14 +65,22 @@ import { ITestProfileService, canUseProfileWithTest } from '../common/testProfil
 import { LiveTestResult, TestResultItemChangeReason } from '../common/testResult.js';
 import { ITestResultService } from '../common/testResultService.js';
 import { IMainThreadTestCollection, ITestService, testCollectionIsEmpty } from '../common/testService.js';
-import { ITestRunProfile, InternalTestItem, TestControllerCapability, TestItemExpandState, TestResultState, TestRunProfileBitset } from '../common/testTypes.js';
+import { ITestRunProfile, InternalTestItem, TestControllerCapability, TestItemExpandState, TestResultState, TestRunProfileBitset, testResultStateToContextValues } from '../common/testTypes.js';
 import { TestingContextKeys } from '../common/testingContextKeys.js';
 import { ITestingContinuousRunService } from '../common/testingContinuousRunService.js';
 import { ITestingPeekOpener } from '../common/testingPeekOpener.js';
 import { cmpPriority, isFailedState, isStateWithResult, statesInOrder } from '../common/testingStates.js';
-import { IActivityService, IconBadge, NumberBadge } from '../../../services/activity/common/activity.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from './explorerProjections/index.js';
+import { ListProjection } from './explorerProjections/listProjection.js';
+import { getTestItemContextOverlay } from './explorerProjections/testItemContextOverlay.js';
+import { TestingObjectTree } from './explorerProjections/testingObjectTree.js';
+import { ISerializedTestTreeCollapseState } from './explorerProjections/testingViewState.js';
+import { TreeProjection } from './explorerProjections/treeProjection.js';
+import * as icons from './icons.js';
+import './media/testing.css';
+import { DebugLastRun, ReRunLastRun } from './testExplorerActions.js';
+import { TestingExplorerFilter } from './testingExplorerFilter.js';
+import { CountSummary, collectTestStateCounts, getTestProgressText } from './testingProgressUiService.js';
 
 const enum LastFocusState {
 	Input,
@@ -150,9 +150,11 @@ export class TestingExplorerView extends ViewPane {
 
 	/**
 	 * Gets include/exclude items in the tree, based either on visible tests
-	 * or a use selection.
+	 * or a use selection. If a profile is given, only tests in that profile
+	 * are collected. If a bitset is given, any test that can run in that
+	 * bitset is collected.
 	 */
-	public getTreeIncludeExclude(withinItems?: InternalTestItem[], profile?: ITestRunProfile, filterToType: 'visible' | 'selected' = 'visible') {
+	public getTreeIncludeExclude(profileOrBitset: ITestRunProfile | TestRunProfileBitset, withinItems?: InternalTestItem[], filterToType: 'visible' | 'selected' = 'visible') {
 		const projection = this.viewModel.projection.value;
 		if (!projection) {
 			return { include: [], exclude: [] };
@@ -162,6 +164,19 @@ export class TestingExplorerView extends ViewPane {
 		// have a majority of their items included too, and then apply exclusions.
 		const include = new Set<InternalTestItem>();
 		const exclude: InternalTestItem[] = [];
+
+		const runnableWithProfileOrBitset = new Map<InternalTestItem, boolean>();
+		const isRunnableWithProfileOrBitset = (item: InternalTestItem) => {
+			let value = runnableWithProfileOrBitset.get(item);
+			if (value === undefined) {
+				value = typeof profileOrBitset === 'number'
+					? !!this.testProfileService.getDefaultProfileForTest(profileOrBitset, item)
+					: canUseProfileWithTest(profileOrBitset, item);
+				runnableWithProfileOrBitset.set(item, value);
+			}
+			return value;
+		};
+
 
 		const attempt = (element: TestExplorerTreeElement, alreadyIncluded: boolean) => {
 			// sanity check hasElement since updates are debounced and they may exist
@@ -177,18 +192,25 @@ export class TestingExplorerView extends ViewPane {
 				return;
 			}
 
+			// Only count relevant children when deciding whether to include this node, #229120
+			const visibleRunnableChildren = inTree.children.filter(
+				c => c.visible
+					&& c.element instanceof TestItemTreeElement
+					&& isRunnableWithProfileOrBitset(c.element.test),
+			).length;
+
 			// If it's not already included but most of its children are, then add it
 			// if it can be run under the current profile (when specified)
 			if (
 				// If it's not already included...
 				!alreadyIncluded
 				// And it can be run using the current profile (if any)
-				&& (!profile || canUseProfileWithTest(profile, element.test))
+				&& isRunnableWithProfileOrBitset(element.test)
 				// And either it's a leaf node or most children are included, the  include it.
-				&& (inTree.children.length === 0 || inTree.visibleChildrenCount * 2 >= inTree.children.length)
+				&& (visibleRunnableChildren === 0 || visibleRunnableChildren * 2 >= inTree.children.length)
 				// And not if we're only showing a single of its children, since it
 				// probably fans out later. (Worse case we'll directly include its single child)
-				&& inTree.visibleChildrenCount !== 1
+				&& visibleRunnableChildren !== 1
 			) {
 				include.add(element.test);
 				alreadyIncluded = true;
@@ -229,7 +251,7 @@ export class TestingExplorerView extends ViewPane {
 				continue;
 			}
 
-			if (profile && !canUseProfileWithTest(profile, root)) {
+			if (typeof profileOrBitset === 'object' && !canUseProfileWithTest(profileOrBitset, root)) {
 				continue;
 			}
 
@@ -337,7 +359,7 @@ export class TestingExplorerView extends ViewPane {
 					undefined,
 					undefined,
 					() => {
-						const { include, exclude } = this.getTreeIncludeExclude(undefined, profile);
+						const { include, exclude } = this.getTreeIncludeExclude(profile);
 						this.testService.runResolvedTests({
 							exclude: exclude.map(e => e.item.extId),
 							group: profile.group,
@@ -352,7 +374,6 @@ export class TestingExplorerView extends ViewPane {
 			}
 		}
 
-		const menuActions: IAction[] = [];
 		const contextKeys: [string, unknown][] = [];
 		// allow extension author to define context for when to show the test menu actions for run or debug menus
 		if (group === TestRunProfileBitset.Run) {
@@ -368,7 +389,7 @@ export class TestingExplorerView extends ViewPane {
 		const menu = this.menuService.getMenuActions(MenuId.TestProfilesContext, key);
 
 		// fill if there are any actions
-		createAndFillInContextMenuActions(menu, menuActions);
+		const menuActions = getFlatContextMenuActions(menu);
 
 		const postActions: IAction[] = [];
 		if (profileActions.length > 1) {
@@ -682,7 +703,7 @@ class TestingExplorerViewModel extends Disposable {
 	) {
 		super();
 
-		this.hasPendingReveal = !!filterState.reveal.value;
+		this.hasPendingReveal = !!filterState.reveal.get();
 		this.noTestForDocumentWidget = this._register(instantiationService.createInstance(NoTestsForDocumentWidget, listContainer));
 		this._viewMode.set(this.storageService.get('testing.viewMode', StorageScope.WORKSPACE, TestExplorerViewMode.Tree) as TestExplorerViewMode);
 		this._viewSorting.set(this.storageService.get('testing.viewSorting', StorageScope.WORKSPACE, TestExplorerViewSorting.ByLocation) as TestExplorerViewSorting);
@@ -750,7 +771,19 @@ class TestingExplorerViewModel extends Disposable {
 			filterState.text.onDidChange,
 			filterState.fuzzy.onDidChange,
 			testService.excluded.onTestExclusionsChanged,
-		)(this.tree.refilter, this.tree));
+		)(() => {
+			if (!filterState.text.value) {
+				return this.tree.refilter();
+			}
+
+			const items = this.filter.lastIncludedTests = new Set();
+			this.tree.refilter();
+			this.filter.lastIncludedTests = undefined;
+
+			for (const test of items) {
+				this.tree.expandTo(test);
+			}
+		}));
 
 		this._register(this.tree.onDidOpen(e => {
 			if (e.element instanceof TestItemTreeElement && !e.element.children.size && e.element.test.item.uri) {
@@ -773,7 +806,9 @@ class TestingExplorerViewModel extends Disposable {
 			}
 		}));
 
-		this._register(filterState.reveal.onDidChange(id => this.revealById(id, undefined, false)));
+		this._register(autorun(reader => {
+			this.revealById(filterState.reveal.read(reader), undefined, false);
+		}));
 
 		this._register(onDidChangeVisibility(visible => {
 			if (visible) {
@@ -787,9 +822,11 @@ class TestingExplorerViewModel extends Disposable {
 			}
 
 			const selected = evt.elements[0];
-			if (selected && evt.browserEvent && selected instanceof TestItemTreeElement
-				&& selected.children.size === 0 && selected.test.expand === TestItemExpandState.NotExpandable) {
-				this.tryPeekError(selected);
+			if (selected && evt.browserEvent && selected instanceof TestItemTreeElement) {
+				filterState.didSelectTestInExplorer(selected.test.item.extId);
+				if (selected.children.size === 0 && selected.test.expand === TestItemExpandState.NotExpandable) {
+					this.tryPeekError(selected);
+				}
 			}
 		}));
 
@@ -931,7 +968,7 @@ class TestingExplorerViewModel extends Disposable {
 				}
 			}
 
-			this.filterState.reveal.value = undefined;
+			this.filterState.reveal.set(undefined, undefined);
 			this.hasPendingReveal = false;
 			if (focus) {
 				this.tree.domFocus();
@@ -1052,7 +1089,7 @@ class TestingExplorerViewModel extends Disposable {
 		this.tree.refilter();
 
 		if (this.hasPendingReveal) {
-			this.revealById(this.filterState.reveal.value);
+			this.revealById(this.filterState.reveal.get());
 		}
 	}
 
@@ -1099,6 +1136,8 @@ const hasNodeInOrParentOfUri = (collection: IMainThreadTestCollection, ident: IU
 class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 	private documentUris: URI[] = [];
 
+	public lastIncludedTests?: Set<TestExplorerTreeElement>;
+
 	constructor(
 		private readonly collection: IMainThreadTestCollection,
 		@ITestExplorerFilterState private readonly state: ITestExplorerFilterState,
@@ -1126,6 +1165,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 			case FilterResult.Exclude:
 				return TreeVisibility.Hidden;
 			case FilterResult.Include:
+				this.lastIncludedTests?.add(element);
 				return TreeVisibility.Visible;
 			default:
 				return TreeVisibility.Recurse;
@@ -1474,14 +1514,14 @@ class TestItemRenderer extends Disposable
 	public renderElement(node: ITreeNode<TestItemTreeElement, FuzzyScore>, _depth: number, data: ITestElementTemplateData): void {
 		data.elementDisposable.clear();
 		data.current = node.element;
-		this.fillActionBar(node.element, data);
-
 
 		data.elementDisposable.add(node.element.onChange(() => this._renderElement(node, data)));
 		this._renderElement(node, data);
 	}
 
 	public _renderElement(node: ITreeNode<TestItemTreeElement, FuzzyScore>, data: ITestElementTemplateData): void {
+		this.fillActionBar(node.element, data);
+
 		const testHidden = this.testService.excluded.contains(node.element.test);
 		data.wrapper.classList.toggle('test-is-hidden', testHidden);
 
@@ -1540,7 +1580,8 @@ const getActionableElementActions = (
 	contextKeys.push(['view', Testing.ExplorerViewId]);
 	if (test) {
 		const ctrl = testService.getTestController(test.controllerId);
-		const supportsCr = !!ctrl && profiles.getControllerProfiles(ctrl.id).some(p => p.supportsContinuousRun);
+		const supportsCr = !!ctrl && profiles.getControllerProfiles(ctrl.id).some(p =>
+			p.supportsContinuousRun && canUseProfileWithTest(p, test));
 		contextKeys.push([
 			TestingContextKeys.canRefreshTests.key,
 			ctrl && !!(ctrl.capabilities.get() & TestControllerCapability.Refresh) && TestId.isRoot(test.item.extId),
@@ -1556,6 +1597,12 @@ const getActionableElementActions = (
 		], [
 			TestingContextKeys.supportsContinuousRun.key,
 			supportsCr,
+		], [
+			TestingContextKeys.testResultOutdated.key,
+			element.retired,
+		], [
+			TestingContextKeys.testResultState.key,
+			testResultStateToContextValues[element.state],
 		]);
 	}
 
@@ -1564,13 +1611,9 @@ const getActionableElementActions = (
 		shouldForwardArgs: true,
 	});
 
-	const primary: IAction[] = [];
-	const secondary: IAction[] = [];
-	const result = { primary, secondary };
-	createAndFillInActionBarActions(menu, result, 'inline');
+	const actions = getActionBarActions(menu, 'inline');
 
-	return { actions: result, contextOverlay };
-
+	return { actions, contextOverlay };
 };
 
 registerThemingParticipant((theme, collector) => {

@@ -26,7 +26,7 @@ import { IS_COMPOSITE_NOTEBOOK, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_GENE
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { CONTEXT_CHAT_INPUT_HAS_TEXT } from '../../../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../../../chat/common/chatContextKeys.js';
 import { AbstractInlineChatAction } from '../../../../inlineChat/browser/inlineChatActions.js';
 import { InlineChatController } from '../../../../inlineChat/browser/inlineChatController.js';
 import { HunkInformation } from '../../../../inlineChat/browser/inlineChatSession.js';
@@ -318,10 +318,7 @@ async function startChat(accessor: ServicesAccessor, context: INotebookActionCon
 	const configurationService = accessor.get(IConfigurationService);
 	const commandService = accessor.get(ICommandService);
 
-	if (configurationService.getValue<boolean>(NotebookSetting.cellChat)) {
-		context.notebookEditor.focusContainer();
-		NotebookChatController.get(context.notebookEditor)?.run(index, input, autoSend);
-	} else if (configurationService.getValue<boolean>(NotebookSetting.cellGenerate)) {
+	if (configurationService.getValue<boolean>(NotebookSetting.cellGenerate) || configurationService.getValue<boolean>(NotebookSetting.cellChat)) {
 		const activeCell = context.notebookEditor.getActiveCell();
 		const targetCell = activeCell?.getTextLength() === 0 && source !== 'insertToolbar' ? activeCell : (await insertNewCell(accessor, context, CellKind.Code, 'below', true));
 
@@ -696,7 +693,7 @@ export class AcceptChangesAndRun extends AbstractInlineChatAction {
 				order: 2,
 				when: ContextKeyExpr.and(
 					NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
+					ChatContextKeys.inputHasText.toNegated(),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.MessagesAndEdits)
 				)

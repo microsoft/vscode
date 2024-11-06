@@ -25,7 +25,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings, EditorActionsLocation, EditorTabsMode } from '../../../services/layout/browser/layoutService.js';
-import { createActionViewItem, createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, fillInActionBarActions as fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -645,9 +645,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 			// --- Layout Actions
 			if (this.layoutToolbarMenu) {
-				createAndFillInActionBarActions(
-					this.layoutToolbarMenu,
-					{},
+				fillInActionBarActions(
+					this.layoutToolbarMenu.getActions(),
 					actions,
 					() => !this.editorActionsEnabled // Layout Actions in overflow menu when editor actions enabled in title bar
 				);

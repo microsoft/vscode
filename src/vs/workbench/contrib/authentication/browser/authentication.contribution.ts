@@ -22,6 +22,7 @@ import { ExtensionsRegistry } from '../../../services/extensions/common/extensio
 import { ManageTrustedExtensionsForAccountAction } from './actions/manageTrustedExtensionsForAccountAction.js';
 import { ManageAccountPreferencesForExtensionAction } from './actions/manageAccountPreferencesForExtensionAction.js';
 import { IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 const codeExchangeProxyCommand = CommandsRegistry.registerCommand('workbench.getCodeExchangeProxyEndpoints', function (accessor, _) {
 	const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
@@ -119,7 +120,7 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 
 	constructor(
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
-		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 		this._register(codeExchangeProxyCommand);
@@ -131,12 +132,12 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 		}
 		this._registerHandlers();
 		this._registerAuthenticationExtentionPointHandler();
-		this._registerEnvContributedAuthenticationProviders();
 		this._registerActions();
 	}
 
 	private _registerAuthenticationExtentionPointHandler(): void {
 		authenticationExtPoint.setHandler((extensions, { added, removed }) => {
+			this._logService.info(`Found authentication providers. added: ${added.length}, removed: ${removed.length}`);
 			added.forEach(point => {
 				for (const provider of point.value) {
 					if (isFalsyOrWhitespace(provider.id)) {
@@ -151,6 +152,7 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 
 					if (!this._authenticationService.declaredProviders.some(p => p.id === provider.id)) {
 						this._authenticationService.registerDeclaredAuthenticationProvider(provider);
+						this._logService.info(`Declared authentication provider: ${provider.id}`);
 					} else {
 						point.collector.error(localize('authentication.idConflict', "This authentication id '{0}' has already been registered", provider.id));
 					}
@@ -162,18 +164,10 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 				const provider = this._authenticationService.declaredProviders.find(provider => provider.id === point.id);
 				if (provider) {
 					this._authenticationService.unregisterDeclaredAuthenticationProvider(provider.id);
+					this._logService.info(`Undeclared authentication provider: ${provider.id}`);
 				}
 			});
 		});
-	}
-
-	private _registerEnvContributedAuthenticationProviders(): void {
-		if (!this._environmentService.options?.authenticationProviders?.length) {
-			return;
-		}
-		for (const provider of this._environmentService.options.authenticationProviders) {
-			this._authenticationService.registerAuthenticationProvider(provider.id, provider);
-		}
 	}
 
 	private _registerHandlers(): void {

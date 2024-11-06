@@ -67,25 +67,30 @@ export abstract class BaseTestResultStorage extends Disposable implements ITestR
 	 * @override
 	 */
 	public async read(): Promise<HydratedTestResult[]> {
-		const results = await Promise.all(this.stored.get([]).map(async ({ id, rev }) => {
-			if (rev !== currentRevision) {
+		const results = await Promise.all(this.stored.get([]).map(async (rec) => {
+			if (rec.rev !== currentRevision) {
 				return undefined;
 			}
 
 			try {
-				const contents = await this.readForResultId(id);
+				const contents = await this.readForResultId(rec.id);
 				if (!contents) {
 					return undefined;
 				}
 
-				return new HydratedTestResult(this.uriIdentityService, contents);
+				return { rec, result: new HydratedTestResult(this.uriIdentityService, contents) };
 			} catch (e) {
-				this.logService.warn(`Error deserializing stored test result ${id}`, e);
+				this.logService.warn(`Error deserializing stored test result ${rec.id}`, e);
 				return undefined;
 			}
 		}));
 
-		return results.filter(isDefined);
+		const defined = results.filter(isDefined);
+		if (defined.length !== results.length) {
+			this.stored.store(defined.map(({ rec }) => rec));
+		}
+
+		return defined.map(({ result }) => result);
 	}
 
 	/**

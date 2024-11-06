@@ -5,7 +5,8 @@
 
 import { getActiveWindow } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
-import { AccessibilitySupport } from '../../../../../platform/accessibility/common/accessibility.js';
+import { localize } from '../../../../../nls.js';
+import { AccessibilitySupport, IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../../common/config/fontInfo.js';
@@ -26,7 +27,6 @@ export class ScreenReaderSupport {
 	private _contentWidth: number = 1;
 	private _lineHeight: number = 1;
 	private _fontInfo: FontInfo | undefined;
-	private _accessibilitySupport: AccessibilitySupport = AccessibilitySupport.Unknown;
 	private _accessibilityPageSize: number = 1;
 
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
@@ -36,6 +36,7 @@ export class ScreenReaderSupport {
 		private readonly _domNode: FastDomNode<HTMLElement>,
 		private readonly _context: ViewContext,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
@@ -44,7 +45,7 @@ export class ScreenReaderSupport {
 	public onConfigurationChanged(e: ViewConfigurationChangedEvent): void {
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
-		if (e.hasChanged(EditorOption.accessibilitySupport)) {
+		if (this._accessibilityService.isScreenReaderOptimized()) {
 			this.writeScreenReaderContent();
 		}
 	}
@@ -56,12 +57,16 @@ export class ScreenReaderSupport {
 		this._contentWidth = layoutInfo.contentWidth;
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
-		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 	}
 
 	private _updateDomAttributes(): void {
 		const options = this._context.configuration.options;
+		this._domNode.domNode.setAttribute('role', 'textbox');
+		this._domNode.domNode.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
+		this._domNode.domNode.setAttribute('aria-multiline', 'true');
+		this._domNode.domNode.setAttribute('aria-autocomplete', options.get(EditorOption.readOnly) ? 'none' : 'both');
+		this._domNode.domNode.setAttribute('aria-roledescription', localize('editor', "editor"));
 		this._domNode.domNode.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		const tabSize = this._context.viewModel.model.getOptions().tabSize;
 		const spaceWidth = options.get(EditorOption.fontInfo).spaceWidth;
@@ -115,8 +120,12 @@ export class ScreenReaderSupport {
 		this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
 	}
 
+	public get screenReaderContentState(): ScreenReaderContentState | undefined {
+		return this._screenReaderContentState;
+	}
+
 	private _getScreenReaderContentState(): ScreenReaderContentState | undefined {
-		if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
+		if (!this._accessibilityService.isScreenReaderOptimized()) {
 			return;
 		}
 		const simpleModel: ISimpleModel = {
@@ -136,7 +145,7 @@ export class ScreenReaderSupport {
 				return this._context.viewModel.modifyPosition(position, offset);
 			}
 		};
-		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Unknown);
 	}
 
 	private _setSelectionOfScreenReaderContent(selectionOffsetStart: number, selectionOffsetEnd: number): void {

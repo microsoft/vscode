@@ -27,7 +27,7 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IPaneCompositeBarOptions } from '../paneCompositeBar.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -106,7 +106,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.panel.showLabel')) {
+			if (e.affectsConfiguration('workbench.panel.showLabels')) {
 				this.updateCompositeBar(true);
 			}
 		}));
@@ -134,7 +134,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			pinnedViewContainersKey: 'workbench.panel.pinnedPanels',
 			placeholderViewContainersKey: 'workbench.panel.placeholderPanels',
 			viewContainersWorkspaceStateKey: 'workbench.panel.viewContainersWorkspaceState',
-			icon: !this.configurationService.getValue('workbench.panel.showLabel'),
+			icon: this.configurationService.getValue('workbench.panel.showLabels') === false,
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
 			activityHoverOptions: {
@@ -143,6 +143,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
 			compositeSize: 0,
 			iconSize: 16,
+			compact: true, // Only applies to icons, not labels
 			overflowActionSize: 44,
 			colors: theme => ({
 				activeBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
@@ -160,16 +161,22 @@ export class PanelPart extends AbstractPaneCompositePart {
 	private fillExtraContextMenuActions(actions: IAction[]): void {
 		const panelPositionMenu = this.menuService.getMenuActions(MenuId.PanelPositionMenu, this.contextKeyService, { shouldForwardArgs: true });
 		const panelAlignMenu = this.menuService.getMenuActions(MenuId.PanelAlignmentMenu, this.contextKeyService, { shouldForwardArgs: true });
-		const positionActions: IAction[] = [];
-		const alignActions: IAction[] = [];
-		createAndFillInContextMenuActions(panelPositionMenu, { primary: [], secondary: positionActions });
-		createAndFillInContextMenuActions(panelAlignMenu, { primary: [], secondary: alignActions });
+		const positionActions = getContextMenuActions(panelPositionMenu).secondary;
+		const alignActions = getContextMenuActions(panelAlignMenu).secondary;
+
+		const panelShowLabels = this.configurationService.getValue<boolean | undefined>('workbench.panel.showLabels');
+		const toggleShowLabelsAction = toAction({
+			id: 'workbench.action.panel.toggleShowLabels',
+			label: panelShowLabels ? localize('showIcons', "Show Icons") : localize('showLabels', "Show Labels"),
+			run: () => this.configurationService.updateValue('workbench.panel.showLabels', !panelShowLabels)
+		});
 
 		actions.push(...[
 			new Separator(),
 			new SubmenuAction('workbench.action.panel.position', localize('panel position', "Panel Position"), positionActions),
 			new SubmenuAction('workbench.action.panel.align', localize('align panel', "Align Panel"), alignActions),
-			toAction({ id: TogglePanelAction.ID, label: localize('hidePanel', "Hide Panel"), run: () => this.commandService.executeCommand(TogglePanelAction.ID) })
+			toggleShowLabelsAction,
+			toAction({ id: TogglePanelAction.ID, label: localize('hidePanel', "Hide Panel"), run: () => this.commandService.executeCommand(TogglePanelAction.ID) }),
 		]);
 	}
 

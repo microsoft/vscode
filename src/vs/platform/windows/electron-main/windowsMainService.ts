@@ -1593,18 +1593,16 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
-		if (this.userDataProfilesMainService.isEnabled()) {
-			const workspace = configuration.workspace ?? toWorkspaceIdentifier(configuration.backupPath, false);
-			const profilePromise = this.resolveProfileForBrowserWindow(options, workspace, defaultProfile);
-			const profile = profilePromise instanceof Promise ? await profilePromise : profilePromise;
-			configuration.profiles.profile = profile;
+		const workspace = configuration.workspace ?? toWorkspaceIdentifier(configuration.backupPath, false);
+		const profilePromise = this.resolveProfileForBrowserWindow(options, workspace, defaultProfile);
+		const profile = profilePromise instanceof Promise ? await profilePromise : profilePromise;
+		configuration.profiles.profile = profile;
 
-			if (!configuration.extensionDevelopmentPath) {
-				// Associate the configured profile to the workspace
-				// unless the window is for extension development,
-				// where we do not persist the associations
-				await this.userDataProfilesMainService.setProfileForWorkspace(workspace, profile);
-			}
+		if (!configuration.extensionDevelopmentPath) {
+			// Associate the configured profile to the workspace
+			// unless the window is for extension development,
+			// where we do not persist the associations
+			await this.userDataProfilesMainService.setProfileForWorkspace(workspace, profile);
 		}
 
 		// Load it

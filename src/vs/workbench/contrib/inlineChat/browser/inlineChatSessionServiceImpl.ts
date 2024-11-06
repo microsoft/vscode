@@ -8,7 +8,7 @@ import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '.
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isCompositeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IValidEditOperation } from '../../../../editor/common/model.js';
 import { createTextBufferFactoryFromSnapshot } from '../../../../editor/common/model/textModel.js';
@@ -22,7 +22,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
 import { ChatAgentLocation, IChatAgentService } from '../../chat/common/chatAgents.js';
 import { IChatService } from '../../chat/common/chatService.js';
-import { CTX_INLINE_CHAT_HAS_AGENT, EditMode } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_POSSIBLE, EditMode } from '../common/inlineChat.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
 import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession.js';
@@ -319,21 +319,38 @@ export class InlineChatEnabler {
 	static Id = 'inlineChat.enabler';
 
 	private readonly _ctxHasProvider: IContextKey<boolean>;
+	private readonly _ctxPossible: IContextKey<boolean>;
 
 	private readonly _store = new DisposableStore();
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IChatAgentService chatAgentService: IChatAgentService
+		@IChatAgentService chatAgentService: IChatAgentService,
+		@IEditorService editorService: IEditorService,
 	) {
 		this._ctxHasProvider = CTX_INLINE_CHAT_HAS_AGENT.bindTo(contextKeyService);
-		this._store.add(chatAgentService.onDidChangeAgents(() => {
+		this._ctxPossible = CTX_INLINE_CHAT_POSSIBLE.bindTo(contextKeyService);
+
+		const updateAgent = () => {
 			const hasEditorAgent = Boolean(chatAgentService.getDefaultAgent(ChatAgentLocation.Editor));
 			this._ctxHasProvider.set(hasEditorAgent);
-		}));
+		};
+
+		this._store.add(chatAgentService.onDidChangeAgents(updateAgent));
+		updateAgent();
+
+		const updateEditor = () => {
+			const ctrl = editorService.activeEditorPane?.getControl();
+			const isCodeEditorLike = isCodeEditor(ctrl) || isDiffEditor(ctrl) || isCompositeEditor(ctrl);
+			this._ctxPossible.set(isCodeEditorLike);
+		};
+
+		this._store.add(editorService.onDidActiveEditorChange(updateEditor));
+		updateEditor();
 	}
 
 	dispose() {
+		this._ctxPossible.reset();
 		this._ctxHasProvider.reset();
 		this._store.dispose();
 	}

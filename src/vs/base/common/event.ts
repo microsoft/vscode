@@ -1155,6 +1155,7 @@ export class Emitter<T> {
 			} else {
 				this._listeners.push(contained);
 			}
+			this._options?.onDidAddListener?.(this);
 
 			this._size++;
 
@@ -1216,7 +1217,7 @@ export class Emitter<T> {
 			for (let i = 0; i < listeners.length; i++) {
 				if (listeners[i]) {
 					listeners[n++] = listeners[i];
-				} else if (adjustDeliveryQueue) {
+				} else if (adjustDeliveryQueue && n < this._deliveryQueue!.end) {
 					this._deliveryQueue!.end--;
 					if (n < this._deliveryQueue!.i) {
 						this._deliveryQueue!.i--;
@@ -1354,6 +1355,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 			const [listener, data] = this._asyncDeliveryQueue.shift()!;
 			const thenables: Promise<unknown>[] = [];
 
+			// eslint-disable-next-line local/code-no-dangerous-type-assertions
 			const event = <T>{
 				...data,
 				token,

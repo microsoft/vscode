@@ -28,10 +28,8 @@ import { ExtensionHostExitCode, IExtHostReadyMessage, IExtHostReduceGraceTimeMes
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import '../common/extHost.common.services.js';
 import './extHost.node.services.js';
-// ESM-uncomment-begin
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-// ESM-uncomment-end
 
 interface ParsedExtHostArgs {
 	transformURIs?: boolean;

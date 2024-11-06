@@ -185,7 +185,7 @@ const schema: IJSONSchema = {
 					},
 					size: {
 						type: 'string',
-						description: nls.localize('schema.font-size', 'The default size of the font. See https://developer.mozilla.org/en-US/docs/Web/CSS/font-size for valid values.'),
+						description: nls.localize('schema.font-size', 'The default size of the font. We strongly recommend using a percentage value, for example: 125%.'),
 						pattern: fontSizeRegex
 					}
 				},

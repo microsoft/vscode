@@ -258,6 +258,7 @@ export function createProxyObject<T extends object>(methodNames: string[], invok
 		};
 	};
 
+	// eslint-disable-next-line local/code-no-dangerous-type-assertions
 	const result = {} as T;
 	for (const methodName of methodNames) {
 		(<any>result)[methodName] = createProxyMethod(methodName);
