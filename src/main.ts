@@ -56,6 +56,9 @@ if (args['sandbox'] &&
 	app.commandLine.appendSwitch('disable-gpu-sandbox');
 }
 
+// Fix for #233060, the following changes were suggested by the electron team here https://github.com/electron/electron/issues/43556#issuecomment-2345647103
+app.commandLine.appendSwitch('disable-features', 'PlzDedicatedWorker');
+
 // Set userData path before app 'ready' event
 const userDataPath = getUserDataPath(args, product.nameShort ?? 'code-oss-dev');
 if (process.platform === 'win32') {
