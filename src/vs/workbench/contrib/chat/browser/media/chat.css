@@ -305,6 +305,10 @@
 	margin: 8px 0 16px 0;
 }
 
+.interactive-item-container .value .rendered-markdown > div[data-code]:first-child {
+	margin-top: 0;
+}
+
 .interactive-item-container .value .rendered-markdown .codicon {
 	position: relative;
 	top: 2px;
