@@ -18,7 +18,7 @@ import { ITerminalSuggestConfiguration, terminalSuggestConfigSection, TerminalSu
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
 export const enum VSCodeSuggestOscPt {
 	Completions = 'Completions',
@@ -82,9 +82,10 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 
-	private _cachedPwshCommands: Set<ITerminalCompletionItem> = new Set();
+	static cachedPwshCommands: Set<ITerminalCompletionItem>;
 
 	constructor(
+		providedPwshCommands: Set<ITerminalCompletionItem> | undefined,
 		_shellType: TerminalShellType | undefined,
 		_capabilities: ITerminalCapabilityStore,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -107,14 +108,15 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 				this._promptInputModel = undefined;
 			}
 		}));
+		PwshCompletionProviderAddon.cachedPwshCommands = providedPwshCommands || new Set();
 
 		// Attempt to load cached pwsh commands if not already loaded
-		if (this._cachedPwshCommands.size === 0) {
+		if (PwshCompletionProviderAddon.cachedPwshCommands.size === 0) {
 			const config = this._storageService.get(Constants.CachedPwshCommandsStorageKey, StorageScope.APPLICATION, undefined);
 			if (config !== undefined) {
 				const completions = JSON.parse(config);
 				for (const c of completions) {
-					this._cachedPwshCommands.add(c);
+					PwshCompletionProviderAddon.cachedPwshCommands.add(c);
 				}
 			}
 		}
@@ -127,7 +129,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	}
 
 	clearSuggestCache(): void {
-		this._cachedPwshCommands.clear();
+		PwshCompletionProviderAddon.cachedPwshCommands.clear();
 		this._storageService.remove(Constants.CachedPwshCommandsStorageKey, StorageScope.APPLICATION);
 	}
 
@@ -155,9 +157,11 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 		const [command, ...args] = data.split(';');
 		switch (command) {
 			case VSCodeSuggestOscPt.Completions:
-
 				this._handleCompletionsSequence(this._terminal, data, command, args);
 				return true;
+			// Pass the sequence along to the capability
+			case VSCodeSuggestOscPt.CompletionsPwshCommands:
+				return this._handleCompletionsPwshCommandsSequence(this._terminal, data, command, args);
 		}
 
 		// Unrecognized sequence
@@ -192,20 +196,22 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 
 		this._leadingLineContent = this._currentPromptInputState.prefix.substring(replacementIndex, replacementIndex + replacementLength + this._cursorIndexDelta);
 
-		const payload = data.slice(command.length + args[0].length + args[1].length + args[2].length + 4/*semi-colons*/);
-		const rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion = args.length === 0 || payload.length === 0 ? undefined : JSON.parse(payload);
-		const completions = parseCompletionsFromShell(rawCompletions);
 
 		const firstChar = this._leadingLineContent.length === 0 ? '' : this._leadingLineContent[0];
+		const isGlobalCommand = !this._leadingLineContent.includes(' ') && firstChar !== '[';
+
 		// This is a TabExpansion2 result
-		if (this._leadingLineContent.includes(' ') || firstChar === '[') {
+		if (!isGlobalCommand) {
 			replacementIndex = parseInt(args[0]);
 			replacementLength = parseInt(args[1]);
 			this._leadingLineContent = this._promptInputModel.prefix;
 		}
+		const payload = data.slice(command.length + args[0].length + args[1].length + args[2].length + 4/*semi-colons*/);
+		const rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion = args.length === 0 || payload.length === 0 ? undefined : JSON.parse(payload);
+		const completions = parseCompletionsFromShell(rawCompletions, replacementIndex, replacementLength);
 		// This is a global command, add cached commands list to completions
-		else {
-			completions.push(...this._cachedPwshCommands);
+		if (isGlobalCommand) {
+			completions.push(...PwshCompletionProviderAddon.cachedPwshCommands);
 		}
 
 		if (this._mostRecentCompletion?.isDirectory && completions.every(c => c.isDirectory)) {
@@ -229,6 +235,22 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
 		this._notifyCompletions(completions);
+	}
+
+	private async _handleCompletionsPwshCommandsSequence(terminal: Terminal, data: string, command: string, args: string[]): Promise<boolean> {
+		const type = args[0];
+		const rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion = JSON.parse(data.slice(command.length + type.length + 2/*semi-colons*/));
+		const completions = parseCompletionsFromShell(rawCompletions, 0, 0);
+
+		const set = PwshCompletionProviderAddon.cachedPwshCommands;
+		set.clear();
+		for (const c of completions) {
+			set.add(c);
+		}
+
+		this._storageService.store(Constants.CachedPwshCommandsStorageKey, JSON.stringify(Array.from(set.values())), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		return true;
 	}
 
 	private _notifyCompletions(result: ITerminalCompletionItem[] | undefined) {
@@ -257,7 +279,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 		}
 
 		// Request global pwsh completions if there are none cached
-		if (this._cachedPwshCommands.size === 0) {
+		if (PwshCompletionProviderAddon.cachedPwshCommands.size === 0) {
 			this._onAcceptedCompletion.fire(SuggestAddon.requestGlobalCompletionsSequence);
 		}
 
@@ -271,7 +293,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	}
 }
 
-export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion): ITerminalCompletionItem[] {
+export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion, replacementIndex: number, replacementLength: number): ITerminalCompletionItem[] {
 	if (!rawCompletions) {
 		return [];
 	}
@@ -300,10 +322,10 @@ export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshC
 			typedRawCompletions = rawCompletions as PwshCompletion[];
 		}
 	}
-	return typedRawCompletions.map(e => rawCompletionToTerminalCompletionItem(e));
+	return typedRawCompletions.map(e => rawCompletionToTerminalCompletionItem(e, replacementIndex, replacementLength));
 }
 
-function rawCompletionToTerminalCompletionItem(rawCompletion: PwshCompletion): ITerminalCompletionItem {
+function rawCompletionToTerminalCompletionItem(rawCompletion: PwshCompletion, replacementIndex: number, replacementLength: number): ITerminalCompletionItem {
 	// HACK: Somewhere along the way from the powershell script to here, the path separator at the
 	// end of directories may go missing, likely because `\"` -> `"`. As a result, make sure there
 	// is a trailing separator at the end of all directory completions. This should not be done for
@@ -338,7 +360,11 @@ function rawCompletionToTerminalCompletionItem(rawCompletion: PwshCompletion): I
 		detail,
 		rawCompletion.ResultType === 3, // isFile
 		rawCompletion.ResultType === 4, // isDirectory
-		rawCompletion.ResultType === 12, //isKeyword
+		rawCompletion.ResultType === 12, //isKeyword,
+		undefined,
+		undefined,
+		replacementIndex,
+		replacementLength
 	);
 }
 

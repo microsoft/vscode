@@ -735,14 +735,14 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public registerTerminalCompletionProvider<T extends vscode.TerminalCompletionItem[]>(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<T>): vscode.Disposable {
-		if (this._completionProviders.has(provider.id)) {
-			throw new Error(`Terminal completion provider "${provider.id}" already registered`);
-		}
-		this._completionProviders.set(provider.id, provider);
-		this._proxy.$registerCompletionProvider(provider.id, extension.identifier.value);
+		// if (this._completionProviders.has(provider.id)) {
+		// 	throw new Error(`Terminal completion provider "${provider.id}" already registered`);
+		// }
+		// this._completionProviders.set(provider.id, provider);
+		// this._proxy.$registerCompletionProvider(provider.id, extension.identifier.value);
 		return new VSCodeDisposable(() => {
-			this._completionProviders.delete(provider.id);
-			this._proxy.$unregisterCompletionProvider(provider.id);
+			// this._completionProviders.delete(provider.id);
+			// this._proxy.$unregisterCompletionProvider(provider.id);
 		});
 	}
 

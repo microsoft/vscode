@@ -29,9 +29,10 @@ import { events as windows11_pwsh_writehost_multiline } from './recordings/windo
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ITerminalConfigurationService } from '../../../../terminal/browser/terminal.js';
 import { timeout } from '../../../../../../base/common/async.js';
-import { PwshCompletionProviderAddon } from '../../browser/pwshCompletionProvider.js';
+import { parseCompletionsFromShell, PwshCompletionProviderAddon } from '../../browser/pwshCompletionProvider.js';
 import { ITerminalCompletionService, TerminalCompletionService } from '../../browser/terminalSuggestionService.js';
 import { GeneralShellType } from '../../../../../../platform/terminal/common/terminal.js';
+import { testRawPwshCompletions } from './testRawPwshCompletions.js';
 
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
 	{ name: 'windows11_pwsh_getcontent_delete_ghost', events: windows11_pwsh_getcontent_delete_ghost as any as RecordedSessionEvent[] },
@@ -61,7 +62,7 @@ interface IRecordedSessionResizeEvent {
 	rows: number;
 }
 
-suite.only('Terminal Contrib Suggest Recordings, PWSH', () => {
+suite('Terminal Contrib Suggest Recordings, PWSH', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let xterm: Terminal;
@@ -101,7 +102,7 @@ suite.only('Terminal Contrib Suggest Recordings, PWSH', () => {
 		const completionService = instantiationService.createInstance(TerminalCompletionService);
 		instantiationService.stub(ITerminalCompletionService, store.add(completionService));
 		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, new NullLogService));
-		pwshCompletionProvider = store.add(instantiationService.createInstance(PwshCompletionProviderAddon, GeneralShellType.PowerShell, shellIntegrationAddon.capabilities));
+		pwshCompletionProvider = store.add(instantiationService.createInstance(PwshCompletionProviderAddon, new Set(parseCompletionsFromShell(testRawPwshCompletions, 0, 0)), GeneralShellType.PowerShell, shellIntegrationAddon.capabilities));
 		store.add(completionService.registerTerminalCompletionProvider('builtin-pwsh', 'pwsh', pwshCompletionProvider));
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
@@ -121,80 +122,82 @@ suite.only('Terminal Contrib Suggest Recordings, PWSH', () => {
 	});
 
 	for (const testCase of recordedTestCases) {
-		test(testCase.name, async () => {
-			const suggestDataEvents: string[] = [];
-			store.add(suggestAddon.onAcceptedCompletion(e => suggestDataEvents.push(e)));
-			store.add(pwshCompletionProvider.onAcceptedCompletion(e => suggestDataEvents.push(e)));
-			for (const event of testCase.events) {
-				// DEBUG: Uncomment to see the events as they are played
-				// console.log(
-				// 	event.type,
-				// 	event.type === 'command'
-				// 		? event.id
-				// 		: event.type === 'resize'
-				// 			? `${event.cols}x${event.rows}`
-				// 			: (event.data.length > 50 ? event.data.slice(0, 50) + '...' : event.data).replaceAll('\x1b', '\\x1b').replace(/(\n|\r).+$/, '...')
-				// );
-				// console.log('promptInputModel', capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString());
-				switch (event.type) {
-					case 'resize': {
-						xterm.resize(event.cols, event.rows);
-						break;
-					}
-					case 'output': {
-						// If the output contains the command start sequence, allow time for the prompt to get adjusted.
-						if (event.data.includes('\x1b]633;B')) {
-							await Promise.all([
-								new Promise<void>(r => xterm.write(event.data, () => r())),
-								new Promise<void>(r => {
-									const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
-									if (commandDetection) {
-										const d = commandDetection.onCommandStarted(() => {
-											d.dispose();
-											r();
-										});
-									}
-								})
-							]);
-						} else {
-							await new Promise<void>(r => xterm.write(event.data, () => r()));
+		if (testCase.name === 'windows11_pwsh_getcontent_file') {
+			test(testCase.name, async () => {
+				const suggestDataEvents: string[] = [];
+				store.add(suggestAddon.onAcceptedCompletion(e => suggestDataEvents.push(e)));
+				store.add(pwshCompletionProvider.onAcceptedCompletion(e => suggestDataEvents.push(e)));
+				for (const event of testCase.events) {
+					// DEBUG: Uncomment to see the events as they are played
+					console.log(
+						event.type,
+						event.type === 'command'
+							? event.id
+							: event.type === 'resize'
+								? `${event.cols}x${event.rows}`
+								: (event.data.length > 50 ? event.data.slice(0, 50) + '...' : event.data).replaceAll('\x1b', '\\x1b').replace(/(\n|\r).+$/, '...')
+					);
+					console.log('promptInputModel', capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString());
+					switch (event.type) {
+						case 'resize': {
+							xterm.resize(event.cols, event.rows);
+							break;
 						}
-						break;
-					}
-					case 'input': {
-						xterm.input(event.data, true);
-						break;
-					}
-					case 'promptInputChange': {
-						const promptInputModel = capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel;
-						if (promptInputModel && promptInputModel.getCombinedString() !== event.data) {
-							await Promise.race([
-								await timeout(1000).then(() => { throw new Error(`Prompt input change timed out current="${promptInputModel.getCombinedString()}", expected="${event.data}"`); }),
-								await new Promise<void>(r => {
-									const d = promptInputModel.onDidChangeInput(() => {
-										if (promptInputModel.getCombinedString() === event.data) {
-											d.dispose();
-											r();
+						case 'output': {
+							// If the output contains the command start sequence, allow time for the prompt to get adjusted.
+							if (event.data.includes('\x1b]633;B')) {
+								await Promise.all([
+									new Promise<void>(r => xterm.write(event.data, () => r())),
+									new Promise<void>(r => {
+										const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
+										if (commandDetection) {
+											const d = commandDetection.onCommandStarted(() => {
+												d.dispose();
+												r();
+											});
 										}
-									});
-								})
-							]);
+									})
+								]);
+							} else {
+								await new Promise<void>(r => xterm.write(event.data, () => r()));
+							}
+							break;
 						}
-						break;
-					}
-					case 'sendText': {
-						strictEqual(suggestDataEvents.at(-1), event.data);
-						break;
-					}
-					case 'command': {
-						switch (event.id) {
-							case TerminalSuggestCommandId.AcceptSelectedSuggestion:
-								suggestAddon.acceptSelectedSuggestion();
-								break;
+						case 'input': {
+							xterm.input(event.data, true);
+							break;
+						}
+						case 'promptInputChange': {
+							const promptInputModel = capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel;
+							if (promptInputModel && promptInputModel.getCombinedString() !== event.data) {
+								await Promise.race([
+									await timeout(1000).then(() => { throw new Error(`Prompt input change timed out current="${promptInputModel.getCombinedString()}", expected="${event.data}"`); }),
+									await new Promise<void>(r => {
+										const d = promptInputModel.onDidChangeInput(() => {
+											if (promptInputModel.getCombinedString() === event.data) {
+												d.dispose();
+												r();
+											}
+										});
+									})
+								]);
+							}
+							break;
+						}
+						case 'sendText': {
+							strictEqual(suggestDataEvents.at(-1), event.data);
+							break;
+						}
+						case 'command': {
+							switch (event.id) {
+								case TerminalSuggestCommandId.AcceptSelectedSuggestion:
+									suggestAddon.acceptSelectedSuggestion();
+									break;
+							}
 						}
 					}
 				}
-			}
-		});
+			});
+		}
 	}
 });

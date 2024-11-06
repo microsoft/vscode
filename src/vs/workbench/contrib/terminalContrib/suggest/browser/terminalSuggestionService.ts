@@ -36,9 +36,9 @@ export interface ITerminalCompletionItem extends ISimpleCompletion {
 	 */
 	isKeyword?: boolean;
 
-	replacementIndex?: number;
+	replacementIndex: number;
 
-	replacementLength?: number;
+	replacementLength: number;
 
 
 }
@@ -53,8 +53,8 @@ export class TerminalCompletionItem {
 	isKeyword?: boolean | undefined;
 	fileArgument?: boolean | undefined;
 	folderArgument?: boolean | undefined;
-	replacementIndex?: number | undefined;
-	replacementLength?: number | undefined;
+	replacementIndex: number;
+	replacementLength: number;
 
 	constructor(label: string, icon?: ThemeIcon, detail?: string, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, fileArgument?: boolean, folderArgument?: boolean, replacementIndex?: number, replacementLength?: number) {
 		this.label = label;
@@ -65,8 +65,8 @@ export class TerminalCompletionItem {
 		this.isKeyword = isKeyword;
 		this.fileArgument = fileArgument;
 		this.folderArgument = folderArgument;
-		this.replacementIndex = replacementIndex;
-		this.replacementLength = replacementLength;
+		this.replacementIndex = replacementIndex ?? 0;
+		this.replacementLength = replacementLength ?? 0;
 	}
 }
 

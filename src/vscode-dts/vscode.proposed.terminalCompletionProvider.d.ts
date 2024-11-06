@@ -67,9 +67,9 @@ declare module 'vscode' {
 		 */
 		folderArgument?: boolean;
 
-		replacementIndex?: number;
+		replacementIndex: number;
 
-		replacementLength?: number;
+		replacementLength: number;
 	}
 
 

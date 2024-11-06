@@ -7,16 +7,16 @@ import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import * as dom from '../../../../../base/browser/dom.js';
 import { AutoOpenBarrier } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { GeneralShellType, TerminalLocation, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
-import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerActiveInstanceAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TERMINAL_CONFIG_SECTION, type ITerminalConfiguration } from '../../../terminal/common/terminal.js';
@@ -165,6 +165,24 @@ registerTerminalContribution(TerminalSuggestContribution.ID, TerminalSuggestCont
 
 // #region Keybindings
 
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: TerminalSuggestCommandId.RequestCompletions,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.terminalShellIntegrationEnabled, ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true)),
+	primary: KeyMod.CtrlCmd | KeyCode.Space,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.Space },
+	handler: async (accessor) => {
+		const instance = accessor.get(ITerminalService).activeInstance;
+		if (!instance) {
+			return;
+		}
+		const terminalSuggestAddon = TerminalSuggestContribution.get(instance);
+		if (!terminalSuggestAddon) {
+			return;
+		}
+		terminalSuggestAddon.addon?.requestCompletions();
+	}
+});
 // #endregion
 
 // #region Actions

@@ -165,7 +165,9 @@ function createCompletionItem(label: string, description?: string, arg?: Arg): v
 		isDirectory: false,
 		detail: description ?? '',
 		fileArgument: shouldShowFile(arg) && !onlyShowFolders(arg),
-		folderArgument: onlyShowFolders(arg)
+		folderArgument: onlyShowFolders(arg),
+		replacementIndex: 0,
+		replacementLength: 0
 	};
 }
 

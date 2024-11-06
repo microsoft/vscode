@@ -37,12 +37,12 @@ export interface ISimpleCompletion {
 	/**
 	 * The start of the replacement.
 	 */
-	replacementIndex?: number;
+	replacementIndex: number;
 
 	/**
 	 * The length of the replacement.
 	 */
-	replacementLength?: number;
+	replacementLength: number;
 }
 
 export class SimpleCompletionItem {

@@ -78,6 +78,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
 	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
+	private _requestedCompletionsIndex: number = 0;
+	private _providerReplacementIndex: number = 0;
 
 	constructor(
 		private readonly _shellType: TerminalShellType | undefined,
@@ -132,15 +134,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!this._shellType) {
 			return;
 		}
-
+		this._requestedCompletionsIndex = this._promptInputModel.cursorIndex;
 		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._shellType, this._configurationService.getValue('terminal.integrated.developer.devMode'));
 		if (!providedCompletions?.length) {
 			return;
 		}
 		this._onDidReceiveCompletions.fire();
 
-		this._replacementIndex = providedCompletions[0].replacementIndex ?? this._promptInputModel.cursorIndex - 1 > 0 ? this._promptInputModel.cursorIndex - 1 : 0;
-		this._replacementLength = providedCompletions[0].replacementLength ?? this._promptInputModel.cursorIndex;
+		let replacementIndex = providedCompletions.find(p => p.replacementIndex !== undefined)?.replacementIndex ?? 0;
+		this._providerReplacementIndex = replacementIndex;
+		let replacementLength = this._promptInputModel.cursorIndex;
 
 		this._currentPromptInputState = {
 			value: this._promptInputModel.value,
@@ -150,7 +153,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			ghostTextIndex: this._promptInputModel.ghostTextIndex
 		};
 
-		this._leadingLineContent = this._currentPromptInputState.prefix.substring(this._replacementIndex, this._replacementIndex + this._replacementLength + this._cursorIndexDelta);
+		this._leadingLineContent = this._currentPromptInputState.prefix.substring(replacementIndex, replacementIndex + replacementLength + this._cursorIndexDelta);
 
 		const completions = providedCompletions.flat();
 		if (!completions?.length) {
@@ -160,11 +163,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const firstChar = this._leadingLineContent.length === 0 ? '' : this._leadingLineContent[0];
 		// This is a TabExpansion2 result
 		if (this._leadingLineContent.includes(' ') || firstChar === '[') {
-			const replacementIndex = 0;
-			const replacementLength = this._promptInputModel.value.trim().length;
+			replacementLength = this._promptInputModel.value.trim().length;
 			this._leadingLineContent = this._promptInputModel.prefix;
-			this._replacementIndex = replacementIndex;
-			this._replacementLength = replacementLength;
+			replacementIndex = replacementIndex;
 		}
 
 		if (this._mostRecentCompletion?.isDirectory && completions.every(e => e.isDirectory)) {
@@ -172,7 +173,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		this._mostRecentCompletion = undefined;
 
-		this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._replacementIndex + this._replacementLength);
+		this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - this._requestedCompletionsIndex;
 
 		let normalizedLeadingLineContent = this._leadingLineContent;
 
@@ -189,7 +190,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
-		const model = new SimpleCompletionModel(completions.filter(c => !!c.label).map(c => new SimpleCompletionItem(c)), lineContext, this._replacementIndex, this._replacementLength);
+		const model = new SimpleCompletionModel(completions.filter(c => !!c.label).map(c => new SimpleCompletionItem(c)), lineContext);
 		this._showCompletions(model);
 	}
 
@@ -201,7 +202,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._screen = screen;
 	}
 
-	private async _requestCompletions(): Promise<void> {
+	async requestCompletions(): Promise<void> {
 		if (!this._promptInputModel) {
 			return;
 		}
@@ -230,7 +231,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						// Never request completions if the last key sequence was up or down as the user was likely
 						// navigating history
 						if (!this._lastUserData?.match(/^\x1b[\[O]?[A-D]$/)) {
-							await this._requestCompletions();
+							await this.requestCompletions();
 							sent = true;
 						}
 					}
@@ -248,7 +249,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					// with git branches in particular
 					this._isFilteringDirectories && prefix?.match(/[\\\/]$/)
 				) {
-					await this._requestCompletions();
+					await this.requestCompletions();
 					sent = true;
 				}
 				// TODO: eventually add an appropriate trigger char check for other shells
@@ -272,14 +273,16 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Hide the widget if the cursor moves to the left of the initial position as the
 		// completions are no longer valid
 		// to do: get replacement length to be correct, readd this?
-		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex < this._replacementIndex) {
+		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex < this._leadingLineContent.length) {
 			this.hideSuggestWidget();
 			return;
 		}
 
 		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
-			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._replacementIndex + this._replacementLength);
-			let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(this._replacementIndex, this._replacementIndex + this._replacementLength + this._cursorIndexDelta);
+			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._requestedCompletionsIndex);
+			let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(this._providerReplacementIndex, this._requestedCompletionsIndex + this._cursorIndexDelta);
+			// this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._replacementIndex + this._replacementLength);
+			// let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(this._replacementIndex, this._replacementIndex + this._replacementLength + this._cursorIndexDelta);
 			if (this._isFilteringDirectories) {
 				normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 			}
@@ -304,9 +307,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			height: dimensions.height
 		});
 	}
-
-	private _replacementIndex: number = 0;
-	private _replacementLength: number = 0;
 
 	private _getTerminalDimensions(): { width: number; height: number } {
 		const cssCellDims = (this._terminal as any as { _core: IXtermCore })._core._renderService.dimensions.css.cell;
@@ -401,7 +401,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// The replacement text is any text after the replacement index for the completions, this
 		// includes any text that was there before the completions were requested and any text added
 		// since to refine the completion.
-		const replacementText = currentPromptInputState.value.substring(suggestion.item.completion.replacementIndex ?? this._model.replacementIndex, currentPromptInputState.cursorIndex);
+		const replacementText = currentPromptInputState.value.substring(suggestion.item.completion.replacementIndex ?? this._providerReplacementIndex, currentPromptInputState.cursorIndex);
 
 		// Right side of replacement text in the same word
 		let rightSideReplacementText = '';
