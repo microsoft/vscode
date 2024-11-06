@@ -20,7 +20,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
-import { truncate, truncateMiddle } from '../../../../base/common/strings.js';
+import { truncateMiddle } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Constants } from '../../../../base/common/uint.js';
 import { URI } from '../../../../base/common/uri.js';
