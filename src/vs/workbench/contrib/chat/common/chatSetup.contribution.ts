@@ -20,21 +20,21 @@ import { IRequestContext } from '../../../../base/parts/request/common/request.j
 
 // TODO@bpasero revisit this flow
 
-type ChatInstallEntitlementEnablementClassification = {
+type ChatSetupEntitlementEnablementClassification = {
 	entitled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat install entitled' };
 	owner: 'bpasero';
 	comment: 'Reporting if the user is chat install entitled';
 };
 
-type ChatInstallEntitlementEnablementEvent = {
+type ChatSetupEntitlementEnablementEvent = {
 	entitled: boolean;
 };
 
-class ChatInstallEntitlementContribution extends Disposable implements IWorkbenchContribution {
+class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
 	private static readonly CHAT_EXTENSION_INSTALLED_KEY = 'chat.extensionInstalled';
 
-	private readonly chatInstallEntitledContextKey = ChatContextKeys.installEntitled.bindTo(this.contextService);
+	private readonly chatSetupEntitledContextKey = ChatContextKeys.ChatSetup.entitled.bindTo(this.contextService);
 
 	private resolvedEntitlement: boolean | undefined = undefined;
 
@@ -87,7 +87,7 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 				if (e.event.added?.length) {
 					this.resolveEntitlement(e.event.added[0]);
 				} else if (e.event.removed?.length) {
-					this.chatInstallEntitledContextKey.set(false);
+					this.chatSetupEntitledContextKey.set(false);
 				}
 			}
 		}));
@@ -105,7 +105,7 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 		}
 
 		const entitled = await this.doResolveEntitlement(session);
-		this.chatInstallEntitledContextKey.set(entitled);
+		this.chatSetupEntitledContextKey.set(entitled);
 	}
 
 	private async doResolveEntitlement(session: AuthenticationSession): Promise<boolean> {
@@ -146,14 +146,14 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 		}
 
 		this.resolvedEntitlement = Boolean(parsedResult[this.productService.gitHubEntitlement!.enablementKey]);
-		this.telemetryService.publicLog2<ChatInstallEntitlementEnablementEvent, ChatInstallEntitlementEnablementClassification>('chatInstallEntitlement', { entitled: this.resolvedEntitlement });
+		this.telemetryService.publicLog2<ChatSetupEntitlementEnablementEvent, ChatSetupEntitlementEnablementClassification>('chatInstallEntitlement', { entitled: this.resolvedEntitlement });
 
 		return this.resolvedEntitlement;
 	}
 
 	private updateExtensionInstalled(isExtensionInstalled: boolean): void {
-		this.storageService.store(ChatInstallEntitlementContribution.CHAT_EXTENSION_INSTALLED_KEY, isExtensionInstalled, StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(ChatSetupContribution.CHAT_EXTENSION_INSTALLED_KEY, isExtensionInstalled, StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 }
 
-registerWorkbenchContribution2('workbench.chat.installEntitlement', ChatInstallEntitlementContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2('workbench.chat.setup', ChatSetupContribution, WorkbenchPhase.BlockRestore);

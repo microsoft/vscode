@@ -484,7 +484,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	icon: defaultChat.icon,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
-		ContextKeyExpr.or(ChatContextKeys.panelParticipantRegistered, ChatContextKeys.installEntitled)
+		ContextKeyExpr.or(ChatContextKeys.panelParticipantRegistered, ChatContextKeys.ChatSetup.entitled)
 	),
 	order: 10001,
 });
@@ -497,7 +497,7 @@ registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
 			ContextKeyExpr.and(
 				ContextKeyExpr.has('config.window.commandCenter'),
-				ContextKeyExpr.or(ChatContextKeys.panelParticipantRegistered, ChatContextKeys.installEntitled)
+				ContextKeyExpr.or(ChatContextKeys.panelParticipantRegistered, ChatContextKeys.ChatSetup.entitled)
 			)
 		);
 	}
