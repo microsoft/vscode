@@ -12,7 +12,7 @@ steps:
   - task: AzureCLI@2
     displayName: Fetch secrets
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       scriptType: pscore
       scriptLocation: inlineScript
       addSpnToEnvironment: true
