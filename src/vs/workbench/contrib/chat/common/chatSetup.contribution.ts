@@ -17,13 +17,14 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { ChatContextKeys } from './chatContextKeys.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
+import { IGitHubEntitlement } from '../../../../base/common/product.js';
 
 // TODO@bpasero revisit this flow
 
 type ChatSetupEntitlementEnablementClassification = {
-	entitled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat install entitled' };
+	entitled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat setup entitled' };
 	owner: 'bpasero';
-	comment: 'Reporting if the user is chat install entitled';
+	comment: 'Reporting if the user is chat setup entitled';
 };
 
 type ChatSetupEntitlementEnablementEvent = {
@@ -34,6 +35,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 	private static readonly CHAT_EXTENSION_INSTALLED_KEY = 'chat.extensionInstalled';
 
+	private readonly chatSetupSignedInContextKey = ChatContextKeys.ChatSetup.signedIn.bindTo(this.contextService);
 	private readonly chatSetupEntitledContextKey = ChatContextKeys.ChatSetup.entitled.bindTo(this.contextService);
 
 	private resolvedEntitlement: boolean | undefined = undefined;
@@ -50,65 +52,75 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 	) {
 		super();
 
-		if (!this.productService.gitHubEntitlement) {
+		const entitlement = this.productService.gitHubEntitlement;
+		if (!entitlement) {
 			return;
 		}
 
-		this.checkExtensionInstallation();
-		this.registerListeners();
+		this.checkExtensionInstallation(entitlement);
+		this.registerListeners(entitlement);
 	}
 
-	private async checkExtensionInstallation(): Promise<void> {
+	private async checkExtensionInstallation(entitlement: IGitHubEntitlement): Promise<void> {
 		const extensions = await this.extensionManagementService.getInstalled();
 
-		const installed = extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.gitHubEntitlement?.extensionId));
+		const installed = extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, entitlement.extensionId));
 		this.updateExtensionInstalled(installed ? true : false);
 	}
 
-	private registerListeners(): void {
+	private registerListeners(entitlement: IGitHubEntitlement): void {
 		this._register(this.extensionService.onDidChangeExtensions(result => {
 			for (const extension of result.removed) {
-				if (ExtensionIdentifier.equals(this.productService.gitHubEntitlement?.extensionId, extension.identifier)) {
+				if (ExtensionIdentifier.equals(entitlement.extensionId, extension.identifier)) {
 					this.updateExtensionInstalled(false);
 					break;
 				}
 			}
 
 			for (const extension of result.added) {
-				if (ExtensionIdentifier.equals(this.productService.gitHubEntitlement?.extensionId, extension.identifier)) {
+				if (ExtensionIdentifier.equals(entitlement.extensionId, extension.identifier)) {
 					this.updateExtensionInstalled(true);
 					break;
 				}
 			}
 		}));
 
-		this._register(this.authenticationService.onDidChangeSessions(async e => {
-			if (e.providerId === this.productService.gitHubEntitlement?.providerId) {
+		this._register(this.authenticationService.onDidChangeSessions(e => {
+			if (e.providerId === entitlement.providerId) {
 				if (e.event.added?.length) {
-					this.resolveEntitlement(e.event.added[0]);
+					this.chatSetupSignedInContextKey.set(true);
+					this.resolveEntitlement(entitlement, e.event.added[0]);
 				} else if (e.event.removed?.length) {
+					this.chatSetupSignedInContextKey.set(false);
 					this.chatSetupEntitledContextKey.set(false);
 				}
 			}
 		}));
 
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(async e => {
-			if (e.id === this.productService.gitHubEntitlement?.providerId) {
-				this.resolveEntitlement((await this.authenticationService.getSessions(e.id))[0]);
+			if (e.id === entitlement.providerId) {
+				this.chatSetupSignedInContextKey.set(true);
+				this.resolveEntitlement(entitlement, (await this.authenticationService.getSessions(e.id))[0]);
+			}
+		}));
+
+		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(async e => {
+			if (e.id === entitlement.providerId) {
+				this.chatSetupSignedInContextKey.set(false);
 			}
 		}));
 	}
 
-	private async resolveEntitlement(session: AuthenticationSession | undefined): Promise<void> {
+	private async resolveEntitlement(entitlement: IGitHubEntitlement, session: AuthenticationSession | undefined): Promise<void> {
 		if (!session) {
 			return;
 		}
 
-		const entitled = await this.doResolveEntitlement(session);
+		const entitled = await this.doResolveEntitlement(entitlement, session);
 		this.chatSetupEntitledContextKey.set(entitled);
 	}
 
-	private async doResolveEntitlement(session: AuthenticationSession): Promise<boolean> {
+	private async doResolveEntitlement(entitlement: IGitHubEntitlement, session: AuthenticationSession): Promise<boolean> {
 		if (typeof this.resolvedEntitlement === 'boolean') {
 			return this.resolvedEntitlement;
 		}
@@ -120,7 +132,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		try {
 			context = await this.requestService.request({
 				type: 'GET',
-				url: this.productService.gitHubEntitlement!.entitlementUrl,
+				url: entitlement.entitlementUrl,
 				headers: {
 					'Authorization': `Bearer ${session.accessToken}`
 				}
@@ -145,7 +157,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 			return false; //ignore
 		}
 
-		this.resolvedEntitlement = Boolean(parsedResult[this.productService.gitHubEntitlement!.enablementKey]);
+		this.resolvedEntitlement = Boolean(parsedResult[entitlement.enablementKey]);
 		this.telemetryService.publicLog2<ChatSetupEntitlementEnablementEvent, ChatSetupEntitlementEnablementClassification>('chatInstallEntitlement', { entitled: this.resolvedEntitlement });
 
 		return this.resolvedEntitlement;

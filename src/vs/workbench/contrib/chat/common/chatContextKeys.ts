@@ -43,8 +43,7 @@ export namespace ChatContextKeys {
 
 	export const ChatSetup = {
 		entitled: new RawContextKey<boolean>('chatSetupEntitled', false, { type: 'boolean', description: localize('chatSetupEntitled', "True when chat setup is offered for a signed-in, entitled user.") }),
-		signedIn: new RawContextKey<boolean>('chatSetupSignedIn', false, { type: 'boolean', description: localize('chatSetupSignedIn', "True when chat setup is offered for a signed-in user.") }),
-		signedOut: new RawContextKey<boolean>('chatSetupSignedOut', false, { type: 'boolean', description: localize('chatSetupSignedOut', "True when chat setup is offered for a signed-out user.") })
+		signedIn: new RawContextKey<boolean>('chatSetupSignedIn', false, { type: 'boolean', description: localize('chatSetupSignedIn', "True when chat setup is offered for a signed-in user.") })
 	};
 
 	export const shouldShowMovedViewWelcome = new RawContextKey<boolean>('chatShouldShowMovedViewWelcome', false, { type: 'boolean', description: localize('chatShouldShowMovedViewWelcome', "True when the user should be shown the moved view welcome view.") });
