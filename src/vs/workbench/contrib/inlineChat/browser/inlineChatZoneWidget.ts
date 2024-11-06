@@ -152,7 +152,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	protected override _doLayout(heightInPixel: number): void {
 
 		const info = this.editor.getLayoutInfo();
-		let width = info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth);
+		let width = info.contentWidth + info.glyphMarginWidth - 8;
 		width = Math.min(850, width);
 
 		this._dimension = new Dimension(width, heightInPixel);
