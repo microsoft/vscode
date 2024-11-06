@@ -232,9 +232,7 @@ export class OrganizeImportsAction extends EditorAction {
 				weight: KeybindingWeight.EditorContrib
 			},
 			metadata: {
-
-				description: nls.localize2('organizeImports.description',
-					"Organize and optimize imports in the current file")
+				description: nls.localize2('organizeImports.description', "Organize imports in the current file. Also called 'Optimize Imports' by some tools")
 			}
 		});
 	}
