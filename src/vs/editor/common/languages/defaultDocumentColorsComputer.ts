@@ -49,10 +49,15 @@ function _findRange(model: IDocumentColorComputerTarget, match: RegExpMatchArray
 	return range;
 }
 
-function _findHexColorInformation(range: IRange | undefined, hexValue: string) {
+function _findHexColorInformation(range: IRange | undefined, hexSchema: string, hexParameters: string) {
 	if (!range) {
 		return;
 	}
+	// Even though length 3 and 4 hex values are valid, do not show default color decorators for these lengths
+	if (hexParameters.length !== 6 && hexParameters.length !== 8) {
+		return;
+	}
+	const hexValue = hexSchema + hexParameters;
 	const parsedHexColor = Color.Format.CSS.parseHex(hexValue);
 	if (!parsedHexColor) {
 		return;
@@ -127,7 +132,7 @@ function computeColors(model: IDocumentColorComputerTarget): IColorInformation[]
 				const regexParameters = /^\(\s*(36[0]|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9])\s*,\s*(100|\d{1,2}[.]\d*|\d{1,2})%\s*,\s*(100|\d{1,2}[.]\d*|\d{1,2})%\s*,\s*(0[.][0-9]+|[.][0-9]+|[01][.]|[01])\s*\)$/gm;
 				colorInformation = _findHSLColorInformation(_findRange(model, initialMatch), _findMatches(colorParameters, regexParameters), true);
 			} else if (colorScheme === '#') {
-				colorInformation = _findHexColorInformation(_findRange(model, initialMatch), colorScheme + colorParameters);
+				colorInformation = _findHexColorInformation(_findRange(model, initialMatch), colorScheme, colorParameters);
 			}
 			if (colorInformation) {
 				result.push(colorInformation);

@@ -797,32 +797,34 @@ MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
 	when: ResourceContextKey.IsFileSystemResource
 });
 
-// Chat resource anchor context menu
+// Chat resource anchor attachments/anchors context menu
 
-MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {
-	group: 'navigation',
-	order: 10,
-	command: openToSideCommand,
-	when: ContextKeyExpr.and(ResourceContextKey.HasResource, ExplorerFolderContext.toNegated())
-});
+for (const menuId of [MenuId.ChatInlineResourceAnchorContext, MenuId.ChatInputResourceAttachmentContext]) {
+	MenuRegistry.appendMenuItem(menuId, {
+		group: 'navigation',
+		order: 10,
+		command: openToSideCommand,
+		when: ContextKeyExpr.and(ResourceContextKey.HasResource, ExplorerFolderContext.toNegated())
+	});
 
-MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {
-	group: 'navigation',
-	order: 20,
-	command: revealInsideBarCommand,
-	when: ResourceContextKey.IsFileSystemResource
-});
+	MenuRegistry.appendMenuItem(menuId, {
+		group: 'navigation',
+		order: 20,
+		command: revealInsideBarCommand,
+		when: ResourceContextKey.IsFileSystemResource
+	});
 
-MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {
-	group: '1_cutcopypaste',
-	order: 10,
-	command: copyPathCommand,
-	when: ResourceContextKey.IsFileSystemResource
-});
+	MenuRegistry.appendMenuItem(menuId, {
+		group: '1_cutcopypaste',
+		order: 10,
+		command: copyPathCommand,
+		when: ResourceContextKey.IsFileSystemResource
+	});
 
-MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {
-	group: '1_cutcopypaste',
-	order: 20,
-	command: copyRelativePathCommand,
-	when: ResourceContextKey.IsFileSystemResource
-});
+	MenuRegistry.appendMenuItem(menuId, {
+		group: '1_cutcopypaste',
+		order: 20,
+		command: copyRelativePathCommand,
+		when: ResourceContextKey.IsFileSystemResource
+	});
+}

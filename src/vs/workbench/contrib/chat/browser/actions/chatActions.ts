@@ -49,6 +49,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IChatVariablesService } from '../../common/chatVariables.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -62,6 +63,10 @@ export interface IChatViewOpenOptions {
 	 * Whether the query is partial and will await more input from the user.
 	 */
 	isPartialQuery?: boolean;
+	/**
+	 * A list of simple variables that will be resolved and attached if they exist.
+	 */
+	variableIds?: string[];
 	/**
 	 * Any previous chat requests and responses that should be shown in the chat view.
 	 */
@@ -117,8 +122,10 @@ class OpenChatGlobalAction extends Action2 {
 		opts = typeof opts === 'string' ? { query: opts } : opts;
 
 		const chatService = accessor.get(IChatService);
+		const chatVariablesService = accessor.get(IChatVariablesService);
 		const viewsService = accessor.get(IViewsService);
 		const hostService = accessor.get(IHostService);
+
 		const chatWidget = await showChatView(viewsService);
 		if (!chatWidget) {
 			return;
@@ -139,6 +146,21 @@ class OpenChatGlobalAction extends Action2 {
 				chatWidget.setInput(opts.query);
 			} else {
 				chatWidget.acceptInput(opts.query);
+			}
+		}
+		if (opts?.variableIds && opts.variableIds.length > 0) {
+			const actualVariables = chatVariablesService.getVariables(ChatAgentLocation.Panel);
+			for (const actualVariable of actualVariables) {
+				if (opts.variableIds.includes(actualVariable.id)) {
+					chatWidget.attachmentModel.addContext({
+						range: undefined,
+						id: actualVariable.id ?? '',
+						value: undefined,
+						fullName: actualVariable.fullName,
+						name: actualVariable.name,
+						icon: actualVariable.icon
+					});
+				}
 			}
 		}
 

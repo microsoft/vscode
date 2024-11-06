@@ -81,7 +81,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable {
 			));
 			const diffEdits = new TextEdit(edits);
 
-			return new InlineEditWithChanges(text, diffEdits, inlineEdit.isCollapsed, true, inlineEdit.commands); //inlineEdit.showInlineIfPossible);
+			return new InlineEditWithChanges(text, diffEdits, inlineEdit.isCollapsed, inlineEdit.renderExplicitly, inlineEdit.commands); //inlineEdit.showInlineIfPossible);
 		});
 	});
 
@@ -111,7 +111,7 @@ export class InlineEditWithChanges {
 		public readonly originalText: AbstractText,
 		public readonly edit: TextEdit,
 		public readonly isCollapsed: boolean,
-		public readonly showInlineIfPossible: boolean,
+		public readonly userJumpedToIt: boolean,
 		public readonly commands: readonly Command[]
 	) {
 	}
@@ -120,7 +120,7 @@ export class InlineEditWithChanges {
 		return this.originalText.getValue() === other.originalText.getValue() &&
 			this.edit.equals(other.edit) &&
 			this.isCollapsed === other.isCollapsed &&
-			this.showInlineIfPossible === other.showInlineIfPossible &&
+			this.userJumpedToIt === other.userJumpedToIt &&
 			this.commands === other.commands;
 	}
 }

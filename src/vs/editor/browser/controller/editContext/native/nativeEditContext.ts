@@ -9,7 +9,6 @@ import { addDisposableListener, getActiveWindow, getWindow, getWindowId } from '
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { EndOfLinePreference, EndOfLineSequence, IModelDeltaDecoration } from '../../../../common/model.js';
@@ -17,7 +16,7 @@ import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent } from '../.
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
-import { ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
+import { ClipboardEventUtils, ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { AbstractEditContext } from '../editContext.js';
 import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
@@ -66,7 +65,6 @@ export class NativeEditContext extends AbstractEditContext {
 		viewController: ViewController,
 		private readonly _visibleRangeProvider: IVisibleRangeProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IClipboardService clipboardService: IClipboardService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super(context);
@@ -93,9 +91,9 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
 
-		this._register(addDisposableListener(this.domNode.domNode, 'copy', () => this._ensureClipboardGetsEditorSelection(clipboardService)));
-		this._register(addDisposableListener(this.domNode.domNode, 'cut', () => {
-			this._ensureClipboardGetsEditorSelection(clipboardService);
+		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => this._ensureClipboardGetsEditorSelection(e)));
+		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
+			this._ensureClipboardGetsEditorSelection(e);
 			viewController.cut();
 		}));
 
@@ -135,6 +133,28 @@ export class NativeEditContext extends AbstractEditContext {
 			viewController.compositionEnd();
 			// Emits ViewCompositionEndEvent which can be depended on by ViewEventHandlers
 			this._context.viewModel.onCompositionEnd();
+		}));
+		this._register(addDisposableListener(this.textArea.domNode, 'paste', (e) => {
+			e.preventDefault();
+			if (!e.clipboardData) {
+				return;
+			}
+			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
+			if (!text) {
+				return;
+			}
+			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
+			let pasteOnNewLine = false;
+			let multicursorText: string[] | null = null;
+			let mode: string | null = null;
+			if (metadata) {
+				const options = this._context.configuration.options;
+				const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+				pasteOnNewLine = emptySelectionClipboard && !!metadata.isFromEmptySelection;
+				multicursorText = typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null;
+				mode = metadata.mode;
+			}
+			viewController.paste(text, pasteOnNewLine, multicursorText, mode);
 		}));
 	}
 
@@ -250,11 +270,15 @@ export class NativeEditContext extends AbstractEditContext {
 		if (selectionEndOffset > e.updateRangeEnd) {
 			text += this._editContext.text.substring(e.updateRangeEnd, selectionEndOffset);
 		}
+		let positionDelta = 0;
+		if (e.selectionStart === e.selectionEnd && selectionStartOffset === selectionEndOffset) {
+			positionDelta = e.selectionStart - (e.updateRangeStart + e.text.length);
+		}
 		const typeInput: ITypeData = {
 			text,
 			replacePrevCharCnt,
 			replaceNextCharCnt,
-			positionDelta: 0,
+			positionDelta
 		};
 		this._onType(viewController, typeInput);
 
@@ -397,7 +421,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._editContext.updateCharacterBounds(e.rangeStart, characterBounds);
 	}
 
-	private _ensureClipboardGetsEditorSelection(clipboardService: IClipboardService): void {
+	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
 		const options = this._context.configuration.options;
 		const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		const copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
@@ -415,7 +439,10 @@ export class NativeEditContext extends AbstractEditContext {
 			(isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
 			storedMetadata
 		);
-		clipboardService.writeText(dataToCopy.text);
+		e.preventDefault();
+		if (e.clipboardData) {
+			ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
+		}
 	}
 
 	private _setSelectionChangeListener(viewController: ViewController): IDisposable {

@@ -93,7 +93,7 @@ import { TestDialogService } from '../../../platform/dialogs/test/common/testDia
 import { CodeEditorService } from '../../services/editor/browser/codeEditorService.js';
 import { MainEditorPart } from '../../browser/parts/editor/editorPart.js';
 import { ICodeEditor } from '../../../editor/browser/editorBrowser.js';
-import { IDiffEditor } from '../../../editor/common/editorCommon.js';
+import { IDiffEditor, IEditor } from '../../../editor/common/editorCommon.js';
 import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
 import { QuickInputService } from '../../services/quickinput/browser/quickInputService.js';
 import { IListService } from '../../../platform/list/browser/listService.js';
@@ -1034,6 +1034,7 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 	mostRecentlyActiveEditors: readonly IEditorIdentifier[] = [];
 	visibleEditorPanes: readonly IVisibleEditorPane[] = [];
 	visibleTextEditorControls = [];
+	getVisibleTextEditorControls(order: EditorsOrder): readonly (IEditor | IDiffEditor)[] { return this.visibleTextEditorControls; }
 	visibleEditors: readonly EditorInput[] = [];
 	count = this.editors.length;
 
