@@ -198,11 +198,14 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	}
 
 	acceptStreamingEditsStart(tx: ITransaction) {
-		this._isCurrentlyBeingModifiedObs.set(false, tx);
-		this._clearCurrentEditLineDecoration();
+		this._resetEditsState(tx);
 	}
 
 	acceptStreamingEditsEnd(tx: ITransaction) {
+		this._resetEditsState(tx);
+	}
+
+	private _resetEditsState(tx: ITransaction): void {
 		this._isCurrentlyBeingModifiedObs.set(false, tx);
 		this._clearCurrentEditLineDecoration();
 	}
@@ -270,7 +273,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._updateDiffInfoSeq(!this._isEditFromUs);
 	}
 
-	acceptAgentEdits(textEdits: TextEdit[]): void {
+	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean): void {
 
 		// highlight edits
 		this._editDecorations = this.doc.deltaDecorations(this._editDecorations, textEdits.map(edit => {
@@ -292,8 +295,13 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._applyEdits(textEdits.map(TextEdit.asEditOperation));
 
 		transaction((tx) => {
-			this._stateObs.set(WorkingSetEntryState.Modified, tx);
-			this._isCurrentlyBeingModifiedObs.set(true, tx);
+			if (!isLastEdits) {
+				this._stateObs.set(WorkingSetEntryState.Modified, tx);
+				this._isCurrentlyBeingModifiedObs.set(true, tx);
+			} else {
+				this._resetEditsState(tx);
+				this._updateDiffInfoSeq(true);
+			}
 		});
 	}
 

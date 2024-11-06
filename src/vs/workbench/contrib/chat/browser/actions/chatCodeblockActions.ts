@@ -22,7 +22,6 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatCopyKind, IChatService } from '../../common/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../chat.js';
@@ -214,38 +213,6 @@ export function registerChatCodeBlockActions() {
 				this.operation = accessor.get(IInstantiationService).createInstance(ApplyCodeBlockOperation);
 			}
 			return this.operation.run(context);
-		}
-	});
-
-	registerAction2(class ApplyAllAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.chat.applyAll',
-				title: localize2('chat.applyAll.label', "Apply All Edits"),
-				precondition: ChatContextKeys.enabled, // improve this condition
-				f1: true,
-				category: CHAT_CATEGORY,
-				icon: Codicon.edit
-			});
-		}
-
-		override async run(accessor: ServicesAccessor, ...args: any[]) {
-			const chatWidgetService = accessor.get(IChatWidgetService);
-			const chatEditingService = accessor.get(IChatEditingService);
-
-			const widget = chatWidgetService.lastFocusedWidget;
-			if (!widget || !widget.viewModel) {
-				return;
-			}
-
-			const applyEditsId = args[0];
-
-			const chatModel = widget.viewModel.model;
-			const request = chatModel.getRequests().find(request => request.response?.result?.metadata?.applyEditsId === applyEditsId);
-			if (request && request.response) {
-				await chatEditingService.startOrContinueEditingSession(widget.viewModel.sessionId, { silent: true }); // make sure we have an editing session
-				await chatEditingService.triggerEditComputation(request.response);
-			}
 		}
 	});
 

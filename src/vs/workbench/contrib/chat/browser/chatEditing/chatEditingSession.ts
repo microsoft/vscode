@@ -447,14 +447,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._sequencer.queue(() => this._acceptStreamingEditsStart());
 	}
 
-	acceptTextEdits(resource: URI, textEdits: TextEdit[], responseModel: IChatResponseModel): void {
+	acceptTextEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void {
 		if (this._state.get() === ChatEditingSessionState.Disposed) {
 			// we don't throw in this case because there could be a builder still connected to a disposed session
 			return;
 		}
 
 		// ensure that the edits are processed sequentially
-		this._sequencer.queue(() => this._acceptTextEdits(resource, textEdits, responseModel));
+		this._sequencer.queue(() => this._acceptTextEdits(resource, textEdits, isLastEdits, responseModel));
 	}
 
 	resolve(): void {
@@ -509,7 +509,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		});
 	}
 
-	private async _acceptTextEdits(resource: URI, textEdits: TextEdit[], responseModel: IChatResponseModel): Promise<void> {
+	private async _acceptTextEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
 		if (this._filesToSkipCreating.has(resource)) {
 			return;
 		}
@@ -539,7 +539,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			get result() { return responseModel.result; }
 		};
 		const entry = await this._getOrCreateModifiedFileEntry(resource, telemetryInfo);
-		entry.acceptAgentEdits(textEdits);
+		entry.acceptAgentEdits(textEdits, isLastEdits);
 		// await this._editorService.openEditor({ resource: entry.modifiedURI, options: { inactive: true } });
 	}
 

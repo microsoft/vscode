@@ -183,6 +183,7 @@ export interface IChatTextEdit {
 	uri: URI;
 	edits: TextEdit[];
 	kind: 'textEdit';
+	done?: boolean;
 }
 
 export interface IChatConfirmation {

@@ -98,6 +98,7 @@ export interface IChatTextEditGroup {
 	edits: TextEdit[][];
 	state?: IChatTextEditGroupState;
 	kind: 'textEditGroup';
+	done: boolean | undefined;
 }
 
 /**
@@ -306,13 +307,14 @@ export class Response extends Disposable implements IResponse {
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit') {
-			if (progress.edits.length > 0) {
+			if (progress.edits.length > 0 || typeof progress.done === 'boolean') {
 				// merge text edits for the same file no matter when they come in
 				let found = false;
 				for (let i = 0; !found && i < this._responseParts.length; i++) {
 					const candidate = this._responseParts[i];
 					if (candidate.kind === 'textEditGroup' && isEqual(candidate.uri, progress.uri)) {
 						candidate.edits.push(progress.edits);
+						candidate.done = progress.done;
 						found = true;
 					}
 				}
@@ -320,7 +322,8 @@ export class Response extends Disposable implements IResponse {
 					this._responseParts.push({
 						kind: 'textEditGroup',
 						uri: progress.uri,
-						edits: [progress.edits]
+						edits: [progress.edits],
+						done: progress.done
 					});
 				}
 				this._updateRepr(quiet);
