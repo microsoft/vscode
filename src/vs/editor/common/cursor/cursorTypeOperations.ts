@@ -12,6 +12,7 @@ import { Position } from '../core/position.js';
 import { ICommand } from '../editorCommon.js';
 import { ITextModel } from '../model.js';
 import { AutoClosingOpenCharTypeOperation, AutoClosingOvertypeOperation, AutoClosingOvertypeWithInterceptorsOperation, AutoIndentOperation, CompositionOperation, EnterOperation, InterceptorElectricCharOperation, PasteOperation, shiftIndent, shouldSurroundChar, SimpleCharacterTypeOperation, SurroundSelectionOperation, TabOperation, TypeWithoutInterceptorsOperation, unshiftIndent } from './cursorTypeEditOperations.js';
+import { IEditorConfiguration } from '../config/editorConfiguration.js';
 
 export class TypeOperations {
 
@@ -162,7 +163,7 @@ export class TypeOperations {
 		return null;
 	}
 
-	public static typeWithInterceptors(isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult {
+	public static typeWithInterceptors(inputType: 'insert' | 'overtype' | undefined, isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult { //
 
 		const enterEdits = EnterOperation.getEdits(config, model, selections, ch, isDoingComposition);
 		if (enterEdits !== undefined) {
@@ -194,11 +195,11 @@ export class TypeOperations {
 			return interceptorElectricCharOperation;
 		}
 
-		return SimpleCharacterTypeOperation.getEdits(prevEditOperationType, selections, ch);
+		return SimpleCharacterTypeOperation.getEdits(inputType, prevEditOperationType, selections, ch);
 	}
 
-	public static typeWithoutInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], str: string): EditOperationResult {
-		return TypeWithoutInterceptorsOperation.getEdits(prevEditOperationType, selections, str);
+	public static typeWithoutInterceptors(inputType: 'insert' | 'overtype' | undefined, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], str: string): EditOperationResult { //
+		return TypeWithoutInterceptorsOperation.getEdits(inputType, prevEditOperationType, selections, str);
 	}
 }
 

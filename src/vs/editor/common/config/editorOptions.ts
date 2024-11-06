@@ -773,6 +773,11 @@ export interface IEditorOptions {
 	 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
 	 */
 	inlineCompletionsAccessibilityVerbose?: boolean;
+
+	/**
+	 * Controls the input type mode, whether it is insert or overtype
+	 */
+	inputType?: 'insert' | 'overtype';
 }
 
 /**
@@ -5389,6 +5394,7 @@ export const enum EditorOption {
 	hover,
 	inDiffEditor,
 	inlineSuggest,
+	inputType,
 	letterSpacing,
 	lightbulb,
 	lineDecorationsWidth,
@@ -5842,6 +5848,18 @@ export const EditorOptions = {
 	hover: register(new EditorHover()),
 	inDiffEditor: register(new EditorBooleanOption(
 		EditorOption.inDiffEditor, 'inDiffEditor', false
+	)),
+	inputType: register(new EditorStringEnumOption(
+		EditorOption.inputType, 'inputType',
+		'insert' as 'insert' | 'overtype',
+		['insert', 'overtype'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('inputType.insert', "Insert text at cursor position"),
+				nls.localize('inputType.overtype', "Replace text at cursor position")
+			],
+			description: nls.localize('inputType', "Controls how text is inputted, whether it is inserted or it overwrites existing content.")
+		}
 	)),
 	letterSpacing: register(new EditorFloatOption(
 		EditorOption.letterSpacing, 'letterSpacing',

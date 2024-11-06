@@ -1805,6 +1805,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
 					this._paste('keyboard', text, pasteOnNewLine, multicursorText, mode);
 				},
+				//
 				type: (text: string) => {
 					this._type('keyboard', text);
 				},
@@ -1827,6 +1828,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					const payload: editorBrowser.PastePayload = { text, pasteOnNewLine, multicursorText, mode };
 					this._commandService.executeCommand(editorCommon.Handler.Paste, payload);
 				},
+				//
 				type: (text: string) => {
 					const payload: editorCommon.TypePayload = { text };
 					this._commandService.executeCommand(editorCommon.Handler.Type, payload);

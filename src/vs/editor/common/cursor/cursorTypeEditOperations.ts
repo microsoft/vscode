@@ -6,7 +6,7 @@
 import { CharCode } from '../../../base/common/charCode.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import * as strings from '../../../base/common/strings.js';
-import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection } from '../commands/replaceCommand.js';
+import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection, ReplaceOvertypeCommand } from '../commands/replaceCommand.js';
 import { ShiftCommand } from '../commands/shiftCommand.js';
 import { SurroundSelectionCommand } from '../commands/surroundSelectionCommand.js';
 import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from '../cursorCommon.js';
@@ -483,13 +483,15 @@ export class InterceptorElectricCharOperation {
 
 export class SimpleCharacterTypeOperation {
 
-	public static getEdits(prevEditOperationType: EditOperationType, selections: Selection[], ch: string): EditOperationResult {
+	public static getEdits(inputType: 'insert' | 'overtype' | undefined, prevEditOperationType: EditOperationType, selections: Selection[], ch: string): EditOperationResult { //
 		// A simple character type
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
-			commands[i] = new ReplaceCommand(selections[i], ch);
+			const ChosenReplaceCommand = inputType === 'overtype' ? ReplaceOvertypeCommand : ReplaceCommand;
+			commands[i] = new ChosenReplaceCommand(selections[i], ch);
 		}
-
+		console.log('inputType : ', inputType);
+		console.log('SimpleCharacterTypeOperation.getEdits : ', commands);
 		const opType = getTypingOperation(ch, prevEditOperationType);
 		return new EditOperationResult(opType, commands, {
 			shouldPushStackElementBefore: shouldPushStackElementBetween(prevEditOperationType, opType),
@@ -738,11 +740,12 @@ export class CompositionOperation {
 
 export class TypeWithoutInterceptorsOperation {
 
-	public static getEdits(prevEditOperationType: EditOperationType, selections: Selection[], str: string): EditOperationResult {
+	public static getEdits(inputType: 'insert' | 'overtype' | undefined, prevEditOperationType: EditOperationType, selections: Selection[], str: string): EditOperationResult { //
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			commands[i] = new ReplaceCommand(selections[i], str);
 		}
+		console.log('TypeWithoutInterceptorsOperation commands : ', commands);
 		const opType = getTypingOperation(str, prevEditOperationType);
 		return new EditOperationResult(opType, commands, {
 			shouldPushStackElementBefore: shouldPushStackElementBetween(prevEditOperationType, opType),

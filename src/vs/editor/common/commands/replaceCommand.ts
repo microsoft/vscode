@@ -31,6 +31,34 @@ export class ReplaceCommand implements ICommand {
 	}
 }
 
+export class ReplaceOvertypeCommand implements ICommand {
+
+	private readonly _range: Range;
+	private readonly _text: string;
+	public readonly insertsAutoWhitespace: boolean;
+
+	constructor(range: Range, text: string, insertsAutoWhitespace: boolean = false) {
+		this._range = range;
+		this._text = text;
+		this.insertsAutoWhitespace = insertsAutoWhitespace;
+	}
+
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
+		const startPosition = this._range.getStartPosition();
+		const endPosition = this._range.getEndPosition();
+		const rangeEndOffset = model.getOffsetAt(endPosition);
+		const endOffset = rangeEndOffset + this._text.length;
+		const newRange = Range.fromPositions(startPosition, model.getPositionAt(endOffset));
+		builder.addTrackedEditOperation(newRange, this._text);
+	}
+
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		const inverseEditOperations = helper.getInverseEditOperations();
+		const srcRange = inverseEditOperations[0].range;
+		return Selection.fromPositions(srcRange.getEndPosition());
+	}
+}
+
 export class ReplaceCommandThatSelectsText implements ICommand {
 
 	private readonly _range: Range;

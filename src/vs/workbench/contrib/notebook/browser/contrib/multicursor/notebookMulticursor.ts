@@ -235,7 +235,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 					return;
 				}
 				if (match.cellViewModel.handle !== this.anchorCell?.[0].handle) { // don't relay to active cell, already has a controller for typing
-					controller.type(collector, input, 'keyboard');
+					controller.type(collector, match.editorConfig, input, 'keyboard');
 				}
 			});
 		}));

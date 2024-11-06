@@ -22,6 +22,7 @@ import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequest
 import { dispose, Disposable } from '../../../base/common/lifecycle.js';
 import { ICoordinatesConverter } from '../viewModel.js';
 import { CursorStateChangedEvent, ViewModelEventsCollector } from '../viewModelEventDispatcher.js';
+import { IEditorConfiguration } from '../config/editorConfiguration.js';
 
 export class CursorsController extends Disposable {
 
@@ -550,8 +551,10 @@ export class CursorsController extends Disposable {
 		}, eventsCollector, source);
 	}
 
-	public type(eventsCollector: ViewModelEventsCollector, text: string, source?: string | null | undefined): void {
+	public type(eventsCollector: ViewModelEventsCollector, editorConfiguration: IEditorConfiguration, text: string, source?: string | null | undefined): void { //
 		this._executeEdit(() => {
+			console.log('source : ', source);
+			const inputType = editorConfiguration.getRawOptions().inputType;
 			if (source === 'keyboard') {
 				// If this event is coming straight from the keyboard, look for electric characters and enter
 
@@ -562,18 +565,18 @@ export class CursorsController extends Disposable {
 					const chr = text.substr(offset, charLength);
 
 					// Here we must interpret each typed character individually
-					this._executeEditOperation(TypeOperations.typeWithInterceptors(!!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr));
+					this._executeEditOperation(TypeOperations.typeWithInterceptors(inputType, !!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr));
 
 					offset += charLength;
 				}
 
 			} else {
-				this._executeEditOperation(TypeOperations.typeWithoutInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), text));
+				this._executeEditOperation(TypeOperations.typeWithoutInterceptors(inputType, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), text));
 			}
 		}, eventsCollector, source);
 	}
 
-	public compositionType(eventsCollector: ViewModelEventsCollector, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number, source?: string | null | undefined): void {
+	public compositionType(eventsCollector: ViewModelEventsCollector, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number, source?: string | null | undefined): void { //
 		if (text.length === 0 && replacePrevCharCnt === 0 && replaceNextCharCnt === 0) {
 			// this edit is a no-op
 			if (positionDelta !== 0) {
