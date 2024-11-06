@@ -221,7 +221,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	public triggerEditComputation(responseModel: IChatResponseModel): Promise<void> {
 		return this._continueEditingSession(async (builder, token) => {
 			const codeMapperResponse: ICodeMapperResponse = {
-				textEdit: (resource, edits) => builder.textEdits(resource, edits, responseModel),
+				textEdit: (resource, edits) => builder.textEdits(resource, edits, false, responseModel),
 			};
 			await this._codeMapperService.mapCodeFromResponse(responseModel, codeMapperResponse, token);
 		}, { silent: true });
@@ -290,7 +290,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					entry.seen += newEdits.length;
 
 					editsSource ??= new AsyncIterableSource();
-					editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'textEditGroup' });
+					editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'textEditGroup', done: part.kind === 'textEditGroup' && part.done });
 
 					if (first) {
 						this._continueEditingSession(async (builder, token) => {
@@ -298,8 +298,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 								if (token.isCancellationRequested) {
 									break;
 								}
-								for (const group of item.edits) {
-									builder.textEdits(item.uri, group, responseModel);
+								for (let i = 0; i < item.edits.length; i++) {
+									const group = item.edits[i];
+									const isLastGroup = i === item.edits.length - 1;
+									builder.textEdits(item.uri, group, isLastGroup && (item.done ?? false), responseModel);
 								}
 							}
 						}, { silent: true });
@@ -356,8 +358,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}
 
 		const stream: IChatEditingSessionStream = {
-			textEdits: (resource: URI, textEdits: TextEdit[], responseModel: IChatResponseModel) => {
-				session.acceptTextEdits(resource, textEdits, responseModel);
+			textEdits: (resource: URI, textEdits: TextEdit[], isDone: boolean, responseModel: IChatResponseModel) => {
+				session.acceptTextEdits(resource, textEdits, isDone, responseModel);
 			}
 		};
 		session.acceptStreamingEditsStart();
