@@ -49,7 +49,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
-import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IChatViewsWelcomeContributionRegistry, IChatViewsWelcomeDescriptor, ChatViewsWelcomeExtensions } from '../viewsWelcome/chatViewsWelcome.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -587,6 +587,17 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 	}
 }
 
+type InstallChatClassification = {
+	owner: 'bpasero';
+	comment: 'Provides insight into chat installation.';
+	installResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the extension was installed successfully, cancelled or failed to install.' };
+	signedIn: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user did sign in prior to installing the extension.' };
+};
+type InstallChatEvent = {
+	installResult: 'installed' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn';
+	signedIn: boolean;
+};
+
 class InstallChatAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.install';
@@ -613,10 +624,10 @@ class InstallChatAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor): Promise<void> {
-		return InstallChatAction.install(accessor);
+		return InstallChatAction.install(accessor, false);
 	}
 
-	static async install(accessor: ServicesAccessor) {
+	static async install(accessor: ServicesAccessor, signedIn: boolean) {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const productService = accessor.get(IProductService);
 		const telemetryService = accessor.get(ITelemetryService);
@@ -625,16 +636,7 @@ class InstallChatAction extends Action2 {
 
 		const setupRunningContextKey = ChatContextKeys.ChatSetup.running.bindTo(contextKeyService);
 
-		type InstallChatClassification = {
-			owner: 'bpasero';
-			comment: 'Provides insight into chat installation.';
-			installResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the extension was installed successfully, cancelled or failed to install.' };
-		};
-		type InstallChatEvent = {
-			installResult: 'installed' | 'cancelled' | 'failed';
-		};
-
-		let installResult: 'installed' | 'cancelled' | 'failed';
+		let installResult: 'installed' | 'cancelled' | 'failedInstall';
 		try {
 			setupRunningContextKey.set(true);
 			showChatView(viewsService);
@@ -647,14 +649,12 @@ class InstallChatAction extends Action2 {
 
 			installResult = 'installed';
 		} catch (error) {
-			installResult = isCancellationError(error) ? 'cancelled' : 'failed';
+			installResult = isCancellationError(error) ? 'cancelled' : 'failedInstall';
 		} finally {
 			setupRunningContextKey.reset();
 		}
 
-		telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', {
-			installResult
-		});
+		telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signedIn });
 	}
 }
 
@@ -684,10 +684,19 @@ class SignInAndInstallChatAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const authenticationService = accessor.get(IAuthenticationService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const telemetryService = accessor.get(ITelemetryService);
 
-		const session = await authenticationService.createSession(defaultChat.providerId, defaultChat.providerScopes);
+		let session: AuthenticationSession | undefined;
+		try {
+			session = await authenticationService.createSession(defaultChat.providerId, defaultChat.providerScopes);
+		} catch (error) {
+			// noop
+		}
+
 		if (session) {
-			instantiationService.invokeFunction(accessor => InstallChatAction.install(accessor));
+			instantiationService.invokeFunction(accessor => InstallChatAction.install(accessor, true));
+		} else {
+			telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', signedIn: false });
 		}
 	}
 }
