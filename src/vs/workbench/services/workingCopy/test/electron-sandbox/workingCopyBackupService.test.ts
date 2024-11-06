@@ -54,6 +54,7 @@ const NULL_PROFILE = {
 
 const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	windowId: 0,
+	handle: new Uint8Array(0),
 	machineId: 'testMachineId',
 	sqmId: 'testSqmId',
 	devDeviceId: 'testdevDeviceId',
