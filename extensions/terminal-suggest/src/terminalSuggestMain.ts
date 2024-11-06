@@ -90,7 +90,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 
 (vscode as any).window.registerTerminalCompletionProvider({
 	id: 'terminal-suggest',
-	async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { commandLine: string }, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | undefined> {
+	async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { commandLine: string; cursorPosition: number }, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | undefined> {
 		// Early cancellation check
 		if (token.isCancellationRequested) {
 			return;
@@ -102,22 +102,28 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 		const availableCommands = await getCommandsInPath();
 		const specs = await getCompletionSpecs(availableCommands);
 		builtinCommands?.forEach(command => availableCommands.add(command));
+
+		const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
+		if (prefix === undefined) {
+			return;
+		}
 		const result: vscode.TerminalCompletionItem[] = [];
 		for (const spec of specs) {
 			const name = getLabel(spec);
 			if (!name || !availableCommands.has(name)) {
 				continue;
 			}
-
-			result.push(createCompletionItem(name, spec.description, spec.args));
+			if (name.startsWith(prefix)) {
+				result.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, name, spec.description, spec.args));
+			}
 			// TODO:
 			// deal with args on FigSpec, esp if non optional.
 			// args.template = "filepaths", should return our special kind of terminal completion
 			if (spec.options) {
 				for (const option of spec.options) {
 					const optionName = getLabel(option);
-					if (optionName) {
-						result.push(createCompletionItem(name + ' ' + optionName, option.description));
+					if (optionName && optionName.startsWith(prefix)) {
+						result.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, optionName, option.description));
 					}
 				}
 			}
@@ -125,8 +131,8 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 			if (spec.subcommands) {
 				for (const subcommand of spec.subcommands) {
 					const subCommandName = getLabel(subcommand);
-					if (subCommandName) {
-						result.push(createCompletionItem(name + ' ' + subCommandName, subcommand.description));
+					if (subCommandName && (name + ' ' + subCommandName).startsWith(prefix)) {
+						result.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, name + ' ' + subCommandName, subcommand.description));
 					}
 				}
 			}
@@ -134,8 +140,8 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 				if (spec.args.suggestions) {
 					for (const suggestion of spec.args.suggestions) {
 						const suggestionName = getLabel(suggestion);
-						if (suggestionName) {
-							result.push(createCompletionItem(suggestionName, `Suggestion for ${name}: ${suggestion.description}`));
+						if (suggestionName && suggestionName.startsWith(prefix)) {
+							result.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, suggestionName, `Suggestion for ${name}: ${suggestion.description}`));
 						}
 					}
 				}
@@ -158,7 +164,7 @@ function getLabel(spec: FigSpec | Option | Subcommand | Suggestion): string | un
 	return spec.name[0];
 }
 
-function createCompletionItem(label: string, description?: string, arg?: Arg): vscode.TerminalCompletionItem {
+function createCompletionItem(commandLine: string, cursorPosition: number, prefix: string, label: string, description?: string, arg?: Arg): vscode.TerminalCompletionItem {
 	return {
 		label,
 		isFile: false,
@@ -166,8 +172,8 @@ function createCompletionItem(label: string, description?: string, arg?: Arg): v
 		detail: description ?? '',
 		fileArgument: shouldShowFile(arg) && !onlyShowFolders(arg),
 		folderArgument: onlyShowFolders(arg),
-		replacementIndex: 0,
-		replacementLength: 0
+		replacementIndex: cursorPosition - prefix.length,
+		replacementLength: label.length - prefix.length,
 	};
 }
 
@@ -209,4 +215,20 @@ async function getCommandsInPath(): Promise<Set<string>> {
 		}
 	}
 	return executables;
+}
+
+function getPrefix(commandLine: string, cursorPosition: number): string | undefined {
+	// Check if cursor is at the end or there's whitespace after the cursor
+	if (cursorPosition < commandLine.length && /\S/.test(commandLine[cursorPosition])) {
+		return undefined;
+	}
+
+	// Extract the part of the line up to the cursor position
+	const beforeCursor = commandLine.slice(0, cursorPosition);
+
+	// Find the last word boundary before the cursor
+	const match = beforeCursor.match(/\b\w+$/);
+
+	// Return the match if found, otherwise undefined
+	return match ? match[0] : undefined;
 }

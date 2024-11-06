@@ -2404,7 +2404,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
 	$createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
 	$provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto, token: CancellationToken): Promise<SingleOrMany<TerminalQuickFix> | undefined>;
-	$provideTerminalCompletions(id: string, options: { commandLine: string }): Promise<TerminalCompletionItem[] | undefined>;
+	$provideTerminalCompletions(id: string, options: { commandLine: string; cursorPosition: number }): Promise<TerminalCompletionItem[] | undefined>;
 }
 
 export interface ExtHostTerminalShellIntegrationShape {

@@ -76,6 +76,7 @@ declare module 'vscode' {
 	export interface TerminalCompletionContext {
 		commandLine: string;
 		// TODO: add trigger characters here
+		cursorPosition: number;
 	}
 
 	export namespace window {

@@ -81,13 +81,13 @@ export enum TerminalCompletionItemKind {
 export interface ITerminalCompletionProvider {
 	// TODO: Trigger chat props? etc.
 	shellTypes?: TerminalShellType[];
-	provideCompletions(value: string): Promise<ITerminalCompletionItem[] | undefined>;
+	provideCompletions(value: string, cursorPosition: number): Promise<ITerminalCompletionItem[] | undefined>;
 }
 
 export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider): IDisposable;
-	provideCompletions(promptValue: string, shellType: TerminalShellType, devModeEnabled?: boolean): Promise<ITerminalCompletionItem[] | undefined>;
+	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, devModeEnabled?: boolean): Promise<ITerminalCompletionItem[] | undefined>;
 }
 
 // TODO: make name consistent
@@ -114,7 +114,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 
 	// TODO: use the configuration service here instead
-	async provideCompletions(promptValue: string, shellType: TerminalShellType, devModeEnabled?: boolean): Promise<ITerminalCompletionItem[] | undefined> {
+	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, devModeEnabled?: boolean): Promise<ITerminalCompletionItem[] | undefined> {
 		const completionItems: ITerminalCompletionItem[] = [];
 
 		if (!this._providers || !this._providers.values) {
@@ -126,10 +126,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
 					continue;
 				}
-				const completions = await provider.provideCompletions(promptValue);
+				const completions = await provider.provideCompletions(promptValue, cursorPosition);
 				if (completions) {
 					for (const completion of completions) {
-						if (devModeEnabled) {
+						if (devModeEnabled && !completion.detail?.includes(extensionId)) {
 							completion.detail = `(${extensionId}) ${completion.detail ?? ''}`;
 						}
 						completionItems.push(completion);
