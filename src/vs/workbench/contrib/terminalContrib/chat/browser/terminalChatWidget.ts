@@ -26,6 +26,7 @@ import { ChatModel, IChatResponseModel } from '../../../chat/common/chatModel.js
 import { IChatService, IChatProgress } from '../../../chat/common/chatService.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { autorun } from '../../../../../base/common/observable.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -137,6 +138,15 @@ export class TerminalChatWidget extends Disposable {
 				}
 			},
 		);
+		this._register(autorun(r => {
+			const isBusy = this._inlineChatWidget.requestInProgress.read(r);
+			if (!isBusy) {
+				this._updateToolbar();
+			}
+		}));
+		this._register(this._inlineChatWidget.chatWidget.onDidChangeViewModel(async () => {
+			await this._updateToolbar();
+		}));
 		this._register(Event.any(
 			this._inlineChatWidget.onDidChangeHeight,
 			this._instance.onDimensionsChanged,
@@ -144,7 +154,6 @@ export class TerminalChatWidget extends Disposable {
 			Event.debounce(this._xterm.raw.onCursorMove, () => void 0, MicrotaskDelay),
 		)(() => this._relayout()));
 
-		this._register(this._inlineChatWidget.chatWidget.onDidAcceptInput(() => this.acceptInput()));
 		const observer = new ResizeObserver(() => this._relayout());
 		observer.observe(this._terminalElement);
 		this._register(toDisposable(() => observer.disconnect()));
@@ -173,6 +182,14 @@ export class TerminalChatWidget extends Disposable {
 			this._historyCandidate = '';
 			this._storageService.store(this._storageKey, JSON.stringify(this._promptHistory), StorageScope.PROFILE, StorageTarget.USER);
 		};
+	}
+
+	private async _updateToolbar() {
+		const firstCodeBlock = await this._inlineChatWidget.getCodeBlockInfo(0);
+		const secondCodeBlock = await this._inlineChatWidget.getCodeBlockInfo(1);
+		this._responseContainsCodeBlockContextKey.set(!!firstCodeBlock);
+		this._responseContainsMulitpleCodeBlocksContextKey.set(!!secondCodeBlock);
+		this._inlineChatWidget.updateToolbar(true);
 	}
 
 	private _dimension?: Dimension;
