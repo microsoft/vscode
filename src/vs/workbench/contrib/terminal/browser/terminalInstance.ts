@@ -444,6 +444,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalShellIntegrationEnabledContextKey = TerminalContextKeys.terminalShellIntegrationEnabled.bindTo(scopedContextKeyService);
 
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
+		this._register(this.onDidFocus(() => {
+			const hasCwdCapability = this.capabilities.has(TerminalCapability.CwdDetection);
+			this._terminalConfigurationService.updateHasCwdDetectionCapability(hasCwdCapability);
+		}));
+		this._register(this.capabilities.onDidRemoveCapabilityType(capability => {
+			if (capability === TerminalCapability.CwdDetection) {
+				this._terminalConfigurationService.updateHasCwdDetectionCapability(true);
+			}
+		}));
+		this._register(this.capabilities.onDidRemoveCapabilityType(capability => {
+			if (capability === TerminalCapability.CwdDetection) {
+				this._terminalConfigurationService.updateHasCwdDetectionCapability(false);
+			}
+		}));
 		this._register(this.capabilities.onDidAddCapabilityType(e => this._logService.debug('terminalInstance added capability', e)));
 		this._register(this.capabilities.onDidRemoveCapabilityType(e => this._logService.debug('terminalInstance removed capability', e)));
 

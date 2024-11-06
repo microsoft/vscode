@@ -13,15 +13,13 @@ import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, 
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
-import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 
 // #region TerminalConfigurationService
 
 export class TerminalConfigurationService extends Disposable implements ITerminalConfigurationService {
 	declare _serviceBrand: undefined;
 
-	private _terminalSettingShellIntegrationEnabled: IContextKey<boolean>;
-
+	private _terminalHasCwdDetectionCapabilityContextKey: IContextKey<boolean>;
 	protected _fontMetrics: TerminalFontMetrics;
 
 	protected _config!: Readonly<ITerminalConfiguration>;
@@ -35,15 +33,14 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
-		this._terminalSettingShellIntegrationEnabled = TerminalContextKeys.terminalSettingShellIntegrationEnabled.bindTo(this._contextKeyService);
-		this._terminalSettingShellIntegrationEnabled.set(this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled));
+		this._terminalHasCwdDetectionCapabilityContextKey = TerminalContextKeys.terminalHasCwdDetectionCapability.bindTo(this._contextKeyService);
+		this._terminalHasCwdDetectionCapabilityContextKey.set(false);
 
 		this._fontMetrics = this._register(new TerminalFontMetrics(this, this._configurationService));
 
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
 				this._updateConfig();
-				this._terminalSettingShellIntegrationEnabled.set(this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled));
 			}
 		}));
 	}
@@ -51,6 +48,9 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 	setPanelContainer(panelContainer: HTMLElement): void { return this._fontMetrics.setPanelContainer(panelContainer); }
 	configFontIsMonospace(): boolean { return this._fontMetrics.configFontIsMonospace(); }
 	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont { return this._fontMetrics.getFont(w, xtermCore, excludeDimensions); }
+	updateHasCwdDetectionCapability(hasCwdDetection: boolean): void {
+		this._terminalHasCwdDetectionCapabilityContextKey.set(hasCwdDetection);
+	}
 
 	private _updateConfig(): void {
 		const configValues = { ...this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION) };

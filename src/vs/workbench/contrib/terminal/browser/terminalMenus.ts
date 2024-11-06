@@ -191,9 +191,9 @@ export function setupTerminalMenus(): void {
 					command: {
 						id: TerminalCommandId.RevealInFinder,
 						title: localize('workbench.action.terminal.revealInFinder', "Reveal Current Working Directory in Finder"),
+						precondition: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalHasCwdDetectionCapability, true)
 					},
 					group: ContextMenuGroup.Navigation,
-					when: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalSettingShellIntegrationEnabled, true)
 				},
 			},
 			{
@@ -202,9 +202,9 @@ export function setupTerminalMenus(): void {
 					command: {
 						id: TerminalCommandId.RevealInExplorer,
 						title: localize('workbench.action.terminal.revealInExplorer', "Reveal Current Working Directory in Explorer"),
+						precondition: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalHasCwdDetectionCapability, true)
 					},
 					group: ContextMenuGroup.Navigation,
-					when: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalSettingShellIntegrationEnabled, true)
 				}
 			},
 			{
@@ -213,9 +213,9 @@ export function setupTerminalMenus(): void {
 					command: {
 						id: TerminalCommandId.RevealInExternalTerminal,
 						title: localize('workbench.action.terminal.revealInExternalTerminal', "Reveal Current Working Directory in External Terminal"),
+						precondition: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalHasCwdDetectionCapability, true)
 					},
 					group: ContextMenuGroup.Navigation,
-					when: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalSettingShellIntegrationEnabled, true)
 				}
 			}
 		]

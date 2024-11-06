@@ -373,6 +373,7 @@ export interface ITerminalConfigurationService {
 	setPanelContainer(panelContainer: HTMLElement): void;
 	configFontIsMonospace(): boolean;
 	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont;
+	updateHasCwdDetectionCapability(hasCwdDetection: boolean): void;
 }
 
 export class TerminalLinkQuickPickEvent extends MouseEvent {
