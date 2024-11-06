@@ -4511,12 +4511,18 @@ export class ChatResponseMovePart {
 	}
 }
 
-export class ChatResponseTextEditPart {
+export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart {
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
-	constructor(uri: vscode.Uri, edits: vscode.TextEdit | vscode.TextEdit[]) {
+	isDone?: boolean;
+	constructor(uri: vscode.Uri, editsOrDone: vscode.TextEdit | vscode.TextEdit[] | true) {
 		this.uri = uri;
-		this.edits = Array.isArray(edits) ? edits : [edits];
+		if (editsOrDone === true) {
+			this.isDone = true;
+			this.edits = [];
+		} else {
+			this.edits = Array.isArray(editsOrDone) ? editsOrDone : [editsOrDone];
+		}
 	}
 }
 
@@ -4659,16 +4665,11 @@ export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPa
 	name: string;
 	input: any;
 
-	/** @deprecated */
-	parameters: any;
-
 	constructor(callId: string, name: string, input: any) {
 		this.callId = callId;
 		this.name = name;
 
 		this.input = input;
-		// TODO@API backwards compat, remove
-		this.parameters = input;
 	}
 }
 

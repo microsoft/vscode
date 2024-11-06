@@ -32,7 +32,7 @@ import { TerminalTabbedView } from './terminalTabbedView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getColorForSeverity } from './terminalStatusList.js';
-import { createAndFillInContextMenuActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatContextMenuActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -268,8 +268,7 @@ export class TerminalViewPane extends ViewPane {
 			}
 			case TerminalCommandId.Focus: {
 				if (action instanceof MenuItemAction) {
-					const actions: IAction[] = [];
-					createAndFillInContextMenuActions(this._singleTabMenu, { shouldForwardArgs: true }, actions);
+					const actions = getFlatContextMenuActions(this._singleTabMenu.getActions({ shouldForwardArgs: true }));
 					return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
 				}
 			}

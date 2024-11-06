@@ -2407,7 +2407,7 @@ export namespace LanguageModelChatMessage {
 					type: 'tool_use',
 					toolCallId: c.callId,
 					name: c.name,
-					parameters: c.input ?? c.parameters
+					parameters: c.input
 				};
 			} else if (c instanceof types.LanguageModelTextPart) {
 				return {
@@ -2640,11 +2640,14 @@ export namespace ChatResponseTextEditPart {
 		return {
 			kind: 'textEdit',
 			uri: part.uri,
-			edits: part.edits.map(e => TextEdit.from(e))
+			edits: part.edits.map(e => TextEdit.from(e)),
+			done: part.isDone
 		};
 	}
 	export function to(part: Dto<IChatTextEdit>): vscode.ChatResponseTextEditPart {
-		return new types.ChatResponseTextEditPart(URI.revive(part.uri), part.edits.map(e => TextEdit.to(e)));
+		const result = new types.ChatResponseTextEditPart(URI.revive(part.uri), part.edits.map(e => TextEdit.to(e)));
+		result.isDone = part.done;
+		return result;
 	}
 
 }
@@ -2973,13 +2976,12 @@ export namespace DebugTreeItem {
 }
 
 export namespace LanguageModelToolDescription {
-	export function to(item: IToolData): vscode.LanguageModelToolInformation & { parametersSchema: any } {
+	export function to(item: IToolData): vscode.LanguageModelToolInformation {
 		return {
 			// Note- the reason this is a unique 'name' is just to avoid confusion with the toolCallId
 			name: item.id,
 			description: item.modelDescription,
 			inputSchema: item.inputSchema,
-			parametersSchema: item.inputSchema, // TODO@API backwards compat, remove
 			tags: item.tags ?? [],
 		};
 	}

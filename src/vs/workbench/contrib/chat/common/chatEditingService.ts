@@ -36,7 +36,6 @@ export interface IChatEditingService {
 	readonly editingSessionFileLimit: number;
 
 	startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession>;
-	triggerEditComputation(responseModel: IChatResponseModel): Promise<void>;
 	getEditingSession(resource: URI): IChatEditingSession | null;
 	createSnapshot(requestId: string): void;
 	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
@@ -88,7 +87,7 @@ export interface IModifiedFileEntry {
 }
 
 export interface IChatEditingSessionStream {
-	textEdits(resource: URI, textEdits: TextEdit[], responseModel: IChatResponseModel): void;
+	textEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
 }
 
 export const enum ChatEditingSessionState {
@@ -115,4 +114,13 @@ export const defaultChatEditingMaxFileLimit = 10;
 export const enum ChatEditKind {
 	Created,
 	Modified,
+}
+
+export interface IChatEditingActionContext {
+	// The chat session ID that this editing session is associated with
+	sessionId: string;
+}
+
+export function isChatEditingActionContext(thing: unknown): thing is IChatEditingActionContext {
+	return typeof thing === 'object' && !!thing && 'sessionId' in thing;
 }

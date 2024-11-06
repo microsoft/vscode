@@ -17,7 +17,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ISeparator, template } from '../../../../base/common/labels.js';
-import { Disposable, DisposableStore, IDisposable, ImmortalReference, MutableDisposable, dispose, toDisposable, type IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, ImmortalReference, MutableDisposable, dispose, toDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as path from '../../../../base/common/path.js';
 import { OS, OperatingSystem, isMacintosh, isWindows } from '../../../../base/common/platform.js';
@@ -446,13 +446,32 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
 		this._register(this.capabilities.onDidAddCapabilityType(e => this._logService.debug('terminalInstance added capability', e)));
 		this._register(this.capabilities.onDidRemoveCapabilityType(e => this._logService.debug('terminalInstance removed capability', e)));
-		this._register(this.capabilities.onDidAddCapabilityType(e => {
-			if (e === TerminalCapability.CwdDetection) {
-				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(e => {
-					this._cwd = e;
-					this._setTitle(this.title, TitleEventSource.Config);
-				});
+
+		const capabilityListeners = this._register(new DisposableMap<TerminalCapability, IDisposable>());
+		this._register(this.capabilities.onDidAddCapabilityType(capability => {
+			capabilityListeners.get(capability)?.dispose();
+			if (capability === TerminalCapability.CwdDetection) {
+				const cwdDetection = this.capabilities.get(capability);
+				if (cwdDetection) {
+					capabilityListeners.set(capability, cwdDetection.onDidChangeCwd(e => {
+						this._cwd = e;
+						this._setTitle(this.title, TitleEventSource.Config);
+					}));
+				}
 			}
+			if (capability === TerminalCapability.CommandDetection) {
+				const commandDetection = this.capabilities.get(capability);
+				if (commandDetection) {
+					capabilityListeners.set(capability, Event.any(
+						commandDetection.promptInputModel.onDidStartInput,
+						commandDetection.promptInputModel.onDidChangeInput,
+						commandDetection.promptInputModel.onDidFinishInput
+					)(() => this._labelComputer?.refreshLabel(this)));
+				}
+			}
+		}));
+		this._register(this.capabilities.onDidRemoveCapabilityType(capability => {
+			capabilityListeners.get(capability)?.dispose();
 		}));
 
 		// Resolve just the icon ahead of time so that it shows up immediately in the tabs. This is
@@ -2437,6 +2456,9 @@ interface ITerminalLabelTemplateProperties {
 	task?: string | null | undefined;
 	fixedDimensions?: string | null | undefined;
 	separator?: string | ISeparator | null | undefined;
+	shellType?: string | undefined;
+	shellCommand?: string | undefined;
+	shellPrompt?: string | undefined;
 }
 
 const enum TerminalLabelType {
@@ -2461,7 +2483,7 @@ export class TerminalLabelComputer extends Disposable {
 		super();
 	}
 
-	refreshLabel(instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>, reset?: boolean): void {
+	refreshLabel(instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>, reset?: boolean): void {
 		this._title = this.computeLabel(instance, this._terminalConfigurationService.config.tabs.title, TerminalLabelType.Title, reset);
 		this._description = this.computeLabel(instance, this._terminalConfigurationService.config.tabs.description, TerminalLabelType.Description);
 		if (this._title !== instance.title || this._description !== instance.description || reset) {
@@ -2470,12 +2492,13 @@ export class TerminalLabelComputer extends Disposable {
 	}
 
 	computeLabel(
-		instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
+		instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
 		labelTemplate: string,
 		labelType: TerminalLabelType,
 		reset?: boolean
 	) {
 		const type = instance.shellLaunchConfig.attachPersistentProcess?.type || instance.shellLaunchConfig.type;
+		const promptInputModel = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel;
 		const templateProperties: ITerminalLabelTemplateProperties = {
 			cwd: instance.cwd || instance.initialCwd || '',
 			cwdFolder: '',
@@ -2488,7 +2511,10 @@ export class TerminalLabelComputer extends Disposable {
 			fixedDimensions: instance.fixedCols
 				? (instance.fixedRows ? `\u2194${instance.fixedCols} \u2195${instance.fixedRows}` : `\u2194${instance.fixedCols}`)
 				: (instance.fixedRows ? `\u2195${instance.fixedRows}` : ''),
-			separator: { label: this._terminalConfigurationService.config.tabs.separator }
+			separator: { label: this._terminalConfigurationService.config.tabs.separator },
+			shellType: instance.shellType,
+			shellCommand: promptInputModel?.value,
+			shellPrompt: promptInputModel?.getCombinedString(true),
 		};
 		templateProperties.workspaceFolderName = instance.workspaceFolder?.name ?? templateProperties.workspaceFolder;
 		labelTemplate = labelTemplate.trim();

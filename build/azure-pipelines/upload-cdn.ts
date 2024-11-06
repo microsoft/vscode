@@ -9,11 +9,11 @@ import * as vfs from 'vinyl-fs';
 import * as filter from 'gulp-filter';
 import * as gzip from 'gulp-gzip';
 import * as mime from 'mime';
-import { ClientSecretCredential } from '@azure/identity';
+import { ClientAssertionCredential } from '@azure/identity';
 const azure = require('gulp-azure-storage');
 
 const commit = process.env['BUILD_SOURCEVERSION'];
-const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
+const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
 
 mime.define({
 	'application/typescript': ['ts'],

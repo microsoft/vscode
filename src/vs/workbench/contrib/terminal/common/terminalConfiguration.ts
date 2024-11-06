@@ -24,6 +24,9 @@ const terminalDescriptors = '\n- ' + [
 	'`\${separator}`: ' + localize('separator', "a conditional separator {0} that only shows when surrounded by variables with values or static text.", '(` - `)'),
 	'`\${sequence}`: ' + localize('sequence', "the name provided to the terminal by the process"),
 	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task"),
+	'`\${shellType}`: ' + localize('shellType', "the detected shell type"),
+	'`\${shellCommand}`: ' + localize('shellCommand', "the command being executed according to shell integration"),
+	'`\${shellPrompt}`: ' + localize('shellPrompt', "the shell's full prompt according to shell integration"),
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
 let terminalTitle = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
@@ -171,12 +174,12 @@ const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal. Defaults to {0}'s value.", '`#editor.fontFamily#`'),
 			type: 'string'
 		},
-		// TODO: Support font ligatures
-		// 'terminal.integrated.fontLigatures': {
-		// 	'description': localize('terminal.integrated.fontLigatures', "Controls whether font ligatures are enabled in the terminal."),
-		// 	'type': 'boolean',
-		// 	'default': false
-		// },
+		[TerminalSettingId.FontLigatures]: {
+			markdownDescription: localize('terminal.integrated.fontLigatures', "Controls whether font ligatures are enabled in the terminal. Ligatures will only work if the configured {0} supports them.", `\`#${TerminalSettingId.FontFamily}#\``),
+			type: 'boolean',
+			tags: ['preview'],
+			default: false
+		},
 		[TerminalSettingId.FontSize]: {
 			description: localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal."),
 			type: 'number',

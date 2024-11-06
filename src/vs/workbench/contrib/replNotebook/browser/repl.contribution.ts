@@ -3,52 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
-import { EditorExtensions, IEditorControl, IEditorFactoryRegistry, IEditorSerializer } from '../../../common/editor.js';
+import { Event } from '../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { parse } from '../../../../base/common/marshalling.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { EditorInput } from '../../../common/editor/editorInput.js';
-import { CellEditType, CellKind, NotebookSetting, NotebookWorkingCopyTypeIdentifier, REPL_EDITOR_ID } from '../../notebook/common/notebookCommon.js';
-import { NotebookEditorInputOptions } from '../../notebook/common/notebookEditorInput.js';
-import { isReplEditorControl, ReplEditor, ReplEditorControl } from './replEditor.js';
-import { ReplEditorInput } from './replEditorInput.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { IWorkingCopyIdentifier } from '../../../services/workingCopy/common/workingCopy.js';
-import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import { INotebookService } from '../../notebook/common/notebookService.js';
-import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { INotebookEditorModelResolverService } from '../../notebook/common/notebookEditorModelResolverService.js';
-import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { IBulkEditService } from '../../../../editor/browser/services/bulkEditService.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
-import { ResourceNotebookCellEdit } from '../../bulkEdit/browser/bulkCellEdits.js';
-import { IInteractiveHistoryService } from '../../interactive/browser/interactiveHistoryService.js';
-import { NotebookEditorWidget } from '../../notebook/browser/notebookEditorWidget.js';
-import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
+import { localize2 } from '../../../../nls.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { EditorExtensions, IEditorControl, IEditorFactoryRegistry, IEditorSerializer } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IWorkingCopyIdentifier } from '../../../services/workingCopy/common/workingCopy.js';
+import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
+import { ResourceNotebookCellEdit } from '../../bulkEdit/browser/bulkCellEdits.js';
 import { getReplView } from '../../debug/browser/repl.js';
 import { REPL_VIEW_ID } from '../../debug/common/debug.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { localize2 } from '../../../../nls.js';
-import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from '../../notebook/browser/controller/coreActions.js';
-import * as icons from '../../notebook/browser/notebookIcons.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { INotebookEditorOptions } from '../../notebook/browser/notebookBrowser.js';
 import { InlineChatController } from '../../inlineChat/browser/inlineChatController.js';
+import { IInteractiveHistoryService } from '../../interactive/browser/interactiveHistoryService.js';
+import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from '../../notebook/browser/controller/coreActions.js';
+import { INotebookEditorOptions } from '../../notebook/browser/notebookBrowser.js';
+import { NotebookEditorWidget } from '../../notebook/browser/notebookEditorWidget.js';
+import * as icons from '../../notebook/browser/notebookIcons.js';
+import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
+import { CellEditType, CellKind, NotebookSetting, NotebookWorkingCopyTypeIdentifier, REPL_EDITOR_ID } from '../../notebook/common/notebookCommon.js';
+import { NotebookEditorInputOptions } from '../../notebook/common/notebookEditorInput.js';
+import { INotebookEditorModelResolverService } from '../../notebook/common/notebookEditorModelResolverService.js';
+import { INotebookService } from '../../notebook/common/notebookService.js';
+import { isReplEditorControl, ReplEditor, ReplEditorControl } from './replEditor.js';
 import { ReplEditorAccessibilityHelp } from './replEditorAccessibilityHelp.js';
-import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ReplEditorInput } from './replEditorInput.js';
 
 type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions; label?: string };
 class ReplEditorSerializer implements IEditorSerializer {
@@ -101,6 +103,8 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 
 	static readonly ID = 'workbench.contrib.replDocument';
 
+	private readonly editorInputCache = new ResourceMap<ReplEditorInput>();
+
 	constructor(
 		@INotebookService notebookService: INotebookService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
@@ -126,8 +130,18 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 			},
 			{
 				createUntitledEditorInput: async ({ resource, options }) => {
+					if (resource) {
+						const editor = this.editorInputCache.get(resource);
+						if (editor && !editor.isDisposed()) {
+							return { editor, options };
+						} else if (editor) {
+							this.editorInputCache.delete(resource);
+						}
+					}
 					const scratchpad = this.configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
 					const ref = await this.notebookEditorModelResolverService.resolve({ untitledResource: resource }, 'jupyter-notebook', { scratchpad, viewType: 'repl' });
+
+					const notebookUri = ref.object.notebook.uri;
 
 					// untitled notebooks are disposed when they get saved. we should not hold a reference
 					// to such a disposed notebook and therefore dispose the reference as well
@@ -135,11 +149,23 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 						ref.dispose();
 					});
 					const label = (options as INotebookEditorOptions)?.label ?? undefined;
-					return { editor: this.instantiationService.createInstance(ReplEditorInput, resource!, label), options };
+					const editor = this.instantiationService.createInstance(ReplEditorInput, notebookUri, label);
+					this.editorInputCache.set(notebookUri, editor);
+					Event.once(editor.onWillDispose)(() => this.editorInputCache.delete(notebookUri));
+
+					return { editor, options };
 				},
 				createEditorInput: async ({ resource, options }) => {
+					if (this.editorInputCache.has(resource)) {
+						return { editor: this.editorInputCache.get(resource)!, options };
+					}
+
 					const label = (options as INotebookEditorOptions)?.label ?? undefined;
-					return { editor: this.instantiationService.createInstance(ReplEditorInput, resource, label), options };
+					const editor = this.instantiationService.createInstance(ReplEditorInput, resource, label);
+					this.editorInputCache.set(resource, editor);
+					Event.once(editor.onWillDispose)(() => this.editorInputCache.delete(resource));
+
+					return { editor, options };
 				}
 			}
 		);
