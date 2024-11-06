@@ -52,7 +52,7 @@ registerEditorCommand(new class extends EditorCommand {
 	}
 });
 
-export type PreferredDropConfiguration = ReadonlyArray<{ readonly kind: string; readonly mimeType?: string }>;
+export type PreferredDropConfiguration = string;
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...editorConfigurationBaseNode,
@@ -60,24 +60,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[dropAsPreferenceConfig]: {
 			type: 'array',
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			description: nls.localize('preferredDescription', "Configures the preferred type of edit to use when dropping content.\n\nThis is an ordered list of edit kinds with optional mime types for the content being dropped. The first available edit of a preferred kind will be used."),
+			description: nls.localize('preferredDescription', "Configures the preferred type of edit to use when dropping content.\n\nThis is an ordered list of edit kinds. The first available edit of a preferred kind will be used."),
 			default: [],
 			items: {
-				type: 'object',
-				required: ['kind'],
-				properties: {
-					mimeType: {
-						type: 'string',
-						description: nls.localize('mimeType', "The optional mime type that this preference applies to. If not provided, the preference will be used for all mime types."),
-					},
-					kind: {
-						type: 'string',
-						description: nls.localize('kind', "The kind identifier of the drop edit."),
-					}
-				},
-				defaultSnippets: [
-					{ body: { kind: '$1' } }
-				]
+				type: 'string',
+				description: nls.localize('kind', "The kind identifier of the drop edit."),
 			}
 		},
 	}
