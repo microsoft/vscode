@@ -13,9 +13,10 @@ import { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
 declare const window: any;
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
-class SecretStorageProvider implements ISecretStorageProvider {
+export class SecretStorageProvider implements ISecretStorageProvider {
 	public type: 'persisted';
-	private getAuthToken: () => Promise<string>;
+	private static instance: SecretStorageProvider;
+	public getAuthToken: () => Promise<string>;
 
 	constructor() {
 		this.type = 'persisted';
@@ -24,6 +25,13 @@ class SecretStorageProvider implements ISecretStorageProvider {
 		(window as any).globalIdeState.getAuthToken = () => {
 			throw new Error('This function is no longer available');
 		};
+	}
+
+	public static getInstance(): SecretStorageProvider {
+		if (!SecretStorageProvider.instance) {
+			SecretStorageProvider.instance = new SecretStorageProvider();
+		}
+		return SecretStorageProvider.instance;
 	}
 
 	async get(key: string): Promise<string | undefined> {
@@ -93,7 +101,7 @@ class SecretStorageProvider implements ISecretStorageProvider {
 		},
 	};
 
-	config.secretStorageProvider = new SecretStorageProvider();
+	config.secretStorageProvider = SecretStorageProvider.getInstance();
 
 	config.commands = [
 		// Used to refresh the page from the extension when a new version of the IDE is known to exist.
@@ -107,8 +115,32 @@ class SecretStorageProvider implements ISecretStorageProvider {
 		}];
 
 	config.homeIndicator = { href: window.location.origin, icon: 'home', title: 'Membrane Home' };
-
 	// eslint-disable-next-line no-restricted-syntax
 	const domElement = document.body;
 	create(domElement, config);
 })();
+
+export async function membraneApi(
+	method: 'GET' | 'POST',
+	path: `/${string}`,
+	body?: BodyInit
+): Promise<Response> {
+	const isDev = window.location.hostname === 'localhost';
+	const baseUrl = isDev ? 'http://localhost:8091' : 'https://api.membrane.io';
+
+	const secretProvider = SecretStorageProvider.getInstance();
+	const token = await secretProvider.getAuthToken();
+
+	if (!token) {
+		throw new Error('Failed to retrieve Membrane API token');
+	}
+
+	return await fetch(`${baseUrl}${path}`, {
+		method,
+		headers: {
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${token}`,
+		},
+		body,
+	});
+}
