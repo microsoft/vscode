@@ -80,6 +80,7 @@ export interface IModifiedFileEntry {
 	readonly modifiedURI: URI;
 	readonly state: IObservable<WorkingSetEntryState>;
 	readonly isCurrentlyBeingModified: IObservable<boolean>;
+	readonly rewriteRatio: IObservable<number>;
 	readonly diffInfo: IObservable<IDocumentDiff>;
 	readonly lastModifyingRequestId: string;
 	accept(transaction: ITransaction | undefined): Promise<void>;
