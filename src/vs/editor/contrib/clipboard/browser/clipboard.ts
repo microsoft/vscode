@@ -14,6 +14,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CopyOptions, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { NativeEditContext } from '../../../browser/controller/editContext/native/nativeEditContext.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { Command, EditorAction, MultiCommand, registerEditorAction } from '../../../browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
@@ -238,10 +239,21 @@ if (PasteAction) {
 			const experimentalEditContextEnabled = focusedEditor.getOption(EditorOption.experimentalEditContextEnabled);
 			if (experimentalEditContextEnabled) {
 				const currentFocusedElement = getActiveWindow().document.activeElement;
-				focusedEditor.getTextAreaDomNode()?.focus();
-				result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
-				if (isHTMLElement(currentFocusedElement)) {
-					currentFocusedElement.focus();
+				// Since we can not call execCommand('paste') on a dom node with edit context set
+				// we added a hidden text area that receives the paste execution
+				// see nativeEditContext.ts for more details
+				const editorDomNode = focusedEditor.getContainerDomNode();
+				const editorDocument = editorDomNode.ownerDocument;
+				const textAreaDomNode = editorDocument.getElementsByClassName(NativeEditContext.TEXT_AREA_CLASS_NAME).item(0);
+				if (textAreaDomNode && isHTMLElement(textAreaDomNode)) {
+					textAreaDomNode.focus();
+					result = editorDocument.execCommand('paste');
+					textAreaDomNode.textContent = '';
+					if (isHTMLElement(currentFocusedElement)) {
+						currentFocusedElement.focus();
+					}
+				} else {
+					result = false;
 				}
 			} else {
 				result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
