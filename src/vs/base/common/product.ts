@@ -204,6 +204,7 @@ export interface IProductConfiguration {
 		readonly icon: string;
 		readonly documentationUrl: string;
 		readonly gettingStartedCommand: string;
+		readonly welcomeTitle: string;
 	};
 }
 
