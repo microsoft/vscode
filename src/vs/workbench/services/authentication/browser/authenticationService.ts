@@ -15,6 +15,7 @@ import { IAuthenticationAccessService } from './authenticationAccessService.js';
 import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationProvider, IAuthenticationService } from '../common/authentication.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { ActivationKind, IExtensionService } from '../../extensions/common/extensions.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 
@@ -64,7 +65,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IAuthenticationAccessService authenticationAccessService: IAuthenticationAccessService,
-		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService
+		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 
@@ -95,6 +97,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			return;
 		}
 		for (const provider of this._environmentService.options.authenticationProviders) {
+			this.registerDeclaredAuthenticationProvider(provider);
 			this.registerAuthenticationProvider(provider.id, provider);
 		}
 	}
@@ -126,6 +129,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	registerAuthenticationProvider(id: string, authenticationProvider: IAuthenticationProvider): void {
+		if (!this._declaredProviders.find(p => p.id === id)) {
+			this._logService.warn(`Registering an authentication provider that is not declared in the Extension Manifest. This may cause unexpected behavior. id: ${id}, label: ${authenticationProvider.label}`);
+		}
 		this._authenticationProviders.set(id, authenticationProvider);
 		const disposableStore = new DisposableStore();
 		disposableStore.add(authenticationProvider.onDidChangeSessions(e => this._onDidChangeSessions.fire({

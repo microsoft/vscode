@@ -38,7 +38,7 @@ class CopyMetadata {
 	}
 }
 
-const settingId = 'experimental.updateImportsOnPaste';
+const enabledSettingId = 'updateImportsOnPaste.enabled';
 
 class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 
@@ -127,6 +127,8 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 		}
 
 		const edit = new vscode.DocumentPasteEdit('', vscode.l10n.t("Paste with imports"), DocumentPasteProvider.kind);
+		edit.yieldTo = [vscode.DocumentDropOrPasteEditKind.Empty.append('text', 'plain')];
+
 		const additionalEdit = new vscode.WorkspaceEdit();
 		for (const edit of response.body.edits) {
 			additionalEdit.set(this._client.toResource(edit.fileName), edit.textChanges.map(typeConverters.TextEdit.fromCodeEdit));
@@ -146,7 +148,7 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 
 	private isEnabled(document: vscode.TextDocument) {
 		const config = vscode.workspace.getConfiguration(this._modeId, document.uri);
-		return config.get(settingId, false);
+		return config.get(enabledSettingId, false);
 	}
 }
 
@@ -154,7 +156,7 @@ export function register(selector: DocumentSelector, language: LanguageDescripti
 	return conditionalRegistration([
 		requireSomeCapability(client, ClientCapability.Semantic),
 		requireMinVersion(client, API.v570),
-		requireGlobalConfiguration(language.id, settingId),
+		requireGlobalConfiguration(language.id, enabledSettingId),
 	], () => {
 		return vscode.languages.registerDocumentPasteEditProvider(selector.semantic, new DocumentPasteProvider(language.id, client), {
 			providedPasteEditKinds: [DocumentPasteProvider.kind],

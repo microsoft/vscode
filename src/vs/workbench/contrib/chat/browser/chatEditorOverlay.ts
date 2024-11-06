@@ -5,23 +5,18 @@
 
 import './media/chatEditorOverlay.css';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
-import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
-import { Separator, toAction } from '../../../../base/common/actions.js';
-import { localize } from '../../../../nls.js';
-import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
-import { Range } from '../../../../editor/common/core/range.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ChatEditorController } from './chatEditorController.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { EDITS_VIEW_ID } from './chat.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 class ChatEditorOverlayWidget implements IOverlayWidget {
 
@@ -33,20 +28,48 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 	private _isAdded: boolean = false;
 	private readonly _showStore = new DisposableStore();
 
+	private readonly _entry = observableValue<IModifiedFileEntry | undefined>(this, undefined);
+
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IViewsService private readonly _viewsService: IViewsService,
 		@IInstantiationService instaService: IInstantiationService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('chat-editor-overlay-widget');
 
-		this._toolbar = instaService.createInstance(WorkbenchToolBar, this._domNode, {
+		this._toolbar = instaService.createInstance(MenuWorkbenchToolBar, this._domNode, MenuId.ChatEditingEditorContent, {
 			telemetrySource: 'chatEditor.overlayToolbar',
+			toolbarOptions: {
+				primaryGroup: () => true,
+				useSeparatorsInPrimaryActions: true
+			},
+			menuOptions: { renderShortTitle: true },
 			actionViewItemProvider: (action, options) => {
-				if (action.id === 'accept' || action.id === 'discard') {
-					return new ActionViewItem(undefined, action, { ...options, label: true, icon: false });
+				if (action.id === 'workbench.action.chat.openEditSession') {
+
+					const that = this;
+
+					return new class extends ActionViewItem {
+						constructor() {
+							super(undefined, action, { ...options });
+							this._store.add(autorun(r => {
+								const entry = that._entry.read(r);
+								entry?.isCurrentlyBeingModified.read(r);
+								this.updateClass();
+							}));
+						}
+						protected override getClass(): string | undefined {
+							const entry = that._entry.get();
+							const busy = entry?.isCurrentlyBeingModified.get();
+							return busy
+								? ThemeIcon.asClassName(ThemeIcon.modify(Codicon.loading, 'spin'))
+								: action.class;
+						}
+					};
+				}
+				if (action.id === 'chatEditor.action.accept' || action.id === 'chatEditor.action.reject') {
+					return new ActionViewItem(undefined, action, { ...options, icon: false, label: true, keybindingNotRenderedWithLabel: true });
 				}
 				return undefined;
 			}
@@ -71,95 +94,9 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 		return { preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER };
 	}
 
-	show(entry: IModifiedFileEntry, prevEntry: IModifiedFileEntry, nextEntry: IModifiedFileEntry) {
+	show(entry: IModifiedFileEntry) {
 
-		this._showStore.clear();
-
-		const ctrl = ChatEditorController.get(this._editor);
-		if (!ctrl) {
-			return;
-		}
-
-		const navigate = (next: boolean) => {
-			const didRevealWithin = next ? ctrl.revealNext(true) : ctrl.revealPrevious(true);
-			if (!didRevealWithin) {
-				reveal(next ? nextEntry : prevEntry);
-			}
-		};
-
-		const reveal = (entry: IModifiedFileEntry) => {
-
-			const change = entry.diffInfo.get().changes.at(0);
-			return this._editorService.openEditor({
-				resource: entry.modifiedURI,
-				options: {
-					selection: change && Range.fromPositions({ lineNumber: change.original.startLineNumber, column: 1 }),
-					revealIfOpened: false,
-					revealIfVisible: false,
-				}
-			}, ACTIVE_GROUP);
-		};
-
-		this._showStore.add(autorun(r => {
-
-			const busy = entry.isCurrentlyBeingModified.read(r);
-			const modified = entry.state.read(r) === WorkingSetEntryState.Modified;
-
-			this._domNode.classList.toggle('busy', busy);
-
-			const groups = [[
-				toAction({
-					id: 'open',
-					label: localize('open', 'Open Chat Edit'),
-					class: ThemeIcon.asClassName(busy
-						? ThemeIcon.modify(Codicon.loading, 'spin')
-						: Codicon.goToEditingSession),
-					run: async () => {
-						await this._viewsService.openView(EDITS_VIEW_ID);
-					}
-				}),
-				toAction({
-					id: 'accept',
-					label: localize('accept', 'Accept'),
-					tooltip: localize('acceptTooltip', 'Accept Chat Edits'),
-					class: ThemeIcon.asClassName(Codicon.check),
-					enabled: !busy && modified,
-					run: () => {
-						entry.accept(undefined);
-						reveal(nextEntry);
-					}
-				}),
-				toAction({
-					id: 'discard',
-					label: localize('discard', 'Discard'),
-					tooltip: localize('discardTooltip', 'Discard Chat Edits'),
-					class: ThemeIcon.asClassName(Codicon.discard),
-					enabled: !busy && modified,
-					run: () => {
-						entry.reject(undefined);
-						reveal(nextEntry);
-					}
-				}),
-			], [
-				toAction({
-					id: 'prev',
-					label: localize('prev', 'Previous Entry'),
-					class: ThemeIcon.asClassName(Codicon.arrowUp),
-					enabled: entry !== prevEntry,
-					run: () => navigate(false)
-				}),
-				toAction({
-					id: 'next',
-					label: localize('next', 'Next Entry'),
-					class: ThemeIcon.asClassName(Codicon.arrowDown),
-					enabled: entry !== nextEntry,
-					run: () => navigate(true)
-				})
-			]];
-
-			const actions = Separator.join(...groups);
-			this._toolbar.setActions(actions);
-		}));
+		this._entry.set(entry, undefined);
 
 		if (!this._isAdded) {
 			this._editor.addOverlayWidget(this);
@@ -168,6 +105,9 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 	}
 
 	hide() {
+
+		this._entry.set(undefined, undefined);
+
 		if (this._isAdded) {
 			this._editor.removeOverlayWidget(this);
 			this._isAdded = false;
@@ -222,10 +162,7 @@ export class ChatEditorOverlayController implements IEditorContribution {
 			}
 
 			const entry = entries[idx];
-			const prevEntry = entries[(idx - 1 + entries.length) % entries.length];
-			const nextEntry = entries[(idx + 1) % entries.length];
-
-			widget.show(entry, prevEntry, nextEntry);
+			widget.show(entry);
 
 		}));
 	}
