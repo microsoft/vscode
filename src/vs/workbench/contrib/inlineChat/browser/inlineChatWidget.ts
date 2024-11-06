@@ -23,7 +23,7 @@ import { Selection } from '../../../../editor/common/core/selection.js';
 import { DetailedLineRangeMapping, RangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { ICodeEditorViewState, ScrollType } from '../../../../editor/common/editorCommon.js';
 import { ITextModel } from '../../../../editor/common/model.js';
-import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -426,7 +426,7 @@ export class InlineChatWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	async getCodeBlockInfo(codeBlockIndex: number): Promise<IResolvedTextEditorModel | undefined> {
+	async getCodeBlockInfo(codeBlockIndex: number): Promise<ITextModel | undefined> {
 		const { viewModel } = this._chatWidget;
 		if (!viewModel) {
 			return undefined;

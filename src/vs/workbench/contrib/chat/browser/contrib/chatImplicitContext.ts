@@ -7,9 +7,11 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { IBaseChatRequestVariableEntry, IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
@@ -20,7 +22,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 
 	constructor(
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IEditorService editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
@@ -30,7 +32,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			editorService.onDidActiveEditorChange,
 			(() => {
 				activeEditorDisposables.clear();
-				const codeEditor = codeEditorService.getActiveCodeEditor();
+				const codeEditor = this.findActiveCodeEditor();
 				if (codeEditor) {
 					activeEditorDisposables.add(Event.debounce(
 						Event.any(
@@ -46,8 +48,34 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		this._register(chatWidgetService.onDidAddWidget(widget => this.updateImplicitContext(widget)));
 	}
 
-	private updateImplicitContext(updateWidget?: IChatWidget): void {
+	private findActiveCodeEditor(): ICodeEditor | undefined {
 		const codeEditor = this.codeEditorService.getActiveCodeEditor();
+		if (codeEditor) {
+			const model = codeEditor.getModel();
+			if (model) {
+				return codeEditor;
+			}
+		}
+		for (const codeOrDiffEditor of this.editorService.getVisibleTextEditorControls(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
+			let codeEditor: ICodeEditor;
+			if (isDiffEditor(codeOrDiffEditor)) {
+				codeEditor = codeOrDiffEditor.getModifiedEditor();
+			} else if (isCodeEditor(codeOrDiffEditor)) {
+				codeEditor = codeOrDiffEditor;
+			} else {
+				continue;
+			}
+
+			const model = codeEditor.getModel();
+			if (model) {
+				return codeEditor;
+			}
+		}
+		return undefined;
+	}
+
+	private updateImplicitContext(updateWidget?: IChatWidget): void {
+		const codeEditor = this.findActiveCodeEditor();
 		const model = codeEditor?.getModel();
 		const selection = codeEditor?.getSelection();
 		let newValue: Location | URI | undefined;
@@ -72,7 +100,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			}
 		}
 
-		const widgets = updateWidget ? [updateWidget] : this.chatWidgetService.getAllWidgets(ChatAgentLocation.Panel);
+		const widgets = updateWidget ? [updateWidget] : [...this.chatWidgetService.getAllWidgets(ChatAgentLocation.Panel), ...this.chatWidgetService.getAllWidgets(ChatAgentLocation.Editor)];
 		for (const widget of widgets) {
 			if (widget.input.implicitContext) {
 				widget.input.implicitContext.setValue(newValue, isSelection);

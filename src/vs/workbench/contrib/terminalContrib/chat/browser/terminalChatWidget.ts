@@ -27,6 +27,7 @@ import { IChatService, IChatProgress } from '../../../chat/common/chatService.js
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import type { IChatViewState } from '../../../chat/browser/chatWidget.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -66,7 +67,8 @@ export class TerminalChatWidget extends Disposable {
 
 	private _messages = this._store.add(new Emitter<Message>());
 
-	private _storageKey = 'terminal-inline-chat-history';
+	private _historyStorageKey = 'terminal-inline-chat-history';
+	private _viewStateStorageKey = 'terminal-inline-chat-view-state';
 	private _promptHistory: string[] = [];
 
 	private _lastResponseContent: string | undefined;
@@ -144,8 +146,9 @@ export class TerminalChatWidget extends Disposable {
 				this._updateToolbar();
 			}
 		}));
-		this._register(this._inlineChatWidget.chatWidget.onDidChangeViewModel(async () => {
-			await this._updateToolbar();
+		this._register(this._inlineChatWidget.chatWidget.onDidChangeViewModel(() => {
+			this._updateToolbar();
+			this._saveViewState();
 		}));
 		this._register(Event.any(
 			this._inlineChatWidget.onDidChangeHeight,
@@ -171,7 +174,7 @@ export class TerminalChatWidget extends Disposable {
 		this._responseContainsCodeBlockContextKey = TerminalChatContextKeys.responseContainsCodeBlock.bindTo(this._contextKeyService);
 		this._responseContainsMulitpleCodeBlocksContextKey = TerminalChatContextKeys.responseContainsMultipleCodeBlocks.bindTo(this._contextKeyService);
 
-		this._promptHistory = JSON.parse(this._storageService.get(this._storageKey, StorageScope.PROFILE, '[]'));
+		this._promptHistory = JSON.parse(this._storageService.get(this._historyStorageKey, StorageScope.PROFILE, '[]'));
 		this._historyUpdate = (prompt: string) => {
 			const idx = this._promptHistory.indexOf(prompt);
 			if (idx >= 0) {
@@ -180,7 +183,7 @@ export class TerminalChatWidget extends Disposable {
 			this._promptHistory.unshift(prompt);
 			this._historyOffset = -1;
 			this._historyCandidate = '';
-			this._storageService.store(this._storageKey, JSON.stringify(this._promptHistory), StorageScope.PROFILE, StorageTarget.USER);
+			this._storageService.store(this._historyStorageKey, JSON.stringify(this._promptHistory), StorageScope.PROFILE, StorageTarget.USER);
 		};
 	}
 
@@ -232,11 +235,10 @@ export class TerminalChatWidget extends Disposable {
 
 	private _reset() {
 		this.inlineChatWidget.placeholder = terminalChatPlaceholder;
-		this._inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated commands may be incorrect"));
 	}
 
-	async reveal(): Promise<void> {
-		await this._createSession();
+	async reveal(viewState?: IChatViewState): Promise<void> {
+		await this._createSession(viewState);
 		this._doLayout(this._inlineChatWidget.contentHeight);
 		this._container.classList.remove('hide');
 		this._visibleContextKey.set(true);
@@ -319,7 +321,7 @@ export class TerminalChatWidget extends Disposable {
 		if (!code) {
 			return;
 		}
-		const value = code.textEditorModel.getValue();
+		const value = code.getValue();
 		this._instance.runCommand(value, shouldExecute);
 		this.hide();
 	}
@@ -328,13 +330,13 @@ export class TerminalChatWidget extends Disposable {
 		return this._focusTracker;
 	}
 
-	private async _createSession(): Promise<void> {
+	private async _createSession(viewState?: IChatViewState): Promise<void> {
 		this._sessionCtor = createCancelablePromise<void>(async token => {
 			if (!this._model.value) {
 				this._model.value = this._chatService.startSession(ChatAgentLocation.Terminal, token);
 				const model = this._model.value;
 				if (model) {
-					this._inlineChatWidget.setChatModel(model);
+					this._inlineChatWidget.setChatModel(model, this._loadViewState());
 				}
 				if (!this._model.value) {
 					throw new Error('Failed to start chat session');
@@ -342,6 +344,23 @@ export class TerminalChatWidget extends Disposable {
 			}
 		});
 		this._register(toDisposable(() => this._sessionCtor?.cancel()));
+	}
+
+	private _loadViewState() {
+		const rawViewState = this._storageService.get(this._viewStateStorageKey, StorageScope.PROFILE, undefined);
+		let viewState: IChatViewState | undefined;
+		if (rawViewState) {
+			try {
+				viewState = JSON.parse(rawViewState);
+			} catch {
+				viewState = undefined;
+			}
+		}
+		return viewState;
+	}
+
+	private _saveViewState() {
+		this._storageService.store(this._viewStateStorageKey, JSON.stringify(this._inlineChatWidget.chatWidget.getViewState()), StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private _forcedPlaceholder: string | undefined = undefined;

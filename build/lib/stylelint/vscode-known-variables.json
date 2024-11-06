@@ -782,6 +782,8 @@
 		"--vscode-testing-uncoveredBorder",
 		"--vscode-testing-uncoveredBranchBackground",
 		"--vscode-testing-uncoveredGutterBackground",
+		"--vscode-testing-message-error-badgeForeground",
+		"--vscode-testing-message-error-badgeBackground",
 		"--vscode-textBlockQuote-background",
 		"--vscode-textBlockQuote-border",
 		"--vscode-textCodeBlock-background",

@@ -73,6 +73,11 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		return this._isCurrentlyBeingModifiedObs;
 	}
 
+	private readonly _rewriteRatioObs = observableValue<number>(this, 0);
+	public get rewriteRatio(): IObservable<number> {
+		return this._rewriteRatioObs;
+	}
+
 	private _isFirstEditAfterStartOrSnapshot: boolean = true;
 	private _edit: OffsetEdit = OffsetEdit.empty;
 	private _isEditFromUs: boolean = false;
@@ -198,12 +203,16 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	}
 
 	acceptStreamingEditsStart(tx: ITransaction) {
-		this._isCurrentlyBeingModifiedObs.set(false, tx);
-		this._clearCurrentEditLineDecoration();
+		this._resetEditsState(tx);
 	}
 
 	acceptStreamingEditsEnd(tx: ITransaction) {
+		this._resetEditsState(tx);
+	}
+
+	private _resetEditsState(tx: ITransaction): void {
 		this._isCurrentlyBeingModifiedObs.set(false, tx);
+		this._rewriteRatioObs.set(0, tx);
 		this._clearCurrentEditLineDecoration();
 	}
 
@@ -270,7 +279,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._updateDiffInfoSeq(!this._isEditFromUs);
 	}
 
-	acceptAgentEdits(textEdits: TextEdit[]): void {
+	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean): void {
 
 		// highlight edits
 		this._editDecorations = this.doc.deltaDecorations(this._editDecorations, textEdits.map(edit => {
@@ -289,11 +298,23 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			this._undoRedoService.pushElement(new SingleModelEditStackElement(label, 'chat.edit', this.doc, null));
 		}
 
-		this._applyEdits(textEdits.map(TextEdit.asEditOperation));
+		const ops = textEdits.map(TextEdit.asEditOperation);
+		this._applyEdits(ops);
 
 		transaction((tx) => {
-			this._stateObs.set(WorkingSetEntryState.Modified, tx);
-			this._isCurrentlyBeingModifiedObs.set(true, tx);
+			if (!isLastEdits) {
+				this._stateObs.set(WorkingSetEntryState.Modified, tx);
+				this._isCurrentlyBeingModifiedObs.set(true, tx);
+				if (ops.length > 0) {
+					const maxLineNumber = ops.reduce((max, op) => Math.max(max, op.range.endLineNumber), 0);
+					const lineCount = this.doc.getLineCount();
+					this._rewriteRatioObs.set(Math.min(1, maxLineNumber / lineCount), tx);
+				}
+			} else {
+				this._resetEditsState(tx);
+				this._updateDiffInfoSeq(true);
+				this._rewriteRatioObs.set(1, tx);
+			}
 		});
 	}
 
@@ -318,6 +339,10 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 	private async _updateDiffInfo(fast: boolean): Promise<void> {
 
+		if (this.docSnapshot.isDisposed() || this.doc.isDisposed()) {
+			return;
+		}
+
 		const docVersionNow = this.doc.getVersionId();
 		const snapshotVersionNow = this.docSnapshot.getVersionId();
 
@@ -330,6 +355,10 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			),
 			timeout(fast ? 50 : 800) // DON't diff too fast
 		]);
+
+		if (this.docSnapshot.isDisposed() || this.doc.isDisposed()) {
+			return;
+		}
 
 		// only update the diff if the documents didn't change in the meantime
 		if (this.doc.getVersionId() === docVersionNow && this.docSnapshot.getVersionId() === snapshotVersionNow) {
@@ -346,6 +375,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		}
 
 		this.docSnapshot.setValue(this.doc.createSnapshot());
+		this._edit = OffsetEdit.empty;
 		this._stateObs.set(WorkingSetEntryState.Accepted, transaction);
 		await this.collapse(transaction);
 		this._notifyAction('accepted');

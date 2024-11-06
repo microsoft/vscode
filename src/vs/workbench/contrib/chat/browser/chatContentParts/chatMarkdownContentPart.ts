@@ -14,9 +14,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
 import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
-import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -83,7 +84,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					return hideEmptyCodeblock;
 				}
 				const index = codeBlockIndex++;
-				let textModel: Promise<IResolvedTextEditorModel>;
+				let textModel: Promise<ITextModel>;
 				let range: Range | undefined;
 				let vulns: readonly IMarkdownVulnerability[] | undefined;
 				let codemapperUri: URI | undefined;
@@ -91,24 +92,24 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					try {
 						const parsedBody = parseLocalFileData(text);
 						range = parsedBody.range && Range.lift(parsedBody.range);
-						textModel = this.textModelService.createModelReference(parsedBody.uri).then(ref => ref.object);
+						textModel = this.textModelService.createModelReference(parsedBody.uri).then(ref => ref.object.textEditorModel);
 					} catch (e) {
 						return $('div');
 					}
 				} else {
 					const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
 					const modelEntry = this.codeBlockModelCollection.getOrCreate(sessionId, element, index);
-					const fastUpdateModelEntry = this.codeBlockModelCollection.updateSync(sessionId, element, index, { text, languageId });
+					const fastUpdateModelEntry = this.codeBlockModelCollection.updateSync(sessionId, element, index, { text, languageId, isComplete: isCodeBlockComplete });
 					vulns = modelEntry.vulns;
 					codemapperUri = fastUpdateModelEntry.codemapperUri;
 					textModel = modelEntry.model;
 				}
 
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
-				const codeBlockInfo = { languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns, codemapperUri };
+				const codeBlockInfo: ICodeBlockData = { languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns, codemapperUri };
 
 				if (!rendererOptions.renderCodeBlockPills || element.isCompleteAddedRequest || !codemapperUri) {
-					const ref = this.renderCodeBlock(codeBlockInfo, text, currentWidth, rendererOptions.editableCodeBlock);
+					const ref = this.renderCodeBlock(codeBlockInfo, text, isCodeBlockComplete, currentWidth, rendererOptions.editableCodeBlock);
 					this.allRefs.push(ref);
 
 					// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
@@ -143,7 +144,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					const ref = this.renderCodeBlockPill(element.sessionId, requestId, codeBlockInfo.codemapperUri, !isStreaming);
 					if (isResponseVM(codeBlockInfo.element)) {
 						// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
-						this.codeBlockModelCollection.update(codeBlockInfo.element.sessionId, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId }).then((e) => {
+						this.codeBlockModelCollection.update(codeBlockInfo.element.sessionId, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId, isComplete: isCodeBlockComplete }).then((e) => {
 							// Update the existing object's codemapperUri
 							this.codeblocks[codeBlockInfo.codeBlockIndex].codemapperUri = e.codemapperUri;
 							this._onDidChangeHeight.fire();
@@ -194,11 +195,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		};
 	}
 
-	private renderCodeBlock(data: ICodeBlockData, text: string, currentWidth: number, editableCodeBlock: boolean | undefined): IDisposableReference<CodeBlockPart> {
+	private renderCodeBlock(data: ICodeBlockData, text: string, isComplete: boolean, currentWidth: number, editableCodeBlock: boolean | undefined): IDisposableReference<CodeBlockPart> {
 		const ref = this.editorPool.get();
 		const editorInfo = ref.object;
 		if (isResponseVM(data.element)) {
-			this.codeBlockModelCollection.update(data.element.sessionId, data.element, data.codeBlockIndex, { text, languageId: data.languageId }).then((e) => {
+			this.codeBlockModelCollection.update(data.element.sessionId, data.element, data.codeBlockIndex, { text, languageId: data.languageId, isComplete }).then((e) => {
 				// Update the existing object's codemapperUri
 				this.codeblocks[data.codeBlockIndex].codemapperUri = e.codemapperUri;
 				this._onDidChangeHeight.fire();

@@ -61,6 +61,7 @@ steps:
           compile-extension:typescript-language-features \
           compile-extension:vscode-api-tests \
           compile-extension:vscode-colorize-tests \
+          compile-extension:vscode-colorize-perf-tests \
           compile-extension:vscode-test-resolver
       displayName: Build integration tests
 

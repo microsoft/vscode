@@ -4152,8 +4152,8 @@ export interface IInlineSuggestOptions {
 	edits?: {
 		experimental?: {
 			enabled?: boolean;
-			// side-by-side, mixed lines diff, interleaved lines diff
-			useMixedLinesDiff?: 'never' | 'whenPossible';
+			useMixedLinesDiff?: 'never' | 'whenPossible' | 'afterJumpWhenPossible';
+			useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
 		};
 	};
 }
@@ -4184,6 +4184,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				experimental: {
 					enabled: true,
 					useMixedLinesDiff: 'never',
+					useInterleavedLinesDiff: 'never',
 				},
 			},
 		};
@@ -4233,6 +4234,12 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.edits.experimental.useMixedLinesDiff', "Controls whether to enable experimental edits in inline suggestions."),
 					enum: ['never', 'whenPossible'],
 				},
+				'editor.inlineSuggest.edits.experimental.useInterleavedLinesDiff': {
+					type: 'string',
+					default: defaults.edits.experimental.useInterleavedLinesDiff,
+					description: nls.localize('inlineSuggest.edits.experimental.useInterleavedLinesDiff', "Controls whether to enable experimental interleaved lines diff in inline suggestions."),
+					enum: ['never', 'always', 'afterJump'],
+				},
 			}
 		);
 	}
@@ -4253,7 +4260,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			edits: {
 				experimental: {
 					enabled: boolean(input.edits?.experimental?.enabled, this.defaultValue.edits.experimental.enabled),
-					useMixedLinesDiff: stringSet(input.edits?.experimental?.useMixedLinesDiff, this.defaultValue.edits.experimental.useMixedLinesDiff, ['never', 'whenPossible']),
+					useMixedLinesDiff: stringSet(input.edits?.experimental?.useMixedLinesDiff, this.defaultValue.edits.experimental.useMixedLinesDiff, ['never', 'whenPossible', 'afterJumpWhenPossible']),
+					useInterleavedLinesDiff: stringSet(input.edits?.experimental?.useInterleavedLinesDiff, this.defaultValue.edits.experimental.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
 				},
 			},
 		};
@@ -6269,7 +6277,7 @@ export const EditorOptions = {
 	// Leave these at the end (because they have dependencies!)
 	editorClassName: register(new EditorClassName()),
 	defaultColorDecorators: register(new EditorBooleanOption(
-		EditorOption.defaultColorDecorators, 'defaultColorDecorators', false,
+		EditorOption.defaultColorDecorators, 'defaultColorDecorators', true,
 		{ markdownDescription: nls.localize('defaultColorDecorators', "Controls whether inline color decorations should be shown using the default document color provider") }
 	)),
 	pixelRatio: register(new EditorPixelRatio()),

@@ -78,7 +78,7 @@ export const testingConfiguration: IConfigurationNode = {
 				AutoOpenPeekViewWhen.FailureVisible,
 				AutoOpenPeekViewWhen.Never,
 			],
-			default: AutoOpenPeekViewWhen.FailureVisible,
+			default: AutoOpenPeekViewWhen.Never,
 			enumDescriptions: [
 				localize('testing.automaticallyOpenPeekView.failureAnywhere', "Open automatically no matter where the failure is."),
 				localize('testing.automaticallyOpenPeekView.failureInVisibleDocument', "Open automatically when a test fails in a visible document."),
