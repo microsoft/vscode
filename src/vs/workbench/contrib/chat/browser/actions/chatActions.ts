@@ -639,10 +639,11 @@ class InstallChatAction extends Action2 {
 			setupRunningContextKey.set(true);
 			showChatView(viewsService);
 
-			await timeout(3000); // TODO@bpasero remove me
+			await timeout(7000); // TODO@bpasero remove me
 
 			await extensionsWorkbenchService.install(defaultChat.extensionId, {
 				enable: true,
+				isMachineScoped: false,
 				installPreReleaseVersion: productService.quality !== 'stable'
 			}, CHAT_VIEW_ID);
 
