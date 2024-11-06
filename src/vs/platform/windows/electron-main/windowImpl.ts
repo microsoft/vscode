@@ -1092,7 +1092,14 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 
 		// Update window related properties
-		configuration.handle = this._win.getNativeWindowHandle();
+		configuration.handle = (() => {
+			try {
+				return this._win.getNativeWindowHandle();
+			} catch (error) {
+				this.logService.error(`Error getting native window handle: ${error}`);
+				return Buffer.alloc(0);
+			}
+		})();
 		configuration.fullscreen = this.isFullScreen;
 		configuration.maximized = this._win.isMaximized();
 		configuration.partsSplash = this.themeMainService.getWindowSplash();
