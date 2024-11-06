@@ -12,7 +12,6 @@ import { Position } from '../core/position.js';
 import { ICommand } from '../editorCommon.js';
 import { ITextModel } from '../model.js';
 import { AutoClosingOpenCharTypeOperation, AutoClosingOvertypeOperation, AutoClosingOvertypeWithInterceptorsOperation, AutoIndentOperation, CompositionOperation, EnterOperation, InterceptorElectricCharOperation, PasteOperation, shiftIndent, shouldSurroundChar, SimpleCharacterTypeOperation, SurroundSelectionOperation, TabOperation, TypeWithoutInterceptorsOperation, unshiftIndent } from './cursorTypeEditOperations.js';
-import { IEditorConfiguration } from '../config/editorConfiguration.js';
 
 export class TypeOperations {
 
