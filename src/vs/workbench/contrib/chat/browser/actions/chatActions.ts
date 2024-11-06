@@ -11,7 +11,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
-import { EditorAction2, ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -20,7 +20,7 @@ import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actio
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -462,8 +462,7 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(InstallChatWithPromptAction);
-	registerAction2(InstallChatWithoutPromptAction);
+	registerAction2(InstallChatAction);
 	registerAction2(LearnMoreChatAction);
 }
 
@@ -484,7 +483,11 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	icon: defaultChat.icon,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
-		ContextKeyExpr.or(ChatContextKeys.panelParticipantRegistered, ChatContextKeys.ChatSetup.entitled)
+		ContextKeyExpr.or(
+			ChatContextKeys.panelParticipantRegistered,
+			ChatContextKeys.ChatSetup.entitled,
+			ContextKeyExpr.has('config.chat.experimental.offerSetup')
+		)
 	),
 	order: 10001,
 });
@@ -497,7 +500,11 @@ registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
 			ContextKeyExpr.and(
 				ContextKeyExpr.has('config.window.commandCenter'),
-				ContextKeyExpr.or(ChatContextKeys.panelParticipantRegistered, ChatContextKeys.ChatSetup.entitled)
+				ContextKeyExpr.or(
+					ChatContextKeys.panelParticipantRegistered,
+					ChatContextKeys.ChatSetup.entitled,
+					ContextKeyExpr.has('config.chat.experimental.offerSetup')
+				)
 			)
 		);
 	}
@@ -508,15 +515,30 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 	static readonly ID = 'chat.commandCenterRendering';
 
 	private readonly _store = new DisposableStore();
+	private _dropdown: DropdownWithPrimaryActionViewItem | undefined;
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatAgentService agentService: IChatAgentService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
+		const that = this;
+		const showDropdownActionId = 'workbench.action.showDropdown';
+		registerAction2(class OpenDropdown extends Action2 {
+			constructor() {
+				super({
+					id: showDropdownActionId,
+					title: defaultChat.name,
+					f1: false,
+				});
+			}
+			run() {
+				that._dropdown?.showDropdown();
+			}
+		});
+
 
 		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
-
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
@@ -530,12 +552,12 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 			const chatExtensionInstalled = agentService.getAgents().some(agent => agent.isDefault);
 
 			const primaryAction = instantiationService.createInstance(MenuItemAction, {
-				id: chatExtensionInstalled ? CHAT_OPEN_ACTION_ID : InstallChatWithPromptAction.ID,
-				title: chatExtensionInstalled ? OpenChatGlobalAction.TITLE : InstallChatWithPromptAction.TITLE,
+				id: chatExtensionInstalled ? CHAT_OPEN_ACTION_ID : showDropdownActionId,
+				title: chatExtensionInstalled ? OpenChatGlobalAction.TITLE : defaultChat.name,
 				icon: defaultChat.icon,
 			}, undefined, undefined, undefined, undefined);
 
-			return instantiationService.createInstance(
+			this._dropdown = instantiationService.createInstance(
 				DropdownWithPrimaryActionViewItem,
 				primaryAction, dropdownAction, action.actions,
 				'',
@@ -545,6 +567,7 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 				}
 			);
 
+			return this._dropdown;
 		}, agentService.onDidChangeAgents));
 	}
 
@@ -553,76 +576,15 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 	}
 }
 
-abstract class BaseInstallChatAction extends Action2 {
+class InstallChatAction extends Action2 {
 
-	protected abstract getJustification(productService: IProductService): string | undefined;
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-		const productService = accessor.get(IProductService);
-		const telemetryService = accessor.get(ITelemetryService);
-
-		type InstallChatClassification = {
-			owner: 'bpasero';
-			comment: 'Provides insight into chat installation.';
-			installResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the extension was installed successfully, cancelled or failed to install.' };
-			hasJustification: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of window error to understand the nature of the error better.' };
-		};
-		type InstallChatEvent = {
-			hasJustification: boolean;
-			installResult: 'installed' | 'cancelled' | 'failed';
-		};
-
-		const justification = this.getJustification(productService);
-
-		let installResult: 'installed' | 'cancelled' | 'failed';
-		try {
-			await extensionsWorkbenchService.install(defaultChat.extensionId, {
-				justification,
-				enable: true,
-				installPreReleaseVersion: productService.quality !== 'stable'
-			}, ProgressLocation.Notification);
-
-			installResult = 'installed';
-		} catch (error) {
-			installResult = isCancellationError(error) ? 'cancelled' : 'failed';
-		}
-
-		telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', {
-			installResult,
-			hasJustification: !!justification
-		});
-	}
-}
-
-class InstallChatWithPromptAction extends BaseInstallChatAction {
-
-	static readonly ID = 'workbench.action.chat.installWithPrompt';
+	static readonly ID = 'workbench.action.chat.install';
 	static readonly TITLE = localize2('installChat', "Install {0}", defaultChat.name);
 
 	constructor() {
 		super({
-			id: InstallChatWithPromptAction.ID,
-			title: InstallChatWithPromptAction.TITLE,
-			icon: defaultChat.icon,
-			category: CHAT_CATEGORY
-		});
-	}
-
-	protected getJustification(productService: IProductService): string {
-		return localize('installChatGlobalAction.justification', "AI features in {0} require this extension. Your account already has access to {1}.", productService.nameShort, defaultChat.name);
-	}
-}
-
-class InstallChatWithoutPromptAction extends BaseInstallChatAction {
-
-	static readonly ID = 'workbench.action.chat.installWithoutPrompt';
-	static readonly TITLE = localize2('installChat', "Install {0}", defaultChat.name);
-
-	constructor() {
-		super({
-			id: InstallChatWithoutPromptAction.ID,
-			title: InstallChatWithoutPromptAction.TITLE,
+			id: InstallChatAction.ID,
+			title: InstallChatAction.TITLE,
 			category: CHAT_CATEGORY,
 			menu: {
 				id: MenuId.ChatCommandCenter,
@@ -633,8 +595,35 @@ class InstallChatWithoutPromptAction extends BaseInstallChatAction {
 		});
 	}
 
-	protected getJustification(): string | undefined {
-		return undefined;
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const productService = accessor.get(IProductService);
+		const telemetryService = accessor.get(ITelemetryService);
+
+		type InstallChatClassification = {
+			owner: 'bpasero';
+			comment: 'Provides insight into chat installation.';
+			installResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the extension was installed successfully, cancelled or failed to install.' };
+		};
+		type InstallChatEvent = {
+			installResult: 'installed' | 'cancelled' | 'failed';
+		};
+
+		let installResult: 'installed' | 'cancelled' | 'failed';
+		try {
+			await extensionsWorkbenchService.install(defaultChat.extensionId, {
+				enable: true,
+				installPreReleaseVersion: productService.quality !== 'stable'
+			}, ProgressLocation.Notification);
+
+			installResult = 'installed';
+		} catch (error) {
+			installResult = isCancellationError(error) ? 'cancelled' : 'failed';
+		}
+
+		telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', {
+			installResult
+		});
 	}
 }
 

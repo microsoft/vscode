@@ -154,6 +154,10 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		}
 	}
 
+	showDropdown(): void {
+		this._dropdown.show();
+	}
+
 	override dispose() {
 		this._primaryAction.dispose();
 		this._dropdown.dispose();
