@@ -34,7 +34,7 @@ workbenchRegistry.registerWorkbenchContribution(TerminalNativeContribution, Life
 
 registerContextualInstanceAction({
 	id: TerminalCommandId.RevealInFinder,
-	title: localize2('workbench.action.terminal.revealInFinder', 'Reveal in Finder'),
+	title: localize2('workbench.action.terminal.revealInFinder', 'Reveal Current Working Directory in Finder'),
 	run: async (instance, c, accessor) => {
 		const nativeHostService = accessor.get(INativeHostService);
 		// TODO: cwd is empty when the terminal is restore from editor.
@@ -48,7 +48,7 @@ registerContextualInstanceAction({
 });
 registerContextualInstanceAction({
 	id: TerminalCommandId.RevealInExplorer,
-	title: localize2('workbench.action.terminal.revealInExplorer', 'Reveal in Explorer'),
+	title: localize2('workbench.action.terminal.revealInExplorer', 'Reveal Current Working Directory in Explorer'),
 	run: async (instance, c, accessor) => {
 		const commandService = accessor.get(ICommandService);
 		if (instance.cwd) {
@@ -58,8 +58,8 @@ registerContextualInstanceAction({
 	}
 });
 registerContextualInstanceAction({
-	id: TerminalCommandId.OpenInExternalTerminal,
-	title: localize2('workbench.action.terminal.openInExternalTerminal', 'Open in External Terminal'),
+	id: TerminalCommandId.RevealInExternalTerminal,
+	title: localize2('workbench.action.terminal.revealInExternalTerminal', 'Reveal Current Working Directory in External Terminal'),
 	run: (instance, c, accessor) => {
 		const commandService = accessor.get(ICommandService);
 		if (instance.cwd) {

@@ -190,7 +190,7 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.RevealInFinder,
-						title: localize('reveal in finder', "Reveal in Finder"),
+						title: localize('workbench.action.terminal.revealInFinder', "Reveal Current Working Directory in Finder"),
 					},
 					group: ContextMenuGroup.Navigation,
 					when: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalSettingShellIntegrationEnabled, true)
@@ -201,7 +201,7 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.RevealInExplorer,
-						title: localize('reveal in explorer', "Reveal in Explorer"),
+						title: localize('workbench.action.terminal.revealInExplorer', "Reveal Current Working Directory in Explorer"),
 					},
 					group: ContextMenuGroup.Navigation,
 					when: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalSettingShellIntegrationEnabled, true)
@@ -211,8 +211,8 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalInstanceContext,
 				item: {
 					command: {
-						id: TerminalCommandId.OpenInExternalTerminal,
-						title: localize('open in external terminal', "Open in External Terminal"),
+						id: TerminalCommandId.RevealInExternalTerminal,
+						title: localize('workbench.action.terminal.revealInExternalTerminal', "Reveal Current Working Directory in External Terminal"),
 					},
 					group: ContextMenuGroup.Navigation,
 					when: ContextKeyExpr.equals(TerminalContextKeyStrings.TerminalSettingShellIntegrationEnabled, true)
@@ -322,7 +322,7 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.RevealInFinder,
-						title: localize('reveal in finder', "Reveal in Finder"),
+						title: localize('workbench.action.terminal.revealInFinder', "Reveal Current Working Directory in Finder"),
 					},
 					group: ContextMenuGroup.Navigation,
 				}
@@ -332,7 +332,7 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.RevealInExplorer,
-						title: localize('reveal in explorer', "Reveal in Explorer"),
+						title: localize('workbench.action.terminal.revealInExplorer', "Reveal Current Working Directory in Explorer"),
 					},
 					group: ContextMenuGroup.Navigation,
 				}
@@ -341,8 +341,8 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalEditorInstanceContext,
 				item: {
 					command: {
-						id: TerminalCommandId.OpenInExternalTerminal,
-						title: localize('open in external terminal', "Open in External Terminal"),
+						id: TerminalCommandId.RevealInExternalTerminal,
+						title: localize('workbench.action.terminal.revealInExternalTerminal', "Reveal Current Working Directory in External Terminal"),
 					},
 					group: ContextMenuGroup.Navigation,
 				}
@@ -684,7 +684,7 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.RevealInFinder,
-						title: localize('reveal in finder', "Reveal in Finder"),
+						title: localize('workbench.action.terminal.revealInFinder', "Reveal Current Working Directory in Finder"),
 					},
 					group: ContextMenuGroup.Navigation,
 				}
@@ -694,7 +694,7 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.RevealInExplorer,
-						title: localize('reveal in explorer', "Reveal in Explorer"),
+						title: localize('workbench.action.terminal.revealInExplorer', "Reveal Current Working Directory in Explorer"),
 					},
 					group: ContextMenuGroup.Navigation,
 				}
@@ -703,8 +703,8 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.OpenInExternalTerminal,
-						title: localize('open in external terminal', "Open in External Terminal"),
+						id: TerminalCommandId.RevealInExternalTerminal,
+						title: localize('workbench.action.terminal.revealInExternalTerminal', "Reveal Current Working Directory in External Terminal"),
 					},
 					group: ContextMenuGroup.Navigation,
 				}

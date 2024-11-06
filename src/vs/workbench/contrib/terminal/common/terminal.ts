@@ -475,7 +475,7 @@ export const enum TerminalCommandId {
 	StopVoice = 'workbench.action.terminal.stopVoice',
 	RevealInFinder = 'workbench.action.terminal.revealInFinder',
 	RevealInExplorer = 'workbench.action.terminal.revealInExplorer',
-	OpenInExternalTerminal = 'workbench.action.terminal.openInExternalTerminal',
+	RevealInExternalTerminal = 'workbench.action.terminal.revealInExternalTerminal',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
@@ -531,7 +531,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.Toggle,
 	TerminalCommandId.FocusHover,
 	TerminalCommandId.RevealInExplorer,
-	TerminalCommandId.OpenInExternalTerminal,
+	TerminalCommandId.RevealInExternalTerminal,
 	TerminalCommandId.RevealInFinder,
 	AccessibilityCommandId.OpenAccessibilityHelp,
 	'editor.action.toggleTabFocusMode',
