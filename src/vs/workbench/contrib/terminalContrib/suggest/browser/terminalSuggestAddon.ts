@@ -142,9 +142,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._onDidReceiveCompletions.fire();
 
 		const replacementIndices = providedCompletions.filter(p => p.replacementIndex !== undefined);
-		let replacementIndex = replacementIndices.length > 0 ? replacementIndices.sort()[replacementIndices.length - 1].replacementIndex : 0;
+		// TODO: will this break something?
+		const replacementIndex = replacementIndices.length > 0 ? replacementIndices.sort()[replacementIndices.length - 1].replacementIndex : 0;
 		this._providerReplacementIndex = replacementIndex;
-		let replacementLength = this._promptInputModel.cursorIndex;
 
 		this._currentPromptInputState = {
 			value: this._promptInputModel.value,
@@ -154,7 +154,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			ghostTextIndex: this._promptInputModel.ghostTextIndex
 		};
 
-		this._leadingLineContent = this._currentPromptInputState.prefix.substring(replacementIndex, replacementIndex + replacementLength + this._cursorIndexDelta);
+		this._leadingLineContent = this._currentPromptInputState.prefix.substring(replacementIndex, replacementIndex + this._promptInputModel.cursorIndex + this._cursorIndexDelta);
 
 		const completions = providedCompletions.flat();
 		if (!completions?.length) {
@@ -164,9 +164,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const firstChar = this._leadingLineContent.length === 0 ? '' : this._leadingLineContent[0];
 		// This is a TabExpansion2 result
 		if (this._leadingLineContent.includes(' ') || firstChar === '[') {
-			replacementLength = this._promptInputModel.value.trim().length;
 			this._leadingLineContent = this._promptInputModel.prefix;
-			replacementIndex = replacementIndex;
 		}
 
 		if (this._mostRecentCompletion?.isDirectory && completions.every(e => e.isDirectory)) {
