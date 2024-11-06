@@ -371,6 +371,8 @@ export interface IExtensionGalleryService {
 	query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>>;
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, token: CancellationToken): Promise<IGalleryExtension[]>;
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken): Promise<IGalleryExtension[]>;
+	getExtensions2(extensionInfos: ReadonlyArray<IExtensionInfo>, token: CancellationToken): Promise<IGalleryExtension[]>;
+	getExtensions2(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken): Promise<IGalleryExtension[]>;
 	isExtensionCompatible(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform, productVersion?: IProductVersion): Promise<boolean>;
 	getCompatibleExtension(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform, productVersion?: IProductVersion): Promise<IGalleryExtension | null>;
 	getAllCompatibleVersions(extensionIdentifier: IExtensionIdentifier, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]>;
@@ -638,3 +640,4 @@ export async function computeSize(location: URI, fileService: IFileService): Pro
 
 export const ExtensionsLocalizedLabel = localize2('extensions', "Extensions");
 export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences');
+export const UseUnpkgResourceApi = 'extensions.gallery.useUnpkgResourceApi';
