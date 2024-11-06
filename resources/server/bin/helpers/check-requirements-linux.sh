@@ -36,6 +36,10 @@ if [ -f /etc/os-release ]; then
         echo "Warning: NixOS detected, skipping GLIBC check"
         exit 0
     fi
+    if [ "$OS_ID" = "wolfi" ]; then
+        echo "Warning: Wolfi detected, skipping GLIBC check"
+        exit 0
+    fi
 fi
 
 # Based on https://github.com/bminor/glibc/blob/520b1df08de68a3de328b65a25b86300a7ddf512/elf/cache.c#L162-L245
