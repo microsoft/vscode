@@ -1407,7 +1407,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			sqmId: this.sqmId,
 			devDeviceId: this.devDeviceId,
 
-			windowId: -1,	// Will be filled in by the window once loaded later
+			windowId: -1,				// Will be filled in by the window once loaded later
+			handle: Buffer.alloc(0), 	// Will be filled in by the window once loaded later
 
 			mainPid: process.pid,
 
