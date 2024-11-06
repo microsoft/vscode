@@ -51,7 +51,6 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { timeout } from '../../../../../base/common/async.js';
 import { IChatViewsWelcomeContributionRegistry, IChatViewsWelcomeDescriptor, ChatViewsWelcomeExtensions } from '../viewsWelcome/chatViewsWelcome.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
@@ -639,8 +638,6 @@ class InstallChatAction extends Action2 {
 		try {
 			setupRunningContextKey.set(true);
 			showChatView(viewsService);
-
-			await timeout(7000); // TODO@bpasero remove me
 
 			await extensionsWorkbenchService.install(defaultChat.extensionId, {
 				enable: true,
