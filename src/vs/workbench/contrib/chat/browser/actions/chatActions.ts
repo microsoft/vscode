@@ -53,6 +53,7 @@ import { AuthenticationSession, IAuthenticationService } from '../../../../servi
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IChatViewsWelcomeContributionRegistry, IChatViewsWelcomeDescriptor, ChatViewsWelcomeExtensions } from '../viewsWelcome/chatViewsWelcome.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Event } from '../../../../../base/common/event.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -633,6 +634,7 @@ class InstallChatAction extends Action2 {
 		const telemetryService = accessor.get(ITelemetryService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		const viewsService = accessor.get(IViewsService);
+		const chatAgentService = accessor.get(IChatAgentService);
 
 		const setupRunningContextKey = ChatContextKeys.ChatSetup.running.bindTo(contextKeyService);
 
@@ -651,7 +653,10 @@ class InstallChatAction extends Action2 {
 		} catch (error) {
 			installResult = isCancellationError(error) ? 'cancelled' : 'failedInstall';
 		} finally {
-			setupRunningContextKey.reset();
+			Promise.race([
+				new Promise<void>(resolve => setTimeout(resolve, 2000)), 	// helps prevent flicker with sign-in welcome view
+				Event.toPromise(chatAgentService.onDidChangeAgents)			// https://github.com/microsoft/vscode-copilot/issues/9274
+			]).finally(() => setupRunningContextKey.reset());
 		}
 
 		telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signedIn });
