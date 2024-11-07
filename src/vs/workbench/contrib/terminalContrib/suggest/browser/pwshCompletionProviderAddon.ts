@@ -63,9 +63,6 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 
 	private _enableWidget: boolean = true;
 
-	// TODO: Remove these in favor of prompt input state
-	private _cursorIndexDelta: number = 0;
-
 	isPasting: boolean = false;
 
 	private _completionsResolver: ((result: TerminalCompletionItem[] | undefined) => void) | null = null;
@@ -192,7 +189,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 			ghostTextIndex: this._promptInputModel.ghostTextIndex
 		};
 
-		let leadingLineContent = this._currentPromptInputState.prefix.substring(replacementIndex, replacementIndex + replacementLength + this._cursorIndexDelta);
+		let leadingLineContent = this._currentPromptInputState.prefix.substring(replacementIndex, replacementIndex + replacementLength);
 
 		const firstChar = leadingLineContent.length === 0 ? '' : leadingLineContent[0];
 		const isGlobalCommand = !leadingLineContent.includes(' ') && firstChar !== '[';
