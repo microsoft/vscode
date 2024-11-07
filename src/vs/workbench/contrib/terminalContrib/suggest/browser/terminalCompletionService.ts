@@ -6,11 +6,11 @@ import { Disposable, IDisposable, toDisposable } from '../../../../../base/commo
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
-import { ISimpleCompletionItem as TerminalCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
+import { ISimpleCompletion } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
-export enum TerminalCompletionItemKind {
+export enum ISimpleCompletionKind {
 	File = 0,
 	Folder = 1,
 	Flag = 2,
@@ -19,14 +19,14 @@ export enum TerminalCompletionItemKind {
 
 export interface ITerminalCompletionProvider {
 	shellTypes?: TerminalShellType[];
-	provideCompletions(value: string, cursorPosition: number): Promise<TerminalCompletionItem[] | undefined>;
+	provideCompletions(value: string, cursorPosition: number): Promise<ISimpleCompletion[] | undefined>;
 	triggerCharacters?: string[];
 }
 
 export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider, ...triggerCharacters: string[]): IDisposable;
-	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType): Promise<TerminalCompletionItem[] | undefined>;
+	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType): Promise<ISimpleCompletion[] | undefined>;
 }
 
 // TODO: make name consistent
@@ -57,8 +57,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		});
 	}
 
-	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType): Promise<TerminalCompletionItem[] | undefined> {
-		const completionItems: TerminalCompletionItem[] = [];
+	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType): Promise<ISimpleCompletion[] | undefined> {
+		const completionItems: ISimpleCompletion[] = [];
 
 		if (!this._providers || !this._providers.values) {
 			return undefined;

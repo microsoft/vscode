@@ -7,7 +7,7 @@ import { FuzzyScore } from '../../../../base/common/filters.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 
-export interface ISimpleCompletionItem {
+export interface ISimpleCompletion {
 	/**
 	 * The completion's label which appears on the left beside the icon.
 	 */
@@ -57,7 +57,7 @@ export class SimpleCompletionItem {
 	word?: string;
 
 	constructor(
-		readonly completion: ISimpleCompletionItem
+		readonly completion: ISimpleCompletion
 	) {
 		// ensure lower-variants (perf)
 		this.labelLow = this.completion.label.toLowerCase();

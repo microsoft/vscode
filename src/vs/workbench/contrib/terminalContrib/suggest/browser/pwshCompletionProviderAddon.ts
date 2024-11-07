@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITerminalCompletionProvider } from './terminalCompletionService.js';
-import { ISimpleCompletionItem as TerminalCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
+import { ISimpleCompletion } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import { Event, Emitter } from '../../../../../base/common/event.js';
@@ -51,7 +51,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	private _gitCompletionsRequested: boolean = false;
 	private _lastUserDataTimestamp: number = 0;
 	private _terminal?: Terminal;
-	private _mostRecentCompletion?: TerminalCompletionItem;
+	private _mostRecentCompletion?: ISimpleCompletion;
 	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
 	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
 	private readonly _onDidRequestCompletions = this._register(new Emitter<void>());
@@ -65,7 +65,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 
 	isPasting: boolean = false;
 
-	private _completionsResolver: ((result: TerminalCompletionItem[] | undefined) => void) | null = null;
+	private _completionsResolver: ((result: ISimpleCompletion[] | undefined) => void) | null = null;
 
 	static requestCompletionsSequence = '\x1b[24~e'; // F12,e
 	static requestGlobalCompletionsSequence = '\x1b[24~f'; // F12,f
@@ -77,10 +77,10 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 
-	static cachedPwshCommands: Set<TerminalCompletionItem>;
+	static cachedPwshCommands: Set<ISimpleCompletion>;
 
 	constructor(
-		providedPwshCommands: Set<TerminalCompletionItem> | undefined,
+		providedPwshCommands: Set<ISimpleCompletion> | undefined,
 		_capabilities: ITerminalCapabilityStore,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService
@@ -232,7 +232,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 		return true;
 	}
 
-	private _notifyCompletions(result: TerminalCompletionItem[] | undefined) {
+	private _notifyCompletions(result: ISimpleCompletion[] | undefined) {
 		if (this._completionsResolver) {
 			this._completionsResolver(result);
 			// Resolved, clear the resolver
@@ -240,13 +240,13 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 		}
 	}
 
-	private _waitForCompletions(): Promise<TerminalCompletionItem[] | undefined> {
-		return new Promise<TerminalCompletionItem[] | undefined>((resolve) => {
+	private _waitForCompletions(): Promise<ISimpleCompletion[] | undefined> {
+		return new Promise<ISimpleCompletion[] | undefined>((resolve) => {
 			this._completionsResolver = resolve;
 		});
 	}
 
-	async provideCompletions(value: string): Promise<TerminalCompletionItem[] | undefined> {
+	async provideCompletions(value: string): Promise<ISimpleCompletion[] | undefined> {
 		const builtinCompletionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).builtinCompletions;
 		if (!this._codeCompletionsRequested && builtinCompletionsConfig.pwshCode) {
 			this._onAcceptedCompletion.fire(SuggestAddon.requestEnableCodeCompletionsSequence);
@@ -272,7 +272,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	}
 }
 
-export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion, replacementIndex: number, replacementLength: number): TerminalCompletionItem[] {
+export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion, replacementIndex: number, replacementLength: number): ISimpleCompletion[] {
 	if (!rawCompletions) {
 		return [];
 	}
@@ -301,10 +301,10 @@ export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshC
 			typedRawCompletions = rawCompletions as PwshCompletion[];
 		}
 	}
-	return typedRawCompletions.map(e => rawCompletionToTerminalCompletionItem(e, replacementIndex, replacementLength));
+	return typedRawCompletions.map(e => rawCompletionToISimpleCompletion(e, replacementIndex, replacementLength));
 }
 
-function rawCompletionToTerminalCompletionItem(rawCompletion: PwshCompletion, replacementIndex: number, replacementLength: number): TerminalCompletionItem {
+function rawCompletionToISimpleCompletion(rawCompletion: PwshCompletion, replacementIndex: number, replacementLength: number): ISimpleCompletion {
 	// HACK: Somewhere along the way from the powershell script to here, the path separator at the
 	// end of directories may go missing, likely because `\"` -> `"`. As a result, make sure there
 	// is a trailing separator at the end of all directory completions. This should not be done for
