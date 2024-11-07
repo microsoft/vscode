@@ -22,6 +22,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
 import { Lazy } from '../../../../base/common/lazy.js';
+import { IViewsService } from '../common/viewsService.js';
 
 interface IViewsCustomizations {
 	viewContainerLocations: IStringDictionary<ViewContainerLocation>;
@@ -860,8 +861,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 					}],
 				});
 			}
-			run(): void {
+			run(accessor: ServicesAccessor) {
 				that.moveViewContainerToLocation(viewContainer, that.getDefaultViewContainerLocation(viewContainer), undefined, this.desc.id);
+				accessor.get(IViewsService).openViewContainer(viewContainer.id, true);
 			}
 		});
 	}

@@ -408,7 +408,7 @@
 }
 
 .monaco-workbench .test-error-content-widget {
-	margin-left: 2em;
+	margin-left: 20px;
 	color: var(--vscode-testing-message-error-badgeForeground) !important;
 	background: var(--vscode-testing-message-error-badgeBackground);
 	border-top-right-radius: 2px;
@@ -416,11 +416,11 @@
 	padding-right: 3px;
 	display: flex !important;
 	align-items: center;
-	white-space: nowrap;
 	font-size: 11px;
 	gap: 3px;
 	user-select: none;
 	cursor: pointer;
+	box-sizing: border-box;
 
 	&.is-current {
 		display: none !important;
@@ -431,6 +431,12 @@
 		font-size: 11px;
 		margin: 1px 0 0 -4px;
 		z-index: 1;
+	}
+
+	.content {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.arrow svg {

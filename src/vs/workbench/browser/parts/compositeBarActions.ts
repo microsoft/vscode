@@ -28,6 +28,7 @@ import { badgeBackground, badgeForeground, contrastBorder } from '../../../platf
 import { Action2, IAction2Options } from '../../../platform/actions/common/actions.js';
 import { ViewContainerLocation } from '../../common/views.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
+import { createConfigureKeybindingAction } from '../../../platform/actions/common/menuService.js';
 
 export interface ICompositeBar {
 
@@ -525,6 +526,7 @@ export class CompositeActionViewItem extends CompositeBarActionViewItem {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(
 			compositeActivityAction,
@@ -635,6 +637,10 @@ export class CompositeActionViewItem extends CompositeBarActionViewItem {
 
 	private showContextMenu(container: HTMLElement): void {
 		const actions: IAction[] = [this.toggleCompositePinnedAction, this.toggleCompositeBadgeAction];
+
+		if (this.compositeBarActionItem.keybindingId) {
+			actions.push(createConfigureKeybindingAction(this.commandService, this.keybindingService, this.compositeBarActionItem.keybindingId));
+		}
 
 		const compositeContextMenuActions = this.compositeContextMenuActionsProvider(this.compositeBarActionItem.id);
 		if (compositeContextMenuActions.length) {

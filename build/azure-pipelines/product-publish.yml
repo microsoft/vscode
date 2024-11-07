@@ -11,14 +11,14 @@ steps:
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password,esrp-aad-username,esrp-aad-password"
 
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       KeyVaultName: vscode-build-packages
       SecretsFilter: "vscode-esrp,c24324f7-e65f-4c45-8702-ed2d4c35df99"
 
@@ -38,7 +38,7 @@ steps:
   - task: AzureCLI@2
     displayName: Fetch secrets
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       scriptType: pscore
       scriptLocation: inlineScript
       addSpnToEnvironment: true

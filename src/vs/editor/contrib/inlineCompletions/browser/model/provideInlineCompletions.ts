@@ -177,6 +177,12 @@ async function addRefAndCreateResult(
 		completions.addRef();
 		lists.push(completions);
 		for (const item of completions.inlineCompletions.items) {
+			if (!context.includeInlineEdits && item.isInlineEdit) {
+				continue;
+			}
+			if (!context.includeInlineCompletions && !item.isInlineEdit) {
+				continue;
+			}
 			const inlineCompletionItem = InlineCompletionItem.from(
 				item,
 				completions,
@@ -184,6 +190,7 @@ async function addRefAndCreateResult(
 				model,
 				languageConfigurationService
 			);
+
 			itemsByHash.set(inlineCompletionItem.hash(), inlineCompletionItem);
 
 			if (context.triggerKind === InlineCompletionTriggerKind.Automatic) {

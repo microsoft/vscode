@@ -434,7 +434,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._assertNotDisposed();
 
 		const entry = this._entriesObs.get().find(e => e.entryId === documentId);
-		return entry?.docSnapshot ?? null;
+		return entry?.originalModel ?? null;
 	}
 
 	acceptStreamingEditsStart(): void {
@@ -447,14 +447,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._sequencer.queue(() => this._acceptStreamingEditsStart());
 	}
 
-	acceptTextEdits(resource: URI, textEdits: TextEdit[], responseModel: IChatResponseModel): void {
+	acceptTextEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void {
 		if (this._state.get() === ChatEditingSessionState.Disposed) {
 			// we don't throw in this case because there could be a builder still connected to a disposed session
 			return;
 		}
 
 		// ensure that the edits are processed sequentially
-		this._sequencer.queue(() => this._acceptTextEdits(resource, textEdits, responseModel));
+		this._sequencer.queue(() => this._acceptTextEdits(resource, textEdits, isLastEdits, responseModel));
 	}
 
 	resolve(): void {
@@ -509,12 +509,12 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		});
 	}
 
-	private async _acceptTextEdits(resource: URI, textEdits: TextEdit[], responseModel: IChatResponseModel): Promise<void> {
+	private async _acceptTextEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
 		if (this._filesToSkipCreating.has(resource)) {
 			return;
 		}
 
-		if (!this._entriesObs.get().find(e => e.resource.toString() === resource.toString()) && this._entriesObs.get().length >= (await this.editingSessionFileLimitPromise)) {
+		if (!this._entriesObs.get().find(e => e.modifiedURI.toString() === resource.toString()) && this._entriesObs.get().length >= (await this.editingSessionFileLimitPromise)) {
 			// Do not create files in a single editing session that would be in excess of our limit
 			return;
 		}
@@ -539,7 +539,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			get result() { return responseModel.result; }
 		};
 		const entry = await this._getOrCreateModifiedFileEntry(resource, telemetryInfo);
-		entry.acceptAgentEdits(textEdits);
+		entry.acceptAgentEdits(textEdits, isLastEdits);
 		// await this._editorService.openEditor({ resource: entry.modifiedURI, options: { inactive: true } });
 	}
 
@@ -554,7 +554,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private async _getOrCreateModifiedFileEntry(resource: URI, responseModel: IModifiedEntryTelemetryInfo): Promise<ChatEditingModifiedFileEntry> {
-		const existingEntry = this._entriesObs.get().find(e => e.resource.toString() === resource.toString());
+		const existingEntry = this._entriesObs.get().find(e => e.modifiedURI.toString() === resource.toString());
 		if (existingEntry) {
 			if (responseModel.requestId !== existingEntry.telemetryInfo.requestId) {
 				existingEntry.updateTelemetryInfo(responseModel);
@@ -587,7 +587,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		try {
 			const ref = await this._textModelService.createModelReference(resource);
 
-			return this._instantiationService.createInstance(ChatEditingModifiedFileEntry, resource, ref, { collapse: (transaction: ITransaction | undefined) => this._collapse(resource, transaction) }, responseModel, mustExist ? ChatEditKind.Created : ChatEditKind.Modified);
+			return this._instantiationService.createInstance(ChatEditingModifiedFileEntry, ref, { collapse: (transaction: ITransaction | undefined) => this._collapse(resource, transaction) }, responseModel, mustExist ? ChatEditKind.Created : ChatEditKind.Modified);
 		} catch (err) {
 			if (mustExist) {
 				throw err;

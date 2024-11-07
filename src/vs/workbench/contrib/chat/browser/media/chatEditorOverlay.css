@@ -13,8 +13,27 @@
 	align-items: center
 }
 
+.chat-editor-overlay-widget .chat-editor-overlay-progress {
+	display: none;
+	padding: 0px 5px;
+	font-size: 12px;
+}
+
+.chat-editor-overlay-widget.busy .chat-editor-overlay-progress {
+	display: inherit;
+}
+
 .chat-editor-overlay-widget .action-item > .action-label {
 	padding: 5px;
+	font-size: 12px;
+}
+
+.chat-editor-overlay-widget .action-item:first-child > .action-label {
+	padding-left: 9px;
+}
+
+.chat-editor-overlay-widget .action-item:last-child > .action-label {
+	padding-right: 9px;
 }
 
 .chat-editor-overlay-widget .action-item > .action-label.codicon {
