@@ -4345,7 +4345,8 @@ export class ChatCompletionItem implements vscode.ChatCompletionItem {
 
 export enum ChatEditingSessionActionOutcome {
 	Accepted = 1,
-	Rejected = 2
+	Rejected = 2,
+	Saved = 3
 }
 
 //#endregion

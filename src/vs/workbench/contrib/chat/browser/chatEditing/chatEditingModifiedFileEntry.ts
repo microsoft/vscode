@@ -163,7 +163,6 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._register(this._fileService.onDidFilesChange(e => {
 			if (e.affects(this.modifiedURI) && kind === ChatEditKind.Created && e.gotDeleted()) {
 				this._onDidDelete.fire();
-				this.dispose();
 			}
 		}));
 
@@ -396,7 +395,6 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		if (this.createdInRequestId === this._telemetryInfo.requestId) {
 			await this._fileService.del(this.modifiedURI);
 			this._onDidDelete.fire();
-			this.dispose();
 		} else {
 			this._setDocValue(this.docSnapshot.getValue());
 			if (this._allEditsAreFromUs) {
