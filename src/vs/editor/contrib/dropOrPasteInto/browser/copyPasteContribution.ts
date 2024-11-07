@@ -70,8 +70,7 @@ registerEditorAction(class PasteAsAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.pasteAs',
-			label: nls.localize('pasteAs', "Paste As..."),
-			alias: 'Paste As...',
+			label: nls.localize2('pasteAs', "Paste As..."),
 			precondition: EditorContextKeys.writable,
 			metadata: {
 				description: 'Paste as',
@@ -98,8 +97,7 @@ registerEditorAction(class extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.pasteAsText',
-			label: nls.localize('pasteAsText', "Paste as Text"),
-			alias: 'Paste as Text',
+			label: nls.localize2('pasteAsText', "Paste as Text"),
 			precondition: EditorContextKeys.writable,
 		});
 	}
