@@ -70,11 +70,13 @@ export class InlineCompletionsController extends Disposable {
 
 	private readonly _enabledInConfig = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
 	private readonly _isScreenReaderEnabled = observableFromEvent(this, this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
+	private _isInCompositionMode: boolean = false;
+
 	private readonly _editorDictationInProgress = observableFromEvent(this,
 		this._contextKeyService.onDidChangeContext,
 		() => this._contextKeyService.getContext(this.editor.getDomNode()).getValue('editorDictation.inProgress') === true
 	);
-	private readonly _enabled = derived(this, reader => this._enabledInConfig.read(reader) && (!this._isScreenReaderEnabled.read(reader) || !this._editorDictationInProgress.read(reader)));
+	private readonly _enabled = derived(this, reader => this._enabledInConfig.read(reader) && (!this._isScreenReaderEnabled.read(reader) || !this._editorDictationInProgress.read(reader)) && !this._isInCompositionMode);
 
 	private readonly _debounceValue = this._debounceService.for(
 		this._languageFeaturesService.inlineCompletionsProvider,
@@ -292,6 +294,12 @@ export class InlineCompletionsController extends Disposable {
 		}));
 		this.editor.updateOptions({ inlineCompletionsAccessibilityVerbose: this._configurationService.getValue('accessibility.verbosity.inlineCompletions') });
 
+		this._register(this.editor.onDidCompositionStart(() => {
+			this._isInCompositionMode = true;
+		}));
+		this._register(this.editor.onDidCompositionEnd(() => {
+			this._isInCompositionMode = false;
+		}));
 		const contextKeySvcObs = new ObservableContextKeyService(this._contextKeyService);
 
 		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.cursorInIndentation, this._cursorIsInIndentation));
