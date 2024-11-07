@@ -11,14 +11,14 @@ steps:
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password,esrp-aad-username,esrp-aad-password"
 
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       KeyVaultName: vscode-build-packages
       SecretsFilter: "vscode-esrp,c24324f7-e65f-4c45-8702-ed2d4c35df99"
 
@@ -38,14 +38,14 @@ steps:
   - task: AzureCLI@2
     displayName: Fetch secrets
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       scriptType: pscore
       scriptLocation: inlineScript
       addSpnToEnvironment: true
       inlineScript: |
         Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
         Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
-        Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
+        Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
 
   - pwsh: |
       . build/azure-pipelines/win32/exec.ps1
@@ -61,7 +61,7 @@ steps:
     env:
       AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
       AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
-      AZURE_CLIENT_SECRET: "$(AZURE_CLIENT_SECRET)"
+      AZURE_ID_TOKEN: "$(AZURE_ID_TOKEN)"
     displayName: Create build if it hasn't been created before
 
   - pwsh: |
@@ -87,7 +87,7 @@ steps:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
       AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
       AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
-      AZURE_CLIENT_SECRET: "$(AZURE_CLIENT_SECRET)"
+      AZURE_ID_TOKEN: "$(AZURE_ID_TOKEN)"
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       RELEASE_TENANT_ID: "$(PRSS_RELEASE_TENANT_ID)"
       RELEASE_CLIENT_ID: "$(PRSS_RELEASE_CLIENT_ID)"
