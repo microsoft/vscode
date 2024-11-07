@@ -36,6 +36,7 @@ import { testRawPwshCompletions } from './testRawPwshCompletions.js';
 
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
 	{ name: 'windows11_pwsh_namespace_completion', events: windows11_pwsh_namespace_completion as any as RecordedSessionEvent[] },
+	// types get-con, accepts the Get-Content completion item, types ./RE, and accepts the README.md completion item
 	{ name: 'macos_pwsh_getcontent_file', events: macos_pwsh_getcontent_file as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_getcontent_delete_ghost', events: windows11_pwsh_getcontent_delete_ghost as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_input_ls_complete_ls', events: windows11_pwsh_input_ls_complete_ls as any as RecordedSessionEvent[] },
@@ -62,7 +63,7 @@ interface IRecordedSessionResizeEvent {
 	rows: number;
 }
 
-suite('Terminal Contrib Suggest Recordings', () => {
+suite.only('Terminal Contrib Suggest Recordings', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let xterm: Terminal;
