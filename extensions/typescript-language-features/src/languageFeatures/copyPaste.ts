@@ -148,7 +148,7 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 
 	private isEnabled(document: vscode.TextDocument) {
 		const config = vscode.workspace.getConfiguration(this._modeId, document.uri);
-		return config.get(enabledSettingId, false);
+		return config.get(enabledSettingId, true);
 	}
 }
 
