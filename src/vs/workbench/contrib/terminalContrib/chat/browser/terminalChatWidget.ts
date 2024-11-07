@@ -45,7 +45,6 @@ const enum Message {
 	ReturnInput = 1 << 6,
 }
 
-const terminalChatPlaceholder = localize('default.placeholder', "Ask Copilot");
 export class TerminalChatWidget extends Disposable {
 
 	private readonly _container: HTMLElement;
@@ -155,7 +154,7 @@ export class TerminalChatWidget extends Disposable {
 		observer.observe(this._terminalElement);
 		this._register(toDisposable(() => observer.disconnect()));
 
-		this._reset();
+		this._resetPlaceholder();
 		this._container.appendChild(this._inlineChatWidget.domNode);
 
 		this._focusTracker = this._register(trackFocus(this._container));
@@ -225,8 +224,8 @@ export class TerminalChatWidget extends Disposable {
 		this._updateVerticalPosition(adjustedHeight);
 	}
 
-	private _reset() {
-		this.inlineChatWidget.placeholder = terminalChatPlaceholder;
+	private _resetPlaceholder() {
+		this.inlineChatWidget.placeholder = this._model.value?.welcomeMessage?.title ?? localize('askAI', 'Ask AI');
 	}
 
 	async reveal(viewState?: IChatViewState): Promise<void> {
@@ -234,7 +233,7 @@ export class TerminalChatWidget extends Disposable {
 		this._doLayout(this._inlineChatWidget.contentHeight);
 		this._container.classList.remove('hide');
 		this._visibleContextKey.set(true);
-		this.inlineChatWidget.placeholder = terminalChatPlaceholder;
+		this._resetPlaceholder();
 		this._inlineChatWidget.focus();
 		this._instance.scrollToBottom();
 	}
@@ -278,7 +277,7 @@ export class TerminalChatWidget extends Disposable {
 	hide(): void {
 		this._container.classList.add('hide');
 		this._inlineChatWidget.reset();
-		this._reset();
+		this._resetPlaceholder();
 		this._inlineChatWidget.updateToolbar(false);
 		this._visibleContextKey.set(false);
 		this._inlineChatWidget.value = '';
