@@ -24,41 +24,13 @@ import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IC
 import { IChatWidgetService, showChatView, showEditsView } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { Emitter } from '../../../../base/common/event.js';
-
-// TODO: @legomushroom
-//  - use the `PromptSyntaxCodec` to decode the prompts
+import { ICodec } from '../../../common/codecs/types/ICodec.js';
+import { BaseDecoder } from '../../../common/codecs/baseDecoder.js';
 
 interface IChatData {
 	data: IChatVariableData;
 	resolver: IChatVariableResolver;
 }
-
-/**
- * TODO: @legomushroom
- */
-export interface ICodec<T, K> {
-	/**
-	 * Encode a readable stream of `T`s into a readable stream of `K`s.
-	 */
-	encode: (value: streams.ReadableStream<K>) => streams.ReadableStream<T>;
-
-	/**
-	 * Encode a readable stream of `T`s into a readable stream of `K`s.
-	 */
-	decode: (value: streams.ReadableStream<T>) => streams.ReadableStream<K>;
-}
-
-// /*
-//  * TODO: @legomushroom
-//  */
-// const variableToEntry(value: IChatRequestVariableValue): IChatRequestVariableEntry | undefined {
-// 	if (!value) {
-// 		return undefined;
-// 	}
-
-// 	return { id: data.data.id, modelDescription: data.data.modelDescription, name: part.variableName, range: part.range, value, references, fullName: data.data.fullName, icon: data.data.icon };
-// }
 
 /*
  * TODO: @legomushroom
@@ -111,8 +83,6 @@ const runJobsAndGetSuccesses2 = async (jobs: Promise<IChatRequestVariableEntry[]
 		});
 };
 
-type TStreamListenerNames = 'data' | 'error' | 'end';
-
 /**
  * TODO: @legomushroom
  */
@@ -126,168 +96,6 @@ export const todo = (message: string = 'TODO: implement this'): never => {
 export const unimplemented = (message: string = 'Not implemented.'): never => {
 	return todo(message);
 };
-
-/**
- * TODO: @legomushroom
- */
-// TODO: @legomushroom - when a decoder is disposed, we need to emit/throw errors
-// if the object still being used by someone
-abstract class DecoderBase<T, K = VSBuffer> extends Disposable implements streams.ReadableStream<T> {
-	protected readonly _onData = this._register(new Emitter<T>());
-	protected readonly _onError = this._register(new Emitter<Error>());
-	protected readonly _onEnd = this._register(new Emitter<void>());
-
-	private readonly _listeners: Map<TStreamListenerNames, Map<Function, IDisposable>> = new Map();
-
-	constructor(
-		protected readonly stream: streams.ReadableStream<K>,
-	) {
-		super();
-
-		this.onStreamData = this.onStreamData.bind(this);
-		this.onStreamError = this.onStreamError.bind(this);
-		this.onStreamEnd = this.onStreamEnd.bind(this);
-
-		stream.on('data', this.onStreamData);
-		stream.on('error', this.onStreamError);
-		stream.on('end', this.onStreamEnd);
-	}
-
-	on(event: 'data', callback: (data: T) => void): void;
-	on(event: 'error', callback: (err: Error) => void): void;
-	on(event: 'end', callback: () => void): void;
-	on(event: TStreamListenerNames, callback: unknown): void {
-		if (event === 'data') {
-			return this.addDataListener(callback as (data: T) => void);
-		}
-
-		if (event === 'error') {
-			return this.addErrorListener(callback as (error: Error) => void);
-		}
-
-		if (event === 'end') {
-			return this.addEndListener(callback as () => void);
-		}
-
-		throw new Error(`Invalid event name: ${event}`);
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	public addDataListener(callback: (data: T) => void): void {
-		let currentListeners = this._listeners.get('data');
-
-		if (!currentListeners) {
-			currentListeners = new Map();
-			this._listeners.set('data', currentListeners);
-		}
-
-		currentListeners.set(callback, this._onData.event(callback));
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	public addErrorListener(callback: (error: Error) => void): void {
-		let currentListeners = this._listeners.get('error');
-
-		if (!currentListeners) {
-			currentListeners = new Map();
-			this._listeners.set('error', currentListeners);
-		}
-
-		currentListeners.set(callback, this._onError.event(callback));
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	public addEndListener(callback: () => void): void {
-		let currentListeners = this._listeners.get('end');
-
-		if (!currentListeners) {
-			currentListeners = new Map();
-			this._listeners.set('end', currentListeners);
-		}
-
-		currentListeners.set(callback, this._onEnd.event(callback));
-	}
-
-	/**
-	 * Remove all existing event listeners.
-	 */
-	public removeAllListeners(): void {
-		// remove listeners set up by this class
-		this.stream.removeListener('data', this.onStreamData);
-		this.stream.removeListener('error', this.onStreamError);
-		this.stream.removeListener('end', this.onStreamEnd);
-
-		// remove listeners set up by external consumers
-		for (const [name, listeners] of this._listeners.entries()) {
-			this._listeners.delete(name);
-			for (const [listener, disposable] of listeners) {
-				disposable.dispose();
-				listeners.delete(listener);
-			}
-		}
-	}
-
-	pause(): void {
-		this.stream.pause();
-	}
-
-	resume(): void {
-		this.stream.resume();
-	}
-
-	destroy(): void {
-		this.dispose();
-	}
-
-	removeListener(event: string, callback: Function): void {
-		for (const [nameName, listeners] of this._listeners.entries()) {
-			if (nameName !== event) {
-				continue;
-			}
-
-			for (const [listener, disposable] of listeners) {
-				if (listener !== callback) {
-					continue;
-				}
-
-				disposable.dispose();
-				listeners.delete(listener);
-			}
-		}
-	}
-
-	public override dispose(): void {
-		this.stream.destroy();
-		this.removeAllListeners();
-		super.dispose();
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	protected abstract onStreamData(data: K): void;
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	protected onStreamEnd(): void {
-		this._onEnd.fire();
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	protected onStreamError(error: Error): void {
-		// TODO: @legomushroom - define specific error types
-		this._onError.fire(error);
-	}
-}
 
 /**
  * Base class for all tokens.
@@ -334,7 +142,7 @@ export class Line extends Token {
 /**
  * TODO: @legomushroom
  */
-export class LinesCodecDecoder extends DecoderBase<Line> implements streams.ReadableStream<Line> {
+export class LinesCodecDecoder extends BaseDecoder<Line> implements streams.ReadableStream<Line> {
 	// TODO: @legomushroom
 	private currentChunk: string = '';
 
@@ -504,7 +312,7 @@ export type TSimpleToken = Word | Space | NewLine;
 /**
  * A decoder that can decode a stream of `Line`s into a stream of `Word`, `Space` and `NewLine` tokens.
  */
-export class SimpleTokensCodecDecoder extends DecoderBase<TSimpleToken, Line> implements streams.ReadableStream<TSimpleToken> {
+export class SimpleTokensCodecDecoder extends BaseDecoder<TSimpleToken, Line> implements streams.ReadableStream<TSimpleToken> {
 	private lastEmittedToken?: TSimpleToken;
 
 	/**
@@ -639,7 +447,7 @@ export class PromptFileReference extends Token implements IPromptFileReference {
 /**
  * TODO: @legomushroom
  */
-export class PromptSyntaxCodecDecoder extends DecoderBase<TPromptToken, TSimpleToken> implements streams.ReadableStream<TPromptToken> {
+export class PromptSyntaxCodecDecoder extends BaseDecoder<TPromptToken, TSimpleToken> implements streams.ReadableStream<TPromptToken> {
 	/**
 	 * TODO: @legomushroom
 	 */
@@ -662,9 +470,9 @@ export class PromptSyntaxCodecDecoder extends DecoderBase<TPromptToken, TSimpleT
 /**
  * TODO: @legomushroom
  */
-class PromptSyntaxCodec extends Disposable implements ICodec<VSBuffer, TPromptToken> {
+export class PromptSyntaxCodec extends Disposable implements ICodec<VSBuffer, TPromptToken> {
 	public encode(_: streams.ReadableStream<TPromptToken>): streams.ReadableStream<VSBuffer> {
-		return unimplemented('encode method is not implemented');
+		return unimplemented('`PromptSyntaxCodec` does not implement the `encode` method');
 	}
 
 	public decode(stream: streams.ReadableStream<VSBuffer>): streams.ReadableStream<TPromptToken> {
@@ -680,6 +488,22 @@ class PromptSyntaxCodec extends Disposable implements ICodec<VSBuffer, TPromptTo
 	}
 }
 
+// /**
+//  * TODO: @legomushroom
+//  */
+// export class ChatReference extends Disposable {
+// 	/**
+// 	 * TODO: @legomushroom
+// 	 */
+// 	private readonly children: ChatReference[] = [];
+
+// 	constructor(
+// 		private readonly mainReference: ChatRequestDynamicVariablePart,
+// 	) {
+// 		super();
+// 	}
+// }
+
 /**
  * TODO: @legomushroom
  */
@@ -688,6 +512,8 @@ class DynamicVariableResolver extends Disposable {
 		private readonly fileService: IFileService,
 	) {
 		super();
+		// TODO: @legomushroom - remove
+		console.log(this.fileService);
 	}
 
 	/**
@@ -727,21 +553,20 @@ class DynamicVariableResolver extends Disposable {
 		fileUri: URI,
 	): Promise<IChatRequestVariableEntry[]> {
 		try {
-			const fileStream = await this.fileService.readFileStream(fileUri);
-			const chunks = [];
+			// TODO: @legomushroom - remove
+			console.log(fileUri);
+			// const fileStream = await this.fileService.readFileStream(fileUri);
+			// const promptSyntaxCodec = this._register(new PromptSyntaxCodec());
 
-			// this._register();
 
-			// TODO: @legomushroom - add to disposables
-			fileStream.value.on('data', (chunk) => { });
+			// const promptTokensStream = promptSyntaxCodec.decode(fileStream.value);
+			// streams.consumeReadable<TPromptToken>(promptTokensStream, token => {
+			// 	return new FileContent();
+			// });
 
 			// while (fileStream.value.read()) {
 			// 	chunks.push(chunk);
 			// }
-
-			// // streams.consumeReadable<FileContent>(fileStream, chunks => {
-			// // 	return new FileContent();
-			// // });
 
 			// fileStream.value
 			// TODO: find references in the file
@@ -751,7 +576,7 @@ class DynamicVariableResolver extends Disposable {
 			return [];
 		}
 
-		throw new Error('Method not implemented.');
+		return unimplemented();
 	}
 
 	/**
