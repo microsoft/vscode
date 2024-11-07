@@ -636,11 +636,13 @@ export class CompositeActionViewItem extends CompositeBarActionViewItem {
 	}
 
 	private showContextMenu(container: HTMLElement): void {
-		const actions: IAction[] = [this.toggleCompositePinnedAction, this.toggleCompositeBadgeAction];
+		const actions: IAction[] = [];
 
 		if (this.compositeBarActionItem.keybindingId) {
 			actions.push(createConfigureKeybindingAction(this.commandService, this.keybindingService, this.compositeBarActionItem.keybindingId));
 		}
+
+		actions.push(this.toggleCompositePinnedAction, this.toggleCompositeBadgeAction);
 
 		const compositeContextMenuActions = this.compositeContextMenuActionsProvider(this.compositeBarActionItem.id);
 		if (compositeContextMenuActions.length) {
