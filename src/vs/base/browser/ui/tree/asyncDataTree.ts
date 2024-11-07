@@ -758,13 +758,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			await Event.toPromise(this._onDidRender.event);
 		}
 
-		let node;
-		try {
-			node = this.getDataNode(element);
-		} catch {
-			console.log('Error in _updateChildren');
-			return;
-		}
+		const node = this.getDataNode(element);
 		await this.refreshAndRenderNode(node, recursive, viewStateContext, options);
 
 		if (rerender) {
