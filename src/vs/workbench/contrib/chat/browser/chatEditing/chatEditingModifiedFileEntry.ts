@@ -27,6 +27,7 @@ import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { ITextFileEditorModel } from '../../../../services/textfile/common/textfiles.js';
 import { IChatAgentResult } from '../../common/chatAgents.js';
 import { ChatEditKind, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
@@ -35,12 +36,14 @@ import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelConten
 export class ChatEditingModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 
 	public static readonly scheme = 'modified-file-entry';
-	static lastEntryId = 0;
+	private static lastEntryId = 0;
 	public readonly entryId = `${ChatEditingModifiedFileEntry.scheme}::${++ChatEditingModifiedFileEntry.lastEntryId}`;
 
-	public readonly docSnapshot: ITextModel;
-	private readonly doc: ITextModel;
+	private readonly docSnapshot: ITextModel;
 	private readonly originalContent;
+	private readonly doc: ITextModel;
+	private readonly docFileEditorModel: ITextFileEditorModel;
+	private _allEditsAreFromUs: boolean = true;
 
 	private readonly _onDidDelete = this._register(new Emitter<void>());
 	public get onDidDelete() {
@@ -132,7 +135,9 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		if (kind === ChatEditKind.Created) {
 			this.createdInRequestId = this._telemetryInfo.requestId;
 		}
-		this.doc = resourceRef.object.textEditorModel;
+		this.doc = this._register(resourceRef).object.textEditorModel;
+		this.docFileEditorModel = resourceRef.object as ITextFileEditorModel;
+
 		this.originalContent = this.doc.getValue();
 		const docSnapshot = this.docSnapshot = this._register(
 			modelService.createModel(
@@ -153,7 +158,6 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			this._register(reference);
 		})();
 
-		this._register(resourceRef);
 
 		this._register(this.doc.onDidChangeContent(e => this._mirrorEdits(e)));
 		this._register(this._fileService.watch(this.resource));
@@ -256,6 +260,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 				this._edit = e_ai.tryRebase(e_user_r);
 			}
 
+			this._allEditsAreFromUs = false;
 		}
 
 		if (!this.isCurrentlyBeingModified.get()) {
@@ -395,6 +400,12 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			this.dispose();
 		} else {
 			this._setDocValue(this.docSnapshot.getValue());
+			if (this._allEditsAreFromUs) {
+				// soft revert unsets the dirty state which is OK
+				// to do if all edits are from us otherwise we keep
+				// the dirty state
+				this.docFileEditorModel.revert({ soft: true });
+			}
 			await this.collapse(transaction);
 		}
 	}

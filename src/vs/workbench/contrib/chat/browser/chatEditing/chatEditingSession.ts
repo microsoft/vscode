@@ -434,7 +434,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._assertNotDisposed();
 
 		const entry = this._entriesObs.get().find(e => e.entryId === documentId);
-		return entry?.docSnapshot ?? null;
+		return entry?.originalModel ?? null;
 	}
 
 	acceptStreamingEditsStart(): void {
