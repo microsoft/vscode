@@ -378,6 +378,10 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					}, token);
 				}
 
+				if (dataTransfer.get('vscode-editor-data')) {
+					return;
+				}
+
 				await this.applyDefaultPasteHandler(dataTransfer, metadata, token, clipboardEvent);
 			} finally {
 				disposables.dispose();

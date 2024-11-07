@@ -34,6 +34,8 @@ export interface IBaseChatRequestVariableEntry {
 	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
 	mimeType?: string;
+	code?: string;
+	language?: string;
 
 	// TODO these represent different kinds, should be extracted to new interfaces with kind tags
 	kind?: unknown;

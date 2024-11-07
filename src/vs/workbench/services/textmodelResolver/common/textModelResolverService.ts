@@ -83,6 +83,14 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 			}
 		}
 
+		// Chat session input instance
+		if (resource.scheme === 'chatSessionInput') {
+			const model = this.instantiationService.createInstance(TextResourceEditorModel, resource);
+			if (this.ensureResolvedModel(model, key)) {
+				return model;
+			}
+		}
+
 		// Either unknown schema, or not yet registered, try to activate
 		if (!skipActivateProvider) {
 			await this.fileService.activateProvider(resource.scheme);

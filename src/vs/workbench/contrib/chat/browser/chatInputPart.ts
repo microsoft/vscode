@@ -10,6 +10,7 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -88,6 +89,7 @@ import { ChatEditingSaveAllAction } from './chatEditorSaving.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatViewState } from './chatWidget.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
+import { ChatCodeBlockContentProvider } from './codeBlockPart.js';
 
 const $ = dom.$;
 
@@ -789,6 +791,35 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
 					resolve();
 				}));
+			} else if (typeof attachment.value === 'string') {
+
+				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+
+				const hoverContent: IManagedHoverTooltipMarkdownString = {
+					markdown: {
+						value: `\`\`\`${attachment.language}\n${attachment.code}\n\`\`\``,
+					},
+					markdownNotSupportedFallback: attachment.code,
+				};
+
+				const classNames = ['file-icon', `${attachment.language}-lang-file-icon`];
+				label.setLabel(attachment.fullName ?? attachment.name, undefined, { extraClasses: classNames });
+
+				widget.style.position = 'relative';
+				store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverContent, { trapFocus: true }));
+
+				// store.add(this.hoverService.setupDelayedHover(widget, () => ({
+				// 	content: new MarkdownString(`\`\`\`${attachment.language}\n${attachment.code}\n\`\`\``),
+				// 	appearance: {
+				// 		showPointer: true,
+				// 		compact: true,
+				// 	},
+				// 	// persistence: {
+				// 	// 	hideOnHover: false,
+				// 	// }
+				// })));
+
+				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
@@ -892,6 +923,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const url = URL.createObjectURL(blob);
 		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
 		const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
+
+
 
 		const existingPill = widget.querySelector('.chat-attached-context-pill');
 		if (existingPill) {
