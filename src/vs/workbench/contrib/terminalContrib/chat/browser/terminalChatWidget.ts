@@ -15,7 +15,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ChatAgentLocation } from '../../../chat/common/chatAgents.js';
 import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
 import { ITerminalInstance, type IXtermTerminal } from '../../../terminal/browser/terminal.js';
-import { MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
+import { MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
 import { TerminalStickyScrollContribution } from '../../stickyScroll/browser/terminalStickyScrollContribution.js';
 import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
 import { CancelablePromise, createCancelablePromise, DeferredPromise } from '../../../../../base/common/async.js';
@@ -122,13 +122,9 @@ export class TerminalChatWidget extends Disposable {
 				statusMenuId: {
 					menu: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 					options: {
-						buttonConfigProvider: action => {
-							if (action.id === TerminalChatCommandId.ViewInChat || action.id === TerminalChatCommandId.RunCommand || action.id === TerminalChatCommandId.RunFirstCommand) {
-								return { isSecondary: false };
-							} else {
-								return { isSecondary: true };
-							}
-						}
+						buttonConfigProvider: action => ({
+							isSecondary: action.id !== TerminalChatCommandId.RunCommand && action.id !== TerminalChatCommandId.RunFirstCommand
+						})
 					}
 				},
 				secondaryMenuId: MENU_INLINE_CHAT_WIDGET_SECONDARY,
@@ -137,7 +133,7 @@ export class TerminalChatWidget extends Disposable {
 					menus: {
 						telemetrySource: 'terminal-inline-chat',
 						executeToolbar: MenuId.ChatExecute,
-						inputSideToolbar: MENU_TERMINAL_CHAT_WIDGET,
+						inputSideToolbar: MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR,
 					}
 				}
 			},
@@ -164,6 +160,22 @@ export class TerminalChatWidget extends Disposable {
 		this._register(autorun(r => {
 			const isBusy = this._inlineChatWidget.requestInProgress.read(r);
 			this._container.classList.toggle('busy', isBusy);
+
+			this._inlineChatWidget.toggleStatus(!!this._inlineChatWidget.responseContent);
+
+			if (isBusy || !this._inlineChatWidget.responseContent) {
+				this._responseContainsCodeBlockContextKey.set(false);
+				this._responseContainsMulitpleCodeBlocksContextKey.set(false);
+			} else {
+				Promise.all([
+					this._inlineChatWidget.getCodeBlockInfo(0),
+					this._inlineChatWidget.getCodeBlockInfo(1)
+				]).then(([firstCodeBlock, secondCodeBlock]) => {
+					this._responseContainsCodeBlockContextKey.set(!!firstCodeBlock);
+					this._responseContainsMulitpleCodeBlocksContextKey.set(!!secondCodeBlock);
+					this._inlineChatWidget.updateToolbar(true);
+				});
+			}
 		}));
 
 		this.hide();
@@ -314,7 +326,7 @@ export class TerminalChatWidget extends Disposable {
 		}
 		const value = code.getValue();
 		this._instance.runCommand(value, shouldExecute);
-		this.hide();
+		this.clear();
 	}
 
 	public get focusTracker(): IFocusTracker {
