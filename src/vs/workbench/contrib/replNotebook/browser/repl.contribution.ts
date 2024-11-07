@@ -235,7 +235,11 @@ registerAction2(class extends Action2 {
 				primary: KeyChord(KeyMod.Alt | KeyCode.End, KeyMod.Alt | KeyCode.End),
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			}],
-			precondition: MOST_RECENT_REPL_EDITOR.notEqualsTo(undefined),
+			menu: {
+				id: MenuId.CommandPalette,
+				when: MOST_RECENT_REPL_EDITOR,
+			},
+			precondition: MOST_RECENT_REPL_EDITOR
 		});
 	}
 

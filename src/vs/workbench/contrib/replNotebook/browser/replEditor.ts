@@ -551,6 +551,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 	}
 
 	private handleAppend(notebookWidget: NotebookEditorWidget, viewModel: NotebookViewModel) {
+		this._notebookWidgetService.updateReplContextKey(viewModel.notebookDocument.uri.toString());
 		const navigateToCell = this._configurationService.getValue(ReplEditorSettings.autoFocusAppendedCell);
 		if ((this._accessibilityService.isScreenReaderOptimized() && navigateToCell !== 'never')
 			|| navigateToCell === 'always') {
