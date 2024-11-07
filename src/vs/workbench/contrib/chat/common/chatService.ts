@@ -333,7 +333,7 @@ export interface IChatEditingSessionAction {
 	kind: 'chatEditingSessionAction';
 	uri: URI;
 	hasRemainingEdits: boolean;
-	outcome: 'accepted' | 'rejected';
+	outcome: 'accepted' | 'rejected' | 'saved';
 }
 
 export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction | IChatEditingSessionAction;
