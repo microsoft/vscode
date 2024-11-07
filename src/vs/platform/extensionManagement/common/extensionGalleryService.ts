@@ -605,7 +605,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	private readonly extensionsGalleryUrl: string | undefined;
 	private readonly extensionsGallerySearchUrl: string | undefined;
 	private readonly extensionsControlUrl: string | undefined;
-	private readonly extensionGalleryResourceUrlTemplate: string | undefined;
+	private readonly extensionUrlTemplate: string | undefined;
 
 	private readonly commonHeadersPromise: Promise<IHeaders>;
 	private readonly extensionsEnabledWithApiProposalVersion: string[];
@@ -625,7 +625,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		this.extensionsGalleryUrl = isPPEEnabled ? config.servicePPEUrl : config?.serviceUrl;
 		this.extensionsGallerySearchUrl = isPPEEnabled ? undefined : config?.searchUrl;
 		this.extensionsControlUrl = config?.controlUrl;
-		this.extensionGalleryResourceUrlTemplate = config?.resourceUrlTemplate;
+		this.extensionUrlTemplate = config?.extensionUrlTemplate;
 		this.extensionsEnabledWithApiProposalVersion = productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
 		this.commonHeadersPromise = resolveMarketplaceHeaders(
 			productService.version,
@@ -648,9 +648,17 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, token: CancellationToken): Promise<IGalleryExtension[]>;
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken): Promise<IGalleryExtension[]>;
 	async getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, arg1: any, arg2?: any): Promise<IGalleryExtension[]> {
+		if (!this.isEnabled()) {
+			throw new Error('No extension gallery service configured.');
+		}
+
 		const options = CancellationToken.isCancellationToken(arg1) ? {} : arg1 as IExtensionQueryOptions;
 		const token = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2 as CancellationToken;
-		const result = await this.doGetExtensions(extensionInfos, options, token);
+
+		const useResourceApi = options.useResourceApi && (this.configurationService.getValue(UseUnpkgResourceApi) ?? false);
+		const result = useResourceApi
+			? await this.getExtensionsUsingResourceApi(extensionInfos, options, token)
+			: await this.doGetExtensions(extensionInfos, options, token);
 
 		const uuids = result.map(r => r.identifier.uuid);
 		const extensionInfosByName: IExtensionInfo[] = [];
@@ -677,49 +685,6 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		}
 
 		return result;
-	}
-
-	getExtensions2(extensionInfos: ReadonlyArray<IExtensionInfo>, token: CancellationToken): Promise<IGalleryExtension[]>;
-	getExtensions2(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken): Promise<IGalleryExtension[]>;
-	async getExtensions2(extensionInfos: ReadonlyArray<IExtensionInfo>, arg1: any, arg2?: any): Promise<IGalleryExtension[]> {
-		const useUnpkgResourceApi = this.configurationService.getValue(UseUnpkgResourceApi) ?? false;
-		if (!useUnpkgResourceApi) {
-			return this.getExtensions(extensionInfos, arg1, arg2);
-		}
-
-		const options = CancellationToken.isCancellationToken(arg1) ? {} : arg1 as IExtensionQueryOptions;
-		const token = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2 as CancellationToken;
-
-		const result: IGalleryExtension[] = [];
-		try {
-			result.push(...await this.doGetExtensions2(extensionInfos, options, token));
-		} catch (error) {
-			this.logService.warn(`Error while getting the latest version for the extension ${extensionInfos.map(e => e.id).join(', ')}.`, getErrorMessage(error));
-			return this.getExtensions(extensionInfos, arg1, arg2);
-		}
-
-		const uuids: string[] = [], ids: string[] = [];
-		for (const e of result) {
-			uuids.push(e.identifier.uuid);
-			ids.push(e.identifier.id.toLowerCase());
-		}
-		const missingExtensions: IExtensionInfo[] = [];
-		for (const e of extensionInfos) {
-			if (
-				(e.uuid && !uuids.includes(e.uuid))
-				|| !ids.includes(e.id.toLowerCase())
-			) {
-				missingExtensions.push(e);
-			}
-		}
-
-		if (missingExtensions.length) {
-			const extensions = await this.getExtensions(missingExtensions, options, token);
-			result.push(...extensions);
-		}
-
-		return result;
-
 	}
 
 	private async doGetExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken): Promise<IGalleryExtension[]> {
@@ -765,20 +730,22 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		return extensions;
 	}
 
-	private async doGetExtensions2(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken): Promise<IGalleryExtension[]> {
+	private async getExtensionsUsingResourceApi(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken): Promise<IGalleryExtension[]> {
 
+		const toQuery: IExtensionInfo[] = [];
 		const result: IGalleryExtension[] = [];
 
 		await Promise.allSettled(extensionInfos.map(async extensionInfo => {
-			// Skip if the query is for a specific version
 			if (extensionInfo.version) {
+				toQuery.push(extensionInfo);
 				return;
 			}
 
 			try {
 				const rawGalleryExtension = await this.getLatestRawGalleryExtension(extensionInfo.id, token);
 				if (!rawGalleryExtension) {
-					return undefined;
+					toQuery.push(extensionInfo);
+					return;
 				}
 
 				const extension = await this.toGalleryExtensionWithCriteria(rawGalleryExtension, {
@@ -797,6 +764,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 				// report telemetry
 				else {
+					toQuery.push(extensionInfo);
 					this.telemetryService.publicLog2<
 						{
 							extension: string;
@@ -816,10 +784,14 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 						});
 				}
 			} catch (error) {
-				this.logService.error(`Error while getting the latest version for the extension ${extensionInfo.id}.`, getErrorMessage(error));
 				// Skip if there is an error while getting the latest version
+				this.logService.error(`Error while getting the latest version for the extension ${extensionInfo.id}.`, getErrorMessage(error));
+				toQuery.push(extensionInfo);
 			}
 		}));
+
+		const extensions = await this.doGetExtensions(toQuery, options, token);
+		result.push(...extensions);
 
 		return result;
 	}
@@ -1199,10 +1171,6 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	}
 
 	private async getLatestRawGalleryExtension(extensionId: string, token: CancellationToken): Promise<IRawGalleryExtension | undefined> {
-		if (!this.extensionGalleryResourceUrlTemplate) {
-			return undefined;
-		}
-
 		let errorCode: string | undefined;
 		const stopWatch = new StopWatch();
 
@@ -1212,12 +1180,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				errorCode = 'InvalidExtensionId';
 				return undefined;
 			}
-			const uri = URI.parse(format2(this.extensionGalleryResourceUrlTemplate, {
-				publisher,
-				name,
-				version: 'latest',
-				path: ''
-			}));
+			const uri = URI.parse(format2(this.extensionUrlTemplate!, { publisher, name }));
 			const commonHeaders = await this.commonHeadersPromise;
 			const headers = {
 				...commonHeaders,
@@ -1233,7 +1196,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				timeout: 10000 /*10s*/
 			}, token);
 
-			if (context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500) {
+			if (context.res.statusCode && context.res.statusCode !== 200) {
 				errorCode = `GalleryServiceError:` + context.res.statusCode;
 				this.logService.warn('Error getting latest version of the extension', extensionId, context.res.statusCode);
 				return undefined;
