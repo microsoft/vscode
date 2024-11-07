@@ -236,7 +236,7 @@ export interface IAsyncFindProvider<T> {
 	 * `startSession` is called when the user enters the first character in the find widget.
 	 * This can be used to allocate some state to preserve for the session.
 	 */
-	startSession(): void;
+	startSession?(): void;
 
 	/**
 	 * `find` is called when the user types one or more character into the find input.
@@ -247,13 +247,13 @@ export interface IAsyncFindProvider<T> {
 	 * `isVisible` is called to check if an element should be visible.
 	 * For an element to be visible, all its ancestors must also be visible and the label must match the find pattern.
 	 */
-	isVisible(element: T): boolean;
+	isVisible?(element: T): boolean;
 
 	/**
 	 * End Session is called when the user either closes the find widget or has an empty find input.
 	 * This can be used to deallocate any state that was allocated.
 	 */
-	endSession(): Promise<void>;
+	endSession?(): Promise<void>;
 }
 
 class AsyncFindFilter<T> extends FindFilter<T> {
@@ -271,7 +271,7 @@ class AsyncFindFilter<T> extends FindFilter<T> {
 	override filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore | LabelFuzzyScore> {
 		const filterResult = super.filter(element, parentVisibility);
 
-		if (!this.isFindSessionActive || this.findMode === TreeFindMode.Highlight) {
+		if (!this.isFindSessionActive || this.findMode === TreeFindMode.Highlight || !this.findProvider.isVisible) {
 			return filterResult;
 		}
 
@@ -302,7 +302,7 @@ class AsyncFindController<TInput, T, TFilterData> extends FindController<T, TFil
 		// Always make sure to end the session before disposing
 		this.disposables.add(toDisposable(async () => {
 			if (this.activeSession) {
-				await this.findProvider.endSession();
+				await this.findProvider.endSession?.();
 			}
 		}));
 	}
@@ -361,13 +361,13 @@ class AsyncFindController<TInput, T, TFilterData> extends FindController<T, TFil
 	private activateFindSession(): void {
 		this.activeSession = true;
 		this.filter.isFindSessionActive = true;
-		this.findProvider.startSession();
+		this.findProvider.startSession?.();
 	}
 
 	private async deactivateFindSession(): Promise<void> {
 		this.activeSession = false;
 		this.filter.isFindSessionActive = false;
-		await this.findProvider.endSession();
+		await this.findProvider.endSession?.();
 	}
 
 	protected override render(): void {
