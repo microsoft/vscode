@@ -477,6 +477,9 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 					if (e.hasNests && getFileNestingSettings(e).expand) {
 						return false;
 					}
+					if (this.findProvider.isShowingFilterResults()) {
+						return false;
+					}
 				}
 				return true;
 			},
@@ -693,7 +696,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	 * If the item is passed we refresh only that level of the tree, otherwise we do a full refresh.
 	 */
 	refresh(recursive: boolean, item?: ExplorerItem, cancelEditing: boolean = true): Promise<void> {
-		if (!this.tree || !this.isBodyVisible() || (item && !this.tree.hasNode(item)) || (this.findProvider?.isActive() && recursive)) {
+		if (!this.tree || !this.isBodyVisible() || (item && !this.tree.hasNode(item)) || (this.findProvider?.isShowingFilterResults() && recursive)) {
 			// Tree node doesn't exist yet, when it becomes visible we will refresh
 			return Promise.resolve(undefined);
 		}
@@ -961,7 +964,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	hasPhantomElements(): boolean {
-		return this.findProvider.isActive();
+		return this.findProvider.isShowingFilterResults();
 	}
 
 	override dispose(): void {

@@ -44,7 +44,7 @@ import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces
 import { findValidPasteFileTarget } from '../fileActions.js';
 import { FuzzyScore, createMatches, fuzzyScore } from '../../../../../base/common/filters.js';
 import { Emitter, Event, EventMultiplexer } from '../../../../../base/common/event.js';
-import { IAsyncDataTreeViewState, IAsyncFindProvider, IAsyncFindResultMetadata, ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
+import { IAsyncDataTreeViewState, IAsyncFindProvider, IAsyncFindResultMetadata, IAsyncFindToggles, ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -66,9 +66,9 @@ import { IFilesConfigurationService } from '../../../../services/filesConfigurat
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IExplorerFileContribution, explorerFileContribRegistry } from '../explorerFileContrib.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
-import { ISearchService, QueryType, getExcludes, ISearchConfiguration, IFileMatch, ISearchComplete } from '../../../../services/search/common/search.js';
+import { ISearchService, QueryType, getExcludes, ISearchConfiguration, ISearchComplete } from '../../../../services/search/common/search.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { TreeFindMatchType } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { TreeFindMatchType, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 
@@ -119,7 +119,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			return element;
 		}
 
-		if (this.findProvider.isActive()) {
+		if (this.findProvider.isShowingFilterResults()) {
 			return Array.from(element.children.values());
 		}
 
@@ -182,8 +182,8 @@ export class PhantomExplorerItem extends ExplorerItem {
 export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 
 	private sessionId: number = 0;
-	private sessionStartState: { viewState: IAsyncDataTreeViewState; input: ExplorerItem[] | ExplorerItem; rootsWithProviders: Set<ExplorerItem> } | undefined;
-	private explorerFindActiveContxtKey: IContextKey<boolean>;
+	private filterSessionStartState: { viewState: IAsyncDataTreeViewState; input: ExplorerItem[] | ExplorerItem; rootsWithProviders: Set<ExplorerItem> } | undefined;
+	private explorerFindActiveContextKey: IContextKey<boolean>;
 	private phantomParents = new Set<ExplorerItem>();
 
 	constructor(
@@ -196,14 +196,18 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		this.explorerFindActiveContxtKey = ExplorerFindProviderActive.bindTo(contextKeyService);
+		this.explorerFindActiveContextKey = ExplorerFindProviderActive.bindTo(contextKeyService);
 	}
 
-	isActive(): boolean {
-		return !!this.sessionStartState;
+	isShowingFilterResults(): boolean {
+		return !!this.filterSessionStartState;
 	}
 
 	startSession(): void {
+		this.sessionId++;
+	}
+
+	private startFilterSession(): void {
 		const tree = this.treeProvider();
 		const input = tree.getInput();
 		if (!input) {
@@ -211,48 +215,73 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		}
 
 		const roots = this.explorerService.roots.filter(root => this.searchService.schemeHasFileSearchProvider(root.resource.scheme));
-		this.sessionStartState = { viewState: tree.getViewState(), input, rootsWithProviders: new Set(roots) };
-		this.sessionId++;
+		this.filterSessionStartState = { viewState: tree.getViewState(), input, rootsWithProviders: new Set(roots) };
 
-		this.explorerFindActiveContxtKey.set(true);
+		this.explorerFindActiveContextKey.set(true);
 	}
 
 	isVisible(element: ExplorerItem): boolean {
-		if (!this.sessionStartState) {
+		if (!this.filterSessionStartState) {
 			throw new Error('No active session');
 		}
 
-		return this.sessionStartState.rootsWithProviders.has(element.root) ? element.isMarkedAsFound() : true;
+		return this.filterSessionStartState.rootsWithProviders.has(element.root) ? element.isMarkedAsFound() : true;
 	}
 
-	async find(pattern: string, matchType: TreeFindMatchType, token: CancellationToken): Promise<IAsyncFindResultMetadata> {
-		const promise = this.doFind(pattern, matchType, token);
+	async find(pattern: string, toggles: IAsyncFindToggles, token: CancellationToken): Promise<IAsyncFindResultMetadata> {
+		const promise = this.doFind(pattern, toggles, token);
 
-		const resultMetaData = this.progressService.withProgress({
+		return await this.progressService.withProgress({
 			location: ProgressLocation.Explorer,
-			delay: 1000,
+			delay: 750,
 		}, _progress => promise);
-
-		return resultMetaData;
 	}
 
-	async doFind(pattern: string, matchType: TreeFindMatchType, token: CancellationToken): Promise<IAsyncFindResultMetadata> {
-		await this.clearPhantomElements();
-
-		if (token.isCancellationRequested) {
-			console.log('Cancelling: ', pattern, 'After Clear');
+	async doFind(pattern: string, toggles: IAsyncFindToggles, token: CancellationToken): Promise<IAsyncFindResultMetadata> {
+		// When in highlight mode, we highlight matches synchronously
+		// If we toggled from filter to highlight mode, we need to end the previous async find session
+		if (toggles.findMode === TreeFindMode.Highlight) {
+			if (this.filterSessionStartState) {
+				await this.endFilterSession();
+			}
 			return {};
 		}
 
-		if (!this.sessionStartState) {
+		if (!this.filterSessionStartState) {
+			this.startFilterSession();
+		}
+
+		return await this.doFilterFind(pattern, toggles.matchType, token);
+	}
+
+	async doFilterFind(pattern: string, matchType: TreeFindMatchType, token: CancellationToken): Promise<IAsyncFindResultMetadata> {
+		if (!this.filterSessionStartState) {
 			throw new Error('ExplorerFindProvider: no session state');
 		}
 
-		const roots = Array.from(this.sessionStartState.rootsWithProviders);
-		const patternLowercase = pattern.toLowerCase();
-		let hitMaxResults = false;
+		const roots = Array.from(this.filterSessionStartState.rootsWithProviders);
+		const searchResults = await this.getSearchResults(pattern, roots, matchType, token);
 
-		await Promise.all(roots.map(async (explorerRoot, rootIndex) => {
+		if (token.isCancellationRequested) {
+			return {};
+		}
+
+		this.clearPhantomElements();
+		for (const { explorerRoot, results } of searchResults) {
+			this.addFolderFindResults(explorerRoot, results);
+		}
+
+		const tree = this.treeProvider();
+		await tree.setInput(this.filterSessionStartState.input);
+
+		const hitMaxResults = searchResults.some(({ hitMaxResults }) => hitMaxResults);
+		return { warningMessage: hitMaxResults ? localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.") : undefined };
+	}
+
+	async getSearchResults(pattern: string, roots: ExplorerItem[], matchType: TreeFindMatchType, token: CancellationToken): Promise<{ explorerRoot: ExplorerItem; results: URI[]; hitMaxResults: boolean }[]> {
+		const patternLowercase = pattern.toLowerCase();
+
+		return await Promise.all(roots.map(async (explorerRoot, rootIndex) => {
 			const searchExcludePattern = getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: explorerRoot.resource })) || {};
 			const isFuzzyMatch = matchType === TreeFindMatchType.Fuzzy;
 
@@ -274,74 +303,64 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 			}
 
 			if (!result || token.isCancellationRequested) {
-				return;
+				return { explorerRoot, results: [], hitMaxResults: false };
 			}
 
-			if (result.limitHit) {
-				hitMaxResults = true;
-			}
+			const resourceResults = result.results.map(result => result.resource);
 
 			// fuzzy match on file
-			let results = result.results;
+			let results = resourceResults;
 			if (isFuzzyMatch) {
-				results = results.filter(result => {
-					const filename = basename(result.resource);
+				results = results.filter(resource => {
+					const filename = basename(resource);
 					const score = fuzzyScore(pattern, patternLowercase, 0, filename, filename.toLowerCase(), 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
 					return !!score;
 				});
 			}
 
-			await this.addFolderFindResults(explorerRoot, results, token);
+			return { explorerRoot, results, hitMaxResults: result.limitHit ?? false };
 		}));
-
-		return { warningMessage: hitMaxResults ? localize('searchMaxResultsWarning', "Max limit hit. Only showing subset of results.", pattern) : undefined };
 	}
 
 	async endSession(): Promise<void> {
-		await this.clearPhantomElements();
+		// Restore view state
+		if (this.filterSessionStartState) {
+			await this.endFilterSession();
+		}
+	}
+
+	async endFilterSession(): Promise<void> {
+		this.clearPhantomElements();
+
+		this.explorerFindActiveContextKey.set(false);
 
 		// Restore view state
-		if (!this.sessionStartState) {
+		if (!this.filterSessionStartState) {
 			throw new Error('ExplorerFindProvider: no session state to restore');
 		}
 
-		console.log('End:', this.sessionStartState.viewState.expanded);
-
 		const tree = this.treeProvider();
-		const input = this.sessionStartState.input;
-		const viewState = this.sessionStartState.viewState;
-		this.sessionStartState = undefined;
+		await tree.setInput(this.filterSessionStartState.input, this.filterSessionStartState.viewState);
 
-		await tree.setInput(input, viewState);
-
-		this.explorerFindActiveContxtKey.set(false);
+		this.filterSessionStartState = undefined;
+		this.explorerService.refresh();
 	}
 
-	private async clearPhantomElements(): Promise<void> {
-		this.explorerService.roots.forEach(root => root.unmarkItemAndChildren());
-
-		const tree = this.treeProvider();
+	private clearPhantomElements(): void {
 		for (const phantomParent of this.phantomParents) {
+			// Clear phantom nodes from model
 			phantomParent.forgetChildren();
-
-			if (!tree.hasNode(phantomParent)) {
-				continue;
-			}
-
-			tree.collapse(phantomParent);
-			await tree.updateChildren(phantomParent, false, false);
 		}
-
-		tree.rerender();
-
 		this.phantomParents.clear();
+
+		this.explorerService.roots.forEach(root => root.unmarkItemAndChildren());
 	}
 
-	private async addFolderFindResults(root: ExplorerItem, folderFileMatches: IFileMatch[], token: CancellationToken): Promise<void> {
+	private addFolderFindResults(root: ExplorerItem, results: URI[]): void {
 		const parentsOfFileResults = new Set<ExplorerItem>();
 
-		for (const fileMatch of folderFileMatches) {
-			const element = this.explorerService.findClosest(fileMatch.resource);
+		for (const resource of results) {
+			const element = this.explorerService.findClosest(resource);
 			if (element && element.root === root) {
 				// File is already in the model
 				element.markItemAndParents();
@@ -350,46 +369,20 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 			}
 
 			// File is not in the model, create phantom items for the file and it's parents
-			const phantomElements = this.createPhantomItems(fileMatch.resource, root);
+			const phantomElements = this.createPhantomItems(resource, root);
 			if (phantomElements.length === 0) {
 				throw new Error('Phantom item was not created even though it is not in the model');
 			}
 
 			// Store the first ancestor of the file which is already present in the model
 			const firstPhantomParent = phantomElements[0].parent!;
-			if (!(firstPhantomParent.parent instanceof PhantomExplorerItem)) {
+			if (!(firstPhantomParent instanceof PhantomExplorerItem)) {
 				this.phantomParents.add(firstPhantomParent);
 			}
 
 			const phantomFileElement = phantomElements[phantomElements.length - 1];
 			phantomFileElement.markItemAndParents();
 			parentsOfFileResults.add(phantomFileElement.parent!);
-		}
-
-		if (token.isCancellationRequested) {
-			return;
-		}
-
-		// Expanding must happen after model creation as the childrens are cached
-		// and each node is expanded only the first time "expandTo" is called
-		const tree = this.treeProvider();
-		for (const fileResultParent of parentsOfFileResults) {
-			if (fileResultParent.isRoot) {
-				continue;
-			}
-
-			// Get one child of the file results and expand it,
-			// this will also expand all other children of the file result parent
-			const fileResult = fileResultParent.children.values().next().value;
-			if (!fileResult) {
-				throw new Error('Element should not be in "parentsOfFileResults" if it does not have children');
-			}
-
-			await tree.expandTo(fileResult);
-
-			/* if (token.isCancellationRequested) {
-				return;
-			} */
 		}
 	}
 

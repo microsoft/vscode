@@ -12,7 +12,7 @@ import { ICompressedTreeElement, ICompressedTreeNode } from './compressedObjectT
 import { getVisibleState, isFilterResult } from './indexTreeModel.js';
 import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from './objectTree.js';
 import { IAsyncDataSource, ICollapseStateChangeEvent, IObjectTreeElement, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, ITreeSorter, ObjectTreeElementCollapseState, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from './tree.js';
-import { CancelablePromise, createCancelablePromise, Promises, Sequencer, timeout } from '../../../common/async.js';
+import { CancelablePromise, createCancelablePromise, Promises, ThrottledDelayer, timeout } from '../../../common/async.js';
 import { Codicon } from '../../../common/codicons.js';
 import { ThemeIcon } from '../../../common/themables.js';
 import { isCancellationError, onUnexpectedError } from '../../../common/errors.js';
@@ -222,13 +222,18 @@ class AsyncDataTreeNodeListDragAndDrop<TInput, T> implements IListDragAndDrop<IA
 	}
 }
 
+export interface IAsyncFindToggles {
+	matchType: TreeFindMatchType;
+	findMode: TreeFindMode;
+}
+
 export interface IAsyncFindResultMetadata {
 	warningMessage?: string;
 }
 
 export interface IAsyncFindProvider<T> {
 	startSession(): void;
-	find(pattern: string, matchType: TreeFindMatchType, token: CancellationToken): Promise<IAsyncFindResultMetadata>;
+	find(pattern: string, toggles: IAsyncFindToggles, token: CancellationToken): Promise<IAsyncFindResultMetadata>;
 	isVisible(element: T): boolean;
 	endSession(): Promise<void>;
 }
@@ -265,7 +270,8 @@ class AsyncFindFilter<T> extends FindFilter<T> {
 class AsyncFindController<TInput, T, TFilterData> extends FindController<T, TFilterData> {
 	private activeTokenSource: CancellationTokenSource | undefined;
 	private activeSession = false;
-	private taskQueue = new Sequencer();
+	private asyncWorkInProgress = false;
+	private taskQueue = new ThrottledDelayer(250);
 
 	constructor(
 		tree: ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData>,
@@ -283,40 +289,28 @@ class AsyncFindController<TInput, T, TFilterData> extends FindController<T, TFil
 		}));
 	}
 
-	protected override applyPattern(pattern: string): void {
+	protected override applyPattern(_pattern: string): void {
 		this.renderMessage(false);
 
 		this.activeTokenSource?.cancel();
 		this.activeTokenSource = new CancellationTokenSource();
 
-		const token = this.activeTokenSource.token;
-		this.taskQueue.queue(async () => {
-			if (token.isCancellationRequested) {
-				return;
-			}
-
-			await this.applyPatternAsync(pattern, token);
-		});
+		this.taskQueue.trigger(() => this.applyPatternAsync());
 	}
 
-	private async applyPatternAsync(pattern: string, token: CancellationToken): Promise<void> {
-		// When in highlight mode, we highlight matches synchroniously
-		// If we toggled from filter to highlight mode, we need to end the previous async find session
-		if (this.mode === TreeFindMode.Highlight) {
-			if (this.activeSession) {
-				await this.deactivateFindSession();
-				if (token.isCancellationRequested) {
-					return;
-				}
-			}
-			this.filter.reset();
-			super.applyPattern(pattern);
+	private async applyPatternAsync(): Promise<void> {
+		const token = this.activeTokenSource?.token;
+		if (!token || token.isCancellationRequested) {
 			return;
 		}
+		const pattern = this.pattern;
 
 		if (pattern === '') {
 			if (this.activeSession) {
+				this.asyncWorkInProgress = true;
 				await this.deactivateFindSession();
+				this.asyncWorkInProgress = false;
+
 				if (!token.isCancellationRequested) {
 					this.filter.reset();
 					super.applyPattern('');
@@ -329,10 +323,14 @@ class AsyncFindController<TInput, T, TFilterData> extends FindController<T, TFil
 			this.activateFindSession();
 		}
 
-		const findMetadata = await this.findProvider.find(pattern, this.matchType, token);
+		this.asyncWorkInProgress = true;
+
+		const findMetadata = await this.findProvider.find(pattern, { matchType: this.matchType, findMode: this.mode }, token);
 		if (token.isCancellationRequested) {
 			return;
 		}
+
+		this.asyncWorkInProgress = false;
 
 		this.filter.reset();
 		super.applyPattern(pattern);
@@ -352,6 +350,12 @@ class AsyncFindController<TInput, T, TFilterData> extends FindController<T, TFil
 		this.activeSession = false;
 		this.filter.isFindSessionActive = false;
 		await this.findProvider.endSession();
+	}
+
+	protected override render(): void {
+		if (!this.asyncWorkInProgress) {
+			super.render();
+		}
 	}
 
 	protected override onDidToggleChange(e: ITreeFindToggleChangeEvent): void {
@@ -577,8 +581,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		if (asyncFindEnabled) {
 			const findOptions = { styles: options.findWidgetStyles, showNotFoundMessage: options.showNotFoundMessage };
 			this.findController = this.disposables.add(new AsyncFindController(this.tree, options.findProvider!, findFilter!, this.tree.options.contextViewProvider!, findOptions));
-
-			this.tree.onWillRefilter(findFilter!.reset, this.findController, this.disposables);
 
 			this.onDidChangeFindOpenState = this.findController!.onDidChangeOpenState;
 			this.onDidChangeFindMode = Event.None;

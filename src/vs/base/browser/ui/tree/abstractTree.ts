@@ -1300,7 +1300,7 @@ export class FindController<T, TFilterData> extends AbstractFindController<T, TF
 		}
 	}
 
-	private render(): void {
+	protected render(): void {
 		const noMatches = this.filter.matchCount === 0 && this.filter.totalCount > 0;
 		const showNotFound = noMatches && this.pattern.length > 0;
 
