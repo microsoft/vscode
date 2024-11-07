@@ -10,9 +10,8 @@ import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/icon
 import { IAction } from '../../../../base/common/actions.js';
 import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
 import { EditorOption, IComputedEditorOptions } from '../../../../editor/common/config/editorOptions.js';
@@ -23,7 +22,7 @@ import { Selection } from '../../../../editor/common/core/selection.js';
 import { DetailedLineRangeMapping, RangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { ICodeEditorViewState, ScrollType } from '../../../../editor/common/editorCommon.js';
 import { ITextModel } from '../../../../editor/common/model.js';
-import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -79,17 +78,6 @@ export interface IInlineChatWidgetConstructionOptions {
 	inZoneWidget?: boolean;
 }
 
-export interface IInlineChatMessage {
-	message: IMarkdownString;
-	requestId: string;
-}
-
-export interface IInlineChatMessageAppender {
-	appendContent(fragment: string): void;
-	cancel(): void;
-	complete(): void;
-}
-
 export class InlineChatWidget {
 
 	protected readonly _elements = h(
@@ -116,8 +104,8 @@ export class InlineChatWidget {
 	protected readonly _onDidChangeHeight = this._store.add(new Emitter<void>());
 	readonly onDidChangeHeight: Event<void> = Event.filter(this._onDidChangeHeight.event, _ => !this._isLayouting);
 
-	private readonly _onDidChangeInput = this._store.add(new Emitter<this>());
-	readonly onDidChangeInput: Event<this> = this._onDidChangeInput.event;
+	private readonly _requestInProgress = observableValue(this, false);
+	readonly requestInProgress: IObservable<boolean> = this._requestInProgress;
 
 	private _isLayouting: boolean = false;
 
@@ -157,17 +145,16 @@ export class InlineChatWidget {
 				renderFollowups: true,
 				supportsFileReferences: true,
 				filter: item => {
-					if (isResponseVM(item) && item.isComplete && !item.errorDetails) {
-						// filter responses that
-						// - are just text edits(prevents the "Made Edits")
-						// - are all empty
-						if (item.response.value.length > 0 && item.response.value.every(item => item.kind === 'textEditGroup' && _options.chatWidgetViewOptions?.rendererOptions?.renderTextEditsAsSummary?.(item.uri))) {
-							return false;
-						}
-						if (item.response.value.length === 0) {
-							return false;
-						}
+					if (!isResponseVM(item) || item.errorDetails) {
+						// show all requests and errors
 						return true;
+					}
+					const emptyResponse = item.response.value.length === 0;
+					if (emptyResponse) {
+						return false;
+					}
+					if (item.response.value.every(item => item.kind === 'textEditGroup' && _options.chatWidgetViewOptions?.rendererOptions?.renderTextEditsAsSummary?.(item.uri))) {
+						return false;
 					}
 					return true;
 				},
@@ -212,6 +199,8 @@ export class InlineChatWidget {
 			}));
 
 			viewModelStore.add(viewModel.onDidChange(() => {
+
+				this._requestInProgress.set(viewModel.requestInProgress, undefined);
 
 				const last = viewModel.getItems().at(-1);
 				toolbar2.context = last;
@@ -425,7 +414,7 @@ export class InlineChatWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	async getCodeBlockInfo(codeBlockIndex: number): Promise<IResolvedTextEditorModel | undefined> {
+	async getCodeBlockInfo(codeBlockIndex: number): Promise<ITextModel | undefined> {
 		const { viewModel } = this._chatWidget;
 		if (!viewModel) {
 			return undefined;

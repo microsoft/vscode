@@ -19,7 +19,7 @@ import { IInlineChatSavingService } from './inlineChatSavingService.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { InlineChatEnabler, InlineChatSessionServiceImpl } from './inlineChatSessionServiceImpl.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { CancelAction, SubmitAction } from '../../chat/browser/actions/chatExecuteActions.js';
+import { CancelAction, ChatSubmitAction } from '../../chat/browser/actions/chatExecuteActions.js';
 import { localize } from '../../../../nls.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -43,7 +43,7 @@ const editActionMenuItem: IMenuItem = {
 	group: '0_main',
 	order: 0,
 	command: {
-		id: SubmitAction.ID,
+		id: ChatSubmitAction.ID,
 		title: localize('send.edit', "Edit Code"),
 	},
 	when: ContextKeyExpr.and(
@@ -57,7 +57,7 @@ const generateActionMenuItem: IMenuItem = {
 	group: '0_main',
 	order: 0,
 	command: {
-		id: SubmitAction.ID,
+		id: ChatSubmitAction.ID,
 		title: localize('send.generate', "Generate"),
 	},
 	when: ContextKeyExpr.and(

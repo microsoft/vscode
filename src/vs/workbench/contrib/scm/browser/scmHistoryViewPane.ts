@@ -12,7 +12,7 @@ import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
-import { fromNow } from '../../../../base/common/date.js';
+import { fromNow, safeIntl } from '../../../../base/common/date.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -463,7 +463,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			markdown.appendMarkdown(`$(account) **${historyItem.author}**`);
 
 			if (historyItem.timestamp) {
-				const dateFormatter = new Intl.DateTimeFormat(platform.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+				const dateFormatter = safeIntl.DateTimeFormat(platform.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
 				markdown.appendMarkdown(`, $(history) ${fromNow(historyItem.timestamp, true, true)} (${dateFormatter.format(historyItem.timestamp)})`);
 			}
 
@@ -1279,20 +1279,18 @@ export class SCMHistoryViewPane extends ViewPane {
 			this._treeViewModel = this.instantiationService.createInstance(SCMHistoryViewModel);
 			this._visibilityDisposables.add(this._treeViewModel);
 
+			// Wait for first repository to be initialized
+			const firstRepositoryInitialized = derived(this, reader => {
+				const repository = this._treeViewModel.repository.read(reader);
+				const historyProvider = repository?.provider.historyProvider.read(reader);
+				const historyItemRef = historyProvider?.historyItemRef.read(reader);
+
+				return historyItemRef !== undefined ? true : undefined;
+			});
+			await waitForState(firstRepositoryInitialized);
+
 			// Initial rendering
 			await this._progressService.withProgress({ location: this.id }, async () => {
-				const firstRepositoryInitialized = derived(this, reader => {
-					const repository = this._treeViewModel.repository.read(reader);
-					const historyProvider = repository?.provider.historyProvider.read(reader);
-					const historyItemRef = historyProvider?.historyItemRef.read(reader);
-
-					return historyItemRef !== undefined ? true : undefined;
-				});
-
-				// Wait for first repository to be initialized
-				await waitForState(firstRepositoryInitialized);
-
-				// Set tree input
 				await this._treeOperationSequencer.queue(async () => {
 					await this._tree.setInput(this._treeViewModel);
 					this._tree.scrollTop = 0;

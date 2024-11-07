@@ -19,7 +19,7 @@ import { TerminalChatController } from './terminalChatController.js';
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
-	title: localize2('startChat', 'Start in Terminal'),
+	title: localize2('startChat', 'Terminal Inline Chat'),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 		when: ContextKeyExpr.and(TerminalContextKeys.focusInAny),
@@ -60,19 +60,15 @@ registerActiveXtermAction({
 	keybinding: {
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape],
-		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, TerminalChatContextKeys.visible),
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.or(TerminalContextKeys.focus, TerminalChatContextKeys.focused),
+			TerminalChatContextKeys.visible
+		),
 		weight: KeybindingWeight.WorkbenchContrib,
 	},
 	icon: Codicon.close,
-	menu: {
-		id: MENU_TERMINAL_CHAT_WIDGET,
-		group: 'navigation',
-		order: 2
-	},
 	f1: true,
-	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.and(TerminalChatContextKeys.focused, TerminalChatContextKeys.visible)
-	),
+	precondition: TerminalChatContextKeys.visible,
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;

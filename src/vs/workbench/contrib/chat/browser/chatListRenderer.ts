@@ -558,6 +558,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.value.appendChild(renderedError.domNode);
 		}
 
+		if (this.rendererOptions.renderStyle === 'minimal' && isRequestVM(element) && !element.isComplete) {
+			const element = $('span.chat-animated-ellipsis');
+			templateData.value.lastChild?.lastChild?.appendChild(element);
+		}
+
 		const newHeight = templateData.rowContainer.offsetHeight;
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
 		element.currentRenderedHeight = newHeight;
@@ -924,8 +929,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		markdownPart.codeblocks.forEach((info, i) => {
 			codeBlocksByResponseId[codeBlockStartIndex + i] = info;
-			if (info.uri) {
-				const uri = info.uri;
+			info.uriPromise.then(uri => {
+				if (!uri) {
+					return;
+				}
+
 				this.codeBlocksByEditorUri.set(uri, info);
 				markdownPart.addDisposable(toDisposable(() => {
 					const codeblock = this.codeBlocksByEditorUri.get(uri);
@@ -933,7 +941,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						this.codeBlocksByEditorUri.delete(uri);
 					}
 				}));
-			}
+			});
 		});
 
 		return markdownPart;

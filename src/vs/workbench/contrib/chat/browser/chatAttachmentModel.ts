@@ -43,7 +43,7 @@ export class ChatAttachmentModel extends Disposable {
 
 	asVariableEntry(uri: URI, range?: IRange) {
 		return {
-			value: uri,
+			value: range ? { uri, range } : uri,
 			id: uri.toString() + (range?.toString() ?? ''),
 			name: basename(uri),
 			isFile: true,
