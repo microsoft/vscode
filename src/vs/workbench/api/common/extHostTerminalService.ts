@@ -56,7 +56,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection;
 	getTerminalById(id: number): ExtHostTerminal | null;
 	getTerminalIdByApiObject(apiTerminal: vscode.Terminal): number | null;
-	registerTerminalCompletionProvider<T extends vscode.TerminalCompletionItem[]>(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<T>): vscode.Disposable;
+	registerTerminalCompletionProvider<T extends vscode.TerminalCompletionItem[]>(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<T>, ...triggerCharacters: string[]): vscode.Disposable;
 }
 
 interface IEnvironmentVariableCollection extends vscode.EnvironmentVariableCollection {
@@ -734,12 +734,12 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public registerTerminalCompletionProvider<T extends vscode.TerminalCompletionItem[]>(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<T>): vscode.Disposable {
+	public registerTerminalCompletionProvider<T extends vscode.TerminalCompletionItem[]>(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<T>, ...triggerCharacters: string[]): vscode.Disposable {
 		if (this._completionProviders.has(provider.id)) {
 			throw new Error(`Terminal completion provider "${provider.id}" already registered`);
 		}
 		this._completionProviders.set(provider.id, provider);
-		this._proxy.$registerCompletionProvider(provider.id, extension.identifier.value);
+		this._proxy.$registerCompletionProvider(provider.id, extension.identifier.value, ...triggerCharacters);
 		return new VSCodeDisposable(() => {
 			this._completionProviders.delete(provider.id);
 			this._proxy.$unregisterCompletionProvider(provider.id);

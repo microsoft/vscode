@@ -75,7 +75,6 @@ declare module 'vscode' {
 
 	export interface TerminalCompletionContext {
 		commandLine: string;
-		// TODO: add trigger characters here
 		cursorPosition: number;
 	}
 
@@ -86,6 +85,6 @@ declare module 'vscode' {
 		 * @param provider The completion provider.
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem[]>(provider: TerminalCompletionProvider<T>): Disposable;
+		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem[]>(provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
 	}
 }

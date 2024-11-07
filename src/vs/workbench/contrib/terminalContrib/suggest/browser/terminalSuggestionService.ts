@@ -82,11 +82,12 @@ export interface ITerminalCompletionProvider {
 	// TODO: Trigger chat props? etc.
 	shellTypes?: TerminalShellType[];
 	provideCompletions(value: string, cursorPosition: number): Promise<ITerminalCompletionItem[] | undefined>;
+	triggerCharacters?: string[];
 }
 
 export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
-	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider): IDisposable;
+	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider, ...triggerCharacters: string[]): IDisposable;
 	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, devModeEnabled?: boolean): Promise<ITerminalCompletionItem[] | undefined>;
 }
 
@@ -95,12 +96,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	declare _serviceBrand: undefined;
 	private readonly _providers: Map</*ext id*/string, Map</*provider id*/string, ITerminalCompletionProvider>> = new Map();
 
-	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider): IDisposable {
+	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider, ...triggerCharacters: string[]): IDisposable {
 		let extMap = this._providers.get(extensionIdentifier);
 		if (!extMap) {
 			extMap = new Map();
 			this._providers.set(extensionIdentifier, extMap);
 		}
+		provider.triggerCharacters = triggerCharacters;
 		extMap.set(id, provider);
 		return toDisposable(() => {
 			const extMap = this._providers.get(extensionIdentifier);
