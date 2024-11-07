@@ -66,9 +66,7 @@ export class TerminalChatWidget extends Disposable {
 
 	private _messages = this._store.add(new Emitter<Message>());
 
-	private _historyStorageKey = 'terminal-inline-chat-history';
 	private _viewStateStorageKey = 'terminal-inline-chat-view-state';
-	private _promptHistory: string[] = [];
 
 	private _lastResponseContent: string | undefined;
 	get lastResponseContent(): string | undefined {
@@ -80,9 +78,6 @@ export class TerminalChatWidget extends Disposable {
 	private readonly _model: MutableDisposable<ChatModel> = this._register(new MutableDisposable());
 
 	private _sessionCtor: CancelablePromise<void> | undefined;
-	private _historyOffset: number = -1;
-	private _historyCandidate: string = '';
-	private _historyUpdate: (prompt: string) => void;
 
 	private _currentRequestId: string | undefined;
 	private _activeRequestCts?: CancellationTokenSource;
@@ -171,18 +166,6 @@ export class TerminalChatWidget extends Disposable {
 		this._requestActiveContextKey = TerminalChatContextKeys.requestActive.bindTo(this._contextKeyService);
 		this._responseContainsCodeBlockContextKey = TerminalChatContextKeys.responseContainsCodeBlock.bindTo(this._contextKeyService);
 		this._responseContainsMulitpleCodeBlocksContextKey = TerminalChatContextKeys.responseContainsMultipleCodeBlocks.bindTo(this._contextKeyService);
-
-		this._promptHistory = JSON.parse(this._storageService.get(this._historyStorageKey, StorageScope.PROFILE, '[]'));
-		this._historyUpdate = (prompt: string) => {
-			const idx = this._promptHistory.indexOf(prompt);
-			if (idx >= 0) {
-				this._promptHistory.splice(idx, 1);
-			}
-			this._promptHistory.unshift(prompt);
-			this._historyOffset = -1;
-			this._historyCandidate = '';
-			this._storageService.store(this._historyStorageKey, JSON.stringify(this._promptHistory), StorageScope.PROFILE, StorageTarget.USER);
-		};
 	}
 
 	private _dimension?: Dimension;
@@ -372,7 +355,6 @@ export class TerminalChatWidget extends Disposable {
 		if (!lastInput) {
 			return;
 		}
-		this._historyUpdate(lastInput);
 		this._activeRequestCts?.cancel();
 		this._activeRequestCts = new CancellationTokenSource();
 		const store = new DisposableStore();
@@ -412,40 +394,6 @@ export class TerminalChatWidget extends Disposable {
 		} finally {
 			store.dispose();
 		}
-	}
-
-	populateHistory(up: boolean) {
-		if (!this._inlineChatWidget) {
-			return;
-		}
-
-		const len = this._promptHistory.length;
-		if (len === 0) {
-			return;
-		}
-
-		if (this._historyOffset === -1) {
-			// remember the current value
-			this._historyCandidate = this._inlineChatWidget.value;
-		}
-
-		const newIdx = this._historyOffset + (up ? 1 : -1);
-		if (newIdx >= len) {
-			// reached the end
-			return;
-		}
-
-		let entry: string;
-		if (newIdx < 0) {
-			entry = this._historyCandidate;
-			this._historyOffset = -1;
-		} else {
-			entry = this._promptHistory[newIdx];
-			this._historyOffset = newIdx;
-		}
-
-		this._inlineChatWidget.value = entry;
-		this._inlineChatWidget.selectAll();
 	}
 
 	cancel(): void {
