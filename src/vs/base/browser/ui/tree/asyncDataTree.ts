@@ -232,9 +232,27 @@ export interface IAsyncFindResultMetadata {
 }
 
 export interface IAsyncFindProvider<T> {
+	/**
+	 * `startSession` is called when the user enters the first character in the find widget.
+	 * This can be used to allocate some state to preserve for the session.
+	 */
 	startSession(): void;
+
+	/**
+	 * `find` is called when the user types one or more character into the find input.
+	 */
 	find(pattern: string, toggles: IAsyncFindToggles, token: CancellationToken): Promise<IAsyncFindResultMetadata>;
+
+	/**
+	 * `isVisible` is called to check if an element should be visible.
+	 * For an element to be visible, all its ancestors must also be visible and the label must match the find pattern.
+	 */
 	isVisible(element: T): boolean;
+
+	/**
+	 * End Session is called when the user either closes the find widget or has an empty find input.
+	 * This can be used to deallocate any state that was allocated.
+	 */
 	endSession(): Promise<void>;
 }
 
