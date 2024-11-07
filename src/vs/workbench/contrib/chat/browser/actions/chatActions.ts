@@ -51,10 +51,11 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IChatViewsWelcomeContributionRegistry, IChatViewsWelcomeDescriptor, ChatViewsWelcomeExtensions } from '../viewsWelcome/chatViewsWelcome.js';
+import { IChatViewsWelcomeContributionRegistry, ChatViewsWelcomeExtensions } from '../viewsWelcome/chatViewsWelcome.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Event } from '../../../../../base/common/event.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -549,14 +550,21 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 		});
 
 		// --- chat setup welcome
-		const descriptor: IChatViewsWelcomeDescriptor = {
+		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
 			title: defaultChat.welcomeTitle,
-			when: ChatContextKeys.ChatSetup.running,
+			when: ChatContextKeys.ChatSetup.signingIn,
 			icon: defaultChat.icon,
-			progress: localize('setupChatRunning', "Getting Chat ready for you..."),
+			progress: localize('setupChatSigningIn', "Signing in to {0}...", defaultChat.providerName),
 			content: new MarkdownString(`\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`, { isTrusted: true }),
-		};
-		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register(descriptor);
+		});
+
+		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
+			title: defaultChat.welcomeTitle,
+			when: ChatContextKeys.ChatSetup.installing,
+			icon: defaultChat.icon,
+			progress: localize('setupChatInstalling', "Setting up Chat for you..."),
+			content: new MarkdownString(`\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`, { isTrusted: true }),
+		});
 
 		// --- dropdown menu
 		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
@@ -637,11 +645,11 @@ class InstallChatAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const chatAgentService = accessor.get(IChatAgentService);
 
-		const setupRunningContextKey = ChatContextKeys.ChatSetup.running.bindTo(contextKeyService);
+		const setupInstallingContextKey = ChatContextKeys.ChatSetup.installing.bindTo(contextKeyService);
 
 		let installResult: 'installed' | 'cancelled' | 'failedInstall';
 		try {
-			setupRunningContextKey.set(true);
+			setupInstallingContextKey.set(true);
 			showChatView(viewsService);
 
 			await extensionsWorkbenchService.install(defaultChat.extensionId, {
@@ -657,7 +665,7 @@ class InstallChatAction extends Action2 {
 			Promise.race([
 				timeout(2000), 										// helps prevent flicker with sign-in welcome view
 				Event.toPromise(chatAgentService.onDidChangeAgents)	// https://github.com/microsoft/vscode-copilot/issues/9274
-			]).finally(() => setupRunningContextKey.reset());
+			]).finally(() => setupInstallingContextKey.reset());
 		}
 
 		telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signedIn });
@@ -691,17 +699,31 @@ class SignInAndInstallChatAction extends Action2 {
 		const authenticationService = accessor.get(IAuthenticationService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const contextKeyService = accessor.get(IContextKeyService);
+		const viewsService = accessor.get(IViewsService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+
+		const hideSecondarySidebar = !layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+
+		const setupSigningInContextKey = ChatContextKeys.ChatSetup.signingIn.bindTo(contextKeyService);
 
 		let session: AuthenticationSession | undefined;
 		try {
+			setupSigningInContextKey.set(true);
+			showChatView(viewsService);
 			session = await authenticationService.createSession(defaultChat.providerId, defaultChat.providerScopes);
 		} catch (error) {
 			// noop
+		} finally {
+			setupSigningInContextKey.reset();
 		}
 
 		if (session) {
 			instantiationService.invokeFunction(accessor => InstallChatAction.install(accessor, true));
 		} else {
+			if (hideSecondarySidebar) {
+				layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+			}
 			telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', signedIn: false });
 		}
 	}
