@@ -536,7 +536,6 @@ export interface TerminalLaunchConfig {
 	isTransient?: boolean;
 }
 
-
 export interface MainThreadTerminalServiceShape extends IDisposable {
 	$createTerminal(extHostTerminalId: string, config: TerminalLaunchConfig): Promise<void>;
 	$dispose(id: ExtHostTerminalIdentifier): void;
