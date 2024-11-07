@@ -128,6 +128,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							// async and the uri might be undefined when it's read immediately
 							return ref.object.uri;
 						}
+						readonly uriPromise = textModel.then(model => model.uri);
 						public focus() {
 							ref.object.focus();
 						}
@@ -161,6 +162,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						public get uri() {
 							return undefined;
 						}
+						readonly uriPromise = Promise.resolve(undefined);
 						public focus() {
 							return ref.object.element.focus();
 						}
