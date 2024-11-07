@@ -17,7 +17,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ITerminalSuggestConfiguration, terminalSuggestConfigSection, TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
@@ -81,15 +81,11 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 
 	constructor(
 		providedPwshCommands: Set<TerminalCompletionItem> | undefined,
-		_shellType: TerminalShellType | undefined,
 		_capabilities: ITerminalCapabilityStore,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
-		if (_shellType && _shellType !== GeneralShellType.PowerShell) {
-			throw new Error('PwshCompletionProviderAddon can only be used with PowerShell');
-		}
 		this._register(Event.runAndSubscribe(Event.any(
 			_capabilities.onDidAddCapabilityType,
 			_capabilities.onDidRemoveCapabilityType
