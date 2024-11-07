@@ -322,7 +322,8 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			when: ContextKeyExpr.or(
 				ChatContextKeys.panelParticipantRegistered,
 				ChatContextKeys.extensionInvalid,
-				ChatContextKeys.ChatSetup.running
+				ChatContextKeys.ChatSetup.installing,
+				ChatContextKeys.ChatSetup.signingIn,
 			)
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, this._viewContainer);
