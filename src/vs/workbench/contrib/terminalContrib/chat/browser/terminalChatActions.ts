@@ -7,18 +7,19 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { localize2 } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { historyNavigationVisible } from '../../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AbstractInlineChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
 import { CTX_INLINE_CHAT_EMPTY } from '../../../inlineChat/common/inlineChat.js';
 import { isDetachedTerminalInstance } from '../../../terminal/browser/terminal.js';
 import { registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
-import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
+import { MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
 import { TerminalChatController } from './terminalChatController.js';
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
-	title: localize2('startChat', 'Start in Terminal'),
+	title: localize2('startChat', 'Terminal Inline Chat'),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 		when: ContextKeyExpr.and(TerminalContextKeys.focusInAny),
@@ -43,13 +44,13 @@ registerActiveXtermAction({
 			if (typeof opts === 'object' && opts !== null && 'query' in opts && typeof opts.query === 'string') {
 				contr?.updateInput(opts.query, false);
 				if (!('isPartialQuery' in opts && opts.isPartialQuery)) {
-					contr?.acceptInput();
+					contr?.terminalChatWidget?.acceptInput();
 				}
 			}
 
 		}
 
-		contr?.reveal();
+		contr?.terminalChatWidget?.reveal();
 	}
 });
 
@@ -59,7 +60,10 @@ registerActiveXtermAction({
 	keybinding: {
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape],
-		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, TerminalChatContextKeys.visible),
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.or(TerminalContextKeys.focus, TerminalChatContextKeys.focused),
+			TerminalChatContextKeys.visible
+		),
 		weight: KeybindingWeight.WorkbenchContrib,
 	},
 	icon: Codicon.close,
@@ -69,15 +73,13 @@ registerActiveXtermAction({
 		order: 2
 	},
 	f1: true,
-	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.and(TerminalChatContextKeys.focused, TerminalChatContextKeys.visible)
-	),
+	precondition: TerminalChatContextKeys.visible,
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.clear();
+		contr?.terminalChatWidget?.clear();
 	}
 });
 
@@ -105,7 +107,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.clear();
+		contr?.terminalChatWidget?.clear();
 	}
 });
 
@@ -137,7 +139,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.acceptCommand(true);
+		contr?.terminalChatWidget?.acceptCommand(true);
 	}
 });
 
@@ -167,7 +169,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.acceptCommand(true);
+		contr?.terminalChatWidget?.acceptCommand(true);
 	}
 });
 
@@ -199,7 +201,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.acceptCommand(false);
+		contr?.terminalChatWidget?.acceptCommand(false);
 	}
 });
 
@@ -229,7 +231,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.acceptCommand(false);
+		contr?.terminalChatWidget?.acceptCommand(false);
 	}
 });
 
@@ -263,61 +265,11 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalChatCommandId.MakeRequest,
-	title: localize2('makeChatRequest', 'Make Chat Request'),
-	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		TerminalChatContextKeys.requestActive.negate(),
-		CTX_INLINE_CHAT_EMPTY.negate()
-	),
-	icon: Codicon.send,
-	keybinding: {
-		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, TerminalChatContextKeys.requestActive.negate()),
-		weight: KeybindingWeight.WorkbenchContrib,
-		primary: KeyCode.Enter
-	},
-	menu: {
-		id: MENU_TERMINAL_CHAT_INPUT,
-		group: 'navigation',
-		order: 1,
-		when: TerminalChatContextKeys.requestActive.negate(),
-	},
-	run: (_xterm, _accessor, activeInstance) => {
-		if (isDetachedTerminalInstance(activeInstance)) {
-			return;
-		}
-		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.acceptInput();
-	}
-});
-
-registerActiveXtermAction({
-	id: TerminalChatCommandId.Cancel,
-	title: localize2('cancelChat', 'Cancel Chat'),
-	precondition: ContextKeyExpr.and(
-		TerminalChatContextKeys.requestActive,
-	),
-	icon: Codicon.debugStop,
-	menu: {
-		id: MENU_TERMINAL_CHAT_INPUT,
-		group: 'navigation',
-		when: TerminalChatContextKeys.requestActive,
-	},
-	run: (_xterm, _accessor, activeInstance) => {
-		if (isDetachedTerminalInstance(activeInstance)) {
-			return;
-		}
-		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.cancel();
-	}
-});
-
-registerActiveXtermAction({
 	id: TerminalChatCommandId.PreviousFromHistory,
 	title: localize2('previousFromHitory', 'Previous From History'),
 	precondition: TerminalChatContextKeys.focused,
 	keybinding: {
-		when: TerminalChatContextKeys.focused,
+		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, historyNavigationVisible.isEqualTo(false)),
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.UpArrow,
 	},
@@ -327,7 +279,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.populateHistory(true);
+		contr?.terminalChatWidget?.populateHistory(true);
 	}
 });
 
@@ -336,7 +288,7 @@ registerActiveXtermAction({
 	title: localize2('nextFromHitory', 'Next From History'),
 	precondition: TerminalChatContextKeys.focused,
 	keybinding: {
-		when: TerminalChatContextKeys.focused,
+		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, historyNavigationVisible.isEqualTo(false)),
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.DownArrow,
 	},
@@ -346,6 +298,6 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.populateHistory(false);
+		contr?.terminalChatWidget?.populateHistory(false);
 	}
 });

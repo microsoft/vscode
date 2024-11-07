@@ -11,7 +11,6 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { searchClearIcon, searchCollapseAllIcon, searchExpandAllIcon, searchRefreshIcon, searchShowAsList, searchShowAsTree, searchStopIcon } from './searchIcons.js';
 import * as Constants from '../common/constants.js';
 import { ISearchHistoryService } from '../common/searchHistoryService.js';
-import { FileMatch, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, Match, RenderableMatch, SearchResult, TextSearchResult } from './searchModel.js';
 import { VIEW_ID } from '../../../services/search/common/search.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -19,6 +18,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { SearchStateKey, SearchUIState } from '../common/search.js';
 import { category, getSearchView } from './searchActionsBase.js';
+import { isSearchTreeMatch, RenderableMatch, ISearchResult, isSearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, isSearchTreeFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, isSearchTreeFileMatch } from './searchTreeModel/searchTreeCommon.js';
 
 //#region Actions
 registerAction2(class ClearSearchHistoryCommandAction extends Action2 {
@@ -237,7 +237,7 @@ async function expandAll(accessor: ServicesAccessor) {
  * If `element` is not provided, it is the root node.
  */
 export async function forcedExpandRecursively(
-	viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch, void>,
+	viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch, void>,
 	element: RenderableMatch | undefined
 ) {
 	if (element) {
@@ -251,14 +251,12 @@ export async function forcedExpandRecursively(
 
 	if (children) {
 		for (const child of children) {
-			if (child.element instanceof SearchResult) {
+			if (isSearchResult(child.element)) {
 				throw Error('SearchResult should not be a child of a RenderableMatch');
 			}
 			forcedExpandRecursively(viewer, child.element);
 		}
 	}
-
-
 }
 
 function clearSearchResults(accessor: ServicesAccessor) {
@@ -297,30 +295,30 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 
 		do {
 			node = navigator.next();
-		} while (node instanceof TextSearchResult);
+		} while (isTextSearchHeading(node));
 		// go to the first non-TextSearchResult node
 
-		if (node instanceof FolderMatchWorkspaceRoot || searchView.isTreeLayoutViewVisible) {
+		if (isSearchTreeFolderMatchWorkspaceRoot(node) || searchView.isTreeLayoutViewVisible) {
 			while (node = navigator.next()) {
-				if (node instanceof TextSearchResult) {
+				if (isTextSearchHeading(node)) {
 					continue;
 				}
-				if (node instanceof Match) {
+				if (isSearchTreeMatch(node)) {
 					canCollapseFileMatchLevel = true;
 					break;
 				}
 				if (searchView.isTreeLayoutViewVisible && !canCollapseFirstLevel) {
 					let nodeToTest = node;
 
-					if (node instanceof FolderMatch) {
+					if (isSearchTreeFolderMatch(node)) {
 						const compressionStartNode = viewer.getCompressedTreeNode(node)?.elements[0].element;
 						// Match elements should never be compressed, so `!(compressionStartNode instanceof Match)` should always be true here. Same with `!(compressionStartNode instanceof TextSearchResult)`
-						nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match) && !(compressionStartNode instanceof TextSearchResult) && !(compressionStartNode instanceof SearchResult)) ? compressionStartNode : node;
+						nodeToTest = compressionStartNode && !(isSearchTreeMatch(compressionStartNode)) && !isTextSearchHeading(compressionStartNode) && !(isSearchResult(compressionStartNode)) ? compressionStartNode : node;
 					}
 
 					const immediateParent = nodeToTest.parent();
 
-					if (!(immediateParent instanceof TextSearchResult || immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot || immediateParent instanceof SearchResult)) {
+					if (!(isTextSearchHeading(immediateParent) || isSearchTreeFolderMatchWorkspaceRoot(immediateParent) || isSearchTreeFolderMatchNoRoot(immediateParent) || isSearchResult(immediateParent))) {
 						canCollapseFirstLevel = true;
 					}
 				}
@@ -330,7 +328,7 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 		if (canCollapseFileMatchLevel) {
 			node = navigator.first();
 			do {
-				if (node instanceof FileMatch) {
+				if (isSearchTreeFileMatch(node)) {
 					viewer.collapse(node);
 				}
 			} while (node = navigator.next());
@@ -341,14 +339,14 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 
 					let nodeToTest = node;
 
-					if (node instanceof FolderMatch) {
+					if (isSearchTreeFolderMatch(node)) {
 						const compressionStartNode = viewer.getCompressedTreeNode(node)?.elements[0].element;
 						// Match elements should never be compressed, so !(compressionStartNode instanceof Match) should always be true here
-						nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match) && !(compressionStartNode instanceof SearchResult)) ? compressionStartNode : node;
+						nodeToTest = (compressionStartNode && !(isSearchTreeMatch(compressionStartNode)) && !(isSearchResult(compressionStartNode)) ? compressionStartNode : node);
 					}
 					const immediateParent = nodeToTest.parent();
 
-					if (immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot) {
+					if (isSearchTreeFolderMatchWorkspaceRoot(immediateParent) || isSearchTreeFolderMatchNoRoot(immediateParent)) {
 						if (viewer.hasNode(node)) {
 							viewer.collapse(node, true);
 						} else {
@@ -357,7 +355,7 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 					}
 				} while (node = navigator.next());
 			}
-		} else if (navigator.first() instanceof TextSearchResult) {
+		} else if (isTextSearchHeading(navigator.first())) {
 			// if AI results are visible, just collapse everything under the TextSearchResult.
 			node = navigator.first();
 			do {
@@ -366,7 +364,7 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 
 				}
 
-				if (viewer.getParentElement(node) instanceof TextSearchResult) {
+				if (isTextSearchHeading(viewer.getParentElement(node))) {
 					viewer.collapse(node);
 				}
 			} while (node = navigator.next());
@@ -377,7 +375,7 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 
 		const firstFocusParent = viewer.getFocus()[0]?.parent();
 
-		if (firstFocusParent && (firstFocusParent instanceof FolderMatch || firstFocusParent instanceof FileMatch) &&
+		if (firstFocusParent && (isSearchTreeFolderMatch(firstFocusParent) || isSearchTreeFileMatch(firstFocusParent)) &&
 			viewer.hasNode(firstFocusParent) && viewer.isCollapsed(firstFocusParent)) {
 			viewer.domFocus();
 			viewer.focusFirst();

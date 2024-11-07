@@ -699,11 +699,9 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 	private handleUnstableSettingConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
 		if (configuration.tags?.includes('preview')) {
 			markerData.push(this.generatePreviewSettingMarker(setting));
+		} else if (configuration.tags?.includes('experimental')) {
+			markerData.push(this.generateExperimentalSettingMarker(setting));
 		}
-		// Enable after further review and experimental -> onExP migration
-		// if (configuration.tags?.includes('experimental')) {
-		// 	markerData.push(this.generateExperimentalSettingMarker(setting));
-		// }
 	}
 
 	private generateUnsupportedApplicationSettingMarker(setting: ISetting): IMarkerData {
@@ -755,16 +753,15 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 
 	private generatePreviewSettingMarker(setting: ISetting): IMarkerData {
 		return {
-			severity: MarkerSeverity.Info,
+			severity: MarkerSeverity.Hint,
 			...setting.range,
 			message: PREVIEW_INDICATOR_DESCRIPTION
 		};
 	}
 
-	// @ts-expect-error
 	private generateExperimentalSettingMarker(setting: ISetting): IMarkerData {
 		return {
-			severity: MarkerSeverity.Info,
+			severity: MarkerSeverity.Hint,
 			...setting.range,
 			message: EXPERIMENTAL_INDICATOR_DESCRIPTION
 		};

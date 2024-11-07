@@ -122,4 +122,12 @@ export interface IHostService {
 
 	//#endregion
 
+	//#region Screenshots
+
+	/**
+	 * Captures a screenshot.
+	 */
+	getScreenshot(): Promise<ArrayBufferLike | undefined>;
+
+	//#endregion
 }

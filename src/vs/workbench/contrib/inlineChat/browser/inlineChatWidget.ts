@@ -8,12 +8,11 @@ import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/ac
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { isNonEmptyArray, tail } from '../../../../base/common/arrays.js';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
-import './media/inlineChat.css';
+import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
 import { EditorOption, IComputedEditorOptions } from '../../../../editor/common/config/editorOptions.js';
@@ -24,7 +23,7 @@ import { Selection } from '../../../../editor/common/core/selection.js';
 import { DetailedLineRangeMapping, RangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { ICodeEditorViewState, ScrollType } from '../../../../editor/common/editorCommon.js';
 import { ITextModel } from '../../../../editor/common/model.js';
-import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -38,22 +37,23 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { asCssVariable, asCssVariableName, editorBackground, inputBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { MarkUnhelpfulActionId } from '../../chat/browser/actions/chatTitleActions.js';
 import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
 import { ChatVoteDownButton } from '../../chat/browser/chatListRenderer.js';
-import { ChatWidget, IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
+import { ChatWidget, IChatViewState, IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { chatRequestBackground } from '../../chat/common/chatColors.js';
-import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { IChatModel } from '../../chat/common/chatModel.js';
 import { ChatAgentVoteDirection, IChatService } from '../../chat/common/chatService.js';
 import { isResponseVM } from '../../chat/common/chatViewModel.js';
-import { HunkInformation, Session } from './inlineChatSession.js';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from '../common/inlineChat.js';
-import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { HunkInformation, Session } from './inlineChatSession.js';
+import './media/inlineChat.css';
 
 
 export interface InlineChatWidgetViewState {
@@ -116,8 +116,8 @@ export class InlineChatWidget {
 	protected readonly _onDidChangeHeight = this._store.add(new Emitter<void>());
 	readonly onDidChangeHeight: Event<void> = Event.filter(this._onDidChangeHeight.event, _ => !this._isLayouting);
 
-	private readonly _onDidChangeInput = this._store.add(new Emitter<this>());
-	readonly onDidChangeInput: Event<this> = this._onDidChangeInput.event;
+	private readonly _requestInProgress = observableValue(this, false);
+	readonly requestInProgress: IObservable<boolean> = this._requestInProgress;
 
 	private _isLayouting: boolean = false;
 
@@ -150,23 +150,23 @@ export class InlineChatWidget {
 			location,
 			undefined,
 			{
+				autoScroll: true,
 				defaultElementHeight: 32,
 				renderStyle: 'minimal',
 				renderInputOnTop: false,
 				renderFollowups: true,
-				supportsFileReferences: _configurationService.getValue(`chat.experimental.variables.${location.location}`) === true,
+				supportsFileReferences: true,
 				filter: item => {
-					if (isResponseVM(item) && item.isComplete && !item.errorDetails) {
-						// filter responses that
-						// - are just text edits(prevents the "Made Edits")
-						// - are all empty
-						if (item.response.value.length > 0 && item.response.value.every(item => item.kind === 'textEditGroup' && _options.chatWidgetViewOptions?.rendererOptions?.renderTextEditsAsSummary?.(item.uri))) {
-							return false;
-						}
-						if (item.response.value.length === 0) {
-							return false;
-						}
+					if (!isResponseVM(item) || item.errorDetails) {
+						// show all requests and errors
 						return true;
+					}
+					const emptyResponse = item.response.value.length === 0;
+					if (emptyResponse) {
+						return false;
+					}
+					if (item.response.value.every(item => item.kind === 'textEditGroup' && _options.chatWidgetViewOptions?.rendererOptions?.renderTextEditsAsSummary?.(item.uri))) {
+						return false;
 					}
 					return true;
 				},
@@ -186,11 +186,11 @@ export class InlineChatWidget {
 		this._chatWidget.setVisible(true);
 		this._store.add(this._chatWidget);
 
-		const ctxResponse = CONTEXT_RESPONSE.bindTo(this.scopedContextKeyService);
-		const ctxResponseVote = CONTEXT_RESPONSE_VOTE.bindTo(this.scopedContextKeyService);
-		const ctxResponseSupportIssues = CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING.bindTo(this.scopedContextKeyService);
-		const ctxResponseError = CONTEXT_RESPONSE_ERROR.bindTo(this.scopedContextKeyService);
-		const ctxResponseErrorFiltered = CONTEXT_RESPONSE_FILTERED.bindTo(this.scopedContextKeyService);
+		const ctxResponse = ChatContextKeys.isResponse.bindTo(this.scopedContextKeyService);
+		const ctxResponseVote = ChatContextKeys.responseVote.bindTo(this.scopedContextKeyService);
+		const ctxResponseSupportIssues = ChatContextKeys.responseSupportsIssueReporting.bindTo(this.scopedContextKeyService);
+		const ctxResponseError = ChatContextKeys.responseHasError.bindTo(this.scopedContextKeyService);
+		const ctxResponseErrorFiltered = ChatContextKeys.responseIsFiltered.bindTo(this.scopedContextKeyService);
 
 		const viewModelStore = this._store.add(new DisposableStore());
 		this._store.add(this._chatWidget.onDidChangeViewModel(() => {
@@ -211,6 +211,8 @@ export class InlineChatWidget {
 			}));
 
 			viewModelStore.add(viewModel.onDidChange(() => {
+
+				this._requestInProgress.set(viewModel.requestInProgress, undefined);
 
 				const last = viewModel.getItems().at(-1);
 				toolbar2.context = last;
@@ -424,16 +426,16 @@ export class InlineChatWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	async getCodeBlockInfo(codeBlockIndex: number): Promise<IResolvedTextEditorModel | undefined> {
+	async getCodeBlockInfo(codeBlockIndex: number): Promise<ITextModel | undefined> {
 		const { viewModel } = this._chatWidget;
 		if (!viewModel) {
 			return undefined;
 		}
 		const items = viewModel.getItems().filter(i => isResponseVM(i));
-		if (!items.length) {
+		const item = items.at(-1);
+		if (!item) {
 			return;
 		}
-		const item = items[items.length - 1];
 		return viewModel.codeBlockModelCollection.get(viewModel.sessionId, item, codeBlockIndex)?.model;
 	}
 
@@ -442,7 +444,7 @@ export class InlineChatWidget {
 		if (!isNonEmptyArray(requests)) {
 			return undefined;
 		}
-		return tail(requests)?.response?.response.toString();
+		return requests.at(-1)?.response?.response.toString();
 	}
 
 
@@ -450,8 +452,8 @@ export class InlineChatWidget {
 		return this._chatWidget.viewModel?.model;
 	}
 
-	setChatModel(chatModel: IChatModel) {
-		this._chatWidget.setModel(chatModel, { inputValue: undefined });
+	setChatModel(chatModel: IChatModel, state?: IChatViewState) {
+		this._chatWidget.setModel(chatModel, { ...state, inputValue: undefined });
 	}
 
 	updateInfo(message: string): void {

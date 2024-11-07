@@ -45,7 +45,7 @@ import { Sequencer, Throttler } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ActionRunner, IAction, IActionRunner } from '../../../../base/common/actions.js';
-import { delta, groupBy, tail } from '../../../../base/common/arrays.js';
+import { delta, groupBy } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { ContextKeys } from './scmViewPane.js';
@@ -698,7 +698,7 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SC
 
 		// Load More element
 		const repository = inputOrElement.repository.get();
-		const lastHistoryItem = tail(historyItems);
+		const lastHistoryItem = historyItems.at(-1);
 		if (repository && lastHistoryItem && lastHistoryItem.historyItemViewModel.outputSwimlanes.length > 0) {
 			children.push({
 				repository,
@@ -1279,20 +1279,18 @@ export class SCMHistoryViewPane extends ViewPane {
 			this._treeViewModel = this.instantiationService.createInstance(SCMHistoryViewModel);
 			this._visibilityDisposables.add(this._treeViewModel);
 
+			// Wait for first repository to be initialized
+			const firstRepositoryInitialized = derived(this, reader => {
+				const repository = this._treeViewModel.repository.read(reader);
+				const historyProvider = repository?.provider.historyProvider.read(reader);
+				const historyItemRef = historyProvider?.historyItemRef.read(reader);
+
+				return historyItemRef !== undefined ? true : undefined;
+			});
+			await waitForState(firstRepositoryInitialized);
+
 			// Initial rendering
 			await this._progressService.withProgress({ location: this.id }, async () => {
-				const firstRepositoryInitialized = derived(this, reader => {
-					const repository = this._treeViewModel.repository.read(reader);
-					const historyProvider = repository?.provider.historyProvider.read(reader);
-					const historyItemRef = historyProvider?.historyItemRef.read(reader);
-
-					return historyItemRef !== undefined ? true : undefined;
-				});
-
-				// Wait for first repository to be initialized
-				await waitForState(firstRepositoryInitialized);
-
-				// Set tree input
 				await this._treeOperationSequencer.queue(async () => {
 					await this._tree.setInput(this._treeViewModel);
 					this._tree.scrollTop = 0;

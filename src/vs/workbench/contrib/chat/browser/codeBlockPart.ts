@@ -31,7 +31,7 @@ import { EndOfLinePreference, ITextModel } from '../../../../editor/common/model
 import { TextModelText } from '../../../../editor/common/model/textModelText.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { DefaultModelSHA1Computer } from '../../../../editor/common/services/modelService.js';
-import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { BracketMatchingController } from '../../../../editor/contrib/bracketMatching/browser/bracketMatching.js';
 import { ColorDetector } from '../../../../editor/contrib/colorPicker/browser/colorDetector.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
@@ -63,7 +63,7 @@ import { MenuPreventer } from '../../codeEditor/browser/menuPreventer.js';
 import { SelectionClipboardContributionID } from '../../codeEditor/browser/selectionClipboard.js';
 import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { IMarkdownVulnerability } from '../common/annotations.js';
-import { CONTEXT_CHAT_EDIT_APPLIED } from '../common/chatContextKeys.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../common/chatModel.js';
 import { IChatResponseViewModel, isResponseVM } from '../common/chatViewModel.js';
 import { ChatTreeItem } from './chat.js';
@@ -76,7 +76,7 @@ export interface ICodeBlockData {
 	readonly codeBlockIndex: number;
 	readonly element: unknown;
 
-	readonly textModel: Promise<IResolvedTextEditorModel>;
+	readonly textModel: Promise<ITextModel>;
 	readonly languageId: string;
 
 	readonly codemapperUri?: URI;
@@ -416,7 +416,8 @@ export class CodeBlockPart extends Disposable {
 	}
 
 	private async updateEditor(data: ICodeBlockData): Promise<void> {
-		const textModel = (await data.textModel).textEditorModel;
+		const textModel = await data.textModel;
+		console.log(textModel.id);
 		this.editor.setModel(textModel);
 		if (data.range) {
 			this.editor.setSelection(data.range);
@@ -748,7 +749,7 @@ export class CodeCompareBlockPart extends Disposable {
 
 		const isEditApplied = Boolean(data.edit.state?.applied ?? 0);
 
-		CONTEXT_CHAT_EDIT_APPLIED.bindTo(this.contextKeyService).set(isEditApplied);
+		ChatContextKeys.editApplied.bindTo(this.contextKeyService).set(isEditApplied);
 
 		this.element.classList.toggle('no-diff', isEditApplied);
 

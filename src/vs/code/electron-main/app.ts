@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, desktopCapturer, protocol, session, Session, systemPreferences, screen, WebFrameMain } from 'electron';
+import { app, BrowserWindow, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -51,9 +51,8 @@ import { DiskFileSystemProvider } from '../../platform/files/node/diskFileSystem
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
-import { IProcessMainService, IIssueMainService } from '../../platform/issue/common/issue.js';
-import { IssueMainService } from '../../platform/issue/electron-main/issueMainService.js';
-import { ProcessMainService } from '../../platform/issue/electron-main/processMainService.js';
+import { IProcessMainService } from '../../platform/process/common/process.js';
+import { ProcessMainService } from '../../platform/process/electron-main/processMainService.js';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from '../../platform/keyboardLayout/electron-main/keyboardLayoutMainService.js';
 import { ILaunchMainService, LaunchMainService } from '../../platform/launch/electron-main/launchMainService.js';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from '../../platform/lifecycle/electron-main/lifecycleMainService.js';
@@ -103,7 +102,7 @@ import { ExtensionsScannerService } from '../../platform/extensionManagement/nod
 import { UserDataProfilesHandler } from '../../platform/userDataProfile/electron-main/userDataProfilesHandler.js';
 import { ProfileStorageChangesListenerChannel } from '../../platform/userDataProfile/electron-main/userDataProfileStorageIpc.js';
 import { Promises, RunOnceScheduler, runWhenGlobalIdle } from '../../base/common/async.js';
-import { resolveMachineId, resolveSqmId, resolvedevDeviceId } from '../../platform/telemetry/electron-main/telemetryUtils.js';
+import { resolveMachineId, resolveSqmId, resolvedevDeviceId, validatedevDeviceId } from '../../platform/telemetry/electron-main/telemetryUtils.js';
 import { ExtensionsProfileScannerService } from '../../platform/extensionManagement/node/extensionsProfileScannerService.js';
 import { LoggerChannel } from '../../platform/log/electron-main/logIpc.js';
 import { ILoggerMainService } from '../../platform/log/electron-main/loggerService.js';
@@ -119,7 +118,6 @@ import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/ele
 import { AuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService.js';
 import { normalizeNFC } from '../../base/common/normalization.js';
 import { ICSSDevelopmentService, CSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
-import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from '../../platform/extensionManagement/node/extensionSignatureVerificationService.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -172,18 +170,17 @@ export class CodeApplication extends Disposable {
 		]);
 
 		const allowedPermissionsInCore = new Set([
-			'media'
+			'media',
+			'local-fonts',
 		]);
 
 		session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
-
 			if (isUrlFromWindow(details.requestingUrl)) {
 				return callback(allowedPermissionsInCore.has(permission));
 			}
-
 			return callback(false);
 		});
 
@@ -195,55 +192,6 @@ export class CodeApplication extends Disposable {
 				return allowedPermissionsInCore.has(permission);
 			}
 			return false;
-		});
-		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
-
-			// Get the currently focused window
-			const focusedWindow = BrowserWindow.getFocusedWindow();
-
-			if (!focusedWindow) {
-				return;
-			}
-
-			// Get the bounds (position and size) of the focused window
-			const windowBounds = focusedWindow.getBounds();
-
-			// Get all the screen sources
-			const screens = await desktopCapturer.getSources({ types: ['screen'] });
-
-			// Get the display that contains the focused window
-			const displays = screen.getAllDisplays();
-
-			// Find the screen that contains the focused window
-			for (const display of displays) {
-				const displayBounds = display.bounds;
-
-				// Check if the window is within the display's bounds. The center of the window is
-				// used since maximizing actually causes the window to go beyond the screen. There
-				// is also the case where a window could be spread across multiple screens.
-				const windowCenter = {
-					x: windowBounds.x + windowBounds.width / 2,
-					y: windowBounds.y + windowBounds.height / 2,
-				};
-				if (
-					windowCenter.x >= displayBounds.x &&
-					windowCenter.x <= displayBounds.x + displayBounds.width &&
-					windowCenter.y >= displayBounds.y &&
-					windowCenter.y <= displayBounds.y + displayBounds.height
-				) {
-					// Match the display to the screen source
-					for (const source of screens) {
-						if (source.display_id === display.id.toString()) {
-							// Found the screen containing the focused window
-							callback({ video: source, audio: 'loopback' });
-							return;
-						}
-					}
-				}
-			}
-
-			// Fallback: if no matching screen is found, return the first screen
-			callback({ video: screens[0], audio: 'loopback' });
 		});
 
 		//#endregion
@@ -1073,9 +1021,6 @@ export class CodeApplication extends Disposable {
 		services.set(IDiagnosticsMainService, new SyncDescriptor(DiagnosticsMainService, undefined, false /* proxied to other processes */));
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
-		// Issues
-		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
-
 		// Process
 		services.set(IProcessMainService, new SyncDescriptor(ProcessMainService, [this.userEnv]));
 
@@ -1164,11 +1109,6 @@ export class CodeApplication extends Disposable {
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
-		if (this.productService.quality !== 'stable') {
-			// extensions signature verification service
-			services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
-		}
-
 		// Init services that require it
 		await Promises.settled([
 			backupMainService.initialize(),
@@ -1210,20 +1150,9 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('userDataProfiles', userDataProfilesService);
 		sharedProcessClient.then(client => client.registerChannel('userDataProfiles', userDataProfilesService));
 
-		if (this.productService.quality !== 'stable') {
-			// Extension signature verification service
-			const extensionSignatureVerificationService = accessor.get(IExtensionSignatureVerificationService);
-			sharedProcessClient.then(client => client.registerChannel('signatureVerificationService',
-				ProxyChannel.fromService(extensionSignatureVerificationService, disposables)));
-		}
-
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
 		mainProcessElectronServer.registerChannel('update', updateChannel);
-
-		// Issues
-		const issueChannel = ProxyChannel.fromService(accessor.get(IIssueMainService), disposables);
-		mainProcessElectronServer.registerChannel('issue', issueChannel);
 
 		// Process
 		const processChannel = ProxyChannel.fromService(accessor.get(IProcessMainService), disposables);
@@ -1444,6 +1373,9 @@ export class CodeApplication extends Disposable {
 		if (isMacintosh && app.runningUnderARM64Translation) {
 			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
 		}
+
+		// Validate Device ID is up to date
+		validatedevDeviceId(this.stateService, this.logService);
 	}
 
 	private async installMutex(): Promise<void> {

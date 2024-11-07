@@ -25,6 +25,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../common/canc
 import { IObjectTreeModel } from './objectTreeModel.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
 import { FuzzyScore } from '../../../common/filters.js';
+import { splice } from '../../../common/arrays.js';
 
 interface IAsyncDataTreeNode<TInput, T> {
 	element: TInput | T;
@@ -1219,13 +1220,17 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		const node: IAsyncDataTreeNode<TInput, T> | undefined = this.nodes.get((element === this.root.element ? null : element) as T);
 
 		if (!node) {
-			throw new TreeError(this.user, `Data tree node not found: ${element}`);
+			const nodeIdentity = this.identityProvider?.getId(element as T).toString();
+			throw new TreeError(this.user, `Data tree node not found${nodeIdentity ? `: ${nodeIdentity}` : ''}`);
 		}
 
 		return node;
 	}
 
 	private async refreshAndRenderNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsyncDataTreeUpdateChildrenOptions<T>): Promise<void> {
+		if (this.disposables.isDisposed) {
+			return; // tree disposed during refresh, again (#228211)
+		}
 		await this.refreshNode(node, recursive, viewStateContext);
 		if (this.disposables.isDisposed) {
 			return; // tree disposed during refresh (#199264)
@@ -1444,7 +1449,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			this.nodes.set(child.element as T, child);
 		}
 
-		node.children.splice(0, node.children.length, ...children);
+		splice(node.children, 0, node.children.length, children);
 
 		// TODO@joao this doesn't take filter into account
 		if (node !== this.root && this.autoExpandSingleChildren && children.length === 1 && childrenToRefresh.length === 0) {

@@ -45,6 +45,7 @@
     "source-map": "0.6.1",
     "ternary-stream": "^3.0.0",
     "through2": "^4.0.2",
+    "tree-sitter": "^0.20.5",
     "vscode-universal-bundler": "^0.1.3",
     "workerpool": "^6.4.0",
     "yauzl": "^2.10.0"
@@ -56,7 +57,6 @@
     "npmCheckJs": "../node_modules/.bin/tsc --noEmit"
   },
   "optionalDependencies": {
-    "tree-sitter": "^0.20.5",
     "tree-sitter-typescript": "^0.20.5",
     "vscode-gulp-watch": "^5.0.3"
   }

@@ -186,6 +186,13 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	//#endregion
 
+	//#region Screenshots
+
+	getScreenshot(): Promise<ArrayBufferLike | undefined> {
+		return this.nativeHostService.getScreenshot();
+	}
+
+	//#endregion
 }
 
 registerSingleton(IHostService, WorkbenchHostService, InstantiationType.Delayed);

@@ -23,7 +23,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { PanelFocusContext } from '../../../common/contextkeys.js';
-import { CONTEXT_IN_CHAT_SESSION } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { openBreakpointSource } from './breakpointsView.js';
 import { DisassemblyView } from './disassemblyView.js';
 import { Repl } from './repl.js';
@@ -309,7 +309,7 @@ export class RunToCursorAction extends EditorAction {
 				CONTEXT_DEBUGGERS_AVAILABLE,
 				PanelFocusContext.toNegated(),
 				ContextKeyExpr.or(EditorContextKeys.editorTextFocus, CONTEXT_DISASSEMBLY_VIEW_FOCUS),
-				CONTEXT_IN_CHAT_SESSION.negate()
+				ChatContextKeys.inChatSession.negate()
 			),
 			contextMenuOpts: {
 				group: 'debug',
@@ -354,7 +354,7 @@ export class SelectionToReplAction extends EditorAction {
 			precondition: ContextKeyExpr.and(
 				CONTEXT_IN_DEBUG_MODE,
 				EditorContextKeys.editorTextFocus,
-				CONTEXT_IN_CHAT_SESSION.negate()),
+				ChatContextKeys.inChatSession.negate()),
 			contextMenuOpts: {
 				group: 'debug',
 				order: 0
@@ -397,7 +397,7 @@ export class SelectionToWatchExpressionsAction extends EditorAction {
 			precondition: ContextKeyExpr.and(
 				CONTEXT_IN_DEBUG_MODE,
 				EditorContextKeys.editorTextFocus,
-				CONTEXT_IN_CHAT_SESSION.negate()),
+				ChatContextKeys.inChatSession.negate()),
 			contextMenuOpts: {
 				group: 'debug',
 				order: 1
