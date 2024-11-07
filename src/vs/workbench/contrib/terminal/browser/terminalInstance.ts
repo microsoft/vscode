@@ -2500,6 +2500,7 @@ export class TerminalLabelComputer extends Disposable {
 		const type = instance.shellLaunchConfig.attachPersistentProcess?.type || instance.shellLaunchConfig.type;
 		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 		const promptInputModel = commandDetection?.promptInputModel;
+		const nonTaskSpinner = type === 'Task' ? '' : ' $(loading~spin)';
 		const templateProperties: ITerminalLabelTemplateProperties = {
 			cwd: instance.cwd || instance.initialCwd || '',
 			cwdFolder: '',
@@ -2514,8 +2515,12 @@ export class TerminalLabelComputer extends Disposable {
 				: (instance.fixedRows ? `\u2195${instance.fixedRows}` : ''),
 			separator: { label: this._terminalConfigurationService.config.tabs.separator },
 			shellType: instance.shellType,
-			shellCommand: commandDetection?.executingCommand && promptInputModel ? `${promptInputModel.value} $(loading~spin)` : undefined,
-			shellPromptInput: commandDetection?.executingCommand && promptInputModel ? `${promptInputModel.getCombinedString(true)} $(loading~spin)` : promptInputModel?.getCombinedString(true),
+			shellCommand: commandDetection?.executingCommand && promptInputModel
+				? promptInputModel.value + nonTaskSpinner
+				: undefined,
+			shellPromptInput: commandDetection?.executingCommand && promptInputModel
+				? promptInputModel.getCombinedString(true) + nonTaskSpinner
+				: promptInputModel?.getCombinedString(true),
 		};
 		templateProperties.workspaceFolderName = instance.workspaceFolder?.name ?? templateProperties.workspaceFolder;
 		labelTemplate = labelTemplate.trim();
