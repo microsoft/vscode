@@ -852,6 +852,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 					title: localize2('resetViewLocation', "Reset Location"),
 					menu: [{
 						id: MenuId.ViewContainerTitleContext,
+						group: '1_viewActions',
 						when: ContextKeyExpr.or(
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals('viewContainer', viewContainer.id),
