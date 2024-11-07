@@ -22,7 +22,7 @@ import { workbenchInstantiationService, type TestTerminalConfigurationService } 
 import { events as windows11_pwsh_getcontent_delete_ghost } from './recordings/windows11_pwsh_getcontent_delete_ghost.js';
 import { events as macos_pwsh_getcontent_file } from './recordings/macos_pwsh_getcontent_file.js';
 import { events as windows11_pwsh_input_ls_complete_ls } from './recordings/windows11_pwsh_input_ls_complete_ls.js';
-import { events as windows11_pwsh_namespace_completion } from './recordings/windows11_pwsh_namespace_completion.js';
+import { events as macos_pwsh_namespace_completion } from './recordings/macos_pwsh_namespace_completion.js';
 import { events as windows11_pwsh_type_before_prompt } from './recordings/windows11_pwsh_type_before_prompt.js';
 import { events as windows11_pwsh_writehost_multiline_nav_up } from './recordings/windows11_pwsh_writehost_multiline_nav_up.js';
 import { events as windows11_pwsh_writehost_multiline } from './recordings/windows11_pwsh_writehost_multiline.js';
@@ -35,7 +35,8 @@ import { GeneralShellType } from '../../../../../../platform/terminal/common/ter
 import { testRawPwshCompletions } from './testRawPwshCompletions.js';
 
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
-	{ name: 'windows11_pwsh_namespace_completion', events: windows11_pwsh_namespace_completion as any as RecordedSessionEvent[] },
+	// types [req and accepts Json.Schema.RequiredKeyword
+	{ name: 'macos_pwsh_namespace_completion', events: macos_pwsh_namespace_completion as any as RecordedSessionEvent[] },
 	// types get-con, accepts the Get-Content completion item, types ./RE, and accepts the README.md completion item
 	{ name: 'macos_pwsh_getcontent_file', events: macos_pwsh_getcontent_file as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_getcontent_delete_ghost', events: windows11_pwsh_getcontent_delete_ghost as any as RecordedSessionEvent[] },
