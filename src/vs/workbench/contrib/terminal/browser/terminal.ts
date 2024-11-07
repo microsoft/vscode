@@ -373,7 +373,6 @@ export interface ITerminalConfigurationService {
 	setPanelContainer(panelContainer: HTMLElement): void;
 	configFontIsMonospace(): boolean;
 	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont;
-	updateHasCwdDetectionCapability(hasCwdDetection: boolean): void;
 }
 
 export class TerminalLinkQuickPickEvent extends MouseEvent {
@@ -618,6 +617,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly usedShellIntegrationInjection: boolean;
 	readonly injectedArgs: string[] | undefined;
 	readonly extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
+	readonly scopedContextKeyService: IContextKeyService;
 
 	/**
 	 * The underlying disposable store, allowing objects who share the same lifecycle as the

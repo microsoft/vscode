@@ -40,7 +40,7 @@ export class TerminalEditor extends EditorPane {
 
 	private readonly _dropdownMenu: IMenu;
 
-	private readonly _instanceMenu: IMenu;
+	private _instanceMenu: IMenu;
 
 	private _cancelContextMenu: boolean = false;
 
@@ -63,8 +63,14 @@ export class TerminalEditor extends EditorPane {
 		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService
 	) {
 		super(terminalEditorId, group, telemetryService, themeService, storageService);
-		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, contextKeyService));
+		const activeScopedContextKeyService = this._terminalService.activeInstance?.scopedContextKeyService;
+		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, activeScopedContextKeyService || contextKeyService));
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
+		this._register(this._terminalEditorService.onDidChangeActiveInstance(() => {
+			const activeScopedContextKeyService = this._terminalService.activeInstance?.scopedContextKeyService;
+			this._instanceMenu.dispose();
+			this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, activeScopedContextKeyService || contextKeyService));
+		}));
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {

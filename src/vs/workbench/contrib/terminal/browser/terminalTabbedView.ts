@@ -85,8 +85,9 @@ export class TerminalTabbedView extends Disposable {
 		tabListContainer.appendChild(this._tabListElement);
 		this._tabContainer.appendChild(tabListContainer);
 
-		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
-		this._tabsListMenu = this._register(menuService.createMenu(MenuId.TerminalTabContext, contextKeyService));
+		const activeScopedContextKeyService = this._terminalService.activeInstance?.scopedContextKeyService;
+		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, activeScopedContextKeyService || contextKeyService));
+		this._tabsListMenu = this._register(menuService.createMenu(MenuId.TerminalTabContext, activeScopedContextKeyService || contextKeyService));
 		this._tabsListEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabEmptyAreaContext, contextKeyService));
 
 		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement));
@@ -118,6 +119,20 @@ export class TerminalTabbedView extends Disposable {
 					this._splitView.resizeView(this._tabTreeIndex, this._getLastListWidth());
 				}
 			}
+		}));
+		this._register(this._terminalService.onDidChangeActiveInstance(() => {
+			const terminalScopedContextKeyService = this._terminalService.activeInstance?.scopedContextKeyService;
+
+			this._instanceMenu.dispose();
+			this._instanceMenu = this._register(menuService.createMenu(
+				MenuId.TerminalInstanceContext,
+				terminalScopedContextKeyService || contextKeyService
+			));
+			this._tabsListMenu.dispose();
+			this._tabsListMenu = this._register(menuService.createMenu(
+				MenuId.TerminalTabContext,
+				terminalScopedContextKeyService || contextKeyService
+			));
 		}));
 		this._register(this._terminalGroupService.onDidChangeInstances(() => this._refreshShowTabs()));
 		this._register(this._terminalGroupService.onDidChangeGroups(() => this._refreshShowTabs()));

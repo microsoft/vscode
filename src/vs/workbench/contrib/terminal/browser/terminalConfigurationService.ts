@@ -11,15 +11,12 @@ import { ITerminalConfigurationService, LinuxDistro } from './terminal.js';
 import type { IXtermCore } from './xterm-private.js';
 import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, FontWeight, ITerminalConfiguration, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MINIMUM_LETTER_SPACING, TERMINAL_CONFIG_SECTION, type ITerminalFont } from '../common/terminal.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { TerminalContextKeys } from '../common/terminalContextKey.js';
 
 // #region TerminalConfigurationService
 
 export class TerminalConfigurationService extends Disposable implements ITerminalConfigurationService {
 	declare _serviceBrand: undefined;
 
-	private _terminalHasCwdDetectionCapabilityContextKey: IContextKey<boolean>;
 	protected _fontMetrics: TerminalFontMetrics;
 
 	protected _config!: Readonly<ITerminalConfiguration>;
@@ -30,11 +27,8 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
-		this._terminalHasCwdDetectionCapabilityContextKey = TerminalContextKeys.terminalHasCwdDetectionCapability.bindTo(this._contextKeyService);
-		this._terminalHasCwdDetectionCapabilityContextKey.set(false);
 
 		this._fontMetrics = this._register(new TerminalFontMetrics(this, this._configurationService));
 
@@ -48,9 +42,6 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 	setPanelContainer(panelContainer: HTMLElement): void { return this._fontMetrics.setPanelContainer(panelContainer); }
 	configFontIsMonospace(): boolean { return this._fontMetrics.configFontIsMonospace(); }
 	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont { return this._fontMetrics.getFont(w, xtermCore, excludeDimensions); }
-	updateHasCwdDetectionCapability(hasCwdDetection: boolean): void {
-		this._terminalHasCwdDetectionCapabilityContextKey.set(hasCwdDetection);
-	}
 
 	private _updateConfig(): void {
 		const configValues = { ...this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION) };

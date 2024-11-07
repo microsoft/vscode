@@ -58,7 +58,7 @@ export class TerminalViewPane extends ViewPane {
 	private _isInitialized: boolean = false;
 	private readonly _newDropdown: MutableDisposable<DropdownWithPrimaryActionViewItem> = this._register(new MutableDisposable());
 	private readonly _dropdownMenu: IMenu;
-	private readonly _singleTabMenu: IMenu;
+	private _singleTabMenu: IMenu;
 	private _viewShowing: IContextKey<boolean>;
 	private readonly _disposableStore = this._register(new DisposableStore());
 
@@ -106,8 +106,15 @@ export class TerminalViewPane extends ViewPane {
 				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 			}
 		}));
+		const activeScopedContextKeyService = this._terminalService.activeInstance?.scopedContextKeyService;
 		this._dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalNewDropdownContext, this._contextKeyService));
-		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalTabContext, this._contextKeyService));
+		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalTabContext, activeScopedContextKeyService || this._contextKeyService));
+		this._register(this._terminalService.onDidChangeActiveInstance(() => {
+			const activeScopedContextKeyService = this._terminalService.activeInstance?.scopedContextKeyService;
+			this._singleTabMenu.dispose();
+			this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalTabContext, activeScopedContextKeyService || this._contextKeyService));
+		}));
+
 		this._register(this._terminalProfileService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles)));
 		this._viewShowing = TerminalContextKeys.viewShowing.bindTo(this._contextKeyService);
 		this._register(this.onDidChangeBodyVisibility(e => {
