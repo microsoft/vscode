@@ -18,6 +18,7 @@ import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/ed
 import { Range } from '../../../../editor/common/core/range.js';
 import { IActionRunner } from '../../../../base/common/actions.js';
 import { getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 
 class ChatEditorOverlayWidget implements IOverlayWidget {
 
@@ -274,6 +275,10 @@ export class ChatEditorOverlayController implements IEditorContribution {
 	) {
 		const modelObs = observableFromEvent(this._editor.onDidChangeModel, () => this._editor.getModel());
 		const widget = instaService.createInstance(ChatEditorOverlayWidget, this._editor);
+
+		if (this._editor.getOption(EditorOption.inDiffEditor)) {
+			return;
+		}
 
 		this._store.add(autorun(r => {
 			const model = modelObs.read(r);

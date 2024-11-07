@@ -233,7 +233,7 @@ if (PasteAction) {
 
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
-		if (focusedEditor && focusedEditor.hasTextFocus()) {
+		if (focusedEditor && focusedEditor.hasModel() && focusedEditor.hasTextFocus()) {
 			// execCommand(paste) does not work with edit context
 			let result: boolean;
 			const experimentalEditContextEnabled = focusedEditor.getOption(EditorOption.experimentalEditContextEnabled);
@@ -244,7 +244,15 @@ if (PasteAction) {
 				// see nativeEditContext.ts for more details
 				const editorDomNode = focusedEditor.getContainerDomNode();
 				const editorDocument = editorDomNode.ownerDocument;
-				const textAreaDomNode = editorDocument.getElementsByClassName(NativeEditContext.TEXT_AREA_CLASS_NAME).item(0);
+				const textAreaElements = editorDocument.getElementsByClassName(NativeEditContext.TEXT_AREA_CLASS_NAME);
+				let textAreaDomNode: Element | undefined;
+				for (let i = 0; i < textAreaElements.length; i++) {
+					const textAreaElement = textAreaElements.item(i);
+					if (textAreaElement && textAreaElement.getAttribute('modeluri') === focusedEditor.getModel().uri.path) {
+						textAreaDomNode = textAreaElement;
+						break;
+					}
+				}
 				if (textAreaDomNode && isHTMLElement(textAreaDomNode)) {
 					textAreaDomNode.focus();
 					result = editorDocument.execCommand('paste');
