@@ -24,3 +24,5 @@ product.overrides.json
 extensions/pearai-submodule
 extensions/pearai-ref
 .prompts
+.aider*
+.env
