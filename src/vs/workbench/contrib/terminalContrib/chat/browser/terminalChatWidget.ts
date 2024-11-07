@@ -345,29 +345,6 @@ export class TerminalChatWidget extends Disposable {
 		this._storageService.store(this._viewStateStorageKey, JSON.stringify(this._inlineChatWidget.chatWidget.getViewState()), StorageScope.PROFILE, StorageTarget.USER);
 	}
 
-	private _forcedPlaceholder: string | undefined = undefined;
-
-	private _updatePlaceholder(): void {
-		const inlineChatWidget = this._inlineChatWidget;
-		if (inlineChatWidget) {
-			inlineChatWidget.placeholder = this._getPlaceholderText();
-		}
-	}
-
-	private _getPlaceholderText(): string {
-		return this._forcedPlaceholder ?? '';
-	}
-
-	setPlaceholder(text: string): void {
-		this._forcedPlaceholder = text;
-		this._updatePlaceholder();
-	}
-
-	resetPlaceholder(): void {
-		this._forcedPlaceholder = undefined;
-		this._updatePlaceholder();
-	}
-
 	clear(): void {
 		this.cancel();
 		this._model.clear();
