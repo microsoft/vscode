@@ -33,7 +33,7 @@ registerSingleton(ITerminalCompletionService, TerminalCompletionService, Instant
 
 // #region Terminal Contributions
 
-export class TerminalSuggestContribution extends DisposableStore implements ITerminalContribution {
+class TerminalSuggestContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.suggest';
 
 	static get(instance: ITerminalInstance): TerminalSuggestContribution | null {
