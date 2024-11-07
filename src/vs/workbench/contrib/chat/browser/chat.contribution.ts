@@ -44,7 +44,7 @@ import { registerChatCodeBlockActions, registerChatCodeCompareBlockActions } fro
 import { registerChatContextActions } from './actions/chatContextActions.js';
 import { registerChatCopyActions } from './actions/chatCopyActions.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
-import { SubmitAction, registerChatExecuteActions } from './actions/chatExecuteActions.js';
+import { ChatSubmitAction, registerChatExecuteActions } from './actions/chatExecuteActions.js';
 import { registerChatFileTreeActions } from './actions/chatFileTreeActions.js';
 import { registerChatExportActions } from './actions/chatImportExport.js';
 import { registerMoveActions } from './actions/chatMoveActions.js';
@@ -76,6 +76,8 @@ import { LanguageModelToolsService } from './languageModelToolsService.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeContributions.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js';
+import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
+import { ChatEditorOverlayController } from './chatEditorOverlay.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -116,6 +118,12 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for chat actions (requires {0}).", '`#window.commandCenter#`'),
 			default: true
 		},
+		'chat.experimental.offerSetup': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('chat.experimental.offerSetup', "Controls whether setup is offered for Chat if not done already."),
+			tags: ['experimental', 'onExP']
+		},
 		'chat.editing.alwaysSaveWithGeneratedChanges': {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
@@ -134,16 +142,16 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.editing.confirmEditRequestRetry', "Whether to show a confirmation before retrying a request and its associated edits."),
 			default: true,
 		},
-		'chat.editing.experimental.enableRestoreFile': {
-			type: 'boolean',
-			scope: ConfigurationScope.APPLICATION,
-			markdownDescription: nls.localize('chat.editing.enableRestoreFile', "Whether to show a toggle to restore an earlier version of a file that was edited in a chat editing session request."),
-			default: false,
-		},
 		'chat.experimental.detectParticipant.enabled': {
 			type: 'boolean',
+			deprecationMessage: nls.localize('chat.experimental.detectParticipant.enabled.deprecated', "This setting is deprecated. Please use `chat.detectParticipant.enabled` instead."),
 			description: nls.localize('chat.experimental.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
 			default: null
+		},
+		'chat.detectParticipant.enabled': {
+			type: 'boolean',
+			description: nls.localize('chat.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
+			default: true
 		},
 	}
 });
@@ -157,6 +165,15 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 		new SyncDescriptor(ChatEditorInput)
 	]
 );
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([
+	{
+		key: 'chat.experimental.detectParticipant.enabled',
+		migrateFn: (value, _accessor) => ([
+			['chat.experimental.detectParticipant.enabled', { value: undefined }],
+			['chat.detectParticipant.enabled', { value: value !== false }]
+		])
+	}
+]);
 
 class ChatResolverContribution extends Disposable {
 
@@ -248,7 +265,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 
 					return (agentLine + '\n' + commandText).trim();
 				}))).join('\n');
-			progress.report({ content: new MarkdownString(agentText, { isTrusted: { enabledCommands: [SubmitAction.ID] } }), kind: 'markdownContent' });
+			progress.report({ content: new MarkdownString(agentText, { isTrusted: { enabledCommands: [ChatSubmitAction.ID] } }), kind: 'markdownContent' });
 
 			// Report variables
 			if (defaultAgent?.metadata.helpTextVariablesPrefix) {
@@ -316,6 +333,7 @@ registerChatEditorActions();
 
 registerEditorFeature(ChatPasteProvidersFeature);
 registerEditorContribution(ChatEditorController.ID, ChatEditorController, EditorContributionInstantiation.Eventually);
+registerEditorContribution(ChatEditorOverlayController.ID, ChatEditorOverlayController, EditorContributionInstantiation.Eventually);
 
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);

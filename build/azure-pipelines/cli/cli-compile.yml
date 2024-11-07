@@ -115,6 +115,9 @@ steps:
           SearchPattern: 'code.pdb'
           SymbolServerType: TeamServices
           SymbolsProduct: 'code'
+          ArtifactServices.Symbol.AccountName: microsoft
+          ArtifactServices.Symbol.PAT: $(System.AccessToken)
+          ArtifactServices.Symbol.UseAAD: false
         displayName: Publish Symbols
 
       - task: CopyFiles@2

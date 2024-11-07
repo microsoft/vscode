@@ -171,7 +171,7 @@ import './contrib/remoteTunnel/electron-sandbox/remoteTunnel.contribution.js';
 // Chat
 import './contrib/chat/electron-sandbox/chat.contribution.js';
 import './contrib/inlineChat/electron-sandbox/inlineChat.contribution.js';
-import './contrib/chat/common/chatInstallEntitlement.contribution.js';
+import './contrib/chat/common/chatSetup.contribution.js';
 import './contrib/chat/browser/chatMovedView.contribution.js';
 
 // Encryption

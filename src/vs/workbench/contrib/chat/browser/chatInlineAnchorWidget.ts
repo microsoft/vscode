@@ -6,7 +6,6 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IAction } from '../../../../base/common/actions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -25,7 +24,7 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import { DefinitionAction } from '../../../../editor/contrib/gotoSymbol/browser/goToCommands.js';
 import * as nls from '../../../../nls.js';
 import { localize } from '../../../../nls.js';
-import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -214,9 +213,7 @@ export class InlineAnchorWidget extends Disposable {
 				getAnchor: () => event,
 				getActions: () => {
 					const menu = menuService.getMenuActions(contextMenuId, contextKeyService, { arg: contextMenuArg });
-					const primary: IAction[] = [];
-					createAndFillInContextMenuActions(menu, primary);
-					return primary;
+					return getFlatContextMenuActions(menu);
 				},
 			});
 		}));

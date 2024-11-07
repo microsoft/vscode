@@ -947,6 +947,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents an icon in the UI. This is either an uri, separate uris for the light- and dark-themes,
+	 * or a {@link ThemeIcon theme icon}.
+	 */
+	export type IconPath = Uri | {
+		/**
+		 * The icon path for the light theme.
+		 */
+		light: Uri;
+		/**
+		 * The icon path for the dark theme.
+		 */
+		dark: Uri;
+	} | ThemeIcon;
+
+	/**
 	 * Represents theme specific rendering styles for a {@link TextEditorDecorationType text editor decoration}.
 	 */
 	export interface ThemableDecorationRenderOptions {
@@ -1868,16 +1883,7 @@ declare module 'vscode' {
 		/**
 		 * The icon path or {@link ThemeIcon} for the QuickPickItem.
 		 */
-		iconPath?: Uri | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		} | ThemeIcon;
+		iconPath?: IconPath;
 
 		/**
 		 * A human-readable string which is rendered less prominent in the same line. Supports rendering of
@@ -2698,7 +2704,7 @@ declare module 'vscode' {
 		 * We also support returning `Command` for legacy reasons, however all new extensions should return
 		 * `CodeAction` object instead.
 		 */
-		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | T)[]>;
+		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<Array<Command | T>>;
 
 		/**
 		 * Given a code action fill in its {@linkcode CodeAction.edit edit}-property. Changes to
@@ -3876,16 +3882,7 @@ declare module 'vscode' {
 		/**
 		 * The icon path or {@link ThemeIcon} for the edit.
 		 */
-		iconPath?: Uri | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		} | ThemeIcon;
+		iconPath?: IconPath;
 	}
 
 	/**
@@ -7507,8 +7504,13 @@ declare module 'vscode' {
 		 * verify whether it was successful.
 		 *
 		 * @param executable A command to run.
-		 * @param args Arguments to launch the executable with which will be automatically escaped
-		 * based on the executable type.
+		 * @param args Arguments to launch the executable with. The arguments will be escaped such
+		 * that they are interpreted as single arguments when the argument both contains whitespace
+		 * and does not include any single quote, double quote or backtick characters.
+		 *
+		 * Note that this escaping is not intended to be a security measure, be careful when passing
+		 * untrusted data to this API as strings like `$(...)` can often be used in shells to
+		 * execute code within a string.
 		 *
 		 * @example
 		 * // Execute a command in a terminal immediately after being created
@@ -8061,8 +8063,8 @@ declare module 'vscode' {
 		};
 
 		/**
-		 * A storage utility for secrets. Secrets are persisted across reloads and are independent of the
-		 * current opened {@link workspace.workspaceFolders workspace}.
+		 * A secret storage object that stores state independent
+		 * of the current opened {@link workspace.workspaceFolders workspace}.
 		 */
 		readonly secrets: SecretStorage;
 
@@ -8235,8 +8237,10 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a storage utility for secrets, information that is
-	 * sensitive.
+	 * Represents a storage utility for secrets (or any information that is sensitive)
+	 * that will be stored encrypted. The implementation of the secret storage will
+	 * be different on each platform and the secrets will not be synced across
+	 * machines.
 	 */
 	export interface SecretStorage {
 		/**
@@ -8654,7 +8658,7 @@ declare module 'vscode' {
 		 * @param args The command arguments.
 		 * @param options Optional options for the started the shell.
 		 */
-		constructor(command: string | ShellQuotedString, args: (string | ShellQuotedString)[], options?: ShellExecutionOptions);
+		constructor(command: string | ShellQuotedString, args: Array<string | ShellQuotedString>, options?: ShellExecutionOptions);
 
 		/**
 		 * The shell command line. Is `undefined` if created with a command and arguments.
@@ -8669,7 +8673,7 @@ declare module 'vscode' {
 		/**
 		 * The shell args. Is `undefined` if created with a full command line.
 		 */
-		args: (string | ShellQuotedString)[];
+		args: Array<string | ShellQuotedString>;
 
 		/**
 		 * The shell options used when the command line is executed in a shell.
@@ -11902,16 +11906,7 @@ declare module 'vscode' {
 		 * When `falsy`, {@link ThemeIcon.Folder Folder Theme Icon} is assigned, if item is collapsible otherwise {@link ThemeIcon.File File Theme Icon}.
 		 * When a file or folder {@link ThemeIcon} is specified, icon is derived from the current file icon theme for the specified theme icon using {@link TreeItem.resourceUri resourceUri} (if provided).
 		 */
-		iconPath?: string | Uri | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: string | Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: string | Uri;
-		} | ThemeIcon;
+		iconPath?: string | IconPath;
 
 		/**
 		 * A human-readable string which is rendered less prominent.
@@ -12112,16 +12107,7 @@ declare module 'vscode' {
 		/**
 		 * The icon path or {@link ThemeIcon} for the terminal.
 		 */
-		iconPath?: Uri | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		} | ThemeIcon;
+		iconPath?: IconPath;
 
 		/**
 		 * The icon {@link ThemeColor} for the terminal.
@@ -12160,16 +12146,7 @@ declare module 'vscode' {
 		/**
 		 * The icon path or {@link ThemeIcon} for the terminal.
 		 */
-		iconPath?: Uri | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		} | ThemeIcon;
+		iconPath?: IconPath;
 
 		/**
 		 * The icon {@link ThemeColor} for the terminal.
@@ -12910,17 +12887,7 @@ declare module 'vscode' {
 		/**
 		 * Icon for the button.
 		 */
-		readonly iconPath: Uri | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		} | ThemeIcon;
-
+		readonly iconPath: IconPath;
 		/**
 		 * An optional tooltip.
 		 */
@@ -18998,16 +18965,7 @@ declare module 'vscode' {
 		/**
 		 * An icon for the participant shown in UI.
 		 */
-		iconPath?: Uri | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		} | ThemeIcon;
+		iconPath?: IconPath;
 
 		/**
 		 * The handler for requests to this participant.
@@ -19096,7 +19054,7 @@ declare module 'vscode' {
 		 * The list of tools that the user attached to their request.
 		 *
 		 * When a tool reference is present, the chat participant should make a chat request using
-		 * {@link LanguageModelChatToolMode.Required} to force the language model to generate parameters for the tool. Then, the
+		 * {@link LanguageModelChatToolMode.Required} to force the language model to generate input for the tool. Then, the
 		 * participant can use {@link lm.invokeTool} to use the tool attach the result to its request for the user's prompt. The
 		 * tool may contribute useful extra context for the user's request.
 		 */
@@ -19174,16 +19132,7 @@ declare module 'vscode' {
 		 * @param value A uri or location
 		 * @param iconPath Icon for the reference shown in UI
 		 */
-		reference(value: Uri | Location, iconPath?: Uri | ThemeIcon | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		}): void;
+		reference(value: Uri | Location, iconPath?: IconPath): void;
 
 		/**
 		 * Pushes a part to this stream.
@@ -19297,32 +19246,14 @@ declare module 'vscode' {
 		/**
 		 * The icon for the reference.
 		 */
-		iconPath?: Uri | ThemeIcon | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		};
+		iconPath?: IconPath;
 
 		/**
 		 * Create a new ChatResponseReferencePart.
 		 * @param value A uri or location
 		 * @param iconPath Icon for the reference shown in UI
 		 */
-		constructor(value: Uri | Location, iconPath?: Uri | ThemeIcon | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		});
+		constructor(value: Uri | Location, iconPath?: IconPath);
 	}
 
 	/**
@@ -19390,7 +19321,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart)[], name?: string): LanguageModelChatMessage;
+		static User(content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart>, name?: string): LanguageModelChatMessage;
 
 		/**
 		 * Utility to create a new assistant message.
@@ -19398,7 +19329,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage;
+		static Assistant(content: string | Array<LanguageModelTextPart | LanguageModelToolCallPart>, name?: string): LanguageModelChatMessage;
 
 		/**
 		 * The role of this message.
@@ -19409,7 +19340,7 @@ declare module 'vscode' {
 		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
 		 * specific for some models.
 		 */
-		content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[];
+		content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart>;
 
 		/**
 		 * The optional name of a user for this message.
@@ -19423,7 +19354,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		constructor(role: LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string);
+		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart>, name?: string);
 	}
 
 	/**
@@ -19703,12 +19634,12 @@ declare module 'vscode' {
 
 		/**
 		 * A list of all available tools that were registered by all extensions using {@link lm.registerTool}. They can be called
-		 * with {@link lm.invokeTool} with a set of parameters that match their declared `parametersSchema`.
+		 * with {@link lm.invokeTool} with input that match their declared `inputSchema`.
 		 */
 		export const tools: readonly LanguageModelToolInformation[];
 
 		/**
-		 * Invoke a tool listed in {@link lm.tools} by name with the given parameters. The parameters will be validated against
+		 * Invoke a tool listed in {@link lm.tools} by name with the given input. The input will be validated against
 		 * the schema declared by the tool
 		 *
 		 * A tool can be invoked by a chat participant, in the context of handling a chat request, or globally by any extension in
@@ -19774,9 +19705,9 @@ declare module 'vscode' {
 		description: string;
 
 		/**
-		 * A JSON schema for the parameters this tool accepts.
+		 * A JSON schema for the input this tool accepts.
 		 */
-		parametersSchema?: object;
+		inputSchema?: object;
 	}
 
 	/**
@@ -19811,18 +19742,18 @@ declare module 'vscode' {
 		name: string;
 
 		/**
-		 * The parameters with which to call the tool.
+		 * The input with which to call the tool.
 		 */
-		parameters: object;
+		input: object;
 
 		/**
 		 * Create a new LanguageModelToolCallPart.
 		 *
 		 * @param callId The ID of the tool call.
 		 * @param name The name of the tool to call.
-		 * @param parameters The parameters with which to call the tool.
+		 * @param input The input with which to call the tool.
 		 */
-		constructor(callId: string, name: string, parameters: object);
+		constructor(callId: string, name: string, input: object);
 	}
 
 	/**
@@ -19840,13 +19771,13 @@ declare module 'vscode' {
 		/**
 		 * The value of the tool result.
 		 */
-		content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
+		content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | unknown>;
 
 		/**
 		 * @param callId The ID of the tool call.
 		 * @param content The content of the tool result.
 		 */
-		constructor(callId: string, content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]);
+		constructor(callId: string, content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | unknown>);
 	}
 
 	/**
@@ -19891,13 +19822,13 @@ declare module 'vscode' {
 		 * the future.
 		 * @see {@link lm.invokeTool}.
 		 */
-		content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
+		content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | unknown>;
 
 		/**
 		 * Create a LanguageModelToolResult
 		 * @param content A list of tool result content parts
 		 */
-		constructor(content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]);
+		constructor(content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart>);
 	}
 
 	/**
@@ -19924,10 +19855,10 @@ declare module 'vscode' {
 		toolInvocationToken: ChatParticipantToolToken | undefined;
 
 		/**
-		 * The parameters with which to invoke the tool. The parameters must match the schema defined in
-		 * {@link LanguageModelToolInformation.parametersSchema}
+		 * The input with which to invoke the tool. The input must match the schema defined in
+		 * {@link LanguageModelToolInformation.inputSchema}
 		 */
-		parameters: T;
+		input: T;
 
 		/**
 		 * Options to hint at how many tokens the tool should return in its response, and enable the tool to count tokens
@@ -19969,9 +19900,9 @@ declare module 'vscode' {
 		readonly description: string;
 
 		/**
-		 * A JSON schema for the parameters this tool accepts.
+		 * A JSON schema for the input this tool accepts.
 		 */
-		readonly parametersSchema: object | undefined;
+		readonly inputSchema: object | undefined;
 
 		/**
 		 * A set of tags, declared by the tool, that roughly describe the tool's capabilities. A tool user may use these to filter
@@ -19985,9 +19916,9 @@ declare module 'vscode' {
 	 */
 	export interface LanguageModelToolInvocationPrepareOptions<T> {
 		/**
-		 * The parameters that the tool is being invoked with.
+		 * The input that the tool is being invoked with.
 		 */
-		parameters: T;
+		input: T;
 	}
 
 	/**
@@ -19995,15 +19926,15 @@ declare module 'vscode' {
 	 */
 	export interface LanguageModelTool<T> {
 		/**
-		 * Invoke the tool with the given parameters and return a result.
+		 * Invoke the tool with the given input and return a result.
 		 *
-		 * The provided {@link LanguageModelToolInvocationOptions.parameters} have been validated against the declared schema.
+		 * The provided {@link LanguageModelToolInvocationOptions.input} has been validated against the declared schema.
 		 */
 		invoke(options: LanguageModelToolInvocationOptions<T>, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
 
 		/**
 		 * Called once before a tool is invoked. It's recommended to implement this to customize the progress message that appears
-		 * while the tool is running, and to provide a more useful message with context from the invocation parameters. Can also
+		 * while the tool is running, and to provide a more useful message with context from the invocation input. Can also
 		 * signal that a tool needs user confirmation before running, if appropriate.
 		 *
 		 * * *Note 1:* Must be free of side-effects.

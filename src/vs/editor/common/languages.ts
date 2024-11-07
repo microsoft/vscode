@@ -93,6 +93,7 @@ export interface ITreeSitterTokenizationSupport {
 	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): Parser.QueryCapture[];
 	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[];
 	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
+	tokenizeEncodedInstrumented(lineNumber: number, textModel: model.ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined;
 }
 
 /**
@@ -801,9 +802,11 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
 
 	/**
-	 * Will be called when an item is partially accepted.
+	 * Will be called when an item is partially accepted. TODO: also handle full acceptance here!
 	 */
 	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
+
+	handleRejection?(completions: T, item: T['items'][number]): void;
 
 	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.

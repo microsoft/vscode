@@ -4511,12 +4511,18 @@ export class ChatResponseMovePart {
 	}
 }
 
-export class ChatResponseTextEditPart {
+export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart {
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
-	constructor(uri: vscode.Uri, edits: vscode.TextEdit | vscode.TextEdit[]) {
+	isDone?: boolean;
+	constructor(uri: vscode.Uri, editsOrDone: vscode.TextEdit | vscode.TextEdit[] | true) {
 		this.uri = uri;
-		this.edits = Array.isArray(edits) ? edits : [edits];
+		if (editsOrDone === true) {
+			this.isDone = true;
+			this.edits = [];
+		} else {
+			this.edits = Array.isArray(editsOrDone) ? editsOrDone : [editsOrDone];
+		}
 	}
 }
 
@@ -4657,19 +4663,13 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPart {
 	callId: string;
 	name: string;
-	parameters: any;
+	input: any;
 
-	constructor(callId: string, name: string, parameters: any) {
-		// TODO TEMP- swapped the order of these two arguments, trying to preserve the behavior for a build or two
-		if (name.startsWith('call_')) {
-			this.name = callId;
-			this.callId = name;
-		} else {
-			this.callId = callId;
-			this.name = name;
-		}
+	constructor(callId: string, name: string, input: any) {
+		this.callId = callId;
+		this.name = name;
 
-		this.parameters = parameters;
+		this.input = input;
 	}
 }
 
@@ -4765,7 +4765,7 @@ export class LanguageModelError extends Error {
 }
 
 export class LanguageModelToolResult {
-	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]) { }
+	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[]) { }
 
 	toJSON() {
 		return {

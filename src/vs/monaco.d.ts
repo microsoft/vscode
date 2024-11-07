@@ -4593,9 +4593,15 @@ declare namespace monaco.editor {
 		edits?: {
 			experimental?: {
 				enabled?: boolean;
+				useMixedLinesDiff?: 'never' | 'whenPossible' | 'afterJumpWhenPossible';
+				useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
 			};
 		};
 	}
+
+	type RequiredRecursive<T> = {
+		[P in keyof T]-?: T[P] extends object | undefined ? RequiredRecursive<T[P]> : T[P];
+	};
 
 	export interface IBracketPairColorizationOptions {
 		/**
@@ -5149,7 +5155,7 @@ declare namespace monaco.editor {
 		smoothScrolling: IEditorOption<EditorOption.smoothScrolling, boolean>;
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
 		suggest: IEditorOption<EditorOption.suggest, Readonly<Required<ISuggestOptions>>>;
-		inlineSuggest: IEditorOption<EditorOption.inlineSuggest, Readonly<Required<IInlineSuggestOptions>>>;
+		inlineSuggest: IEditorOption<EditorOption.inlineSuggest, Readonly<RequiredRecursive<IInlineSuggestOptions>>>;
 		inlineCompletionsAccessibilityVerbose: IEditorOption<EditorOption.inlineCompletionsAccessibilityVerbose, boolean>;
 		suggestFontSize: IEditorOption<EditorOption.suggestFontSize, number>;
 		suggestLineHeight: IEditorOption<EditorOption.suggestLineHeight, number>;
@@ -5382,7 +5388,21 @@ declare namespace monaco.editor {
 		 * widget. Is being invoked with the selected position preference
 		 * or `null` if not rendered.
 		 */
-		afterRender?(position: ContentWidgetPositionPreference | null): void;
+		afterRender?(position: ContentWidgetPositionPreference | null, coordinate: IContentWidgetRenderedCoordinate | null): void;
+	}
+
+	/**
+	 * Coordinatees passed in {@link IContentWidget.afterRender}
+	 */
+	export interface IContentWidgetRenderedCoordinate {
+		/**
+		 * Top position relative to the editor content.
+		 */
+		readonly top: number;
+		/**
+		 * Left position relative to the editor content.
+		 */
+		readonly left: number;
 	}
 
 	/**
@@ -7257,9 +7277,10 @@ declare namespace monaco.languages {
 		*/
 		handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
 		/**
-		 * Will be called when an item is partially accepted.
+		 * Will be called when an item is partially accepted. TODO: also handle full acceptance here!
 		 */
 		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
+		handleRejection?(completions: T, item: T['items'][number]): void;
 		/**
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/

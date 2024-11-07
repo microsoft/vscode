@@ -17,6 +17,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { spinningLoading } from '../../../../../platform/theme/common/iconRegistry.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
 
@@ -52,7 +53,7 @@ export class ChatViewWelcomeController extends Disposable {
 
 	private update(force?: boolean): void {
 		const enabled = this.delegate.shouldShowWelcome();
-		if (this.enabled === enabled || force) {
+		if (this.enabled === enabled && !force) {
 			return;
 		}
 
@@ -87,6 +88,7 @@ export class ChatViewWelcomeController extends Disposable {
 				icon: enabledDescriptor.icon,
 				title: enabledDescriptor.title,
 				message: enabledDescriptor.content,
+				progress: enabledDescriptor.progress
 			};
 			const welcomeView = this.renderDisposables.add(this.instantiationService.createInstance(ChatViewWelcomePart, content, { firstLinkToButton: true, location: this.location }));
 			this.element!.appendChild(welcomeView.element);
@@ -101,6 +103,7 @@ export interface IChatViewWelcomeContent {
 	icon?: ThemeIcon;
 	title: string;
 	message: IMarkdownString;
+	progress?: string;
 	tips?: IMarkdownString;
 }
 
@@ -123,14 +126,23 @@ export class ChatViewWelcomePart extends Disposable {
 		this.element = dom.$('.chat-welcome-view');
 
 		try {
-			const icon = dom.append(this.element!, $('.chat-welcome-view-icon'));
-			const title = dom.append(this.element!, $('.chat-welcome-view-title'));
+			const icon = dom.append(this.element, $('.chat-welcome-view-icon'));
+			const title = dom.append(this.element, $('.chat-welcome-view-title'));
 
 			if (options?.location === ChatAgentLocation.EditingSession) {
-				const featureIndicator = dom.append(this.element!, $('.chat-welcome-view-indicator'));
+				const featureIndicator = dom.append(this.element, $('.chat-welcome-view-indicator'));
 				featureIndicator.textContent = localize('preview', 'PREVIEW');
 			}
-			const message = dom.append(this.element!, $('.chat-welcome-view-message'));
+
+			if (content.progress) {
+				const progress = dom.append(this.element, $('.chat-welcome-view-progress'));
+				progress.appendChild(renderIcon(spinningLoading));
+
+				const progressLabel = dom.append(progress, $('span'));
+				progressLabel.textContent = content.progress;
+			}
+
+			const message = dom.append(this.element, $('.chat-welcome-view-message'));
 
 			if (content.icon) {
 				icon.appendChild(renderIcon(content.icon));
@@ -155,7 +167,7 @@ export class ChatViewWelcomePart extends Disposable {
 			dom.append(message, messageResult.element);
 
 			if (content.tips) {
-				const tips = dom.append(this.element!, $('.chat-welcome-view-tips'));
+				const tips = dom.append(this.element, $('.chat-welcome-view-tips'));
 				const tipsResult = this._register(renderer.render(content.tips));
 				tips.appendChild(tipsResult.element);
 			}

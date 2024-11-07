@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -26,7 +26,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { CONTEXT_CHAT_EXTENSION_INVALID, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_SHOULD_SHOW_MOVED_VIEW_WELCOME } from '../common/chatContextKeys.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { CHAT_VIEW_ID, showChatView } from './chat.js';
 import { CHAT_SIDEBAR_OLD_VIEW_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 
@@ -38,13 +38,13 @@ export class MovedChatViewPane extends ViewPane {
 	}
 }
 
-export class MoveChatViewContribution implements IWorkbenchContribution {
+export class MoveChatViewContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatMovedViewWelcomeView';
 
 	private static readonly hideMovedChatWelcomeViewStorageKey = 'workbench.chat.hideMovedChatWelcomeView';
 
-	private readonly showWelcomeViewCtx = CONTEXT_CHAT_SHOULD_SHOW_MOVED_VIEW_WELCOME.bindTo(this.contextKeyService);
+	private readonly showWelcomeViewCtx = ChatContextKeys.shouldShowMovedViewWelcome.bindTo(this.contextKeyService);
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -57,13 +57,24 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
+		super();
+
 		this.initialize();
 	}
 
 	private async initialize(): Promise<void> {
+		const hidden = this.storageService.getBoolean(MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, StorageScope.APPLICATION, false);
+
+		// If the view is already hidden, then we just want to register keybindings.
+		if (hidden) {
+			this.registerKeybindings();
+			return;
+		}
+
 		await this.hideViewIfCopilotIsNotInstalled();
 		this.updateContextKey();
 		this.registerListeners();
+		this.registerKeybindings();
 		this.registerCommands();
 		this.registerMovedChatWelcomeView();
 		this.hideViewIfOldViewIsMovedFromDefaultLocation();
@@ -113,18 +124,20 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		this.storageService.onDidChangeValue(StorageScope.APPLICATION, MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, new DisposableStore())(() => this.updateContextKey());
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, this._store)(() => this.updateContextKey()));
 	}
 
-	private registerCommands(): void {
+	private registerKeybindings(): void {
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: CHAT_SIDEBAR_OLD_VIEW_PANEL_ID,
 			weight: KeybindingWeight.WorkbenchContrib,
-			when: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED,
+			when: ChatContextKeys.panelParticipantRegistered,
 			primary: 0,
 			handler: accessor => showChatView(accessor.get(IViewsService))
 		});
+	}
 
+	private registerCommands(): void {
 		CommandsRegistry.registerCommand({
 			id: '_chatMovedViewWelcomeView.ok',
 			handler: async (accessor: ServicesAccessor) => {
@@ -193,7 +206,7 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 			order: 1,
 			canToggleVisibility: false,
 			canMoveView: false,
-			when: ContextKeyExpr.and(CONTEXT_CHAT_SHOULD_SHOW_MOVED_VIEW_WELCOME, ContextKeyExpr.or(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_EXTENSION_INVALID)),
+			when: ContextKeyExpr.and(ChatContextKeys.shouldShowMovedViewWelcome, ContextKeyExpr.or(ChatContextKeys.panelParticipantRegistered, ChatContextKeys.extensionInvalid)),
 			ctorDescriptor: new SyncDescriptor(MovedChatViewPane, [{ id: viewId }]),
 		};
 
@@ -208,11 +221,12 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 			localize('chatMovedMainMessage1Right', "Chat has been moved to the Secondary Side Bar on the right for a more integrated AI experience in your editor.");
 
 		const chatViewKeybinding = this.keybindingService.lookupKeybinding(CHAT_SIDEBAR_PANEL_ID)?.getLabel();
+		const copilotIcon = `$(${this.productService.defaultChatAgent?.icon ?? 'comment-discussion'})`;
 		let quicklyAccessMessage = undefined;
 		if (this.hasCommandCenterChat() && chatViewKeybinding) {
-			quicklyAccessMessage = localize('chatMovedCommandCenterAndKeybind', "You can quickly access Chat via the new Copilot icon in the editor title bar or with the keyboard shortcut {0}.", chatViewKeybinding);
+			quicklyAccessMessage = localize('chatMovedCommandCenterAndKeybind', "You can quickly access Chat via the new Copilot icon ({0}) in the editor title bar or with the keyboard shortcut {1}.", copilotIcon, chatViewKeybinding);
 		} else if (this.hasCommandCenterChat()) {
-			quicklyAccessMessage = localize('chatMovedCommandCenter', "You can quickly access Chat via the new Copilot icon in the editor title bar.");
+			quicklyAccessMessage = localize('chatMovedCommandCenter', "You can quickly access Chat via the new Copilot icon ({0}) in the editor title bar.", copilotIcon);
 		} else if (chatViewKeybinding) {
 			quicklyAccessMessage = localize('chatMovedKeybind', "You can quickly access Chat with the keyboard shortcut {0}.", chatViewKeybinding);
 		}
@@ -230,7 +244,7 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		return viewsRegistry.registerViewWelcomeContent(viewId, {
 			content: [welcomeViewMainMessage, okButton, restoreButton, welcomeViewFooterMessage].join('\n\n'),
 			renderSecondaryButtons: true,
-			when: ContextKeyExpr.and(CONTEXT_CHAT_SHOULD_SHOW_MOVED_VIEW_WELCOME, ContextKeyExpr.or(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_EXTENSION_INVALID))
+			when: ContextKeyExpr.and(ChatContextKeys.shouldShowMovedViewWelcome, ContextKeyExpr.or(ChatContextKeys.panelParticipantRegistered, ChatContextKeys.extensionInvalid))
 		});
 	}
 

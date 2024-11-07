@@ -22,7 +22,7 @@ export interface IToolData {
 	displayName: string;
 	userDescription?: string;
 	modelDescription: string;
-	parametersSchema?: IJSONSchema;
+	inputSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
 }
 

@@ -36,7 +36,6 @@ export interface IChatEditingService {
 	readonly editingSessionFileLimit: number;
 
 	startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession>;
-	triggerEditComputation(responseModel: IChatResponseModel): Promise<void>;
 	getEditingSession(resource: URI): IChatEditingSession | null;
 	createSnapshot(requestId: string): void;
 	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
@@ -81,6 +80,7 @@ export interface IModifiedFileEntry {
 	readonly modifiedURI: URI;
 	readonly state: IObservable<WorkingSetEntryState>;
 	readonly isCurrentlyBeingModified: IObservable<boolean>;
+	readonly rewriteRatio: IObservable<number>;
 	readonly diffInfo: IObservable<IDocumentDiff>;
 	readonly lastModifyingRequestId: string;
 	accept(transaction: ITransaction | undefined): Promise<void>;
@@ -88,7 +88,7 @@ export interface IModifiedFileEntry {
 }
 
 export interface IChatEditingSessionStream {
-	textEdits(resource: URI, textEdits: TextEdit[], responseModel: IChatResponseModel): void;
+	textEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
 }
 
 export const enum ChatEditingSessionState {
@@ -105,9 +105,9 @@ export const decidedChatEditingResourceContextKey = new RawContextKey<string[]>(
 export const chatEditingResourceContextKey = new RawContextKey<string | undefined>('chatEditingResource', undefined);
 export const inChatEditingSessionContextKey = new RawContextKey<boolean | undefined>('inChatEditingSession', undefined);
 export const applyingChatEditsContextKey = new RawContextKey<boolean | undefined>('isApplyingChatEdits', undefined);
-export const isChatRequestCheckpointed = new RawContextKey<boolean | undefined>('isChatRequestCheckpointed', false);
 export const hasUndecidedChatEditingResourceContextKey = new RawContextKey<boolean | undefined>('hasUndecidedChatEditingResource', false);
 export const hasAppliedChatEditsContextKey = new RawContextKey<boolean | undefined>('hasAppliedChatEdits', false);
+export const applyingChatEditsFailedContextKey = new RawContextKey<boolean | undefined>('applyingChatEditsFailed', false);
 
 export const chatEditingMaxFileAssignmentName = 'chatEditingSessionFileLimit';
 export const defaultChatEditingMaxFileLimit = 10;
@@ -115,4 +115,13 @@ export const defaultChatEditingMaxFileLimit = 10;
 export const enum ChatEditKind {
 	Created,
 	Modified,
+}
+
+export interface IChatEditingActionContext {
+	// The chat session ID that this editing session is associated with
+	sessionId: string;
+}
+
+export function isChatEditingActionContext(thing: unknown): thing is IChatEditingActionContext {
+	return typeof thing === 'object' && !!thing && 'sessionId' in thing;
 }

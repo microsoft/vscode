@@ -206,7 +206,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 			let part: IChatResponsePart | undefined;
 			if (fragment.part instanceof extHostTypes.LanguageModelToolCallPart) {
-				part = { type: 'tool_use', name: fragment.part.name, parameters: fragment.part.parameters, toolCallId: fragment.part.callId };
+				part = { type: 'tool_use', name: fragment.part.name, parameters: fragment.part.input, toolCallId: fragment.part.callId };
 			} else if (fragment.part instanceof extHostTypes.LanguageModelTextPart) {
 				part = { type: 'text', value: fragment.part.value };
 			}
@@ -233,15 +233,11 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		} else {
 
-			const progress2 = new Progress<vscode.ChatResponseFragment>(async fragment => {
-				progress.report({ index: fragment.index, part: new extHostTypes.LanguageModelTextPart(fragment.part) });
-			});
-
 			p = Promise.resolve(data.provider.provideLanguageModelResponse(
 				messages.map(typeConvert.LanguageModelChatMessage.to),
-				options?.modelOptions ?? {},
+				options,
 				ExtensionIdentifier.toKey(from),
-				progress2,
+				progress,
 				token
 			));
 		}

@@ -111,7 +111,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			this._onDidChangeViewContainers.fire({ removed: [{ container: viewContainer, location: viewContainerLocation }], added: [] });
 		}));
 
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, ViewDescriptorService.VIEWS_CUSTOMIZATIONS, this._register(new DisposableStore()))(() => this.onDidStorageChange()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, ViewDescriptorService.VIEWS_CUSTOMIZATIONS, this._store)(() => this.onDidStorageChange()));
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => this.whenExtensionsRegistered());
 

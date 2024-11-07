@@ -21,7 +21,7 @@ steps:
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
@@ -146,6 +146,9 @@ steps:
       SearchPattern: '**\*.pdb'
       SymbolServerType: TeamServices
       SymbolsProduct: 'code'
+      ArtifactServices.Symbol.AccountName: microsoft
+      ArtifactServices.Symbol.PAT: $(System.AccessToken)
+      ArtifactServices.Symbol.UseAAD: false
     displayName: Publish Symbols
     condition: succeeded()
 
