@@ -11,7 +11,7 @@ import { ShellIntegrationOscPs } from '../../../../../platform/terminal/common/x
 import * as dom from '../../../../../base/browser/dom.js';
 import { IPromptInputModel, IPromptInputModelState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { sep } from '../../../../../base/common/path.js';
-import { normalizePathSeparator, SuggestAddon } from './terminalSuggestAddon.js';
+import { SuggestAddon } from './terminalSuggestAddon.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ITerminalSuggestConfiguration, terminalSuggestConfigSection, TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration.js';
@@ -50,7 +50,6 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	private _gitCompletionsRequested: boolean = false;
 	private _lastUserDataTimestamp: number = 0;
 	private _terminal?: Terminal;
-	private _isFilteringDirectories: boolean = false;
 	private _mostRecentCompletion?: ITerminalCompletionItem;
 	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
 	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
@@ -62,10 +61,8 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	private _currentPromptInputState?: IPromptInputModelState;
 
 	private _enableWidget: boolean = true;
-	private _pathSeparator: string = sep;
 
 	// TODO: Remove these in favor of prompt input state
-	private _leadingLineContent?: string;
 	private _cursorIndexDelta: number = 0;
 
 	isPasting: boolean = false;
@@ -194,23 +191,22 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 			ghostTextIndex: this._promptInputModel.ghostTextIndex
 		};
 
-		this._leadingLineContent = this._currentPromptInputState.prefix.substring(replacementIndex, replacementIndex + replacementLength + this._cursorIndexDelta);
+		let leadingLineContent = this._currentPromptInputState.prefix.substring(replacementIndex, replacementIndex + replacementLength + this._cursorIndexDelta);
 
-
-		const firstChar = this._leadingLineContent.length === 0 ? '' : this._leadingLineContent[0];
-		const isGlobalCommand = !this._leadingLineContent.includes(' ') && firstChar !== '[';
+		const firstChar = leadingLineContent.length === 0 ? '' : leadingLineContent[0];
+		const isGlobalCommand = !leadingLineContent.includes(' ') && firstChar !== '[';
 
 		// This is a TabExpansion2 result
 		if (!isGlobalCommand) {
 			replacementIndex = parseInt(args[0]);
 			replacementLength = parseInt(args[1]);
-			this._leadingLineContent = this._promptInputModel.prefix;
+			leadingLineContent = this._promptInputModel.prefix;
 		}
 		const payload = data.slice(command.length + args[0].length + args[1].length + args[2].length + 4/*semi-colons*/);
 		const rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion = args.length === 0 || payload.length === 0 ? undefined : JSON.parse(payload);
 		const completions = parseCompletionsFromShell(rawCompletions, replacementIndex, replacementLength);
-		// This is a global command, add cached commands list to completions
 
+		// This is a global command, add cached commands list to completions
 		if (isGlobalCommand) {
 			for (const c of PwshCompletionProviderAddon.cachedPwshCommands) {
 				c.replacementIndex = replacementIndex;
@@ -223,22 +219,6 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 			completions.push(this._mostRecentCompletion);
 		}
 		this._mostRecentCompletion = undefined;
-
-		this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (replacementIndex + replacementLength);
-
-		let normalizedLeadingLineContent = this._leadingLineContent;
-
-		// If there is a single directory in the completions:
-		// - `\` and `/` are normalized such that either can be used
-		// - Using `\` or `/` will request new completions. It's important that this only occurs
-		//   when a directory is present, if not completions like git branches could be requested
-		//   which leads to flickering
-		this._isFilteringDirectories = completions.some(c => c.isDirectory);
-		if (this._isFilteringDirectories) {
-			const firstDirCompletion = completions.find(c => c.isDirectory);
-			this._pathSeparator = firstDirCompletion?.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
-			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
-		}
 		this._notifyCompletions(completions);
 	}
 
