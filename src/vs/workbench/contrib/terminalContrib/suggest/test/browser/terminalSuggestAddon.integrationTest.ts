@@ -116,6 +116,7 @@ suite('Terminal Contrib Suggest Recordings', () => {
 		xterm.open(testContainer);
 		suggestAddon.setContainerWithOverflow(testContainer);
 		suggestAddon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
+
 		xterm.loadAddon(shellIntegrationAddon);
 		xterm.loadAddon(pwshCompletionProvider);
 		store.add(pwshCompletionProvider);
