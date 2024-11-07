@@ -1215,10 +1215,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-item-container .progress-container .codicon {
 	/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
 	color: var(--vscode-icon-foreground) !important;
-}
 
-.interactive-item-container .codicon.codicon-check {
-	color: var(--vscode-debugIcon-startForeground) !important;
+	&.codicon-check {
+		color: var(--vscode-debugIcon-startForeground) !important;
+	}
 }
 
 .interactive-item-container .chat-command-button {
