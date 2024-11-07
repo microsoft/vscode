@@ -655,7 +655,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const options = CancellationToken.isCancellationToken(arg1) ? {} : arg1 as IExtensionQueryOptions;
 		const token = CancellationToken.isCancellationToken(arg1) ? arg1 : arg2 as CancellationToken;
 
-		const useResourceApi = options.useResourceApi && (this.configurationService.getValue(UseUnpkgResourceApi) ?? false);
+		const useResourceApi = options.preferResourceApi && (this.configurationService.getValue(UseUnpkgResourceApi) ?? false);
 		const result = useResourceApi
 			? await this.getExtensionsUsingResourceApi(extensionInfos, options, token)
 			: await this.doGetExtensions(extensionInfos, options, token);
