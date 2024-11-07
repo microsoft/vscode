@@ -15,7 +15,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService, IToolData } from '../languageModelToolsService.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
-import { toolsParametersSchemaSchema } from './languageModelToolsParametersSchema.js';
+import { toolsParametersSchemaSchemaId } from './languageModelToolsParametersSchema.js';
 
 export interface IRawToolContribution {
 	name: string;
@@ -26,7 +26,7 @@ export interface IRawToolContribution {
 	when?: string;
 	tags?: string[];
 	userDescription?: string;
-	parametersSchema?: IJSONSchema;
+	inputSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
 }
 
@@ -47,10 +47,10 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 				body: {
 					name: '${1}',
 					modelDescription: '${2}',
-					parametersSchema: {
+					inputSchema: {
 						type: 'object',
 						properties: {
-							'${3:paramName}': {
+							'${3:name}': {
 								type: 'string',
 								description: '${4:description}'
 							}
@@ -83,9 +83,9 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					description: localize('toolModelDescription', "A description of this tool that may be used by a language model to select it."),
 					type: 'string'
 				},
-				parametersSchema: {
-					...toolsParametersSchemaSchema,
-					description: localize('parametersSchema', "A JSON schema for the parameters this tool accepts. The parameters must be an object at the top level. A particular language model may not support all JSON schema features. See the documentation for the language model family you are using for more information."),
+				inputSchema: {
+					description: localize('parametersSchema', "A JSON schema for the input this tool accepts. The input must be an object at the top level. A particular language model may not support all JSON schema features. See the documentation for the language model family you are using for more information."),
+					$ref: toolsParametersSchemaSchemaId
 				},
 				canBeReferencedInPrompt: {
 					markdownDescription: localize('canBeReferencedInPrompt', "If true, this tool shows up as an attachment that the user can add manually to their request. Chat participants will receive the tool in {0}.", '`ChatRequest#toolReferences`'),
@@ -173,6 +173,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 
 					const tool: IToolData = {
 						...rawTool,
+						inputSchema: rawTool.inputSchema,
 						id: rawTool.name,
 						icon,
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,

@@ -58,8 +58,7 @@ export const enum AccessibilityVerbositySettingId {
 	Hover = 'accessibility.verbosity.hover',
 	Notification = 'accessibility.verbosity.notification',
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
-	ReplEditor = 'accessibility.verbosity.notebook',
-	ReplInputHint = 'accessibility.verbosity.replInputHint',
+	ReplEditor = 'accessibility.verbosity.replEditor',
 	Comments = 'accessibility.verbosity.comments',
 	DiffEditorActive = 'accessibility.verbosity.diffEditorActive',
 	Debug = 'accessibility.verbosity.debug',
@@ -164,8 +163,8 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.emptyEditorHint', 'Provide information about relevant actions in an empty text editor.'),
 			...baseVerbosityProperty
 		},
-		[AccessibilityVerbositySettingId.ReplInputHint]: {
-			description: localize('verbosity.replInputHint', 'Provide information about relevant actions For the Repl input.'),
+		[AccessibilityVerbositySettingId.ReplEditor]: {
+			description: localize('verbosity.replEditor.description', 'Provide information about how to access the REPL editor accessibility help menu when the REPL editor is focused.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Comments]: {

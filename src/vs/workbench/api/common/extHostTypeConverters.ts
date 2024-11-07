@@ -56,6 +56,7 @@ import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
 import { IChatResponseTextPart, IChatResponsePromptTsxPart } from '../../contrib/chat/common/languageModels.js';
 import { LanguageModelTextPart, LanguageModelPromptTsxPart } from './extHostTypes.js';
+import { MarshalledId } from '../../../base/common/marshallingIds.js';
 
 export namespace Command {
 
@@ -2347,26 +2348,24 @@ export namespace LanguageModelChatMessageRole {
 export namespace LanguageModelChatMessage {
 
 	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage {
-		const content2 = message.content.map(c => {
+		const content = message.content.map(c => {
 			if (c.type === 'text') {
-				return c.value;
+				return new LanguageModelTextPart(c.value);
 			} else if (c.type === 'tool_result') {
 				const content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[] = c.value.map(part => {
 					if (part.type === 'text') {
 						return new types.LanguageModelTextPart(part.value);
 					} else {
-						return new types.LanguageModelPromptTsxPart(part.value, part.mime);
+						return new types.LanguageModelPromptTsxPart(part.value);
 					}
 				});
 				return new types.LanguageModelToolResultPart(c.toolCallId, content, c.isError);
 			} else {
-				return new types.LanguageModelToolCallPart(c.name, c.toolCallId, c.parameters);
+				return new types.LanguageModelToolCallPart(c.toolCallId, c.name, c.parameters);
 			}
 		});
-		const content = content2.find(c => typeof c === 'string') ?? '';
 		const role = LanguageModelChatMessageRole.to(message.role);
 		const result = new types.LanguageModelChatMessage(role, content, message.name);
-		result.content2 = content2;
 		return result;
 	}
 
@@ -2375,7 +2374,12 @@ export namespace LanguageModelChatMessage {
 		const role = LanguageModelChatMessageRole.from(message.role);
 		const name = message.name;
 
-		const content = message.content2.map((c): chatProvider.IChatMessagePart => {
+		let messageContent = message.content;
+		if (typeof messageContent === 'string') {
+			messageContent = [new types.LanguageModelTextPart(messageContent)];
+		}
+
+		const content = messageContent.map((c): chatProvider.IChatMessagePart => {
 			if (c instanceof types.LanguageModelToolResultPart) {
 				return {
 					type: 'tool_result',
@@ -2390,7 +2394,6 @@ export namespace LanguageModelChatMessage {
 							return {
 								type: 'prompt_tsx',
 								value: part.value,
-								mime: part.mime
 							} satisfies IChatResponsePromptTsxPart;
 						} else {
 							// Strip unknown parts
@@ -2404,7 +2407,12 @@ export namespace LanguageModelChatMessage {
 					type: 'tool_use',
 					toolCallId: c.callId,
 					name: c.name,
-					parameters: c.parameters
+					parameters: c.input
+				};
+			} else if (c instanceof types.LanguageModelTextPart) {
+				return {
+					type: 'text',
+					value: c.value
 				};
 			} else {
 				if (typeof c !== 'string') {
@@ -2632,11 +2640,14 @@ export namespace ChatResponseTextEditPart {
 		return {
 			kind: 'textEdit',
 			uri: part.uri,
-			edits: part.edits.map(e => TextEdit.from(e))
+			edits: part.edits.map(e => TextEdit.from(e)),
+			done: part.isDone
 		};
 	}
 	export function to(part: Dto<IChatTextEdit>): vscode.ChatResponseTextEditPart {
-		return new types.ChatResponseTextEditPart(URI.revive(part.uri), part.edits.map(e => TextEdit.to(e)));
+		const result = new types.ChatResponseTextEditPart(URI.revive(part.uri), part.edits.map(e => TextEdit.to(e)));
+		result.isDone = part.done;
+		return result;
 	}
 
 }
@@ -2765,7 +2776,7 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat): vscode.ChatRequest {
 		const toolReferences = request.variables.variables.filter(v => v.isTool);
 		const variableReferences = request.variables.variables.filter(v => !v.isTool);
 		return {
@@ -2780,7 +2791,8 @@ export namespace ChatAgentRequest {
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
 			location2,
-			toolInvocationToken: Object.freeze({ sessionId: request.sessionId })
+			toolInvocationToken: Object.freeze({ sessionId: request.sessionId }) as never,
+			model
 		};
 	}
 }
@@ -2860,7 +2872,7 @@ export namespace ChatAgentResult {
 	export function to(result: IChatAgentResult): vscode.ChatResult {
 		return {
 			errorDetails: result.errorDetails,
-			metadata: result.metadata,
+			metadata: reviveMetadata(result.metadata),
 			nextQuestion: result.nextQuestion,
 		};
 	}
@@ -2870,6 +2882,20 @@ export namespace ChatAgentResult {
 			metadata: result.metadata,
 			nextQuestion: result.nextQuestion,
 		};
+	}
+
+	function reviveMetadata(metadata: IChatAgentResult['metadata']) {
+		return cloneAndChange(metadata, value => {
+			if (value.$mid === MarshalledId.LanguageModelToolResult) {
+				return new types.LanguageModelToolResult(cloneAndChange(value.content, reviveMetadata));
+			} else if (value.$mid === MarshalledId.LanguageModelTextPart) {
+				return new types.LanguageModelTextPart(value.value);
+			} else if (value.$mid === MarshalledId.LanguageModelPromptTsxPart) {
+				return new types.LanguageModelPromptTsxPart(value.value);
+			}
+
+			return undefined;
+		});
 	}
 }
 
@@ -2894,7 +2920,21 @@ export namespace ChatAgentUserActionEvent {
 		} else if (event.action.kind === 'inlineChat') {
 			return { action: { kind: 'editor', accepted: event.action.action === 'accepted' }, result: ehResult };
 		} else if (event.action.kind === 'chatEditingSessionAction') {
-			return { action: { kind: 'chatEditingSessionAction', outcome: event.action.outcome === 'accepted' ? types.ChatEditingSessionActionOutcome.Accepted : types.ChatEditingSessionActionOutcome.Rejected, uri: URI.revive(event.action.uri), hasRemainingEdits: event.action.hasRemainingEdits }, result: ehResult };
+
+			const outcomes = new Map([
+				['accepted', types.ChatEditingSessionActionOutcome.Accepted],
+				['rejected', types.ChatEditingSessionActionOutcome.Rejected],
+				['saved', types.ChatEditingSessionActionOutcome.Saved],
+			]);
+
+			return {
+				action: {
+					kind: 'chatEditingSessionAction',
+					outcome: outcomes.get(event.action.outcome) ?? types.ChatEditingSessionActionOutcome.Rejected,
+					uri: URI.revive(event.action.uri),
+					hasRemainingEdits: event.action.hasRemainingEdits
+				}, result: ehResult
+			};
 		} else {
 			return { action: event.action, result: ehResult };
 		}
@@ -2955,7 +2995,7 @@ export namespace LanguageModelToolDescription {
 			// Note- the reason this is a unique 'name' is just to avoid confusion with the toolCallId
 			name: item.id,
 			description: item.modelDescription,
-			parametersSchema: item.parametersSchema,
+			inputSchema: item.inputSchema,
 			tags: item.tags ?? [],
 		};
 	}
@@ -2967,7 +3007,7 @@ export namespace LanguageModelToolResult {
 			if (item.kind === 'text') {
 				return new types.LanguageModelTextPart(item.value);
 			} else {
-				return new types.LanguageModelPromptTsxPart(item.value, item.mime);
+				return new types.LanguageModelPromptTsxPart(item.value);
 			}
 		}));
 	}
@@ -2984,7 +3024,6 @@ export namespace LanguageModelToolResult {
 					return {
 						kind: 'promptTsx',
 						value: item.value,
-						mime: item.mime
 					};
 				} else {
 					throw new Error('Unknown LanguageModelToolResult part type');

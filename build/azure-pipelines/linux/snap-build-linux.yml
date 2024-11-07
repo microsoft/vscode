@@ -25,9 +25,6 @@ steps:
       # Define variables
       SNAP_ROOT="$(pwd)/.build/linux/snap/$(VSCODE_ARCH)"
 
-      # Install build dependencies
-      (cd build && npm ci)
-
       # Unpack snap tarball artifact, in order to preserve file perms
       (cd .build/linux && tar -xzf snap-tarball/snap-$(VSCODE_ARCH).tar.gz)
 

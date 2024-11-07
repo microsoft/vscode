@@ -39,7 +39,7 @@ import { EditorExtensions, EditorsOrder, IEditorControl, IEditorFactoryRegistry,
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { PANEL_BORDER } from '../../../common/theme.js';
 import { ResourceNotebookCellEdit } from '../../bulkEdit/browser/bulkCellEdits.js';
-import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from './interactiveCommon.js';
+import { ReplEditorSettings, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from './interactiveCommon.js';
 import { IInteractiveDocumentService, InteractiveDocumentService } from './interactiveDocumentService.js';
 import { InteractiveEditor } from './interactiveEditor.js';
 import { InteractiveEditorInput } from './interactiveEditorInput.js';
@@ -844,7 +844,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	order: 100,
 	type: 'object',
 	'properties': {
-		[InteractiveWindowSetting.interactiveWindowAlwaysScrollOnNewCell]: {
+		[ReplEditorSettings.interactiveWindowAlwaysScrollOnNewCell]: {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('interactiveWindow.alwaysScrollOnNewCell', "Automatically scroll the interactive window to show the output of the last statement executed. If this value is false, the window will only scroll if the last cell was already the one scrolled to.")
@@ -854,17 +854,23 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			markdownDescription: localize('interactiveWindow.promptToSaveOnClose', "Prompt to save the interactive window when it is closed. Only new interactive windows will be affected by this setting change.")
 		},
-		[InteractiveWindowSetting.executeWithShiftEnter]: {
+		[ReplEditorSettings.executeWithShiftEnter]: {
 			type: 'boolean',
 			default: false,
 			markdownDescription: localize('interactiveWindow.executeWithShiftEnter', "Execute the Interactive Window (REPL) input box with shift+enter, so that enter can be used to create a newline."),
 			tags: ['replExecute']
 		},
-		[InteractiveWindowSetting.showExecutionHint]: {
+		[ReplEditorSettings.showExecutionHint]: {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('interactiveWindow.showExecutionHint', "Display a hint in the Interactive Window (REPL) input box to indicate how to execute code."),
 			tags: ['replExecute']
+		},
+		[ReplEditorSettings.autoFocusAppendedCell]: {
+			type: 'string',
+			enum: ['auto', 'never', 'always'],
+			default: 'auto',
+			description: localize('interactive.autoFocusAppendedCell', "Control whether focus should automatically go to a newly appended cell in the REPL editor."),
 		}
 	}
 });

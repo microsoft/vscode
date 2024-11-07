@@ -122,6 +122,6 @@ export async function getdevDeviceId(errorLogger: (error: any) => void): Promise
 		return id;
 	} catch (err) {
 		errorLogger(err);
-		return '';
+		return uuid.generateUuid();
 	}
 }

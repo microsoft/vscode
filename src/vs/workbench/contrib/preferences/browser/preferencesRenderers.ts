@@ -753,7 +753,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 
 	private generatePreviewSettingMarker(setting: ISetting): IMarkerData {
 		return {
-			severity: MarkerSeverity.Info,
+			severity: MarkerSeverity.Hint,
 			...setting.range,
 			message: PREVIEW_INDICATOR_DESCRIPTION
 		};
@@ -761,7 +761,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 
 	private generateExperimentalSettingMarker(setting: ISetting): IMarkerData {
 		return {
-			severity: MarkerSeverity.Info,
+			severity: MarkerSeverity.Hint,
 			...setting.range,
 			message: EXPERIMENTAL_INDICATOR_DESCRIPTION
 		};
