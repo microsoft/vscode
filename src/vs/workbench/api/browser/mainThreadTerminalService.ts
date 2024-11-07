@@ -499,4 +499,3 @@ function parseQuickFix(id: string, source: string, fix: TerminalQuickFix): ITerm
 	}
 	return { id, type, source, ...fix };
 }
-
