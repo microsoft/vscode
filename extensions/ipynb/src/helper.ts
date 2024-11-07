@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationError } from 'vscode';
+import type * as nbformat from '@jupyterlab/nbformat';
 
 export function deepClone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
@@ -257,4 +258,18 @@ export class DeferredPromise<T> {
 	public cancel() {
 		return this.error(new CancellationError());
 	}
+}
+
+
+/**
+ * Cell ids are required in notebooks only in notebooks with nbformat >= 4.5
+ */
+export function isCellIdRequired(metadata: Pick<Partial<nbformat.INotebookContent>, 'nbformat' | 'nbformat_minor'>) {
+	if ((metadata.nbformat || 0) >= 5) {
+		return true;
+	}
+	if ((metadata.nbformat || 0) === 4 && (metadata.nbformat_minor || 0) >= 5) {
+		return true;
+	}
+	return false;
 }

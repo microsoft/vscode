@@ -7,6 +7,7 @@ import type * as nbformat from '@jupyterlab/nbformat';
 import { extensions, NotebookCellData, NotebookCellExecutionSummary, NotebookCellKind, NotebookCellOutput, NotebookCellOutputItem, NotebookData } from 'vscode';
 import { CellMetadata, CellOutputMetadata } from './common';
 import { textMimeTypes } from './constants';
+import { generateUuid, isCellIdRequired } from './helper';
 
 const jupyterLanguageToMonacoLanguageMapping = new Map([
 	['c#', 'csharp'],
@@ -143,29 +144,44 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 	}
 }
 
-function getNotebookCellMetadata(cell: nbformat.IBaseCell): {
+function getNotebookCellMetadata(cell: nbformat.IBaseCell, notebookMetadata: Pick<Partial<nbformat.INotebookContent>, 'nbformat' | 'nbformat_minor'>): {
 	[key: string]: any;
 } {
-	// We put this only for VSC to display in diff view.
-	// Else we don't use this.
 	const cellMetadata: CellMetadata = {};
-	if (cell.cell_type === 'code' && typeof cell['execution_count'] === 'number') {
-		cellMetadata.execution_count = cell['execution_count'];
+
+	if (cell['attachments']) {
+		cellMetadata.attachments = JSON.parse(JSON.stringify(cell['attachments']));
+	}
+
+	if (cell.cell_type === 'code') {
+		if (typeof cell['execution_count'] === 'number') {
+			cellMetadata.execution_count = cell['execution_count'];
+		} else {
+			cellMetadata.execution_count = null;
+		}
+	}
+
+	if ('id' in cell && typeof cell.id === 'string') {
+		cellMetadata.id = cell.id;
+	}
+	if (!cellMetadata.id && notebookMetadata && isCellIdRequired(notebookMetadata)) {
+		cellMetadata.id = generateCellId();
 	}
 
 	if (cell['metadata']) {
 		cellMetadata['metadata'] = JSON.parse(JSON.stringify(cell['metadata']));
 	}
 
-	if ('id' in cell && typeof cell.id === 'string') {
-		cellMetadata.id = cell.id;
-	}
-
-	if (cell['attachments']) {
-		cellMetadata.attachments = JSON.parse(JSON.stringify(cell['attachments']));
-	}
 	return cellMetadata;
 }
+
+
+function generateCellId() {
+	// Details of the id can be found here https://jupyter.org/enhancement-proposals/62-cell-id/cell-id.html#adding-an-id-field,
+	// & here https://jupyter.org/enhancement-proposals/62-cell-id/cell-id.html#updating-older-formats
+	return generateUuid().replace(/-/g, '').substring(0, 8);
+}
+
 
 function getOutputMetadata(output: nbformat.IOutput): CellOutputMetadata {
 	// Add on transient data if we have any. This should be removed by our save functions elsewhere.
@@ -284,23 +300,23 @@ export function jupyterCellOutputToCellOutput(output: nbformat.IOutput): Noteboo
 	return result;
 }
 
-function createNotebookCellDataFromRawCell(cell: nbformat.IRawCell): NotebookCellData {
+function createNotebookCellDataFromRawCell(cell: nbformat.IRawCell, metadata: Pick<Partial<nbformat.INotebookContent>, 'nbformat' | 'nbformat_minor'>): NotebookCellData {
 	const cellData = new NotebookCellData(NotebookCellKind.Code, concatMultilineString(cell.source), 'raw');
 	cellData.outputs = [];
-	cellData.metadata = getNotebookCellMetadata(cell);
+	cellData.metadata = getNotebookCellMetadata(cell, metadata);
 	return cellData;
 }
-function createNotebookCellDataFromMarkdownCell(cell: nbformat.IMarkdownCell): NotebookCellData {
+function createNotebookCellDataFromMarkdownCell(cell: nbformat.IMarkdownCell, metadata: Pick<Partial<nbformat.INotebookContent>, 'nbformat' | 'nbformat_minor'>): NotebookCellData {
 	const cellData = new NotebookCellData(
 		NotebookCellKind.Markup,
 		concatMultilineString(cell.source),
 		'markdown'
 	);
 	cellData.outputs = [];
-	cellData.metadata = getNotebookCellMetadata(cell);
+	cellData.metadata = getNotebookCellMetadata(cell, metadata);
 	return cellData;
 }
-function createNotebookCellDataFromCodeCell(cell: nbformat.ICodeCell, cellLanguage: string): NotebookCellData {
+function createNotebookCellDataFromCodeCell(cell: nbformat.ICodeCell, cellLanguage: string, metadata: Pick<Partial<nbformat.INotebookContent>, 'nbformat' | 'nbformat_minor'>): NotebookCellData {
 	const cellOutputs = Array.isArray(cell.outputs) ? cell.outputs : [];
 	const outputs = cellOutputs.map(jupyterCellOutputToCellOutput);
 	const hasExecutionCount = typeof cell.execution_count === 'number' && cell.execution_count > 0;
@@ -316,24 +332,25 @@ function createNotebookCellDataFromCodeCell(cell: nbformat.ICodeCell, cellLangua
 	const cellData = new NotebookCellData(NotebookCellKind.Code, source, cellLanguageId);
 
 	cellData.outputs = outputs;
-	cellData.metadata = getNotebookCellMetadata(cell);
+	cellData.metadata = getNotebookCellMetadata(cell, metadata);
 	cellData.executionSummary = executionSummary;
 	return cellData;
 }
 
 function createNotebookCellDataFromJupyterCell(
 	cellLanguage: string,
-	cell: nbformat.IBaseCell
+	cell: nbformat.IBaseCell,
+	metadata: Pick<Partial<nbformat.INotebookContent>, 'nbformat' | 'nbformat_minor'>
 ): NotebookCellData | undefined {
 	switch (cell.cell_type) {
 		case 'raw': {
-			return createNotebookCellDataFromRawCell(cell as nbformat.IRawCell);
+			return createNotebookCellDataFromRawCell(cell as nbformat.IRawCell, metadata);
 		}
 		case 'markdown': {
-			return createNotebookCellDataFromMarkdownCell(cell as nbformat.IMarkdownCell);
+			return createNotebookCellDataFromMarkdownCell(cell as nbformat.IMarkdownCell, metadata);
 		}
 		case 'code': {
-			return createNotebookCellDataFromCodeCell(cell as nbformat.ICodeCell, cellLanguage);
+			return createNotebookCellDataFromCodeCell(cell as nbformat.ICodeCell, cellLanguage, metadata);
 		}
 	}
 
@@ -353,7 +370,7 @@ export function jupyterNotebookModelToNotebookData(
 	}
 
 	const cells = notebookContent.cells
-		.map(cell => createNotebookCellDataFromJupyterCell(preferredLanguage, cell))
+		.map(cell => createNotebookCellDataFromJupyterCell(preferredLanguage, cell, notebookContent))
 		.filter((item): item is NotebookCellData => !!item);
 
 	const notebookData = new NotebookData(cells);

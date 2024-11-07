@@ -6,8 +6,7 @@
 import { Disposable, ExtensionContext, NotebookCellKind, NotebookDocument, NotebookDocumentChangeEvent, NotebookEdit, workspace, WorkspaceEdit, type NotebookCell, type NotebookDocumentWillSaveEvent } from 'vscode';
 import { getCellMetadata, getVSCodeCellLanguageId, removeVSCodeCellLanguageId, setVSCodeCellLanguageId, sortObjectPropertiesRecursively, getNotebookMetadata } from './serializers';
 import { CellMetadata } from './common';
-import type * as nbformat from '@jupyterlab/nbformat';
-import { generateUuid } from './helper';
+import { generateUuid, isCellIdRequired } from './helper';
 
 const noop = () => {
 	//
@@ -212,19 +211,6 @@ function onDidChangeNotebookCells(e: NotebookDocumentChangeEventEx) {
 	}
 }
 
-
-/**
- * Cell ids are required in notebooks only in notebooks with nbformat >= 4.5
- */
-function isCellIdRequired(metadata: Pick<Partial<nbformat.INotebookContent>, 'nbformat' | 'nbformat_minor'>) {
-	if ((metadata.nbformat || 0) >= 5) {
-		return true;
-	}
-	if ((metadata.nbformat || 0) === 4 && (metadata.nbformat_minor || 0) >= 5) {
-		return true;
-	}
-	return false;
-}
 
 function generateCellId(notebook: NotebookDocument) {
 	while (true) {
