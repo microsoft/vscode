@@ -199,6 +199,7 @@ steps:
         **/*.pdb
         **/*.node
       TargetFolder: $(Agent.TempDirectory)/binskim-cli
+      flattenFolders: true
     displayName: Copy files for BinSkim
 
   - task: BinSkim@4
