@@ -143,7 +143,7 @@ variables:
   - name: PRSS_PROVISION_TENANT_ID
     value: 72f988bf-86f1-41af-91ab-2d7cd011db47
   - name: AZURE_DOCUMENTDB_ENDPOINT
-    value: https://vscode.documents.azure.com:443/
+    value: https://vscode.documents.azure.com/
   - name: VSCODE_MIXIN_REPO
     value: microsoft/vscode-distro
   - name: skipComponentGovernanceDetection

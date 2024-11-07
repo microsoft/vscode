@@ -5388,7 +5388,21 @@ declare namespace monaco.editor {
 		 * widget. Is being invoked with the selected position preference
 		 * or `null` if not rendered.
 		 */
-		afterRender?(position: ContentWidgetPositionPreference | null): void;
+		afterRender?(position: ContentWidgetPositionPreference | null, coordinate: IContentWidgetRenderedCoordinate | null): void;
+	}
+
+	/**
+	 * Coordinatees passed in {@link IContentWidget.afterRender}
+	 */
+	export interface IContentWidgetRenderedCoordinate {
+		/**
+		 * Top position relative to the editor content.
+		 */
+		readonly top: number;
+		/**
+		 * Left position relative to the editor content.
+		 */
+		readonly left: number;
 	}
 
 	/**
@@ -6063,10 +6077,6 @@ declare namespace monaco.editor {
 		 * Returns the editor's container dom node
 		 */
 		getContainerDomNode(): HTMLElement;
-		/**
-		 * Return this editor's text area dom node
-		 */
-		getTextAreaDomNode(): HTMLTextAreaElement | undefined;
 		/**
 		 * Returns the editor's dom node
 		 */

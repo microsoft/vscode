@@ -677,10 +677,6 @@ export class View extends ViewEventHandler {
 		this._scheduleRender();
 	}
 
-	public getTextAreaDomNode(): HTMLTextAreaElement {
-		return this._editContext.getTextAreaDomNode();
-	}
-
 	public layoutContentWidget(widgetData: IContentWidgetData): void {
 		this._contentWidgets.setWidgetPosition(
 			widgetData.widget,

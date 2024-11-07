@@ -1513,6 +1513,7 @@ class SCMInputWidgetEditorOptions {
 			},
 			wrappingIndent: 'none',
 			wrappingStrategy: 'advanced',
+			defaultColorDecorators: false
 		};
 	}
 

@@ -38,6 +38,8 @@ enum CompositionClassName {
 
 export class NativeEditContext extends AbstractEditContext {
 
+	public static TEXT_AREA_CLASS_NAME = 'native-edit-context-textarea';
+
 	// Text area used to handle paste events
 	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly domNode: FastDomNode<HTMLDivElement>;
@@ -70,7 +72,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this.domNode = new FastDomNode(document.createElement('div'));
 		this.domNode.setClassName(`native-edit-context`);
 		this.textArea = new FastDomNode(document.createElement('textarea'));
-		this.textArea.setClassName(`native-edit-context-textarea`);
+		this.textArea.setClassName(NativeEditContext.TEXT_AREA_CLASS_NAME);
 		this._updateDomAttributes();
 
 		overflowGuardContainer.appendChild(this.domNode);
@@ -163,10 +165,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
 		super.dispose();
-	}
-
-	public getTextAreaDomNode(): HTMLTextAreaElement {
-		return this.textArea.domNode;
 	}
 
 	public setAriaOptions(): void {
