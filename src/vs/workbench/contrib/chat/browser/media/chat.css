@@ -318,6 +318,17 @@
 		position: initial;
 		top: initial;
 	}
+
+	/* Code blocks at the beginning of an answer should not have a margin as it means it won't align with the agent icon*/
+	> div[data-code]:first-child {
+		margin-top: 0;
+
+	}
+	/* Override the top to avoid the toolbar getting clipped by overflow:hidden */
+	> div[data-code]:first-child .interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-action-bar,
+	> div[data-code]:first-child .interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-toolbar {
+		top: 6px;
+	}
 }
 
 .interactive-item-container .value .rendered-markdown p {
