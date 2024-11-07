@@ -780,7 +780,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		if (!provider) {
 			return;
 		}
-		// todo
 		const completions = await provider.provideTerminalCompletions(this.activeTerminal, options, token);
 		if (completions === null || completions === undefined) {
 			return;
