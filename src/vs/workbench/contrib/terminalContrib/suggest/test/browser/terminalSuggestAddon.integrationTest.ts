@@ -121,6 +121,7 @@ suite('Terminal Contrib Suggest Recordings', () => {
 		xterm.loadAddon(pwshCompletionProvider);
 		store.add(pwshCompletionProvider);
 		xterm.loadAddon(suggestAddon);
+
 		xterm.focus();
 	});
 
