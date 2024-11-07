@@ -24,12 +24,18 @@ export class ReplaceCommand implements ICommand {
 		let range = this._range;
 		let text = this._text;
 		let lineLen = model.getLineMaxColumn(range.startLineNumber);
+		console.log('getEditOperations');
+		console.log('range.startColumn : ', range.startColumn);
+		console.log('lineLen:', lineLen);
 		if (range.startColumn > lineLen) {
 			text = ' '.repeat(range.startColumn - lineLen) + text;
+			console.log('text:', text);
 			range = new Range(range.startLineNumber, lineLen, range.endLineNumber, range.endColumn);
 		}
 		if (range.endColumn !== range.startColumn) {
+			console.log('range.endColumn : ', range.endColumn);
 			lineLen = model.getLineMaxColumn(range.endLineNumber);
+			console.log('lineLen:', lineLen);
 			if (range.endColumn > lineLen) {
 				range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, lineLen);
 			}

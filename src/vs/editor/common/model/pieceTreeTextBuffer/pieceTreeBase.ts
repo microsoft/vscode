@@ -482,6 +482,7 @@ export class PieceTreeBase {
 	}
 
 	public getValueInRange2(startPosition: NodePosition, endPosition: NodePosition): string {
+		console.log('getValueInRange2');
 		if (startPosition.node === endPosition.node) {
 			if (startPosition.node === SENTINEL) {
 				return '';
@@ -632,11 +633,7 @@ export class PieceTreeBase {
 	}
 
 	private _getCharCode(nodePos: NodePosition): number {
-		/*
-		if (nodePos.node.piece === null) {
-			return 0;
-		}*/
-
+		console.log('_getCharCode');
 		if (nodePos.remainder === nodePos.node.piece.length) {
 			// the char we want to fetch is at the head of next node.
 			const matchingNode = nodePos.node.next();
@@ -657,6 +654,7 @@ export class PieceTreeBase {
 	}
 
 	public getLineCharCode(lineNumber: number, index: number): number {
+		console.log('getLineCharCode');
 		const nodePos = this.nodeAt2(lineNumber, index + 1);
 		if (nodePos.node === SENTINEL) {
 			return 0;
@@ -756,7 +754,6 @@ export class PieceTreeBase {
 			return [];
 		}
 		const endPosition = this.nodeAt2(searchRange.endLineNumber, searchRange.endColumn);
-
 		let start = this.positionInBuffer(startPosition.node, startPosition.remainder);
 		const end = this.positionInBuffer(endPosition.node, endPosition.remainder);
 
@@ -1602,6 +1599,7 @@ export class PieceTreeBase {
 			x = x.next();
 		}
 
+		console.log('last_x : ', last_x);
 		if (last_x === SENTINEL) {
 			return {
 				node: last_x,

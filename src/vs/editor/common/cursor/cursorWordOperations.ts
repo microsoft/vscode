@@ -308,6 +308,8 @@ export class WordOperations {
 		let column = position.column;
 
 		let movedDown = false;
+		console.log('column:', column);
+		console.log('model.getLineMaxColumn(lineNumber) : ', model.getLineMaxColumn(lineNumber));
 		if (column >= model.getLineMaxColumn(lineNumber)) {
 			if (lineNumber < model.getLineCount()) {
 				movedDown = true;

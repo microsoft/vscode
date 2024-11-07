@@ -260,6 +260,9 @@ export class ViewLine implements IVisibleLine {
 
 		startColumn = Math.max(1, startColumn);
 		endColumn = Math.max(1, endColumn);
+		console.log('getVisibleRangesForRange');
+		console.log('startColumn : ', startColumn);
+		console.log('endColumn : ', endColumn);
 
 		const stopRenderingLineAfter = this._renderedViewLine.input.stopRenderingLineAfter;
 
@@ -534,34 +537,40 @@ class RenderedViewLine implements IRenderedViewLine {
 	}
 
 	protected _readPixelOffset(domNode: FastDomNode<HTMLElement>, lineNumber: number, column: number, context: DomReadingContext): number {
+		console.log('_readPixelOffset');
 		const spaceWidth = this.input.spaceWidth;
-
+		console.log('spaceWidth : ', spaceWidth);
 		if (this._characterMapping.length === 0) {
+			const pixelOffset = (column - 1) * spaceWidth;
 			// This line has no content
 			if (this._containsForeignElements === ForeignElementType.None) {
 				// We can assume the line is really empty
-				return (column - 1) * spaceWidth;
+				return pixelOffset;
 			}
 			if (this._containsForeignElements === ForeignElementType.After) {
 				// We have foreign elements after the (empty) line
-				return (column - 1) * spaceWidth;
+				return pixelOffset;
 			}
 			if (this._containsForeignElements === ForeignElementType.Before) {
 				// We have foreign elements before the (empty) line
-				return this.getWidth(context) + (column - 1) * spaceWidth;
+				return this.getWidth(context) + pixelOffset;
 			}
 			// We have foreign elements before & after the (empty) line
 			const readingTarget = this._getReadingTarget(domNode);
 			if (readingTarget.firstChild) {
 				context.markDidDomLayout();
-				return (<HTMLSpanElement>readingTarget.firstChild).offsetWidth + (column - 1) * spaceWidth;
+				return (<HTMLSpanElement>readingTarget.firstChild).offsetWidth + pixelOffset;
 			} else {
-				return (column - 1) * spaceWidth;
+				return pixelOffset;
 			}
 		}
 
+		console.log('column : ', column);
+		console.log('this._characterMapping.length : ', this._characterMapping.length);
 		if (column > this._characterMapping.length) {
 			const last = this._readPixelOffset(domNode, lineNumber, this._characterMapping.length, context);
+			console.log('last : ', last);
+			console.log('last + spaceWidth * (column - this._characterMapping.length) : ', last + spaceWidth * (column - this._characterMapping.length));
 			return last + spaceWidth * (column - this._characterMapping.length);
 		} else {
 			if (this._pixelOffsetCache !== null) {
@@ -573,6 +582,7 @@ class RenderedViewLine implements IRenderedViewLine {
 				}
 
 				const result = this._actualReadPixelOffset(domNode, lineNumber, column, context);
+				console.log('result : ', result);
 				this._pixelOffsetCache[column] = result;
 				return result;
 			}

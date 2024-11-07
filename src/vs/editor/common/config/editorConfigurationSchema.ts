@@ -44,7 +44,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.virtualSpace': {
 			type: 'boolean',
 			default: EDITOR_MODEL_DEFAULTS.virtualSpace,
-			markdownDescription: nls.localize('virtualSpace', "Reduce distracting horizontal movement when moving the cursor vertically.")
+			markdownDescription: nls.localize('virtualSpace', "Reduce distracting horizontal movement when moving the cursor vertically.") // Add virtual space
 		},
 		'editor.insertSpaces': {
 			type: 'boolean',

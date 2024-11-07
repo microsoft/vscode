@@ -224,18 +224,24 @@ export class CharacterMapping {
 	}
 
 	public getHorizontalOffset(column: number): number {
-		const line_len = this._horizontalOffset.length;
-		if (line_len === 0) {
+		console.log('getHorizontalOffset');
+		const lineLength = this._horizontalOffset.length;
+		console.log('lineLength : ', lineLength);
+		if (lineLength === 0) {
 			// No characters on this line
 			const extra = column - 1;
+			console.log('extra : ', extra);
 			return extra;
 		}
-		if (column > line_len) {
-			const extra = column - line_len;
-			const result = this._horizontalOffset[line_len - 1] + extra;
+		if (column > lineLength) {
+			const extra = column - lineLength;
+			console.log('extra : ', extra);
+			const result = this._horizontalOffset[lineLength - 1] + extra;
+			console.log('result : ', result);
 			return result;
 		} else {
 			const result = this._horizontalOffset[column - 1];
+			console.log('result : ', result);
 			return result;
 		}
 	}

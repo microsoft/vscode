@@ -156,6 +156,9 @@ export class ViewCursor {
 	private _getGraphemeAwarePosition(): [Position, string] {
 		const { lineNumber, column } = this._position;
 		const lineContent = this._context.viewModel.getLineContent(lineNumber);
+		console.log('_getGraphemeAwarePosition:');
+		console.log('lineContent:', lineContent);
+		console.log('column:', column);
 		if (column > lineContent.length) {
 			return [new Position(lineNumber, column), ''];
 		} else {
@@ -168,6 +171,9 @@ export class ViewCursor {
 		let textContent = '';
 		let textContentClassName = '';
 		const [position, nextGrapheme] = this._getGraphemeAwarePosition();
+		console.log('_prepareRender:');
+		console.log('position:', position);
+		console.log('nextGrapheme:', nextGrapheme);
 
 		if (this._cursorStyle === TextEditorCursorStyle.Line || this._cursorStyle === TextEditorCursorStyle.LineThin) {
 			const visibleRange = ctx.visibleRangeForPosition(position);

@@ -723,6 +723,7 @@ export class MouseTargetFactory {
 	}
 
 	private static _hitTestViewLines(ctx: HitTestContext, request: ResolvedHitTestRequest): IMouseTarget | null {
+		console.log('_hitTestViewLines');
 		if (!ElementPath.isChildOfViewLines(request.targetPath)) {
 			return null;
 		}
@@ -743,11 +744,17 @@ export class MouseTargetFactory {
 		// See https://github.com/microsoft/vscode/issues/46942
 		if (ElementPath.isStrictChildOfViewLines(request.targetPath)) {
 			const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
-			const lineWidth = ctx.visibleRangeForPosition(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber))?.originalLeft || 0;
+			const lineNumberMaxColumn = ctx.viewModel.getLineMaxColumn(lineNumber);
+			console.log('lineNumberMaxColumn : ', lineNumberMaxColumn);
+			const visibleRangeForPosition = ctx.visibleRangeForPosition(lineNumber, lineNumberMaxColumn);
+			console.log('visibleRangeForPosition : ', visibleRangeForPosition);
+			const lineWidth = visibleRangeForPosition?.originalLeft || 0;
+			console.log('lineWidth : ', lineWidth);
 			const pxBehind = request.mouseContentHorizontalOffset - lineWidth;
+			console.log('pxBehind : ', pxBehind);
 			const spaceWidth = ctx.spaceWidth;
 			const colsBehind = Math.floor(pxBehind / spaceWidth);
-
+			console.log('colsBehind : ', colsBehind);
 			if (ctx.viewModel.getLineLength(lineNumber) === 0) {
 				const detail = createEmptyContentDataInLines(pxBehind);
 				const pos = new Position(lineNumber, 1 + colsBehind);
@@ -757,7 +764,9 @@ export class MouseTargetFactory {
 			if (request.mouseContentHorizontalOffset >= lineWidth) {
 				// TODO: This is wrong for RTL
 				const detail = createEmptyContentDataInLines(pxBehind);
+				console.log('detail : ', detail);
 				const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber) + colsBehind);
+				console.log('pos : ', pos);
 				return request.fulfillContentEmpty(pos, detail);
 			}
 		}

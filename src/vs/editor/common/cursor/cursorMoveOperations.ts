@@ -50,9 +50,9 @@ export class MoveOperations {
 	}
 
 	private static left(config: CursorConfiguration, model: ICursorSimpleModel, position: Position, virtualSpace: boolean | null = null): CursorPosition {
-		if (virtualSpace === null) {
-			virtualSpace = config.virtualSpace;
-		}
+		// if (virtualSpace === null) {
+		// 	virtualSpace = config.virtualSpace;
+		// }
 		const pos = config.stickyTabStops
 			? MoveOperations.leftPositionAtomicSoftTabs(model, position, config.tabSize, config.virtualSpace)
 			: MoveOperations.leftPosition(model, position, config.virtualSpace);
@@ -113,6 +113,9 @@ export class MoveOperations {
 	}
 
 	public static rightPosition(model: ICursorSimpleModel, lineNumber: number, column: number, virtualSpace: boolean): Position {
+		console.log('rightPosition');
+		console.log('lineNumber:', lineNumber);
+		console.log('column:', column);
 		if (column < model.getLineMaxColumn(lineNumber)) {
 			column = column + strings.nextCharLength(model.getLineContent(lineNumber), column - 1);
 		} else {
@@ -123,6 +126,7 @@ export class MoveOperations {
 				column = model.getLineMinColumn(lineNumber);
 			}
 		}
+		console.log('column : ', column);
 		return new Position(lineNumber, column);
 	}
 
@@ -138,12 +142,13 @@ export class MoveOperations {
 	}
 
 	public static right(config: CursorConfiguration, model: ICursorSimpleModel, position: Position, virtualSpace: boolean | null = null): CursorPosition {
-		if (virtualSpace === null) {
-			virtualSpace = config.virtualSpace;
-		}
+		// if (virtualSpace === null) {
+		// 	virtualSpace = config.virtualSpace;
+		// }
+		const definedVirtualSpace = virtualSpace ?? config.virtualSpace;
 		const pos = config.stickyTabStops
-			? MoveOperations.rightPositionAtomicSoftTabs(model, position.lineNumber, position.column, config.tabSize, config.indentSize, virtualSpace)
-			: MoveOperations.rightPosition(model, position.lineNumber, position.column, virtualSpace);
+			? MoveOperations.rightPositionAtomicSoftTabs(model, position.lineNumber, position.column, config.tabSize, config.indentSize, definedVirtualSpace)
+			: MoveOperations.rightPosition(model, position.lineNumber, position.column, definedVirtualSpace);
 		return new CursorPosition(pos.lineNumber, pos.column, null);
 	}
 
@@ -167,12 +172,23 @@ export class MoveOperations {
 	}
 
 	public static vertical(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, columnHint: number | null, newLineNumber: number, allowMoveOnEdgeLine: boolean, normalizationAffinity?: PositionAffinity): CursorPosition {
-		let currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
-		if (columnHint !== null) {
-			currentVisibleColumn = columnHint;
-		} else {
-			columnHint = currentVisibleColumn;
-		}
+		console.log('vertical');
+		console.log('lineNumber:', lineNumber);
+		console.log('column:', column);
+		console.log('columnHint:', columnHint);
+		console.log('newLineNumber:', newLineNumber);
+		console.log('allowMoveOnEdgeLine:', allowMoveOnEdgeLine);
+		// let currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
+		// if (columnHint !== null) {
+		// 	currentVisibleColumn = columnHint;
+		// } else {
+		// 	columnHint = currentVisibleColumn;
+		// }
+
+		const currentVisibleColumn = columnHint ?? CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
+		let definedColumnHint: number | null = columnHint ?? currentVisibleColumn;
+		console.log('currentVisibleColumn:', currentVisibleColumn);
+		console.log('definedColumnHint:', definedColumnHint);
 
 		const lineCount = model.getLineCount();
 		lineNumber = newLineNumber;
@@ -181,8 +197,13 @@ export class MoveOperations {
 			const wasOnLastPosition = (lineNumber === lineCount && column === model.getLineMaxColumn(lineNumber));
 			const wasAtEdgePosition = (newLineNumber < lineNumber ? wasOnFirstPosition : wasOnLastPosition);
 
+			console.log('wasOnFirstPosition:', wasOnFirstPosition);
+			console.log('wasOnLastPosition:', wasOnLastPosition);
+			console.log('wasAtEdgePosition:', wasAtEdgePosition);
+
 			if (wasAtEdgePosition) {
-				columnHint = null;
+				// columnHint = null;
+				definedColumnHint = null;
 			}
 
 			if (lineNumber < 1) {
@@ -190,29 +211,40 @@ export class MoveOperations {
 				if (allowMoveOnEdgeLine) {
 					const firstColumn = model.getLineMinColumn(lineNumber);
 					if (column === firstColumn) {
-						columnHint = null;
+						// columnHint = null;
+						definedColumnHint = null;
 					}
 					column = firstColumn;
+					console.log('firstColumn : ', firstColumn);
+					console.log('column : ', column);
 				} else {
 					column = Math.min(model.getLineMaxColumn(lineNumber), column);
+					console.log('column : ', column);
 				}
 			} else if (lineNumber > lineCount) {
 				lineNumber = lineCount;
 				if (allowMoveOnEdgeLine) {
 					const lastColumn = model.getLineMaxColumn(lineNumber);
 					if (column === lastColumn) {
-						columnHint = null;
+						// columnHint = null;
+						definedColumnHint = null;
 					}
 					column = lastColumn;
+					console.log('lastColumn : ', lastColumn);
+					console.log('column : ', column);
 				} else {
 					column = Math.min(model.getLineMaxColumn(lineNumber), column);
+					console.log('column : ', column);
 				}
 			} else {
 				column = config.columnFromVisibleColumn(model, lineNumber, currentVisibleColumn);
+				console.log('column : ', column);
 			}
 		} else {
 			lineNumber = Math.min(Math.max(1, lineNumber), lineCount);
 			column = config.columnFromVisibleColumn(model, lineNumber, currentVisibleColumn);
+			console.log('lineNumber : ', lineNumber);
+			console.log('column : ', column);
 		}
 
 		if (normalizationAffinity !== undefined) {
@@ -221,8 +253,7 @@ export class MoveOperations {
 			lineNumber = newPosition.lineNumber;
 			column = newPosition.column;
 		}
-
-		return new CursorPosition(lineNumber, column, columnHint);
+		return new CursorPosition(lineNumber, column, definedColumnHint); //columnHint);
 	}
 
 	public static down(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, columnHint: number | null, count: number, allowMoveOnLastLine: boolean): CursorPosition {

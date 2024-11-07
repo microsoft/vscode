@@ -57,6 +57,8 @@ class TransposeLettersAction extends EditorAction {
 				continue;
 			}
 
+			console.log('column:', column);
+			console.log('lastColumn:', lastColumn);
 			if (column > lastColumn) {
 				// beyond the end of line, nothing to do
 				continue;

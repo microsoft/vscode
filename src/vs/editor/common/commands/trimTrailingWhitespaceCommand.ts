@@ -75,8 +75,11 @@ export function trimTrailingWhitespace(model: ITextModel, cursors: Position[], t
 		if (cursorIndex < cursorLen && cursors[cursorIndex].lineNumber === lineNumber) {
 			minEditColumn = cursors[cursorIndex].column;
 			cursorIndex++;
+			console.log('minEditColumn : ', minEditColumn);
+			console.log('maxLineColumn : ', maxLineColumn);
 			if (minEditColumn >= maxLineColumn) {
 				// The cursor is at the end of the line => no edits for sure on this line
+				console.log('continue');
 				continue;
 			}
 		}
