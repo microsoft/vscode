@@ -27,7 +27,7 @@ import { ITerminalCompletionService, TerminalCompletionService } from './termina
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { SuggestAddon } from './terminalSuggestAddon.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
-import { PwshCompletionProviderAddon } from './pwshCompletionProvider.js';
+import { PwshCompletionProviderAddon } from './pwshCompletionProviderAddon.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 

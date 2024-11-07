@@ -29,7 +29,7 @@ import { events as windows11_pwsh_writehost_multiline } from './recordings/windo
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ITerminalConfigurationService } from '../../../../terminal/browser/terminal.js';
 import { timeout } from '../../../../../../base/common/async.js';
-import { parseCompletionsFromShell, PwshCompletionProviderAddon } from '../../browser/pwshCompletionProvider.js';
+import { parseCompletionsFromShell, PwshCompletionProviderAddon } from '../../browser/pwshCompletionProviderAddon.js';
 import { ITerminalCompletionService, TerminalCompletionService } from '../../browser/terminalCompletionService.js';
 import { GeneralShellType } from '../../../../../../platform/terminal/common/terminal.js';
 import { testRawPwshCompletions } from './testRawPwshCompletions.js';
