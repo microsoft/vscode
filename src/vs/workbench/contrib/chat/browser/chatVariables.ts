@@ -13,6 +13,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { Position } from '../../../../editor/common/core/position.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../common/chatAgents.js';
@@ -26,7 +27,6 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 
 // TODO: @legomushroom
-//  - add `Range` attributes to all the tokens
 //  - use the `PromptSyntaxCodec` to decode the prompts
 
 interface IChatData {
@@ -289,16 +289,45 @@ abstract class DecoderBase<T, K = VSBuffer> extends Disposable implements stream
 	}
 }
 
-export class Token { }
+/**
+ * Base class for all tokens.
+ */
+export class Token {
+	constructor(
+		public readonly range: Range,
+	) {
+	}
+}
 
 /**
- * TODO: @legomushroom
+ * Token representing a line of text.
  */
 export class Line extends Token {
 	constructor(
+		// the line index
+		// Note! 1-based indexing
+		lineNumber: number,
+		// the line contents
 		public readonly text: string,
 	) {
-		super();
+		assert(
+			!isNaN(lineNumber),
+			`The line number must not be a NaN.`,
+		);
+
+		assert(
+			lineNumber > 0,
+			`The line number must be >= 1, got "${lineNumber}".`,
+		);
+
+		super(
+			new Range(
+				lineNumber,
+				1,
+				lineNumber,
+				text.length + 1,
+			),
+		);
 	}
 }
 
@@ -306,7 +335,11 @@ export class Line extends Token {
  * TODO: @legomushroom
  */
 export class LinesCodecDecoder extends DecoderBase<Line> implements streams.ReadableStream<Line> {
+	// TODO: @legomushroom
 	private currentChunk: string = '';
+
+	// TODO: @legomushroom
+	private lastEmittedLineIndex: number = -1;
 
 	/**
 	 * TODO: @legomushroom
@@ -323,18 +356,17 @@ export class LinesCodecDecoder extends DecoderBase<Line> implements streams.Read
 			const line = lines[i];
 			const maybeNextLine = lines[i + 1];
 
-			// if there is a next line present, then we can emit the current one
-			if (maybeNextLine !== undefined) {
-				this.emitLine(line);
+			// the next line is `undefined` and the current line is `empty`, so we can emit
+			// an empty line here, because the original text had a `\n` at this position
+			if (line === '') {
+				this.emitLine(i, line);
 
 				continue;
 			}
 
-			// if the next line is `undefined`, and the current line is `empty`, we
-			// can emit it right away because the `currentChunk` string must have had
-			// the `\n` delimiter at the end
-			if (line === '') {
-				this.emitLine(line);
+			// if there is a next line present, then we can emit the current one
+			if (maybeNextLine !== undefined) {
+				this.emitLine(i, line);
 
 				continue;
 			}
@@ -356,8 +388,17 @@ export class LinesCodecDecoder extends DecoderBase<Line> implements streams.Read
 	 * Emit a provided line to the output stream then
 	 * shorten the `currentChunk` buffer accordingly.
 	 */
-	private emitLine(line: string): void {
-		this._onData.fire(new Line(line));
+	private emitLine(
+		lineIndex: number,
+		line: string,
+	): void {
+		// lineIndex is 0-based, but lineNumber is 1-based
+		const lineNumber = lineIndex + 1;
+		this._onData.fire(new Line(lineNumber, line));
+
+		// store the last emitted line index so we can use it when we need
+		// to send the remaining line in the `onStreamEnd` method
+		this.lastEmittedLineIndex = lineIndex;
 
 		// TODO: @legomushroom - when `\r\n` is handled, should it be `+ 2` at that point?
 		this.currentChunk = this.currentChunk.slice(line.length + 1);
@@ -376,10 +417,13 @@ export class LinesCodecDecoder extends DecoderBase<Line> implements streams.Read
 	 */
 	protected override onStreamEnd(): void {
 		// if the `currentChunk` is not empty when the input stream ends,
-		// emit the `currentChunk` contents as the last available line
-		// before firing the `onEnd` event
+		// emit the `currentChunk` buffer as the last available line token
+		// before firing the `onEnd` event on this stream
 		if (this.currentChunk) {
-			this.emitLine(this.currentChunk);
+			this.emitLine(
+				this.lastEmittedLineIndex + 1,
+				this.currentChunk,
+			);
 		}
 
 		super.onStreamEnd();
@@ -392,16 +436,60 @@ export class LinesCodecDecoder extends DecoderBase<Line> implements streams.Read
  */
 export class Word extends Token {
 	constructor(
+		/**
+		 * The word range.
+		 */
+		range: Range,
+		/**
+		 * The string value of the word.
+		 */
 		public readonly value: string,
 	) {
-		super();
+		super(range);
+	}
+
+	// TODO: @legomushroom
+	public static newOnLine(
+		// string value of the word,
+		value: string,
+		// TODO: @legomushroom
+		line: Line,
+		// TODO: @legomushroom
+		atColumnNumber: number,
+	): Space {
+		const { range } = line;
+
+		const endPosition = new Position(range.startLineNumber, atColumnNumber + value.length);
+
+		return new Space(Range.fromPositions(
+			range.getStartPosition(),
+			endPosition,
+		));
 	}
 }
 
 /**
  * A token that represent a `space`.
  */
-export class Space extends Token { }
+export class Space extends Token {
+	// TODO: @legomushroom
+	public static newOnLine(
+		// TODO: @legomushroom
+		line: Line,
+		// TODO: @legomushroom
+		atColumnNumber: number,
+	): Space {
+		const { range } = line;
+
+		// the space token length is 1, hence `+ 1`
+		const endPosition = new Position(range.startLineNumber, atColumnNumber + 1);
+
+		return new Space(Range.fromPositions(
+			range.getStartPosition(),
+			endPosition,
+		));
+	}
+}
 
 /**
  * A token that represent a `new line`.
@@ -417,13 +505,18 @@ export type TSimpleToken = Word | Space | NewLine;
  * A decoder that can decode a stream of `Line`s into a stream of `Word`, `Space` and `NewLine` tokens.
  */
 export class SimpleTokensCodecDecoder extends DecoderBase<TSimpleToken, Line> implements streams.ReadableStream<TSimpleToken> {
+	private lastEmittedToken?: TSimpleToken;
+
 	/**
 	 * TODO: @legomushroom
 	 */
 	protected override onStreamData(line: Line): void {
 		// if an empty line is received, emit a `NewLine` token
+		// TODO: @legomushroom - we should do this for non-empty lines too
 		if (line.text === '') {
-			this._onData.fire(new NewLine());
+			const newLine = new NewLine(line.range);
+			this._onData.fire(newLine);
+			this.lastEmittedToken = newLine;
 			return;
 		}
 
@@ -433,20 +526,38 @@ export class SimpleTokensCodecDecoder extends DecoderBase<TSimpleToken, Line> im
 			const token = tokens[i];
 			const maybeNextToken = tokens[i + 1];
 
-			if (token === '') {
-				this._onData.fire(new Space());
-				continue;
-			}
+			// Get end column number of the last emitted token, if any.
+			const endColumn = this.lastEmittedToken
+				? this.lastEmittedToken.range.endColumn
+				: 1;
 
-			// token does contain some text, so emit a `Word` token
-			this._onData.fire(new Word(token));
+			// calculate the token to emit to the output stream
+			const tokenToEmit: TSimpleToken = token === ''
+				// if the token is empty, emit a `Space` token
+				// because we've split the original string by ` `(space)
+				? Space.newOnLine(line, endColumn)
+				// token does contain some text, so emit a `Word` token
+				: Word.newOnLine(token, line, endColumn);
 
-			// if there is a next token that is not space(empty),
-			// also emit a `Space` token, because words are separated by spaces
+			this.emitToken(tokenToEmit);
+
+			// if there is a next token that is not space(empty), also emit
+			// a `Space` token, because all words are separated by spaces
 			if (maybeNextToken) {
-				this._onData.fire(new Space());
+				const space = Space.newOnLine(
+					line,
+					tokenToEmit.range.endColumn,
+				);
+				this.emitToken(space);
 			}
 		}
+	}
+
+	// Emit specified token to the output stream and
+	// update the `lastEmittedToken` reference.
+	private emitToken(token: TSimpleToken): void {
+		this._onData.fire(token);
+		this.lastEmittedToken = token;
 	}
 }
 
@@ -477,12 +588,12 @@ export class PromptFileReference extends Token implements IPromptFileReference {
 	constructor(
 		/**
 		 * TODO: @legomushroom - add variable descriptions
-		 */
+		*/
+		range: Range,
 		public readonly text: string,
-		public readonly range: Range,
 		public readonly uri: URI,
 	) {
-		super();
+		super(range);
 	}
 
 	/**
@@ -518,10 +629,9 @@ export class PromptFileReference extends Token implements IPromptFileReference {
 		);
 
 		return new PromptFileReference(
+			word.range,
 			value,
-			// TODO: @legomushroom - use the real range
-			new Range(0, 0, 0, value.length),
-			URI.file(second),
+			URI.file(second), // TODO: @legomushroom - validate the URI?
 		);
 	}
 }
