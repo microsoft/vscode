@@ -7,7 +7,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { localize2 } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { historyNavigationVisible } from '../../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AbstractInlineChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
 import { isDetachedTerminalInstance } from '../../../terminal/browser/terminal.js';
@@ -232,45 +231,5 @@ registerActiveXtermAction({
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.viewInChat();
-	}
-});
-
-registerActiveXtermAction({
-	id: TerminalChatCommandId.PreviousFromHistory,
-	title: localize2('previousFromHitory', 'Previous From History'),
-	category: AbstractInlineChatAction.category,
-	precondition: TerminalChatContextKeys.focused,
-	keybinding: {
-		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, historyNavigationVisible.isEqualTo(false)),
-		weight: KeybindingWeight.WorkbenchContrib,
-		primary: KeyCode.UpArrow,
-	},
-
-	run: (_xterm, _accessor, activeInstance) => {
-		if (isDetachedTerminalInstance(activeInstance)) {
-			return;
-		}
-		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.terminalChatWidget?.populateHistory(true);
-	}
-});
-
-registerActiveXtermAction({
-	id: TerminalChatCommandId.NextFromHistory,
-	title: localize2('nextFromHitory', 'Next From History'),
-	category: AbstractInlineChatAction.category,
-	precondition: TerminalChatContextKeys.focused,
-	keybinding: {
-		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, historyNavigationVisible.isEqualTo(false)),
-		weight: KeybindingWeight.WorkbenchContrib,
-		primary: KeyCode.DownArrow,
-	},
-
-	run: (_xterm, _accessor, activeInstance) => {
-		if (isDetachedTerminalInstance(activeInstance)) {
-			return;
-		}
-		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.terminalChatWidget?.populateHistory(false);
 	}
 });
