@@ -92,6 +92,7 @@ export interface IChatCodeBlockInfo {
 	readonly codeBlockIndex: number;
 	readonly element: ChatTreeItem;
 	readonly uri: URI | undefined;
+	readonly uriPromise: Promise<URI | undefined>;
 	codemapperUri: URI | undefined;
 	readonly isStreaming: boolean;
 	focus(): void;

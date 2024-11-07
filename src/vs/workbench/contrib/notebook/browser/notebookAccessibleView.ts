@@ -8,14 +8,15 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { getNotebookEditorFromEditorPane } from './notebookBrowser.js';
-import { NOTEBOOK_OUTPUT_FOCUSED } from '../common/notebookContextKeys.js';
+import { NOTEBOOK_CELL_LIST_FOCUSED } from '../common/notebookContextKeys.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
 
 export class NotebookAccessibleView implements IAccessibleViewImplentation {
 	readonly priority = 100;
 	readonly name = 'notebook';
 	readonly type = AccessibleViewType.View;
-	readonly when = ContextKeyExpr.and(NOTEBOOK_OUTPUT_FOCUSED);
+	readonly when = ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, InputFocusedContext.toNegated());
 	getProvider(accessor: ServicesAccessor) {
 		const editorService = accessor.get(IEditorService);
 		return getAccessibleOutputProvider(editorService);
@@ -78,7 +79,7 @@ export function getAccessibleOutputProvider(editorService: IEditorService) {
 		() => { return outputContent; },
 		() => {
 			notebookEditor?.setFocus(selections[0]);
-			activePane?.focus();
+			notebookEditor.focus();
 		},
 		AccessibilityVerbositySettingId.Notebook,
 	);

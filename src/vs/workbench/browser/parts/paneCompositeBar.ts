@@ -24,7 +24,7 @@ import { IWorkbenchEnvironmentService } from '../../services/environment/common/
 import { isNative } from '../../../base/common/platform.js';
 import { Before2D, ICompositeDragAndDrop } from '../dnd.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
-import { IAction, toAction } from '../../../base/common/actions.js';
+import { IAction, Separator, SubmenuAction, toAction } from '../../../base/common/actions.js';
 import { StringSHA1 } from '../../../base/common/hash.js';
 import { GestureEvent } from '../../../base/browser/touch.js';
 import { IPaneCompositePart } from './paneCompositePart.js';
@@ -158,11 +158,24 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private getContextMenuActionsForComposite(compositeId: string): IAction[] {
-		const actions: IAction[] = [];
+		const actions: IAction[] = [new Separator()];
 
 		const viewContainer = this.viewDescriptorService.getViewContainerById(compositeId)!;
 		const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer)!;
-		if (defaultLocation !== this.viewDescriptorService.getViewContainerLocation(viewContainer)) {
+		const currentLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
+
+		// Move View Container
+		const moveActions = [];
+		for (const location of [ViewContainerLocation.Sidebar, ViewContainerLocation.AuxiliaryBar, ViewContainerLocation.Panel]) {
+			if (currentLocation !== location) {
+				moveActions.push(this.createMoveAction(viewContainer, location, defaultLocation));
+			}
+		}
+
+		actions.push(new SubmenuAction('moveToMenu', localize('moveToMenu', "Move To"), moveActions));
+
+		// Reset Location
+		if (defaultLocation !== currentLocation) {
 			actions.push(toAction({ id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultLocation, undefined, 'resetLocationAction') }));
 		} else {
 			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
@@ -176,6 +189,23 @@ export class PaneCompositeBar extends Disposable {
 		}
 
 		return actions;
+	}
+
+	private createMoveAction(viewContainer: ViewContainer, newLocation: ViewContainerLocation, defaultLocation: ViewContainerLocation): IAction {
+		return toAction({
+			id: `moveViewContainerTo${newLocation}`,
+			label: newLocation === ViewContainerLocation.Panel ? localize('panel', "Panel") : newLocation === ViewContainerLocation.Sidebar ? localize('sidebar', "Primary Side Bar") : localize('auxiliarybar', "Secondary Side Bar"),
+			run: () => {
+				let index: number | undefined;
+				if (newLocation !== defaultLocation) {
+					index = this.viewDescriptorService.getViewContainersByLocation(newLocation).length; // move to the end of the location
+				} else {
+					index = undefined; // restore default location
+				}
+				this.viewDescriptorService.moveViewContainerToLocation(viewContainer, newLocation, index);
+				this.viewService.openViewContainer(viewContainer.id, true);
+			}
+		});
 	}
 
 	private registerListeners(): void {

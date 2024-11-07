@@ -40,6 +40,7 @@ import { SuggestItemInfo } from './suggestWidgetAdaptor.js';
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this._textModelVersionId, this._debounceValue));
 	private readonly _isActive = observableValue<boolean>(this, false);
+	private readonly _onlyRequestInlineEditsSignal = observableSignal(this);
 	private readonly _forceUpdateExplicitlySignal = observableSignal(this);
 
 	// We use a semantic id to keep the same inline completion selected even if the provider reorders the completions.
@@ -107,7 +108,8 @@ export class InlineCompletionsModel extends Disposable {
 		createEmptyChangeSummary: () => ({
 			dontRefetch: false,
 			preserveCurrentCompletion: false,
-			inlineCompletionTriggerKind: InlineCompletionTriggerKind.Automatic
+			inlineCompletionTriggerKind: InlineCompletionTriggerKind.Automatic,
+			onlyRequestInlineEdits: false,
 		}),
 		handleChange: (ctx, changeSummary) => {
 			/** @description fetch inline completions */
@@ -117,11 +119,14 @@ export class InlineCompletionsModel extends Disposable {
 				changeSummary.inlineCompletionTriggerKind = InlineCompletionTriggerKind.Explicit;
 			} else if (ctx.didChange(this.dontRefetchSignal)) {
 				changeSummary.dontRefetch = true;
+			} else if (ctx.didChange(this._onlyRequestInlineEditsSignal)) {
+				changeSummary.onlyRequestInlineEdits = true;
 			}
 			return true;
 		},
 	}, (reader, changeSummary) => {
 		this.dontRefetchSignal.read(reader);
+		this._onlyRequestInlineEditsSignal.read(reader);
 		this._forceUpdateExplicitlySignal.read(reader);
 		const shouldUpdate = (this._enabled.read(reader) && this.selectedSuggestItem.read(reader)) || this._isActive.read(reader);
 		if (!shouldUpdate) {
@@ -152,7 +157,7 @@ export class InlineCompletionsModel extends Disposable {
 		const context: InlineCompletionContext = {
 			triggerKind: changeSummary.inlineCompletionTriggerKind,
 			selectedSuggestionInfo: suggestItem?.toSelectedSuggestionInfo(),
-			includeInlineCompletions: true,
+			includeInlineCompletions: !changeSummary.onlyRequestInlineEdits,
 			includeInlineEdits: this._inlineEditsEnabled.read(reader),
 		};
 		const itemToPreserveCandidate = this.selectedInlineCompletion.get();
@@ -166,8 +171,11 @@ export class InlineCompletionsModel extends Disposable {
 		await this._fetchInlineCompletionsPromise.get();
 	}
 
-	public async triggerExplicitly(tx?: ITransaction): Promise<void> {
+	public async triggerExplicitly(tx?: ITransaction, onlyFetchInlineEdits: boolean = false): Promise<void> {
 		subtransaction(tx, tx => {
+			if (onlyFetchInlineEdits) {
+				this._onlyRequestInlineEditsSignal.trigger(tx);
+			}
 			this._isActive.set(true, tx);
 			this._forceUpdateExplicitlySignal.trigger(tx);
 		});

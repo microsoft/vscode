@@ -929,8 +929,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		markdownPart.codeblocks.forEach((info, i) => {
 			codeBlocksByResponseId[codeBlockStartIndex + i] = info;
-			if (info.uri) {
-				const uri = info.uri;
+			info.uriPromise.then(uri => {
+				if (!uri) {
+					return;
+				}
+
 				this.codeBlocksByEditorUri.set(uri, info);
 				markdownPart.addDisposable(toDisposable(() => {
 					const codeblock = this.codeBlocksByEditorUri.get(uri);
@@ -938,7 +941,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						this.codeBlocksByEditorUri.delete(uri);
 					}
 				}));
-			}
+			});
 		});
 
 		return markdownPart;
