@@ -192,6 +192,24 @@ steps:
 
   - template: ../common/install-builtin-extensions.yml@self
 
+  - task: CopyFiles@2
+    inputs:
+      SourceFolder: $(Build.SourcesDirectory)
+      Contents: |
+        **/*.pdb
+        **/*.node
+      TargetFolder: $(Agent.TempDirectory)/binskim-cli
+    displayName: Copy files for BinSkim
+
+  - task: BinSkim@4
+    inputs:
+      InputType: Basic
+      Function: analyze
+      TargetPattern: guardianGlob
+      AnalyzeTargetGlob: $(Agent.TempDirectory)/binskim-cli/*.*
+      AnalyzeSymPath: $(Agent.TempDirectory)/binskim-cli
+    displayName: Run BinSkim
+
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
