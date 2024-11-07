@@ -51,6 +51,7 @@ import { setProgressAcccessibilitySignalScheduler } from 'vs/base/browser/ui/pro
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { NotificationAccessibleView } from 'vs/workbench/browser/parts/notifications/notificationAccessibleView';
 import { IPearOverlayService } from 'vs/workbench/browser/parts/overlay/pearOverlayService';
+import { IShadowOverlayService } from 'vs/workbench/browser/parts/overlay/onboardingShadow/shadowOverlayService';
 
 export interface IWorkbenchOptions {
 
@@ -379,6 +380,11 @@ export class Workbench extends Layout {
 					accessor.get(IPearOverlayService);
 				});
 			}
+
+			// instantiate highlighting
+			instantiationService.invokeFunction(accessor => {
+				accessor.get(IShadowOverlayService);
+			});
 
 			mark(`code/willCreatePart/${id}`);
 			this.getPart(id).create(partContainer, options);
