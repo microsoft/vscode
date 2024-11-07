@@ -3,38 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { ISimpleCompletionItem as TerminalCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
-
-export class TerminalCompletionItem {
-	label: string;
-	icon?: ThemeIcon | undefined;
-	detail?: string | undefined;
-	isFile?: boolean | undefined;
-	isDirectory?: boolean | undefined;
-	isKeyword?: boolean | undefined;
-	fileArgument?: boolean | undefined;
-	folderArgument?: boolean | undefined;
-	replacementIndex: number;
-	replacementLength: number;
-
-	constructor(label: string, icon?: ThemeIcon, detail?: string, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, fileArgument?: boolean, folderArgument?: boolean, replacementIndex?: number, replacementLength?: number) {
-		this.label = label;
-		this.icon = icon;
-		this.detail = detail;
-		this.isFile = isFile;
-		this.isDirectory = isDirectory;
-		this.isKeyword = isKeyword;
-		this.fileArgument = fileArgument;
-		this.folderArgument = folderArgument;
-		this.replacementIndex = replacementIndex ?? 0;
-		this.replacementLength = replacementLength ?? 0;
-	}
-}
 
 export enum TerminalCompletionItemKind {
 	File = 0,

@@ -23,11 +23,11 @@ import { ITerminalConfigurationService } from '../../../terminal/browser/termina
 import type { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
 import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
-import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
+import { SimpleCompletionItem, ISimpleCompletionItem as TerminalCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import type { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
-import { ITerminalCompletionService, TerminalCompletionItem } from './terminalCompletionService.js';
+import { ITerminalCompletionService } from './terminalCompletionService.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export interface ISuggestController {
