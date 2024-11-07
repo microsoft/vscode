@@ -54,6 +54,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IChatViewsWelcomeContributionRegistry, IChatViewsWelcomeDescriptor, ChatViewsWelcomeExtensions } from '../viewsWelcome/chatViewsWelcome.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Event } from '../../../../../base/common/event.js';
+import { timeout } from '../../../../../base/common/async.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -654,8 +655,8 @@ class InstallChatAction extends Action2 {
 			installResult = isCancellationError(error) ? 'cancelled' : 'failedInstall';
 		} finally {
 			Promise.race([
-				new Promise<void>(resolve => setTimeout(resolve, 2000)), 	// helps prevent flicker with sign-in welcome view
-				Event.toPromise(chatAgentService.onDidChangeAgents)			// https://github.com/microsoft/vscode-copilot/issues/9274
+				timeout(2000), 										// helps prevent flicker with sign-in welcome view
+				Event.toPromise(chatAgentService.onDidChangeAgents)	// https://github.com/microsoft/vscode-copilot/issues/9274
 			]).finally(() => setupRunningContextKey.reset());
 		}
 
