@@ -6,15 +6,17 @@
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
-import * as streams from '../../../base/common/stream.js';
+import { ReadableStream } from '../../../base/common/stream.js';
 import { TStreamListenerNames } from './types/TStreamListenerEventNames.js';
 
 /**
  * TODO: @legomushroom
  */
 // TODO: @legomushroom - when a decoder is disposed, we need to emit/throw errors
-// if the object still being used by someone
-export abstract class BaseDecoder<T, K = VSBuffer> extends Disposable implements streams.ReadableStream<T> {
+// 						 if the object still being used by someone
+export abstract class BaseDecoder<T extends NonNullable<unknown>, K = VSBuffer> extends Disposable implements ReadableStream<T> {
+	protected ended = false;
+
 	protected readonly _onData = this._register(new Emitter<T>());
 	protected readonly _onError = this._register(new Emitter<Error>());
 	protected readonly _onEnd = this._register(new Emitter<void>());
@@ -22,11 +24,19 @@ export abstract class BaseDecoder<T, K = VSBuffer> extends Disposable implements
 	private readonly _listeners: Map<TStreamListenerNames, Map<Function, IDisposable>> = new Map();
 
 	constructor(
-		protected readonly stream: streams.ReadableStream<K>
+		protected readonly stream: ReadableStream<K>
 	) {
 		super();
 
-		this.onStreamData = this.onStreamData.bind(this);
+		// automatically catch and dispatch errors thrown inside `onStreamData`
+		this.onStreamData = (data: K): void => {
+			try {
+				this.onStreamData(data);
+			} catch (error) {
+				// TODO: @legomushroom - should we end the stream on the first error?
+				this._onError.fire(error);
+			}
+		};
 		this.onStreamError = this.onStreamError.bind(this);
 		this.onStreamEnd = this.onStreamEnd.bind(this);
 
@@ -159,6 +169,7 @@ export abstract class BaseDecoder<T, K = VSBuffer> extends Disposable implements
 	 * TODO: @legomushroom
 	 */
 	protected onStreamEnd(): void {
+		this.ended = true;
 		this._onEnd.fire();
 	}
 
@@ -168,5 +179,30 @@ export abstract class BaseDecoder<T, K = VSBuffer> extends Disposable implements
 	protected onStreamError(error: Error): void {
 		// TODO: @legomushroom - define specific error types
 		this._onError.fire(error);
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public next(): Promise<T | null> {
+		if (this.ended) {
+			return Promise.resolve(null);
+		}
+
+		return new Promise<T | null>((resolve) => {
+			const endCallback = () => {
+				resolve(null);
+				this.removeListener('end', endCallback);
+			};
+
+			const dataCallback = (data: T) => {
+				resolve(data);
+				this.removeListener('data', dataCallback);
+				this.removeListener('end', endCallback);
+			};
+
+			this.on('data', dataCallback);
+			this.on('end', endCallback);
+		});
 	}
 }

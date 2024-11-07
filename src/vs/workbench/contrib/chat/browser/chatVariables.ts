@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assert, assertDefined } from '../../../../base/common/assert.js';
-import * as streams from '../../../../base/common/stream.js';
+// import * as streams from '../../../../base/common/stream.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -12,8 +12,8 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
-import { Range } from '../../../../editor/common/core/range.js';
-import { Position } from '../../../../editor/common/core/position.js';
+// import { Range } from '../../../../editor/common/core/range.js';
+// import { Position } from '../../../../editor/common/core/position.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../common/chatAgents.js';
@@ -23,9 +23,9 @@ import { IChatContentReference } from '../common/chatService.js';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
 import { IChatWidgetService, showChatView, showEditsView } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
-import { ICodec } from '../../../common/codecs/types/ICodec.js';
-import { BaseDecoder } from '../../../common/codecs/baseDecoder.js';
+// import { VSBuffer } from '../../../../base/common/buffer.js';
+// import { ICodec } from '../../../common/codecs/types/ICodec.js';
+// import { BaseDecoder } from '../../../common/codecs/baseDecoder.js';
 
 interface IChatData {
 	data: IChatVariableData;
@@ -97,412 +97,141 @@ export const unimplemented = (message: string = 'Not implemented.'): never => {
 	return todo(message);
 };
 
-/**
- * Base class for all tokens.
- */
-export class Token {
-	constructor(
-		public readonly range: Range,
-	) {
-	}
-}
-
-/**
- * Token representing a line of text.
- */
-export class Line extends Token {
-	constructor(
-		// the line index
-		// Note! 1-based indexing
-		lineNumber: number,
-		// the line contents
-		public readonly text: string,
-	) {
-		assert(
-			!isNaN(lineNumber),
-			`The line number must not be a NaN.`,
-		);
-
-		assert(
-			lineNumber > 0,
-			`The line number must be >= 1, got "${lineNumber}".`,
-		);
-
-		super(
-			new Range(
-				lineNumber,
-				1,
-				lineNumber,
-				text.length + 1,
-			),
-		);
-	}
-}
-
-/**
- * TODO: @legomushroom
- */
-export class LinesCodecDecoder extends BaseDecoder<Line> implements streams.ReadableStream<Line> {
-	// TODO: @legomushroom
-	private currentChunk: string = '';
-
-	// TODO: @legomushroom
-	private lastEmittedLineIndex: number = -1;
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	protected override onStreamData(chunk: VSBuffer): void {
-		this.currentChunk += chunk.toString();
-
-		// TODO: legomushroom: handle `\r\n` too?
-		const lines = this.currentChunk.split('\n');
-
-		// iterate over all lines, emitting `line` objects for each of them,
-		// then shorten the `currentChunk` buffer value accordingly
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-			const maybeNextLine = lines[i + 1];
-
-			// the next line is `undefined` and the current line is `empty`, so we can emit
-			// an empty line here, because the original text had a `\n` at this position
-			if (line === '') {
-				this.emitLine(i, line);
-
-				continue;
-			}
-
-			// if there is a next line present, then we can emit the current one
-			if (maybeNextLine !== undefined) {
-				this.emitLine(i, line);
-
-				continue;
-			}
-
-			// there is no next line, but we don't know if the `line` is a full line yet,
-			// so we need to wait for some more data to arrive to be sure;
-			// this can happen only for the last line in the chunk tho, so assert that here
-			// TODO: @legomushroom - emit an `Error` instead?
-			assert(
-				i === lines.length - 1,
-				`The loop must break only on the last line in the chunk, did on ${i}th iteration instead.`,
-			);
-
-			break;
-		}
-	}
-
-	/**
-	 * Emit a provided line to the output stream then
-	 * shorten the `currentChunk` buffer accordingly.
-	 */
-	private emitLine(
-		lineIndex: number,
-		line: string,
-	): void {
-		// lineIndex is 0-based, but lineNumber is 1-based
-		const lineNumber = lineIndex + 1;
-		this._onData.fire(new Line(lineNumber, line));
-
-		// store the last emitted line index so we can use it when we need
-		// to send the remaining line in the `onStreamEnd` method
-		this.lastEmittedLineIndex = lineIndex;
-
-		// TODO: @legomushroom - when `\r\n` is handled, should it be `+ 2` at that point?
-		this.currentChunk = this.currentChunk.slice(line.length + 1);
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	protected override onStreamError(error: Error): void {
-		// TODO: @legomushroom - add LinesCodec specific error logic here or delete the override
-		super.onStreamError(error);
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	protected override onStreamEnd(): void {
-		// if the `currentChunk` is not empty when the input stream ends,
-		// emit the `currentChunk` buffer as the last available line token
-		// before firing the `onEnd` event on this stream
-		if (this.currentChunk) {
-			this.emitLine(
-				this.lastEmittedLineIndex + 1,
-				this.currentChunk,
-			);
-		}
-
-		super.onStreamEnd();
-	}
-}
-
-/**
- * A token that represent a word - a set of continuous
- * characters without `spaces` or `new lines`.
- */
-export class Word extends Token {
-	constructor(
-		/**
-		 * The word range.
-		 */
-		range: Range,
-		/**
-		 * The string value of the word.
-		 */
-		public readonly value: string,
-	) {
-		super(range);
-	}
-
-	// TODO: @legomushroom
-	public static newOnLine(
-		// string value of the word,
-		value: string,
-		// TODO: @legomushroom
-		line: Line,
-		// TODO: @legomushroom
-		atColumnNumber: number,
-	): Space {
-		const { range } = line;
-
-		const endPosition = new Position(range.startLineNumber, atColumnNumber + value.length);
-
-		return new Space(Range.fromPositions(
-			range.getStartPosition(),
-			endPosition,
-		));
-	}
-}
-
-/**
- * A token that represent a `space`.
- */
-export class Space extends Token {
-	// TODO: @legomushroom
-	public static newOnLine(
-		// TODO: @legomushroom
-		line: Line,
-		// TODO: @legomushroom
-		atColumnNumber: number,
-	): Space {
-		const { range } = line;
-
-		// the space token length is 1, hence `+ 1`
-		const endPosition = new Position(range.startLineNumber, atColumnNumber + 1);
-
-		return new Space(Range.fromPositions(
-			range.getStartPosition(),
-			endPosition,
-		));
-	}
-}
-
-/**
- * A token that represent a `new line`.
- */
-export class NewLine extends Token { }
-
-/**
- * TODO: @legomushroom
- */
-export type TSimpleToken = Word | Space | NewLine;
-
-/**
- * A decoder that can decode a stream of `Line`s into a stream of `Word`, `Space` and `NewLine` tokens.
- */
-export class SimpleTokensCodecDecoder extends BaseDecoder<TSimpleToken, Line> implements streams.ReadableStream<TSimpleToken> {
-	private lastEmittedToken?: TSimpleToken;
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	protected override onStreamData(line: Line): void {
-		// if an empty line is received, emit a `NewLine` token
-		// TODO: @legomushroom - we should do this for non-empty lines too
-		if (line.text === '') {
-			const newLine = new NewLine(line.range);
-			this._onData.fire(newLine);
-			this.lastEmittedToken = newLine;
-			return;
-		}
-
-		// split the line by spaces and emit the `Word` and `Space` tokens
-		const tokens = line.text.split(' ');
-		for (let i = 0; i < tokens.length; i++) {
-			const token = tokens[i];
-			const maybeNextToken = tokens[i + 1];
-
-			// Get end column number of the last emitted token, if any.
-			const endColumn = this.lastEmittedToken
-				? this.lastEmittedToken.range.endColumn
-				: 1;
-
-			// calculate the token to emit to the output stream
-			const tokenToEmit: TSimpleToken = token === ''
-				// if the token is empty, emit a `Space` token
-				// because we've split the original string by ` `(space)
-				? Space.newOnLine(line, endColumn)
-				// token does contain some text, so emit a `Word` token
-				: Word.newOnLine(token, line, endColumn);
-
-			this.emitToken(tokenToEmit);
-
-			// if there is a next token that is not space(empty), also emit
-			// a `Space` token, because all words are separated by spaces
-			if (maybeNextToken) {
-				const space = Space.newOnLine(
-					line,
-					tokenToEmit.range.endColumn,
-				);
-				this.emitToken(space);
-			}
-		}
-	}
-
-	// Emit specified token to the output stream and
-	// update the `lastEmittedToken` reference.
-	private emitToken(token: TSimpleToken): void {
-		this._onData.fire(token);
-		this.lastEmittedToken = token;
-	}
-}
-
-/**
- * TODO: @legomushroom
- */
-export interface IPromptFileReference {
-	// Full reference string.
-	text: string;
-
-	// The range of the reference.
-	range: Range;
-
-	// Parsed out URI of the reference.
-	uri: URI;
-}
-
-// TODO: @legomushroom
-export type TPromptToken = IPromptFileReference;
-
-// TODO: @legomushroom
-export const FILE_REFERENCE_TOKEN: string = '#file:';
-
-/**
- * TODO: @legomushroom
- */
-export class PromptFileReference extends Token implements IPromptFileReference {
-	constructor(
-		/**
-		 * TODO: @legomushroom - add variable descriptions
-		*/
-		range: Range,
-		public readonly text: string,
-		public readonly uri: URI,
-	) {
-		super(range);
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	public static fromGenericWord(word: Word): PromptFileReference {
-		const { value } = word;
-
-		assert(
-			value.startsWith(FILE_REFERENCE_TOKEN),
-			`The reference must start with "${FILE_REFERENCE_TOKEN}", got ${value}.`,
-		);
-
-		const maybeReference = value.split(FILE_REFERENCE_TOKEN);
-
-		assert(
-			maybeReference.length === 2,
-			`The expected reference format is "${FILE_REFERENCE_TOKEN}:filesystem-path", got ${value}.`,
-		);
-
-		const [first, second] = maybeReference;
-
-		assert(
-			first === '',
-			`The reference must start with "${FILE_REFERENCE_TOKEN}", got ${first}.`,
-		);
-
-		assert(
-			// Note! this accounts for both cases when second is `undefined` or `empty`
-			// 		 and we don't care about rest of the "falsy" cases here
-			!!second,
-			`The reference path must be defined, got ${second}.`,
-		);
-
-		return new PromptFileReference(
-			word.range,
-			value,
-			URI.file(second), // TODO: @legomushroom - validate the URI?
-		);
-	}
-}
-
-/**
- * TODO: @legomushroom
- */
-export class PromptSyntaxCodecDecoder extends BaseDecoder<TPromptToken, TSimpleToken> implements streams.ReadableStream<TPromptToken> {
-	/**
-	 * TODO: @legomushroom
-	 */
-	protected override onStreamData(simpleToken: TSimpleToken): void {
-		// handle the word tokens only
-		if (!(simpleToken instanceof Word)) {
-			return;
-		}
-
-		// handle file references only for now
-		const { value } = simpleToken;
-		if (!value.startsWith(FILE_REFERENCE_TOKEN)) {
-			return;
-		}
-
-		this._onData.fire(PromptFileReference.fromGenericWord(simpleToken));
-	}
-}
-
-/**
- * TODO: @legomushroom
- */
-export class PromptSyntaxCodec extends Disposable implements ICodec<VSBuffer, TPromptToken> {
-	public encode(_: streams.ReadableStream<TPromptToken>): streams.ReadableStream<VSBuffer> {
-		return unimplemented('`PromptSyntaxCodec` does not implement the `encode` method');
-	}
-
-	public decode(stream: streams.ReadableStream<VSBuffer>): streams.ReadableStream<TPromptToken> {
-		// create the decoder instance as a chain of more trivial decoders
-		const decoder = new PromptSyntaxCodecDecoder(
-			new SimpleTokensCodecDecoder(
-				new LinesCodecDecoder(stream),
-			),
-		);
-
-		// register to child disposables and return the decoder instance
-		return this._register(decoder);
-	}
-}
 
 // /**
 //  * TODO: @legomushroom
 //  */
-// export class ChatReference extends Disposable {
+// export interface IPromptFileReference {
+// 	// Full reference string.
+// 	text: string;
+
+// 	// The range of the reference.
+// 	range: Range;
+
+// 	// Parsed out URI of the reference.
+// 	uri: URI;
+// }
+
+// // TODO: @legomushroom
+// export type TPromptToken = IPromptFileReference;
+
+// // TODO: @legomushroom
+// export const FILE_REFERENCE_TOKEN: string = '#file:';
+
+// /**
+//  * TODO: @legomushroom
+//  */
+// export class PromptFileReference extends RangedToken implements IPromptFileReference {
+// 	constructor(
+// 		/**
+// 		 * TODO: @legomushroom - add variable descriptions
+// 		*/
+// 		range: Range,
+// 		public readonly text: string,
+// 		public readonly uri: URI,
+// 	) {
+// 		super(range);
+// 	}
+
 // 	/**
 // 	 * TODO: @legomushroom
 // 	 */
-// 	private readonly children: ChatReference[] = [];
+// 	public static fromGenericWord(word: Word): PromptFileReference {
+// 		const { value } = word;
 
-// 	constructor(
-// 		private readonly mainReference: ChatRequestDynamicVariablePart,
-// 	) {
-// 		super();
+// 		assert(
+// 			value.startsWith(FILE_REFERENCE_TOKEN),
+// 			`The reference must start with "${FILE_REFERENCE_TOKEN}", got ${value}.`,
+// 		);
+
+// 		const maybeReference = value.split(FILE_REFERENCE_TOKEN);
+
+// 		assert(
+// 			maybeReference.length === 2,
+// 			`The expected reference format is "${FILE_REFERENCE_TOKEN}:filesystem-path", got ${value}.`,
+// 		);
+
+// 		const [first, second] = maybeReference;
+
+// 		assert(
+// 			first === '',
+// 			`The reference must start with "${FILE_REFERENCE_TOKEN}", got ${first}.`,
+// 		);
+
+// 		assert(
+// 			// Note! this accounts for both cases when second is `undefined` or `empty`
+// 			// 		 and we don't care about rest of the "falsy" cases here
+// 			!!second,
+// 			`The reference path must be defined, got ${second}.`,
+// 		);
+
+// 		return new PromptFileReference(
+// 			word.range,
+// 			value,
+// 			URI.file(second), // TODO: @legomushroom - validate the URI?
+// 		);
 // 	}
 // }
+
+// /**
+//  * TODO: @legomushroom
+//  */
+// export class PromptSyntaxCodecDecoder extends BaseDecoder<TPromptToken, TSimpleToken> implements streams.ReadableStream<TPromptToken> {
+// 	/**
+// 	 * TODO: @legomushroom
+// 	 */
+// 	protected override onStreamData(simpleToken: TSimpleToken): void {
+// 		// handle the word tokens only
+// 		if (!(simpleToken instanceof Word)) {
+// 			return;
+// 		}
+
+// 		// handle file references only for now
+// 		const { value } = simpleToken;
+// 		if (!value.startsWith(FILE_REFERENCE_TOKEN)) {
+// 			return;
+// 		}
+
+// 		this._onData.fire(PromptFileReference.fromGenericWord(simpleToken));
+// 	}
+// }
+
+// /**
+//  * TODO: @legomushroom
+//  */
+// export class PromptSyntaxCodec extends Disposable implements ICodec<VSBuffer, TPromptToken> {
+// 	public encode(_: streams.ReadableStream<TPromptToken>): streams.ReadableStream<VSBuffer> {
+// 		return unimplemented('`PromptSyntaxCodec` does not implement the `encode` method');
+// 	}
+
+// 	public decode(stream: streams.ReadableStream<VSBuffer>): streams.ReadableStream<TPromptToken> {
+// 		// create the decoder instance as a chain of more trivial decoders
+// 		const decoder = new PromptSyntaxCodecDecoder(
+// 			new SimpleTokensCodecDecoder(
+// 				new LinesDecoder(stream),
+// 			),
+// 		);
+
+// 		// register to child disposables and return the decoder instance
+// 		return this._register(decoder);
+// 	}
+// }
+
+// // /**
+// //  * TODO: @legomushroom
+// //  */
+// // export class ChatReference extends Disposable {
+// // 	/**
+// // 	 * TODO: @legomushroom
+// // 	 */
+// // 	private readonly children: ChatReference[] = [];
+
+// // 	constructor(
+// // 		private readonly mainReference: ChatRequestDynamicVariablePart,
+// // 	) {
+// // 		super();
+// // 	}
+// // }
 
 /**
  * TODO: @legomushroom
