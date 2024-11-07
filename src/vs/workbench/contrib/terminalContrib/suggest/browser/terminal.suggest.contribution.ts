@@ -23,7 +23,7 @@ import { TERMINAL_CONFIG_SECTION, type ITerminalConfiguration } from '../../../t
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalSuggestCommandId } from '../common/terminal.suggest.js';
 import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
-import { ITerminalCompletionService, TerminalCompletionService } from './terminalSuggestionService.js';
+import { ITerminalCompletionService, TerminalCompletionService } from './terminalCompletionService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { SuggestAddon } from './terminalSuggestAddon.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
@@ -56,8 +56,10 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService
 	) {
 		super();
-		this.add(toDisposable(() => this._addon?.dispose()));
-		this.add(toDisposable(() => this._pwshAddon?.dispose()));
+		this.add(toDisposable(() => {
+			this._addon?.dispose();
+			this._pwshAddon?.dispose();
+		}));
 		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
 	}
 
@@ -68,16 +70,16 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 		this.add(Event.runAndSubscribe(this._ctx.instance.onDidChangeShellType, async () => {
-			this._loadSuggestAddons(xterm.raw);
+			this._loadAddons(xterm.raw);
 		}));
 		this.add(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._terminalSuggestWidgetContextKeys)) {
-				this._loadSuggestAddons(xterm.raw);
+				this._loadAddons(xterm.raw);
 			}
 		}));
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.SendKeybindingsToShell)) {
-				this._loadSuggestAddons(xterm.raw);
+				this._loadAddons(xterm.raw);
 			}
 		}));
 	}
@@ -119,7 +121,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		}
 	}
 
-	private _loadSuggestAddons(xterm: RawXtermTerminal): void {
+	private _loadAddons(xterm: RawXtermTerminal): void {
 		const sendingKeybindingsToShell = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).sendKeybindingsToShell;
 		// TODO: experimental setting @meganrogge for zsh/bash?
 		if (sendingKeybindingsToShell || !this._ctx.instance.shellType) {

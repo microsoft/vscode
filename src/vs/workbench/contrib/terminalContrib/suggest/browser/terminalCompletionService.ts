@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ISimpleCompletion } from '../../../../services/suggest/browser/simpleCompletionItem.js';
@@ -88,13 +89,17 @@ export interface ITerminalCompletionProvider {
 export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider, ...triggerCharacters: string[]): IDisposable;
-	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, devModeEnabled?: boolean): Promise<ITerminalCompletionItem[] | undefined>;
+	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType): Promise<ITerminalCompletionItem[] | undefined>;
 }
 
 // TODO: make name consistent
 export class TerminalCompletionService extends Disposable implements ITerminalCompletionService {
 	declare _serviceBrand: undefined;
 	private readonly _providers: Map</*ext id*/string, Map</*provider id*/string, ITerminalCompletionProvider>> = new Map();
+
+	constructor(@IConfigurationService private readonly _configurationService: IConfigurationService) {
+		super();
+	}
 
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider, ...triggerCharacters: string[]): IDisposable {
 		let extMap = this._providers.get(extensionIdentifier);
@@ -115,8 +120,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		});
 	}
 
-	// TODO: use the configuration service here instead
-	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, devModeEnabled?: boolean): Promise<ITerminalCompletionItem[] | undefined> {
+	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType): Promise<ITerminalCompletionItem[] | undefined> {
 		const completionItems: ITerminalCompletionItem[] = [];
 
 		if (!this._providers || !this._providers.values) {
@@ -129,6 +133,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					continue;
 				}
 				const completions = await provider.provideCompletions(promptValue, cursorPosition);
+				const devModeEnabled = this._configurationService.getValue('terminal.integrated.developer.devMode');
 				if (completions) {
 					for (const completion of completions) {
 						if (devModeEnabled && !completion.detail?.includes(extensionId)) {

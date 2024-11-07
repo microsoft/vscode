@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalCompletionItem, ITerminalCompletionProvider, TerminalCompletionItem } from './terminalSuggestionService.js';
+import { ITerminalCompletionItem, ITerminalCompletionProvider, TerminalCompletionItem } from './terminalCompletionService.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import { Event, Emitter } from '../../../../../base/common/event.js';

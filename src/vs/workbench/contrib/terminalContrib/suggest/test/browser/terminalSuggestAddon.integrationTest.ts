@@ -30,7 +30,7 @@ import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ITerminalConfigurationService } from '../../../../terminal/browser/terminal.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { parseCompletionsFromShell, PwshCompletionProviderAddon } from '../../browser/pwshCompletionProvider.js';
-import { ITerminalCompletionService, TerminalCompletionService } from '../../browser/terminalSuggestionService.js';
+import { ITerminalCompletionService, TerminalCompletionService } from '../../browser/terminalCompletionService.js';
 import { GeneralShellType } from '../../../../../../platform/terminal/common/terminal.js';
 import { testRawPwshCompletions } from './testRawPwshCompletions.js';
 
@@ -64,7 +64,7 @@ interface IRecordedSessionResizeEvent {
 	rows: number;
 }
 
-suite.only('Terminal Contrib Suggest Recordings', () => {
+suite('Terminal Contrib Suggest Recordings', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let xterm: Terminal;
