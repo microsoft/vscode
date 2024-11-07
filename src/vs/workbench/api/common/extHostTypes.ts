@@ -2108,62 +2108,6 @@ export class TerminalProfile implements vscode.TerminalProfile {
 	}
 }
 
-export interface TerminalCompletionItem {
-	/**
-	 * The completion's label which appears on the left beside the icon.
-	 */
-	label: string;
-	/**
-	 * The completion's icon to show on the left of the suggest widget.
-	 */
-	icon?: ThemeIcon;
-	/**
-	 * The completion's detail which appears on the right of the list.
-	 */
-	detail?: string;
-	/**
-	 * Whether the completion is a file. Files with the same score will be sorted against each other
-	 * first by extension length and then certain extensions will get a boost based on the OS.
-	 */
-	isFile?: boolean;
-	/**
-	 * Whether the completion is a directory.
-	 */
-	isDirectory?: boolean;
-	/**
-	 * Whether the completion is a keyword.
-	 */
-	isKeyword?: boolean;
-}
-
-
-export class TerminalCompletionItem {
-	label: string;
-	icon?: ThemeIcon | undefined;
-	detail?: string | undefined;
-	isFile?: boolean | undefined;
-	isDirectory?: boolean | undefined;
-	isKeyword?: boolean | undefined;
-	fileArgument?: boolean | undefined;
-	folderArgument?: boolean | undefined;
-	replacementIndex: number;
-	replacementLength: number;
-
-	constructor(label: string, icon?: ThemeIcon, detail?: string, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, fileArgument?: boolean, folderArgument?: boolean, replacementIndex?: number, replacementLength?: number) {
-		this.label = label;
-		this.icon = icon;
-		this.detail = detail;
-		this.isFile = isFile;
-		this.isDirectory = isDirectory;
-		this.isKeyword = isKeyword;
-		this.fileArgument = fileArgument;
-		this.folderArgument = folderArgument;
-		this.replacementIndex = replacementIndex ?? 0;
-		this.replacementLength = replacementLength ?? 0;
-	}
-}
-
-
 export enum TaskRevealKind {
 	Always = 1,
 

@@ -56,7 +56,6 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection;
 	getTerminalById(id: number): ExtHostTerminal | null;
 	getTerminalIdByApiObject(apiTerminal: vscode.Terminal): number | null;
-	registerTerminalCompletionProvider<T extends vscode.TerminalCompletionItem[]>(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<T>, ...triggerCharacters: string[]): vscode.Disposable;
 }
 
 interface IEnvironmentVariableCollection extends vscode.EnvironmentVariableCollection {
@@ -398,7 +397,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();
-	private readonly _completionProviders: Map<string, vscode.TerminalCompletionProvider<vscode.TerminalCompletionItem[]>> = new Map();
 	private readonly _profileProviders: Map<string, vscode.TerminalProfileProvider> = new Map();
 	private readonly _quickFixProviders: Map<string, vscode.TerminalQuickFixProvider> = new Map();
 	private readonly _terminalLinkCache: Map<number, Map<number, ICachedLinkEntry>> = new Map();
@@ -734,18 +732,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public registerTerminalCompletionProvider<T extends vscode.TerminalCompletionItem[]>(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<T>, ...triggerCharacters: string[]): vscode.Disposable {
-		if (this._completionProviders.has(provider.id)) {
-			throw new Error(`Terminal completion provider "${provider.id}" already registered`);
-		}
-		this._completionProviders.set(provider.id, provider);
-		this._proxy.$registerCompletionProvider(provider.id, extension.identifier.value, ...triggerCharacters);
-		return new VSCodeDisposable(() => {
-			this._completionProviders.delete(provider.id);
-			this._proxy.$unregisterCompletionProvider(provider.id);
-		});
-	}
-
 
 	public registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable {
 		if (this._profileProviders.has(id)) {
@@ -769,23 +755,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			this._quickFixProviders.delete(id);
 			this._proxy.$unregisterQuickFixProvider(id);
 		});
-	}
-
-	public async $provideTerminalCompletions(id: string, options: { commandLine: string; cursorPosition: number }): Promise<vscode.TerminalCompletionItem[] | undefined> {
-		const token = new CancellationTokenSource().token;
-		if (token.isCancellationRequested || !this.activeTerminal) {
-			return;
-		}
-		const provider = this._completionProviders.get(id);
-		if (!provider) {
-			return;
-		}
-		const completions = await provider.provideTerminalCompletions(this.activeTerminal, options, token);
-		if (completions === null || completions === undefined) {
-			return;
-		}
-
-		return completions;
 	}
 
 	public async $provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto): Promise<(ITerminalQuickFixTerminalCommandDto | ITerminalQuickFixOpenerDto | ICommandDto)[] | ITerminalQuickFixTerminalCommandDto | ITerminalQuickFixOpenerDto | ICommandDto | undefined> {
