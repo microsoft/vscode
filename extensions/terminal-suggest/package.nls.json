@@ -1,6 +1,0 @@
-{
-	"description": "Extension to add task support for npm scripts.",
-	"displayName": "Terminal Suggest for VS Code",
-	"view.name": "Terminal Suggest",
-	"workspaceTrust": "This extension executes tasks, which require trust to run."
-}
