@@ -2108,7 +2108,7 @@ export class TerminalProfile implements vscode.TerminalProfile {
 	}
 }
 
-export interface SimpleTerminalCompletion {
+export interface TerminalCompletionItem {
 	/**
 	 * The completion's label which appears on the left beside the icon.
 	 */
