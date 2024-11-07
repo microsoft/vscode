@@ -320,8 +320,6 @@ extends:
             os: windows
           jobs:
             - job: WindowsSDL
-              variables:
-                - group: 'API Scan'
               steps:
                 - template: build/azure-pipelines/win32/sdl-scan-win32.yml@self
                   parameters:
