@@ -213,7 +213,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		await this._handleExtensionProviders(this._terminal);
 	}
 
-	private async _sync(promptInputState: IPromptInputModelState): Promise<void> {
+	private _sync(promptInputState: IPromptInputModelState): void {
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
 		if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
 			// If input has been added
@@ -230,7 +230,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						// Never request completions if the last key sequence was up or down as the user was likely
 						// navigating history
 						if (!this._lastUserData?.match(/^\x1b[\[O]?[A-D]$/)) {
-							await this.requestCompletions();
+							this.requestCompletions();
 							sent = true;
 						}
 					}
@@ -248,7 +248,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					// with git branches in particular
 					this._isFilteringDirectories && prefix?.match(/[\\\/]$/)
 				) {
-					await this.requestCompletions();
+					this.requestCompletions();
 					sent = true;
 				}
 				// TODO: eventually add an appropriate trigger char check for other shells

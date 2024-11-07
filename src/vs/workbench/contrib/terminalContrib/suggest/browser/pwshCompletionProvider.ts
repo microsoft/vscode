@@ -210,8 +210,13 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 		const rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion = args.length === 0 || payload.length === 0 ? undefined : JSON.parse(payload);
 		const completions = parseCompletionsFromShell(rawCompletions, replacementIndex, replacementLength);
 		// This is a global command, add cached commands list to completions
+
 		if (isGlobalCommand) {
-			completions.push(...PwshCompletionProviderAddon.cachedPwshCommands);
+			for (const c of PwshCompletionProviderAddon.cachedPwshCommands) {
+				c.replacementIndex = replacementIndex;
+				c.replacementLength = replacementLength;
+				completions.push(c);
+			}
 		}
 
 		if (this._mostRecentCompletion?.isDirectory && completions.every(c => c.isDirectory)) {
