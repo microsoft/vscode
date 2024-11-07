@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -15,15 +16,19 @@ import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { IBaseChatRequestVariableEntry, IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
+import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
 
+	private readonly _currentCancelTokenSource = this._register(new MutableDisposable<CancellationTokenSource>());
+
 	constructor(
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@ILanguageModelIgnoredFilesService private readonly ignoredFilesService: ILanguageModelIgnoredFilesService,
 	) {
 		super();
 
@@ -74,7 +79,8 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		return undefined;
 	}
 
-	private updateImplicitContext(updateWidget?: IChatWidget): void {
+	private async updateImplicitContext(updateWidget?: IChatWidget): Promise<void> {
+		const cancelTokenSource = this._currentCancelTokenSource.value = new CancellationTokenSource();
 		const codeEditor = this.findActiveCodeEditor();
 		const model = codeEditor?.getModel();
 		const selection = codeEditor?.getSelection();
@@ -98,6 +104,15 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 					newValue = model.uri;
 				}
 			}
+		}
+
+		const uri = newValue instanceof URI ? newValue : newValue?.uri;
+		if (uri && await this.ignoredFilesService.fileIsIgnored(uri, cancelTokenSource.token)) {
+			newValue = undefined;
+		}
+
+		if (cancelTokenSource.token.isCancellationRequested) {
+			return;
 		}
 
 		const widgets = updateWidget ? [updateWidget] : [...this.chatWidgetService.getAllWidgets(ChatAgentLocation.Panel), ...this.chatWidgetService.getAllWidgets(ChatAgentLocation.Editor)];
