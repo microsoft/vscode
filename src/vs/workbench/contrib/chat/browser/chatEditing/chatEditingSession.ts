@@ -574,6 +574,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			const newEntries = this._entriesObs.get().filter(e => e.modifiedURI.toString() !== entry.modifiedURI.toString());
 			this._entriesObs.set(newEntries, undefined);
 			this._workingSet.delete(entry.modifiedURI);
+			entry.dispose();
 			this._onDidChange.fire();
 		}));
 		const entriesArr = [...this._entriesObs.get(), entry];
