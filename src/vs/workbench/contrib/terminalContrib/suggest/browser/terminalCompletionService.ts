@@ -43,9 +43,7 @@ export enum TerminalCompletionItemKind {
 	Method = 3
 }
 
-// TODO: Make this generic; pwsh native one should implement this
 export interface ITerminalCompletionProvider {
-	// TODO: Trigger chat props? etc.
 	shellTypes?: TerminalShellType[];
 	provideCompletions(value: string, cursorPosition: number): Promise<TerminalCompletionItem[] | undefined>;
 	triggerCharacters?: string[];
