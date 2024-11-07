@@ -154,7 +154,6 @@ export class CodeBlockModelCollection extends Disposable {
 
 		const uri = this.getCompletedModelUri(sessionId, chat, codeBlockIndex);
 		const newModel = this.textModelService.createModelReference(uri);
-		newModel.then(x => console.log(`created ${x.object.textEditorModel.id}`));
 		entry.model = { type: 'complete', value: newModel };
 	}
 
