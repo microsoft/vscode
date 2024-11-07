@@ -86,7 +86,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	private _loadPwshCompletionAddon(xterm: RawXtermTerminal): void {
 		if (this._ctx.instance.shellType !== GeneralShellType.PowerShell) {
-			console.log('returning,', this._ctx.instance.shellType);
 			return;
 		}
 		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, undefined, this._ctx.instance.capabilities);
