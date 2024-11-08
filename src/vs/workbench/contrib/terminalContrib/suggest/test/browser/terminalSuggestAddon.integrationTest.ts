@@ -132,15 +132,15 @@ suite('Terminal Contrib Suggest Recordings', () => {
 			store.add(pwshCompletionProvider.onAcceptedCompletion(e => suggestDataEvents.push(e)));
 			for (const event of testCase.events) {
 				// DEBUG: Uncomment to see the events as they are played
-				// console.log(
-				// 	event.type,
-				// 	event.type === 'command'
-				// 		? event.id
-				// 		: event.type === 'resize'
-				// 			? `${event.cols}x${event.rows}`
-				// 			: (event.data.length > 50 ? event.data.slice(0, 50) + '...' : event.data).replaceAll('\x1b', '\\x1b').replace(/(\n|\r).+$/, '...')
-				// );
-				// console.log('promptInputModel', capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString());
+				console.log(
+					event.type,
+					event.type === 'command'
+						? event.id
+						: event.type === 'resize'
+							? `${event.cols}x${event.rows}`
+							: (event.data.length > 50 ? event.data.slice(0, 50) + '...' : event.data).replaceAll('\x1b', '\\x1b').replace(/(\n|\r).+$/, '...')
+				);
+				console.log('promptInputModel', capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString());
 				switch (event.type) {
 					case 'resize': {
 						xterm.resize(event.cols, event.rows);
