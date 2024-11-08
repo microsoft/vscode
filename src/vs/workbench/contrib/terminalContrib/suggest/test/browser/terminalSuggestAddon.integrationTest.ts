@@ -40,6 +40,15 @@ import { events as windows11_pwsh_type_before_prompt } from './recordings/window
 import { events as windows11_pwsh_writehost_multiline } from './recordings/windows11_pwsh_writehost_multiline.js';
 import { events as windows11_pwsh_writehost_multiline_nav_up } from './recordings/windows11_pwsh_writehost_multiline_nav_up.js';
 
+// These are test cases recorded with the `Developer: Record Terminal Session` command. Once that is
+// run, a terminal is created and the test case is manually executed. After nothing happens for a
+// few seconds the test case will be put into the clipboard.
+//
+// Some things to be aware of when recording tests:
+// - Pwsh on non-Windows can add a bunch of spammy cursor reports (`CSI x;y R`)
+// - It's best to record pwsh on Windows
+// - It's best to record other shells on non-Windows
+// - Turn off builtinCompletions to simplify the recording
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
 	{ name: 'windows11_pwsh_filename_arg_change_case', events: windows11_pwsh_filename_arg_change_case as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_filename_arg_same_case', events: windows11_pwsh_filename_arg_same_case as any as RecordedSessionEvent[] },
