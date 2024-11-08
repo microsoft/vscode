@@ -5,13 +5,12 @@
 
 import './media/chatEditorController.css';
 import { getTotalWidth } from '../../../../base/browser/dom.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
 import { binarySearch, coalesceInPlace } from '../../../../base/common/arrays.js';
 import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../base/common/themables.js';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone } from '../../../../editor/browser/editorBrowser.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { diffAddDecoration, diffDeleteDecoration, diffWholeLineAddDecoration } from '../../../../editor/browser/widget/diffEditor/registrations.contribution.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
@@ -26,8 +25,11 @@ import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../scm/browser/dirtydiffDecorator.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IPosition } from '../../../../editor/common/core/position.js';
 
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
 
@@ -38,6 +40,8 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 	private readonly _sessionStore = this._register(new DisposableStore());
 	private readonly _decorations = this._editor.createDecorationsCollection();
 	private readonly _diffHunksRenderStore = this._register(new DisposableStore());
+	private readonly _diffHunkWidgets: DiffHunkWidget[] = [];
+
 	private _viewZones: string[] = [];
 	private readonly _ctxHasEditorModification: IContextKey<boolean>;
 
@@ -48,6 +52,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -202,7 +207,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		const deletedDecoration = createOverviewDecoration(overviewRulerDeletedForeground, minimapGutterDeletedBackground);
 
 		this._diffHunksRenderStore.clear();
-		const diffHunkWidgets: DiffHunkWidget[] = [];
+		this._diffHunkWidgets.length = 0;
 		const diffHunkDecorations: IModelDeltaDecoration[] = [];
 
 		this._editor.changeViewZones((viewZoneChangeAccessor) => {
@@ -284,10 +289,10 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 					undoEdits.push(EditOperation.replace(c.modifiedRange, oldText));
 				}
 
-				const widget = new DiffHunkWidget(undoEdits, this._editor.getModel()!.getVersionId(), this._editor, isCreatedContent ? 0 : result.heightInLines);
+				const widget = this._instantiationService.createInstance(DiffHunkWidget, undoEdits, this._editor.getModel()!.getVersionId(), this._editor, isCreatedContent ? 0 : result.heightInLines);
 				widget.layout(diffEntry.modified.startLineNumber);
 
-				diffHunkWidgets.push(widget);
+				this._diffHunkWidgets.push(widget);
 				diffHunkDecorations.push({
 					range: diffEntry.modified.toInclusiveRange() ?? new Range(diffEntry.modified.startLineNumber, 1, diffEntry.modified.startLineNumber, Number.MAX_SAFE_INTEGER),
 					options: {
@@ -303,34 +308,39 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		const diffHunkDecoCollection = this._editor.createDecorationsCollection(diffHunkDecorations);
 
 		this._diffHunksRenderStore.add(toDisposable(() => {
-			dispose(diffHunkWidgets);
-			diffHunkWidgets.length = 0;
+			dispose(this._diffHunkWidgets);
+			this._diffHunkWidgets.length = 0;
 			diffHunkDecoCollection.clear();
 		}));
 
-		this._diffHunksRenderStore.add(this._editor.onMouseUp(e => {
-			const { target } = e;
-			if (target.type !== MouseTargetType.OVERLAY_WIDGET) {
-				return;
+		const showHunkMenu = (position: IPosition | undefined) => {
+			let activeWidget: DiffHunkWidget | undefined;
+			if (position) {
+				for (let i = 0; i < diffHunkDecoCollection.length; i++) {
+					const range = diffHunkDecoCollection.getRange(i);
+					if (range?.containsPosition(position)) {
+						activeWidget = this._diffHunkWidgets[i];
+						break;
+					}
+				}
 			}
-			const idx = diffHunkWidgets.findIndex(candidate => candidate.getId() === target.detail);
-			if (idx < 0) {
-				return;
+			for (const widget of this._diffHunkWidgets) {
+				widget.toggle(widget === activeWidget);
 			}
-			const widget = diffHunkWidgets[idx];
-			const range = diffHunkDecoCollection.getRange(idx);
-			if (!range) {
-				return;
+		};
+
+		this._diffHunksRenderStore.add(this._editor.onMouseMove(e => {
+			if (e.target.position) {
+				showHunkMenu(e.target.position);
 			}
-			if (widget.versionId !== this._editor.getModel()?.getVersionId()) {
-				return;
-			}
-			this._editor.executeEdits('chatEdits.undo', widget.undoEdits);
+		}));
+		this._diffHunksRenderStore.add(this._editor.onDidChangeCursorPosition(e => {
+			showHunkMenu(e.position);
 		}));
 
 		this._diffHunksRenderStore.add(Event.any(this._editor.onDidScrollChange, this._editor.onDidLayoutChange)(() => {
-			for (let i = 0; i < diffHunkWidgets.length; i++) {
-				const widget = diffHunkWidgets[i];
+			for (let i = 0; i < this._diffHunkWidgets.length; i++) {
+				const widget = this._diffHunkWidgets[i];
 				const range = diffHunkDecoCollection.getRange(i);
 				if (range) {
 					widget.layout(range?.startLineNumber);
@@ -402,33 +412,66 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		this._editor.focus();
 		return true;
 	}
+
+	undoNearestChange(): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+		const lineRelativeTop = this._editor.getTopForLineNumber(this._editor.getPosition().lineNumber) - this._editor.getScrollTop();
+		let closestWidget: DiffHunkWidget | null = null;
+		let closestDistance = Number.MAX_VALUE;
+
+		for (const widget of this._diffHunkWidgets) {
+			const widgetTop = (<IOverlayWidgetPositionCoordinates | undefined>widget.getPosition()?.preference)?.top;
+			if (widgetTop !== undefined) {
+				const distance = Math.abs(widgetTop - lineRelativeTop);
+				if (distance < closestDistance) {
+					closestDistance = distance;
+					closestWidget = widget;
+				}
+			}
+		}
+
+		if (closestWidget) {
+			closestWidget.undo();
+		}
+	}
 }
 
 class DiffHunkWidget implements IOverlayWidget {
 
-	private readonly _domNode: HTMLElement;
-	private readonly _store = new DisposableStore();
-	private _position: IOverlayWidgetPosition | undefined;
-
 	private static _idPool = 0;
 	private readonly _id: string = `diff-change-widget-${DiffHunkWidget._idPool++}`;
 
+	private readonly _domNode: HTMLElement;
+	private readonly _store = new DisposableStore();
+	private _position: IOverlayWidgetPosition | undefined;
+	private _lastStartLineNumber: number | undefined;
+
+
 	constructor(
-		readonly undoEdits: ISingleEditOperation[],
-		readonly versionId: number,
+		private readonly _undoEdits: ISingleEditOperation[],
+		private readonly _versionId: number,
 		private readonly _editor: ICodeEditor,
-		private readonly _lineDelta: number
+		private readonly _lineDelta: number,
+		@IInstantiationService instaService: IInstantiationService,
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'chat-diff-change-content-widget';
 
-		const btn = new Button(this._domNode, {
-			secondary: true,
-			title: localize('undo2', "Undo this Change"),
-			supportIcons: true
+		const btns = instaService.createInstance(MenuWorkbenchButtonBar, this._domNode, MenuId.ChatEditingEditorHunk, {
+			telemetrySource: 'chatEditingEditorHunk',
+			toolbarOptions: { primaryGroup: () => true, },
+			menuOptions: { renderShortTitle: true },
+			buttonConfigProvider: () => {
+				return {
+					isSecondary: true,
+					showIcon: true,
+					showLabel: true
+				};
+			}
 		});
-		btn.label = localize('undo', "{0} Undo", `$(${Codicon.discard.id})`);
-		this._store.add(btn);
+		this._store.add(btns);
 		this._editor.addOverlayWidget(this);
 	}
 
@@ -456,6 +499,14 @@ class DiffHunkWidget implements IOverlayWidget {
 		};
 
 		this._editor.layoutOverlayWidget(this);
+		this._lastStartLineNumber = startLineNumber;
+	}
+
+	toggle(show: boolean) {
+		this._domNode.classList.toggle('hover', show);
+		if (this._lastStartLineNumber) {
+			this.layout(this._lastStartLineNumber);
+		}
 	}
 
 	getDomNode(): HTMLElement {
@@ -464,5 +515,13 @@ class DiffHunkWidget implements IOverlayWidget {
 
 	getPosition(): IOverlayWidgetPosition | null {
 		return this._position ?? null;
+	}
+
+	// ---
+
+	undo() {
+		if (this._versionId === this._editor.getModel()?.getVersionId()) {
+			this._editor.executeEdits('chatEdits.undo', this._undoEdits);
+		}
 	}
 }
