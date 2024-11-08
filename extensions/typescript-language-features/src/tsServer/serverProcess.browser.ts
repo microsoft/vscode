@@ -8,12 +8,13 @@ import { ApiService, Requests } from '@vscode/sync-api-service';
 import * as vscode from 'vscode';
 import { TypeScriptServiceConfiguration } from '../configuration/configuration';
 import { Logger } from '../logging/logger';
+import { supportsReadableByteStreams } from '../utils/platform';
 import { FileWatcherManager } from './fileWatchingManager';
+import { NodeVersionManager } from './nodeManager';
 import type * as Proto from './protocol/protocol';
 import { TsServerLog, TsServerProcess, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { TypeScriptVersion } from './versionProvider';
-import { NodeVersionManager } from './nodeManager';
 
 type BrowserWatchEvent = {
 	type: 'watchDirectory' | 'watchFile';
@@ -39,7 +40,7 @@ export class WorkerServerProcessFactory implements TsServerProcessFactory {
 		version: TypeScriptVersion,
 		args: readonly string[],
 		kind: TsServerProcessKind,
-		_configuration: TypeScriptServiceConfiguration,
+		configuration: TypeScriptServiceConfiguration,
 		_versionManager: TypeScriptVersionManager,
 		_nodeVersionManager: NodeVersionManager,
 		tsServerLog: TsServerLog | undefined,
@@ -49,10 +50,10 @@ export class WorkerServerProcessFactory implements TsServerProcessFactory {
 			...args,
 			// Explicitly give TS Server its path so it can load local resources
 			'--executingFilePath', tsServerPath,
+			// Enable/disable web type acquisition
+			(configuration.webTypeAcquisitionEnabled && supportsReadableByteStreams() ? '--experimentalTypeAcquisition' : '--disableAutomaticTypingAcquisition'),
 		];
-		if (_configuration.webExperimentalTypeAcquisition) {
-			launchArgs.push('--experimentalTypeAcquisition');
-		}
+
 		return new WorkerServerProcess(kind, tsServerPath, this._extensionUri, launchArgs, tsServerLog, this._logger);
 	}
 }

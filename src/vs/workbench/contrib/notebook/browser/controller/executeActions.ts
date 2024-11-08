@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterable } from 'vs/base/common/iterator';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { isEqual } from 'vs/base/common/resources';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { localize } from 'vs/nls';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { EditorsOrder } from 'vs/workbench/common/editor';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { CELL_TITLE_CELL_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, cellExecutionArgs, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, IFocusNotebookCellOptions, ScrollToRevealBehavior } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellKind, CellUri, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_HAS_SOMETHING_RUNNING, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Iterable } from '../../../../../base/common/iterator.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI, UriComponents } from '../../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { EditorsOrder } from '../../../../common/editor.js';
+import { IDebugService } from '../../../debug/common/debug.js';
+import { CTX_INLINE_CHAT_FOCUSED } from '../../../inlineChat/common/inlineChat.js';
+import { insertCell } from './cellOperations.js';
+import { NotebookChatController } from './chat/notebookChatController.js';
+import { CELL_TITLE_CELL_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, cellExecutionArgs, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, parseMultiCellExecutionArgs } from './coreActions.js';
+import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, IFocusNotebookCellOptions, ScrollToRevealBehavior } from '../notebookBrowser.js';
+import * as icons from '../notebookIcons.js';
+import { CellKind, CellUri, NotebookSetting } from '../../common/notebookCommon.js';
+import { NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_HAS_SOMETHING_RUNNING, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION } from '../../common/notebookContextKeys.js';
+import { NotebookEditorInput } from '../../common/notebookEditorInput.js';
+import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
@@ -81,9 +81,10 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 			const cellIndex = context.notebookEditor.getCellIndex(context.cell);
 			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
 		}
-	} else if (context.selectedCells) {
-		await context.notebookEditor.executeNotebookCells(context.selectedCells);
-		const firstCell = context.selectedCells[0];
+	} else if (context.selectedCells?.length || context.cell) {
+		const selectedCells = context.selectedCells?.length ? context.selectedCells : [context.cell!];
+		await context.notebookEditor.executeNotebookCells(selectedCells);
+		const firstCell = selectedCells[0];
 
 		if (firstCell && context.autoReveal) {
 			const cellIndex = context.notebookEditor.getCellIndex(firstCell);
@@ -102,13 +103,6 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 	if (!foundEditor) {
 		return;
 	}
-
-	const controller = InlineChatController.get(foundEditor);
-	if (!controller) {
-		return;
-	}
-
-	controller.createSnapshot();
 }
 
 registerAction2(class RenderAllMarkdownCellsAction extends NotebookAction {
@@ -130,7 +124,7 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 			id: EXECUTE_NOTEBOOK_COMMAND_ID,
 			title: localize('notebookActions.executeNotebook', "Run All"),
 			icon: icons.executeAllIcon,
-			description: {
+			metadata: {
 				description: localize('notebookActions.executeNotebook', "Run All"),
 				args: [
 					{
@@ -209,7 +203,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 				when: executeThisCellCondition,
 				group: 'inline'
 			},
-			description: {
+			metadata: {
 				description: localize('notebookActions.execute', "Execute Cell"),
 				args: cellExecutionArgs
 			},
@@ -226,6 +220,21 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 
 		if (context.ui) {
 			await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
+		}
+
+		const chatController = NotebookChatController.get(context.notebookEditor);
+		const editingCell = chatController?.getEditingCell();
+		if (chatController?.hasFocus() && editingCell) {
+			const group = editorGroupsService.activeGroup;
+
+			if (group) {
+				if (group.activeEditor) {
+					group.pinEditor(group.activeEditor);
+				}
+			}
+
+			await context.notebookEditor.executeNotebookCells([editingCell]);
+			return;
 		}
 
 		await runCell(editorGroupsService, context);
@@ -332,7 +341,7 @@ registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction 
 			id: EXECUTE_CELL_FOCUS_CONTAINER_COMMAND_ID,
 			precondition: executeThisCellCondition,
 			title: localize('notebookActions.executeAndFocusContainer', "Execute Cell and Focus Container"),
-			description: {
+			metadata: {
 				description: localize('notebookActions.executeAndFocusContainer', "Execute Cell and Focus Container"),
 				args: cellExecutionArgs
 			},
@@ -378,7 +387,7 @@ registerAction2(class CancelExecuteCell extends NotebookMultiCellAction {
 				when: cellCancelCondition,
 				group: 'inline'
 			},
-			description: {
+			metadata: {
 				description: localize('notebookActions.cancel', "Stop Cell Execution"),
 				args: [
 					{
@@ -544,10 +553,7 @@ registerAction2(class CancelAllNotebook extends CancelNotebook {
 	constructor() {
 		super({
 			id: CANCEL_NOTEBOOK_COMMAND_ID,
-			title: {
-				value: localize('notebookActions.cancelNotebook', "Stop Execution"),
-				original: 'Stop Execution'
-			},
+			title: localize2('notebookActions.cancelNotebook', "Stop Execution"),
 			icon: icons.stopIcon,
 			menu: [
 				{
@@ -580,10 +586,7 @@ registerAction2(class InterruptNotebook extends CancelNotebook {
 	constructor() {
 		super({
 			id: INTERRUPT_NOTEBOOK_COMMAND_ID,
-			title: {
-				value: localize('notebookActions.interruptNotebook', "Interrupt"),
-				original: 'Interrupt'
-			},
+			title: localize2('notebookActions.interruptNotebook', "Interrupt"),
 			precondition: ContextKeyExpr.and(
 				NOTEBOOK_HAS_SOMETHING_RUNNING,
 				NOTEBOOK_INTERRUPTIBLE_KERNEL
@@ -621,13 +624,21 @@ registerAction2(class InterruptNotebook extends CancelNotebook {
 });
 
 
+MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+	title: localize('revealRunningCellShort', "Go To"),
+	submenu: MenuId.NotebookCellExecuteGoTo,
+	group: 'navigation/execute',
+	order: 20,
+	icon: ThemeIcon.modify(icons.executingStateIcon, 'spin')
+});
+
 registerAction2(class RevealRunningCellAction extends NotebookAction {
 	constructor() {
 		super({
 			id: REVEAL_RUNNING_CELL,
 			title: localize('revealRunningCell', "Go to Running Cell"),
 			tooltip: localize('revealRunningCell', "Go to Running Cell"),
-			shortTitle: localize('revealRunningCellShort', "Go To"),
+			shortTitle: localize('revealRunningCell', "Go to Running Cell"),
 			precondition: NOTEBOOK_HAS_RUNNING_CELL,
 			menu: [
 				{
@@ -641,7 +652,7 @@ registerAction2(class RevealRunningCellAction extends NotebookAction {
 					order: 0
 				},
 				{
-					id: MenuId.NotebookToolbar,
+					id: MenuId.NotebookCellExecuteGoTo,
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
 						NOTEBOOK_HAS_RUNNING_CELL,
@@ -702,7 +713,7 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 			id: REVEAL_LAST_FAILED_CELL,
 			title: localize('revealLastFailedCell', "Go to Most Recently Failed Cell"),
 			tooltip: localize('revealLastFailedCell', "Go to Most Recently Failed Cell"),
-			shortTitle: localize('revealLastFailedCellShort', "Go To"),
+			shortTitle: localize('revealLastFailedCellShort', "Go to Most Recently Failed Cell"),
 			precondition: NOTEBOOK_LAST_CELL_FAILED,
 			menu: [
 				{
@@ -717,7 +728,7 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 					order: 0
 				},
 				{
-					id: MenuId.NotebookToolbar,
+					id: MenuId.NotebookCellExecuteGoTo,
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
 						NOTEBOOK_LAST_CELL_FAILED,

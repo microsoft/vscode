@@ -279,7 +279,6 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 
 		const childProcess = execPath ?
 			child_process.spawn(execPath, [...execArgv, tsServerPath, ...runtimeArgs], {
-				shell: true,
 				windowsHide: true,
 				cwd: undefined,
 				env,

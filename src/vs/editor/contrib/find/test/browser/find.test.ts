@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { getSelectionSearchString } from 'vs/editor/contrib/find/browser/findController';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { getSelectionSearchString } from '../../browser/findController.js';
+import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 
 
 suite('Find', () => {

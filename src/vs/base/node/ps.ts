@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
-import { FileAccess } from 'vs/base/common/network';
-import { ProcessItem } from 'vs/base/common/processes';
+import { FileAccess } from '../common/network.js';
+import { ProcessItem } from '../common/processes.js';
 
 export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
@@ -49,7 +49,6 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 		function findName(cmd: string): string {
 
 			const UTILITY_NETWORK_HINT = /--utility-sub-type=network/i;
-			const NODEJS_PROCESS_HINT = /--ms-enable-electron-run-as-node/i;
 			const WINDOWS_CRASH_REPORTER = /--crashes-directory/i;
 			const WINPTY = /\\pipe\\winpty-control/i;
 			const CONPTY = /conhost\.exe.+--headless/i;
@@ -101,11 +100,6 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				if (cmd.indexOf('node ') < 0 && cmd.indexOf('node.exe') < 0) {
 					return `electron-nodejs (${result})`;
 				}
-			}
-
-			// find Electron node.js processes
-			if (NODEJS_PROCESS_HINT.exec(cmd)) {
-				return `electron-nodejs (${cmd})`;
 			}
 
 			return cmd;

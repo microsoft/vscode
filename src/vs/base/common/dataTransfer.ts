@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { Iterable } from 'vs/base/common/iterator';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
+import { distinct } from './arrays.js';
+import { Iterable } from './iterator.js';
+import { URI } from './uri.js';
+import { generateUuid } from './uuid.js';
 
 export interface IDataTransferFile {
 	readonly id: string;
@@ -50,6 +50,7 @@ export interface IReadonlyVSDataTransfer extends Iterable<readonly [string, IDat
 	 * This uses exact matching and does not support wildcards.
 	 */
 	has(mimeType: string): boolean;
+
 	/**
 	 * Check if this data transfer contains data matching `pattern`.
 	 *

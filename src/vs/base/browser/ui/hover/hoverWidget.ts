@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./hover';
-import { localize } from 'vs/nls';
+import * as dom from '../../dom.js';
+import { StandardKeyboardEvent } from '../../keyboardEvent.js';
+import { DomScrollableElement } from '../scrollbar/scrollableElement.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import { Disposable } from '../../../common/lifecycle.js';
+import './hoverWidget.css';
+import { localize } from '../../../../nls.js';
 
 const $ = dom.$;
 
 export const enum HoverPosition {
-	LEFT, RIGHT, BELOW, ABOVE
+	LEFT,
+	RIGHT,
+	BELOW,
+	ABOVE,
 }
 
 export class HoverWidget extends Disposable {
@@ -23,11 +26,12 @@ export class HoverWidget extends Disposable {
 	public readonly contentsDomNode: HTMLElement;
 	public readonly scrollbar: DomScrollableElement;
 
-	constructor() {
+	constructor(fadeIn: boolean) {
 		super();
 
 		this.containerDomNode = document.createElement('div');
 		this.containerDomNode.className = 'monaco-hover';
+		this.containerDomNode.classList.toggle('fade-in', !!fadeIn);
 		this.containerDomNode.tabIndex = 0;
 		this.containerDomNode.setAttribute('role', 'tooltip');
 
@@ -50,11 +54,19 @@ export class HoverAction extends Disposable {
 		return new HoverAction(parent, actionOptions, keybindingLabel);
 	}
 
-	private readonly actionContainer: HTMLElement;
+	public readonly actionLabel: string;
+	public readonly actionKeybindingLabel: string | null;
+
+	public readonly actionRenderedLabel: string;
+	public readonly actionContainer: HTMLElement;
+
 	private readonly action: HTMLElement;
 
 	private constructor(parent: HTMLElement, actionOptions: { label: string; iconClass?: string; run: (target: HTMLElement) => void; commandId: string }, keybindingLabel: string | null) {
 		super();
+
+		this.actionLabel = actionOptions.label;
+		this.actionKeybindingLabel = keybindingLabel;
 
 		this.actionContainer = dom.append(parent, $('div.action-container'));
 		this.actionContainer.setAttribute('tabindex', '0');
@@ -64,24 +76,12 @@ export class HoverAction extends Disposable {
 		if (actionOptions.iconClass) {
 			dom.append(this.action, $(`span.icon.${actionOptions.iconClass}`));
 		}
+		this.actionRenderedLabel = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
 		const label = dom.append(this.action, $('span'));
-		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
+		label.textContent = this.actionRenderedLabel;
 
-		this._register(dom.addDisposableListener(this.actionContainer, dom.EventType.CLICK, e => {
-			e.stopPropagation();
-			e.preventDefault();
-			actionOptions.run(this.actionContainer);
-		}));
-
-		this._register(dom.addDisposableListener(this.actionContainer, dom.EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				e.stopPropagation();
-				e.preventDefault();
-				actionOptions.run(this.actionContainer);
-			}
-		}));
-
+		this._store.add(new ClickAction(this.actionContainer, actionOptions.run));
+		this._store.add(new KeyDownAction(this.actionContainer, actionOptions.run, [KeyCode.Enter, KeyCode.Space]));
 		this.setEnabled(true);
 	}
 
@@ -98,4 +98,29 @@ export class HoverAction extends Disposable {
 
 export function getHoverAccessibleViewHint(shouldHaveHint?: boolean, keybinding?: string | null): string | undefined {
 	return shouldHaveHint && keybinding ? localize('acessibleViewHint', "Inspect this in the accessible view with {0}.", keybinding) : shouldHaveHint ? localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.") : '';
+}
+
+export class ClickAction extends Disposable {
+	constructor(container: HTMLElement, run: (container: HTMLElement) => void) {
+		super();
+		this._register(dom.addDisposableListener(container, dom.EventType.CLICK, e => {
+			e.stopPropagation();
+			e.preventDefault();
+			run(container);
+		}));
+	}
+}
+
+export class KeyDownAction extends Disposable {
+	constructor(container: HTMLElement, run: (container: HTMLElement) => void, keyCodes: KeyCode[]) {
+		super();
+		this._register(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (keyCodes.some(keyCode => event.equals(keyCode))) {
+				e.stopPropagation();
+				e.preventDefault();
+				run(container);
+			}
+		}));
+	}
 }

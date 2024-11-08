@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as types from 'vs/base/common/types';
+import assert from 'assert';
+import * as types from '../../common/types.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Types', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('isFunction', () => {
 		assert(!types.isFunction(undefined));

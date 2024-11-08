@@ -3,30 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { TestJSONEditingService } from 'vs/workbench/services/configuration/test/common/testServices';
-import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
-import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { TestRemoteAgentService, ITestInstantiationService, TestEditorService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestCommandService } from '../../../../../editor/test/browser/editorTestServices.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IURLService } from '../../../../../platform/url/common/url.js';
+import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor.js';
+import { IJSONEditingService } from '../../../configuration/common/jsonEditing.js';
+import { TestJSONEditingService } from '../../../configuration/test/common/testServices.js';
+import { PreferencesService } from '../../browser/preferencesService.js';
+import { IPreferencesService, ISettingsEditorOptions } from '../../common/preferences.js';
+import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
+import { TestRemoteAgentService, ITestInstantiationService, TestEditorService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('PreferencesService', () => {
-
-	let disposables: DisposableStore;
 	let testInstantiationService: ITestInstantiationService;
 	let testObject: PreferencesService;
 	let editorService: TestEditorService2;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
-		disposables = new DisposableStore();
-		editorService = new TestEditorService2();
+		editorService = disposables.add(new TestEditorService2());
 		testInstantiationService = workbenchInstantiationService({
 			editorService: () => editorService
 		}, disposables);
@@ -34,18 +33,14 @@ suite('PreferencesService', () => {
 		testInstantiationService.stub(IJSONEditingService, TestJSONEditingService);
 		testInstantiationService.stub(IRemoteAgentService, TestRemoteAgentService);
 		testInstantiationService.stub(ICommandService, TestCommandService);
+		testInstantiationService.stub(IURLService, { registerHandler: () => { } });
 
 		// PreferencesService creates a PreferencesEditorInput which depends on IPreferencesService, add the real one, not a stub
 		const collection = new ServiceCollection();
 		collection.set(IPreferencesService, new SyncDescriptor(PreferencesService));
-		const instantiationService = testInstantiationService.createChild(collection);
-		testObject = instantiationService.createInstance(PreferencesService);
+		const instantiationService = disposables.add(testInstantiationService.createChild(collection));
+		testObject = disposables.add(instantiationService.createInstance(PreferencesService));
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
 	test('options are preserved when calling openEditor', async () => {
 		testObject.openSettings({ jsonEditor: false, query: 'test query' });
 		const options = editorService.lastOpenEditorOptions as ISettingsEditorOptions;
@@ -58,8 +53,8 @@ suite('PreferencesService', () => {
 class TestEditorService2 extends TestEditorService {
 	lastOpenEditorOptions: any;
 
-	override async openEditor(editor: any, optionsOrGroup?: any): Promise<any | undefined> {
-		this.lastOpenEditorOptions = optionsOrGroup;
-		return undefined;
+	override async openEditor(editorInput: any, options?: any): Promise<any | undefined> {
+		this.lastOpenEditorOptions = options;
+		return super.openEditor(editorInput, options);
 	}
 }

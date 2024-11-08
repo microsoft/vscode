@@ -10,7 +10,7 @@ import {
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as minimatch from 'minimatch';
+import minimatch from 'minimatch';
 import { Utils } from 'vscode-uri';
 import { findPreferredPM } from './preferred-pm';
 import { readScripts } from './readScripts';
@@ -31,7 +31,7 @@ type AutoDetect = 'on' | 'off';
 
 let cachedTasks: ITaskWithLocation[] | undefined = undefined;
 
-const INSTALL_SCRIPT = 'install';
+export const INSTALL_SCRIPT = 'install';
 
 export interface ITaskLocation {
 	document: Uri;
@@ -363,12 +363,16 @@ export function getPackageJsonUriFromTask(task: Task): Uri | null {
 }
 
 export async function hasPackageJson(): Promise<boolean> {
+	// Faster than `findFiles` for workspaces with a root package.json.
+	if (await hasRootPackageJson()) {
+		return true;
+	}
 	const token = new CancellationTokenSource();
 	// Search for files for max 1 second.
 	const timeout = setTimeout(() => token.cancel(), 1000);
 	const files = await workspace.findFiles('**/package.json', undefined, 1, token.token);
 	clearTimeout(timeout);
-	return files.length > 0 || await hasRootPackageJson();
+	return files.length > 0;
 }
 
 async function hasRootPackageJson(): Promise<boolean> {

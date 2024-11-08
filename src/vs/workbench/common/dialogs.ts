@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from 'vs/base/common/async';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IDialogArgs, IDialogResult } from 'vs/platform/dialogs/common/dialogs';
+import { DeferredPromise } from '../../base/common/async.js';
+import { Event, Emitter } from '../../base/common/event.js';
+import { Disposable } from '../../base/common/lifecycle.js';
+import { IDialogArgs, IDialogResult } from '../../platform/dialogs/common/dialogs.js';
 
 export interface IDialogViewItem {
 	readonly args: IDialogArgs;
 
-	close(result?: IDialogResult): void;
+	close(result?: IDialogResult | Error): void;
 }
 
 export interface IDialogHandle {
@@ -46,7 +46,11 @@ export class DialogsModel extends Disposable implements IDialogsModel {
 			args: dialog,
 			close: result => {
 				this.dialogs.splice(0, 1);
-				promise.complete(result);
+				if (result instanceof Error) {
+					promise.error(result);
+				} else {
+					promise.complete(result);
+				}
 				this._onDidShowDialog.fire();
 			}
 		};

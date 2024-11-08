@@ -65,7 +65,7 @@ module.exports = [withBrowserDefaults({
 }), withBrowserDefaults({
 	context: __dirname,
 	entry: {
-		'typescript/tsserver.web': './web/webServer.ts'
+		'typescript/tsserver.web': './web/src/webServer.ts'
 	},
 	module: {
 		exprContextCritical: false,

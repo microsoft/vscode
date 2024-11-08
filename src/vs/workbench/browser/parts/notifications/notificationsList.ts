@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notificationsList';
-import { localize } from 'vs/nls';
-import { isAncestor, trackFocus } from 'vs/base/browser/dom';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListAccessibilityProvider, IListOptions } from 'vs/base/browser/ui/list/listWidget';
-import { NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
-import { INotificationViewItem } from 'vs/workbench/common/notifications';
-import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
-import { CopyNotificationMessageAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { assertAllDefined } from 'vs/base/common/types';
-import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { AriaRole } from 'vs/base/browser/ui/aria/aria';
-import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import './media/notificationsList.css';
+import { localize } from '../../../../nls.js';
+import { getWindow, isAncestorOfActiveElement, trackFocus } from '../../../../base/browser/dom.js';
+import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IListAccessibilityProvider, IListOptions } from '../../../../base/browser/ui/list/listWidget.js';
+import { NOTIFICATIONS_BACKGROUND } from '../../../common/theme.js';
+import { INotificationViewItem } from '../../../common/notifications.js';
+import { NotificationsListDelegate, NotificationRenderer } from './notificationsViewer.js';
+import { CopyNotificationMessageAction } from './notificationsActions.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { assertAllDefined } from '../../../../base/common/types.js';
+import { NotificationFocusedContext } from '../../../common/contextkeys.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
+import { NotificationActionRunner } from './notificationsCommands.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
 	readonly widgetAriaLabel?: string;
@@ -111,7 +111,7 @@ export class NotificationsList extends Disposable {
 		// This ensures that when the focus comes back, the notification is still focused
 		const listFocusTracker = this._register(trackFocus(list.getHTMLElement()));
 		this._register(listFocusTracker.onDidBlur(() => {
-			if (document.hasFocus()) {
+			if (getWindow(this.listContainer).document.hasFocus()) {
 				list.setFocus([]);
 			}
 		}));
@@ -133,7 +133,7 @@ export class NotificationsList extends Disposable {
 
 	updateNotificationsList(start: number, deleteCount: number, items: INotificationViewItem[] = []) {
 		const [list, listContainer] = assertAllDefined(this.list, this.listContainer);
-		const listHasDOMFocus = isAncestor(document.activeElement, listContainer);
+		const listHasDOMFocus = isAncestorOfActiveElement(listContainer);
 
 		// Remember focus and relative top of that item
 		const focusedIndex = list.getFocus()[0];
@@ -223,7 +223,7 @@ export class NotificationsList extends Disposable {
 			return false; // not created yet
 		}
 
-		return isAncestor(document.activeElement, this.listContainer);
+		return isAncestorOfActiveElement(this.listContainer);
 	}
 
 	layout(width: number, maxHeight?: number): void {

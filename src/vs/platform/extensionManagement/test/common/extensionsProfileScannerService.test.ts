@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as sinon from 'sinon';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { AbstractExtensionsProfileScannerService, ProfileExtensionsEvent } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { AbstractExtensionsProfileScannerService, ProfileExtensionsEvent } from '../../common/extensionsProfileScannerService.js';
+import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from '../../../extensions/common/extensions.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { IFileService } from '../../../files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { IUriIdentityService } from '../../../uriIdentity/common/uriIdentity.js';
+import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
+import { IUserDataProfilesService, UserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
 
 class TestObject extends AbstractExtensionsProfileScannerService { }
 
@@ -183,124 +183,6 @@ suite('ExtensionsProfileScannerService', () => {
 		assert.deepStrictEqual(manifestContent, [
 			{ identifier: extension.identifier, location: extension.location.toJSON(), relativeLocation: 'pub.a-1.0.0', version: extension.manifest.version },
 			{ identifier: extension2.identifier, location: extension2.location.toJSON(), relativeLocation: 'pub.b-1.0.0', version: extension2.manifest.version }
-		]);
-	});
-
-	test('extension in intermediate format is read and migrated', async () => {
-		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
-		const extension = aExtension('pub.a', joinPath(extensionsLocation, 'pub.a-1.0.0'));
-		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(JSON.stringify([{
-			identifier: extension.identifier,
-			location: 'pub.a-1.0.0',
-			version: extension.manifest.version,
-		}])));
-
-		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
-
-		const actual = await testObject.scanProfileExtensions(extensionsManifest);
-		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON() })), [{ identifier: extension.identifier, location: extension.location.toJSON(), version: extension.manifest.version, metadata: undefined }]);
-
-		const manifestContent = JSON.parse((await instantiationService.get(IFileService).readFile(extensionsManifest)).value.toString());
-		assert.deepStrictEqual(manifestContent, [{ identifier: extension.identifier, location: extension.location.toJSON(), relativeLocation: 'pub.a-1.0.0', version: extension.manifest.version }]);
-	});
-
-	test('extension in intermediate format is read and migrated during write', async () => {
-		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
-		const extension = aExtension('pub.a', joinPath(extensionsLocation, 'pub.a-1.0.0'));
-		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(JSON.stringify([{
-			identifier: extension.identifier,
-			location: 'pub.a-1.0.0',
-			version: extension.manifest.version,
-		}])));
-
-		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
-		const extension2 = aExtension('pub.b', joinPath(extensionsLocation, 'pub.b-1.0.0'));
-		await testObject.addExtensionsToProfile([[extension2, undefined]], extensionsManifest);
-
-		const actual = await testObject.scanProfileExtensions(extensionsManifest);
-		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON() })), [
-			{ identifier: extension.identifier, location: extension.location.toJSON(), version: extension.manifest.version, metadata: undefined },
-			{ identifier: extension2.identifier, location: extension2.location.toJSON(), version: extension2.manifest.version, metadata: undefined }
-		]);
-
-		const manifestContent = JSON.parse((await instantiationService.get(IFileService).readFile(extensionsManifest)).value.toString());
-		assert.deepStrictEqual(manifestContent, [
-			{ identifier: extension.identifier, location: extension.location.toJSON(), relativeLocation: 'pub.a-1.0.0', version: extension.manifest.version },
-			{ identifier: extension2.identifier, location: extension2.location.toJSON(), relativeLocation: 'pub.b-1.0.0', version: extension2.manifest.version }
-		]);
-	});
-
-	test('extensions in intermediate and new format is read and migrated', async () => {
-		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
-		const extension = aExtension('pub.a', joinPath(extensionsLocation, 'pub.a-1.0.0'));
-		const extension2 = aExtension('pub.b', joinPath(extensionsLocation, 'pub.b-1.0.0'));
-		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(JSON.stringify([{
-			identifier: extension.identifier,
-			location: 'pub.a-1.0.0',
-			version: extension.manifest.version,
-		}, {
-			identifier: extension2.identifier,
-			location: extension2.location.toJSON(),
-			relativeLocation: 'pub.b-1.0.0',
-			version: extension2.manifest.version,
-		}])));
-
-		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
-
-		const actual = await testObject.scanProfileExtensions(extensionsManifest);
-		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON() })), [
-			{ identifier: extension.identifier, location: extension.location.toJSON(), version: extension.manifest.version, metadata: undefined },
-			{ identifier: extension2.identifier, location: extension2.location.toJSON(), version: extension2.manifest.version, metadata: undefined }
-		]);
-
-		const manifestContent = JSON.parse((await instantiationService.get(IFileService).readFile(extensionsManifest)).value.toString());
-		assert.deepStrictEqual(manifestContent, [
-			{ identifier: extension.identifier, location: extension.location.toJSON(), relativeLocation: 'pub.a-1.0.0', version: extension.manifest.version },
-			{ identifier: extension2.identifier, location: extension2.location.toJSON(), relativeLocation: 'pub.b-1.0.0', version: extension2.manifest.version }
-		]);
-	});
-
-	test('extensions in mixed format is read and migrated', async () => {
-		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
-		const extension1 = aExtension('pub.a', joinPath(extensionsLocation, 'pub.a-1.0.0'));
-		const extension2 = aExtension('pub.b', joinPath(extensionsLocation, 'pub.b-1.0.0'));
-		const extension3 = aExtension('pub.c', joinPath(extensionsLocation, 'pub.c-1.0.0'));
-		const extension4 = aExtension('pub.d', joinPath(ROOT, 'pub.d-1.0.0'));
-		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(JSON.stringify([{
-			identifier: extension1.identifier,
-			location: 'pub.a-1.0.0',
-			version: extension1.manifest.version,
-		}, {
-			identifier: extension2.identifier,
-			location: extension2.location.toJSON(),
-			version: extension2.manifest.version,
-		}, {
-			identifier: extension3.identifier,
-			location: extension3.location.toJSON(),
-			relativeLocation: 'pub.c-1.0.0',
-			version: extension3.manifest.version,
-		}, {
-			identifier: extension4.identifier,
-			location: extension4.location.toJSON(),
-			version: extension4.manifest.version,
-		}])));
-
-		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
-
-		const actual = await testObject.scanProfileExtensions(extensionsManifest);
-		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON() })), [
-			{ identifier: extension1.identifier, location: extension1.location.toJSON(), version: extension1.manifest.version, metadata: undefined },
-			{ identifier: extension2.identifier, location: extension2.location.toJSON(), version: extension2.manifest.version, metadata: undefined },
-			{ identifier: extension3.identifier, location: extension3.location.toJSON(), version: extension3.manifest.version, metadata: undefined },
-			{ identifier: extension4.identifier, location: extension4.location.toJSON(), version: extension4.manifest.version, metadata: undefined }
-		]);
-
-		const manifestContent = JSON.parse((await instantiationService.get(IFileService).readFile(extensionsManifest)).value.toString());
-		assert.deepStrictEqual(manifestContent, [
-			{ identifier: extension1.identifier, location: extension1.location.toJSON(), relativeLocation: 'pub.a-1.0.0', version: extension1.manifest.version },
-			{ identifier: extension2.identifier, location: extension2.location.toJSON(), relativeLocation: 'pub.b-1.0.0', version: extension2.manifest.version },
-			{ identifier: extension3.identifier, location: extension3.location.toJSON(), relativeLocation: 'pub.c-1.0.0', version: extension3.manifest.version },
-			{ identifier: extension4.identifier, location: extension4.location.toJSON(), version: extension4.manifest.version }
 		]);
 	});
 

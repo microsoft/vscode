@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, IDisposableTracker, setDisposableTracker } from 'vs/base/common/lifecycle';
+import { IDisposable, IDisposableTracker, setDisposableTracker } from '../../common/lifecycle.js';
 
 class DisposableTracker implements IDisposableTracker {
 	allDisposables: [IDisposable, string][] = [];
@@ -41,7 +41,7 @@ export function beginTrackingDisposables(): void {
 export function endTrackingDisposables(): void {
 	if (currentTracker) {
 		setDisposableTracker(null);
-		console.log(currentTracker!.allDisposables.map(e => `${e[0]}\n${e[1]}`).join('\n\n'));
+		console.log(currentTracker.allDisposables.map(e => `${e[0]}\n${e[1]}`).join('\n\n'));
 		currentTracker = null;
 	}
 }

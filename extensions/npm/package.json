@@ -27,11 +27,12 @@
     "minimatch": "^5.1.6",
     "request-light": "^0.7.0",
     "which": "^4.0.0",
-    "which-pm": "^2.1.1"
+    "which-pm": "^2.1.1",
+    "vscode-uri": "^3.0.8"
   },
   "devDependencies": {
     "@types/minimatch": "^5.1.2",
-    "@types/node": "18.x",
+    "@types/node": "20.x",
     "@types/which": "^3.0.0"
   },
   "main": "./out/npmMain",
@@ -237,13 +238,15 @@
             "auto",
             "npm",
             "yarn",
-            "pnpm"
+            "pnpm",
+            "bun"
           ],
           "enumDescriptions": [
             "%config.npm.packageManager.auto%",
             "%config.npm.packageManager.npm%",
             "%config.npm.packageManager.yarn%",
-            "%config.npm.packageManager.pnpm%"
+            "%config.npm.packageManager.pnpm%",
+            "%config.npm.packageManager.bun%"
           ],
           "default": "auto",
           "description": "%config.npm.packageManager%"

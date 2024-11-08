@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, Display, screen } from 'electron';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateService } from 'vs/platform/state/node/state';
-import { INativeWindowConfiguration, IWindowSettings } from 'vs/platform/window/common/window';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { defaultWindowState, ICodeWindow, IWindowState as IWindowUIState, WindowMode } from 'vs/platform/window/electron-main/window';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import electron from 'electron';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../base/common/platform.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { IStateService } from '../../state/node/state.js';
+import { INativeWindowConfiguration, IWindowSettings } from '../../window/common/window.js';
+import { IWindowsMainService } from './windows.js';
+import { defaultWindowState, ICodeWindow, IWindowState as IWindowUIState, WindowMode } from '../../window/electron-main/window.js';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
 export interface IWindowState {
 	readonly windowId?: number;
@@ -78,26 +78,26 @@ export class WindowsStateHandler extends Disposable {
 		// When a window looses focus, save all windows state. This allows to
 		// prevent loss of window-state data when OS is restarted without properly
 		// shutting down the application (https://github.com/microsoft/vscode/issues/87171)
-		app.on('browser-window-blur', () => {
+		electron.app.on('browser-window-blur', () => {
 			if (!this.shuttingDown) {
 				this.saveWindowsState();
 			}
 		});
 
 		// Handle various lifecycle events around windows
-		this.lifecycleMainService.onBeforeCloseWindow(window => this.onBeforeCloseWindow(window));
-		this.lifecycleMainService.onBeforeShutdown(() => this.onBeforeShutdown());
-		this.windowsMainService.onDidChangeWindowsCount(e => {
+		this._register(this.lifecycleMainService.onBeforeCloseWindow(window => this.onBeforeCloseWindow(window)));
+		this._register(this.lifecycleMainService.onBeforeShutdown(() => this.onBeforeShutdown()));
+		this._register(this.windowsMainService.onDidChangeWindowsCount(e => {
 			if (e.newCount - e.oldCount > 0) {
 				// clear last closed window state when a new window opens. this helps on macOS where
 				// otherwise closing the last window, opening a new window and then quitting would
 				// use the state of the previously closed window when restarting.
 				this.lastClosedState = undefined;
 			}
-		});
+		}));
 
 		// try to save state before destroy because close will not fire
-		this.windowsMainService.onDidDestroyWindow(window => this.onBeforeCloseWindow(window));
+		this._register(this.windowsMainService.onDidDestroyWindow(window => this.onBeforeCloseWindow(window)));
 	}
 
 	// Note that onBeforeShutdown() and onBeforeCloseWindow() are fired in different order depending on the OS:
@@ -339,8 +339,8 @@ export class WindowsStateHandler extends Disposable {
 		//
 
 		// We want the new window to open on the same display that the last active one is in
-		let displayToUse: Display | undefined;
-		const displays = screen.getAllDisplays();
+		let displayToUse: electron.Display | undefined;
+		const displays = electron.screen.getAllDisplays();
 
 		// Single Display
 		if (displays.length === 1) {
@@ -352,18 +352,18 @@ export class WindowsStateHandler extends Disposable {
 
 			// on mac there is 1 menu per window so we need to use the monitor where the cursor currently is
 			if (isMacintosh) {
-				const cursorPoint = screen.getCursorScreenPoint();
-				displayToUse = screen.getDisplayNearestPoint(cursorPoint);
+				const cursorPoint = electron.screen.getCursorScreenPoint();
+				displayToUse = electron.screen.getDisplayNearestPoint(cursorPoint);
 			}
 
 			// if we have a last active window, use that display for the new window
 			if (!displayToUse && lastActive) {
-				displayToUse = screen.getDisplayMatching(lastActive.getBounds());
+				displayToUse = electron.screen.getDisplayMatching(lastActive.getBounds());
 			}
 
 			// fallback to primary display or first display
 			if (!displayToUse) {
-				displayToUse = screen.getPrimaryDisplay() || displays[0];
+				displayToUse = electron.screen.getPrimaryDisplay() || displays[0];
 			}
 		}
 
@@ -389,7 +389,10 @@ export class WindowsStateHandler extends Disposable {
 				if (lastActiveState.mode === WindowMode.Fullscreen) {
 					state.mode = WindowMode.Fullscreen; // only take mode (fixes https://github.com/microsoft/vscode/issues/19331)
 				} else {
-					state = lastActiveState;
+					state = {
+						...lastActiveState,
+						zoomLevel: undefined // do not inherit zoom level
+					};
 				}
 
 				ensureNoOverlap = state.mode !== WindowMode.Fullscreen && windowConfig.newWindowDimensions === 'offset';

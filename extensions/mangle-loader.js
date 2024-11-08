@@ -41,6 +41,10 @@ module.exports = async function (source, sourceMap, meta) {
 		// Only enable mangling in production builds
 		return source;
 	}
+	if (true) {
+		// disable mangling for now, SEE https://github.com/microsoft/vscode/issues/204692
+		return source;
+	}
 	const options = this.getOptions();
 	if (options.disabled) {
 		// Dynamically disabled

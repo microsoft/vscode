@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from './gdprTypings.js';
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
@@ -22,6 +22,8 @@ export interface ITelemetryService {
 
 	readonly sessionId: string;
 	readonly machineId: string;
+	readonly sqmId: string;
+	readonly devDeviceId: string;
 	readonly firstSessionDate: string;
 	readonly msftInternal?: boolean;
 
@@ -71,6 +73,8 @@ export const currentSessionDateStorageKey = 'telemetry.currentSessionDate';
 export const firstSessionDateStorageKey = 'telemetry.firstSessionDate';
 export const lastSessionDateStorageKey = 'telemetry.lastSessionDate';
 export const machineIdKey = 'telemetry.machineId';
+export const sqmIdKey = 'telemetry.sqmId';
+export const devDeviceIdKey = 'telemetry.devDeviceId';
 
 // Configuration Keys
 export const TELEMETRY_SECTION_ID = 'telemetry';

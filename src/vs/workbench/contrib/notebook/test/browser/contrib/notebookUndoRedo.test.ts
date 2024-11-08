@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { createNotebookCellList, TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { CellEditType, CellKind, SelectionStateType } from '../../../common/notebookCommon.js';
+import { createNotebookCellList, withTestNotebook } from '../testNotebookEditor.js';
 
 suite('Notebook Undo/Redo', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Basics', async function () {
 		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, _ds, accessor) => {
-				const languageService = accessor.get(ILanguageService);
+			async (editor, viewModel, _ds, _accessor) => {
 				assert.strictEqual(viewModel.length, 2);
 				assert.strictEqual(viewModel.getVersionId(), 0);
 				assert.strictEqual(viewModel.getAlternativeId(), '0_0,1;1,1');
@@ -41,7 +41,7 @@ suite('Notebook Undo/Redo', () => {
 
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 0, cells: [
-						new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], languageService),
+						{ source: '# header 3', language: 'markdown', cellKind: CellKind.Markup, outputs: [], mime: undefined }
 					]
 				}], true, undefined, () => undefined, undefined, true);
 				assert.strictEqual(viewModel.getVersionId(), 4);
@@ -60,8 +60,7 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, _ds, accessor) => {
-				const languageService = accessor.get(ILanguageService);
+			async (editor, _viewModel, _ds, _accessor) => {
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: []
 				}], true, undefined, () => undefined, undefined, true);
@@ -69,7 +68,7 @@ suite('Notebook Undo/Redo', () => {
 				assert.doesNotThrow(() => {
 					editor.textModel.applyEdits([{
 						editType: CellEditType.Replace, index: 0, count: 2, cells: [
-							new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], languageService),
+							{ source: '# header 2', language: 'markdown', cellKind: CellKind.Markup, outputs: [], mime: undefined }
 						]
 					}], true, undefined, () => undefined, undefined, true);
 				});
@@ -101,15 +100,14 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, _ds, accessor) => {
-				const languageService = accessor.get(ILanguageService);
+			async (editor, viewModel, _ds, _accessor) => {
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: []
 				}], true, undefined, () => undefined, undefined, true);
 
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: [
-						new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], languageService),
+						{ source: '# header 2', language: 'markdown', cellKind: CellKind.Markup, outputs: [], mime: undefined }
 					]
 				}], true, undefined, () => undefined, undefined, true);
 
@@ -134,14 +132,13 @@ suite('Notebook Undo/Redo', () => {
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, viewModel, _ds, accessor) => {
-				const languageService = accessor.get(ILanguageService);
-				const cellList = createNotebookCellList(accessor, new DisposableStore());
+				const cellList = createNotebookCellList(accessor, disposables);
 				cellList.attachViewModel(viewModel);
 				cellList.setFocus([1]);
 
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 2, count: 0, cells: [
-						new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], languageService)
+						{ source: '# header 2', language: 'markdown', cellKind: CellKind.Markup, outputs: [], mime: undefined }
 					]
 				}], true, { focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }], kind: SelectionStateType.Index }, () => {
 					return {
@@ -175,11 +172,9 @@ suite('Notebook Undo/Redo', () => {
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, viewModel, _ds, accessor) => {
-				const languageService = accessor.get(ILanguageService);
-
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 2, count: 0, cells: [
-						new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], languageService)
+						{ source: '# header 2', language: 'markdown', cellKind: CellKind.Markup, outputs: [], mime: undefined }
 					]
 				}, {
 					editType: CellEditType.Metadata, index: 0, metadata: { inputCollapsed: false }

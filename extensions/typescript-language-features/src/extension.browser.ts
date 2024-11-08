@@ -11,8 +11,7 @@ import { registerBaseCommands } from './commands/index';
 import { TypeScriptServiceConfiguration } from './configuration/configuration';
 import { BrowserServiceConfigurationProvider } from './configuration/configuration.browser';
 import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
-import { AutoInstallerFs } from './filesystems/autoInstallerFs';
-import { MemFs } from './filesystems/memFs';
+import { registerAtaSupport } from './filesystems/ata';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { Logger } from './logging/logger';
 import RemoteRepositories from './remoteRepositories.browser';
@@ -62,7 +61,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 		new TypeScriptVersion(
 			TypeScriptVersionSource.Bundled,
 			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
-			API.fromSimpleString('5.1.3')));
+			API.fromSimpleString('5.6.2')));
 
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);
@@ -101,14 +100,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker, async () => {
 		await startPreloadWorkspaceContentsIfNeeded(context, logger);
 	}));
-	context.subscriptions.push(vscode.workspace.registerFileSystemProvider('vscode-global-typings', new MemFs(), {
-		isCaseSensitive: true,
-		isReadonly: false
-	}));
-	context.subscriptions.push(vscode.workspace.registerFileSystemProvider('vscode-node-modules', new AutoInstallerFs(), {
-		isCaseSensitive: true,
-		isReadonly: false
-	}));
+
+	context.subscriptions.push(registerAtaSupport(logger));
 
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }
@@ -118,15 +111,25 @@ async function startPreloadWorkspaceContentsIfNeeded(context: vscode.ExtensionCo
 		return;
 	}
 
-	const workspaceUri = vscode.workspace.workspaceFolders?.[0].uri;
-	if (!workspaceUri || workspaceUri.scheme !== 'vscode-vfs' || !workspaceUri.authority.startsWith('github')) {
-		logger.info(`Skipped loading workspace contents for repository ${workspaceUri?.toString()}`);
+	if (!vscode.workspace.workspaceFolders) {
 		return;
 	}
 
-	const loader = new RemoteWorkspaceContentsPreloader(workspaceUri, logger);
-	context.subscriptions.push(loader);
-	return loader.triggerPreload();
+	await Promise.all(vscode.workspace.workspaceFolders.map(async folder => {
+		const workspaceUri = folder.uri;
+		if (workspaceUri.scheme !== 'vscode-vfs' || !workspaceUri.authority.startsWith('github')) {
+			logger.info(`Skipped pre loading workspace contents for repository ${workspaceUri?.toString()}`);
+			return;
+		}
+
+		const loader = new RemoteWorkspaceContentsPreloader(workspaceUri, logger);
+		context.subscriptions.push(loader);
+		try {
+			await loader.triggerPreload();
+		} catch (error) {
+			console.error(error);
+		}
+	}));
 }
 
 class RemoteWorkspaceContentsPreloader extends Disposable {

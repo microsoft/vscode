@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { timeout } from 'vs/base/common/async';
-import { Iterable } from 'vs/base/common/iterator';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
+import { AsyncDataTree, CompressibleAsyncDataTree, ITreeCompressionDelegate } from '../../../../browser/ui/tree/asyncDataTree.js';
+import { ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjectTreeModel.js';
+import { ICompressibleTreeRenderer } from '../../../../browser/ui/tree/objectTree.js';
+import { IAsyncDataSource, ITreeNode } from '../../../../browser/ui/tree/tree.js';
+import { timeout } from '../../../../common/async.js';
+import { Iterable } from '../../../../common/iterator.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 interface Element {
 	id: string;
@@ -37,7 +39,7 @@ function find(element: Element, id: string): Element | undefined {
 	return undefined;
 }
 
-class Renderer implements ITreeRenderer<Element, void, HTMLElement> {
+class Renderer implements ICompressibleTreeRenderer<Element, void, HTMLElement> {
 	readonly templateId = 'default';
 	renderTemplate(container: HTMLElement): HTMLElement {
 		return container;
@@ -47,6 +49,15 @@ class Renderer implements ITreeRenderer<Element, void, HTMLElement> {
 	}
 	disposeTemplate(templateData: HTMLElement): void {
 		// noop
+	}
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<Element>, void>, index: number, templateData: HTMLElement, height: number | undefined): void {
+		const result: string[] = [];
+
+		for (const element of node.element.elements) {
+			result.push(element.id + (element.suffix || ''));
+		}
+
+		templateData.textContent = result.join('/');
 	}
 }
 
@@ -258,6 +269,127 @@ suite('AsyncDataTree', function () {
 		assert(tree.getNode(model.get('a')).collapsed);
 	});
 
+	test('issue #192422 - resolved collapsed nodes with changed children don\'t show old children', async () => {
+		const container = document.createElement('div');
+		let hasGottenAChildren = false;
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return !!element.children && element.children.length > 0;
+			}
+			async getChildren(element: Element): Promise<Element[]> {
+				if (element.id === 'a') {
+					if (!hasGottenAChildren) {
+						hasGottenAChildren = true;
+					} else {
+						return [{ id: 'c' }];
+					}
+				}
+				return element.children || [];
+			}
+		};
+
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{ id: 'b' }]
+			}]
+		});
+
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+		tree.layout(200);
+
+		await tree.setInput(model.root);
+		const a = model.get('a');
+		const aNode = tree.getNode(a);
+		assert(aNode.collapsed);
+		await tree.expand(a);
+		assert(!aNode.collapsed);
+		assert.equal(aNode.children.length, 1);
+		assert.equal(aNode.children[0].element.id, 'b');
+		const bChild = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+		assert.equal(bChild?.textContent, 'b');
+		tree.collapse(a);
+		assert(aNode.collapsed);
+
+		await tree.updateChildren(a);
+		const aUpdated1 = model.get('a');
+		const aNodeUpdated1 = tree.getNode(a);
+		assert(aNodeUpdated1.collapsed);
+		assert.equal(aNodeUpdated1.children.length, 0);
+		let didCheckNoChildren = false;
+		const event = tree.onDidChangeCollapseState(e => {
+			const child = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+			assert.equal(child, undefined);
+			didCheckNoChildren = true;
+		});
+		await tree.expand(aUpdated1);
+		event.dispose();
+		assert(didCheckNoChildren);
+
+		const aNodeUpdated2 = tree.getNode(a);
+		assert(!aNodeUpdated2.collapsed);
+		assert.equal(aNodeUpdated2.children.length, 1);
+		assert.equal(aNodeUpdated2.children[0].element.id, 'c');
+		const child = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+		assert.equal(child?.textContent, 'c');
+	});
+
+	test('issue #192422 - resolved collapsed nodes with unchanged children immediately show children', async () => {
+		const container = document.createElement('div');
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return !!element.children && element.children.length > 0;
+			}
+			async getChildren(element: Element): Promise<Element[]> {
+				return element.children || [];
+			}
+		};
+
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{ id: 'b' }]
+			}]
+		});
+
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+		tree.layout(200);
+
+		await tree.setInput(model.root);
+		const a = model.get('a');
+		const aNode = tree.getNode(a);
+		assert(aNode.collapsed);
+		await tree.expand(a);
+		assert(!aNode.collapsed);
+		assert.equal(aNode.children.length, 1);
+		assert.equal(aNode.children[0].element.id, 'b');
+		const bChild = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+		assert.equal(bChild?.textContent, 'b');
+		tree.collapse(a);
+		assert(aNode.collapsed);
+
+		const aUpdated1 = model.get('a');
+		const aNodeUpdated1 = tree.getNode(a);
+		assert(aNodeUpdated1.collapsed);
+		assert.equal(aNodeUpdated1.children.length, 1);
+		let didCheckSameChildren = false;
+		const event = tree.onDidChangeCollapseState(e => {
+			const child = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+			assert.equal(child?.textContent, 'b');
+			didCheckSameChildren = true;
+		});
+		await tree.expand(aUpdated1);
+		event.dispose();
+		assert(didCheckSameChildren);
+
+		const aNodeUpdated2 = tree.getNode(a);
+		assert(!aNodeUpdated2.collapsed);
+		assert.equal(aNodeUpdated2.children.length, 1);
+		assert.equal(aNodeUpdated2.children[0].element.id, 'b');
+		const child = container.querySelector('.monaco-list-row:nth-child(2)') as HTMLElement | undefined;
+		assert.equal(child?.textContent, 'b');
+	});
+
 	test('support default collapse state per element', async () => {
 		const container = document.createElement('div');
 
@@ -440,6 +572,31 @@ suite('AsyncDataTree', function () {
 		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b2']);
 	});
 
+	test('issue #199264 - dispose during render', async () => {
+		const container = document.createElement('div');
+		const model1 = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{ id: 'aa' }, { id: 'ab' }, { id: 'ac' }]
+			}]
+		});
+		const model2 = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{ id: 'aa' }, { id: 'ab' }, { id: 'ac' }]
+			}]
+		});
+
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() }));
+		tree.layout(200);
+
+		await tree.setInput(model1.root);
+		const input = tree.setInput(model2.root);
+		tree.dispose();
+		await input;
+		assert.strictEqual(container.innerHTML, '');
+	});
+
 	test('issue #121567', async () => {
 		const container = document.createElement('div');
 
@@ -494,5 +651,195 @@ suite('AsyncDataTree', function () {
 		assert.strictEqual(calls.length, 2, 'Finally, there should be a getChildren call for a');
 		assert(tree.isCollapsible(a), 'a is still collapsible');
 		assert(!tree.isCollapsed(a), 'a is expanded');
+	});
+
+	test('issue #199441', async () => {
+		const container = document.createElement('div');
+
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return !!element.children && element.children.length > 0;
+			}
+			async getChildren(element: Element) {
+				return element.children ?? Iterable.empty();
+			}
+		};
+
+		const compressionDelegate = new class implements ITreeCompressionDelegate<Element> {
+			isIncompressible(element: Element): boolean {
+				return !dataSource.hasChildren(element);
+			}
+		};
+
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{
+					id: 'b',
+					children: [{ id: 'b.txt' }]
+				}]
+			}]
+		});
+
+		const collapseByDefault = (element: Element) => false;
+
+		const tree = store.add(new CompressibleAsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), compressionDelegate, [new Renderer()], dataSource, { identityProvider: new IdentityProvider(), collapseByDefault }));
+		tree.layout(200);
+
+		await tree.setInput(model.root);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a/b', 'b.txt']);
+
+		model.get('a').children!.push({
+			id: 'c',
+			children: [{ id: 'c.txt' }]
+		});
+
+		await tree.updateChildren(model.root, true);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b', 'b.txt', 'c', 'c.txt']);
+	});
+
+	test('Tree Navigation: AsyncDataTree', async () => {
+		const container = document.createElement('div');
+
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{
+					id: 'aa', children: [{ id: 'aa.txt' }]
+				}, {
+					id: 'ab', children: [{ id: 'ab.txt' }]
+				}]
+			}, {
+				id: 'b', children: [{
+					id: 'ba', children: [{ id: 'ba.txt' }]
+				}, {
+					id: 'bb', children: [{ id: 'bb.txt' }]
+				}]
+			}, {
+				id: 'c', children: [{
+					id: 'ca', children: [{ id: 'ca.txt' }]
+				}, {
+					id: 'cb', children: [{ id: 'cb.txt' }]
+				}]
+			}]
+		});
+
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() }));
+		tree.layout(200);
+
+		await tree.setInput(model.root);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b', 'c']);
+
+		assert.strictEqual(tree.navigate().current(), null);
+		assert.strictEqual(tree.navigate().first()?.id, 'a');
+		assert.strictEqual(tree.navigate().last()?.id, 'c');
+
+		assert.strictEqual(tree.navigate(model.get('b')).previous()?.id, 'a');
+		assert.strictEqual(tree.navigate(model.get('b')).next()?.id, 'c');
+
+		await tree.expand(model.get('a'));
+		await tree.expand(model.get('aa'));
+		await tree.expand(model.get('ab'));
+
+		await tree.expand(model.get('b'));
+		await tree.expand(model.get('ba'));
+		await tree.expand(model.get('bb'));
+
+		await tree.expand(model.get('c'));
+		await tree.expand(model.get('ca'));
+		await tree.expand(model.get('cb'));
+
+		// Only the first 10 elements are rendered (total height is 200px, each element is 20px)
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'aa', 'aa.txt', 'ab', 'ab.txt', 'b', 'ba', 'ba.txt', 'bb', 'bb.txt']);
+
+		assert.strictEqual(tree.navigate().first()?.id, 'a');
+		assert.strictEqual(tree.navigate().last()?.id, 'cb.txt');
+
+		assert.strictEqual(tree.navigate(model.get('b')).previous()?.id, 'ab.txt');
+		assert.strictEqual(tree.navigate(model.get('b')).next()?.id, 'ba');
+
+		assert.strictEqual(tree.navigate(model.get('ab.txt')).previous()?.id, 'ab');
+		assert.strictEqual(tree.navigate(model.get('ab.txt')).next()?.id, 'b');
+
+		assert.strictEqual(tree.navigate(model.get('bb.txt')).next()?.id, 'c');
+
+		tree.collapse(model.get('b'), false);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'aa', 'aa.txt', 'ab', 'ab.txt', 'b', 'c', 'ca', 'ca.txt', 'cb']);
+
+		assert.strictEqual(tree.navigate(model.get('b')).next()?.id, 'c');
+	});
+
+	test('Test Navigation: CompressibleAsyncDataTree', async () => {
+		const container = document.createElement('div');
+
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return !!element.children && element.children.length > 0;
+			}
+			async getChildren(element: Element) {
+				return element.children ?? Iterable.empty();
+			}
+		};
+
+		const compressionDelegate = new class implements ITreeCompressionDelegate<Element> {
+			isIncompressible(element: Element): boolean {
+				return !dataSource.hasChildren(element);
+			}
+		};
+
+		const model = new Model({
+			id: 'root',
+			children: [
+				{
+					id: 'a', children: [{ id: 'aa', children: [{ id: 'aa.txt' }] }]
+				}, {
+					id: 'b', children: [{ id: 'ba', children: [{ id: 'ba.txt' }] }]
+				}, {
+					id: 'c', children: [{
+						id: 'ca', children: [{ id: 'ca.txt' }]
+					}, {
+						id: 'cb', children: [{ id: 'cb.txt' }]
+					}]
+				}
+			]
+		});
+
+		const tree = store.add(new CompressibleAsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), compressionDelegate, [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+		tree.layout(200);
+
+		await tree.setInput(model.root);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b', 'c']);
+
+		assert.strictEqual(tree.navigate().current(), null);
+		assert.strictEqual(tree.navigate().first()?.id, 'a');
+		assert.strictEqual(tree.navigate().last()?.id, 'c');
+
+		assert.strictEqual(tree.navigate(model.get('b')).previous()?.id, 'a');
+		assert.strictEqual(tree.navigate(model.get('b')).next()?.id, 'c');
+
+		await tree.expand(model.get('a'));
+		await tree.expand(model.get('aa'));
+
+		await tree.expand(model.get('b'));
+		await tree.expand(model.get('ba'));
+
+		await tree.expand(model.get('c'));
+		await tree.expand(model.get('ca'));
+		await tree.expand(model.get('cb'));
+
+		// Only the first 10 elements are rendered (total height is 200px, each element is 20px)
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a/aa', 'aa.txt', 'b/ba', 'ba.txt', 'c', 'ca', 'ca.txt', 'cb', 'cb.txt']);
+
+		assert.strictEqual(tree.navigate().first()?.id, 'aa');
+		assert.strictEqual(tree.navigate().last()?.id, 'cb.txt');
+
+		assert.strictEqual(tree.navigate(model.get('b')).previous()?.id, 'aa.txt');
+		assert.strictEqual(tree.navigate(model.get('ba')).previous()?.id, 'aa.txt');
+
+		assert.strictEqual(tree.navigate(model.get('b')).next()?.id, 'ba.txt');
+		assert.strictEqual(tree.navigate(model.get('ba')).next()?.id, 'ba.txt');
+
+		assert.strictEqual(tree.navigate(model.get('aa.txt')).previous()?.id, 'aa');
+		assert.strictEqual(tree.navigate(model.get('aa.txt')).next()?.id, 'ba');
 	});
 });

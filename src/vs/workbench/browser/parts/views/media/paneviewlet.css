@@ -15,6 +15,14 @@
 	position: relative;
 }
 
+.monaco-pane-view .pane > .pane-header.not-collapsible .twisty-container {
+	display: none;
+}
+
+.monaco-pane-view .pane > .pane-header.not-collapsible .title {
+	margin-left: 8px;
+}
+
 .monaco-pane-view .pane > .pane-header > .actions.show-always,
 .monaco-pane-view .pane.expanded > .pane-header > .actions.show-expanded {
 	display: initial;
@@ -72,7 +80,6 @@
 	left: 0;
 	top: -2px;
 	z-index: 5;
-	height: 2px;
 }
 
 .monaco-pane-view .pane:not(.merged-header) .monaco-progress-container {

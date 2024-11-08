@@ -3,29 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch } from 'vs/editor/common/model';
-import { MATCHES_LIMIT } from 'vs/editor/contrib/find/browser/findModel';
-import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
-import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from 'vs/editor/contrib/find/browser/findWidget';
-import { localize } from 'vs/nls';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
-import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
-import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
-import { CellEditState, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { IKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { alert as alertFn } from '../../../../../../base/browser/ui/aria/aria.js';
+import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
+import { Lazy } from '../../../../../../base/common/lazy.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import * as strings from '../../../../../../base/common/strings.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { FindMatch } from '../../../../../../editor/common/model.js';
+import { MATCHES_LIMIT } from '../../../../../../editor/contrib/find/browser/findModel.js';
+import { FindReplaceState } from '../../../../../../editor/contrib/find/browser/findState.js';
+import { NLS_MATCHES_LOCATION, NLS_NO_RESULTS } from '../../../../../../editor/contrib/find/browser/findWidget.js';
+import { localize } from '../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService, IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { NotebookFindFilters } from './findFilters.js';
+import { FindModel } from './findModel.js';
+import { SimpleFindReplaceWidget } from './notebookFindReplaceWidget.js';
+import { CellEditState, ICellViewModel, INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
+import { INotebookFindScope } from '../../../common/notebookCommon.js';
+import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED } from '../../../common/notebookContextKeys.js';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';
@@ -39,6 +40,7 @@ export interface IShowNotebookFindWidgetOptions {
 	matchIndex?: number;
 	focus?: boolean;
 	searchStringSeededFrom?: { cell: ICellViewModel; range: Range };
+	findScope?: INotebookFindScope;
 }
 
 export class NotebookFindContrib extends Disposable implements INotebookEditorContribution {
@@ -82,10 +84,10 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IMenuService menuService: IMenuService,
+		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(contextViewService, contextKeyService, configurationService, contextMenuService, instantiationService, new FindReplaceState<NotebookFindFilters>(), _notebookEditor);
+		super(contextViewService, contextKeyService, configurationService, contextMenuService, instantiationService, hoverService, new FindReplaceState<NotebookFindFilters>(), _notebookEditor);
 		this._findModel = new FindModel(this._notebookEditor, this._state, this._configurationService);
 
 		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
@@ -118,7 +120,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		}));
 
 		this._register(DOM.addDisposableListener(this.getDomNode(), DOM.EventType.FOCUS, e => {
-			this._previousFocusElement = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : undefined;
+			this._previousFocusElement = DOM.isHTMLElement(e.relatedTarget) ? e.relatedTarget : undefined;
 		}, true));
 	}
 
@@ -262,13 +264,13 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 
 		if (this._showTimeout === null) {
 			if (this._hideTimeout !== null) {
-				window.clearTimeout(this._hideTimeout);
+				DOM.getWindow(this.getDomNode()).clearTimeout(this._hideTimeout);
 				this._hideTimeout = null;
 				this._notebookEditor.removeClassName(FIND_HIDE_TRANSITION);
 			}
 
 			this._notebookEditor.addClassName(FIND_SHOW_TRANSITION);
-			this._showTimeout = window.setTimeout(() => {
+			this._showTimeout = DOM.getWindow(this.getDomNode()).setTimeout(() => {
 				this._notebookEditor.removeClassName(FIND_SHOW_TRANSITION);
 				this._showTimeout = null;
 			}, 200);
@@ -284,13 +286,13 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 
 		if (this._showTimeout === null) {
 			if (this._hideTimeout !== null) {
-				window.clearTimeout(this._hideTimeout);
+				DOM.getWindow(this.getDomNode()).clearTimeout(this._hideTimeout);
 				this._hideTimeout = null;
 				this._notebookEditor.removeClassName(FIND_HIDE_TRANSITION);
 			}
 
 			this._notebookEditor.addClassName(FIND_SHOW_TRANSITION);
-			this._showTimeout = window.setTimeout(() => {
+			this._showTimeout = DOM.getWindow(this.getDomNode()).setTimeout(() => {
 				this._notebookEditor.removeClassName(FIND_SHOW_TRANSITION);
 				this._showTimeout = null;
 			}, 200);
@@ -308,12 +310,12 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 
 		if (this._hideTimeout === null) {
 			if (this._showTimeout !== null) {
-				window.clearTimeout(this._showTimeout);
+				DOM.getWindow(this.getDomNode()).clearTimeout(this._showTimeout);
 				this._showTimeout = null;
 				this._notebookEditor.removeClassName(FIND_SHOW_TRANSITION);
 			}
 			this._notebookEditor.addClassName(FIND_HIDE_TRANSITION);
-			this._hideTimeout = window.setTimeout(() => {
+			this._hideTimeout = DOM.getWindow(this.getDomNode()).setTimeout(() => {
 				this._notebookEditor.removeClassName(FIND_HIDE_TRANSITION);
 			}, 200);
 		} else {
@@ -345,9 +347,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		this._matchesCount.title = '';
 
 		// remove previous content
-		if (this._matchesCount.firstChild) {
-			this._matchesCount.removeChild(this._matchesCount.firstChild);
-		}
+		this._matchesCount.firstChild?.remove();
 
 		let label: string;
 

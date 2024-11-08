@@ -152,7 +152,7 @@ suite('Notebook builtin output renderer', () => {
 			const inserted = outputElement.firstChild as HTMLElement;
 			assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
 			assert.ok(outputElement.classList.contains('remove-padding'), `Padding should be removed for scrollable outputs ${outputElement.classList}`);
-			assert.ok(inserted.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
+			assert.ok(outputElement.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
 				`output content classList should contain word-wrap and scrollable ${inserted.classList}`);
 			assert.ok(inserted.innerHTML.indexOf('>content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
 		});
@@ -169,7 +169,7 @@ suite('Notebook builtin output renderer', () => {
 			const inserted = outputElement.firstChild as HTMLElement;
 			assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
 			assert.ok(outputElement.classList.contains('remove-padding'), `Padding should be removed for non-scrollable outputs: ${outputElement.classList}`);
-			assert.ok(!inserted.classList.contains('word-wrap') && !inserted.classList.contains('scrollable'),
+			assert.ok(!outputElement.classList.contains('word-wrap') && !inserted.classList.contains('scrollable'),
 				`output content classList should not contain word-wrap and scrollable ${inserted.classList}`);
 			assert.ok(inserted.innerHTML.indexOf('>content</') > -1, `Content was not added to output element: ${outputElement.innerHTML}`);
 		});
@@ -273,6 +273,36 @@ suite('Notebook builtin output renderer', () => {
 		assert.ok(inserted.innerHTML.indexOf('shouldBeTruncated') === -1, `Beginning content should be truncated`);
 	});
 
+	test(`Render filepath links in text output when enabled`, async () => {
+		LinkDetector.injectedHtmlCreator = (value: string) => value;
+		const context = createContext({ outputWordWrap: true, outputScrolling: true, linkifyFilePaths: true });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputElement = new OutputHtml().getFirstOuputElement();
+		const outputItem = createOutputItem('./dir/file.txt', stdoutMimeType);
+		await renderer!.renderOutputItem(outputItem, outputElement);
+
+		const inserted = outputElement.firstChild as HTMLElement;
+		assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
+		assert.ok(outputElement.innerHTML.indexOf('<a href="./dir/file.txt">') !== -1, `inner HTML:\n ${outputElement.innerHTML}`);
+	});
+
+	test(`No filepath links in text output when disabled`, async () => {
+		LinkDetector.injectedHtmlCreator = (value: string) => value;
+		const context = createContext({ outputWordWrap: true, outputScrolling: true, linkifyFilePaths: false });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputElement = new OutputHtml().getFirstOuputElement();
+		const outputItem = createOutputItem('./dir/file.txt', stdoutMimeType);
+		await renderer!.renderOutputItem(outputItem, outputElement);
+
+		const inserted = outputElement.firstChild as HTMLElement;
+		assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
+		assert.ok(outputElement.innerHTML.indexOf('<a href="./dir/file.txt">') === -1, `inner HTML:\n ${outputElement.innerHTML}`);
+	});
+
 	test(`Render with wordwrap and scrolling for error output`, async () => {
 		LinkDetector.injectedHtmlCreator = (value: string) => value;
 		const context = createContext({ outputWordWrap: true, outputScrolling: true });
@@ -286,7 +316,7 @@ suite('Notebook builtin output renderer', () => {
 		const inserted = outputElement.firstChild as HTMLElement;
 		assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
 		assert.ok(outputElement.classList.contains('remove-padding'), 'Padding should be removed for scrollable outputs');
-		assert.ok(inserted.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
+		assert.ok(outputElement.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
 			`output content classList should contain word-wrap and scrollable ${inserted.classList}`);
 		assert.ok(inserted.innerHTML.indexOf('>Expected type `str`, but received type') > -1, `Content was not added to output element:\n ${outputElement.innerHTML}`);
 		assert.ok(inserted.textContent!.indexOf('Expected type `str`, but received type `<class \'int\'>`') > -1, `Content was not added to output element:\n ${outputElement.textContent}`);
@@ -435,7 +465,7 @@ suite('Notebook builtin output renderer', () => {
 		fireSettingsChange({ outputWordWrap: true, outputScrolling: true });
 
 		const inserted = outputElement.firstChild as HTMLElement;
-		assert.ok(inserted.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
+		assert.ok(outputElement.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
 			`output content classList should contain word-wrap and scrollable ${inserted.classList}`);
 	});
 
@@ -451,5 +481,31 @@ suite('Notebook builtin output renderer', () => {
 
 		assert.equal(settingsChangedHandlers.length, handlerCount);
 	});
+
+	const rawIPythonError = {
+		name: "NameError",
+		message: "name 'x' is not defined",
+		stack: "\u001b[1;31m---------------------------------------------------------------------------\u001b[0m" +
+			"\u001b[1;31mNameError\u001b[0m                                 Traceback (most recent call last)" +
+			"Cell \u001b[1;32mIn[2], line 1\u001b[0m\n\u001b[1;32m----> 1\u001b[0m \u001b[43mmyfunc\u001b[49m\u001b[43m(\u001b[49m\u001b[43m)\u001b[49m\n" +
+			"Cell \u001b[1;32mIn[1], line 2\u001b[0m, in \u001b[0;36mmyfunc\u001b[1;34m()\u001b[0m\n\u001b[0;32m      1\u001b[0m \u001b[38;5;28;01mdef\u001b[39;00m \u001b[38;5;21mmyfunc\u001b[39m():\n\u001b[1;32m----> 2\u001b[0m     \u001b[38;5;28mprint\u001b[39m(\u001b[43mx\u001b[49m)\n" +
+			"\u001b[1;31mNameError\u001b[0m: name 'x' is not defined"
+	};
+
+	test(`Should clean up raw IPython error stack traces`, async () => {
+		LinkDetector.injectedHtmlCreator = (value: string) => value;
+		const context = createContext({ outputWordWrap: true, outputScrolling: true });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputElement = new OutputHtml().getFirstOuputElement();
+		const outputItem = createOutputItem(JSON.stringify(rawIPythonError), errorMimeType);
+		await renderer!.renderOutputItem(outputItem, outputElement);
+
+		const inserted = outputElement.firstChild as HTMLElement;
+		assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
+		assert.ok(outputElement.innerHTML.indexOf('class="code-background-colored"') === -1, `inner HTML:\n ${outputElement.innerHTML}`);
+	});
+
 });
 

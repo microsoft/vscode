@@ -6,7 +6,7 @@
 import {
 	window, languages, Uri, Disposable, commands, QuickPickItem,
 	extensions, workspace, Extension, WorkspaceFolder, QuickPickItemKind,
-	ThemeIcon, TextDocument, LanguageStatusSeverity, l10n
+	ThemeIcon, TextDocument, LanguageStatusSeverity, l10n, DocumentSelector
 } from 'vscode';
 import { JSONLanguageStatus, JSONSchemaSettings } from './jsonClient';
 
@@ -163,7 +163,7 @@ function showSchemaList(input: ShowSchemasInput) {
 	});
 }
 
-export function createLanguageStatusItem(documentSelector: string[], statusRequest: (uri: string) => Promise<JSONLanguageStatus>): Disposable {
+export function createLanguageStatusItem(documentSelector: DocumentSelector, statusRequest: (uri: string) => Promise<JSONLanguageStatus>): Disposable {
 	const statusItem = languages.createLanguageStatusItem('json.projectStatus', documentSelector);
 	statusItem.name = l10n.t('JSON Validation Status');
 	statusItem.severity = LanguageStatusSeverity.Information;
@@ -197,7 +197,7 @@ export function createLanguageStatusItem(documentSelector: string[], statusReque
 				statusItem.command = {
 					command: '_json.showAssociatedSchemaList',
 					title: l10n.t('Show Schemas'),
-					arguments: [{ schemas, uri: document.uri.toString() } as ShowSchemasInput]
+					arguments: [{ schemas, uri: document.uri.toString() } satisfies ShowSchemasInput]
 				};
 			} catch (e) {
 				statusItem.text = l10n.t('Unable to compute used schemas: {0}', e.message);
@@ -268,7 +268,7 @@ export function createLimitStatusItem(newItem: (limit: number) => Disposable) {
 const openSettingsCommand = 'workbench.action.openSettings';
 const configureSettingsLabel = l10n.t('Configure');
 
-export function createDocumentSymbolsLimitItem(documentSelector: string[], settingId: string, limit: number): Disposable {
+export function createDocumentSymbolsLimitItem(documentSelector: DocumentSelector, settingId: string, limit: number): Disposable {
 	const statusItem = languages.createLanguageStatusItem('json.documentSymbolsStatus', documentSelector);
 	statusItem.name = l10n.t('JSON Outline Status');
 	statusItem.severity = LanguageStatusSeverity.Warning;

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { clamp } from 'vs/base/common/numbers';
-import { setGlobalSashSize, setGlobalHoverDelay } from 'vs/base/browser/ui/sash/sash';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { clamp } from '../../../../base/common/numbers.js';
+import { setGlobalSashSize, setGlobalHoverDelay } from '../../../../base/browser/ui/sash/sash.js';
+import { Event } from '../../../../base/common/event.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 
 export const minSize = 1;
 export const maxSize = 20; // see also https://ux.stackexchange.com/questions/39023/what-is-the-optimum-button-size-of-touch-screen-applications
@@ -36,8 +36,8 @@ export class SashSettingsController implements IWorkbenchContribution, IDisposab
 		const size = clamp(configuredSize, 4, 20);
 		const hoverSize = clamp(configuredSize, 1, 8);
 
-		this.layoutService.container.style.setProperty('--vscode-sash-size', size + 'px');
-		this.layoutService.container.style.setProperty('--vscode-sash-hover-size', hoverSize + 'px');
+		this.layoutService.mainContainer.style.setProperty('--vscode-sash-size', size + 'px');
+		this.layoutService.mainContainer.style.setProperty('--vscode-sash-hover-size', hoverSize + 'px');
 		setGlobalSashSize(size);
 	}
 

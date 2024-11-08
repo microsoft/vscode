@@ -11,7 +11,7 @@ import { NpmScriptsTreeDataProvider } from './npmView';
 import { getPackageManager, invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
 import { NpmScriptLensProvider } from './npmScriptLens';
-import * as which from 'which';
+import which from 'which';
 
 let treeDataProvider: NpmScriptsTreeDataProvider | undefined;
 
@@ -78,7 +78,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			}
 
 			const lines = outputMatch.regexMatch[1];
-			const fixes: vscode.TerminalQuickFixExecuteTerminalCommand[] = [];
+			const fixes: vscode.TerminalQuickFixTerminalCommand[] = [];
 			for (const line of lines.split('\n')) {
 				// search from the second char, since the lines might be prefixed with
 				// "npm ERR!" which comes before the actual command suggestion.

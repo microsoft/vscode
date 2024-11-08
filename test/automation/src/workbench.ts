@@ -24,7 +24,7 @@ import { Localization } from './localization';
 import { Task } from './task';
 
 export interface Commands {
-	runCommand(command: string): Promise<any>;
+	runCommand(command: string, options?: { exactLabelMatch?: boolean }): Promise<any>;
 }
 
 export class Workbench {

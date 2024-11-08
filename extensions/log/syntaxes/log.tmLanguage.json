@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/8acba9307254d1887ac770057767698c82d926c6",
+	"version": "https://github.com/emilast/vscode-logfile-highlighter/commit/eb50e785c27b4b4f7dbf6c0e801c58fe91baef5d",
 	"name": "Log file",
 	"scopeName": "text.log",
 	"patterns": [
@@ -113,7 +113,7 @@
 			"name": "string.regexp, emphasis log.exceptiontype"
 		},
 		{
-			"begin": "^[\\t ]*at",
+			"begin": "^[\\t ]*at[\\t ]",
 			"end": "$",
 			"name": "string.key, emphasis log.exception"
 		},

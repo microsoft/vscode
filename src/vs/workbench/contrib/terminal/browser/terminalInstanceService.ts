@@ -3,47 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalBackend, ITerminalBackendRegistry, ITerminalProfile, TerminalExtensions, TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { URI } from 'vs/base/common/uri';
-import { Emitter, Event } from 'vs/base/common/event';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ITerminalInstance, ITerminalInstanceService } from './terminal.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IShellLaunchConfig, ITerminalBackend, ITerminalBackendRegistry, ITerminalProfile, TerminalExtensions, TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { TerminalInstance } from './terminalInstance.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { TerminalContextKeys } from '../common/terminalContextKey.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { promiseWithResolvers } from '../../../../base/common/async.js';
 
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	declare _serviceBrand: undefined;
 	private _terminalShellTypeContextKey: IContextKey<string>;
-	private _terminalInRunCommandPicker: IContextKey<boolean>;
-	private _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
-	private _configHelper: TerminalConfigHelper;
 	private _backendRegistration = new Map<string | undefined, { promise: Promise<void>; resolve: () => void }>();
 
 	private readonly _onDidCreateInstance = this._register(new Emitter<ITerminalInstance>());
 	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
 
+	private readonly _onDidRegisterBackend = this._register(new Emitter<ITerminalBackend>());
+	get onDidRegisterBackend(): Event<ITerminalBackend> { return this._onDidRegisterBackend.event; }
+
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IWorkbenchEnvironmentService readonly _environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._terminalShellTypeContextKey = TerminalContextKeys.shellType.bindTo(this._contextKeyService);
-		this._terminalInRunCommandPicker = TerminalContextKeys.inTerminalRunCommandPicker.bindTo(this._contextKeyService);
-		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
-		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
 
-
-		for (const remoteAuthority of [undefined, _environmentService.remoteAuthority]) {
-			let resolve: () => void;
-			const p = new Promise<void>(r => resolve = r);
-			this._backendRegistration.set(remoteAuthority, { promise: p, resolve: resolve! });
+		for (const remoteAuthority of [undefined, environmentService.remoteAuthority]) {
+			const { promise, resolve } = promiseWithResolvers<void>();
+			this._backendRegistration.set(remoteAuthority, { promise, resolve });
 		}
 	}
 
@@ -51,13 +46,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	createInstance(shellLaunchConfig: IShellLaunchConfig, target: TerminalLocation): ITerminalInstance;
 	createInstance(config: IShellLaunchConfig | ITerminalProfile, target: TerminalLocation): ITerminalInstance {
 		const shellLaunchConfig = this.convertProfileToShellLaunchConfig(config);
-		const instance = this._instantiationService.createInstance(TerminalInstance,
-			this._terminalShellTypeContextKey,
-			this._terminalInRunCommandPicker,
-			this._terminalSuggestWidgetVisibleContextKey,
-			this._configHelper,
-			shellLaunchConfig
-		);
+		const instance = this._instantiationService.createInstance(TerminalInstance, this._terminalShellTypeContextKey, shellLaunchConfig);
 		instance.target = target;
 		this._onDidCreateInstance.fire(instance);
 		return instance;
@@ -107,8 +96,9 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).backends.values();
 	}
 
-	didRegisterBackend(remoteAuthority?: string) {
-		this._backendRegistration.get(remoteAuthority)?.resolve();
+	didRegisterBackend(backend: ITerminalBackend) {
+		this._backendRegistration.get(backend.remoteAuthority)?.resolve();
+		this._onDidRegisterBackend.fire(backend);
 	}
 }
 

@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { INotebookEditorDelegate, NotebookOverviewRulerLane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getWindow } from '../../../../../base/browser/dom.js';
+import { createFastDomNode, FastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { PixelRatio } from '../../../../../base/browser/pixelRatio.js';
+import { IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
+import { INotebookEditorDelegate, NotebookOverviewRulerLane } from '../notebookBrowser.js';
 
 export class NotebookOverviewRuler extends Themable {
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
@@ -25,7 +26,7 @@ export class NotebookOverviewRuler extends Themable {
 			this.layout();
 		}));
 
-		this._register(browser.PixelRatio.onDidChange(() => {
+		this._register(PixelRatio.getInstance(getWindow(this._domNode.domNode)).onDidChange(() => {
 			this.layout();
 		}));
 	}
@@ -35,7 +36,7 @@ export class NotebookOverviewRuler extends Themable {
 		const layoutInfo = this.notebookEditor.getLayoutInfo();
 		const scrollHeight = layoutInfo.scrollHeight;
 		const height = layoutInfo.height;
-		const ratio = browser.PixelRatio.value;
+		const ratio = PixelRatio.getInstance(getWindow(this._domNode.domNode)).value;
 		this._domNode.setWidth(width);
 		this._domNode.setHeight(height);
 		this._domNode.domNode.width = width * ratio;

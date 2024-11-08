@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancelablePromise, createCancelablePromise, raceTimeout } from 'vs/base/common/async';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IAiRelatedInformationService, IAiRelatedInformationProvider, RelatedInformationType, RelatedInformationResult } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancelablePromise, createCancelablePromise, raceTimeout } from '../../../../base/common/async.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IAiRelatedInformationService, IAiRelatedInformationProvider, RelatedInformationType, RelatedInformationResult } from './aiRelatedInformation.js';
 
 export class AiRelatedInformationService implements IAiRelatedInformationService {
 	readonly _serviceBrand: undefined;
@@ -83,7 +83,7 @@ export class AiRelatedInformationService implements IAiRelatedInformationService
 				AiRelatedInformationService.DEFAULT_TIMEOUT,
 				() => {
 					cancellablePromises.forEach(p => p.cancel());
-					throw new Error('Related information provider timed out');
+					this.logService.warn('[AiRelatedInformationService]: Related information provider timed out');
 				}
 			);
 			if (!results) {
@@ -91,8 +91,7 @@ export class AiRelatedInformationService implements IAiRelatedInformationService
 			}
 			const result = results
 				.filter(r => r.status === 'fulfilled')
-				.map(r => (r as PromiseFulfilledResult<RelatedInformationResult[]>).value)
-				.flat();
+				.flatMap(r => (r as PromiseFulfilledResult<RelatedInformationResult[]>).value);
 			return result;
 		} finally {
 			stopwatch.stop();

@@ -8,6 +8,7 @@ import type Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { ILogger } from './logging';
 import { MarkdownContributionProvider } from './markdownExtensions';
+import { MarkdownPreviewConfiguration } from './preview/previewConfig';
 import { Slugifier } from './slugify';
 import { ITextDocument } from './types/textDocument';
 import { WebviewResourceProvider } from './util/resources';
@@ -54,7 +55,7 @@ class TokenCache {
 	public tryGetCached(document: ITextDocument, config: MarkdownItConfig): Token[] | undefined {
 		if (this._cachedDocument
 			&& this._cachedDocument.uri.toString() === document.uri.toString()
-			&& this._cachedDocument.version === document.version
+			&& document.version >= 0 && this._cachedDocument.version === document.version
 			&& this._cachedDocument.config.breaks === config.breaks
 			&& this._cachedDocument.config.linkify === config.linkify
 		) {
@@ -118,11 +119,17 @@ export class MarkdownItEngine implements IMdParser {
 		});
 	}
 
+
+	public async getEngine(resource: vscode.Uri | undefined): Promise<MarkdownIt> {
+		const config = this._getConfig(resource);
+		return this._getEngine(config);
+	}
+
 	private async _getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
 		if (!this._md) {
 			this._md = (async () => {
 				const markdownIt = await import('markdown-it');
-				let md: MarkdownIt = markdownIt(await getMarkdownOptions(() => md));
+				let md: MarkdownIt = markdownIt.default(await getMarkdownOptions(() => md));
 				md.linkify.set({ fuzzyLink: false });
 
 				for (const plugin of this._contributionProvider.contributions.markdownItPlugins.values()) {
@@ -136,7 +143,7 @@ export class MarkdownItEngine implements IMdParser {
 				const frontMatterPlugin = await import('markdown-it-front-matter');
 				// Extract rules from front matter plugin and apply at a lower precedence
 				let fontMatterRule: any;
-				frontMatterPlugin({
+				frontMatterPlugin.default(<any>{
 					block: {
 						ruler: {
 							before: (_id: any, _id2: any, rule: any) => { fontMatterRule = rule; }
@@ -231,11 +238,11 @@ export class MarkdownItEngine implements IMdParser {
 	}
 
 	private _getConfig(resource?: vscode.Uri): MarkdownItConfig {
-		const config = vscode.workspace.getConfiguration('markdown', resource ?? null);
+		const config = MarkdownPreviewConfiguration.getForResource(resource ?? null);
 		return {
-			breaks: config.get<boolean>('preview.breaks', false),
-			linkify: config.get<boolean>('preview.linkify', true),
-			typographer: config.get<boolean>('preview.typographer', false)
+			breaks: config.previewLineBreaks,
+			linkify: config.previewLinkify,
+			typographer: config.previewTypographer,
 		};
 	}
 
@@ -306,7 +313,7 @@ export class MarkdownItEngine implements IMdParser {
 	private _addNamedHeaders(md: MarkdownIt): void {
 		const original = md.renderer.rules.heading_open;
 		md.renderer.rules.heading_open = (tokens: Token[], idx: number, options, env, self) => {
-			const title = tokens[idx + 1].children!.reduce<string>((acc, t) => acc + t.content, '');
+			const title = this._tokenToPlainText(tokens[idx + 1]);
 			let slug = this.slugifier.fromHeading(title);
 
 			if (this._slugCount.has(slug.value)) {
@@ -325,6 +332,21 @@ export class MarkdownItEngine implements IMdParser {
 				return self.renderToken(tokens, idx, options);
 			}
 		};
+	}
+
+	private _tokenToPlainText(token: Token): string {
+		if (token.children) {
+			return token.children.map(x => this._tokenToPlainText(x)).join('');
+		}
+
+		switch (token.type) {
+			case 'text':
+			case 'emoji':
+			case 'code_inline':
+				return token.content;
+			default:
+				return '';
+		}
 	}
 
 	private _addLinkRenderer(md: MarkdownIt): void {
@@ -398,15 +420,14 @@ async function getMarkdownOptions(md: () => MarkdownIt): Promise<MarkdownIt.Opti
 			lang = normalizeHighlightLang(lang);
 			if (lang && hljs.getLanguage(lang)) {
 				try {
-					const highlighted = hljs.highlight(str, {
+					return hljs.highlight(str, {
 						language: lang,
 						ignoreIllegals: true,
 					}).value;
-					return `<div>${highlighted}</div>`;
 				}
 				catch (error) { }
 			}
-			return `<code><div>${md().utils.escapeHtml(str)}</div></code>`;
+			return md().utils.escapeHtml(str);
 		}
 	};
 }

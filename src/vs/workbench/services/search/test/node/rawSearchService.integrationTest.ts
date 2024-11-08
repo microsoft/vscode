@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { flakySuite } from 'vs/base/test/node/testUtils';
-import { IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, ISearchEngine, ISearchEngineStats, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isSerializedSearchComplete, isSerializedSearchSuccess, QueryType } from 'vs/workbench/services/search/common/search';
-import { IProgressCallback, SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
+import assert from 'assert';
+import { CancelablePromise, createCancelablePromise } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { FileAccess } from '../../../../../base/common/network.js';
+import * as path from '../../../../../base/common/path.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { flakySuite } from '../../../../../base/test/node/testUtils.js';
+import { IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, ISearchEngine, ISearchEngineStats, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isSerializedSearchComplete, isSerializedSearchSuccess, QueryType } from '../../common/search.js';
+import { IProgressCallback, SearchService as RawSearchService } from '../../node/rawSearchService.js';
 
 const TEST_FOLDER_QUERIES = [
 	{ folder: URI.file(path.normalize('/some/where')) }
@@ -98,6 +98,9 @@ flakySuite('RawSearchService', () => {
 
 		let results = 0;
 		const cb: (p: ISerializedSearchProgressItem) => void = value => {
+			if (!!(<IProgressMessage>value).message) {
+				return;
+			}
 			if (!Array.isArray(value)) {
 				assert.deepStrictEqual(value, match);
 				results++;
@@ -117,6 +120,9 @@ flakySuite('RawSearchService', () => {
 
 		const results: number[] = [];
 		const cb: (p: ISerializedSearchProgressItem) => void = value => {
+			if (!!(<IProgressMessage>value).message) {
+				return;
+			}
 			if (Array.isArray(value)) {
 				value.forEach(m => {
 					assert.deepStrictEqual(m, match);
@@ -227,6 +233,9 @@ flakySuite('RawSearchService', () => {
 
 		const results: any[] = [];
 		const cb: IProgressCallback = value => {
+			if (!!(<IProgressMessage>value).message) {
+				return;
+			}
 			if (Array.isArray(value)) {
 				results.push(...value.map(v => v.path));
 			} else {
@@ -252,6 +261,9 @@ flakySuite('RawSearchService', () => {
 
 		const results: number[] = [];
 		const cb: IProgressCallback = value => {
+			if (!!(<IProgressMessage>value).message) {
+				return;
+			}
 			if (Array.isArray(value)) {
 				value.forEach(m => {
 					assert.deepStrictEqual(m, match);
@@ -285,6 +297,9 @@ flakySuite('RawSearchService', () => {
 
 		const results: any[] = [];
 		const cb: IProgressCallback = value => {
+			if (!!(<IProgressMessage>value).message) {
+				return;
+			}
 			if (Array.isArray(value)) {
 				results.push(...value.map(v => v.path));
 			} else {
@@ -331,6 +346,9 @@ flakySuite('RawSearchService', () => {
 			});
 			const results: any[] = [];
 			const cb: IProgressCallback = value => {
+				if (!!(<IProgressMessage>value).message) {
+					return;
+				}
 				if (Array.isArray(value)) {
 					results.push(...value.map(v => v.path));
 				} else {

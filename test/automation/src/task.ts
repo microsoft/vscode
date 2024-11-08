@@ -35,7 +35,7 @@ export class Task {
 	async assertTasks(filter: string, expected: ITaskConfigurationProperties[], type: 'run' | 'configure') {
 		await this.code.dispatchKeybinding('right');
 		await this.editors.saveOpenedFile();
-		type === 'run' ? await this.quickaccess.runCommand('workbench.action.tasks.runTask', true) : await this.quickaccess.runCommand('workbench.action.tasks.configureTask', true);
+		type === 'run' ? await this.quickaccess.runCommand('workbench.action.tasks.runTask', { keepOpen: true }) : await this.quickaccess.runCommand('workbench.action.tasks.configureTask', { keepOpen: true });
 		if (expected.length === 0) {
 			await this.quickinput.waitForQuickInputElements(e => e.length > 1 && e.every(label => label.trim() !== filter.trim()));
 		} else {

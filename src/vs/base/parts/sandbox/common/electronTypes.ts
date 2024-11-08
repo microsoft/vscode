@@ -7,7 +7,7 @@
 // #######################################################################
 // ###                                                                 ###
 // ###      electron.d.ts types we need in a common layer for reuse    ###
-// ###                    (copied from Electron 16.x)                  ###
+// ###                    (copied from Electron 29.x)                  ###
 // ###                                                                 ###
 // #######################################################################
 
@@ -148,9 +148,9 @@ export interface SaveDialogReturnValue {
 	 */
 	canceled: boolean;
 	/**
-	 * If the dialog is canceled, this will be `undefined`.
+	 * If the dialog is canceled, this will be an empty string.
 	 */
-	filePath?: string;
+	filePath: string;
 	/**
 	 * Base64 encoded string which contains the security scoped bookmark data for the
 	 * saved file. `securityScopedBookmarks` must be enabled for this to be present.
@@ -219,16 +219,20 @@ export interface FileFilter {
 
 export interface OpenDevToolsOptions {
 	/**
-	 * Opens the devtools with specified dock state, can be `right`, `bottom`,
+	 * Opens the devtools with specified dock state, can be `left`, `right`, `bottom`,
 	 * `undocked`, `detach`. Defaults to last used dock state. In `undocked` mode it's
 	 * possible to dock back. In `detach` mode it's not.
 	 */
-	mode: ('right' | 'bottom' | 'undocked' | 'detach');
+	mode: ('left' | 'right' | 'bottom' | 'undocked' | 'detach');
 	/**
 	 * Whether to bring the opened devtools window to the foreground. The default is
 	 * `true`.
 	 */
 	activate?: boolean;
+	/**
+	 * A title for the DevTools window (only in `undocked` or `detach` mode).
+	 */
+	title?: string;
 }
 
 interface InputEvent {
@@ -241,6 +245,19 @@ interface InputEvent {
 	 * `middleButtonDown`, `rightButtonDown`, `capsLock`, `numLock`, `left`, `right`.
 	 */
 	modifiers?: Array<'shift' | 'control' | 'ctrl' | 'alt' | 'meta' | 'command' | 'cmd' | 'isKeypad' | 'isAutoRepeat' | 'leftButtonDown' | 'middleButtonDown' | 'rightButtonDown' | 'capsLock' | 'numLock' | 'left' | 'right'>;
+	/**
+	 * Can be `undefined`, `mouseDown`, `mouseUp`, `mouseMove`, `mouseEnter`,
+	 * `mouseLeave`, `contextMenu`, `mouseWheel`, `rawKeyDown`, `keyDown`, `keyUp`,
+	 * `char`, `gestureScrollBegin`, `gestureScrollEnd`, `gestureScrollUpdate`,
+	 * `gestureFlingStart`, `gestureFlingCancel`, `gesturePinchBegin`,
+	 * `gesturePinchEnd`, `gesturePinchUpdate`, `gestureTapDown`, `gestureShowPress`,
+	 * `gestureTap`, `gestureTapCancel`, `gestureShortPress`, `gestureLongPress`,
+	 * `gestureLongTap`, `gestureTwoFingerTap`, `gestureTapUnconfirmed`,
+	 * `gestureDoubleTap`, `touchStart`, `touchMove`, `touchEnd`, `touchCancel`,
+	 * `touchScrollStarted`, `pointerDown`, `pointerUp`, `pointerMove`,
+	 * `pointerRawUpdate`, `pointerCancel` or `pointerCausedUaAction`.
+	 */
+	type: ('undefined' | 'mouseDown' | 'mouseUp' | 'mouseMove' | 'mouseEnter' | 'mouseLeave' | 'contextMenu' | 'mouseWheel' | 'rawKeyDown' | 'keyDown' | 'keyUp' | 'char' | 'gestureScrollBegin' | 'gestureScrollEnd' | 'gestureScrollUpdate' | 'gestureFlingStart' | 'gestureFlingCancel' | 'gesturePinchBegin' | 'gesturePinchEnd' | 'gesturePinchUpdate' | 'gestureTapDown' | 'gestureShowPress' | 'gestureTap' | 'gestureTapCancel' | 'gestureShortPress' | 'gestureLongPress' | 'gestureLongTap' | 'gestureTwoFingerTap' | 'gestureTapUnconfirmed' | 'gestureDoubleTap' | 'touchStart' | 'touchMove' | 'touchEnd' | 'touchCancel' | 'touchScrollStarted' | 'pointerDown' | 'pointerUp' | 'pointerMove' | 'pointerRawUpdate' | 'pointerCancel' | 'pointerCausedUaAction');
 }
 
 export interface MouseInputEvent extends InputEvent {

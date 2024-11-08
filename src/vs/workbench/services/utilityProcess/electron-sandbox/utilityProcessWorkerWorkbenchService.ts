@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService } from 'vs/platform/log/common/log';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IPCClient, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { generateUuid } from 'vs/base/common/uuid';
-import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
-import { IOnDidTerminateUtilityrocessWorkerProcess, ipcUtilityProcessWorkerChannelName, IUtilityProcessWorkerProcess, IUtilityProcessWorkerService } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
-import { Barrier, timeout } from 'vs/base/common/async';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
+import { Client as MessagePortClient } from '../../../../base/parts/ipc/common/ipc.mp.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IPCClient, ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { acquirePort } from '../../../../base/parts/ipc/electron-sandbox/ipc.mp.js';
+import { IOnDidTerminateUtilityrocessWorkerProcess, ipcUtilityProcessWorkerChannelName, IUtilityProcessWorkerProcess, IUtilityProcessWorkerService } from '../../../../platform/utilityProcess/common/utilityProcessWorkerService.js';
+import { Barrier, timeout } from '../../../../base/common/async.js';
 
 export const IUtilityProcessWorkerWorkbenchService = createDecorator<IUtilityProcessWorkerWorkbenchService>('utilityProcessWorkerWorkbenchService');
 
@@ -43,7 +43,7 @@ export interface IUtilityProcessWorkerWorkbenchService {
 	 * Will fork a new process with the provided module identifier in a utility
 	 * process and establishes a message port connection to that process.
 	 *
-	 * Requires the forked process to be AMD module that uses our IPC channel framework
+	 * Requires the forked process to be ES module that uses our IPC channel framework
 	 * to respond to the provided `channelName` as a server.
 	 *
 	 * The process will be automatically terminated when the workbench window closes,

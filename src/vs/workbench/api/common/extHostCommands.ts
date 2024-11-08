@@ -5,37 +5,38 @@
 
 /* eslint-disable local/code-no-native-private */
 
-import { validateConstraint } from 'vs/base/common/types';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import { cloneAndChange } from 'vs/base/common/objects';
-import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ICommandDto, ICommandHandlerDescriptionDto, MainThreadTelemetryShape } from './extHost.protocol';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import * as languages from 'vs/editor/common/languages';
+import { validateConstraint } from '../../../base/common/types.js';
+import { ICommandMetadata } from '../../../platform/commands/common/commands.js';
+import * as extHostTypes from './extHostTypes.js';
+import * as extHostTypeConverter from './extHostTypeConverters.js';
+import { cloneAndChange } from '../../../base/common/objects.js';
+import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ICommandDto, ICommandMetadataDto, MainThreadTelemetryShape } from './extHost.protocol.js';
+import { isNonEmptyArray } from '../../../base/common/arrays.js';
+import * as languages from '../../../editor/common/languages.js';
 import type * as vscode from 'vscode';
-import { ILogService } from 'vs/platform/log/common/log';
-import { revive } from 'vs/base/common/marshalling';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { URI } from 'vs/base/common/uri';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ISelection } from 'vs/editor/common/core/selection';
-import { TestItemImpl } from 'vs/workbench/api/common/extHostTestItem';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { revive } from '../../../base/common/marshalling.js';
+import { IRange, Range } from '../../../editor/common/core/range.js';
+import { IPosition, Position } from '../../../editor/common/core/position.js';
+import { URI } from '../../../base/common/uri.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { ISelection } from '../../../editor/common/core/selection.js';
+import { TestItemImpl } from './extHostTestItem.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { TelemetryTrustedValue } from '../../../platform/telemetry/common/telemetryUtils.js';
+import { IExtHostTelemetry } from './extHostTelemetry.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 
 interface CommandHandler {
 	callback: Function;
 	thisArg: any;
-	description?: ICommandHandlerDescription;
+	metadata?: ICommandMetadata;
 	extension?: IExtensionDescription;
 }
 
@@ -144,7 +145,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	registerCommand(global: boolean, id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription, extension?: IExtensionDescription): extHostTypes.Disposable {
+	registerCommand(global: boolean, id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, metadata?: ICommandMetadata, extension?: IExtensionDescription): extHostTypes.Disposable {
 		this._logService.trace('ExtHostCommands#registerCommand', id);
 
 		if (!id.trim().length) {
@@ -155,7 +156,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			throw new Error(`command '${id}' already exists`);
 		}
 
-		this._commands.set(id, { callback, thisArg, description, extension });
+		this._commands.set(id, { callback, thisArg, metadata, extension });
 		if (global) {
 			this.#proxy.$registerCommand(id);
 		}
@@ -232,13 +233,13 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		if (!command) {
 			throw new Error('Unknown command');
 		}
-		const { callback, thisArg, description } = command;
-		if (description) {
-			for (let i = 0; i < description.args.length; i++) {
+		const { callback, thisArg, metadata } = command;
+		if (metadata?.args) {
+			for (let i = 0; i < metadata.args.length; i++) {
 				try {
-					validateConstraint(args[i], description.args[i].constraint);
+					validateConstraint(args[i], metadata.args[i].constraint);
 				} catch (err) {
-					throw new Error(`Running the contributed command: '${id}' failed.Illegal argument '${description.args[i].name}' - ${description.args[i].description} `);
+					throw new Error(`Running the contributed command: '${id}' failed. Illegal argument '${metadata.args[i].name}' - ${metadata.args[i].description}`);
 				}
 			}
 		}
@@ -291,7 +292,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		type ExtensionActionTelemetryMeta = {
 			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the extension handling the command, informing which extensions provide most-used functionality.' };
 			id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the command, to understand which specific extension features are most popular.' };
-			duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The duration of the command execution, to detect performance issues' };
+			duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration of the command execution, to detect performance issues' };
 			owner: 'digitarald';
 			comment: 'Used to gain insight on the most popular commands used from extensions';
 		};
@@ -325,12 +326,12 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescriptionDto }> {
-		const result: { [id: string]: string | ICommandHandlerDescription } = Object.create(null);
+	$getContributedCommandMetadata(): Promise<{ [id: string]: string | ICommandMetadataDto }> {
+		const result: { [id: string]: string | ICommandMetadata } = Object.create(null);
 		for (const [id, command] of this._commands) {
-			const { description } = command;
-			if (description) {
-				result[id] = description;
+			const { metadata } = command;
+			if (metadata) {
+				result[id] = metadata;
 			}
 		}
 		return Promise.resolve(result);
@@ -342,7 +343,7 @@ export const IExtHostCommands = createDecorator<IExtHostCommands>('IExtHostComma
 
 export class CommandsConverter implements extHostTypeConverter.Command.ICommandsConverter {
 
-	readonly delegatingCommandId: string = `__vsc${Date.now().toString(36)} `;
+	readonly delegatingCommandId: string = `__vsc${generateUuid()}`;
 	private readonly _cache = new Map<string, vscode.Command>();
 	private _cachIdPool = 0;
 

@@ -55,7 +55,7 @@
 .monaco-action-bar .action-item.disabled .action-label,
 .monaco-action-bar .action-item.disabled .action-label::before,
 .monaco-action-bar .action-item.disabled .action-label:hover {
-	opacity: 0.6;
+	color: var(--vscode-disabledForeground);
 }
 
 /* Vertical actions */

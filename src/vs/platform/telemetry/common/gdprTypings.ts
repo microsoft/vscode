@@ -8,7 +8,6 @@ export interface IPropertyData {
 	comment: string;
 	expiration?: string;
 	endpoint?: string;
-	isMeasurement?: boolean;
 }
 
 export interface IGDPRProperty {

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { onUnexpectedError } from '../../../base/common/errors.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../extensions/common/extensions.js';
 
 export interface IActivationEventsGenerator<T> {
 	(contributions: T[], result: { push(item: string): void }): void;
@@ -51,6 +51,14 @@ export class ImplicitActivationEventsImpl {
 		}
 
 		const activationEvents: string[] = (Array.isArray(desc.activationEvents) ? desc.activationEvents.slice(0) : []);
+
+		for (let i = 0; i < activationEvents.length; i++) {
+			// TODO@joao: there's no easy way to contribute this
+			if (activationEvents[i] === 'onUri') {
+				activationEvents[i] = `onUri:${ExtensionIdentifier.toKey(desc.identifier)}`;
+			}
+		}
+
 		if (!desc.contributes) {
 			// no implicit activation events
 			return activationEvents;

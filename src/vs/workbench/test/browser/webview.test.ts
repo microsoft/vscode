@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { parentOriginHash } from 'vs/base/browser/iframe';
+import assert from 'assert';
+import { parentOriginHash } from '../../../base/browser/iframe.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 
 suite('parentOriginHash', () => {
 
@@ -22,4 +23,6 @@ suite('parentOriginHash', () => {
 		const hash = await parentOriginHash('http://localhost:9887', '123456');
 		assert.strictEqual(hash, '1v1128i162q0nee9l89360sqan26u3pdnjrkke5ijd0sel8sbtqf');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

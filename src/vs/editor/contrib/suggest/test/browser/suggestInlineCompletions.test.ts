@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, InlineCompletionTriggerKind, ProviderResult } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { SuggestInlineCompletions } from 'vs/editor/contrib/suggest/browser/suggestInlineCompletions';
-import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
-import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import assert from 'assert';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, InlineCompletionContext, InlineCompletionTriggerKind, ProviderResult } from '../../../../common/languages.js';
+import { ITextModel } from '../../../../common/model.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { SuggestInlineCompletions } from '../../browser/suggestInlineCompletions.js';
+import { ISuggestMemoryService } from '../../browser/suggestMemory.js';
+import { createCodeEditorServices, instantiateTestCodeEditor, ITestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 
 suite('Suggest Inline Completions', function () {
@@ -44,7 +44,7 @@ suite('Suggest Inline Completions', function () {
 		editor.updateOptions({ quickSuggestions: { comments: 'inline', strings: 'inline', other: 'inline' } });
 
 		insta.invokeFunction(accessor => {
-			accessor.get(ILanguageFeaturesService).completionProvider.register({ pattern: '*.bar', scheme: 'foo' }, new class implements CompletionItemProvider {
+			disposables.add(accessor.get(ILanguageFeaturesService).completionProvider.register({ pattern: '*.bar', scheme: 'foo' }, new class implements CompletionItemProvider {
 				_debugDisplayName = 'test';
 
 				triggerCharacters?: string[] | undefined;
@@ -57,11 +57,11 @@ suite('Suggest Inline Completions', function () {
 					const suggestions: CompletionItem[] = [];
 					suggestions.push({ insertText: 'hello', label: 'hello', range, kind: CompletionItemKind.Class });
 					suggestions.push({ insertText: 'hell', label: 'hell', range, kind: CompletionItemKind.Class });
-					suggestions.push({ insertText: 'hey', label: 'hey', range, kind: CompletionItemKind.Class });
+					suggestions.push({ insertText: 'hey', label: 'hey', range, kind: CompletionItemKind.Snippet });
 					return { suggestions };
 				}
 
-			});
+			}));
 		});
 	});
 
@@ -74,20 +74,42 @@ suite('Suggest Inline Completions', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	const context: InlineCompletionContext = { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined, includeInlineCompletions: true, includeInlineEdits: false };
+
 	test('Aggressive inline completions when typing within line #146948', async function () {
 
-		const completions: SuggestInlineCompletions = insta.createInstance(SuggestInlineCompletions, (id) => editor.getOption(id));
+		const completions: SuggestInlineCompletions = disposables.add(insta.createInstance(SuggestInlineCompletions));
 
 		{
 			// (1,3), end of word -> suggestions
-			const result = await completions.provideInlineCompletions(model, new Position(1, 3), { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined }, CancellationToken.None);
+			const result = await completions.provideInlineCompletions(model, new Position(1, 3), context, CancellationToken.None);
 			assert.strictEqual(result?.items.length, 3);
 			completions.freeInlineCompletions(result);
 		}
 		{
 			// (1,2), middle of word -> NO suggestions
-			const result = await completions.provideInlineCompletions(model, new Position(1, 2), { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined }, CancellationToken.None);
+			const result = await completions.provideInlineCompletions(model, new Position(1, 2), context, CancellationToken.None);
 			assert.ok(result === undefined);
 		}
+	});
+
+	test('Snippets show in inline suggestions even though they are turned off #175190', async function () {
+		const completions: SuggestInlineCompletions = disposables.add(insta.createInstance(SuggestInlineCompletions));
+
+		{
+			// unfiltered
+			const result = await completions.provideInlineCompletions(model, new Position(1, 3), context, CancellationToken.None);
+			assert.strictEqual(result?.items.length, 3);
+			completions.freeInlineCompletions(result);
+		}
+
+		{
+			// filtered
+			editor.updateOptions({ suggest: { showSnippets: false } });
+			const result = await completions.provideInlineCompletions(model, new Position(1, 3), context, CancellationToken.None);
+			assert.strictEqual(result?.items.length, 2);
+			completions.freeInlineCompletions(result);
+		}
+
 	});
 });

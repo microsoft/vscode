@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { localize } from 'vs/nls';
-import { ILogger, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
-import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { joinPath } from 'vs/base/common/resources';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { Event } from '../../../base/common/event.js';
+import { localize } from '../../../nls.js';
+import { ILogger, ILoggerService, LogLevel } from '../../log/common/log.js';
+import { ITerminalLogService } from './terminal.js';
+import { IWorkspaceContextService } from '../../workspace/common/workspace.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { joinPath } from '../../../base/common/resources.js';
 
 export class TerminalLogService extends Disposable implements ITerminalLogService {
 	declare _serviceBrand: undefined;

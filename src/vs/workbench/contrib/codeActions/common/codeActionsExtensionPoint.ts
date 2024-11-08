@@ -3,9 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
+import * as nls from '../../../../nls.js';
+import { IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { languagesExtPoint } from '../../../services/language/common/languageService.js';
+import { Extensions as ExtensionFeaturesExtensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../../services/extensionManagement/common/extensionFeatures.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 enum CodeActionExtensionPointFields {
 	languages = 'languages',
@@ -65,3 +71,57 @@ export const codeActionsExtensionPointDescriptor = {
 	deps: [languagesExtPoint],
 	jsonSchema: codeActionsExtensionPointSchema
 };
+
+class CodeActionsTableRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.codeActions;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const codeActions = manifest.contributes?.codeActions || [];
+		if (!codeActions.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const flatActions =
+			codeActions.map(contribution =>
+				contribution.actions.map(action => ({ ...action, languages: contribution.languages }))).flat();
+
+		const headers = [
+			nls.localize('codeActions.title', "Title"),
+			nls.localize('codeActions.kind', "Kind"),
+			nls.localize('codeActions.description', "Description"),
+			nls.localize('codeActions.languages', "Languages")
+		];
+
+		const rows: IRowData[][] = flatActions.sort((a, b) => a.title.localeCompare(b.title))
+			.map(action => {
+				return [
+					action.title,
+					new MarkdownString().appendMarkdown(`\`${action.kind}\``),
+					action.description ?? '',
+					new MarkdownString().appendMarkdown(`${action.languages.map(lang => `\`${lang}\``).join('&nbsp;')}`),
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(ExtensionFeaturesExtensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'codeActions',
+	label: nls.localize('codeactions', "Code Actions"),
+	access: {
+		canToggle: false,
+	},
+	renderer: new SyncDescriptor(CodeActionsTableRenderer),
+});

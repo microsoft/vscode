@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok } from 'vs/base/common/assert';
-import { Schemas } from 'vs/base/common/network';
-import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/core/wordHelper';
-import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { EndOfLine, Position, Range } from 'vs/workbench/api/common/extHostTypes';
+import { ok } from '../../../base/common/assert.js';
+import { Schemas } from '../../../base/common/network.js';
+import { regExpLeadsToEndlessLoop } from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import { MirrorTextModel } from '../../../editor/common/model/mirrorTextModel.js';
+import { ensureValidWordDefinition, getWordAtText } from '../../../editor/common/core/wordHelper.js';
+import { MainThreadDocumentsShape } from './extHost.protocol.js';
+import { EndOfLine, Position, Range } from './extHostTypes.js';
 import type * as vscode from 'vscode';
-import { equals } from 'vs/base/common/arrays';
+import { equals } from '../../../base/common/arrays.js';
 
 const _languageId2WordDefinition = new Map<string, RegExp>();
 export function setWordDefinitionFor(languageId: string, wordDefinition: RegExp | undefined): void {
@@ -37,11 +37,11 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		uri: URI, lines: string[], eol: string, versionId: number,
 		private _languageId: string,
 		private _isDirty: boolean,
-		public readonly notebook?: vscode.NotebookDocument | undefined
 	) {
 		super(uri, lines, eol, versionId);
 	}
 
+	// eslint-disable-next-line local/code-must-use-super-dispose
 	override dispose(): void {
 		// we don't really dispose documents but let
 		// extensions still read from them. some
@@ -76,6 +76,9 @@ export class ExtHostDocumentData extends MirrorTextModel {
 				validateRange(ran) { return that._validateRange(ran); },
 				validatePosition(pos) { return that._validatePosition(pos); },
 				getWordRangeAtPosition(pos, regexp?) { return that._getWordRangeAtPosition(pos, regexp); },
+				[Symbol.for('debug.description')]() {
+					return `TextDocument(${that._uri.toString()})`;
+				}
 			};
 		}
 		return Object.freeze(this._document);

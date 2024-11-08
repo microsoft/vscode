@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Lazy } from 'vs/base/common/lazy';
+import assert from 'assert';
+import { Lazy } from '../../common/lazy.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Lazy', () => {
 
@@ -27,4 +28,6 @@ suite('Lazy', () => {
 		assert.strictEqual(value.hasValue, true);
 		assert.throws(() => value.value, /\b1\b/);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
