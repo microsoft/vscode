@@ -25,6 +25,7 @@ export interface IIconLabelValueOptions {
 	descriptionTitle?: string;
 	hideIcon?: boolean;
 	extraClasses?: readonly string[];
+	extraAttributes?: { [attrName: string]: string };
 	italic?: boolean;
 	strikethrough?: boolean;
 	matches?: readonly IMatch[];
@@ -120,6 +121,7 @@ export class IconLabel extends Disposable {
 	setLabel(label: string | string[], description?: string, options?: IIconLabelValueOptions): void {
 		const labelClasses = ['monaco-icon-label'];
 		const containerClasses = ['monaco-icon-label-container'];
+		const dataAttributes = {};
 		let ariaLabel: string = '';
 		if (options) {
 			if (options.extraClasses) {
@@ -137,6 +139,11 @@ export class IconLabel extends Disposable {
 			if (options.disabledCommand) {
 				containerClasses.push('disabled');
 			}
+
+			if (options.extraAttributes) {
+				Object.assign(dataAttributes, options.extraAttributes);
+			}
+
 			if (options.title) {
 				ariaLabel += options.title;
 			}
@@ -144,6 +151,7 @@ export class IconLabel extends Disposable {
 
 		this.domNode.className = labelClasses.join(' ');
 		this.domNode.element.setAttribute('aria-label', ariaLabel);
+		Object.assign(this.domNode.element.dataset, dataAttributes);
 		this.labelContainer.className = containerClasses.join(' ');
 		this.setupHover(options?.descriptionTitle ? this.labelContainer : this.element, options?.title);
 
