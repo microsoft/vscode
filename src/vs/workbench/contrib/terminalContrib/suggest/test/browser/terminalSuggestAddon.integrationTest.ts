@@ -36,6 +36,7 @@ import { events as windows11_pwsh_getcontent_delete_ghost } from './recordings/w
 import { events as windows11_pwsh_input_ls_complete_ls } from './recordings/windows11_pwsh_input_ls_complete_ls.js';
 import { events as windows11_pwsh_namespace_change_prefix } from './recordings/windows11_pwsh_namespace_change_prefix.js';
 import { events as windows11_pwsh_namespace_same_prefix } from './recordings/windows11_pwsh_namespace_same_prefix.js';
+import { events as windows11_pwsh_single_char } from './recordings/windows11_pwsh_single_char.js';
 import { events as windows11_pwsh_type_before_prompt } from './recordings/windows11_pwsh_type_before_prompt.js';
 import { events as windows11_pwsh_writehost_multiline } from './recordings/windows11_pwsh_writehost_multiline.js';
 import { events as windows11_pwsh_writehost_multiline_nav_up } from './recordings/windows11_pwsh_writehost_multiline_nav_up.js';
@@ -62,6 +63,7 @@ const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
 	{ name: 'windows11_pwsh_input_ls_complete_ls', events: windows11_pwsh_input_ls_complete_ls as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_namespace_change_prefix', events: windows11_pwsh_namespace_change_prefix as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_namespace_same_prefix', events: windows11_pwsh_namespace_same_prefix as any as RecordedSessionEvent[] },
+	{ name: 'windows11_pwsh_single_char', events: windows11_pwsh_single_char as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_type_before_prompt', events: windows11_pwsh_type_before_prompt as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_writehost_multiline_nav_up', events: windows11_pwsh_writehost_multiline_nav_up as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_writehost_multiline', events: windows11_pwsh_writehost_multiline as any as RecordedSessionEvent[] },
