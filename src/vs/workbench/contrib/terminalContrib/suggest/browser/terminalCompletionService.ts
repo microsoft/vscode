@@ -5,7 +5,7 @@
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalSettingId, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ISimpleCompletion } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
@@ -70,7 +70,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					continue;
 				}
 				const completions = await provider.provideCompletions(promptValue, cursorPosition);
-				const devModeEnabled = this._configurationService.getValue('terminal.integrated.developer.devMode');
+				const devModeEnabled = this._configurationService.getValue(TerminalSettingId.DevMode);
 				if (completions) {
 					for (const completion of completions) {
 						if (devModeEnabled && !completion.detail?.includes(extensionId)) {
