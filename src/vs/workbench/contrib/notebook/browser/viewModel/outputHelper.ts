@@ -30,7 +30,13 @@ export function getOutputText(notebook: NotebookTextModel, viewCell: ICellViewMo
 			}
 
 			if (mimeType.endsWith('error')) {
-				text = text.replace(/\\u001b\[[0-9;]*m/gi, '').replaceAll('\\n', '\n');
+				const metadata = viewCell.model.internalMetadata;
+				if (metadata.error?.message) {
+					text = metadata.error.message;
+					text += '\n' + metadata.error.stack?.replace(/\\x1b\[[0-9;]*m/gi, '').replace(/\\u001b\[[0-9;]*m/gi, '').replaceAll('\\n', '\n');
+				} else {
+					text = text.replace(/\\u001b\[[0-9;]*m/gi, '').replaceAll('\\n', '\n');
+				}
 			}
 		}
 

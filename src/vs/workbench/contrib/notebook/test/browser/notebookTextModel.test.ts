@@ -72,7 +72,7 @@ suite('NotebookTextModel', () => {
 
 				assert.strictEqual(textModel.cells.length, 6);
 
-				assert.strictEqual(textModel.cells[1].getValue(), 'var e = ;');
+				assert.strictEqual(textModel.cells[1].getValue(), 'var e = 5;');
 				assert.strictEqual(textModel.cells[2].getValue(), 'var f = 6;');
 			}
 		);

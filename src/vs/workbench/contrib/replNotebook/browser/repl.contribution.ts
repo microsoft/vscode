@@ -335,7 +335,7 @@ registerAction2(class extends Action2 {
 		if (viewModel && notebook) {
 			const cell = viewModel.getMostRecentlyExecutedCell();
 			if (cell) {
-				const text = getOutputText(notebook, cell);
+				const text = getOutputText(notebook, cell, true);
 				alert(text);
 			}
 		}
