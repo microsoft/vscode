@@ -161,11 +161,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		// Setup: Installing
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
 			title: defaultChat.welcomeTitle,
-			when: ContextKeyExpr.and(
-				ChatContextKeys.ChatSetup.installing,
-				ChatContextKeys.extensionInvalid.negate(),
-				ChatContextKeys.panelParticipantRegistered.negate()
-			)!,
+			when: ChatContextKeys.ChatSetup.installing,
 			icon: defaultChat.icon,
 			progress: localize('setupChatInstalling', "Setting up Chat for you..."),
 			content: new MarkdownString(`\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`, { isTrusted: true }),
