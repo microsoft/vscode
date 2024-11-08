@@ -71,8 +71,8 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
 	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
-	private readonly _onDidRequestCompletions = this._register(new Emitter<RequestCompletionsSequence>());
-	readonly onDidRequestCompletions = this._onDidRequestCompletions.event;
+	private readonly _onDidRequestSendText = this._register(new Emitter<RequestCompletionsSequence>());
+	readonly onDidRequestSendText = this._onDidRequestSendText.event;
 
 	constructor(
 		providedPwshCommands: Set<ISimpleCompletion> | undefined,
@@ -243,23 +243,23 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	provideCompletions(value: string): Promise<ISimpleCompletion[] | undefined> {
 		const builtinCompletionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).builtinCompletions;
 		if (!this._codeCompletionsRequested && builtinCompletionsConfig.pwshCode) {
-			this._onDidRequestCompletions.fire(RequestCompletionsSequence.Code);
+			this._onDidRequestSendText.fire(RequestCompletionsSequence.Code);
 			this._codeCompletionsRequested = true;
 		}
 		if (!this._gitCompletionsRequested && builtinCompletionsConfig.pwshGit) {
-			this._onDidRequestCompletions.fire(RequestCompletionsSequence.Git);
+			this._onDidRequestSendText.fire(RequestCompletionsSequence.Git);
 			this._gitCompletionsRequested = true;
 		}
 
 		// Request global pwsh completions if there are none cached
 		if (PwshCompletionProviderAddon.cachedPwshCommands.size === 0) {
-			this._onDidRequestCompletions.fire(RequestCompletionsSequence.Global);
+			this._onDidRequestSendText.fire(RequestCompletionsSequence.Global);
 		}
 
 		// Ensure that a key has been pressed since the last accepted completion in order to prevent
 		// completions being requested again right after accepting a completion
 		if (this._lastUserDataTimestamp > SuggestAddon.lastAcceptedCompletionTimestamp) {
-			this._onDidRequestCompletions.fire(RequestCompletionsSequence.Contextual);
+			this._onDidRequestSendText.fire(RequestCompletionsSequence.Contextual);
 		}
 		return this._waitForCompletions();
 	}

@@ -91,7 +91,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, undefined, this._ctx.instance.capabilities);
 		xterm.loadAddon(pwshCompletionProviderAddon);
 		this.add(pwshCompletionProviderAddon);
-		this.add(pwshCompletionProviderAddon.onDidRequestCompletions(text => {
+		this.add(pwshCompletionProviderAddon.onDidRequestSendText(text => {
 			this._ctx.instance.focus();
 			this._ctx.instance.sendText(text, false);
 		}));
@@ -104,7 +104,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		if (!isWindows) {
 			let barrier: AutoOpenBarrier | undefined;
 			if (pwshCompletionProviderAddon) {
-				this.add(pwshCompletionProviderAddon.onDidRequestCompletions(() => {
+				this.add(pwshCompletionProviderAddon.onDidRequestSendText(() => {
 					barrier = new AutoOpenBarrier(2000);
 					this._ctx.instance.pauseInputEvents(barrier);
 				}));
