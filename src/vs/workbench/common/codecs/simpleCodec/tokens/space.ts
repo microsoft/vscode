@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Line } from '../../linesCodec/tokens/line.js';
 import { RangedToken } from '../../rangedToken.js';
+import { Line } from '../../linesCodec/tokens/line.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 
@@ -22,12 +22,20 @@ export class Space extends RangedToken {
 	): Space {
 		const { range } = line;
 
+		const startPosition = new Position(range.startLineNumber, atColumnNumber);
 		// the space token length is 1, hence `+ 1`
 		const endPosition = new Position(range.startLineNumber, atColumnNumber + 1);
 
 		return new Space(Range.fromPositions(
-			range.getStartPosition(),
+			startPosition,
 			endPosition,
 		));
+	}
+
+	/**
+	 * Return a string representation of the token.
+	 */
+	public override toString(): string {
+		return `space${this.range}`;
 	}
 }

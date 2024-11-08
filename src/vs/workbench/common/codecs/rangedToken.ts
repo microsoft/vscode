@@ -12,23 +12,12 @@ import { Range } from '../../../editor/common/core/range.js';
 export class RangedToken {
 	constructor(
 		public readonly range: Range,
-	) {
+	) { }
+
+	/**
+	 * Check if this token has the same range as another one.
+	 */
+	public sameRange(other: Range): boolean {
+		return this.range.equalsRange(other);
 	}
-
-	// 	// TODO: @legomushroom - remove
-	// 	public putInsideLine(
-	// 		line: Line,
-	// 		atColumnNumber: number,
-	// 	): this {
-	// 		const { range } = line;
-
-	// 		const endPosition = new Position(range.startLineNumber, atColumnNumber + value.length);
-
-	// 		this.range = Range.fromPositions(
-	// 			range.getStartPosition(),
-	// 			endPosition,
-	// 		);
-
-	// 		return this;
-	// 	}
 }

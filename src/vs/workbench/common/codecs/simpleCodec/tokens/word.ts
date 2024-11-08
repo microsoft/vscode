@@ -18,10 +18,11 @@ export class Word extends RangedToken {
 		 * The word range.
 		 */
 		range: Range,
+
 		/**
 		 * The string value of the word.
 		 */
-		public readonly value: string,
+		public readonly text: string,
 	) {
 		super(range);
 	}
@@ -37,14 +38,30 @@ export class Word extends RangedToken {
 	): Word {
 		const { range } = line;
 
+		const startPosition = new Position(range.startLineNumber, atColumnNumber);
 		const endPosition = new Position(range.startLineNumber, atColumnNumber + value.length);
 
 		return new Word(
-			Range.fromPositions(
-				range.getStartPosition(),
-				endPosition,
-			),
+			Range.fromPositions(startPosition, endPosition),
 			value,
 		);
+	}
+
+	/**
+	 * Check if this token is equal to another one.
+	 */
+	public equals(other: Word): boolean {
+		if (!super.sameRange(other.range)) {
+			return false;
+		}
+
+		return this.text === other.text;
+	}
+
+	/**
+	 * Return a string representation of the token.
+	 */
+	public override toString(): string {
+		return `word("${this.text.slice(0, 8)}")${this.range}`;
 	}
 }

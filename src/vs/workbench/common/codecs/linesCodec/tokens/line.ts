@@ -38,4 +38,22 @@ export class Line extends RangedToken {
 			),
 		);
 	}
+
+	/**
+	 * Check if this token is equal to another one.
+	 */
+	public equals(other: Line): boolean {
+		if (!super.sameRange(other.range)) {
+			return false;
+		}
+
+		return this.text === other.text;
+	}
+
+	/**
+	 * Return a string representation of the token.
+	 */
+	public override toString(): string {
+		return `line("${this.text}")${this.range}`;
+	}
 }

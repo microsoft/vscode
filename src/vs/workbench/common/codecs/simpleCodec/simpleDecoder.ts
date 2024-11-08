@@ -17,19 +17,26 @@ export type TSimpleToken = Word | Space | NewLine;
  * A decoder that can decode a stream of `Line`s into a stream
  * of `Word`, `Space` and `NewLine` tokens.
  */
-export class SimpleTokensCodecDecoder extends BaseDecoder<TSimpleToken, Line> implements ReadableStream<TSimpleToken> {
+export class SimpleDecoder extends BaseDecoder<TSimpleToken, Line> implements ReadableStream<TSimpleToken> {
 	private lastEmittedToken?: TSimpleToken;
+	private previousLine?: Line;
 
-	/**
-	 * TODO: @legomushroom
-	 */
 	protected override onStreamData(line: Line): void {
-		// if an empty line is received, emit a `NewLine` token
-		// TODO: @legomushroom - we should do this for non-empty lines too
+		// if not a first line received, emit a `NewLine` token
+		// as if it appeared at the end of the previous line
+		if (this.previousLine) {
+			const newLine = NewLine.newOnLine(
+				this.previousLine,
+				this.previousLine.range.endColumn,
+			);
+			this.emitToken(newLine);
+			// new line resets colum number to 1
+			delete this.lastEmittedToken;
+		}
+		this.previousLine = line;
+
+		// if an empty line is received, nothing more to do
 		if (line.text === '') {
-			const newLine = new NewLine(line.range);
-			this._onData.fire(newLine);
-			this.lastEmittedToken = newLine;
 			return;
 		}
 
@@ -52,11 +59,16 @@ export class SimpleTokensCodecDecoder extends BaseDecoder<TSimpleToken, Line> im
 				// token does contain some text, so emit a `Word` token
 				: Word.newOnLine(token, line, endColumn);
 
+			// TODO: @legomushroom - add explanation
+			if (tokenToEmit instanceof Space && i === tokens.length - 1) {
+				return;
+			}
+
 			this.emitToken(tokenToEmit);
 
-			// if there is a next token that is not space(empty), also emit
-			// a `Space` token, because all words are separated by spaces
-			if (maybeNextToken) {
+			// if there is a next token also emit a `Space` token,
+			// because all words are separated by spaces
+			if (tokenToEmit instanceof Word && maybeNextToken !== undefined) {
 				const space = Space.newOnLine(
 					line,
 					tokenToEmit.range.endColumn,
@@ -66,8 +78,10 @@ export class SimpleTokensCodecDecoder extends BaseDecoder<TSimpleToken, Line> im
 		}
 	}
 
-	// Emit specified token to the output stream and
-	// update the `lastEmittedToken` reference.
+	/**
+	 * Emit specified token to the output stream and
+	 * update the `lastEmittedToken` reference.
+	 */
 	private emitToken(token: TSimpleToken): void {
 		this._onData.fire(token);
 		this.lastEmittedToken = token;

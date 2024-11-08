@@ -216,16 +216,33 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K = VSBuffer> 
 	[Symbol.asyncIterator](): AsyncIterator<T | null> {
 		return new AsyncDecoder(this)[Symbol.asyncIterator]();
 	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public async consume(): Promise<T[]> {
+		const messages = [];
+
+		for await (const maybeMessage of this) {
+			if (maybeMessage === null) {
+				break;
+			}
+
+			messages.push(maybeMessage);
+		}
+
+		return messages;
+	}
 }
 
 /**
  * TODO: @legomushroom
  */
-export class AsyncDecoder<T extends NonNullable<unknown>, K> {
+class AsyncDecoder<T extends NonNullable<unknown>, K> {
 	// TODO: @legomushroom
 	private readonly messages: T[] = [];
 	// TODO: @legomushroom
-	private onNewEvent?: (value: void) => void;
+	private resolveOnNewEvent?: (value: void) => void;
 
 	constructor(
 		private readonly decoder: BaseDecoder<T, K>,
@@ -240,9 +257,9 @@ export class AsyncDecoder<T extends NonNullable<unknown>, K> {
 				this.messages.push(data);
 			}
 
-			if (this.onNewEvent) {
-				this.onNewEvent();
-				delete this.onNewEvent;
+			if (this.resolveOnNewEvent) {
+				this.resolveOnNewEvent();
+				delete this.resolveOnNewEvent;
 			}
 		};
 		this.decoder.on('data', callback);
@@ -265,7 +282,7 @@ export class AsyncDecoder<T extends NonNullable<unknown>, K> {
 
 			// otherwise wait for new data to be available
 			await new Promise((resolve) => {
-				this.onNewEvent = resolve;
+				this.resolveOnNewEvent = resolve;
 			});
 		}
 	}

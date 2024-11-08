@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 suite('LinesDecoder', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('simple test', async () => {
+	test('implements async iterator', async () => {
 		const expectedLines = [
 			'hello',
 			'world',
@@ -22,9 +22,10 @@ suite('LinesDecoder', () => {
 		const stream = newWriteableStream<VSBuffer>(null);
 		const decoder = testDisposables.add(new LinesDecoder(stream));
 
-		setTimeout(async () => {
-			await stream.write(VSBuffer.fromString(expectedLines.join('\n')));
-
+		// write the data to the stream after a short delay to ensure
+		// that the the data is sent after the reading loop below
+		setTimeout(() => {
+			stream.write(VSBuffer.fromString(expectedLines.join('\n')));
 			stream.end();
 		}, 1);
 
@@ -44,11 +45,53 @@ suite('LinesDecoder', () => {
 		);
 
 		for (let i = 0; i < expectedLines.length; i++) {
-			assert.strictEqual(
-				receivedLines[i].text,
-				expectedLines[i],
-				`Line ${i} must be correct`,
+			const receivedLine = receivedLines[i];
+			const expectedLine = new Line(i + 1, expectedLines[i]);
+
+			assert(
+				receivedLine.equals(expectedLine),
+				`Line '${i}' must be '${expectedLine}', got '${receivedLine}'.`,
 			);
 		}
+
+		stream.destroy();
+	});
+
+	test('produces expected lines', async () => {
+		const expectedLines = [
+			'hello',
+			'world',
+			'',
+		];
+		const stream = newWriteableStream<VSBuffer>(null);
+		const decoder = testDisposables.add(new LinesDecoder(stream));
+
+		// write the data to the stream after a short delay to ensure
+		// that the the data is sent after the reading loop below
+		setTimeout(() => {
+			stream.write(VSBuffer.fromString(expectedLines.join('\n')));
+			stream.end();
+		}, 1);
+
+		// get all lines
+		const receivedLines: Line[] = await decoder.consume();
+
+		assert.strictEqual(
+			receivedLines.length,
+			expectedLines.length,
+			'Must receive correct number of lines.',
+		);
+
+		for (let i = 0; i < expectedLines.length; i++) {
+			const receivedLine = receivedLines[i];
+			const expectedLine = new Line(i + 1, expectedLines[i]);
+
+			assert(
+				receivedLine.equals(expectedLine),
+				`Line '${i}' must be '${expectedLine}', got '${receivedLine}'.`,
+			);
+		}
+
+		stream.destroy();
 	});
 });
