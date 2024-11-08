@@ -27,6 +27,7 @@ import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { SaveReason } from '../../../../common/editor.js';
 import { IResolvedTextFileEditorModel } from '../../../../services/textfile/common/textfiles.js';
 import { IChatAgentResult } from '../../common/chatAgents.js';
 import { ChatEditKind, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
@@ -401,7 +402,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 				// soft revert unsets the dirty state which is OK
 				// to do if all edits are from us otherwise we keep
 				// the dirty state
-				this.docFileEditorModel.revert({ soft: true });
+				await this.docFileEditorModel.save({ reason: SaveReason.EXPLICIT });
 			}
 			await this.collapse(transaction);
 		}
