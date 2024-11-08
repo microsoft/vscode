@@ -7,8 +7,9 @@
  * Set of tokens that are handled by the `SimpleCodec`.
  */
 
+import { Tab } from './tab.js';
 import { Word } from './word.js';
 import { Space } from './space.js';
 import { NewLine } from './newLine.js';
 
-export { Word, Space, NewLine };
+export { Word, Space, Tab, NewLine };

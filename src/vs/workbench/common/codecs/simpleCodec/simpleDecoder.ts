@@ -6,16 +6,16 @@
 import { BaseDecoder } from '../baseDecoder.js';
 import { Line } from '../linesCodec/tokens/line.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
-import { Word, Space, NewLine } from '../simpleCodec/tokens/index.js';
+import { Word, Space, Tab, NewLine } from '../simpleCodec/tokens/index.js';
 
 /**
  * A token type that this decoder can handle.
  */
-export type TSimpleToken = Word | Space | NewLine;
+export type TSimpleToken = Word | Space | Tab | NewLine;
 
 /**
  * A decoder that can decode a stream of `Line`s into
- * a stream of `Word`, `Space` and `NewLine` tokens.
+ * a stream of `Word`, `Space`, `Tab`, `NewLine` tokens, etc.
  */
 export class SimpleDecoder extends BaseDecoder<TSimpleToken, Line> implements ReadableStream<TSimpleToken> {
 	// Reference to a previously received line. This is used
@@ -34,8 +34,6 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, Line> implements Re
 		}
 		this.previousLine = line;
 
-		// TODO: @legomushroom - this should handle actual characters
-
 		// loop through the text separating it into `Word` and `Space` tokens
 		let i = 0;
 		while (i < line.text.length) {
@@ -50,20 +48,25 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, Line> implements Re
 				continue;
 			}
 
+			// if a tab character, emit a `Tab` token and continue
+			if (line.text[i] === '\t') {
+				this._onData.fire(Tab.newOnLine(line, columnNumber));
+
+				i++;
+				continue;
+			}
+
 			// if a non-space character, parse out the whole word and
 			// emit it, then continue from the last word character position
-			let j = i;
 			let word = '';
-			while (j < line.text.length && line.text[j] !== ' ') {
-				word += line.text[j];
-				j++;
+			while (i < line.text.length && line.text[i] !== ' ') {
+				word += line.text[i];
+				i++;
 			}
 
 			this._onData.fire(
 				Word.newOnLine(word, line, columnNumber),
 			);
-
-			i = j;
 		}
 	}
 }

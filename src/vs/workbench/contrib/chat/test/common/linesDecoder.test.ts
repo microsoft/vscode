@@ -10,14 +10,19 @@ import { Line } from '../../../../common/codecs/linesCodec/tokens/line.js';
 import { LinesDecoder } from '../../../../common/codecs/linesCodec/linesDecoder.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
+// TODO: @legomushroom - refactor the tests?
 suite('LinesDecoder', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('implements async iterator', async () => {
+		const testLine = ' hello world\nhow are you?\n\n 😊 \n ';
+
 		const expectedLines = [
-			'hello',
-			'world',
+			' hello world',
+			'how are you?',
 			'',
+			' 😊 ',
+			' ',
 		];
 		const stream = newWriteableStream<VSBuffer>(null);
 		const decoder = testDisposables.add(new LinesDecoder(stream));
@@ -25,7 +30,7 @@ suite('LinesDecoder', () => {
 		// write the data to the stream after a short delay to ensure
 		// that the the data is sent after the reading loop below
 		setTimeout(() => {
-			stream.write(VSBuffer.fromString(expectedLines.join('\n')));
+			stream.write(VSBuffer.fromString(testLine));
 			stream.end();
 		}, 1);
 
@@ -58,10 +63,14 @@ suite('LinesDecoder', () => {
 	});
 
 	test('produces expected lines', async () => {
+		const testLine = ' hello world\nhow are you?\n\n \n ';
+
 		const expectedLines = [
-			'hello',
-			'world',
+			' hello world',
+			'how are you?',
 			'',
+			' ',
+			' ',
 		];
 		const stream = newWriteableStream<VSBuffer>(null);
 		const decoder = testDisposables.add(new LinesDecoder(stream));
@@ -69,7 +78,7 @@ suite('LinesDecoder', () => {
 		// write the data to the stream after a short delay to ensure
 		// that the the data is sent after the reading loop below
 		setTimeout(() => {
-			stream.write(VSBuffer.fromString(expectedLines.join('\n')));
+			stream.write(VSBuffer.fromString(testLine));
 			stream.end();
 		}, 1);
 
