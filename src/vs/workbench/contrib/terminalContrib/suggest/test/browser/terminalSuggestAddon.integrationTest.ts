@@ -168,23 +168,31 @@ suite('Terminal Contrib Suggest Recordings', () => {
 						break;
 					}
 					case 'output': {
-						// If the output contains the command start sequence, allow time for the prompt to get adjusted.
+						const promises: Promise<unknown>[] = [];
 						if (event.data.includes('\x1b]633;B')) {
-							await Promise.all([
-								new Promise<void>(r => xterm.write(event.data, () => r())),
-								new Promise<void>(r => {
-									const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
-									if (commandDetection) {
-										const d = commandDetection.onCommandStarted(() => {
-											d.dispose();
-											r();
-										});
-									}
-								})
-							]);
-						} else {
-							await new Promise<void>(r => xterm.write(event.data, () => r()));
+							// If the output contains the command start sequence, allow time for the prompt to get
+							// adjusted.
+							promises.push(new Promise<void>(r => {
+								const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
+								if (commandDetection) {
+									const d = commandDetection.onCommandStarted(() => {
+										d.dispose();
+										r();
+									});
+								}
+							}));
+						} else if (event.data.match('\x1b\]633;Completions;.+\[.+\]')) {
+							// If the output contains a pwsh completions sequence with results, wait for the associated
+							// suggest addon event until proceeding.
+							promises.push(new Promise<void>(r => {
+								const d = suggestAddon.onDidReceiveCompletions(() => {
+									d.dispose();
+									r();
+								});
+							}));
 						}
+						promises.push(new Promise<void>(r => xterm.write(event.data, () => r())));
+						await Promise.all(promises);
 						break;
 					}
 					case 'input': {
@@ -215,9 +223,7 @@ suite('Terminal Contrib Suggest Recordings', () => {
 					case 'command': {
 						switch (event.id) {
 							case TerminalSuggestCommandId.AcceptSelectedSuggestion:
-								while (suggestAddon.acceptSelectedSuggestion() === false) {
-									await timeout(100);
-								}
+								suggestAddon.acceptSelectedSuggestion();
 								break;
 						}
 					}

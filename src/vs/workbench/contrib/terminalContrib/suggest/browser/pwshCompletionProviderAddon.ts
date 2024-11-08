@@ -248,7 +248,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 		});
 	}
 
-	async provideCompletions(value: string): Promise<ISimpleCompletion[] | undefined> {
+	provideCompletions(value: string): Promise<ISimpleCompletion[] | undefined> {
 		const builtinCompletionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).builtinCompletions;
 		if (!this._codeCompletionsRequested && builtinCompletionsConfig.pwshCode) {
 			this._onAcceptedCompletion.fire(RequestCompletionsSequence.Code);
@@ -270,7 +270,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 			this._onAcceptedCompletion.fire(RequestCompletionsSequence.All);
 			this._onDidRequestCompletions.fire();
 		}
-		return await this._waitForCompletions();
+		return this._waitForCompletions();
 	}
 }
 

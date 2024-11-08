@@ -64,6 +64,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return undefined;
 		}
 
+		// TODO: Use Promise.all so all providers are called in parallel
 		for (const providerMap of this._providers.values()) {
 			for (const [extensionId, provider] of providerMap) {
 				if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
