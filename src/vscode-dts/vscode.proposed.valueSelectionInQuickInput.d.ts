@@ -6,7 +6,7 @@
 declare module 'vscode' {
 	// @CrafterKolyan https://github.com/microsoft/vscode/issues/233274
 
-	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
+	export interface QuickInput {
 		/**
 		 * Selection range in the input value. Defined as tuple of two number where the
 		 * first is the inclusive start index and the second the exclusive end index. When

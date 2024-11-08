@@ -283,6 +283,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _busy = false;
 		private _ignoreFocusOut = true;
 		private _value = '';
+		private _valueSelection: readonly [number, number] | undefined = undefined;
 		private _placeholder: string | undefined;
 		private _buttons: QuickInputButton[] = [];
 		private _handlesToButtons = new Map<number, QuickInputButton>();
@@ -365,6 +366,15 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		set value(value: string) {
 			this._value = value;
 			this.update({ value });
+		}
+
+		get valueSelection() {
+			return this._valueSelection;
+		}
+
+		set valueSelection(valueSelection: readonly [number, number] | undefined) {
+			this._valueSelection = valueSelection;
+			this.update({ valueSelection });
 		}
 
 		get placeholder() {
@@ -550,7 +560,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _selectedItems: T[] = [];
 		private readonly _onDidChangeSelectionEmitter = new Emitter<T[]>();
 		private readonly _onDidTriggerItemButtonEmitter = new Emitter<QuickPickItemButtonEvent<T>>();
-		private _valueSelection: readonly [number, number] | undefined = undefined;
 
 		constructor(extension: IExtensionDescription, onDispose: () => void) {
 			super(extension, onDispose);
@@ -612,15 +621,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			this.update({
 				items: pickItems,
 			});
-		}
-
-		get valueSelection() {
-			return this._valueSelection;
-		}
-
-		set valueSelection(valueSelection: readonly [number, number] | undefined) {
-			this._valueSelection = valueSelection;
-			this.update({ valueSelection });
 		}
 
 		get canSelectMany() {
@@ -723,7 +723,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		private _password = false;
 		private _prompt: string | undefined;
-		private _valueSelection: readonly [number, number] | undefined;
 		private _validationMessage: string | InputBoxValidationMessage | undefined;
 
 		constructor(extension: IExtensionDescription, onDispose: () => void) {
@@ -747,15 +746,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		set prompt(prompt: string | undefined) {
 			this._prompt = prompt;
 			this.update({ prompt });
-		}
-
-		get valueSelection() {
-			return this._valueSelection;
-		}
-
-		set valueSelection(valueSelection: readonly [number, number] | undefined) {
-			this._valueSelection = valueSelection;
-			this.update({ valueSelection });
 		}
 
 		get validationMessage() {
