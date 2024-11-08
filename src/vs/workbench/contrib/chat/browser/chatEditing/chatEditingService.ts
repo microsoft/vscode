@@ -33,7 +33,7 @@ import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEdito
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsContextKey, applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsContextKey, applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingSession } from './chatEditingSession.js';
@@ -402,7 +402,7 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 
 	readonly label: string = localize('chat', "Chat Editing");
 
-	private readonly _currentlyEditingUris = derived<URI[]>(this, (r) => {
+	private readonly _currentEntries = derived<readonly IModifiedFileEntry[]>(this, (r) => {
 		const session = this._session.read(r);
 		if (!session) {
 			return [];
@@ -411,10 +411,23 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 		if (state === ChatEditingSessionState.Disposed) {
 			return [];
 		}
-		return session.entries.read(r).filter(entry => entry.isCurrentlyBeingModified.read(r)).map(entry => entry.modifiedURI);
+		return session.entries.read(r);
 	});
 
-	public readonly onDidChange = observeArrayChanges(this._currentlyEditingUris, compareBy(uri => uri.toString(), compare), this._store);
+	private readonly _currentlyEditingUris = derived<URI[]>(this, (r) => {
+		const uri = this._currentEntries.read(r);
+		return uri.filter(entry => entry.isCurrentlyBeingModified.read(r)).map(entry => entry.modifiedURI);
+	});
+
+	private readonly _modifiedUris = derived<URI[]>(this, (r) => {
+		const uri = this._currentEntries.read(r);
+		return uri.filter(entry => !entry.isCurrentlyBeingModified.read(r) && entry.state.read(r) === WorkingSetEntryState.Modified).map(entry => entry.modifiedURI);
+	});
+
+	public readonly onDidChange = Event.any(
+		observeArrayChanges(this._currentlyEditingUris, compareBy(uri => uri.toString(), compare), this._store),
+		observeArrayChanges(this._modifiedUris, compareBy(uri => uri.toString(), compare), this._store),
+	);
 
 	constructor(
 		private readonly _session: IObservable<IChatEditingSession | null>
@@ -424,14 +437,22 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 
 	provideDecorations(uri: URI, _token: CancellationToken): IDecorationData | undefined {
 		const isCurrentlyBeingModified = this._currentlyEditingUris.get().some(e => e.toString() === uri.toString());
-		if (!isCurrentlyBeingModified) {
-			return undefined;
+		if (isCurrentlyBeingModified) {
+			return {
+				weight: 1000,
+				letter: ThemeIcon.modify(Codicon.loading, 'spin'),
+				bubble: false
+			};
 		}
-		return {
-			weight: 1000,
-			letter: ThemeIcon.modify(Codicon.loading, 'spin'),
-			bubble: false
-		};
+		const isModified = this._modifiedUris.get().some(e => e.toString() === uri.toString());
+		if (isModified) {
+			return {
+				weight: 1000,
+				letter: Codicon.diffModified,
+				bubble: true
+			};
+		}
+		return undefined;
 	}
 }
 
