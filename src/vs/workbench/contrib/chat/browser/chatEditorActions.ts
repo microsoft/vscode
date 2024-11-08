@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { localize2 } from '../../../../nls.js';
-import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { EditorAction2, ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -162,10 +162,36 @@ abstract class AcceptDiscardAction extends Action2 {
 	}
 }
 
+class UndoHunkAction extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'chatEditor.action.undoHunk',
+			title: localize2('undo', 'Undo this Change'),
+			shortTitle: localize2('undo2', 'Undo'),
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			icon: Codicon.discard,
+			f1: true,
+			keybinding: {
+				when: EditorContextKeys.focus,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace
+			},
+			menu: {
+				id: MenuId.ChatEditingEditorHunk
+			}
+		});
+	}
+
+	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+		ChatEditorController.get(editor)?.undoNearestChange(args[0]);
+	}
+}
 
 export function registerChatEditorActions() {
 	registerAction2(class NextAction extends NavigateAction { constructor() { super(true); } });
 	registerAction2(class PrevAction extends NavigateAction { constructor() { super(false); } });
 	registerAction2(class AcceptAction extends AcceptDiscardAction { constructor() { super(true); } });
 	registerAction2(class RejectAction extends AcceptDiscardAction { constructor() { super(false); } });
+	registerAction2(UndoHunkAction);
 }

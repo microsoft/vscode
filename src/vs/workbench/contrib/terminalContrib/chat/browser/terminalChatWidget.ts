@@ -124,7 +124,6 @@ export class TerminalChatWidget extends Disposable {
 				},
 				secondaryMenuId: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 				chatWidgetViewOptions: {
-					rendererOptions: { editableCodeBlock: true },
 					menus: {
 						telemetrySource: 'terminal-inline-chat',
 						executeToolbar: MenuId.ChatExecute,

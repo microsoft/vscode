@@ -132,7 +132,9 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 				};
 			})
 		], {
-			onHide: () => { },
+			onHide: () => {
+				this.editor.focus();
+			},
 			onSelect: (item) => {
 				this._actionWidgetService.hide(false);
 
