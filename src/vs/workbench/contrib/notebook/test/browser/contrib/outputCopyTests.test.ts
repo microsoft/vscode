@@ -10,8 +10,8 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { IOutputItemDto } from '../../../common/notebookCommon.js';
-import { copyCellOutput } from '../../../browser/contrib/clipboard/cellOutputClipboard.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { copyCellOutput } from '../../../browser/viewModel/cellOutputTextHelper.js';
 
 suite('Cell Output Clipboard Tests', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

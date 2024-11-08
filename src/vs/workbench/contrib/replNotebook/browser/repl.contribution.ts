@@ -46,7 +46,7 @@ import { INotebookEditorOptions } from '../../notebook/browser/notebookBrowser.j
 import { NotebookEditorWidget } from '../../notebook/browser/notebookEditorWidget.js';
 import * as icons from '../../notebook/browser/notebookIcons.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
-import { getAllOutputsText } from '../../notebook/browser/viewModel/outputHelper.js';
+import { getAllOutputsText } from '../../notebook/browser/viewModel/cellOutputTextHelper.js';
 import { CellEditType, CellKind, NotebookSetting, NotebookWorkingCopyTypeIdentifier, REPL_EDITOR_ID } from '../../notebook/common/notebookCommon.js';
 import { IS_COMPOSITE_NOTEBOOK, MOST_RECENT_REPL_EDITOR, NOTEBOOK_CELL_LIST_FOCUSED } from '../../notebook/common/notebookContextKeys.js';
 import { NotebookEditorInputOptions } from '../../notebook/common/notebookEditorInput.js';
