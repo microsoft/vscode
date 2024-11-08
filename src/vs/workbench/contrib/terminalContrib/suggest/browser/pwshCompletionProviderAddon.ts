@@ -355,6 +355,29 @@ function getIcon(resultType: number, customIconId?: string): ThemeIcon {
 	return pwshTypeToIconMap[resultType] ?? Codicon.symbolText;
 }
 
+
+/**
+ * A map of the pwsh result type enum's value to the corresponding icon to use in completions.
+ *
+ * | Value | Name              | Description
+ * |-------|-------------------|------------
+ * | 0     | Text              | An unknown result type, kept as text only
+ * | 1     | History           | A history result type like the items out of get-history
+ * | 2     | Command           | A command result type like the items out of get-command
+ * | 3     | ProviderItem      | A provider item
+ * | 4     | ProviderContainer | A provider container
+ * | 5     | Property          | A property result type like the property items out of get-member
+ * | 6     | Method            | A method result type like the method items out of get-member
+ * | 7     | ParameterName     | A parameter name result type like the Parameters property out of get-command items
+ * | 8     | ParameterValue    | A parameter value result type
+ * | 9     | Variable          | A variable result type like the items out of get-childitem variable:
+ * | 10    | Namespace         | A namespace
+ * | 11    | Type              | A type name
+ * | 12    | Keyword           | A keyword
+ * | 13    | DynamicKeyword    | A dynamic keyword
+ *
+ * @see https://docs.microsoft.com/en-us/dotnet/api/system.management.automation.completionresulttype?view=powershellsdk-7.0.0
+ */
 const pwshTypeToIconMap: { [type: string]: ThemeIcon | undefined } = {
 	0: Codicon.symbolText,
 	1: Codicon.history,
