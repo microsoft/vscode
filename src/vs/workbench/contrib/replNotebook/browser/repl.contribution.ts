@@ -234,10 +234,6 @@ registerAction2(class extends Action2 {
 			id: 'repl.focusLastItemExecuted',
 			title: localize2('repl.focusLastReplOutput', 'Focus Most Recent REPL Execution'),
 			category: 'REPL',
-			keybinding: [{
-				primary: KeyChord(KeyMod.Alt | KeyCode.Home, KeyMod.Alt | KeyCode.End),
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			}],
 			menu: {
 				id: MenuId.CommandPalette,
 				when: MOST_RECENT_REPL_EDITOR,
