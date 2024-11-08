@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from '../../dnd.js';
-import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement, isKeyboardEvent, addDisposableListener, isEditableElement } from '../../dom.js';
+import { $, append, clearNode, createStyleSheet, h, hasParentWithClass, isActiveElement, isKeyboardEvent, addDisposableListener, isEditableElement } from '../../dom.js';
 import { asCssValueWithDefault } from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
@@ -30,7 +30,6 @@ import { KeyCode } from '../../../common/keyCodes.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { clamp } from '../../../common/numbers.js';
 import { ScrollEvent } from '../../../common/scrollable.js';
-import { isNumber } from '../../../common/types.js';
 import './media/tree.css';
 import { localize } from '../../../../nls.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
@@ -792,7 +791,6 @@ export enum TreeFindMatchType {
 class FindWidget<T, TFilterData> extends Disposable {
 
 	private readonly elements = h('.monaco-tree-type-filter', [
-		h('.monaco-tree-type-filter-grab.codicon.codicon-debug-gripper@grab', { tabIndex: 0 }),
 		h('.monaco-tree-type-filter-input@findInput'),
 		h('.monaco-tree-type-filter-actionbar@actionbar'),
 	]);
@@ -808,9 +806,6 @@ class FindWidget<T, TFilterData> extends Disposable {
 	private readonly findInput: FindInput;
 	private readonly actionbar: ActionBar;
 	private readonly toggles: TreeFindToggle[] = [];
-	private width = 0;
-	private right = 0;
-	private top = 0;
 
 	readonly _onDidDisable = new Emitter<void>();
 	readonly onDidDisable = this._onDidDisable.event;
@@ -894,79 +889,6 @@ class FindWidget<T, TFilterData> extends Disposable {
 		const closeAction = this._register(new Action('close', localize('close', "Close"), 'codicon codicon-close', true, () => this.dispose()));
 		this.actionbar.push(closeAction, { icon: true, label: false });
 
-		const onGrabMouseDown = this._register(new DomEmitter(this.elements.grab, 'mousedown'));
-
-		this._register(onGrabMouseDown.event(e => {
-			const disposables = new DisposableStore();
-			const onWindowMouseMove = disposables.add(new DomEmitter(getWindow(e), 'mousemove'));
-			const onWindowMouseUp = disposables.add(new DomEmitter(getWindow(e), 'mouseup'));
-
-			const startRight = this.right;
-			const startX = e.pageX;
-			const startTop = this.top;
-			const startY = e.pageY;
-			this.elements.grab.classList.add('grabbing');
-
-			const transition = this.elements.root.style.transition;
-			this.elements.root.style.transition = 'unset';
-
-			const update = (e: MouseEvent) => {
-				const deltaX = e.pageX - startX;
-				this.right = startRight - deltaX;
-				const deltaY = e.pageY - startY;
-				this.top = startTop + deltaY;
-				this.layout();
-			};
-
-			disposables.add(onWindowMouseMove.event(update));
-			disposables.add(onWindowMouseUp.event(e => {
-				update(e);
-				this.elements.grab.classList.remove('grabbing');
-				this.elements.root.style.transition = transition;
-				disposables.dispose();
-			}));
-		}));
-
-		const onGrabKeyDown = Event.chain(this._register(new DomEmitter(this.elements.grab, 'keydown')).event, $ => $.map(e => new StandardKeyboardEvent(e)));
-
-		this._register(onGrabKeyDown((e) => {
-			let right: number | undefined;
-			let top: number | undefined;
-
-			if (e.keyCode === KeyCode.LeftArrow) {
-				right = Number.POSITIVE_INFINITY;
-			} else if (e.keyCode === KeyCode.RightArrow) {
-				right = 0;
-			} else if (e.keyCode === KeyCode.Space) {
-				right = this.right === 0 ? Number.POSITIVE_INFINITY : 0;
-			}
-
-			if (e.keyCode === KeyCode.UpArrow) {
-				top = 0;
-			} else if (e.keyCode === KeyCode.DownArrow) {
-				top = Number.POSITIVE_INFINITY;
-			}
-
-			if (right !== undefined) {
-				e.preventDefault();
-				e.stopPropagation();
-				this.right = right;
-				this.layout();
-			}
-
-			if (top !== undefined) {
-				e.preventDefault();
-				e.stopPropagation();
-				this.top = top;
-				const transition = this.elements.root.style.transition;
-				this.elements.root.style.transition = 'unset';
-				this.layout();
-				setTimeout(() => {
-					this.elements.root.style.transition = transition;
-				}, 0);
-			}
-		}));
-
 		this.onDidChangeValue = this.findInput.onDidChange;
 	}
 
@@ -994,14 +916,6 @@ class FindWidget<T, TFilterData> extends Disposable {
 
 		// Reposition to last in history
 		this.findInput.inputBox.addToHistory(true);
-	}
-
-	layout(width: number = this.width): void {
-		this.width = width;
-		this.right = clamp(this.right, 0, Math.max(0, width - 212));
-		this.elements.root.style.right = `${this.right}px`;
-		this.top = clamp(this.top, 0, 24);
-		this.elements.root.style.top = `${this.top}px`;
 	}
 
 	showMessage(message: IMessage): void {
@@ -1054,7 +968,6 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 	}
 
 	private widget: FindWidget<T, TFilterData> | undefined;
-	private width = 0;
 
 	private readonly _onDidChangePattern = new Emitter<string>();
 	readonly onDidChangePattern = this._onDidChangePattern.event;
@@ -1095,7 +1008,6 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 		this.widget.onDidDisable(this.close, this, this.enabledDisposables);
 		this.widget.onDidToggleChange(this.onDidToggleChange, this, this.enabledDisposables);
 
-		this.widget.layout(this.width);
 		this.widget.focus();
 
 		this.widget.value = this.previousPattern;
@@ -1160,11 +1072,6 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 		} else {
 			alert(localize('foundResults', "{0} results", results));
 		}
-	}
-
-	layout(width: number): void {
-		this.width = width;
-		this.widget?.layout(width);
 	}
 
 	dispose() {
@@ -2911,10 +2818,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	layout(height?: number, width?: number): void {
 		this.view.layout(height, width);
-
-		if (isNumber(width)) {
-			this.findController?.layout(width);
-		}
 	}
 
 	style(styles: IListStyles): void {
