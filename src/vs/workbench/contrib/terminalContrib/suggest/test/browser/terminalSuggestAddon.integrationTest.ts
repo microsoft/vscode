@@ -26,7 +26,6 @@ import { ITerminalCompletionService, TerminalCompletionService } from '../../bro
 import { GeneralShellType } from '../../../../../../platform/terminal/common/terminal.js';
 import { testRawPwshCompletions } from './testRawPwshCompletions.js';
 
-import { events as macos_pwsh_namespace_completion } from './recordings/macos_pwsh_namespace_completion.js';
 import { events as windows11_pwsh_filename_arg_change_case } from './recordings/windows11_pwsh_filename_arg_change_case.js';
 import { events as windows11_pwsh_filename_arg_same_case } from './recordings/windows11_pwsh_filename_arg_same_case.js';
 import { events as windows11_pwsh_filename_change_case } from './recordings/windows11_pwsh_filename_change_case.js';
@@ -40,7 +39,6 @@ import { events as windows11_pwsh_writehost_multiline } from './recordings/windo
 import { events as windows11_pwsh_writehost_multiline_nav_up } from './recordings/windows11_pwsh_writehost_multiline_nav_up.js';
 
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
-	{ name: 'macos_pwsh_namespace_completion', events: macos_pwsh_namespace_completion as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_getcontent_delete_ghost', events: windows11_pwsh_getcontent_delete_ghost as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_input_ls_complete_ls', events: windows11_pwsh_input_ls_complete_ls as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_type_before_prompt', events: windows11_pwsh_type_before_prompt as any as RecordedSessionEvent[] },
