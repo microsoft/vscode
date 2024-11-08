@@ -318,6 +318,8 @@ export interface IGitHubEntitlement {
 	entitlementUrl: string;
 	extensionId: string;
 	enablementKey: string;
+	trialKey: string;
+	trialValue: string;
 	confirmationMessage: string;
 	confirmationAction: string;
 }
