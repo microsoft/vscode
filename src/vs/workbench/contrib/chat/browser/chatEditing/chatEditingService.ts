@@ -32,8 +32,9 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
+import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsContextKey, applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsContextKey, applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingSession } from './chatEditingSession.js';
@@ -91,7 +92,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		super();
 		this._applyingChatEditsFailedContextKey = applyingChatEditsFailedContextKey.bindTo(contextKeyService);
 		this._applyingChatEditsFailedContextKey.set(false);
-		this._register(decorationsService.registerDecorationsProvider(new ChatDecorationsProvider(this._currentSessionObs)));
+		this._register(decorationsService.registerDecorationsProvider(_instantiationService.createInstance(ChatDecorationsProvider, this._currentSessionObs)));
 		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver, this._currentSessionObs)));
 		textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider, this._currentSessionObs));
 		textModelService.registerTextModelContentProvider(ChatEditingSnapshotTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider, this._currentSessionObs));
@@ -238,7 +239,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		const editedFilesExist = new ResourceMap<Promise<boolean>>();
 
 		const onResponseComplete = (responseModel: IChatResponseModel) => {
-			if (responseModel.result?.errorDetails) {
+			if (responseModel.result?.errorDetails && !responseModel.result.errorDetails.responseIsIncomplete) {
 				// Roll back everything
 				this.restoreSnapshot(responseModel.requestId);
 				this._applyingChatEditsFailedContextKey.set(true);
@@ -402,7 +403,7 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 
 	readonly label: string = localize('chat', "Chat Editing");
 
-	private readonly _currentlyEditingUris = derived<URI[]>(this, (r) => {
+	private readonly _currentEntries = derived<readonly IModifiedFileEntry[]>(this, (r) => {
 		const session = this._session.read(r);
 		if (!session) {
 			return [];
@@ -411,27 +412,51 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 		if (state === ChatEditingSessionState.Disposed) {
 			return [];
 		}
-		return session.entries.read(r).filter(entry => entry.isCurrentlyBeingModified.read(r)).map(entry => entry.modifiedURI);
+		return session.entries.read(r);
 	});
 
-	public readonly onDidChange = observeArrayChanges(this._currentlyEditingUris, compareBy(uri => uri.toString(), compare), this._store);
+	private readonly _currentlyEditingUris = derived<URI[]>(this, (r) => {
+		const uri = this._currentEntries.read(r);
+		return uri.filter(entry => entry.isCurrentlyBeingModified.read(r)).map(entry => entry.modifiedURI);
+	});
+
+	private readonly _modifiedUris = derived<URI[]>(this, (r) => {
+		const uri = this._currentEntries.read(r);
+		return uri.filter(entry => !entry.isCurrentlyBeingModified.read(r) && entry.state.read(r) === WorkingSetEntryState.Modified).map(entry => entry.modifiedURI);
+	});
+
+	public readonly onDidChange = Event.any(
+		observeArrayChanges(this._currentlyEditingUris, compareBy(uri => uri.toString(), compare), this._store),
+		observeArrayChanges(this._modifiedUris, compareBy(uri => uri.toString(), compare), this._store),
+	);
 
 	constructor(
-		private readonly _session: IObservable<IChatEditingSession | null>
+		private readonly _session: IObservable<IChatEditingSession | null>,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService
 	) {
 		super();
 	}
 
 	provideDecorations(uri: URI, _token: CancellationToken): IDecorationData | undefined {
 		const isCurrentlyBeingModified = this._currentlyEditingUris.get().some(e => e.toString() === uri.toString());
-		if (!isCurrentlyBeingModified) {
-			return undefined;
+		if (isCurrentlyBeingModified) {
+			return {
+				weight: 1000,
+				letter: ThemeIcon.modify(Codicon.loading, 'spin'),
+				bubble: false
+			};
 		}
-		return {
-			weight: 1000,
-			letter: ThemeIcon.modify(Codicon.loading, 'spin'),
-			bubble: false
-		};
+		const isModified = this._modifiedUris.get().some(e => e.toString() === uri.toString());
+		if (isModified) {
+			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName;
+			return {
+				weight: 1000,
+				letter: Codicon.diffModified,
+				tooltip: defaultAgentName ? localize('chatEditing.modified', "Pending changes from {0}", defaultAgentName) : localize('chatEditing.modified2', "Pending changes from chat"),
+				bubble: true
+			};
+		}
+		return undefined;
 	}
 }
 

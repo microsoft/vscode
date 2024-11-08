@@ -20,7 +20,7 @@ import { Emitter, Event } from '../../../common/event.js';
 import { Iterable } from '../../../common/iterator.js';
 import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { ScrollEvent } from '../../../common/scrollable.js';
-import { isIterable, isNumber } from '../../../common/types.js';
+import { isIterable } from '../../../common/types.js';
 import { CancellationToken, CancellationTokenSource } from '../../../common/cancellation.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
 import { FuzzyScore } from '../../../common/filters.js';
@@ -708,10 +708,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	layout(height?: number, width?: number): void {
 		this.tree.layout(height, width);
-
-		if (isNumber(width)) {
-			this.findController?.layout(width);
-		}
 	}
 
 	style(styles: IListStyles): void {

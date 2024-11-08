@@ -36,6 +36,7 @@
 	padding-right: 9px;
 }
 
+.chat-editor-overlay-widget.busy .chat-editor-overlay-progress .codicon,
 .chat-editor-overlay-widget .action-item > .action-label.codicon {
 	color: var(--vscode-button-foreground);
 }

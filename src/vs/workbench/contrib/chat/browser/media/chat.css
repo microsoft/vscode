@@ -336,6 +336,7 @@
 }
 
 .interactive-item-container .value > .rendered-markdown p {
+	/* Targetting normal text paras. `p` can also appear in other elements/widgets */
 	margin: 0 0 16px 0;
 }
 
@@ -1204,31 +1205,26 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .progress-container {
 	display: flex;
-}
+	gap: 8px;
+	margin: 0 0 6px 4px;
 
-.interactive-item-container .rendered-markdown.progress-step {
-	margin-left: 4px;
-	white-space: normal;
-}
+	.codicon {
+		/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
+		color: var(--vscode-icon-foreground) !important;
 
-.interactive-item-container .rendered-markdown.progress-step .monaco-button {
-	flex: 0 0 content;
-	font-size: 12px;
-	padding: 2px;
-}
+		&.codicon-check {
+			color: var(--vscode-debugIcon-startForeground) !important;
+		}
+	}
 
-.interactive-item-container .rendered-markdown.progress-step > p {
-	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
-	margin-bottom: 6px;
-}
+	.rendered-markdown.progress-step {
+		white-space: normal;
 
-.interactive-item-container .progress-container .codicon {
-	/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
-	color: var(--vscode-icon-foreground) !important;
-
-	&.codicon-check {
-		color: var(--vscode-debugIcon-startForeground) !important;
+		& > p {
+			color: var(--vscode-descriptionForeground);
+			font-size: 12px;
+			margin: 0;
+		}
 	}
 }
 
