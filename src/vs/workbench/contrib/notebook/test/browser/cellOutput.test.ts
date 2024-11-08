@@ -130,7 +130,28 @@ suite('CellOutput', () => {
 		);
 	});
 
-	test('copy all outputs of cell', async () => {
+	test('copy all adjacent stream outputs', async () => {
+		const stdout = { data: VSBuffer.fromString('stdout'), mime: 'application/vnd.code.notebook.stdout' };
+		const stderr = { data: VSBuffer.fromString('stderr'), mime: 'application/vnd.code.notebook.stderr' };
+		const output1: IOutputDto = { outputId: 'abc', outputs: [stdout] };
+		const output2: IOutputDto = { outputId: 'abc', outputs: [stderr] };
+
+		await withTestNotebook(
+			[
+				['print(output content)', 'python', CellKind.Code, [output1, output2], {}],
+			],
+			(_editor, viewModel) => {
+				const cell = viewModel.viewCells[0];
+				const notebook = viewModel.notebookDocument;
+				const result = getAllOutputsText(notebook, cell);
+
+				assert.strictEqual(result, 'stdoutstderr');
+			},
+			instantiationService
+		);
+	});
+
+	test('copy all mixed outputs of cell', async () => {
 		const stdout = { data: VSBuffer.fromString('stdout'), mime: 'application/vnd.code.notebook.stdout' };
 		const stderr = { data: VSBuffer.fromString('stderr'), mime: 'application/vnd.code.notebook.stderr' };
 		const plainText = { data: VSBuffer.fromString('output content'), mime: 'text/plain' };
