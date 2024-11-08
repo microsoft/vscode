@@ -112,9 +112,9 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		return;
 
 		// return {
-		// 	edits: [{ insertText: '', title: 'test title', kind: new HierarchicalKind(''), handledMimeType: Mimes.text }],
+		// 	edits: [{ insertText: 'test text', title: 'test title', kind: new HierarchicalKind(''), handledMimeType: Mimes.text }],
 		// 	dispose() { },
-		// }
+		// };
 	}
 }
 
@@ -176,33 +176,9 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 	) { }
 
 	async prepareDocumentPaste(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer> {
-
-		console.log(model);
-		console.log(ranges);
-		console.log(dataTransfer);
-		// Create a new VSDataTransfer object
-
 		const customDataTransfer = new VSDataTransfer();
-
-		// Add the model URI to the data transfer
-		customDataTransfer.append('uri-data-nice', createStringDataTransferItem(model.uri.toString()));
-
-		// Add the ranges to the data transfer
-		const rangesString = JSON.stringify(ranges.map(range => ({
-			startLineNumber: range.startLineNumber,
-			startColumn: range.startColumn,
-			endLineNumber: range.endLineNumber,
-			endColumn: range.endColumn
-		})));
-		customDataTransfer.append('ranges-data-nice', createStringDataTransferItem(rangesString));
-
-		// Add any other relevant information
-		const additionalInfo = {
-			modelLanguage: model.getLanguageId(),
-			modelVersionId: model.getVersionId()
-		};
-		customDataTransfer.append('additional-info-nice', createStringDataTransferItem(JSON.stringify(additionalInfo)));
-
+		const rangesString = JSON.stringify({ ranges: ranges[0], uri: model.uri.toString() });
+		customDataTransfer.append('editor-additional-data', createStringDataTransferItem(rangesString));
 		return customDataTransfer;
 	}
 
@@ -210,73 +186,53 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		const text = dataTransfer.get(Mimes.text);
 		const html = dataTransfer.get('text/html');
 		const rawmetadata = dataTransfer.get('vscode-editor-data');
-		const uri = dataTransfer.get('uri-data-nice');
-		const ranges = dataTransfer.get('ranges-data-nice');
-		const additionalInfo = dataTransfer.get('additional-info-nice');
+		const additionalMetaData = dataTransfer.get('editor-additional-data');
 
-
-		if (!rawmetadata || !text || !html || !uri || !ranges || !additionalInfo) {
+		if (!rawmetadata || !text || !html || !additionalMetaData) {
 			return;
 		}
 
-		const metadata = JSON.parse(await rawmetadata.asString());
-
 		const textdata = await text.asString();
-		const htmldata = await html.asString();
-		const uriData = await uri.asString();
-		const fileName = uriData.split('/').pop() || 'unknown file';
-		const rangesData = JSON.parse(await ranges.asString());
-		const additionalInfoData = await additionalInfo.asString();
-
-
-
-		// const fileName = _model.uri.path.split('/').pop() || 'unknown file';
-		// const range = _ranges.length > 0 ? _ranges[0] : { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 };
+		const metadata = JSON.parse(await rawmetadata.asString());
+		const additionalData = JSON.parse(await additionalMetaData.asString());
+		const fileName = additionalData.uri.split('/').pop() || 'unknown file';
 
 		const widget = this.chatWidgetService.getWidgetByInputUri(_model.uri);
 		if (!widget) {
 			return;
 		}
 
-		const attachedVariables = widget.attachmentModel.attachments;
-		const displayName = localize('copiedCodeName', 'Pasted Code');
-		let tempDisplayName = displayName;
-
-		for (let appendValue = 2; attachedVariables.some(attachment => attachment.name === tempDisplayName); appendValue++) {
-			tempDisplayName = `${displayName} ${appendValue}`;
-		}
-
-		const copiedContext = await getCopiedContext(textdata, fileName, metadata.mode, tempDisplayName, rangesData[0].startLineNumber, rangesData[0].endLineNumber);
+		const copiedContext = await getCopiedContext(textdata, fileName, metadata.mode, additionalData.ranges);
 
 		if (token.isCancellationRequested || !copiedContext) {
 			return;
 		}
 
-		// Make sure to attach only new contexts
 		const currentContextIds = widget.attachmentModel.getAttachmentIDs();
 		if (currentContextIds.has(copiedContext.id)) {
 			return;
 		}
 
 		widget.attachmentModel.addContext(copiedContext);
-
 		return;
 	}
 }
 
-async function getCopiedContext(data: string, fileName: string, language: string, displayName: string, start: number, end: number): Promise<IChatRequestVariableEntry | undefined> {
-
+async function getCopiedContext(data: string, fileName: string, language: string, ranges: IRange): Promise<IChatRequestVariableEntry | undefined> {
+	const start = ranges.startLineNumber;
+	const end = ranges.endLineNumber;
 	const resultText = `Copied Selection of Code: \n\n\n From the file: ${fileName} From lines ${start} to ${end} \n \`\`\`${data}\`\`\``;
 	return {
 		value: resultText,
-		id: data,
-		name: `${displayName} (${fileName}:${start}-${end})`,
+		id: `${fileName}${start}${end}${ranges.startColumn}${ranges.endColumn}`,
+		name: start === end ? localize('pastedAttachment.oneLine', '1 line') : localize('pastedAttachment.multipleLines', '{0} lines', end + 1 - start),
+		fullName: fileName,
 		isImage: false,
 		icon: Codicon.code,
 		isDynamic: true,
 		isFile: false,
 		code: data,
-		language: language
+		language: language,
 	};
 }
 

@@ -793,7 +793,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}));
 			} else if (typeof attachment.value === 'string') {
 
-				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.fullName + attachment.name);
 
 				const hoverContent: IManagedHoverTooltipMarkdownString = {
 					markdown: {
@@ -804,6 +804,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				const classNames = ['file-icon', `${attachment.language}-lang-file-icon`];
 				label.setLabel(attachment.fullName ?? attachment.name, undefined, { extraClasses: classNames });
+				widget.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.name}`));
 
 				widget.style.position = 'relative';
 				store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverContent, { trapFocus: true }));
