@@ -401,7 +401,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 				// soft revert unsets the dirty state which is OK
 				// to do if all edits are from us otherwise we keep
 				// the dirty state
-				this.docFileEditorModel.revert({ soft: true });
+				await this.docFileEditorModel.save({ reason: SaveReason.EXPLICIT });
 			}
 			await this.collapse(transaction);
 		}
