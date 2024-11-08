@@ -130,7 +130,7 @@ suite('CellOutput', () => {
 		);
 	});
 
-	test('copy all adjacent stream outputs', async () => {
+	test('get all adjacent stream outputs', async () => {
 		const stdout = { data: VSBuffer.fromString('stdout'), mime: 'application/vnd.code.notebook.stdout' };
 		const stderr = { data: VSBuffer.fromString('stderr'), mime: 'application/vnd.code.notebook.stderr' };
 		const output1: IOutputDto = { outputId: 'abc', outputs: [stdout] };
@@ -151,7 +151,7 @@ suite('CellOutput', () => {
 		);
 	});
 
-	test('copy all mixed outputs of cell', async () => {
+	test('get all mixed outputs of cell', async () => {
 		const stdout = { data: VSBuffer.fromString('stdout'), mime: 'application/vnd.code.notebook.stdout' };
 		const stderr = { data: VSBuffer.fromString('stderr'), mime: 'application/vnd.code.notebook.stderr' };
 		const plainText = { data: VSBuffer.fromString('output content'), mime: 'text/plain' };
