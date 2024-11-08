@@ -94,27 +94,36 @@ export class WorkbenchButtonBar extends ButtonBar {
 					actionRunner: this._actionRunner,
 					actions: rest,
 					contextMenuProvider: this._contextMenuService,
-					ariaLabel: action.label
+					ariaLabel: action.label,
+					supportIcons: true,
 				});
 			} else {
 				action = actionOrSubmenu;
 				btn = this.addButton({
 					secondary: conifgProvider(action, i)?.isSecondary ?? secondary,
-					ariaLabel: action.label
+					ariaLabel: action.label,
+					supportIcons: true,
 				});
 			}
 
 			btn.enabled = action.enabled;
 			btn.checked = action.checked ?? false;
 			btn.element.classList.add('default-colors');
-			if (conifgProvider(action, i)?.showLabel ?? true) {
+			const showLabel = conifgProvider(action, i)?.showLabel ?? true;
+			if (showLabel) {
 				btn.label = action.label;
 			} else {
 				btn.element.classList.add('monaco-text-button');
 			}
 			if (conifgProvider(action, i)?.showIcon) {
 				if (action instanceof MenuItemAction && ThemeIcon.isThemeIcon(action.item.icon)) {
-					btn.icon = action.item.icon;
+					if (!showLabel) {
+						btn.icon = action.item.icon;
+					} else {
+						// this is REALLY hacky but combining a codicon and normal text is ugly because
+						// the former define a font which doesn't work for text
+						btn.label = `$(${action.item.icon.id}) ${action.label}`;
+					}
 				} else if (action.class) {
 					btn.element.classList.add(...action.class.split(' '));
 				}

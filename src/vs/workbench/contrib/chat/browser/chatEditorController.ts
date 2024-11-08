@@ -3,25 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatEditorController.css';
+import { getTotalWidth } from '../../../../base/browser/dom.js';
 import { binarySearch, coalesceInPlace } from '../../../../base/common/arrays.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived } from '../../../../base/common/observable.js';
+import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../base/common/themables.js';
-import { ICodeEditor, IViewZone } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone } from '../../../../editor/browser/editorBrowser.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { diffAddDecoration, diffDeleteDecoration, diffWholeLineAddDecoration } from '../../../../editor/browser/widget/diffEditor/registrations.contribution.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { IEditorContribution, ScrollType } from '../../../../editor/common/editorCommon.js';
-import { IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../../editor/common/model.js';
+import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../../editor/common/model.js';
 import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../editor/common/viewModel.js';
 import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../scm/browser/dirtydiffDecorator.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { Event } from '../../../../base/common/event.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IPosition } from '../../../../editor/common/core/position.js';
 
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
 
@@ -29,8 +37,10 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	public static readonly ID = 'editor.contrib.chatEditorController';
 
-	private readonly _sessionStore = this._register(new DisposableStore());
 	private readonly _decorations = this._editor.createDecorationsCollection();
+	private readonly _diffHunksRenderStore = this._register(new DisposableStore());
+	private readonly _diffHunkWidgets: DiffHunkWidget[] = [];
+
 	private _viewZones: string[] = [];
 	private readonly _ctxHasEditorModification: IContextKey<boolean>;
 
@@ -41,29 +51,34 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
-		this._register(this._editor.onDidChangeModel(() => this._update()));
-		this._register(this._editor.onDidChangeConfiguration((e) => {
-			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.lineHeight)) {
-				this._update();
-			}
-		}));
-		this._register(this._chatEditingService.onDidChangeEditingSession(() => this._updateSessionDecorations()));
-		this._register(toDisposable(() => this._clearRendering()));
 
 		this._ctxHasEditorModification = ctxHasEditorModification.bindTo(contextKeyService);
+
+		const configSignal = observableFromEvent(
+			Event.filter(this._editor.onDidChangeConfiguration, e => e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.lineHeight)),
+			_ => undefined
+		);
+
+		const modelObs = observableFromEvent(this._editor.onDidChangeModel, _ => this._editor.getModel());
 
 		this._register(autorun(r => {
 
 			if (this._editor.getOption(EditorOption.inDiffEditor)) {
+				this._clearRendering();
 				return;
 			}
 
+			configSignal.read(r);
+
+			const model = modelObs.read(r);
+
 			const session = this._chatEditingService.currentEditingSessionObs.read(r);
-			const entry = session?.entries.read(r).find(e => isEqual(e.modifiedURI, this._editor.getModel()?.uri));
+			const entry = session?.entries.read(r).find(e => isEqual(e.modifiedURI, model?.uri));
 
 			if (!entry || entry.state.read(r) !== WorkingSetEntryState.Modified) {
 				this._clearRendering();
@@ -114,46 +129,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		super.dispose();
 	}
 
-	private _update(): void {
-		this._sessionStore.clear();
-		if (!this._editor.hasModel()) {
-			return;
-		}
-		if (this._editor.getOption(EditorOption.inDiffEditor)) {
-			return;
-		}
-		if (this._editor.getOption(EditorOption.inDiffEditor)) {
-			this._clearRendering();
-			return;
-		}
-		this._updateSessionDecorations();
-	}
-
-	private _updateSessionDecorations(): void {
-		if (!this._editor.hasModel()) {
-			this._clearRendering();
-			return;
-		}
-		const model = this._editor.getModel();
-		const editingSession = this._chatEditingService.getEditingSession(model.uri);
-		const entry = this._getEntry(editingSession, model);
-
-		if (!entry || entry.state.get() !== WorkingSetEntryState.Modified) {
-			this._clearRendering();
-			return;
-		}
-
-		const diff = entry.diffInfo.get();
-		this._updateWithDiff(entry, diff);
-	}
-
-	private _getEntry(editingSession: IChatEditingSession | null, model: ITextModel): IModifiedFileEntry | null {
-		if (!editingSession) {
-			return null;
-		}
-		return editingSession.entries.get().find(e => e.modifiedURI.toString() === model.uri.toString()) || null;
-	}
-
 	private _clearRendering() {
 		this._editor.changeViewZones((viewZoneChangeAccessor) => {
 			for (const id of this._viewZones) {
@@ -161,6 +136,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			}
 		});
 		this._viewZones = [];
+		this._diffHunksRenderStore.clear();
 		this._decorations.clear();
 		this._ctxHasEditorModification.reset();
 	}
@@ -192,6 +168,10 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		const modifiedDecoration = createOverviewDecoration(overviewRulerModifiedForeground, minimapGutterModifiedBackground);
 		const addedDecoration = createOverviewDecoration(overviewRulerAddedForeground, minimapGutterAddedBackground);
 		const deletedDecoration = createOverviewDecoration(overviewRulerDeletedForeground, minimapGutterDeletedBackground);
+
+		this._diffHunksRenderStore.clear();
+		this._diffHunkWidgets.length = 0;
+		const diffHunkDecorations: IModelDeltaDecoration[] = [];
 
 		this._editor.changeViewZones((viewZoneChangeAccessor) => {
 			for (const id of this._viewZones) {
@@ -225,7 +205,8 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				}
 				if (!diffEntry.modified.isEmpty) {
 					modifiedDecorations.push({
-						range: diffEntry.modified.toInclusiveRange()!, options: chatDiffWholeLineAddDecoration
+						range: diffEntry.modified.toInclusiveRange()!,
+						options: chatDiffWholeLineAddDecoration
 					});
 				}
 
@@ -263,10 +244,73 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 					this._viewZones.push(viewZoneChangeAccessor.addZone(viewZoneData));
 				}
+
+				// Add content widget for each diff change
+				const undoEdits: ISingleEditOperation[] = [];
+				for (const c of diffEntry.innerChanges ?? []) {
+					const oldText = originalModel.getValueInRange(c.originalRange);
+					undoEdits.push(EditOperation.replace(c.modifiedRange, oldText));
+				}
+
+				const widget = this._instantiationService.createInstance(DiffHunkWidget, undoEdits, this._editor.getModel()!.getVersionId(), this._editor, isCreatedContent ? 0 : result.heightInLines);
+				widget.layout(diffEntry.modified.startLineNumber);
+
+				this._diffHunkWidgets.push(widget);
+				diffHunkDecorations.push({
+					range: diffEntry.modified.toInclusiveRange() ?? new Range(diffEntry.modified.startLineNumber, 1, diffEntry.modified.startLineNumber, Number.MAX_SAFE_INTEGER),
+					options: {
+						description: 'diff-hunk-widget',
+						stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+					}
+				});
 			}
 
 			this._decorations.set(modifiedDecorations);
 		});
+
+		const diffHunkDecoCollection = this._editor.createDecorationsCollection(diffHunkDecorations);
+
+		this._diffHunksRenderStore.add(toDisposable(() => {
+			dispose(this._diffHunkWidgets);
+			this._diffHunkWidgets.length = 0;
+			diffHunkDecoCollection.clear();
+		}));
+
+		const showHunkMenu = (position: IPosition) => {
+			let activeWidget: DiffHunkWidget | undefined;
+			if (position) {
+				for (let i = 0; i < diffHunkDecoCollection.length; i++) {
+					const range = diffHunkDecoCollection.getRange(i);
+					if (range?.containsPosition(position)) {
+						activeWidget = this._diffHunkWidgets[i];
+						break;
+					}
+				}
+			}
+			if (activeWidget) {
+				for (const widget of this._diffHunkWidgets) {
+					widget.toggle(widget === activeWidget);
+				}
+			}
+		};
+
+		this._diffHunksRenderStore.add(this._editor.onMouseMove(e => {
+			if (e.target.position) {
+				showHunkMenu(e.target.position);
+			}
+		}));
+
+		this._diffHunksRenderStore.add(Event.any(this._editor.onDidScrollChange, this._editor.onDidLayoutChange)(() => {
+			for (let i = 0; i < this._diffHunkWidgets.length; i++) {
+				const widget = this._diffHunkWidgets[i];
+				const range = diffHunkDecoCollection.getRange(i);
+				if (range) {
+					widget.layout(range?.startLineNumber);
+				} else {
+					widget.dispose();
+				}
+			}
+		}));
 	}
 
 	revealNext(strict = false): boolean {
@@ -329,5 +373,122 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		this._editor.revealPositionInCenter(targetPosition, ScrollType.Smooth);
 		this._editor.focus();
 		return true;
+	}
+
+	undoNearestChange(closestWidget: DiffHunkWidget | undefined): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+		const lineRelativeTop = this._editor.getTopForLineNumber(this._editor.getPosition().lineNumber) - this._editor.getScrollTop();
+		let closestDistance = Number.MAX_VALUE;
+
+		if (!(closestWidget instanceof DiffHunkWidget)) {
+			for (const widget of this._diffHunkWidgets) {
+				const widgetTop = (<IOverlayWidgetPositionCoordinates | undefined>widget.getPosition()?.preference)?.top;
+				if (widgetTop !== undefined) {
+					const distance = Math.abs(widgetTop - lineRelativeTop);
+					if (distance < closestDistance) {
+						closestDistance = distance;
+						closestWidget = widget;
+					}
+				}
+			}
+		}
+
+		if (closestWidget instanceof DiffHunkWidget) {
+			closestWidget.undo();
+		}
+	}
+}
+
+class DiffHunkWidget implements IOverlayWidget {
+
+	private static _idPool = 0;
+	private readonly _id: string = `diff-change-widget-${DiffHunkWidget._idPool++}`;
+
+	private readonly _domNode: HTMLElement;
+	private readonly _store = new DisposableStore();
+	private _position: IOverlayWidgetPosition | undefined;
+	private _lastStartLineNumber: number | undefined;
+
+
+	constructor(
+		private readonly _undoEdits: ISingleEditOperation[],
+		private readonly _versionId: number,
+		private readonly _editor: ICodeEditor,
+		private readonly _lineDelta: number,
+		@IInstantiationService instaService: IInstantiationService,
+	) {
+		this._domNode = document.createElement('div');
+		this._domNode.className = 'chat-diff-change-content-widget';
+
+		const btns = instaService.createInstance(MenuWorkbenchButtonBar, this._domNode, MenuId.ChatEditingEditorHunk, {
+			telemetrySource: 'chatEditingEditorHunk',
+			toolbarOptions: { primaryGroup: () => true, },
+			menuOptions: {
+				renderShortTitle: true,
+				arg: this,
+			},
+			buttonConfigProvider: () => {
+				return {
+					isSecondary: true,
+					showIcon: true,
+					showLabel: true
+				};
+			}
+		});
+
+		this._store.add(btns);
+		this._editor.addOverlayWidget(this);
+	}
+
+	dispose(): void {
+		this._store.dispose();
+		this._editor.removeOverlayWidget(this);
+	}
+
+	getId(): string {
+		return this._id;
+	}
+
+	layout(startLineNumber: number): void {
+
+		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const { contentLeft, contentWidth, verticalScrollbarWidth } = this._editor.getLayoutInfo();
+		const scrollTop = this._editor.getScrollTop();
+
+		this._position = {
+			stackOridinal: 1,
+			preference: {
+				top: this._editor.getTopForLineNumber(startLineNumber) - scrollTop - (lineHeight * this._lineDelta),
+				left: contentLeft + contentWidth - (2 * verticalScrollbarWidth + getTotalWidth(this._domNode))
+			}
+		};
+
+		this._editor.layoutOverlayWidget(this);
+		this._lastStartLineNumber = startLineNumber;
+	}
+
+	toggle(show: boolean) {
+		this._domNode.classList.toggle('hover', show);
+		if (this._lastStartLineNumber) {
+			this.layout(this._lastStartLineNumber);
+		}
+	}
+
+	getDomNode(): HTMLElement {
+		return this._domNode;
+	}
+
+	getPosition(): IOverlayWidgetPosition | null {
+		return this._position ?? null;
+	}
+
+	// ---
+
+	undo() {
+		if (this._versionId === this._editor.getModel()?.getVersionId()) {
+			this._editor.executeEdits('chatEdits.undo', this._undoEdits);
+		}
 	}
 }

@@ -10,7 +10,8 @@
 	border-radius: 5px;
 	border: 1px solid var(--vscode-contrastBorder);
 	display: flex;
-	align-items: center
+	align-items: center;
+	z-index: 10;
 }
 
 .chat-editor-overlay-widget .chat-editor-overlay-progress {
