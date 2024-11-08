@@ -115,10 +115,44 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 	private registerChatWelcome(): void {
 
+		// Setup: Triggered (signed-out)
+		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
+			title: defaultChat.welcomeTitle,
+			when: ContextKeyExpr.and(
+				ChatContextKeys.ChatSetup.triggering,
+				ChatContextKeys.ChatSetup.signedIn.negate(),
+				ChatContextKeys.ChatSetup.signingIn.negate(),
+				ChatContextKeys.ChatSetup.installing.negate(),
+				ChatContextKeys.extensionInvalid.negate(),
+				ChatContextKeys.panelParticipantRegistered.negate()
+			)!,
+			icon: defaultChat.icon,
+			content: new MarkdownString(`[${localize('signInAndSetup', "Sign in to use {0}", defaultChat.name)}](command:${ChatSetupSignInAndInstallChatAction.ID})\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`, { isTrusted: true }),
+		});
+
+		// Setup: Triggered (signed-in)
+		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
+			title: defaultChat.welcomeTitle,
+			when: ContextKeyExpr.and(
+				ChatContextKeys.ChatSetup.triggering,
+				ChatContextKeys.ChatSetup.signedIn,
+				ChatContextKeys.ChatSetup.signingIn.negate(),
+				ChatContextKeys.ChatSetup.installing.negate(),
+				ChatContextKeys.extensionInvalid.negate(),
+				ChatContextKeys.panelParticipantRegistered.negate()
+			)!,
+			icon: defaultChat.icon,
+			content: new MarkdownString(`[${localize('setup', "Install {0}", defaultChat.name)}](command:${ChatSetupInstallAction.ID})\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`, { isTrusted: true }),
+		});
+
 		// Setup: Signing-in
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
 			title: defaultChat.welcomeTitle,
-			when: ChatContextKeys.ChatSetup.signingIn,
+			when: ContextKeyExpr.and(
+				ChatContextKeys.ChatSetup.signingIn,
+				ChatContextKeys.extensionInvalid.negate(),
+				ChatContextKeys.panelParticipantRegistered.negate()
+			)!,
 			icon: defaultChat.icon,
 			progress: localize('setupChatSigningIn', "Signing in to {0}...", defaultChat.providerName),
 			content: new MarkdownString(`\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`, { isTrusted: true }),
@@ -127,7 +161,11 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		// Setup: Installing
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
 			title: defaultChat.welcomeTitle,
-			when: ChatContextKeys.ChatSetup.installing,
+			when: ContextKeyExpr.and(
+				ChatContextKeys.ChatSetup.installing,
+				ChatContextKeys.extensionInvalid.negate(),
+				ChatContextKeys.panelParticipantRegistered.negate()
+			)!,
 			icon: defaultChat.icon,
 			progress: localize('setupChatInstalling', "Setting up Chat for you..."),
 			content: new MarkdownString(`\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`, { isTrusted: true }),
@@ -252,15 +290,37 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 	}
 }
 
-class InstallChatAction extends Action2 {
+class ChatSetupTriggerAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.triggerSetup';
+	static readonly TITLE = localize2('triggerChatSetup', "Trigger Chat Setup");
+
+	constructor() {
+		super({
+			id: ChatSetupTriggerAction.ID,
+			title: ChatSetupTriggerAction.TITLE,
+			f1: false
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const viewsService = accessor.get(IViewsService);
+
+		ChatContextKeys.ChatSetup.triggering.bindTo(contextKeyService).set(true);
+		showChatView(viewsService);
+	}
+}
+
+class ChatSetupInstallAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.install';
 	static readonly TITLE = localize2('installChat', "Install {0}", defaultChat.name);
 
 	constructor() {
 		super({
-			id: InstallChatAction.ID,
-			title: InstallChatAction.TITLE,
+			id: ChatSetupInstallAction.ID,
+			title: ChatSetupInstallAction.TITLE,
 			category: CHAT_CATEGORY,
 			menu: {
 				id: MenuId.ChatCommandCenter,
@@ -278,7 +338,7 @@ class InstallChatAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor): Promise<void> {
-		return InstallChatAction.install(accessor, false);
+		return ChatSetupInstallAction.install(accessor, false);
 	}
 
 	static async install(accessor: ServicesAccessor, signedIn: boolean) {
@@ -316,15 +376,15 @@ class InstallChatAction extends Action2 {
 	}
 }
 
-class SignInAndInstallChatAction extends Action2 {
+class ChatSetupSignInAndInstallChatAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.signInAndInstall';
 	static readonly TITLE = localize2('signInAndInstallChat', "Sign in to use {0}", defaultChat.name);
 
 	constructor() {
 		super({
-			id: SignInAndInstallChatAction.ID,
-			title: SignInAndInstallChatAction.TITLE,
+			id: ChatSetupSignInAndInstallChatAction.ID,
+			title: ChatSetupSignInAndInstallChatAction.TITLE,
 			category: CHAT_CATEGORY,
 			menu: {
 				id: MenuId.ChatCommandCenter,
@@ -363,7 +423,7 @@ class SignInAndInstallChatAction extends Action2 {
 		}
 
 		if (session) {
-			instantiationService.invokeFunction(accessor => InstallChatAction.install(accessor, true));
+			instantiationService.invokeFunction(accessor => ChatSetupInstallAction.install(accessor, true));
 		} else {
 			if (hideSecondarySidebar) {
 				layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
@@ -373,7 +433,8 @@ class SignInAndInstallChatAction extends Action2 {
 	}
 }
 
-registerAction2(InstallChatAction);
-registerAction2(SignInAndInstallChatAction);
+registerAction2(ChatSetupTriggerAction);
+registerAction2(ChatSetupInstallAction);
+registerAction2(ChatSetupSignInAndInstallChatAction);
 
 registerWorkbenchContribution2('workbench.chat.setup', ChatSetupContribution, WorkbenchPhase.BlockRestore);
