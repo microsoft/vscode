@@ -37,6 +37,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickin
 import { PostEditWidgetManager } from './postEditWidget.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { ClipboardEventUtils } from '../../../browser/controller/editContext/textArea/textAreaEditContextInput.js';
+// import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 
 export const changePasteTypeCommandId = 'editor.changePasteType';
 
@@ -100,7 +101,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IProgressService private readonly _progressService: IProgressService,
+		@IProgressService private readonly _progressService: IProgressService
 	) {
 		super();
 
@@ -567,6 +568,18 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					if (edits) {
 						disposables.add(edits);
 					}
+
+					// if ((edits as CustomPasteEdits).attachment) {
+					// 	const temp = (edits as CustomPasteEdits).attachment;
+					// 	// do some stuff here instad.
+					// 	// cannot import chat widget service here
+					// 	// should we pass in widget then? cannot add as an argument either
+					// 	const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+					// 	return edits?.edits?.map(edit => ({ ...edit, provider, temp }));
+
+					// }
+
+
 					return edits?.edits?.map(edit => ({ ...edit, provider }));
 				} catch (err) {
 					if (!isCancellationError(err)) {

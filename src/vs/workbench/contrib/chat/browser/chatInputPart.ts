@@ -791,8 +791,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
 					resolve();
 				}));
-			} else if (typeof attachment.value === 'string') {
-
+			} else if (attachment.code) {
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.fullName + attachment.name);
 
 				const hoverContent: IManagedHoverTooltipMarkdownString = {
