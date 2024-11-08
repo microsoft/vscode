@@ -407,6 +407,10 @@
 	color: var(--vscode-testing-message-info-decorationForeground) !important;
 }
 
+.monaco-workbench .test-error-content-widget {
+	z-index: 0;
+}
+
 .monaco-workbench .test-error-content-widget .inner {
 	margin-left: 20px;
 	color: var(--vscode-testing-message-error-badgeForeground) !important;
