@@ -9,7 +9,7 @@ import { autorun, IReader, ISettableObservable, ITransaction, observableFromEven
 import { isEqual } from '../../../../base/common/resources.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
-import { MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -17,8 +17,11 @@ import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionView
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IActionRunner } from '../../../../base/common/actions.js';
-import { getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { getWindow, reset, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 class ChatEditorOverlayWidget implements IOverlayWidget {
 
@@ -51,6 +54,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 
 		this._toolbar = instaService.createInstance(MenuWorkbenchToolBar, toolbarNode, MenuId.ChatEditingEditorContent, {
 			telemetrySource: 'chatEditor.overlayToolbar',
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
 				primaryGroup: () => true,
 				useSeparatorsInPrimaryActions: true
@@ -148,7 +152,10 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 			}, undefined);
 
 			const value2 = slickRatio.getValue(r);
-			this._progressNode.innerText = `${Math.round(value2 * 100)}%`;
+			reset(this._progressNode, value === 0
+				? renderIcon(ThemeIcon.modify(Codicon.loading, 'spin'))
+				: `${Math.round(value2 * 100)}%`
+			);
 		}));
 
 		if (!this._isAdded) {
