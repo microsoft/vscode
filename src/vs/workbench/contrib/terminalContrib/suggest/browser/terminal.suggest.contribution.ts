@@ -168,7 +168,8 @@ registerTerminalContribution(TerminalSuggestContribution.ID, TerminalSuggestCont
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: TerminalSuggestCommandId.RequestCompletions,
-	weight: KeybindingWeight.WorkbenchContrib,
+	// Add to weight such that other keybindings like the ctrl+space -> MenuComplete is overridden
+	weight: KeybindingWeight.WorkbenchContrib + 1,
 	when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.terminalShellIntegrationEnabled, ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true)),
 	primary: KeyMod.CtrlCmd | KeyCode.Space,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.Space },

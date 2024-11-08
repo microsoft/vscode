@@ -24,4 +24,5 @@ export const defaultTerminalSuggestCommandsToSkipShell = [
 	TerminalSuggestCommandId.AcceptSelectedSuggestionEnter,
 	TerminalSuggestCommandId.HideSuggestWidget,
 	TerminalSuggestCommandId.ClearSuggestCache,
+	TerminalSuggestCommandId.RequestCompletions,
 ];
