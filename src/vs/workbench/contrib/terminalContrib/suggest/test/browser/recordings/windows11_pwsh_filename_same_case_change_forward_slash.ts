@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 /* eslint-disable */
 
-// Type ".\re" and complete ".\README.md" (<bs*2> "README.md")
+// Type "./RE" and complete ".\README.md" (<bs*3> "\README.md")
 export const events = [
 	{
 		"type": "resize",
-		"cols": 300,
+		"cols": 329,
 		"rows": 22
 	},
 	{
@@ -33,7 +33,7 @@ export const events = [
 	},
 	{
 		"type": "output",
-		"data": "\u001b]633;A\u0007\u001b]633;P;Cwd=C:\\x5cGithub\\x5cTyriar\\x5cxterm.js\u0007\u001b[34m\r\n\u001b[38;2;17;17;17m\u001b[44m08:13:14 \u001b[34m\u001b[41m \u001b[38;2;17;17;17mxterm.js \u001b[31m\u001b[43m \u001b[38;2;17;17;17m master \u001b[33m\u001b[46m \u001b[38;2;17;17;17m$ \u001b[36m\u001b[49m \u001b[mis \u001b[38;5;208m\u001b[1m v5.5.0\u001b[m via \u001b[32m\u001b[1m v20.18.0 \r\n❯\u001b[m \u001b]633;P;Prompt=\\x0a\\x1b[34m\\x1b[44\\x3b38\\x3b2\\x3b17\\x3b17\\x3b17m08:13:14\\x1b[0m\\x1b[44m \\x1b[41\\x3b34m\\x1b[0m\\x1b[41m \\x1b[38\\x3b2\\x3b17\\x3b17\\x3b17mxterm.js\\x1b[0m\\x1b[41m \\x1b[43\\x3b31m\\x1b[38\\x3b2\\x3b17\\x3b17\\x3b17m  master \\x1b[46\\x3b33m\\x1b[38\\x3b2\\x3b17\\x3b17\\x3b17m $ \\x1b[0m\\x1b[36m\\x1b[0m is \\x1b[1\\x3b38\\x3b5\\x3b208m v5.5.0\\x1b[0m via \\x1b[1\\x3b32m v20.18.0 \\x1b[0m\\x0a\\x1b[1\\x3b32m❯\\x1b[0m \u0007\u001b]633;B\u0007"
+		"data": "\u001b]633;A\u0007\u001b]633;P;Cwd=C:\\x5cGithub\\x5cTyriar\\x5cxterm.js\u0007\u001b[34m\r\n\u001b[38;2;17;17;17m\u001b[44m08:05:59 \u001b[34m\u001b[41m \u001b[38;2;17;17;17mxterm.js \u001b[31m\u001b[43m \u001b[38;2;17;17;17m master \u001b[33m\u001b[46m \u001b[38;2;17;17;17m$ \u001b[36m\u001b[49m \u001b[mis \u001b[38;5;208m\u001b[1m v5.5.0\u001b[m via \u001b[32m\u001b[1m v20.18.0 \r\n❯\u001b[m \u001b]633;P;Prompt=\\x0a\\x1b[34m\\x1b[44\\x3b38\\x3b2\\x3b17\\x3b17\\x3b17m08:05:59\\x1b[0m\\x1b[44m \\x1b[41\\x3b34m\\x1b[0m\\x1b[41m \\x1b[38\\x3b2\\x3b17\\x3b17\\x3b17mxterm.js\\x1b[0m\\x1b[41m \\x1b[43\\x3b31m\\x1b[38\\x3b2\\x3b17\\x3b17\\x3b17m  master \\x1b[46\\x3b33m\\x1b[38\\x3b2\\x3b17\\x3b17\\x3b17m $ \\x1b[0m\\x1b[36m\\x1b[0m is \\x1b[1\\x3b38\\x3b5\\x3b208m v5.5.0\\x1b[0m via \\x1b[1\\x3b32m v20.18.0 \\x1b[0m\\x0a\\x1b[1\\x3b32m❯\\x1b[0m \u0007\u001b]633;B\u0007"
 	},
 	{
 		"type": "promptInputChange",
@@ -65,7 +65,7 @@ export const events = [
 	},
 	{
 		"type": "input",
-		"data": "\\"
+		"data": "/"
 	},
 	{
 		"type": "output",
@@ -73,11 +73,11 @@ export const events = [
 	},
 	{
 		"type": "output",
-		"data": "\u001b[93m\b.\\\u001b[?25h"
+		"data": "\u001b[93m\b./\u001b[?25h"
 	},
 	{
 		"type": "promptInputChange",
-		"data": ".\\|"
+		"data": "./|"
 	},
 	{
 		"type": "sendText",
@@ -89,7 +89,7 @@ export const events = [
 	},
 	{
 		"type": "input",
-		"data": "r"
+		"data": "R"
 	},
 	{
 		"type": "output",
@@ -97,15 +97,15 @@ export const events = [
 	},
 	{
 		"type": "output",
-		"data": "\u001b[93m\u001b[3;3H.\\r\u001b[?25h"
+		"data": "\u001b[93m\u001b[3;3H./R\u001b[?25h"
 	},
 	{
 		"type": "promptInputChange",
-		"data": ".\\r|"
+		"data": "./R|"
 	},
 	{
 		"type": "input",
-		"data": "e"
+		"data": "E"
 	},
 	{
 		"type": "output",
@@ -113,11 +113,11 @@ export const events = [
 	},
 	{
 		"type": "output",
-		"data": "\u001b[93m\u001b[3;3H.\\re\u001b[?25h"
+		"data": "\u001b[93m\u001b[3;3H./RE\u001b[?25h"
 	},
 	{
 		"type": "promptInputChange",
-		"data": ".\\re|"
+		"data": "./RE|"
 	},
 	{
 		"type": "command",
@@ -125,7 +125,7 @@ export const events = [
 	},
 	{
 		"type": "sendText",
-		"data": "README.md"
+		"data": "\\README.md"
 	},
 	{
 		"type": "output",
