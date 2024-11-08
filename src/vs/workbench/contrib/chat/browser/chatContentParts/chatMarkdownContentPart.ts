@@ -109,7 +109,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				const codeBlockInfo: ICodeBlockData = { languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns, codemapperUri };
 
 				if (!rendererOptions.renderCodeBlockPills || element.isCompleteAddedRequest || !codemapperUri) {
-					const ref = this.renderCodeBlock(codeBlockInfo, text, isCodeBlockComplete, currentWidth, rendererOptions.editableCodeBlock);
+					const ref = this.renderCodeBlock(codeBlockInfo, text, isCodeBlockComplete, currentWidth);
 					this.allRefs.push(ref);
 
 					// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
@@ -197,7 +197,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		};
 	}
 
-	private renderCodeBlock(data: ICodeBlockData, text: string, isComplete: boolean, currentWidth: number, editableCodeBlock: boolean | undefined): IDisposableReference<CodeBlockPart> {
+	private renderCodeBlock(data: ICodeBlockData, text: string, isComplete: boolean, currentWidth: number): IDisposableReference<CodeBlockPart> {
 		const ref = this.editorPool.get();
 		const editorInfo = ref.object;
 		if (isResponseVM(data.element)) {
@@ -208,7 +208,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			});
 		}
 
-		editorInfo.render(data, currentWidth, editableCodeBlock);
+		editorInfo.render(data, currentWidth);
 
 		return ref;
 	}
