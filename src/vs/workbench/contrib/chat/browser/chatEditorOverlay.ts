@@ -9,7 +9,7 @@ import { autorun, IReader, ISettableObservable, ITransaction, observableFromEven
 import { isEqual } from '../../../../base/common/resources.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
-import { MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -54,6 +54,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 
 		this._toolbar = instaService.createInstance(MenuWorkbenchToolBar, toolbarNode, MenuId.ChatEditingEditorContent, {
 			telemetrySource: 'chatEditor.overlayToolbar',
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
 				primaryGroup: () => true,
 				useSeparatorsInPrimaryActions: true
