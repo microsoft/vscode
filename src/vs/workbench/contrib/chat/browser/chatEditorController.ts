@@ -27,6 +27,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../scm/browser/dirtydiffDecorator.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
 
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
 
@@ -328,7 +329,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			this._editor.executeEdits('chatEdits.undo', widget.undoEdits);
 		}));
 
-		this._diffHunksRenderStore.add(this._editor.onDidScrollChange(() => {
+		this._diffHunksRenderStore.add(Event.any(this._editor.onDidScrollChange, this._editor.onDidLayoutChange)(() => {
 			for (let i = 0; i < diffHunkWidgets.length; i++) {
 				const widget = diffHunkWidgets[i];
 				const range = diffHunkDecoCollection.getRange(i);
