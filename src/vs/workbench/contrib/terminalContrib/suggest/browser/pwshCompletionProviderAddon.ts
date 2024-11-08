@@ -79,10 +79,10 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 
-	private readonly _cachedPwshCommands: Set<ISimpleCompletion>;
+	static cachedPwshCommands: Set<ISimpleCompletion>;
 
 	constructor(
-		cachedPwshCommands: Set<ISimpleCompletion> | undefined,
+		providedPwshCommands: Set<ISimpleCompletion> | undefined,
 		_capabilities: ITerminalCapabilityStore,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService
@@ -101,15 +101,15 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 				this._promptInputModel = undefined;
 			}
 		}));
-		this._cachedPwshCommands = cachedPwshCommands || new Set();
+		PwshCompletionProviderAddon.cachedPwshCommands = providedPwshCommands || new Set();
 
 		// Attempt to load cached pwsh commands if not already loaded
-		if (this._cachedPwshCommands.size === 0) {
+		if (PwshCompletionProviderAddon.cachedPwshCommands.size === 0) {
 			const config = this._storageService.get(Constants.CachedPwshCommandsStorageKey, StorageScope.APPLICATION, undefined);
 			if (config !== undefined) {
 				const completions = JSON.parse(config);
 				for (const c of completions) {
-					this._cachedPwshCommands.add(c);
+					PwshCompletionProviderAddon.cachedPwshCommands.add(c);
 				}
 			}
 		}
@@ -122,7 +122,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	}
 
 	clearSuggestCache(): void {
-		this._cachedPwshCommands.clear();
+		PwshCompletionProviderAddon.cachedPwshCommands.clear();
 		this._storageService.remove(Constants.CachedPwshCommandsStorageKey, StorageScope.APPLICATION);
 	}
 
@@ -204,7 +204,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 
 		// This is a global command, add cached commands list to completions
 		if (isGlobalCommand) {
-			for (const c of this._cachedPwshCommands) {
+			for (const c of PwshCompletionProviderAddon.cachedPwshCommands) {
 				c.replacementIndex = replacementIndex;
 				c.replacementLength = replacementLength;
 				completions.push(c);
@@ -223,7 +223,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 		const rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion = JSON.parse(data.slice(command.length + type.length + 2/*semi-colons*/));
 		const completions = parseCompletionsFromShell(rawCompletions, 0, 0);
 
-		const set = this._cachedPwshCommands;
+		const set = PwshCompletionProviderAddon.cachedPwshCommands;
 		set.clear();
 		for (const c of completions) {
 			set.add(c);
@@ -260,7 +260,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 		}
 
 		// Request global pwsh completions if there are none cached
-		if (this._cachedPwshCommands.size === 0) {
+		if (PwshCompletionProviderAddon.cachedPwshCommands.size === 0) {
 			this._onAcceptedCompletion.fire(RequestCompletionsSequence.Global);
 		}
 
