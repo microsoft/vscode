@@ -67,11 +67,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	isPasting: boolean = false;
 
-	static requestCompletionsSequence = '\x1b[24~e'; // F12,e
-	static requestGlobalCompletionsSequence = '\x1b[24~f'; // F12,f
-	static requestEnableGitCompletionsSequence = '\x1b[24~g'; // F12,g
-	static requestEnableCodeCompletionsSequence = '\x1b[24~h'; // F12,h
-
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
 	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());

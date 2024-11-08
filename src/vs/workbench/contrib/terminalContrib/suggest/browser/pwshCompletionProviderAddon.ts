@@ -249,23 +249,23 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	async provideCompletions(value: string): Promise<ISimpleCompletion[] | undefined> {
 		const builtinCompletionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).builtinCompletions;
 		if (!this._codeCompletionsRequested && builtinCompletionsConfig.pwshCode) {
-			this._onAcceptedCompletion.fire(SuggestAddon.requestEnableCodeCompletionsSequence);
+			this._onAcceptedCompletion.fire(PwshCompletionProviderAddon.requestEnableCodeCompletionsSequence);
 			this._codeCompletionsRequested = true;
 		}
 		if (!this._gitCompletionsRequested && builtinCompletionsConfig.pwshGit) {
-			this._onAcceptedCompletion.fire(SuggestAddon.requestEnableGitCompletionsSequence);
+			this._onAcceptedCompletion.fire(PwshCompletionProviderAddon.requestEnableGitCompletionsSequence);
 			this._gitCompletionsRequested = true;
 		}
 
 		// Request global pwsh completions if there are none cached
 		if (PwshCompletionProviderAddon.cachedPwshCommands.size === 0) {
-			this._onAcceptedCompletion.fire(SuggestAddon.requestGlobalCompletionsSequence);
+			this._onAcceptedCompletion.fire(PwshCompletionProviderAddon.requestGlobalCompletionsSequence);
 		}
 
 		// Ensure that a key has been pressed since the last accepted completion in order to prevent
 		// completions being requested again right after accepting a completion
 		if (this._lastUserDataTimestamp > SuggestAddon.lastAcceptedCompletionTimestamp) {
-			this._onAcceptedCompletion.fire(SuggestAddon.requestCompletionsSequence);
+			this._onAcceptedCompletion.fire(PwshCompletionProviderAddon.requestCompletionsSequence);
 			this._onDidRequestCompletions.fire();
 		}
 		return await this._waitForCompletions();
