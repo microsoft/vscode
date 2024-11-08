@@ -113,7 +113,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}));
 	}
 
-	private async _handleExtensionProviders(terminal?: Terminal): Promise<void> {
+	private async _handleCompletionProviders(terminal?: Terminal): Promise<void> {
 		// Nothing to handle if the terminal is not attached
 		if (!terminal?.element || !this._enableWidget || !this._promptInputModel) {
 			return;
@@ -203,7 +203,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		await this._handleExtensionProviders(this._terminal);
+		await this._handleCompletionProviders(this._terminal);
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
@@ -212,7 +212,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			// If input has been added
 			let sent = false;
 
-			// #region Includes shell-specific configuration - provider declares this as a property?
 			// Quick suggestions
 			if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 				if (config.quickSuggestions) {
@@ -246,7 +245,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				}
 				// TODO: eventually add an appropriate trigger char check for other shells
 			}
-			// #endregion
 		}
 
 		this._mostRecentPromptInputState = promptInputState;
@@ -273,8 +271,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
 			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._requestedCompletionsIndex);
 			let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(this._providerReplacementIndex, this._requestedCompletionsIndex + this._cursorIndexDelta);
-			// this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._replacementIndex + this._replacementLength);
-			// let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(this._replacementIndex, this._replacementIndex + this._replacementLength + this._cursorIndexDelta);
 			if (this._isFilteringDirectories) {
 				normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 			}
