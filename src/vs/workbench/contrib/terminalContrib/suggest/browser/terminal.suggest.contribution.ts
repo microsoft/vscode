@@ -91,7 +91,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, undefined, this._ctx.instance.capabilities);
 		xterm.loadAddon(pwshCompletionProviderAddon);
 		this.add(pwshCompletionProviderAddon);
-		this.add(pwshCompletionProviderAddon.onAcceptedCompletion(text => {
+		this.add(pwshCompletionProviderAddon.onRequestCompletions(text => {
 			this._ctx.instance.focus();
 			this._ctx.instance.sendText(text, false);
 		}));

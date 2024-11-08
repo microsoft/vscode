@@ -152,7 +152,7 @@ suite('Terminal Contrib Suggest Recordings', () => {
 		test(testCase.name, async () => {
 			const suggestDataEvents: string[] = [];
 			store.add(suggestAddon.onAcceptedCompletion(e => suggestDataEvents.push(e)));
-			store.add(pwshCompletionProvider.onAcceptedCompletion(e => suggestDataEvents.push(e)));
+			store.add(pwshCompletionProvider.onRequestCompletions(e => suggestDataEvents.push(e)));
 			for (const event of testCase.events) {
 				// DEBUG: Uncomment to see the events as they are played
 				// console.log(

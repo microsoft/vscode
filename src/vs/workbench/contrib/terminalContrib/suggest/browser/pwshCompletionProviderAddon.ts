@@ -76,8 +76,8 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
-	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
-	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
+	private readonly _onRequestCompletions = this._register(new Emitter<string>());
+	readonly onRequestCompletions = this._onRequestCompletions.event;
 
 	static cachedPwshCommands: Set<ISimpleCompletion>;
 
@@ -251,23 +251,23 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	provideCompletions(value: string): Promise<ISimpleCompletion[] | undefined> {
 		const builtinCompletionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).builtinCompletions;
 		if (!this._codeCompletionsRequested && builtinCompletionsConfig.pwshCode) {
-			this._onAcceptedCompletion.fire(RequestCompletionsSequence.Code);
+			this._onRequestCompletions.fire(RequestCompletionsSequence.Code);
 			this._codeCompletionsRequested = true;
 		}
 		if (!this._gitCompletionsRequested && builtinCompletionsConfig.pwshGit) {
-			this._onAcceptedCompletion.fire(RequestCompletionsSequence.Git);
+			this._onRequestCompletions.fire(RequestCompletionsSequence.Git);
 			this._gitCompletionsRequested = true;
 		}
 
 		// Request global pwsh completions if there are none cached
 		if (PwshCompletionProviderAddon.cachedPwshCommands.size === 0) {
-			this._onAcceptedCompletion.fire(RequestCompletionsSequence.Global);
+			this._onRequestCompletions.fire(RequestCompletionsSequence.Global);
 		}
 
 		// Ensure that a key has been pressed since the last accepted completion in order to prevent
 		// completions being requested again right after accepting a completion
 		if (this._lastUserDataTimestamp > SuggestAddon.lastAcceptedCompletionTimestamp) {
-			this._onAcceptedCompletion.fire(RequestCompletionsSequence.All);
+			this._onRequestCompletions.fire(RequestCompletionsSequence.All);
 			this._onDidRequestCompletions.fire();
 		}
 		return this._waitForCompletions();
