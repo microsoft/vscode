@@ -14,35 +14,58 @@ import { TerminalCapability } from '../../../../../../platform/terminal/common/c
 import type { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { ShellIntegrationAddon } from '../../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
 import { TerminalContextKeys } from '../../../../terminal/common/terminalContextKey.js';
-import { parseCompletionsFromShell, SuggestAddon } from '../../browser/terminalSuggestAddon.js';
+import { SuggestAddon } from '../../browser/terminalSuggestAddon.js';
 import { TerminalSuggestCommandId } from '../../common/terminal.suggest.js';
 import type { ITerminalSuggestConfiguration } from '../../common/terminalSuggestConfiguration.js';
 import { workbenchInstantiationService, type TestTerminalConfigurationService } from '../../../../../test/browser/workbenchTestServices.js';
-
-import { events as macos_bash_echo_simple } from './recordings/macos_bash_echo_simple.js';
-import { events as macos_bash_echo_multiline } from './recordings/macos_bash_echo_multiline.js';
-import { events as windows11_pwsh_getcontent_delete_ghost } from './recordings/windows11_pwsh_getcontent_delete_ghost.js';
-import { events as windows11_pwsh_getcontent_file } from './recordings/windows11_pwsh_getcontent_file.js';
-import { events as windows11_pwsh_input_ls_complete_ls } from './recordings/windows11_pwsh_input_ls_complete_ls.js';
-import { events as windows11_pwsh_namespace_completion } from './recordings/windows11_pwsh_namespace_completion.js';
-import { events as windows11_pwsh_type_before_prompt } from './recordings/windows11_pwsh_type_before_prompt.js';
-import { events as windows11_pwsh_writehost_multiline_nav_up } from './recordings/windows11_pwsh_writehost_multiline_nav_up.js';
-import { events as windows11_pwsh_writehost_multiline } from './recordings/windows11_pwsh_writehost_multiline.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
-import { testRawPwshCompletions } from './testRawPwshCompletions.js';
 import { ITerminalConfigurationService } from '../../../../terminal/browser/terminal.js';
 import { timeout } from '../../../../../../base/common/async.js';
+import { parseCompletionsFromShell, PwshCompletionProviderAddon } from '../../browser/pwshCompletionProviderAddon.js';
+import { ITerminalCompletionService, TerminalCompletionService } from '../../browser/terminalCompletionService.js';
+import { GeneralShellType } from '../../../../../../platform/terminal/common/terminal.js';
+import { testRawPwshCompletions } from './testRawPwshCompletions.js';
 
+import { events as windows11_pwsh_filename_arg_change_case } from './recordings/windows11_pwsh_filename_arg_change_case.js';
+import { events as windows11_pwsh_filename_arg_same_case } from './recordings/windows11_pwsh_filename_arg_same_case.js';
+import { events as windows11_pwsh_filename_change_case } from './recordings/windows11_pwsh_filename_change_case.js';
+import { events as windows11_pwsh_filename_change_case_and_forward_slash } from './recordings/windows11_pwsh_filename_change_case_and_forward_slash.js';
+import { events as windows11_pwsh_filename_same_case } from './recordings/windows11_pwsh_filename_same_case.js';
+import { events as windows11_pwsh_filename_same_case_change_forward_slash } from './recordings/windows11_pwsh_filename_same_case_change_forward_slash.js';
+import { events as windows11_pwsh_getcontent_delete_ghost } from './recordings/windows11_pwsh_getcontent_delete_ghost.js';
+import { events as windows11_pwsh_input_ls_complete_ls } from './recordings/windows11_pwsh_input_ls_complete_ls.js';
+import { events as windows11_pwsh_namespace_change_prefix } from './recordings/windows11_pwsh_namespace_change_prefix.js';
+import { events as windows11_pwsh_namespace_same_prefix } from './recordings/windows11_pwsh_namespace_same_prefix.js';
+import { events as windows11_pwsh_single_char } from './recordings/windows11_pwsh_single_char.js';
+import { events as windows11_pwsh_type_before_prompt } from './recordings/windows11_pwsh_type_before_prompt.js';
+import { events as windows11_pwsh_writehost_multiline } from './recordings/windows11_pwsh_writehost_multiline.js';
+import { events as windows11_pwsh_writehost_multiline_nav_up } from './recordings/windows11_pwsh_writehost_multiline_nav_up.js';
+
+// These are test cases recorded with the `Developer: Record Terminal Session` command. Once that is
+// run, a terminal is created and the test case is manually executed. After nothing happens for a
+// few seconds the test case will be put into the clipboard.
+//
+// Some things to be aware of when recording tests:
+// - Pwsh on non-Windows can add a bunch of spammy cursor reports (`CSI x;y R`)
+// - It's best to record pwsh on Windows
+// - It's best to record other shells on non-Windows
+// - Turn off builtinCompletions to simplify the recording
+// - Capitalization matters in the recorded events
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
-	{ name: 'macos_bash_echo_simple', events: macos_bash_echo_simple as any as RecordedSessionEvent[] },
-	{ name: 'macos_bash_echo_multiline', events: macos_bash_echo_multiline as any as RecordedSessionEvent[] },
+	{ name: 'windows11_pwsh_filename_arg_change_case', events: windows11_pwsh_filename_arg_change_case as any as RecordedSessionEvent[] },
+	{ name: 'windows11_pwsh_filename_arg_same_case', events: windows11_pwsh_filename_arg_same_case as any as RecordedSessionEvent[] },
+	{ name: 'windows11_pwsh_filename_change_case_and_forward_slash', events: windows11_pwsh_filename_change_case_and_forward_slash as any as RecordedSessionEvent[] },
+	{ name: 'windows11_pwsh_filename_change_case', events: windows11_pwsh_filename_change_case as any as RecordedSessionEvent[] },
+	{ name: 'windows11_pwsh_filename_same_case_change_forward_slash', events: windows11_pwsh_filename_same_case_change_forward_slash as any as RecordedSessionEvent[] },
+	{ name: 'windows11_pwsh_filename_same_case', events: windows11_pwsh_filename_same_case as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_getcontent_delete_ghost', events: windows11_pwsh_getcontent_delete_ghost as any as RecordedSessionEvent[] },
-	{ name: 'windows11_pwsh_getcontent_file', events: windows11_pwsh_getcontent_file as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_input_ls_complete_ls', events: windows11_pwsh_input_ls_complete_ls as any as RecordedSessionEvent[] },
-	{ name: 'windows11_pwsh_namespace_completion', events: windows11_pwsh_namespace_completion as any as RecordedSessionEvent[] },
+	{ name: 'windows11_pwsh_namespace_change_prefix', events: windows11_pwsh_namespace_change_prefix as any as RecordedSessionEvent[] },
+	{ name: 'windows11_pwsh_namespace_same_prefix', events: windows11_pwsh_namespace_same_prefix as any as RecordedSessionEvent[] },
+	{ name: 'windows11_pwsh_single_char', events: windows11_pwsh_single_char as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_type_before_prompt', events: windows11_pwsh_type_before_prompt as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_writehost_multiline_nav_up', events: windows11_pwsh_writehost_multiline_nav_up as any as RecordedSessionEvent[] },
-	{ name: 'windows11_pwsh_writehost_multiline', events: windows11_pwsh_writehost_multiline as any as RecordedSessionEvent[] }
+	{ name: 'windows11_pwsh_writehost_multiline', events: windows11_pwsh_writehost_multiline as any as RecordedSessionEvent[] },
 ];
 
 type RecordedSessionEvent = IRecordedSessionTerminalEvent | IRecordedSessionCommandEvent | IRecordedSessionResizeEvent;
@@ -70,6 +93,7 @@ suite('Terminal Contrib Suggest Recordings', () => {
 	let capabilities: TerminalCapabilityStore;
 	let suggestWidgetVisibleContextKey: IContextKey<boolean>;
 	let suggestAddon: SuggestAddon;
+	let pwshCompletionProvider: PwshCompletionProviderAddon;
 
 	setup(async () => {
 		const terminalConfig = {
@@ -99,13 +123,16 @@ suite('Terminal Contrib Suggest Recordings', () => {
 		}, store);
 		const terminalConfigurationService = instantiationService.get(ITerminalConfigurationService) as TestTerminalConfigurationService;
 		terminalConfigurationService.setConfig(terminalConfig as any);
+		const completionService = instantiationService.createInstance(TerminalCompletionService);
+		instantiationService.stub(ITerminalCompletionService, store.add(completionService));
+		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, new NullLogService));
+		pwshCompletionProvider = store.add(instantiationService.createInstance(PwshCompletionProviderAddon, new Set(parseCompletionsFromShell(testRawPwshCompletions, -1, -1)), shellIntegrationAddon.capabilities));
+		store.add(completionService.registerTerminalCompletionProvider('builtin-pwsh', 'pwsh', pwshCompletionProvider));
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
-		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, new NullLogService));
 		capabilities = shellIntegrationAddon.capabilities;
 		suggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(instantiationService.get(IContextKeyService));
-		suggestAddon = store.add(instantiationService.createInstance(SuggestAddon, new Set(parseCompletionsFromShell(testRawPwshCompletions)), shellIntegrationAddon.capabilities, suggestWidgetVisibleContextKey));
-
+		suggestAddon = store.add(instantiationService.createInstance(SuggestAddon, GeneralShellType.PowerShell, shellIntegrationAddon.capabilities, suggestWidgetVisibleContextKey));
 		const testContainer = document.createElement('div');
 		getActiveDocument().body.append(testContainer);
 		xterm.open(testContainer);
@@ -113,6 +140,8 @@ suite('Terminal Contrib Suggest Recordings', () => {
 		suggestAddon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
 
 		xterm.loadAddon(shellIntegrationAddon);
+		xterm.loadAddon(pwshCompletionProvider);
+		store.add(pwshCompletionProvider);
 		xterm.loadAddon(suggestAddon);
 
 		xterm.focus();
@@ -122,6 +151,7 @@ suite('Terminal Contrib Suggest Recordings', () => {
 		test(testCase.name, async () => {
 			const suggestDataEvents: string[] = [];
 			store.add(suggestAddon.onAcceptedCompletion(e => suggestDataEvents.push(e)));
+			store.add(pwshCompletionProvider.onDidRequestSendText(e => suggestDataEvents.push(e)));
 			for (const event of testCase.events) {
 				// DEBUG: Uncomment to see the events as they are played
 				// console.log(
@@ -139,23 +169,31 @@ suite('Terminal Contrib Suggest Recordings', () => {
 						break;
 					}
 					case 'output': {
-						// If the output contains the command start sequence, allow time for the prompt to get adjusted.
+						const promises: Promise<unknown>[] = [];
 						if (event.data.includes('\x1b]633;B')) {
-							await Promise.all([
-								new Promise<void>(r => xterm.write(event.data, () => r())),
-								new Promise<void>(r => {
-									const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
-									if (commandDetection) {
-										const d = commandDetection.onCommandStarted(() => {
-											d.dispose();
-											r();
-										});
-									}
-								})
-							]);
-						} else {
-							await new Promise<void>(r => xterm.write(event.data, () => r()));
+							// If the output contains the command start sequence, allow time for the prompt to get
+							// adjusted.
+							promises.push(new Promise<void>(r => {
+								const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
+								if (commandDetection) {
+									const d = commandDetection.onCommandStarted(() => {
+										d.dispose();
+										r();
+									});
+								}
+							}));
+						} else if (event.data.match('\x1b\]633;Completions;.+\[.+\]')) {
+							// If the output contains a pwsh completions sequence with results, wait for the associated
+							// suggest addon event until proceeding.
+							promises.push(new Promise<void>(r => {
+								const d = suggestAddon.onDidReceiveCompletions(() => {
+									d.dispose();
+									r();
+								});
+							}));
 						}
+						promises.push(new Promise<void>(r => xterm.write(event.data, () => r())));
+						await Promise.all(promises);
 						break;
 					}
 					case 'input': {
