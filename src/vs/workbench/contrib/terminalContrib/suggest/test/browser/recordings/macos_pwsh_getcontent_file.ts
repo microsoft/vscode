@@ -6,7 +6,7 @@
 export const events = [
 	{
 		"type": "resize",
-		"cols": 111,
+		"cols": 81,
 		"rows": 29
 	},
 	{
@@ -51,7 +51,7 @@ export const events = [
 	},
 	{
 		"type": "output",
-		"data": "\u001b[?25l\u001b[1;36H\u001b[0m\u001b[93mg\u001b[0m\u001b[97;2;3mit show\u001b[0m\u001b[39;49m\u001b[0m\u001b[1;37H\u001b[?12l\u001b[?25h\u001b[6n"
+		"data": "\u001b[?25l\u001b[1;36H\u001b[0m\u001b[93mg\u001b[0m\u001b[97;2;3mit commit -m \"revert api changes\" && git push\u001b[0m\u001b[39;49m\u001b[0m\u001b[1;37H\u001b[?12l\u001b[?25h\u001b[6n"
 	},
 	{
 		"type": "input",
@@ -59,7 +59,7 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "g|[it show]"
+		"data": "g|[it commit -m \"revert api changes\" && git push]"
 	},
 	{
 		"type": "sendText",
@@ -83,7 +83,7 @@ export const events = [
 	},
 	{
 		"type": "output",
-		"data": "\u001b[?25l\u001b[1;36H\u001b[0m\u001b[93mge\u001b[0m\u001b[97;2;3mt-Al\u001b[0m\u001b[39;49m  \u001b[0m\u001b[1;38H\u001b[?12l\u001b[?25h\u001b[6n"
+		"data": "\u001b[?25l\u001b[1;36H\u001b[0m\u001b[93mge\u001b[0m\u001b[97;2;3mt-Al\u001b[0m\u001b[39;49m                                        \u001b[0m\u001b[1;38H\u001b[?12l\u001b[?25h\u001b[6n"
 	},
 	{
 		"type": "input",
@@ -195,7 +195,7 @@ export const events = [
 	},
 	{
 		"type": "output",
-		"data": "\u001b[?25l\u001b[1;36H\u001b[0m\u001b[93mG\u001b[0m\u001b[97;2;3mit show\u001b[0m\u001b[39;49m \u001b[0m\u001b[1;37H\u001b[?12l\u001b[?25h\u001b[6n"
+		"data": "\u001b[?25l\u001b[1;36H\u001b[0m\u001b[93mG\u001b[0m\u001b[97;2;3mit commit -m \"revert api changes\" && git push\u001b[0m\u001b[39;49m\u001b[0m\u001b[1;37H\u001b[?12l\u001b[?25h\u001b[6n"
 	},
 	{
 		"type": "input",
@@ -203,11 +203,11 @@ export const events = [
 	},
 	{
 		"type": "promptInputChange",
-		"data": "G|[it show]"
+		"data": "G|[it commit -m \"revert api changes\" && git push]"
 	},
 	{
 		"type": "output",
-		"data": "\u001b[?25l\u001b[1;36H\u001b[0m\u001b[93mGe\u001b[0m\u001b[97;2;3mt-Al\u001b[0m\u001b[39;49m  \u001b[0m\u001b[1;38H\u001b[?12l\u001b[?25h\u001b[6n"
+		"data": "\u001b[?25l\u001b[1;36H\u001b[0m\u001b[93mGe\u001b[0m\u001b[97;2;3mt-Al\u001b[0m\u001b[39;49m                                        \u001b[0m\u001b[1;38H\u001b[?12l\u001b[?25h\u001b[6n"
 	},
 	{
 		"type": "input",
@@ -529,4 +529,4 @@ export const events = [
 		"type": "promptInputChange",
 		"data": "Get-Content ./README.md|"
 	}
-]
+];
