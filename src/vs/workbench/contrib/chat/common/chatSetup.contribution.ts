@@ -23,12 +23,14 @@ import { IGitHubEntitlement } from '../../../../base/common/product.js';
 
 type ChatSetupEntitlementEnablementClassification = {
 	entitled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat setup entitled' };
+	trial: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is subscribed to chat trial' };
 	owner: 'bpasero';
 	comment: 'Reporting if the user is chat setup entitled';
 };
 
 type ChatSetupEntitlementEnablementEvent = {
 	entitled: boolean;
+	trial: boolean;
 };
 
 class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
@@ -174,7 +176,11 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		}
 
 		this.resolvedEntitlement = Boolean(parsedResult[entitlement.enablementKey]);
-		this.telemetryService.publicLog2<ChatSetupEntitlementEnablementEvent, ChatSetupEntitlementEnablementClassification>('chatInstallEntitlement', { entitled: this.resolvedEntitlement });
+		const trial = parsedResult[entitlement.trialKey] === entitlement.trialValue;
+		this.telemetryService.publicLog2<ChatSetupEntitlementEnablementEvent, ChatSetupEntitlementEnablementClassification>('chatInstallEntitlement', {
+			entitled: this.resolvedEntitlement,
+			trial
+		});
 
 		return this.resolvedEntitlement;
 	}
