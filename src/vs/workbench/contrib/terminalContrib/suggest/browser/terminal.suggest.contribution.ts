@@ -251,7 +251,7 @@ registerActiveInstanceAction({
 		// Tab is bound to other workbench keybindings that this needs to beat
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	},
-	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion()
+	run: async (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion()
 });
 
 registerActiveInstanceAction({
@@ -265,7 +265,7 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib + 1,
 		when: ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.RunOnEnter}`, 'ignore'),
 	},
-	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion(undefined, true)
+	run: async (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion(undefined, true)
 });
 
 registerActiveInstanceAction({
