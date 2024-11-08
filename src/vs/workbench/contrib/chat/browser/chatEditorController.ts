@@ -3,15 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatEditorController.css';
+import { getTotalWidth } from '../../../../base/browser/dom.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { binarySearch, coalesceInPlace } from '../../../../base/common/arrays.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../base/common/themables.js';
-import { ICodeEditor, IViewZone } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { diffAddDecoration, diffDeleteDecoration, diffWholeLineAddDecoration } from '../../../../editor/browser/widget/diffEditor/registrations.contribution.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { IEditorContribution, ScrollType } from '../../../../editor/common/editorCommon.js';
@@ -22,6 +26,7 @@ import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../scm/browser/dirtydiffDecorator.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
 
@@ -31,6 +36,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	private readonly _sessionStore = this._register(new DisposableStore());
 	private readonly _decorations = this._editor.createDecorationsCollection();
+	private readonly _diffHunksRenderStore = this._register(new DisposableStore());
 	private _viewZones: string[] = [];
 	private readonly _ctxHasEditorModification: IContextKey<boolean>;
 
@@ -161,6 +167,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			}
 		});
 		this._viewZones = [];
+		this._diffHunksRenderStore.clear();
 		this._decorations.clear();
 		this._ctxHasEditorModification.reset();
 	}
@@ -192,6 +199,10 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		const modifiedDecoration = createOverviewDecoration(overviewRulerModifiedForeground, minimapGutterModifiedBackground);
 		const addedDecoration = createOverviewDecoration(overviewRulerAddedForeground, minimapGutterAddedBackground);
 		const deletedDecoration = createOverviewDecoration(overviewRulerDeletedForeground, minimapGutterDeletedBackground);
+
+		this._diffHunksRenderStore.clear();
+		const diffHunkWidgets: DiffHunkWidget[] = [];
+		const diffHunkDecorations: IModelDeltaDecoration[] = [];
 
 		this._editor.changeViewZones((viewZoneChangeAccessor) => {
 			for (const id of this._viewZones) {
@@ -225,7 +236,8 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				}
 				if (!diffEntry.modified.isEmpty) {
 					modifiedDecorations.push({
-						range: diffEntry.modified.toInclusiveRange()!, options: chatDiffWholeLineAddDecoration
+						range: diffEntry.modified.toInclusiveRange()!,
+						options: chatDiffWholeLineAddDecoration
 					});
 				}
 
@@ -263,10 +275,70 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 					this._viewZones.push(viewZoneChangeAccessor.addZone(viewZoneData));
 				}
+
+				// Add content widget for each diff change
+				const undoEdits: ISingleEditOperation[] = [];
+				for (const c of diffEntry.innerChanges ?? []) {
+					const oldText = originalModel.getValueInRange(c.originalRange);
+					undoEdits.push(EditOperation.replace(c.modifiedRange, oldText));
+				}
+
+				const widget = new DiffHunkWidget(undoEdits, this._editor.getModel()!.getVersionId(), this._editor, isCreatedContent ? 0 : result.heightInLines);
+				widget.layout(diffEntry.modified.startLineNumber);
+				this._editor.addOverlayWidget(widget);
+
+				diffHunkWidgets.push(widget);
+				diffHunkDecorations.push({
+					range: diffEntry.modified.toInclusiveRange() ?? new Range(diffEntry.modified.startLineNumber, 1, diffEntry.modified.startLineNumber, Number.MAX_SAFE_INTEGER),
+					options: {
+						description: 'diff-hunk-widget',
+						stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+					}
+				});
 			}
 
 			this._decorations.set(modifiedDecorations);
 		});
+
+		const diffHunkDecoCollection = this._editor.createDecorationsCollection(diffHunkDecorations);
+
+		this._diffHunksRenderStore.add(toDisposable(() => {
+			dispose(diffHunkWidgets);
+			diffHunkWidgets.length = 0;
+			diffHunkDecoCollection.clear();
+		}));
+
+		this._diffHunksRenderStore.add(this._editor.onMouseUp(e => {
+			const { target } = e;
+			if (target.type !== MouseTargetType.OVERLAY_WIDGET) {
+				return;
+			}
+			const idx = diffHunkWidgets.findIndex(candidate => candidate.getId() === target.detail);
+			if (idx < 0) {
+				return;
+			}
+			const widget = diffHunkWidgets[idx];
+			const range = diffHunkDecoCollection.getRange(idx);
+			if (!range) {
+				return;
+			}
+			if (widget.versionId !== this._editor.getModel()?.getVersionId()) {
+				return;
+			}
+			this._editor.executeEdits('chatEdits.undo', widget.undoEdits);
+		}));
+
+		this._diffHunksRenderStore.add(this._editor.onDidScrollChange(() => {
+			for (let i = 0; i < diffHunkWidgets.length; i++) {
+				const widget = diffHunkWidgets[i];
+				const range = diffHunkDecoCollection.getRange(i);
+				if (range) {
+					widget.layout(range?.startLineNumber);
+				} else {
+					widget.dispose();
+				}
+			}
+		}));
 	}
 
 	revealNext(strict = false): boolean {
@@ -329,5 +401,67 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		this._editor.revealPositionInCenter(targetPosition, ScrollType.Smooth);
 		this._editor.focus();
 		return true;
+	}
+}
+
+class DiffHunkWidget implements IOverlayWidget {
+
+	private readonly _domNode: HTMLElement;
+	private readonly _store = new DisposableStore();
+	private _position: IOverlayWidgetPosition | undefined;
+
+	private readonly _id: string = `diff-change-widget-${Math.random().toString(36)}`;
+
+	constructor(
+		readonly undoEdits: ISingleEditOperation[],
+		readonly versionId: number,
+		private readonly _editor: ICodeEditor,
+		private readonly _lineDelta: number
+	) {
+		this._domNode = document.createElement('div');
+		this._domNode.className = 'chat-diff-change-content-widget';
+
+		const btn = new Button(this._domNode, {
+			secondary: true,
+			title: localize('undo2', "Undo this Change"),
+			supportIcons: true
+		});
+		btn.label = localize('undo', "{0} Undo", `$(${Codicon.discard.id})`);
+		this._store.add(btn);
+		this._editor.addOverlayWidget(this);
+	}
+
+	dispose(): void {
+		this._store.dispose();
+		this._editor.removeOverlayWidget(this);
+	}
+
+	getId(): string {
+		return this._id;
+	}
+
+	layout(startLineNumber: number): void {
+
+		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const { contentLeft, contentWidth, verticalScrollbarWidth } = this._editor.getLayoutInfo();
+		const scrollTop = this._editor.getScrollTop();
+
+		this._position = {
+			stackOridinal: 1,
+			preference: {
+				top: this._editor.getTopForLineNumber(startLineNumber) - scrollTop - (lineHeight * this._lineDelta),
+				left: contentLeft + contentWidth - (2 * verticalScrollbarWidth + getTotalWidth(this._domNode))
+			}
+		};
+
+		this._editor.layoutOverlayWidget(this);
+	}
+
+	getDomNode(): HTMLElement {
+		return this._domNode;
+	}
+
+	getPosition(): IOverlayWidgetPosition | null {
+		return this._position ?? null;
 	}
 }
