@@ -411,7 +411,8 @@ class DiffHunkWidget implements IOverlayWidget {
 	private readonly _store = new DisposableStore();
 	private _position: IOverlayWidgetPosition | undefined;
 
-	private readonly _id: string = `diff-change-widget-${Math.random().toString(36)}`;
+	private static _idPool = 0;
+	private readonly _id: string = `diff-change-widget-${DiffHunkWidget._idPool++}`;
 
 	constructor(
 		readonly undoEdits: ISingleEditOperation[],
