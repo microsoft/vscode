@@ -1086,6 +1086,8 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 			return;
 		}
 
+		this.tree.updateOptions({ paddingTop: 30 });
+
 		this.widget = new FindWidget(this.tree.getHTMLElement(), this.tree, this.contextViewProvider, this.placeholder, this.toggles.states(), { ...this.options, history: this._history });
 		this.enabledDisposables.add(this.widget);
 
@@ -1106,6 +1108,8 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 		if (!this.widget) {
 			return;
 		}
+
+		this.tree.updateOptions({ paddingTop: 0 });
 
 		this._history = this.widget.getHistory();
 		this.widget = undefined;
@@ -1409,6 +1413,8 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 
 	private readonly _widget: StickyScrollWidget<T, TFilterData, TRef>;
 
+	private paddingTop: number;
+
 	constructor(
 		private readonly tree: AbstractTree<T, TFilterData, TRef>,
 		private readonly model: ITreeModel<T, TFilterData, TRef>,
@@ -1423,6 +1429,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		this.stickyScrollMaxItemCount = stickyScrollOptions.stickyScrollMaxItemCount;
 
 		this.stickyScrollDelegate = options.stickyScrollDelegate ?? new DefaultStickyScrollDelegate();
+		this.paddingTop = options.paddingTop ?? 0;
 
 		this._widget = this._register(new StickyScrollWidget(view.getScrollableElement(), view, tree, renderers, treeDelegate, options.accessibilityProvider));
 		this.onDidChangeHasFocus = this._widget.onDidChangeHasFocus;
@@ -1486,10 +1493,10 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 	}
 
 	private update() {
-		const firstVisibleNode = this.getNodeAtHeight(0);
+		const firstVisibleNode = this.getNodeAtHeight(this.paddingTop);
 
 		// Don't render anything if there are no elements
-		if (!firstVisibleNode || this.tree.scrollTop === 0) {
+		if (!firstVisibleNode || this.tree.scrollTop <= this.paddingTop) {
 			this._widget.setState(undefined);
 			return;
 		}
@@ -1696,14 +1703,16 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 	}
 
 	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
-		if (!optionsUpdate.stickyScrollMaxItemCount) {
-			return;
+		if (optionsUpdate.paddingTop !== undefined) {
+			this.paddingTop = optionsUpdate.paddingTop;
 		}
 
-		const validatedOptions = this.validateStickySettings(optionsUpdate);
-		if (this.stickyScrollMaxItemCount !== validatedOptions.stickyScrollMaxItemCount) {
-			this.stickyScrollMaxItemCount = validatedOptions.stickyScrollMaxItemCount;
-			this.update();
+		if (optionsUpdate.stickyScrollMaxItemCount !== undefined) {
+			const validatedOptions = this.validateStickySettings(optionsUpdate);
+			if (this.stickyScrollMaxItemCount !== validatedOptions.stickyScrollMaxItemCount) {
+				this.stickyScrollMaxItemCount = validatedOptions.stickyScrollMaxItemCount;
+				this.update();
+			}
 		}
 	}
 
@@ -2263,6 +2272,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly expandOnlyOnTwistieClick?: boolean | ((e: any) => boolean); // e is T
 	readonly enableStickyScroll?: boolean;
 	readonly stickyScrollMaxItemCount?: number;
+	readonly paddingTop?: number;
 }
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
