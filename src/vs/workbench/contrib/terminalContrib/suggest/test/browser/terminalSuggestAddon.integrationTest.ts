@@ -49,6 +49,8 @@ import { events as windows11_pwsh_writehost_multiline_nav_up } from './recording
 // - It's best to record pwsh on Windows
 // - It's best to record other shells on non-Windows
 // - Turn off builtinCompletions to simplify the recording
+// - Capitalization matters in the recorded events
+// - If recording pwsh on non-Windows (ill-advised), you must set isWindows=true in the test file
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
 	{ name: 'windows11_pwsh_filename_arg_change_case', events: windows11_pwsh_filename_arg_change_case as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_filename_arg_same_case', events: windows11_pwsh_filename_arg_same_case as any as RecordedSessionEvent[] },
