@@ -228,11 +228,12 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	}
 
 	private _resolveCompletions(result: ISimpleCompletion[] | undefined) {
-		if (this._completionsDeferred) {
-			this._completionsDeferred.complete(result);
-			// Resolved, clear the deferred promise
-			this._completionsDeferred = null;
+		if (!this._completionsDeferred) {
+			return;
 		}
+		this._completionsDeferred.complete(result);
+		// Resolved, clear the deferred promise
+		this._completionsDeferred = null;
 	}
 
 	private _getCompletionsPromise(): Promise<ISimpleCompletion[] | undefined> {
