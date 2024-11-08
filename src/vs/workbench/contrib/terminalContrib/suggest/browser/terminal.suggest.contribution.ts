@@ -122,7 +122,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 	private _loadAddons(xterm: RawXtermTerminal): void {
 		const sendingKeybindingsToShell = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).sendKeybindingsToShell;
-		// TODO: experimental setting @meganrogge for zsh/bash?
 		if (sendingKeybindingsToShell || !this._ctx.instance.shellType) {
 			this._addon.clear();
 			this._pwshAddon.clear();
