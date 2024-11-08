@@ -17,7 +17,7 @@ suite('SimpleDecoder', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('produces expected tokens', async () => {
-		const testLine = ' hello world\nhow are you?\n\n   (test)  [!@#$%^&*_+=]  \n\t\t🤗❤ \t\n ';
+		const testInput = ' hello world\nhow are\t you?\n\n   (test)  [!@#$%^&*_+=]  \n\t\t🤗❤ \t\n ';
 
 		// expected tokens for each of the sublines separated by the `\n` character
 		const expectedTokens = [
@@ -31,9 +31,10 @@ suite('SimpleDecoder', () => {
 			new Word(new Range(2, 1, 2, 4), 'how'),
 			new Space(new Range(2, 4, 2, 5)),
 			new Word(new Range(2, 5, 2, 8), 'are'),
-			new Space(new Range(2, 8, 2, 9)),
-			new Word(new Range(2, 9, 2, 13), 'you?'),
-			new NewLine(new Range(2, 13, 2, 14)),
+			new Tab(new Range(2, 8, 2, 9)),
+			new Space(new Range(2, 9, 2, 10)),
+			new Word(new Range(2, 10, 2, 14), 'you?'),
+			new NewLine(new Range(2, 14, 2, 15)),
 			// third line
 			new NewLine(new Range(3, 1, 3, 2)),
 			// fourth line
@@ -69,7 +70,7 @@ suite('SimpleDecoder', () => {
 		// write the data to the stream after a short delay to ensure
 		// that the the data is sent after the reading loop below
 		setTimeout(() => {
-			stream.write(VSBuffer.fromString(testLine));
+			stream.write(VSBuffer.fromString(testInput));
 			stream.end();
 		}, 1);
 

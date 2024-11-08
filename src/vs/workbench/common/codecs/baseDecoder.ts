@@ -9,6 +9,8 @@ import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { ReadableStream } from '../../../base/common/stream.js';
 import { TStreamListenerNames } from './types/TStreamListenerEventNames.js';
 
+// TODO: @legomushroom - add the `eof` tokens
+
 /**
  * TODO: @legomushroom
  */
@@ -37,7 +39,10 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K = VSBuffer> 
 		stream.on('end', this.onStreamEnd);
 	}
 
-	// TODO: @legomushroom
+	/**
+	 * Check if the decoder has been ended hence has
+	 * no more data to produce.
+	 */
 	public get isEnded(): boolean {
 		return this.ended;
 	}

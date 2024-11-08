@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assert, assertDefined } from '../../../../base/common/assert.js';
-// import * as streams from '../../../../base/common/stream.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -12,9 +11,8 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
-// import { Range } from '../../../../editor/common/core/range.js';
-// import { Position } from '../../../../editor/common/core/position.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { unimplemented } from '../../../common/codecs/chatbotPromptCodec/chatbotPromptCodec.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../common/chatAgents.js';
 import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from '../common/chatModel.js';
@@ -23,9 +21,6 @@ import { IChatContentReference } from '../common/chatService.js';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
 import { IChatWidgetService, showChatView, showEditsView } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
-// import { VSBuffer } from '../../../../base/common/buffer.js';
-// import { ICodec } from '../../../common/codecs/types/ICodec.js';
-// import { BaseDecoder } from '../../../common/codecs/baseDecoder.js';
 
 interface IChatData {
 	data: IChatVariableData;
@@ -82,140 +77,6 @@ const runJobsAndGetSuccesses2 = async (jobs: Promise<IChatRequestVariableEntry[]
 			return result.value;
 		});
 };
-
-/**
- * TODO: @legomushroom
- */
-export const todo = (message: string = 'TODO: implement this'): never => {
-	throw new Error(`TODO: ${message}`);
-};
-
-/**
- * TODO: @legomushroom
- */
-export const unimplemented = (message: string = 'Not implemented.'): never => {
-	return todo(message);
-};
-
-
-// /**
-//  * TODO: @legomushroom
-//  */
-// export interface IPromptFileReference {
-// 	// Full reference string.
-// 	text: string;
-
-// 	// The range of the reference.
-// 	range: Range;
-
-// 	// Parsed out URI of the reference.
-// 	uri: URI;
-// }
-
-// // TODO: @legomushroom
-// export type TPromptToken = IPromptFileReference;
-
-// // TODO: @legomushroom
-// export const FILE_REFERENCE_TOKEN: string = '#file:';
-
-// /**
-//  * TODO: @legomushroom
-//  */
-// export class PromptFileReference extends RangedToken implements IPromptFileReference {
-// 	constructor(
-// 		/**
-// 		 * TODO: @legomushroom - add variable descriptions
-// 		*/
-// 		range: Range,
-// 		public readonly text: string,
-// 		public readonly uri: URI,
-// 	) {
-// 		super(range);
-// 	}
-
-// 	/**
-// 	 * TODO: @legomushroom
-// 	 */
-// 	public static fromGenericWord(word: Word): PromptFileReference {
-// 		const { value } = word;
-
-// 		assert(
-// 			value.startsWith(FILE_REFERENCE_TOKEN),
-// 			`The reference must start with "${FILE_REFERENCE_TOKEN}", got ${value}.`,
-// 		);
-
-// 		const maybeReference = value.split(FILE_REFERENCE_TOKEN);
-
-// 		assert(
-// 			maybeReference.length === 2,
-// 			`The expected reference format is "${FILE_REFERENCE_TOKEN}:filesystem-path", got ${value}.`,
-// 		);
-
-// 		const [first, second] = maybeReference;
-
-// 		assert(
-// 			first === '',
-// 			`The reference must start with "${FILE_REFERENCE_TOKEN}", got ${first}.`,
-// 		);
-
-// 		assert(
-// 			// Note! this accounts for both cases when second is `undefined` or `empty`
-// 			// 		 and we don't care about rest of the "falsy" cases here
-// 			!!second,
-// 			`The reference path must be defined, got ${second}.`,
-// 		);
-
-// 		return new PromptFileReference(
-// 			word.range,
-// 			value,
-// 			URI.file(second), // TODO: @legomushroom - validate the URI?
-// 		);
-// 	}
-// }
-
-// /**
-//  * TODO: @legomushroom
-//  */
-// export class PromptSyntaxCodecDecoder extends BaseDecoder<TPromptToken, TSimpleToken> implements streams.ReadableStream<TPromptToken> {
-// 	/**
-// 	 * TODO: @legomushroom
-// 	 */
-// 	protected override onStreamData(simpleToken: TSimpleToken): void {
-// 		// handle the word tokens only
-// 		if (!(simpleToken instanceof Word)) {
-// 			return;
-// 		}
-
-// 		// handle file references only for now
-// 		const { value } = simpleToken;
-// 		if (!value.startsWith(FILE_REFERENCE_TOKEN)) {
-// 			return;
-// 		}
-
-// 		this._onData.fire(PromptFileReference.fromGenericWord(simpleToken));
-// 	}
-// }
-
-// /**
-//  * TODO: @legomushroom
-//  */
-// export class PromptSyntaxCodec extends Disposable implements ICodec<VSBuffer, TPromptToken> {
-// 	public encode(_: streams.ReadableStream<TPromptToken>): streams.ReadableStream<VSBuffer> {
-// 		return unimplemented('`PromptSyntaxCodec` does not implement the `encode` method');
-// 	}
-
-// 	public decode(stream: streams.ReadableStream<VSBuffer>): streams.ReadableStream<TPromptToken> {
-// 		// create the decoder instance as a chain of more trivial decoders
-// 		const decoder = new PromptSyntaxCodecDecoder(
-// 			new SimpleTokensCodecDecoder(
-// 				new LinesDecoder(stream),
-// 			),
-// 		);
-
-// 		// register to child disposables and return the decoder instance
-// 		return this._register(decoder);
-// 	}
-// }
 
 // // /**
 // //  * TODO: @legomushroom

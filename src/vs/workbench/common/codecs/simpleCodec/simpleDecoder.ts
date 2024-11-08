@@ -5,7 +5,6 @@
 
 import { BaseDecoder } from '../baseDecoder.js';
 import { Line } from '../linesCodec/tokens/line.js';
-import { ReadableStream } from '../../../../base/common/stream.js';
 import { Word, Space, Tab, NewLine } from '../simpleCodec/tokens/index.js';
 
 /**
@@ -13,11 +12,18 @@ import { Word, Space, Tab, NewLine } from '../simpleCodec/tokens/index.js';
  */
 export type TSimpleToken = Word | Space | Tab | NewLine;
 
+// Characters that stop a word sequence.
+// Note! the `\n` is excluded because this decoder based on lines
+// 	     hence can't ever receive a line that contains a `newline`.
+// TODO: @legomushroom - check these too \n, '\r', '\v', '\f'
+// TODO: @legomushroom - use character conststants
+const STOP_CHARACTERS = [' ', '\t'];
+
 /**
  * A decoder that can decode a stream of `Line`s into
  * a stream of `Word`, `Space`, `Tab`, `NewLine` tokens, etc.
  */
-export class SimpleDecoder extends BaseDecoder<TSimpleToken, Line> implements ReadableStream<TSimpleToken> {
+export class SimpleDecoder extends BaseDecoder<TSimpleToken, Line> {
 	// Reference to a previously received line. This is used
 	// to emit a `NewLine` token when a new line is received.
 	private previousLine?: Line;
@@ -41,7 +47,7 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, Line> implements Re
 			const columnNumber = i + 1;
 
 			// if a space character, emit a `Space` token and continue
-			if (line.text[i] === ' ') {
+			if (line.text[i] === ' ') { // TODO: @legomushroom - use const instead of `space`
 				this._onData.fire(Space.newOnLine(line, columnNumber));
 
 				i++;
@@ -49,7 +55,7 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, Line> implements Re
 			}
 
 			// if a tab character, emit a `Tab` token and continue
-			if (line.text[i] === '\t') {
+			if (line.text[i] === '\t') { // TODO: @legomushroom - use const instead of `\t`
 				this._onData.fire(Tab.newOnLine(line, columnNumber));
 
 				i++;
@@ -59,7 +65,7 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, Line> implements Re
 			// if a non-space character, parse out the whole word and
 			// emit it, then continue from the last word character position
 			let word = '';
-			while (i < line.text.length && line.text[i] !== ' ') {
+			while (i < line.text.length && !(STOP_CHARACTERS.includes(line.text[i]))) {
 				word += line.text[i];
 				i++;
 			}

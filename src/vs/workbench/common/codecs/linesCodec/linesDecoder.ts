@@ -7,13 +7,12 @@ import { Line } from './tokens/line.js';
 import { BaseDecoder } from '../baseDecoder.js';
 import { assert } from '../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { ReadableStream } from '../../../../base/common/stream.js';
 
 /**
  * The `decoder` part of the `LinesCodec` and is able to transform
  * data from a binary stream into a stream of text lines(`Line`).
  */
-export class LinesDecoder extends BaseDecoder<Line> implements ReadableStream<Line> {
+export class LinesDecoder extends BaseDecoder<Line> {
 	// Remaining received string data yet to be processed.
 	private buffer: string = '';
 
