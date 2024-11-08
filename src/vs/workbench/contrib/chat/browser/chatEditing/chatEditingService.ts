@@ -238,7 +238,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		const editedFilesExist = new ResourceMap<Promise<boolean>>();
 
 		const onResponseComplete = (responseModel: IChatResponseModel) => {
-			if (responseModel.result?.errorDetails) {
+			if (responseModel.result?.errorDetails && !responseModel.result.errorDetails.responseIsIncomplete) {
 				// Roll back everything
 				this.restoreSnapshot(responseModel.requestId);
 				this._applyingChatEditsFailedContextKey.set(true);

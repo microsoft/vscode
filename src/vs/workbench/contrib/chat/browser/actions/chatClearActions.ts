@@ -138,21 +138,21 @@ export function registerNewChatActions() {
 				if (undecidedEdits.length) {
 					const { result } = await dialogService.prompt({
 						title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
-						message: localize('chat.startEditing.confirmation.pending.message', "Starting a new editing session will end your current session. Do you want to discard pending edits to {0} files?", undecidedEdits.length),
+						message: localize('chat.startEditing.confirmation.pending.message.2', "Starting a new editing session will end your current session. Do you want to accept pending edits to {0} files?", undecidedEdits.length),
 						type: 'info',
 						cancelButton: true,
 						buttons: [
 							{
-								label: localize('chat.startEditing.confirmation.discardEdits', "Discard & Continue"),
+								label: localize('chat.startEditing.confirmation.acceptEdits', "Accept & Continue"),
 								run: async () => {
-									await currentEditingSession.reject();
+									await currentEditingSession.accept();
 									return true;
 								}
 							},
 							{
-								label: localize('chat.startEditing.confirmation.acceptEdits', "Accept & Continue"),
+								label: localize('chat.startEditing.confirmation.discardEdits', "Discard & Continue"),
 								run: async () => {
-									await currentEditingSession.accept();
+									await currentEditingSession.reject();
 									return true;
 								}
 							}
