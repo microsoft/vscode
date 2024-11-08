@@ -23,6 +23,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ChatContextKeys } from './chatContextKeys.js';
 import { IChatProgressHistoryResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel.js';
 import { IRawChatCommandContribution, RawChatParticipantLocation } from './chatParticipantContribTypes.js';
@@ -205,7 +206,7 @@ export interface IChatAgentService {
 	 */
 	readonly onDidChangeAgents: Event<IChatAgent | undefined>;
 	registerAgent(id: string, data: IChatAgentData): IDisposable;
-	registerAgentImplementation(id: string, agent: IChatAgentImplementation): IDisposable;
+	registerAgentImplementation(id: string, agent: IChatAgentImplementation): Promise<IDisposable>;
 	registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable;
 	registerAgentCompletionProvider(id: string, provider: (query: string, token: CancellationToken) => Promise<IChatAgentCompletionItem[]>): IDisposable;
 	getAgentCompletionItems(id: string, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]>;
@@ -253,6 +254,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 		this._hasDefaultAgent = ChatContextKeys.enabled.bindTo(this.contextKeyService);
@@ -320,10 +322,14 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		this._defaultAgentRegistered.set(defaultAgentRegistered);
 	}
 
-	registerAgentImplementation(id: string, agentImpl: IChatAgentImplementation): IDisposable {
-		const entry = this._agents.get(id);
+	async registerAgentImplementation(id: string, agentImpl: IChatAgentImplementation): Promise<IDisposable> {
+		let entry = this._agents.get(id);
 		if (!entry) {
-			throw new Error(`Unknown agent: ${JSON.stringify(id)}`);
+			await this.extensionService.whenInstalledExtensionsRegistered();
+			entry = this._agents.get(id);
+			if (!entry) {
+				throw new Error(`Unknown agent: ${JSON.stringify(id)}`);
+			}
 		}
 
 		if (entry.impl) {
