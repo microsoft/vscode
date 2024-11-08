@@ -20,6 +20,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { GeneralShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 
 export const enum VSCodeSuggestOscPt {
 	Completions = 'Completions',
@@ -64,7 +65,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	private _currentPromptInputState?: IPromptInputModelState;
 	private _enableWidget: boolean = true;
 	isPasting: boolean = false;
-	private _completionsResolver: ((result: ISimpleCompletion[] | undefined) => void) | null = null;
+	private _completionsDeferred: DeferredPromise<ISimpleCompletion[] | undefined> | null = null;
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
 	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
@@ -158,13 +159,13 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 
 		// Nothing to handle if the terminal is not attached
 		if (!terminal.element || !this._enableWidget || !this._promptInputModel) {
-			this._notifyCompletions(undefined);
+			this._resolveCompletions(undefined);
 			return;
 		}
 
 		// Only show the suggest widget if the terminal is focused
 		if (!dom.isAncestorOfActiveElement(terminal.element)) {
-			this._notifyCompletions(undefined);
+			this._resolveCompletions(undefined);
 			return;
 		}
 
@@ -207,7 +208,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 			completions.push(this._mostRecentCompletion);
 		}
 		this._mostRecentCompletion = undefined;
-		this._notifyCompletions(completions);
+		this._resolveCompletions(completions);
 	}
 
 	private async _handleCompletionsPwshCommandsSequence(terminal: Terminal, data: string, command: string, args: string[]): Promise<boolean> {
@@ -226,18 +227,17 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 		return true;
 	}
 
-	private _notifyCompletions(result: ISimpleCompletion[] | undefined) {
-		if (this._completionsResolver) {
-			this._completionsResolver(result);
-			// Resolved, clear the resolver
-			this._completionsResolver = null;
+	private _resolveCompletions(result: ISimpleCompletion[] | undefined) {
+		if (this._completionsDeferred) {
+			this._completionsDeferred.complete(result);
+			// Resolved, clear the deferred promise
+			this._completionsDeferred = null;
 		}
 	}
 
-	private _waitForCompletions(): Promise<ISimpleCompletion[] | undefined> {
-		return new Promise<ISimpleCompletion[] | undefined>((resolve) => {
-			this._completionsResolver = resolve;
-		});
+	private _getCompletionsPromise(): Promise<ISimpleCompletion[] | undefined> {
+		this._completionsDeferred = new DeferredPromise<ISimpleCompletion[] | undefined>();
+		return this._completionsDeferred.p;
 	}
 
 	provideCompletions(value: string): Promise<ISimpleCompletion[] | undefined> {
@@ -261,7 +261,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 		if (this._lastUserDataTimestamp > SuggestAddon.lastAcceptedCompletionTimestamp) {
 			this._onDidRequestSendText.fire(RequestCompletionsSequence.Contextual);
 		}
-		return this._waitForCompletions();
+		return this._getCompletionsPromise();
 	}
 }
 
