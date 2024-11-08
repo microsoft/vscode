@@ -14,11 +14,12 @@ import { Word, Space, NewLine } from '../simpleCodec/tokens/index.js';
 export type TSimpleToken = Word | Space | NewLine;
 
 /**
- * A decoder that can decode a stream of `Line`s into a stream
- * of `Word`, `Space` and `NewLine` tokens.
+ * A decoder that can decode a stream of `Line`s into
+ * a stream of `Word`, `Space` and `NewLine` tokens.
  */
 export class SimpleDecoder extends BaseDecoder<TSimpleToken, Line> implements ReadableStream<TSimpleToken> {
-	private lastEmittedToken?: TSimpleToken;
+	// Reference to a previously received line. This is used
+	// to emit a `NewLine` token when a new line is received.
 	private previousLine?: Line;
 
 	protected override onStreamData(line: Line): void {
@@ -29,61 +30,40 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, Line> implements Re
 				this.previousLine,
 				this.previousLine.range.endColumn,
 			);
-			this.emitToken(newLine);
-			// new line resets colum number to 1
-			delete this.lastEmittedToken;
+			this._onData.fire(newLine);
 		}
 		this.previousLine = line;
 
-		// if an empty line is received, nothing more to do
-		if (line.text === '') {
-			return;
-		}
+		// TODO: @legomushroom - this should handle actual characters
 
-		// split the line by spaces and emit the `Word` and `Space` tokens
-		const tokens = line.text.split(' ');
-		for (let i = 0; i < tokens.length; i++) {
-			const token = tokens[i];
-			const maybeNextToken = tokens[i + 1];
+		// loop through the text separating it into `Word` and `Space` tokens
+		let i = 0;
+		while (i < line.text.length) {
+			// index is 0-based, but column numbers are 1-based
+			const columnNumber = i + 1;
 
-			// Get end column number of the last emitted token, if any.
-			const endColumn = this.lastEmittedToken
-				? this.lastEmittedToken.range.endColumn
-				: 1;
+			// if a space character, emit a `Space` token and continue
+			if (line.text[i] === ' ') {
+				this._onData.fire(Space.newOnLine(line, columnNumber));
 
-			// calculate the token to emit to the output stream
-			const tokenToEmit: TSimpleToken = token === ''
-				// if the token is empty, emit a `Space` token
-				// because we've split the original string by ` `(space)
-				? Space.newOnLine(line, endColumn)
-				// token does contain some text, so emit a `Word` token
-				: Word.newOnLine(token, line, endColumn);
-
-			// TODO: @legomushroom - add explanation
-			if (tokenToEmit instanceof Space && i === tokens.length - 1) {
-				return;
+				i++;
+				continue;
 			}
 
-			this.emitToken(tokenToEmit);
-
-			// if there is a next token also emit a `Space` token,
-			// because all words are separated by spaces
-			if (tokenToEmit instanceof Word && maybeNextToken !== undefined) {
-				const space = Space.newOnLine(
-					line,
-					tokenToEmit.range.endColumn,
-				);
-				this.emitToken(space);
+			// if a non-space character, parse out the whole word and
+			// emit it, then continue from the last word character position
+			let j = i;
+			let word = '';
+			while (j < line.text.length && line.text[j] !== ' ') {
+				word += line.text[j];
+				j++;
 			}
-		}
-	}
 
-	/**
-	 * Emit specified token to the output stream and
-	 * update the `lastEmittedToken` reference.
-	 */
-	private emitToken(token: TSimpleToken): void {
-		this._onData.fire(token);
-		this.lastEmittedToken = token;
+			this._onData.fire(
+				Word.newOnLine(word, line, columnNumber),
+			);
+
+			i = j;
+		}
 	}
 }
