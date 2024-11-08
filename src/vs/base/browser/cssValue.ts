@@ -59,6 +59,11 @@ export function className(value: string): CssFragment {
 
 type InlineCssTemplateValue = CssFragment | Color;
 
+/**
+ * Template string tag that that constructs a CSS fragment.
+ *
+ * All expressions in the template must be css safe values.
+ */
 export function inline(strings: TemplateStringsArray, ...values: InlineCssTemplateValue[]): CssFragment {
 	return asFragment(strings.reduce((result, str, i) => {
 		const value = values[i] || '';
