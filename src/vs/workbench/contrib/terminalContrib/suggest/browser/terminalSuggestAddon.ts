@@ -339,7 +339,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private _ensureSuggestWidget(terminal: Terminal): SimpleSuggestWidget {
-		this._terminalSuggestWidgetVisibleContextKey.set(true);
 		if (!this._suggestWidget) {
 			const c = this._terminalConfigurationService.config;
 			const font = this._terminalConfigurationService.getFont(dom.getActiveWindow());
@@ -364,6 +363,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._register(this._suggestWidget.onDidSelect(async e => this.acceptSelectedSuggestion(e)));
 			this._register(this._suggestWidget.onDidHide(() => this._terminalSuggestWidgetVisibleContextKey.set(false)));
 			this._register(this._suggestWidget.onDidShow(() => this._terminalSuggestWidgetVisibleContextKey.set(true)));
+			this._terminalSuggestWidgetVisibleContextKey.set(false);
 		}
 		return this._suggestWidget;
 	}
