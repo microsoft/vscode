@@ -9,9 +9,9 @@ declare module 'vscode' {
 	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
 		/**
 		 * Selection range in the input value. Defined as tuple of two number where the
-		 * first is the inclusive start index and the second the exclusive end index. When `undefined` the whole
-		 * pre-filled value will be selected, when empty (start equals end) only the cursor will be set,
-		 * otherwise the defined range will be selected.
+		 * first is the inclusive start index and the second the exclusive end index. When
+		 * `undefined` the whole pre-filled value will be selected, when empty (start equals end)
+		 * only the cursor will be set, otherwise the defined range will be selected.
 		 *
 		 * This property does not get updated when the user types or makes a selection,
 		 * but it can be updated by the extension.

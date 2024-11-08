@@ -550,6 +550,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _selectedItems: T[] = [];
 		private readonly _onDidChangeSelectionEmitter = new Emitter<T[]>();
 		private readonly _onDidTriggerItemButtonEmitter = new Emitter<QuickPickItemButtonEvent<T>>();
+		private _valueSelection: readonly [number, number] | undefined = undefined;
 
 		constructor(extension: IExtensionDescription, onDispose: () => void) {
 			super(extension, onDispose);
@@ -611,6 +612,15 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			this.update({
 				items: pickItems,
 			});
+		}
+
+		get valueSelection() {
+			return this._valueSelection;
+		}
+
+		set valueSelection(valueSelection: readonly [number, number] | undefined) {
+			this._valueSelection = valueSelection;
+			this.update({ valueSelection });
 		}
 
 		get canSelectMany() {
