@@ -11,4 +11,5 @@ export const ReplEditorSettings = {
 	interactiveWindowAlwaysScrollOnNewCell: 'interactiveWindow.alwaysScrollOnNewCell',
 	executeWithShiftEnter: 'interactiveWindow.executeWithShiftEnter',
 	showExecutionHint: 'interactiveWindow.showExecutionHint',
+	readExecutedCellOutput: 'replE'
 };

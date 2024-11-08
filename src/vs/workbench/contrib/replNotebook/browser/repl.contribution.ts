@@ -288,7 +288,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'repl.readLastExecutedOutput',
+			id: 'repl.readLastExecutionOutput',
 			title: localize2('repl.readMostRecentExecution', 'Read Most Recent Execution Output'),
 			category: 'REPL',
 			keybinding: [{
