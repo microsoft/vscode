@@ -17,16 +17,19 @@ suite('LinesDecoder', () => {
 		const expectedLines = [
 			'hello',
 			'world',
+			'',
 		];
 		const stream = newWriteableStream<VSBuffer>(null);
-		await stream.write(VSBuffer.fromString(expectedLines.join('\n')));
-		stream.end();
-
 		const decoder = testDisposables.add(new LinesDecoder(stream));
 
+		setTimeout(async () => {
+			await stream.write(VSBuffer.fromString(expectedLines.join('\n')));
+
+			stream.end();
+		}, 1);
+
 		const receivedLines: Line[] = [];
-		while (true) {
-			const maybeLine = await decoder.next();
+		for await (const maybeLine of decoder) {
 			if (maybeLine === null) {
 				break;
 			}
@@ -37,7 +40,7 @@ suite('LinesDecoder', () => {
 		assert.strictEqual(
 			receivedLines.length,
 			expectedLines.length,
-			'Must receive the correct number of lines.',
+			'Must receive correct number of lines.',
 		);
 
 		for (let i = 0; i < expectedLines.length; i++) {

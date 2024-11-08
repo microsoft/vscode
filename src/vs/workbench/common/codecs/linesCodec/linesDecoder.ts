@@ -49,7 +49,8 @@ export class LinesDecoder extends BaseDecoder<Line> implements ReadableStream<Li
 				continue;
 			}
 
-			// if there is a next line present, then we can emit the current one
+			// the line is not empty, if there is a next line present, then we
+			// can emit the current one because we know that it's a full line
 			if (maybeNextLine !== undefined) {
 				this.emitLine(lineNumber, line);
 
@@ -84,7 +85,7 @@ export class LinesDecoder extends BaseDecoder<Line> implements ReadableStream<Li
 		this.lastEmittedLineNumber = lineNumber;
 
 		// TODO: @legomushroom - when `\r\n` is handled, should it be `+ 2` at that point?
-		this.buffer = this.buffer.slice(0, line.length + 1);
+		this.buffer = this.buffer.slice(line.length + 1);
 	}
 
 	/**

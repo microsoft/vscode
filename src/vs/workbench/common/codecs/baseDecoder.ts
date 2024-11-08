@@ -28,21 +28,30 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K = VSBuffer> 
 	) {
 		super();
 
-		// automatically catch and dispatch errors thrown inside `onStreamData`
-		this.onStreamData = (data: K): void => {
-			try {
-				this.onStreamData(data);
-			} catch (error) {
-				// TODO: @legomushroom - should we end the stream on the first error?
-				this._onError.fire(error);
-			}
-		};
+		this.tryOnStreamData = this.tryOnStreamData.bind(this);
 		this.onStreamError = this.onStreamError.bind(this);
 		this.onStreamEnd = this.onStreamEnd.bind(this);
 
-		stream.on('data', this.onStreamData);
+		stream.on('data', this.tryOnStreamData);
 		stream.on('error', this.onStreamError);
 		stream.on('end', this.onStreamEnd);
+	}
+
+	// TODO: @legomushroom
+	public get isEnded(): boolean {
+		return this.ended;
+	}
+
+	/**
+	 * Automatically catch and dispatch errors thrown inside `onStreamData`.
+	 */
+	private tryOnStreamData(data: K): void {
+		try {
+			this.onStreamData(data);
+		} catch (error) {
+			// TODO: @legomushroom - should we end the stream on the first error?
+			this._onError.fire(error);
+		}
 	}
 
 	on(event: 'data', callback: (data: T) => void): void;
@@ -111,7 +120,7 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K = VSBuffer> 
 	 */
 	public removeAllListeners(): void {
 		// remove listeners set up by this class
-		this.stream.removeListener('data', this.onStreamData);
+		this.stream.removeListener('data', this.tryOnStreamData);
 		this.stream.removeListener('error', this.onStreamError);
 		this.stream.removeListener('end', this.onStreamEnd);
 
@@ -181,28 +190,83 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K = VSBuffer> 
 		this._onError.fire(error);
 	}
 
+	// /**
+	//  * TODO: @legomushroom
+	//  */
+	// public next(): Promise<T | null> {
+	// 	if (this.ended) {
+	// 		return Promise.resolve(null);
+	// 	}
+
+	// 	return new Promise<T | null>((resolve) => {
+	// 		const callback = (maybeData?: T) => {
+	// 			resolve(maybeData ?? null);
+	// 			this.removeListener('data', callback);
+	// 			this.removeListener('end', callback);
+	// 		};
+
+	// 		this.on('data', callback);
+	// 		this.on('end', callback);
+	// 	});
+	// }
+
 	/**
 	 * TODO: @legomushroom
 	 */
-	public next(): Promise<T | null> {
-		if (this.ended) {
-			return Promise.resolve(null);
+	[Symbol.asyncIterator](): AsyncIterator<T | null> {
+		return new AsyncDecoder(this)[Symbol.asyncIterator]();
+	}
+}
+
+/**
+ * TODO: @legomushroom
+ */
+export class AsyncDecoder<T extends NonNullable<unknown>, K> {
+	// TODO: @legomushroom
+	private readonly messages: T[] = [];
+	// TODO: @legomushroom
+	private onNewEvent?: (value: void) => void;
+
+	constructor(
+		private readonly decoder: BaseDecoder<T, K>,
+	) { }
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	async *[Symbol.asyncIterator](): AsyncIterator<T | null> {
+		const callback = (data?: T) => {
+			if (data !== undefined) {
+				this.messages.push(data);
+			}
+
+			if (this.onNewEvent) {
+				this.onNewEvent();
+				delete this.onNewEvent;
+			}
+		};
+		this.decoder.on('data', callback);
+		this.decoder.on('end', callback);
+
+		while (true) {
+			const maybeMessage = this.messages.shift();
+			if (maybeMessage !== undefined) {
+				yield maybeMessage;
+				continue;
+			}
+
+			// no data and stream ended, so we're done
+			if (this.decoder.isEnded) {
+				this.decoder.removeListener('data', callback);
+				this.decoder.removeListener('end', callback);
+
+				return null;
+			}
+
+			// otherwise wait for new data to be available
+			await new Promise((resolve) => {
+				this.onNewEvent = resolve;
+			});
 		}
-
-		return new Promise<T | null>((resolve) => {
-			const endCallback = () => {
-				resolve(null);
-				this.removeListener('end', endCallback);
-			};
-
-			const dataCallback = (data: T) => {
-				resolve(data);
-				this.removeListener('data', dataCallback);
-				this.removeListener('end', endCallback);
-			};
-
-			this.on('data', dataCallback);
-			this.on('end', endCallback);
-		});
 	}
 }
