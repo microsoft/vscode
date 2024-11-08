@@ -523,6 +523,11 @@ export class TextModelResolvedOptions {
 	readonly trimAutoWhitespace: boolean;
 	readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
 
+	/**
+	 * @internal
+	 */
+	readonly isForSimpleWidget: boolean;
+
 	public get originalIndentSize(): number | 'tabSize' {
 		return this._indentSizeIsTabSize ? 'tabSize' : this.indentSize;
 	}
@@ -537,6 +542,7 @@ export class TextModelResolvedOptions {
 		defaultEOL: DefaultEndOfLine;
 		trimAutoWhitespace: boolean;
 		bracketPairColorizationOptions: BracketPairColorizationOptions;
+		isForSimpleWidget: boolean;
 	}) {
 		this.tabSize = Math.max(1, src.tabSize | 0);
 		if (src.indentSize === 'tabSize') {
@@ -550,6 +556,7 @@ export class TextModelResolvedOptions {
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
 		this.bracketPairColorizationOptions = src.bracketPairColorizationOptions;
+		this.isForSimpleWidget = src.isForSimpleWidget;
 	}
 
 	/**
@@ -563,6 +570,7 @@ export class TextModelResolvedOptions {
 			&& this.insertSpaces === other.insertSpaces
 			&& this.defaultEOL === other.defaultEOL
 			&& this.trimAutoWhitespace === other.trimAutoWhitespace
+			&& this.isForSimpleWidget === other.isForSimpleWidget
 			&& equals(this.bracketPairColorizationOptions, other.bracketPairColorizationOptions)
 		);
 	}
@@ -576,6 +584,7 @@ export class TextModelResolvedOptions {
 			indentSize: this.indentSize !== newOpts.indentSize,
 			insertSpaces: this.insertSpaces !== newOpts.insertSpaces,
 			trimAutoWhitespace: this.trimAutoWhitespace !== newOpts.trimAutoWhitespace,
+			isForSimpleWidget: this.isForSimpleWidget !== newOpts.isForSimpleWidget,
 		};
 	}
 }
@@ -606,6 +615,11 @@ export interface ITextModelUpdateOptions {
 	insertSpaces?: boolean;
 	trimAutoWhitespace?: boolean;
 	bracketColorizationOptions?: BracketPairColorizationOptions;
+
+	/**
+	 * @internal
+	 */
+	isForSimpleWidget?: boolean;
 }
 
 export class FindMatch {

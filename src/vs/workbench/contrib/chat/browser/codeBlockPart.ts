@@ -410,7 +410,6 @@ export class CodeBlockPart extends Disposable {
 
 	private async updateEditor(data: ICodeBlockData): Promise<void> {
 		const textModel = await data.textModel;
-		console.log(textModel.id);
 		this.editor.setModel(textModel);
 		if (data.range) {
 			this.editor.setSelection(data.range);
@@ -455,7 +454,8 @@ export class ChatCodeBlockContentProvider extends Disposable implements ITextMod
 		if (existing) {
 			return existing;
 		}
-		return this._modelService.createModel('', null, resource);
+		// Start models as simple so they aren't synced until complete
+		return this._modelService.createModel('', null, resource, true);
 	}
 }
 

@@ -203,6 +203,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				trimAutoWhitespace: options.trimAutoWhitespace,
 				defaultEOL: options.defaultEOL,
 				bracketPairColorizationOptions: options.bracketPairColorizationOptions,
+				isForSimpleWidget: options.isForSimpleWidget,
 			});
 		}
 
@@ -241,7 +242,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	//#endregion
 
 	public readonly id: string;
-	public readonly isForSimpleWidget: boolean;
+	public get isForSimpleWidget() {
+		return this._options.isForSimpleWidget;
+	}
+
 	private readonly _associatedResource: URI;
 	private _attachedEditorCount: number;
 	private _buffer: model.ITextBuffer;
@@ -308,7 +312,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		// Generate a new unique model id
 		MODEL_ID++;
 		this.id = '$model' + MODEL_ID;
-		this.isForSimpleWidget = creationOptions.isForSimpleWidget;
 		if (typeof associatedResource === 'undefined' || associatedResource === null) {
 			this._associatedResource = URI.parse('inmemory://model/' + MODEL_ID);
 		} else {
@@ -653,6 +656,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const insertSpaces = (typeof _newOpts.insertSpaces !== 'undefined') ? _newOpts.insertSpaces : this._options.insertSpaces;
 		const trimAutoWhitespace = (typeof _newOpts.trimAutoWhitespace !== 'undefined') ? _newOpts.trimAutoWhitespace : this._options.trimAutoWhitespace;
 		const bracketPairColorizationOptions = (typeof _newOpts.bracketColorizationOptions !== 'undefined') ? _newOpts.bracketColorizationOptions : this._options.bracketPairColorizationOptions;
+		const isForSimpleWidget = (typeof _newOpts.isForSimpleWidget !== 'undefined') ? _newOpts.isForSimpleWidget : this._options.isForSimpleWidget;
 
 		const newOpts = new model.TextModelResolvedOptions({
 			tabSize: tabSize,
@@ -661,6 +665,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			defaultEOL: this._options.defaultEOL,
 			trimAutoWhitespace: trimAutoWhitespace,
 			bracketPairColorizationOptions,
+			isForSimpleWidget,
 		});
 
 		if (this._options.equals(newOpts)) {
