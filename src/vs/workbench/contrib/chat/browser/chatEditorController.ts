@@ -286,7 +286,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 				const widget = new DiffHunkWidget(undoEdits, this._editor.getModel()!.getVersionId(), this._editor, isCreatedContent ? 0 : result.heightInLines);
 				widget.layout(diffEntry.modified.startLineNumber);
-				this._editor.addOverlayWidget(widget);
 
 				diffHunkWidgets.push(widget);
 				diffHunkDecorations.push({
