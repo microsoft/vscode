@@ -183,8 +183,8 @@ class UndoHunkAction extends EditorAction2 {
 		});
 	}
 
-	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
-		ChatEditorController.get(editor)?.undoNearestChange();
+	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+		ChatEditorController.get(editor)?.undoNearestChange(args[0]);
 	}
 }
 

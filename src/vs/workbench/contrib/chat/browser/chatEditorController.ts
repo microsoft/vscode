@@ -375,26 +375,27 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		return true;
 	}
 
-	undoNearestChange(): void {
+	undoNearestChange(closestWidget: DiffHunkWidget | undefined): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
 		const lineRelativeTop = this._editor.getTopForLineNumber(this._editor.getPosition().lineNumber) - this._editor.getScrollTop();
-		let closestWidget: DiffHunkWidget | null = null;
 		let closestDistance = Number.MAX_VALUE;
 
-		for (const widget of this._diffHunkWidgets) {
-			const widgetTop = (<IOverlayWidgetPositionCoordinates | undefined>widget.getPosition()?.preference)?.top;
-			if (widgetTop !== undefined) {
-				const distance = Math.abs(widgetTop - lineRelativeTop);
-				if (distance < closestDistance) {
-					closestDistance = distance;
-					closestWidget = widget;
+		if (!(closestWidget instanceof DiffHunkWidget)) {
+			for (const widget of this._diffHunkWidgets) {
+				const widgetTop = (<IOverlayWidgetPositionCoordinates | undefined>widget.getPosition()?.preference)?.top;
+				if (widgetTop !== undefined) {
+					const distance = Math.abs(widgetTop - lineRelativeTop);
+					if (distance < closestDistance) {
+						closestDistance = distance;
+						closestWidget = widget;
+					}
 				}
 			}
 		}
 
-		if (closestWidget) {
+		if (closestWidget instanceof DiffHunkWidget) {
 			closestWidget.undo();
 		}
 	}
@@ -424,7 +425,10 @@ class DiffHunkWidget implements IOverlayWidget {
 		const btns = instaService.createInstance(MenuWorkbenchButtonBar, this._domNode, MenuId.ChatEditingEditorHunk, {
 			telemetrySource: 'chatEditingEditorHunk',
 			toolbarOptions: { primaryGroup: () => true, },
-			menuOptions: { renderShortTitle: true },
+			menuOptions: {
+				renderShortTitle: true,
+				arg: this,
+			},
 			buttonConfigProvider: () => {
 				return {
 					isSecondary: true,
@@ -433,6 +437,7 @@ class DiffHunkWidget implements IOverlayWidget {
 				};
 			}
 		});
+
 		this._store.add(btns);
 		this._editor.addOverlayWidget(this);
 	}
