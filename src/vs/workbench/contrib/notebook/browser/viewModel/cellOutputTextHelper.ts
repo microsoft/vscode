@@ -16,7 +16,7 @@ interface Error {
 }
 
 export function getAllOutputsText(notebook: NotebookTextModel, viewCell: ICellViewModel): string {
-	let outputContent = '';
+	const outputText: string[] = [];
 	for (let i = 0; i < viewCell.outputsViewModels.length; i++) {
 		const outputViewModel = viewCell.outputsViewModels[i];
 		const outputTextModel = viewCell.model.outputs[i];
@@ -36,16 +36,25 @@ export function getAllOutputsText(notebook: NotebookTextModel, viewCell: ICellVi
 		if (isTextStreamMime(mimeType)) {
 			const { text: stream, count } = getOutputStreamText(outputViewModel);
 			text = stream;
-			i = i + count;
+			if (count > 1) {
+				i += count - 1;
+			}
 		} else {
 			text = getOutputText(mimeType, buffer);
 		}
 
-		const index = viewCell.outputsViewModels.length > 1
-			? `Cell output ${i + 1} of ${viewCell.outputsViewModels.length}\n`
-			: '';
-		outputContent = outputContent.concat(`${index}${text}\n`);
+		outputText.push(text);
 	}
+
+	let outputContent: string;
+	if (outputText.length > 1) {
+		outputContent = outputText.map((output, i) => {
+			return `Cell output ${i + 1} of ${outputText.length}\n${output}`;
+		}).join('\n');
+	} else {
+		outputContent = outputText[0] ?? '';
+	}
+
 	return outputContent.trim();
 }
 
