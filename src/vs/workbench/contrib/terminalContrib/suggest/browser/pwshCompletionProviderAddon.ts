@@ -44,6 +44,13 @@ const enum Constants {
 	CachedPwshCommandsStorageKey = 'terminal.suggest.pwshCommands'
 }
 
+const enum RequestCompletionsSequence {
+	All = '\x1b[24~e', // F12,e
+	Global = '\x1b[24~f', // F12,f
+	Git = '\x1b[24~g', // F12,g
+	Code = '\x1b[24~h' // F12,h
+}
+
 export class PwshCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
 	public shellTypes = [GeneralShellType.PowerShell];
 	static readonly ID = 'terminal.pwshCompletionProvider';
@@ -66,11 +73,6 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	isPasting: boolean = false;
 
 	private _completionsResolver: ((result: ISimpleCompletion[] | undefined) => void) | null = null;
-
-	static requestCompletionsSequence = '\x1b[24~e'; // F12,e
-	static requestGlobalCompletionsSequence = '\x1b[24~f'; // F12,f
-	static requestEnableGitCompletionsSequence = '\x1b[24~g'; // F12,g
-	static requestEnableCodeCompletionsSequence = '\x1b[24~h'; // F12,h
 
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
@@ -249,23 +251,23 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	async provideCompletions(value: string): Promise<ISimpleCompletion[] | undefined> {
 		const builtinCompletionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).builtinCompletions;
 		if (!this._codeCompletionsRequested && builtinCompletionsConfig.pwshCode) {
-			this._onAcceptedCompletion.fire(PwshCompletionProviderAddon.requestEnableCodeCompletionsSequence);
+			this._onAcceptedCompletion.fire(RequestCompletionsSequence.Code);
 			this._codeCompletionsRequested = true;
 		}
 		if (!this._gitCompletionsRequested && builtinCompletionsConfig.pwshGit) {
-			this._onAcceptedCompletion.fire(PwshCompletionProviderAddon.requestEnableGitCompletionsSequence);
+			this._onAcceptedCompletion.fire(RequestCompletionsSequence.Git);
 			this._gitCompletionsRequested = true;
 		}
 
 		// Request global pwsh completions if there are none cached
 		if (PwshCompletionProviderAddon.cachedPwshCommands.size === 0) {
-			this._onAcceptedCompletion.fire(PwshCompletionProviderAddon.requestGlobalCompletionsSequence);
+			this._onAcceptedCompletion.fire(RequestCompletionsSequence.Global);
 		}
 
 		// Ensure that a key has been pressed since the last accepted completion in order to prevent
 		// completions being requested again right after accepting a completion
 		if (this._lastUserDataTimestamp > SuggestAddon.lastAcceptedCompletionTimestamp) {
-			this._onAcceptedCompletion.fire(PwshCompletionProviderAddon.requestCompletionsSequence);
+			this._onAcceptedCompletion.fire(RequestCompletionsSequence.All);
 			this._onDidRequestCompletions.fire();
 		}
 		return await this._waitForCompletions();
