@@ -7,7 +7,7 @@ import './media/chatEditorController.css';
 import { getTotalWidth } from '../../../../base/browser/dom.js';
 import { binarySearch, coalesceInPlace } from '../../../../base/common/arrays.js';
 import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived } from '../../../../base/common/observable.js';
+import { autorun, derived, observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone } from '../../../../editor/browser/editorBrowser.js';
@@ -18,13 +18,13 @@ import { EditOperation, ISingleEditOperation } from '../../../../editor/common/c
 import { Range } from '../../../../editor/common/core/range.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { IEditorContribution, ScrollType } from '../../../../editor/common/editorCommon.js';
-import { IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../../editor/common/model.js';
+import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../../editor/common/model.js';
 import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../editor/common/viewModel.js';
 import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../scm/browser/dirtydiffDecorator.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { Event } from '../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
@@ -37,7 +37,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	public static readonly ID = 'editor.contrib.chatEditorController';
 
-	private readonly _sessionStore = this._register(new DisposableStore());
 	private readonly _decorations = this._editor.createDecorationsCollection();
 	private readonly _diffHunksRenderStore = this._register(new DisposableStore());
 	private readonly _diffHunkWidgets: DiffHunkWidget[] = [];
@@ -57,25 +56,29 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
-		this._register(this._editor.onDidChangeModel(() => this._update()));
-		this._register(this._editor.onDidChangeConfiguration((e) => {
-			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.lineHeight)) {
-				this._update();
-			}
-		}));
-		this._register(this._chatEditingService.onDidChangeEditingSession(() => this._updateSessionDecorations()));
-		this._register(toDisposable(() => this._clearRendering()));
 
 		this._ctxHasEditorModification = ctxHasEditorModification.bindTo(contextKeyService);
+
+		const configSignal = observableFromEvent(
+			Event.filter(this._editor.onDidChangeConfiguration, e => e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.lineHeight)),
+			_ => undefined
+		);
+
+		const modelObs = observableFromEvent(this._editor.onDidChangeModel, _ => this._editor.getModel());
 
 		this._register(autorun(r => {
 
 			if (this._editor.getOption(EditorOption.inDiffEditor)) {
+				this._clearRendering();
 				return;
 			}
 
+			configSignal.read(r);
+
+			const model = modelObs.read(r);
+
 			const session = this._chatEditingService.currentEditingSessionObs.read(r);
-			const entry = session?.entries.read(r).find(e => isEqual(e.modifiedURI, this._editor.getModel()?.uri));
+			const entry = session?.entries.read(r).find(e => isEqual(e.modifiedURI, model?.uri));
 
 			if (!entry || entry.state.read(r) !== WorkingSetEntryState.Modified) {
 				this._clearRendering();
@@ -124,46 +127,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 	override dispose(): void {
 		this._clearRendering();
 		super.dispose();
-	}
-
-	private _update(): void {
-		this._sessionStore.clear();
-		if (!this._editor.hasModel()) {
-			return;
-		}
-		if (this._editor.getOption(EditorOption.inDiffEditor)) {
-			return;
-		}
-		if (this._editor.getOption(EditorOption.inDiffEditor)) {
-			this._clearRendering();
-			return;
-		}
-		this._updateSessionDecorations();
-	}
-
-	private _updateSessionDecorations(): void {
-		if (!this._editor.hasModel()) {
-			this._clearRendering();
-			return;
-		}
-		const model = this._editor.getModel();
-		const editingSession = this._chatEditingService.getEditingSession(model.uri);
-		const entry = this._getEntry(editingSession, model);
-
-		if (!entry || entry.state.get() !== WorkingSetEntryState.Modified) {
-			this._clearRendering();
-			return;
-		}
-
-		const diff = entry.diffInfo.get();
-		this._updateWithDiff(entry, diff);
-	}
-
-	private _getEntry(editingSession: IChatEditingSession | null, model: ITextModel): IModifiedFileEntry | null {
-		if (!editingSession) {
-			return null;
-		}
-		return editingSession.entries.get().find(e => e.modifiedURI.toString() === model.uri.toString()) || null;
 	}
 
 	private _clearRendering() {
@@ -313,7 +276,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			diffHunkDecoCollection.clear();
 		}));
 
-		const showHunkMenu = (position: IPosition | undefined) => {
+		const showHunkMenu = (position: IPosition) => {
 			let activeWidget: DiffHunkWidget | undefined;
 			if (position) {
 				for (let i = 0; i < diffHunkDecoCollection.length; i++) {
@@ -324,8 +287,10 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 					}
 				}
 			}
-			for (const widget of this._diffHunkWidgets) {
-				widget.toggle(widget === activeWidget);
+			if (activeWidget) {
+				for (const widget of this._diffHunkWidgets) {
+					widget.toggle(widget === activeWidget);
+				}
 			}
 		};
 
@@ -333,9 +298,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			if (e.target.position) {
 				showHunkMenu(e.target.position);
 			}
-		}));
-		this._diffHunksRenderStore.add(this._editor.onDidChangeCursorPosition(e => {
-			showHunkMenu(e.position);
 		}));
 
 		this._diffHunksRenderStore.add(Event.any(this._editor.onDidScrollChange, this._editor.onDidLayoutChange)(() => {
