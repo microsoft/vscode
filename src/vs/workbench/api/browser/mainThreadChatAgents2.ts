@@ -25,6 +25,7 @@ import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { ChatInputPart } from '../../contrib/chat/browser/chatInputPart.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/contrib/chatDynamicVariables.js';
 import { ChatAgentLocation, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/chatAgents.js';
+import { IChatEditingService } from '../../contrib/chat/common/chatEditingService.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/chatRequestParser.js';
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatProgress, IChatService, IChatTask, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
@@ -79,6 +80,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _chatParticipantDetectionProviders = this._register(new DisposableMap<number, IDisposable>());
 
+	private readonly _chatRelatedFilesProviders = this._register(new DisposableMap<number, IDisposable>());
+
 	private readonly _pendingProgress = new Map<string, (part: IChatProgress) => void>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
 
@@ -91,6 +94,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		extHostContext: IExtHostContext,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IChatService private readonly _chatService: IChatService,
+		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -341,6 +345,18 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	$unregisterChatParticipantDetectionProvider(handle: number): void {
 		this._chatParticipantDetectionProviders.deleteAndDispose(handle);
+	}
+
+	$registerRelatedFilesProvider(handle: number): void {
+		this._chatRelatedFilesProviders.set(handle, this._chatEditingService.registerRelatedFilesProvider(handle, {
+			provideRelatedFiles: async (request, token) => {
+				return (await this._proxy.$provideRelatedFiles(handle, request, token))?.map((v) => URI.from(v));
+			}
+		}));
+	}
+
+	$unregisterRelatedFilesProvider(handle: number): void {
+		this._chatRelatedFilesProviders.deleteAndDispose(handle);
 	}
 }
 
