@@ -26,6 +26,7 @@ module.exports = withDefaults({
 				{
 					from: '**/dist/msal*.(node|dll)',
 					to: '[name][ext]',
+					noErrorOnMissing: true
 				}
 			]
 		})
