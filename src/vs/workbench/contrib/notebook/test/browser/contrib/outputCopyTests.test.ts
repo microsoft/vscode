@@ -147,5 +147,4 @@ suite('Cell Output Clipboard Tests', () => {
 
 		assert.strictEqual(clipboard.clipboardContent, 'Error Name: error message');
 	});
-
 });

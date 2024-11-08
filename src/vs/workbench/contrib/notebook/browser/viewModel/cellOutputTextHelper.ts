@@ -6,7 +6,7 @@
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
-import { IOutputItemDto } from '../../common/notebookCommon.js';
+import { IOutputItemDto, isTextStreamMime } from '../../common/notebookCommon.js';
 import { ICellOutputViewModel, ICellViewModel } from '../notebookBrowser.js';
 
 interface Error {
@@ -32,7 +32,14 @@ export function getAllOutputsText(notebook: NotebookTextModel, viewCell: ICellVi
 			continue;
 		}
 
-		const text = getOutputText(mimeType, buffer);
+		let text = '';
+		if (isTextStreamMime(mimeType)) {
+			const { text: stream, count } = getOutputStreamText(outputViewModel);
+			text = stream;
+			i = i + count;
+		} else {
+			text = getOutputText(mimeType, buffer);
+		}
 
 		const index = viewCell.outputsViewModels.length > 1
 			? `Cell output ${i + 1} of ${viewCell.outputsViewModels.length}\n`
@@ -40,6 +47,26 @@ export function getAllOutputsText(notebook: NotebookTextModel, viewCell: ICellVi
 		outputContent = outputContent.concat(`${index}${text}\n`);
 	}
 	return outputContent.trim();
+}
+
+export function getOutputStreamText(output: ICellOutputViewModel): { text: string; count: number } {
+	let text = '';
+	const cellViewModel = output.cellViewModel as ICellViewModel;
+	let index = cellViewModel.outputsViewModels.indexOf(output);
+	let count = 0;
+	while (index < cellViewModel.model.outputs.length) {
+		const nextCellOutput = cellViewModel.model.outputs[index];
+		const nextOutput = nextCellOutput.outputs.find(output => isTextStreamMime(output.mime));
+		if (!nextOutput) {
+			break;
+		}
+
+		text = text + decoder.decode(nextOutput.data.buffer);
+		index = index + 1;
+		count++;
+	}
+
+	return { text, count };
 }
 
 const decoder = new TextDecoder();
@@ -81,7 +108,7 @@ export async function copyCellOutput(mimeType: string | undefined, outputViewMod
 		return;
 	}
 
-	const text = getOutputText(mimeType, output);
+	const text = isTextStreamMime(mimeType) ? getOutputStreamText(outputViewModel).text : getOutputText(mimeType, output);
 
 	try {
 		await clipboardService.writeText(text);
