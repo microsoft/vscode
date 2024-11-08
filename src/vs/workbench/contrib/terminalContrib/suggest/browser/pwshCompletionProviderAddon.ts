@@ -76,16 +76,16 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 
 	constructor(
 		providedPwshCommands: Set<ISimpleCompletion> | undefined,
-		_capabilities: ITerminalCapabilityStore,
+		capabilities: ITerminalCapabilityStore,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
 		this._register(Event.runAndSubscribe(Event.any(
-			_capabilities.onDidAddCapabilityType,
-			_capabilities.onDidRemoveCapabilityType
+			capabilities.onDidAddCapabilityType,
+			capabilities.onDidRemoveCapabilityType
 		), () => {
-			const commandDetection = _capabilities.get(TerminalCapability.CommandDetection);
+			const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
 			if (commandDetection) {
 				if (this._promptInputModel !== commandDetection.promptInputModel) {
 					this._promptInputModel = commandDetection.promptInputModel;
@@ -145,7 +145,6 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 			case VSCodeSuggestOscPt.Completions:
 				this._handleCompletionsSequence(this._terminal, data, command, args);
 				return true;
-			// Pass the sequence along to the capability
 			case VSCodeSuggestOscPt.CompletionsPwshCommands:
 				return this._handleCompletionsPwshCommandsSequence(this._terminal, data, command, args);
 		}

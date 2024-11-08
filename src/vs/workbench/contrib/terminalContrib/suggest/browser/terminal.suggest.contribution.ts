@@ -251,7 +251,7 @@ registerActiveInstanceAction({
 		// Tab is bound to other workbench keybindings that this needs to beat
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	},
-	run: async (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion()
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion()
 });
 
 registerActiveInstanceAction({

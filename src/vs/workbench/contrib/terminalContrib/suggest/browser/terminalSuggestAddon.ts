@@ -61,6 +61,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	// TODO: Remove these in favor of prompt input state
 	private _leadingLineContent?: string;
 	private _cursorIndexDelta: number = 0;
+	private _requestedCompletionsIndex: number = 0;
+	private _providerReplacementIndex: number = 0;
 
 	private _lastUserData?: string;
 	static lastAcceptedCompletionTimestamp: number = 0;
@@ -73,8 +75,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
 	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
-	private _requestedCompletionsIndex: number = 0;
-	private _providerReplacementIndex: number = 0;
 
 	constructor(
 		private readonly _shellType: TerminalShellType | undefined,
