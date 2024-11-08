@@ -215,7 +215,9 @@ suite('Terminal Contrib Suggest Recordings', () => {
 					case 'command': {
 						switch (event.id) {
 							case TerminalSuggestCommandId.AcceptSelectedSuggestion:
-								suggestAddon.acceptSelectedSuggestion();
+								while (suggestAddon.acceptSelectedSuggestion() === false) {
+									await timeout(100);
+								}
 								break;
 						}
 					}

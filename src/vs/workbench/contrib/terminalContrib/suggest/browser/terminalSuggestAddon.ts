@@ -379,13 +379,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._suggestWidget?.selectNextPage();
 	}
 
-	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>, respectRunOnEnter?: boolean): void {
+	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>, respectRunOnEnter?: boolean): boolean {
 		if (!suggestion) {
 			suggestion = this._suggestWidget?.getFocusedItem();
 		}
 		const initialPromptInputState = this._mostRecentPromptInputState;
 		if (!suggestion || !initialPromptInputState || this._leadingLineContent === undefined || !this._model) {
-			return;
+			return false;
 		}
 		SuggestAddon.lastAcceptedCompletionTimestamp = Date.now();
 		this._suggestWidget?.hide();
@@ -466,6 +466,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Send the completion
 		this._onAcceptedCompletion.fire(resultSequence);
 		this.hideSuggestWidget();
+
+		return true;
 	}
 
 	hideSuggestWidget(): void {
