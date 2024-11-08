@@ -11,6 +11,7 @@ import { ILanguageService } from '../languages/language.js';
 import { IModelService } from './model.js';
 import { FileKind } from '../../../platform/files/common/files.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { extname, basename } from '../../../base/common/path.js';
 
 const fileIconDirectoryRegex = /(?:\/|^)(?:([^\/]+)\/)?([^\/]+)$/;
 
