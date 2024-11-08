@@ -5,8 +5,8 @@
 
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { ICellOutputViewModel, ICellViewModel } from '../../notebookBrowser.js';
-import { isTextStreamMime } from '../../../common/notebookCommon.js';
+import { ICellOutputViewModel } from '../../notebookBrowser.js';
+import { getOutputText } from '../../viewModel/outputHelper.js';
 
 export async function copyCellOutput(mimeType: string | undefined, outputViewModel: ICellOutputViewModel, clipboardService: IClipboardService, logService: ILogService) {
 	const cellOutput = outputViewModel.model;
@@ -20,29 +20,7 @@ export async function copyCellOutput(mimeType: string | undefined, outputViewMod
 		return;
 	}
 
-	const decoder = new TextDecoder();
-	let text = decoder.decode(output.data.buffer);
-
-	// append adjacent text streams since they are concatenated in the renderer
-	if (isTextStreamMime(mimeType)) {
-		const cellViewModel = outputViewModel.cellViewModel as ICellViewModel;
-		let index = cellViewModel.outputsViewModels.indexOf(outputViewModel) + 1;
-		while (index < cellViewModel.model.outputs.length) {
-			const nextCellOutput = cellViewModel.model.outputs[index];
-			const nextOutput = nextCellOutput.outputs.find(output => isTextStreamMime(output.mime));
-			if (!nextOutput) {
-				break;
-			}
-
-			text = text + decoder.decode(nextOutput.data.buffer);
-			index = index + 1;
-		}
-	}
-
-	if (mimeType.endsWith('error')) {
-		text = text.replace(/\\u001b\[[0-9;]*m/gi, '').replaceAll('\\n', '\n');
-	}
-
+	const text = getOutputText(mimeType, output);
 
 	try {
 		await clipboardService.writeText(text);

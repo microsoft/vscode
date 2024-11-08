@@ -46,9 +46,9 @@ import { INotebookEditorOptions } from '../../notebook/browser/notebookBrowser.j
 import { NotebookEditorWidget } from '../../notebook/browser/notebookEditorWidget.js';
 import * as icons from '../../notebook/browser/notebookIcons.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
-import { getOutputText } from '../../notebook/browser/viewModel/outputHelper.js';
+import { getAllOutputsText } from '../../notebook/browser/viewModel/outputHelper.js';
 import { CellEditType, CellKind, NotebookSetting, NotebookWorkingCopyTypeIdentifier, REPL_EDITOR_ID } from '../../notebook/common/notebookCommon.js';
-import { MOST_RECENT_REPL_EDITOR } from '../../notebook/common/notebookContextKeys.js';
+import { IS_COMPOSITE_NOTEBOOK, MOST_RECENT_REPL_EDITOR, NOTEBOOK_CELL_LIST_FOCUSED } from '../../notebook/common/notebookContextKeys.js';
 import { NotebookEditorInputOptions } from '../../notebook/common/notebookEditorInput.js';
 import { INotebookEditorModelResolverService } from '../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
@@ -299,7 +299,10 @@ registerAction2(class extends Action2 {
 				id: MenuId.CommandPalette,
 				when: MOST_RECENT_REPL_EDITOR,
 			},
-			precondition: ContextKeyExpr.and(MOST_RECENT_REPL_EDITOR, CONTEXT_ACCESSIBILITY_MODE_ENABLED)
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.or(IS_COMPOSITE_NOTEBOOK || NOTEBOOK_CELL_LIST_FOCUSED.negate()),
+				MOST_RECENT_REPL_EDITOR,
+				CONTEXT_ACCESSIBILITY_MODE_ENABLED)
 		});
 	}
 
@@ -335,7 +338,7 @@ registerAction2(class extends Action2 {
 		if (viewModel && notebook) {
 			const cell = viewModel.getMostRecentlyExecutedCell();
 			if (cell) {
-				const text = getOutputText(notebook, cell, true);
+				const text = getAllOutputsText(notebook, cell);
 				alert(text);
 			}
 		}

@@ -59,7 +59,6 @@ import { ReplInputHintContentWidget } from '../../interactive/browser/replInputH
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { localize } from '../../../../nls.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
 
@@ -130,8 +129,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
-		@IExtensionService extensionService: IExtensionService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IExtensionService extensionService: IExtensionService
 	) {
 		super(
 			REPL_EDITOR_ID,

@@ -4,11 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { IOutputItemDto } from '../../common/notebookCommon.js';
 import { ICellViewModel } from '../notebookBrowser.js';
 
-export function getOutputText(notebook: NotebookTextModel, viewCell: ICellViewModel): string {
+interface Error {
+	name: string;
+	message: string;
+	stack?: string;
+}
+
+export function getAllOutputsText(notebook: NotebookTextModel, viewCell: ICellViewModel): string {
 	let outputContent = '';
-	const decoder = new TextDecoder();
 	for (let i = 0; i < viewCell.outputsViewModels.length; i++) {
 		const outputViewModel = viewCell.outputsViewModels[i];
 		const outputTextModel = viewCell.model.outputs[i];
@@ -20,25 +26,11 @@ export function getOutputText(notebook: NotebookTextModel, viewCell: ICellViewMo
 			buffer = outputTextModel.outputs.find(output => !output.mime.startsWith('image'));
 		}
 
-		let text = `${mimeType}`; // default in case we can't get the text value for some reason.
-		if (buffer) {
-			const charLimit = 100_000;
-			text = decoder.decode(buffer.data.slice(0, charLimit).buffer);
-
-			if (buffer.data.byteLength > charLimit) {
-				text = text + '...(truncated)';
-			}
-
-			if (mimeType.endsWith('error')) {
-				const metadata = viewCell.model.internalMetadata;
-				if (metadata.error?.message) {
-					text = metadata.error.message;
-					text += '\n' + metadata.error.stack?.replace(/\\x1b\[[0-9;]*m/gi, '').replace(/\\u001b\[[0-9;]*m/gi, '').replaceAll('\\n', '\n');
-				} else {
-					text = text.replace(/\\u001b\[[0-9;]*m/gi, '').replaceAll('\\n', '\n');
-				}
-			}
+		if (!buffer) {
+			continue;
 		}
+
+		const text = getOutputText(mimeType, buffer);
 
 		const index = viewCell.outputsViewModels.length > 1
 			? `Cell output ${i + 1} of ${viewCell.outputsViewModels.length}\n`
@@ -61,3 +53,31 @@ export const TEXT_BASED_MIMETYPES = [
 	'text/markdown',
 	'application/json'
 ];
+
+const decoder = new TextDecoder();
+
+export function getOutputText(mimeType: string, buffer: IOutputItemDto) {
+	let text = `${mimeType}`; // default in case we can't get the text value for some reason.
+
+	const charLimit = 100000;
+	text = decoder.decode(buffer.data.slice(0, charLimit).buffer);
+
+	if (buffer.data.byteLength > charLimit) {
+		text = text + '...(truncated)';
+	} else if (mimeType.endsWith('error')) {
+		text = text.replace(/\\u001b\[[0-9;]*m/gi, '');
+		try {
+			const error = JSON.parse(text) as Error;
+			if (error.stack) {
+				text = error.stack;
+			} else {
+				text = `${error.name}: ${error.message}`;
+			}
+		} catch {
+			// just use raw text
+		}
+	}
+
+	return text;
+}
+

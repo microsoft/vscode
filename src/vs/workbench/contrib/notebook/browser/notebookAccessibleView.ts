@@ -11,7 +11,7 @@ import { getNotebookEditorFromEditorPane } from './notebookBrowser.js';
 import { NOTEBOOK_CELL_LIST_FOCUSED } from '../common/notebookContextKeys.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { InputFocusedContext } from '../../../../platform/contextkey/common/contextkeys.js';
-import { getOutputText } from './viewModel/outputHelper.js';
+import { getAllOutputsText } from './viewModel/outputHelper.js';
 
 export class NotebookAccessibleView implements IAccessibleViewImplentation {
 	readonly priority = 100;
@@ -37,7 +37,7 @@ export function getAccessibleOutputProvider(editorService: IEditorService) {
 	}
 
 	const viewCell = notebookViewModel.viewCells[selections[0].start];
-	const outputContent = getOutputText(notebookDocument, viewCell);
+	const outputContent = getAllOutputsText(notebookDocument, viewCell);
 
 	if (!outputContent) {
 		return;
