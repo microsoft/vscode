@@ -45,41 +45,34 @@ const enum Constants {
 }
 
 const enum RequestCompletionsSequence {
-	All = '\x1b[24~e', // F12,e
+	Contextual = '\x1b[24~e', // F12,e
 	Global = '\x1b[24~f', // F12,f
 	Git = '\x1b[24~g', // F12,g
 	Code = '\x1b[24~h' // F12,h
 }
 
 export class PwshCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
-	public shellTypes = [GeneralShellType.PowerShell];
 	static readonly ID = 'terminal.pwshCompletionProvider';
+	static cachedPwshCommands: Set<ISimpleCompletion>;
+	readonly shellTypes = [GeneralShellType.PowerShell];
 	private _codeCompletionsRequested: boolean = false;
 	private _gitCompletionsRequested: boolean = false;
 	private _lastUserDataTimestamp: number = 0;
 	private _terminal?: Terminal;
 	private _mostRecentCompletion?: ISimpleCompletion;
-	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
-	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
-	private readonly _onDidRequestCompletions = this._register(new Emitter<void>());
-	readonly onDidRequestCompletions = this._onDidRequestCompletions.event;
-
 	private _promptInputModel?: IPromptInputModel;
-
 	private _currentPromptInputState?: IPromptInputModelState;
-
 	private _enableWidget: boolean = true;
-
 	isPasting: boolean = false;
-
 	private _completionsResolver: ((result: ISimpleCompletion[] | undefined) => void) | null = null;
-
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
-	private readonly _onRequestCompletions = this._register(new Emitter<string>());
-	readonly onRequestCompletions = this._onRequestCompletions.event;
-
-	static cachedPwshCommands: Set<ISimpleCompletion>;
+	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
+	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
+	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
+	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
+	private readonly _onDidRequestCompletions = this._register(new Emitter<RequestCompletionsSequence>());
+	readonly onDidRequestCompletions = this._onDidRequestCompletions.event;
 
 	constructor(
 		providedPwshCommands: Set<ISimpleCompletion> | undefined,
@@ -251,24 +244,23 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	provideCompletions(value: string): Promise<ISimpleCompletion[] | undefined> {
 		const builtinCompletionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).builtinCompletions;
 		if (!this._codeCompletionsRequested && builtinCompletionsConfig.pwshCode) {
-			this._onRequestCompletions.fire(RequestCompletionsSequence.Code);
+			this._onDidRequestCompletions.fire(RequestCompletionsSequence.Code);
 			this._codeCompletionsRequested = true;
 		}
 		if (!this._gitCompletionsRequested && builtinCompletionsConfig.pwshGit) {
-			this._onRequestCompletions.fire(RequestCompletionsSequence.Git);
+			this._onDidRequestCompletions.fire(RequestCompletionsSequence.Git);
 			this._gitCompletionsRequested = true;
 		}
 
 		// Request global pwsh completions if there are none cached
 		if (PwshCompletionProviderAddon.cachedPwshCommands.size === 0) {
-			this._onRequestCompletions.fire(RequestCompletionsSequence.Global);
+			this._onDidRequestCompletions.fire(RequestCompletionsSequence.Global);
 		}
 
 		// Ensure that a key has been pressed since the last accepted completion in order to prevent
 		// completions being requested again right after accepting a completion
 		if (this._lastUserDataTimestamp > SuggestAddon.lastAcceptedCompletionTimestamp) {
-			this._onRequestCompletions.fire(RequestCompletionsSequence.All);
-			this._onDidRequestCompletions.fire();
+			this._onDidRequestCompletions.fire(RequestCompletionsSequence.Contextual);
 		}
 		return this._waitForCompletions();
 	}
