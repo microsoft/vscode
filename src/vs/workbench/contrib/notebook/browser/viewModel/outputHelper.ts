@@ -40,20 +40,6 @@ export function getAllOutputsText(notebook: NotebookTextModel, viewCell: ICellVi
 	return outputContent.trim();
 }
 
-export const TEXT_BASED_MIMETYPES = [
-	'text/latex',
-	'text/html',
-	'application/vnd.code.notebook.error',
-	'application/vnd.code.notebook.stdout',
-	'application/x.notebook.stdout',
-	'application/x.notebook.stream',
-	'application/vnd.code.notebook.stderr',
-	'application/x.notebook.stderr',
-	'text/plain',
-	'text/markdown',
-	'application/json'
-];
-
 const decoder = new TextDecoder();
 
 export function getOutputText(mimeType: string, buffer: IOutputItemDto) {
@@ -64,7 +50,7 @@ export function getOutputText(mimeType: string, buffer: IOutputItemDto) {
 
 	if (buffer.data.byteLength > charLimit) {
 		text = text + '...(truncated)';
-	} else if (mimeType.endsWith('error')) {
+	} else if (mimeType === 'application/vnd.code.notebook.error') {
 		text = text.replace(/\\u001b\[[0-9;]*m/gi, '');
 		try {
 			const error = JSON.parse(text) as Error;
