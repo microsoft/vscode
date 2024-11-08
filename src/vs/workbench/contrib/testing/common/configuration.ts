@@ -109,7 +109,7 @@ export const testingConfiguration: IConfigurationNode = {
 		[TestingConfigKeys.FollowRunningTest]: {
 			description: localize('testing.followRunningTest', 'Controls whether the running test should be followed in the Test Explorer view.'),
 			type: 'boolean',
-			default: true,
+			default: false,
 		},
 		[TestingConfigKeys.DefaultGutterClickAction]: {
 			description: localize('testing.defaultGutterClickAction', 'Controls the action to take when left-clicking on a test decoration in the gutter.'),
