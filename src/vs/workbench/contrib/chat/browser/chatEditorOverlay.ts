@@ -17,8 +17,11 @@ import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionView
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IActionRunner } from '../../../../base/common/actions.js';
-import { getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { getWindow, reset, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 class ChatEditorOverlayWidget implements IOverlayWidget {
 
@@ -148,7 +151,10 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 			}, undefined);
 
 			const value2 = slickRatio.getValue(r);
-			this._progressNode.innerText = `${Math.round(value2 * 100)}%`;
+			reset(this._progressNode, value === 0
+				? renderIcon(ThemeIcon.modify(Codicon.loading, 'spin'))
+				: `${Math.round(value2 * 100)}%`
+			);
 		}));
 
 		if (!this._isAdded) {

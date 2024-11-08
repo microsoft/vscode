@@ -309,11 +309,9 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			if (!isLastEdits) {
 				this._stateObs.set(WorkingSetEntryState.Modified, tx);
 				this._isCurrentlyBeingModifiedObs.set(true, tx);
-				if (ops.length > 0) {
-					const maxLineNumber = ops.reduce((max, op) => Math.max(max, op.range.endLineNumber), 0);
-					const lineCount = this.doc.getLineCount();
-					this._rewriteRatioObs.set(Math.min(1, maxLineNumber / lineCount), tx);
-				}
+				const maxLineNumber = ops.reduce((max, op) => Math.max(max, op.range.endLineNumber), 0);
+				const lineCount = this.doc.getLineCount();
+				this._rewriteRatioObs.set(Math.min(1, maxLineNumber / lineCount), tx);
 			} else {
 				this._resetEditsState(tx);
 				this._updateDiffInfoSeq(true);
@@ -399,9 +397,8 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		} else {
 			this._setDocValue(this.docSnapshot.getValue());
 			if (this._allEditsAreFromUs) {
-				// soft revert unsets the dirty state which is OK
-				// to do if all edits are from us otherwise we keep
-				// the dirty state
+				// save the file after discarding so that the dirty indicator goes away
+				// and so that an intermediate saved state gets reverted
 				await this.docFileEditorModel.save({ reason: SaveReason.EXPLICIT });
 			}
 			await this.collapse(transaction);
