@@ -440,7 +440,14 @@ function patchWin32DependenciesTask(destinationFolderName) {
 	const cwd = path.join(path.dirname(root), destinationFolderName);
 
 	return async () => {
-		const deps = await glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' });
+		const deps = await glob('**/*.node',
+			{
+				cwd,
+				ignore: [
+					'extensions/node_modules/@parcel/watcher/**',
+					'**/extensions/microsoft-authentication/**'
+				]
+			});
 		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'package.json'), 'utf8'));
 		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'product.json'), 'utf8'));
 		const baseVersion = packageJson.version.replace(/-.*$/, '');
