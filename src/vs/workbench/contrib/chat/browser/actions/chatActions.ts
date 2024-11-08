@@ -544,23 +544,6 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 		@IChatAgentService agentService: IChatAgentService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		// --- action to show dropdown
-		const that = this;
-		const showDropdownActionId = 'chatMenu.showDropdown';
-		registerAction2(class OpenChatMenuDropdown extends Action2 {
-			constructor() {
-				super({
-					id: showDropdownActionId,
-					title: defaultChat.name,
-					f1: false
-				});
-			}
-			run() {
-				that._dropdown?.showDropdown();
-			}
-		});
-
-		// --- dropdown menu
 		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
@@ -575,8 +558,8 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 			const chatExtensionInstalled = agentService.getAgents().some(agent => agent.isDefault);
 
 			const primaryAction = instantiationService.createInstance(MenuItemAction, {
-				id: chatExtensionInstalled ? CHAT_OPEN_ACTION_ID : showDropdownActionId,
-				title: chatExtensionInstalled ? OpenChatGlobalAction.TITLE : defaultChat.name,
+				id: chatExtensionInstalled ? CHAT_OPEN_ACTION_ID : 'workbench.action.chat.triggerSetup', // TODO@bpasero revisit layering of this action
+				title: OpenChatGlobalAction.TITLE,
 				icon: defaultChat.icon,
 			}, undefined, undefined, undefined, undefined);
 
