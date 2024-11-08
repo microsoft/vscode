@@ -449,7 +449,37 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(LearnMoreChatAction);
+	registerAction2(class LearnMoreChatAction extends Action2 {
+
+		static readonly ID = 'workbench.action.chat.learnMore';
+		static readonly TITLE = localize2('learnMore', "Learn More");
+
+		constructor() {
+			super({
+				id: LearnMoreChatAction.ID,
+				title: LearnMoreChatAction.TITLE,
+				category: CHAT_CATEGORY,
+				menu: [{
+					id: MenuId.ChatCommandCenter,
+					group: 'a_atfirst',
+					order: 2,
+					when: ChatContextKeys.panelParticipantRegistered.negate()
+				}, {
+					id: MenuId.ChatCommandCenter,
+					group: 'z_atlast',
+					order: 1,
+					when: ChatContextKeys.panelParticipantRegistered
+				}]
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const openerService = accessor.get(IOpenerService);
+			if (defaultChat.documentationUrl) {
+				openerService.open(URI.parse(defaultChat.documentationUrl));
+			}
+		}
+	});
 }
 
 export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewModel, includeName = true): string {
@@ -561,34 +591,3 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 	}
 }
 
-class LearnMoreChatAction extends Action2 {
-
-	static readonly ID = 'workbench.action.chat.learnMore';
-	static readonly TITLE = localize2('learnMore', "Learn More");
-
-	constructor() {
-		super({
-			id: LearnMoreChatAction.ID,
-			title: LearnMoreChatAction.TITLE,
-			category: CHAT_CATEGORY,
-			menu: [{
-				id: MenuId.ChatCommandCenter,
-				group: 'a_atfirst',
-				order: 2,
-				when: ChatContextKeys.panelParticipantRegistered.negate()
-			}, {
-				id: MenuId.ChatCommandCenter,
-				group: 'z_atlast',
-				order: 1,
-				when: ChatContextKeys.panelParticipantRegistered
-			}]
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const openerService = accessor.get(IOpenerService);
-		if (defaultChat.documentationUrl) {
-			openerService.open(URI.parse(defaultChat.documentationUrl));
-		}
-	}
-}
