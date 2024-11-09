@@ -14,9 +14,9 @@ import { localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { GeneralShellType, TerminalLocation, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
-import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerActiveInstanceAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TERMINAL_CONFIG_SECTION, type ITerminalConfiguration } from '../../../terminal/common/terminal.js';
@@ -163,30 +163,19 @@ registerTerminalContribution(TerminalSuggestContribution.ID, TerminalSuggestCont
 
 // #endregion
 
-// #region Keybindings
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: TerminalSuggestCommandId.RequestCompletions,
-	// Add to weight such that other keybindings like the ctrl+space -> MenuComplete is overridden
-	weight: KeybindingWeight.WorkbenchContrib + 1,
-	when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.terminalShellIntegrationEnabled, ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true)),
-	primary: KeyMod.CtrlCmd | KeyCode.Space,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.Space },
-	handler: async (accessor) => {
-		const instance = accessor.get(ITerminalService).activeInstance;
-		if (!instance) {
-			return;
-		}
-		const terminalSuggestAddon = TerminalSuggestContribution.get(instance);
-		if (!terminalSuggestAddon) {
-			return;
-		}
-		terminalSuggestAddon.addon?.requestCompletions();
-	}
-});
-// #endregion
-
 // #region Actions
+
+registerActiveInstanceAction({
+	id: TerminalSuggestCommandId.RequestCompletions,
+	title: localize2('workbench.action.terminal.requestCompletions', 'Request Completions'),
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyCode.Space,
+		mac: { primary: KeyMod.WinCtrl | KeyCode.Space },
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.terminalShellIntegrationEnabled, ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true))
+	},
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.requestCompletions()
+});
 
 registerActiveInstanceAction({
 	id: TerminalSuggestCommandId.SelectPrevSuggestion,
