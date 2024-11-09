@@ -15,7 +15,7 @@ import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownR
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
-import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
+import { getIconAttributes, getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -327,12 +327,15 @@ class CollapsedCodeBlock extends Disposable {
 		const iconText = this.labelService.getUriBasenameLabel(uri);
 
 		let iconClasses: string[] = [];
+		let iconAttributes: Record<string, string> = {};
 		if (isStreaming) {
 			const codicon = ThemeIcon.modify(Codicon.loading, 'spin');
 			iconClasses = ThemeIcon.asClassNameArray(codicon);
+			iconAttributes = getIconAttributes(undefined);
 		} else {
 			const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
 			iconClasses = getIconClasses(this.modelService, this.languageService, uri, fileKind);
+			iconAttributes = getIconAttributes(uri);
 		}
 
 		const iconEl = dom.$('span.icon');

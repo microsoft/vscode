@@ -13,7 +13,7 @@ import { FileKind } from '../../../platform/files/common/files.js';
 import { IModelService } from '../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../editor/common/languages/language.js';
 import { IQuickInputService, IQuickInputButton, IQuickPickItem, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
-import { getIconClasses } from '../../../editor/common/services/getIconClasses.js';
+import { getIconAttributes, getIconClasses } from '../../../editor/common/services/getIconClasses.js';
 import { ICommandHandler } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -273,6 +273,7 @@ abstract class BaseSwitchWindow extends Action2 {
 				label: window.title,
 				ariaLabel: window.dirty ? localize('windowDirtyAriaLabel', "{0}, window with unsaved changes", window.title) : window.title,
 				iconClasses: getIconClasses(modelService, languageService, resource, fileKind),
+				iconAttributes: getIconAttributes(resource),
 				description: (currentWindowId === window.id) ? localize('current', "Current Window") : undefined,
 				buttons: currentWindowId !== window.id ? window.dirty ? [this.closeDirtyWindowAction] : [this.closeWindowAction] : undefined
 			};
@@ -280,10 +281,12 @@ abstract class BaseSwitchWindow extends Action2 {
 
 			if (auxiliaryWindows) {
 				for (const auxiliaryWindow of auxiliaryWindows) {
+					const resource = auxiliaryWindow.filename ? URI.file(auxiliaryWindow.filename) : undefined;
 					const pick: IWindowPickItem = {
 						windowId: auxiliaryWindow.id,
 						label: auxiliaryWindow.title,
-						iconClasses: getIconClasses(modelService, languageService, auxiliaryWindow.filename ? URI.file(auxiliaryWindow.filename) : undefined, FileKind.FILE),
+						iconClasses: getIconClasses(modelService, languageService, resource, FileKind.FILE),
+						iconAttributes: getIconAttributes(resource),
 						description: (currentWindowId === auxiliaryWindow.id) ? localize('current', "Current Window") : undefined,
 						buttons: [this.closeWindowAction]
 					};

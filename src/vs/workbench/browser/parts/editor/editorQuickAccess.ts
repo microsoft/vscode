@@ -12,7 +12,7 @@ import { EditorsOrder, IEditorIdentifier, EditorResourceAccessor, SideBySideEdit
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { getIconAttributes, getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { prepareQuery, scoreItemFuzzy, compareItemsByFuzzyScore, FuzzyScorerCache } from '../../../../base/common/fuzzyScorer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
@@ -158,6 +158,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 				})(),
 				description,
 				iconClasses: getIconClasses(this.modelService, this.languageService, resource, undefined, editor.getIcon()).concat(editor.getLabelExtraClasses()),
+				iconAttributes: getIconAttributes(resource),
 				italic: !this.editorGroupService.getGroup(groupId)?.isPinned(editor),
 				buttons: (() => {
 					return [

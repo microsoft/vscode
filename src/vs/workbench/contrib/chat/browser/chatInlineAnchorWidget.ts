@@ -17,7 +17,7 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { LanguageFeatureRegistry } from '../../../../editor/common/languageFeatureRegistry.js';
 import { Location, SymbolKinds } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { getIconAttributes, getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -101,6 +101,7 @@ export class InlineAnchorWidget extends Disposable {
 
 		let iconText: string;
 		let iconClasses: string[];
+		let iconAttributes: Record<string, string>;
 
 		let location: { readonly uri: URI; readonly range?: IRange };
 		let contextMenuId: MenuId;
@@ -114,6 +115,7 @@ export class InlineAnchorWidget extends Disposable {
 
 			iconText = this.data.symbol.name;
 			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(this.data.symbol.kind))];
+			iconAttributes = getIconAttributes(undefined);
 
 			const providerContexts: ReadonlyArray<[IContextKey<boolean>, LanguageFeatureRegistry<unknown>]> = [
 				[EditorContextKeys.hasDefinitionProvider.bindTo(contextKeyService), languageFeaturesService.definitionProvider],
@@ -161,6 +163,7 @@ export class InlineAnchorWidget extends Disposable {
 
 			const fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
 			iconClasses = getIconClasses(modelService, languageService, location.uri, fileKind);
+			iconAttributes = getIconAttributes(location.uri);
 
 			const isFolderContext = ExplorerFolderContext.bindTo(contextKeyService);
 			fileService.stat(location.uri)

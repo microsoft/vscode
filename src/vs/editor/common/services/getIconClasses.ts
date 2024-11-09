@@ -82,7 +82,7 @@ export function getIconClassesForLanguageId(languageId: string): string[] {
 	return ['file-icon', `${cssEscape(languageId)}-lang-file-icon`];
 }
 
-export function getIconAttributes(resource: uri | undefined, fileKind?: FileKind) {
+export function getIconAttributes(resource: uri | undefined) {
 	const attributes: Record<string, string> = {};
 
 	if (resource) {
