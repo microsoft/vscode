@@ -44,7 +44,7 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 
 		// Root Folders
 		if (fileKind === FileKind.ROOT_FOLDER) {
-			classes.push(`${name}-root-name-folder-icon`);
+			classes.push(`${filename}-root-name-folder-icon`);
 		}
 
 		// Folders
@@ -145,9 +145,10 @@ function getResourceName(resource: uri) {
 	} else {
 		const match = resource.path.match(fileIconDirectoryRegex);
 		if (match) {
-			dirname = cssEscape(cssEscape(match[1].toLowerCase()));
 			filename = cssEscape(match[2].toLowerCase());
-
+			if (match[1]) {
+				dirname = cssEscape(cssEscape(match[1].toLowerCase()));
+			}
 		} else {
 			filename = cssEscape(resource.authority.toLowerCase());
 		}
