@@ -26,17 +26,24 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K = VSBuffer> 
 	private readonly _listeners: Map<TStreamListenerNames, Map<Function, IDisposable>> = new Map();
 
 	constructor(
-		protected readonly stream: ReadableStream<K>
+		protected readonly stream: ReadableStream<K>,
 	) {
 		super();
 
 		this.tryOnStreamData = this.tryOnStreamData.bind(this);
 		this.onStreamError = this.onStreamError.bind(this);
 		this.onStreamEnd = this.onStreamEnd.bind(this);
+	}
 
-		stream.on('data', this.tryOnStreamData);
-		stream.on('error', this.onStreamError);
-		stream.on('end', this.onStreamEnd);
+	/**
+	 * Start receiveing data from the stream.
+	 */
+	public start(): this {
+		this.stream.on('data', this.tryOnStreamData);
+		this.stream.on('error', this.onStreamError);
+		this.stream.on('end', this.onStreamEnd);
+
+		return this;
 	}
 
 	/**
@@ -52,10 +59,11 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K = VSBuffer> 
 	 */
 	private tryOnStreamData(data: K): void {
 		try {
+			console.log(this);
 			this.onStreamData(data);
 		} catch (error) {
 			// TODO: @legomushroom - should we end the stream on the first error?
-			this._onError.fire(error);
+			this.onStreamError(error);
 		}
 	}
 
@@ -219,7 +227,9 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K = VSBuffer> 
 	 * TODO: @legomushroom
 	 */
 	[Symbol.asyncIterator](): AsyncIterator<T | null> {
-		return new AsyncDecoder(this)[Symbol.asyncIterator]();
+		const asyncDecoder = this._register(new AsyncDecoder(this));
+
+		return asyncDecoder[Symbol.asyncIterator]();
 	}
 
 	/**
@@ -243,7 +253,7 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K = VSBuffer> 
 /**
  * TODO: @legomushroom
  */
-class AsyncDecoder<T extends NonNullable<unknown>, K> {
+class AsyncDecoder<T extends NonNullable<unknown>, K> extends Disposable {
 	// TODO: @legomushroom
 	private readonly messages: T[] = [];
 	// TODO: @legomushroom
@@ -251,7 +261,9 @@ class AsyncDecoder<T extends NonNullable<unknown>, K> {
 
 	constructor(
 		private readonly decoder: BaseDecoder<T, K>,
-	) { }
+	) {
+		super();
+	}
 
 	/**
 	 * TODO: @legomushroom
@@ -260,6 +272,9 @@ class AsyncDecoder<T extends NonNullable<unknown>, K> {
 		const callback = (data?: T) => {
 			if (data !== undefined) {
 				this.messages.push(data);
+			} else {
+				this.decoder.removeListener('data', callback);
+				this.decoder.removeListener('end', callback);
 			}
 
 			if (this.resolveOnNewEvent) {
@@ -270,6 +285,8 @@ class AsyncDecoder<T extends NonNullable<unknown>, K> {
 		this.decoder.on('data', callback);
 		this.decoder.on('end', callback);
 
+		this.decoder.start();
+
 		while (true) {
 			const maybeMessage = this.messages.shift();
 			if (maybeMessage !== undefined) {
@@ -279,9 +296,6 @@ class AsyncDecoder<T extends NonNullable<unknown>, K> {
 
 			// no data and stream ended, so we're done
 			if (this.decoder.isEnded) {
-				this.decoder.removeListener('data', callback);
-				this.decoder.removeListener('end', callback);
-
 				return null;
 			}
 

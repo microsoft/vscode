@@ -9,7 +9,7 @@ import { LinesDecoder } from '../linesCodec/linesDecoder.js';
 import { SimpleDecoder } from '../simpleCodec/simpleDecoder.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
-import { ChatbotPromptDecoder, TPromptToken } from './chatbotPromptDecoder.js';
+import { ChatbotPromptDecoder, TChatbotPromptToken } from './chatbotPromptDecoder.js';
 
 /**
  * TODO: @legomushroom
@@ -28,20 +28,18 @@ export const unimplemented = (message: string = 'Not implemented.'): never => {
 /**
  * Codec that is capable to encode and decode syntax tokens of a AI chat bot prompt message.
  */
-export class ChatbotPromptCodec extends Disposable implements ICodec<VSBuffer, TPromptToken> {
-	public encode(_: ReadableStream<TPromptToken>): ReadableStream<VSBuffer> {
+export class ChatbotPromptCodec extends Disposable implements ICodec<VSBuffer, TChatbotPromptToken> {
+	public encode(_: ReadableStream<TChatbotPromptToken>): ReadableStream<VSBuffer> {
 		return unimplemented('The `encode` method is not implemented.');
 	}
 
 	public decode(stream: ReadableStream<VSBuffer>): ChatbotPromptDecoder {
 		// create the decoder instance as a chain of more trivial decoders
-		const decoder = new ChatbotPromptDecoder(
-			new SimpleDecoder(
-				new LinesDecoder(stream),
-			),
-		);
+		const linesDecoder = this._register(new LinesDecoder(stream));
+		const simpleDecoder = this._register(new SimpleDecoder(linesDecoder));
+		const decoder = this._register(new ChatbotPromptDecoder(simpleDecoder));
 
 		// register to child disposables and return the decoder instance
-		return this._register(decoder);
+		return decoder;
 	}
 }

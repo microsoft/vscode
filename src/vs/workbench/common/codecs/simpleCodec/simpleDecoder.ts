@@ -28,6 +28,21 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, Line> {
 	// to emit a `NewLine` token when a new line is received.
 	private previousLine?: Line;
 
+	constructor(
+		stream: BaseDecoder<Line>,
+	) {
+		super(stream);
+	}
+
+
+	public override start(): this {
+		super.start();
+
+		(this.stream as BaseDecoder<Line>).start(); // TODO: @legomushroom - fix this
+
+		return this;
+	}
+
 	protected override onStreamData(line: Line): void {
 		// if not a first line received, emit a `NewLine` token
 		// as if it appeared at the end of the previous line

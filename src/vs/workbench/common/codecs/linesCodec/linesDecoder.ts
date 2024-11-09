@@ -87,13 +87,10 @@ export class LinesDecoder extends BaseDecoder<Line> {
 		this.buffer = this.buffer.slice(line.length + 1);
 	}
 
-	/**
-	 * TODO: @legomushroom
-	 */
-	protected override onStreamError(error: Error): void {
-		// TODO: @legomushroom - add LinesCodec specific error logic here or delete the override
-		super.onStreamError(error);
-	}
+	// TODO: @legomushroom - add LinesCodec specific error logic here or delete the override
+	// protected override onStreamError(error: Error): void {
+	// 	super.onStreamError(error);
+	// }
 
 	/**
 	 * Handle the end of the input stream - if the buffer still has some data,

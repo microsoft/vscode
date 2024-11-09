@@ -11,8 +11,9 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { unimplemented } from '../../../common/codecs/chatbotPromptCodec/chatbotPromptCodec.js';
+import { IFileService, IFileStreamContent } from '../../../../platform/files/common/files.js';
+import { ChatbotPromptCodec, unimplemented } from '../../../common/codecs/chatbotPromptCodec/chatbotPromptCodec.js';
+import { FileReference } from '../../../common/codecs/chatbotPromptCodec/tokens/fileReference.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../common/chatAgents.js';
 import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from '../common/chatModel.js';
@@ -78,21 +79,75 @@ const runJobsAndGetSuccesses2 = async (jobs: Promise<IChatRequestVariableEntry[]
 		});
 };
 
-// // /**
-// //  * TODO: @legomushroom
-// //  */
-// // export class ChatReference extends Disposable {
-// // 	/**
-// // 	 * TODO: @legomushroom
-// // 	 */
-// // 	private readonly children: ChatReference[] = [];
+/**
+ * TODO: @legomushroom
+ */
+export class ChatbotPromptReference extends Disposable {
+	// Chatbot prompt message codec helps to parse out prompt syntax.
+	private readonly codec = this._register(new ChatbotPromptCodec());
 
-// // 	constructor(
-// // 		private readonly mainReference: ChatRequestDynamicVariablePart,
-// // 	) {
-// // 		super();
-// // 	}
-// // }
+	// Child references of the current one.
+	private readonly children: ChatbotPromptReference[] = [];
+
+	// Whether the referenced file exists on disk (private attribute).
+	private fileExists?: boolean = undefined;
+
+	// Whether the referenced file exists on disk.
+	public get isFileExists(): boolean | undefined {
+		return this.fileExists;
+	}
+
+	constructor(
+		private readonly value: FileReference,
+		private readonly fileService: IFileService,
+	) {
+		super();
+	}
+
+	/**
+	 * Get file stream, if the file exsists.
+	 */
+	private async getFileStream(): Promise<IFileStreamContent | null> {
+		try {
+			const fileStream = await this.fileService.readFileStream(this.value.uri);
+
+			this.fileExists = true;
+
+			return fileStream;
+		} catch (error) {
+			this.fileExists = false;
+			// TODO: @legomushroom - trace the error
+
+			return null;
+		}
+	}
+
+	/**
+	 * Resolve the current file reference on the disk and
+	 * all nested file references that may exist in the file.
+	 */
+	public async resolve(): Promise<this> {
+		const fileStream = await this.getFileStream();
+
+		// file does not exist, nothing to resolve
+		if (fileStream === null) {
+			return this;
+		}
+
+		// get all file references in the file contents
+		const references = await this.codec.decode(fileStream.value).consume();
+
+		// recursively resolve all references and add to the `children` array
+		for (const reference of references) {
+			const child = this._register(new ChatbotPromptReference(reference, this.fileService));
+
+			// TODO: @legomushroom - do this in parallel
+			this.children.push(await child.resolve());
+		}
+
+		return this;
+	}
+}
 
 /**
  * TODO: @legomushroom
@@ -143,8 +198,6 @@ class DynamicVariableResolver extends Disposable {
 		fileUri: URI,
 	): Promise<IChatRequestVariableEntry[]> {
 		try {
-			// TODO: @legomushroom - remove
-			console.log(fileUri);
 			// const fileStream = await this.fileService.readFileStream(fileUri);
 			// const promptSyntaxCodec = this._register(new PromptSyntaxCodec());
 
