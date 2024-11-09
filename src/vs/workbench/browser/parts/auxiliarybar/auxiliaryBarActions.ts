@@ -16,7 +16,7 @@ import { IPaneCompositePartService } from '../../../services/panecomposite/brows
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-
+import { SwitchCompositeViewAction } from '../compositeBarActions.js';
 
 const auxiliaryBarRightIcon = registerIcon('auxiliarybar-right-layout-icon', Codicon.layoutSidebarRight, localize('toggleAuxiliaryIconRight', 'Icon to toggle the auxiliary bar off in its right position.'));
 const auxiliaryBarRightOffIcon = registerIcon('auxiliarybar-right-off-layout-icon', Codicon.layoutSidebarRightOff, localize('toggleAuxiliaryIconRightOn', 'Icon to toggle the auxiliary bar on in its right position.'));
@@ -136,3 +136,25 @@ MenuRegistry.appendMenuItems([
 		}
 	}
 ]);
+
+registerAction2(class extends SwitchCompositeViewAction {
+	constructor() {
+		super({
+			id: 'workbench.action.previousAuxiliaryBarView',
+			title: localize2('previousAuxiliaryBarView', 'Previous Secondary Side Bar View'),
+			category: Categories.View,
+			f1: true
+		}, ViewContainerLocation.AuxiliaryBar, -1);
+	}
+});
+
+registerAction2(class extends SwitchCompositeViewAction {
+	constructor() {
+		super({
+			id: 'workbench.action.nextAuxiliaryBarView',
+			title: localize2('nextAuxiliaryBarView', 'Next Secondary Side Bar View'),
+			category: Categories.View,
+			f1: true
+		}, ViewContainerLocation.AuxiliaryBar, 1);
+	}
+});

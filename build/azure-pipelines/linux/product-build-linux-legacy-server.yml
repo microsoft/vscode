@@ -18,7 +18,7 @@ steps:
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
@@ -77,7 +77,7 @@ steps:
     - task: Docker@1
       displayName: "Pull Docker image"
       inputs:
-        azureSubscriptionEndpoint: "vscode-builds-subscription"
+        azureSubscriptionEndpoint: vscode
         azureContainerRegistry: vscodehub.azurecr.io
         command: "Run an image"
         imageName: vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)

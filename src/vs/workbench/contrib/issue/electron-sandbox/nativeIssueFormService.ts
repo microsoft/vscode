@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/newIssueReporter.css';
+import './media/issueReporter.css';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -14,7 +14,7 @@ import { INativeHostService } from '../../../../platform/native/common/native.js
 import product from '../../../../platform/product/common/product.js';
 import { IssueFormService } from '../browser/issueFormService.js';
 import { IIssueFormService, IssueReporterData } from '../common/issue.js';
-import { IssueReporter2 } from './issueReporterService2.js';
+import { IssueReporter } from './issueReporterService.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 
@@ -53,7 +53,7 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 
 		// create issue reporter and instantiate
 		if (this.issueReporterWindow) {
-			const issueReporter = this.instantiationService.createInstance(IssueReporter2, !!this.environmentService.disableExtensions, data, { type: this.type, arch: this.arch, release: this.release }, product, this.issueReporterWindow);
+			const issueReporter = this.instantiationService.createInstance(IssueReporter, !!this.environmentService.disableExtensions, data, { type: this.type, arch: this.arch, release: this.release }, product, this.issueReporterWindow);
 			issueReporter.render();
 		}
 	}

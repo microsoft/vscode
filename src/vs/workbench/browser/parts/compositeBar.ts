@@ -49,16 +49,23 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 		if (dragData.type === 'composite') {
 			const currentContainer = this.viewDescriptorService.getViewContainerById(dragData.id)!;
 			const currentLocation = this.viewDescriptorService.getViewContainerLocation(currentContainer);
+			let moved = false;
 
 			// ... on the same composite bar
 			if (currentLocation === this.targetContainerLocation) {
 				if (targetCompositeId) {
 					this.moveComposite(dragData.id, targetCompositeId, before);
+					moved = true;
 				}
 			}
 			// ... on a different composite bar
 			else {
 				this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.targetContainerLocation, this.getTargetIndex(targetCompositeId, before), 'dnd');
+				moved = true;
+			}
+
+			if (moved) {
+				this.openComposite(currentContainer.id, true);
 			}
 		}
 
@@ -443,7 +450,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		// Case: we closed the default composite
 		// Solv: we open the next visible composite from top
 		else {
-			this.options.openComposite(this.visibleComposites.filter(cid => cid !== compositeId)[0]);
+			const visibleComposite = this.visibleComposites.find(cid => cid !== compositeId);
+			if (visibleComposite) {
+				this.options.openComposite(visibleComposite);
+			}
 		}
 	}
 

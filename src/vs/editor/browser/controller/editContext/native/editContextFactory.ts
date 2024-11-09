@@ -10,11 +10,7 @@ export namespace EditContext {
 	 * Checks if the EditContext is supported in the given window.
 	 */
 	export function supported(obj: any & Window): boolean {
-		console.log('typeof obj?.EditContext : ', typeof obj?.EditContext);
-		if (typeof obj?.EditContext === 'function') {
-			return true;
-		}
-		return false;
+		return typeof obj?.EditContext === 'function';
 	}
 
 	/**

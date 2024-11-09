@@ -18,6 +18,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IActiveCodeEditor, ICodeEditor, isDiffEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorContribution, registerModelAndPositionCommand } from '../../../browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
@@ -213,6 +214,7 @@ class WordHighlighter {
 	private readonly textModelService: ITextModelService;
 	private readonly codeEditorService: ICodeEditorService;
 	private readonly configurationService: IConfigurationService;
+	private readonly logService: ILogService;
 
 	private occurrencesHighlightEnablement: string;
 	private occurrencesHighlightDelay: number;
@@ -241,6 +243,7 @@ class WordHighlighter {
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ILogService logService: ILogService,
 	) {
 		this.editor = editor;
 		this.providers = providers;
@@ -249,6 +252,7 @@ class WordHighlighter {
 		this.codeEditorService = codeEditorService;
 		this.textModelService = textModelService;
 		this.configurationService = configurationService;
+		this.logService = logService;
 
 		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
 		this._ignorePositionChangeEvent = false;
@@ -630,7 +634,6 @@ class WordHighlighter {
 	private async _run(multiFileConfigChange?: boolean, noDelay?: boolean): Promise<void> {
 
 		const hasTextFocus = this.editor.hasTextFocus();
-
 		if (!hasTextFocus) { // new nb cell scrolled in, didChangeModel fires
 			if (!WordHighlighter.query) { // no previous query, nothing to highlight off of
 				this._stopAll();
@@ -699,17 +702,23 @@ class WordHighlighter {
 			if (!WordHighlighter.query || !WordHighlighter.query.modelInfo) {
 				return;
 			}
-			const queryModelRef = await this.textModelService.createModelReference(WordHighlighter.query.modelInfo.modelURI);
-			const queryModel = queryModelRef.object.textEditorModel;
-			this.workerRequest = this.computeWithModel(queryModel, WordHighlighter.query.modelInfo.selection, otherModelsToHighlight);
 
-			this.workerRequest?.result.then(data => {
-				if (myRequestId === this.workerRequestTokenId) {
-					this.workerRequestCompleted = true;
-					this.workerRequestValue = data || [];
-					this._beginRenderDecorations();
-				}
-			}, onUnexpectedError);
+			const queryModelRef = await this.textModelService.createModelReference(WordHighlighter.query.modelInfo.modelURI);
+			try {
+				this.workerRequest = this.computeWithModel(queryModelRef.object.textEditorModel, WordHighlighter.query.modelInfo.selection, otherModelsToHighlight);
+				this.workerRequest?.result.then(data => {
+					if (myRequestId === this.workerRequestTokenId) {
+						this.workerRequestCompleted = true;
+						this.workerRequestValue = data || [];
+						this._beginRenderDecorations();
+					}
+				}, onUnexpectedError);
+			} catch (e) {
+				this.logService.error('Unexpected error during occurrence request. Log: ', e);
+			} finally {
+				queryModelRef.dispose();
+			}
+
 		} else if (this.model.uri.scheme === Schemas.vscodeNotebookCell) {
 			// new wordHighlighter coming from a different model, NOT the query model, need to create a textModel ref
 
@@ -723,16 +732,20 @@ class WordHighlighter {
 			}
 
 			const queryModelRef = await this.textModelService.createModelReference(WordHighlighter.query.modelInfo.modelURI);
-			const queryModel = queryModelRef.object.textEditorModel;
-			this.workerRequest = this.computeWithModel(queryModel, WordHighlighter.query.modelInfo.selection, [this.model]);
-
-			this.workerRequest?.result.then(data => {
-				if (myRequestId === this.workerRequestTokenId) {
-					this.workerRequestCompleted = true;
-					this.workerRequestValue = data || [];
-					this._beginRenderDecorations(noDelay);
-				}
-			}, onUnexpectedError);
+			try {
+				this.workerRequest = this.computeWithModel(queryModelRef.object.textEditorModel, WordHighlighter.query.modelInfo.selection, [this.model]);
+				this.workerRequest?.result.then(data => {
+					if (myRequestId === this.workerRequestTokenId) {
+						this.workerRequestCompleted = true;
+						this.workerRequestValue = data || [];
+						this._beginRenderDecorations(noDelay);
+					}
+				}, onUnexpectedError);
+			} catch (e) {
+				this.logService.error('Unexpected error during occurrence request. Log: ', e);
+			} finally {
+				queryModelRef.dispose();
+			}
 		}
 	}
 
@@ -828,13 +841,14 @@ export class WordHighlighterContribution extends Disposable implements IEditorCo
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ITextModelService textModelService: ITextModelService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@ILogService logService: ILogService,
 	) {
 		super();
 		this._wordHighlighter = null;
 		const createWordHighlighterIfPossible = () => {
-			if (editor.hasModel() && !editor.getModel().isTooLargeForTokenization()) {
-				this._wordHighlighter = new WordHighlighter(editor, languageFeaturesService.documentHighlightProvider, languageFeaturesService.multiDocumentHighlightProvider, contextKeyService, textModelService, codeEditorService, configurationService);
+			if (editor.hasModel() && !editor.getModel().isTooLargeForTokenization() && editor.getModel().uri.scheme !== Schemas.accessibleView) {
+				this._wordHighlighter = new WordHighlighter(editor, languageFeaturesService.documentHighlightProvider, languageFeaturesService.multiDocumentHighlightProvider, contextKeyService, textModelService, codeEditorService, configurationService, logService);
 			}
 		};
 		this._register(editor.onDidChangeModel((e) => {
@@ -917,8 +931,7 @@ class NextWordHighlightAction extends WordHighlightNavigationAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.wordHighlight.next',
-			label: nls.localize('wordHighlight.next.label', "Go to Next Symbol Highlight"),
-			alias: 'Go to Next Symbol Highlight',
+			label: nls.localize2('wordHighlight.next.label', "Go to Next Symbol Highlight"),
 			precondition: ctxHasWordHighlights,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -933,8 +946,7 @@ class PrevWordHighlightAction extends WordHighlightNavigationAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.wordHighlight.prev',
-			label: nls.localize('wordHighlight.previous.label', "Go to Previous Symbol Highlight"),
-			alias: 'Go to Previous Symbol Highlight',
+			label: nls.localize2('wordHighlight.previous.label', "Go to Previous Symbol Highlight"),
 			precondition: ctxHasWordHighlights,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -949,8 +961,7 @@ class TriggerWordHighlightAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.wordHighlight.trigger',
-			label: nls.localize('wordHighlight.trigger.label', "Trigger Symbol Highlight"),
-			alias: 'Trigger Symbol Highlight',
+			label: nls.localize2('wordHighlight.trigger.label', "Trigger Symbol Highlight"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

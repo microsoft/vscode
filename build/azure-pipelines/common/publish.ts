@@ -47,6 +47,36 @@ class Temp {
 	}
 }
 
+/**
+ * Gets an access token converted from a WIF/OIDC id token.
+ * We need this since this build job takes a while to run and while id tokens live for 10 minutes only, access tokens live for 24 hours.
+ * Source: https://goodworkaround.com/2021/12/21/another-deep-dive-into-azure-ad-workload-identity-federation-using-github-actions/
+ */
+export async function getAccessToken(endpoint: string, tenantId: string, clientId: string, idToken: string): Promise<string> {
+	const body = new URLSearchParams({
+		scope: `${endpoint}.default`,
+		client_id: clientId,
+		grant_type: 'client_credentials',
+		client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+		client_assertion: encodeURIComponent(idToken)
+	});
+
+	const response = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/x-www-form-urlencoded'
+		},
+		body: body.toString()
+	});
+
+	if (!response.ok) {
+		throw new Error(`HTTP error! status: ${response.status}`);
+	}
+
+	const aadToken = await response.json();
+	return aadToken.access_token;
+}
+
 interface RequestOptions {
 	readonly body?: string;
 }
@@ -636,7 +666,7 @@ function getRealType(type: string) {
 	}
 }
 
-async function processArtifact(artifact: Artifact, artifactFilePath: string): Promise<void> {
+async function processArtifact(artifact: Artifact, artifactFilePath: string, cosmosDBAccessToken: string): Promise<void> {
 	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
 	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
 
@@ -674,8 +704,7 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 
 	await retry(async (attempt) => {
 		log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
-		const aadCredentials = new ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
-		const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), aadCredentials });
+		const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT')!, tokenProvider: () => Promise.resolve(`type=aad&ver=1.0&sig=${cosmosDBAccessToken}`) });
 		const scripts = client.database('builds').container(quality).scripts;
 		await scripts.storedProcedure('createAsset').execute('', [commit, asset, true]);
 	});
@@ -691,8 +720,8 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 // the CDN and finally update the build in Cosmos DB.
 async function main() {
 	if (!isMainThread) {
-		const { artifact, artifactFilePath } = workerData;
-		await processArtifact(artifact, artifactFilePath);
+		const { artifact, artifactFilePath, cosmosDBAccessToken } = workerData;
+		await processArtifact(artifact, artifactFilePath, cosmosDBAccessToken);
 		return;
 	}
 
@@ -713,6 +742,7 @@ async function main() {
 
 	let resultPromise = Promise.resolve<PromiseSettledResult<void>[]>([]);
 	const operations: { name: string; operation: Promise<void> }[] = [];
+	const cosmosDBAccessToken = await getAccessToken(e('AZURE_DOCUMENTDB_ENDPOINT')!, e('AZURE_TENANT_ID')!, e('AZURE_CLIENT_ID')!, e('AZURE_ID_TOKEN')!);
 
 	while (true) {
 		const [timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
@@ -754,7 +784,7 @@ async function main() {
 
 			processing.add(artifact.name);
 			const promise = new Promise<void>((resolve, reject) => {
-				const worker = new Worker(__filename, { workerData: { artifact, artifactFilePath } });
+				const worker = new Worker(__filename, { workerData: { artifact, artifactFilePath, cosmosDBAccessToken } });
 				worker.on('error', reject);
 				worker.on('exit', code => {
 					if (code === 0) {

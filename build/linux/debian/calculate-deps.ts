@@ -84,13 +84,19 @@ function calculatePackageDeps(binaryPath: string, arch: DebianArchString, chromi
 	// libgcc-s1 is a dependency of libc6.  This hack can be removed once
 	// support for Debian Buster and Ubuntu Bionic are dropped.
 	//
+	// libgdk-pixbuf package has been renamed from libgdk-pixbuf2.0-0 to
+	// libgdk-pixbuf-2.0-0 in recent distros. Since we only ship a single
+	// linux package we cannot declare a dependeny on it. We can safely
+	// exclude this dependency as GTK depends on it and we depend on GTK.
+	//
 	// Remove kerberos native module related dependencies as the versions
 	// computed from sysroot will not satisfy the minimum supported distros
 	// Refs https://github.com/microsoft/vscode/issues/188881.
 	// TODO(deepak1556): remove this workaround in favor of computing the
 	// versions from build container for native modules.
 	const filteredDeps = depsStr.split(', ').filter(dependency => {
-		return !dependency.startsWith('libgcc-s1');
+		return !dependency.startsWith('libgcc-s1') &&
+			!dependency.startsWith('libgdk-pixbuf');
 	}).sort();
 	const requires = new Set(filteredDeps);
 	return requires;

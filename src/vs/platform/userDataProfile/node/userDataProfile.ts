@@ -3,22 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents, UriDto } from '../../../base/common/uri.js';
+import { URI, UriDto } from '../../../base/common/uri.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IStateReadService, IStateService } from '../../state/node/state.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService, UserDataProfilesService as BaseUserDataProfilesService, StoredUserDataProfile, StoredProfileAssociations } from '../common/userDataProfile.js';
-import { IStringDictionary } from '../../../base/common/collections.js';
 import { isString } from '../../../base/common/types.js';
 import { SaveStrategy, StateService } from '../../state/node/stateService.js';
 
 type StoredUserDataProfileState = StoredUserDataProfile & { location: URI | string };
 
 export class UserDataProfilesReadonlyService extends BaseUserDataProfilesService implements IUserDataProfilesService {
-
-	protected static readonly PROFILE_ASSOCIATIONS_MIGRATION_KEY = 'profileAssociationsMigration';
 
 	constructor(
 		@IStateReadService private readonly stateReadonlyService: IStateReadService,
@@ -36,9 +33,7 @@ export class UserDataProfilesReadonlyService extends BaseUserDataProfilesService
 	}
 
 	protected override getStoredProfileAssociations(): StoredProfileAssociations {
-		const associations = this.stateReadonlyService.getItem<StoredProfileAssociations>(UserDataProfilesReadonlyService.PROFILE_ASSOCIATIONS_KEY, {});
-		const migrated = this.stateReadonlyService.getItem<boolean>(UserDataProfilesReadonlyService.PROFILE_ASSOCIATIONS_MIGRATION_KEY, false);
-		return migrated ? associations : this.migrateStoredProfileAssociations(associations);
+		return this.stateReadonlyService.getItem<StoredProfileAssociations>(UserDataProfilesReadonlyService.PROFILE_ASSOCIATIONS_KEY, {});
 	}
 
 	protected override getDefaultProfileExtensionsLocation(): URI {
@@ -67,40 +62,12 @@ export class UserDataProfilesService extends UserDataProfilesReadonlyService imp
 		}
 	}
 
-	protected override getStoredProfiles(): StoredUserDataProfile[] {
-		const storedProfiles = super.getStoredProfiles();
-		if (!this.stateService.getItem<boolean>('userDataProfilesMigration', false)) {
-			this.saveStoredProfiles(storedProfiles);
-			this.stateService.setItem('userDataProfilesMigration', true);
-		}
-		return storedProfiles;
-	}
-
 	protected override saveStoredProfileAssociations(storedProfileAssociations: StoredProfileAssociations): void {
 		if (storedProfileAssociations.emptyWindows || storedProfileAssociations.workspaces) {
 			this.stateService.setItem(UserDataProfilesService.PROFILE_ASSOCIATIONS_KEY, storedProfileAssociations);
 		} else {
 			this.stateService.removeItem(UserDataProfilesService.PROFILE_ASSOCIATIONS_KEY);
 		}
-	}
-
-	protected override getStoredProfileAssociations(): StoredProfileAssociations {
-		const oldKey = 'workspaceAndProfileInfo';
-		const storedWorkspaceInfos = this.stateService.getItem<{ workspace: UriComponents; profile: UriComponents }[]>(oldKey, undefined);
-		if (storedWorkspaceInfos) {
-			this.stateService.removeItem(oldKey);
-			const workspaces = storedWorkspaceInfos.reduce<IStringDictionary<string>>((result, { workspace, profile }) => {
-				result[URI.revive(workspace).toString()] = URI.revive(profile).toString();
-				return result;
-			}, {});
-			this.stateService.setItem(UserDataProfilesService.PROFILE_ASSOCIATIONS_KEY, { workspaces } satisfies StoredProfileAssociations);
-		}
-		const associations = super.getStoredProfileAssociations();
-		if (!this.stateService.getItem<boolean>(UserDataProfilesService.PROFILE_ASSOCIATIONS_MIGRATION_KEY, false)) {
-			this.saveStoredProfileAssociations(associations);
-			this.stateService.setItem(UserDataProfilesService.PROFILE_ASSOCIATIONS_MIGRATION_KEY, true);
-		}
-		return associations;
 	}
 }
 

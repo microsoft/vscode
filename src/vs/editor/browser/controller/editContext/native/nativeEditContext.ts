@@ -9,15 +9,14 @@ import { addDisposableListener, getActiveWindow, getWindow, getWindowId } from '
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
-import { EndOfLinePreference, IModelDeltaDecoration } from '../../../../common/model.js';
+import { EndOfLinePreference, EndOfLineSequence, IModelDeltaDecoration } from '../../../../common/model.js';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent } from '../../../../common/viewEvents.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
-import { ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
+import { ClipboardEventUtils, ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { AbstractEditContext } from '../editContext.js';
 import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
@@ -28,6 +27,7 @@ import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { EditContext } from './editContextFactory.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -38,6 +38,10 @@ enum CompositionClassName {
 
 export class NativeEditContext extends AbstractEditContext {
 
+	public static TEXT_AREA_CLASS_NAME = 'native-edit-context-textarea';
+
+	// Text area used to handle paste events
+	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly domNode: FastDomNode<HTMLDivElement>;
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
@@ -61,15 +65,19 @@ export class NativeEditContext extends AbstractEditContext {
 		viewController: ViewController,
 		private readonly _visibleRangeProvider: IVisibleRangeProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IClipboardService clipboardService: IClipboardService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super(context);
 
 		this.domNode = new FastDomNode(document.createElement('div'));
 		this.domNode.setClassName(`native-edit-context`);
+		this.textArea = new FastDomNode(document.createElement('textarea'));
+		this.textArea.setClassName(NativeEditContext.TEXT_AREA_CLASS_NAME);
+		this.textArea.setAttribute('modeluri', context.viewModel.model.uri.path);
 		this._updateDomAttributes();
 
 		overflowGuardContainer.appendChild(this.domNode);
+		overflowGuardContainer.appendChild(this.textArea);
 		this._parent = overflowGuardContainer.domNode;
 
 		this._selectionChangeListener = this._register(new MutableDisposable());
@@ -84,9 +92,9 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
 
-		this._register(addDisposableListener(this.domNode.domNode, 'copy', () => this._ensureClipboardGetsEditorSelection(clipboardService)));
-		this._register(addDisposableListener(this.domNode.domNode, 'cut', () => {
-			this._ensureClipboardGetsEditorSelection(clipboardService);
+		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => this._ensureClipboardGetsEditorSelection(e)));
+		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
+			this._ensureClipboardGetsEditorSelection(e);
 			viewController.cut();
 		}));
 
@@ -126,6 +134,28 @@ export class NativeEditContext extends AbstractEditContext {
 			viewController.compositionEnd();
 			// Emits ViewCompositionEndEvent which can be depended on by ViewEventHandlers
 			this._context.viewModel.onCompositionEnd();
+		}));
+		this._register(addDisposableListener(this.textArea.domNode, 'paste', (e) => {
+			e.preventDefault();
+			if (!e.clipboardData) {
+				return;
+			}
+			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
+			if (!text) {
+				return;
+			}
+			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
+			let pasteOnNewLine = false;
+			let multicursorText: string[] | null = null;
+			let mode: string | null = null;
+			if (metadata) {
+				const options = this._context.configuration.options;
+				const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
+				pasteOnNewLine = emptySelectionClipboard && !!metadata.isFromEmptySelection;
+				multicursorText = typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null;
+				mode = metadata.mode;
+			}
+			viewController.paste(text, pasteOnNewLine, multicursorText, mode);
 		}));
 	}
 
@@ -174,11 +204,20 @@ export class NativeEditContext extends AbstractEditContext {
 		this._screenReaderSupport.writeScreenReaderContent();
 	}
 
-	public isFocused(): boolean { return this._focusTracker.isFocused; }
+	public isFocused(): boolean {
+		return this._focusTracker.isFocused || (getActiveWindow().document.activeElement === this.textArea.domNode);
+	}
 
-	public focus(): void { this._focusTracker.focus(); }
+	public focus(): void {
+		this._focusTracker.focus();
 
-	public refreshFocusState(): void { }
+		// If the editor is off DOM, focus cannot be really set, so let's double check that we have managed to set the focus
+		this.refreshFocusState();
+	}
+
+	public refreshFocusState(): void {
+		this._focusTracker.refreshFocusState();
+	}
 
 	// TODO: added as a workaround fix for https://github.com/microsoft/vscode/issues/229825
 	// When this issue will be fixed the following should be removed.
@@ -232,11 +271,15 @@ export class NativeEditContext extends AbstractEditContext {
 		if (selectionEndOffset > e.updateRangeEnd) {
 			text += this._editContext.text.substring(e.updateRangeEnd, selectionEndOffset);
 		}
+		let positionDelta = 0;
+		if (e.selectionStart === e.selectionEnd && selectionStartOffset === selectionEndOffset) {
+			positionDelta = e.selectionStart - (e.updateRangeStart + e.text.length);
+		}
 		const typeInput: ITypeData = {
 			text,
 			replacePrevCharCnt,
 			replaceNextCharCnt,
-			positionDelta: 0,
+			positionDelta
 		};
 		this._onType(viewController, typeInput);
 
@@ -379,7 +422,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._editContext.updateCharacterBounds(e.rangeStart, characterBounds);
 	}
 
-	private _ensureClipboardGetsEditorSelection(clipboardService: IClipboardService): void {
+	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
 		const options = this._context.configuration.options;
 		const emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		const copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
@@ -397,7 +440,10 @@ export class NativeEditContext extends AbstractEditContext {
 			(isFirefox ? dataToCopy.text.replace(/\r\n/g, '\n') : dataToCopy.text),
 			storedMetadata
 		);
-		clipboardService.writeText(dataToCopy.text);
+		e.preventDefault();
+		if (e.clipboardData) {
+			ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
+		}
 	}
 
 	private _setSelectionChangeListener(viewController: ViewController): IDisposable {
@@ -406,7 +452,12 @@ export class NativeEditContext extends AbstractEditContext {
 		// system caret. This is reflected in Chrome as a `selectionchange` event and needs to be reflected within the editor.
 
 		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', () => {
-			if (!this.isFocused()) {
+			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
+			if (!this.isFocused() || !isScreenReaderOptimized) {
+				return;
+			}
+			const screenReaderContentState = this._screenReaderSupport.screenReaderContentState;
+			if (!screenReaderContentState) {
 				return;
 			}
 			const activeDocument = getActiveWindow().document;
@@ -419,14 +470,19 @@ export class NativeEditContext extends AbstractEditContext {
 				return;
 			}
 			const range = activeDocumentSelection.getRangeAt(0);
-			const startPositionOfScreenReaderContentWithinEditor = this._screenReaderSupport.startPositionOfScreenReaderContentWithinEditor();
-			if (!startPositionOfScreenReaderContentWithinEditor) {
-				return;
-			}
 			const model = this._context.viewModel.model;
-			const offsetOfStartOfScreenReaderContent = model.getOffsetAt(startPositionOfScreenReaderContentWithinEditor);
-			const offsetOfSelectionStart = range.startOffset + offsetOfStartOfScreenReaderContent;
-			const offsetOfSelectionEnd = range.endOffset + offsetOfStartOfScreenReaderContent;
+			const offsetOfStartOfScreenReaderContent = model.getOffsetAt(screenReaderContentState.startPositionWithinEditor);
+			let offsetOfSelectionStart = range.startOffset + offsetOfStartOfScreenReaderContent;
+			let offsetOfSelectionEnd = range.endOffset + offsetOfStartOfScreenReaderContent;
+			const modelUsesCRLF = this._context.viewModel.model.getEndOfLineSequence() === EndOfLineSequence.CRLF;
+			if (modelUsesCRLF) {
+				const screenReaderContentText = screenReaderContentState.value;
+				const offsetTransformer = new PositionOffsetTransformer(screenReaderContentText);
+				const positionOfStartWithinText = offsetTransformer.getPosition(range.startOffset);
+				const positionOfEndWithinText = offsetTransformer.getPosition(range.endOffset);
+				offsetOfSelectionStart += positionOfStartWithinText.lineNumber - 1;
+				offsetOfSelectionEnd += positionOfEndWithinText.lineNumber - 1;
+			}
 			const positionOfSelectionStart = model.getPositionAt(offsetOfSelectionStart);
 			const positionOfSelectionEnd = model.getPositionAt(offsetOfSelectionEnd);
 			const newSelection = Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd);

@@ -17,7 +17,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ISeparator, template } from '../../../../base/common/labels.js';
-import { Disposable, DisposableStore, IDisposable, ImmortalReference, MutableDisposable, dispose, toDisposable, type IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, ImmortalReference, MutableDisposable, dispose, toDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as path from '../../../../base/common/path.js';
 import { OS, OperatingSystem, isMacintosh, isWindows } from '../../../../base/common/platform.js';
@@ -30,7 +30,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../pl
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { CodeDataTransfers, containsDragType } from '../../../../platform/dnd/browser/dnd.js';
+import { CodeDataTransfers, containsDragType, getPathForFile } from '../../../../platform/dnd/browser/dnd.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -84,7 +84,6 @@ import type { IMarker, Terminal as XTermTerminal } from '@xterm/xterm';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { terminalStrings } from '../common/terminalStrings.js';
 import { TerminalIconPicker } from './terminalIconPicker.js';
-import { IHostService } from '../../../services/host/browser/host.js';
 import { TerminalResizeDebouncer } from './terminalResizeDebouncer.js';
 import { openContextMenu } from './terminalContextMenu.js';
 import type { IMenu } from '../../../../platform/actions/common/actions.js';
@@ -447,13 +446,32 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
 		this._register(this.capabilities.onDidAddCapabilityType(e => this._logService.debug('terminalInstance added capability', e)));
 		this._register(this.capabilities.onDidRemoveCapabilityType(e => this._logService.debug('terminalInstance removed capability', e)));
-		this._register(this.capabilities.onDidAddCapabilityType(e => {
-			if (e === TerminalCapability.CwdDetection) {
-				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(e => {
-					this._cwd = e;
-					this._setTitle(this.title, TitleEventSource.Config);
-				});
+
+		const capabilityListeners = this._register(new DisposableMap<TerminalCapability, IDisposable>());
+		this._register(this.capabilities.onDidAddCapabilityType(capability => {
+			capabilityListeners.get(capability)?.dispose();
+			if (capability === TerminalCapability.CwdDetection) {
+				const cwdDetection = this.capabilities.get(capability);
+				if (cwdDetection) {
+					capabilityListeners.set(capability, cwdDetection.onDidChangeCwd(e => {
+						this._cwd = e;
+						this._setTitle(this.title, TitleEventSource.Config);
+					}));
+				}
 			}
+			if (capability === TerminalCapability.CommandDetection) {
+				const commandDetection = this.capabilities.get(capability);
+				if (commandDetection) {
+					capabilityListeners.set(capability, Event.any(
+						commandDetection.promptInputModel.onDidStartInput,
+						commandDetection.promptInputModel.onDidChangeInput,
+						commandDetection.promptInputModel.onDidFinishInput
+					)(() => this._labelComputer?.refreshLabel(this)));
+				}
+			}
+		}));
+		this._register(this.capabilities.onDidRemoveCapabilityType(capability => {
+			capabilityListeners.get(capability)?.dispose();
 		}));
 
 		// Resolve just the icon ahead of time so that it shows up immediately in the tabs. This is
@@ -2312,7 +2330,6 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 		private readonly _container: HTMLElement,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
-		@IHostService private readonly _hostService: IHostService,
 	) {
 		super();
 		this._register(toDisposable(() => this._clearDropOverlay()));
@@ -2395,9 +2412,9 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 			path = URI.file(JSON.parse(rawCodeFiles)[0]);
 		}
 
-		if (!path && e.dataTransfer.files.length > 0 && this._hostService.getPathForFile(e.dataTransfer.files[0])) {
+		if (!path && e.dataTransfer.files.length > 0 && getPathForFile(e.dataTransfer.files[0])) {
 			// Check if the file was dragged from the filesystem
-			path = URI.file(this._hostService.getPathForFile(e.dataTransfer.files[0])!);
+			path = URI.file(getPathForFile(e.dataTransfer.files[0])!);
 		}
 
 		if (!path) {
@@ -2439,6 +2456,9 @@ interface ITerminalLabelTemplateProperties {
 	task?: string | null | undefined;
 	fixedDimensions?: string | null | undefined;
 	separator?: string | ISeparator | null | undefined;
+	shellType?: string | undefined;
+	shellCommand?: string | undefined;
+	shellPromptInput?: string | undefined;
 }
 
 const enum TerminalLabelType {
@@ -2463,7 +2483,7 @@ export class TerminalLabelComputer extends Disposable {
 		super();
 	}
 
-	refreshLabel(instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>, reset?: boolean): void {
+	refreshLabel(instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>, reset?: boolean): void {
 		this._title = this.computeLabel(instance, this._terminalConfigurationService.config.tabs.title, TerminalLabelType.Title, reset);
 		this._description = this.computeLabel(instance, this._terminalConfigurationService.config.tabs.description, TerminalLabelType.Description);
 		if (this._title !== instance.title || this._description !== instance.description || reset) {
@@ -2472,12 +2492,15 @@ export class TerminalLabelComputer extends Disposable {
 	}
 
 	computeLabel(
-		instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
+		instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
 		labelTemplate: string,
 		labelType: TerminalLabelType,
 		reset?: boolean
 	) {
 		const type = instance.shellLaunchConfig.attachPersistentProcess?.type || instance.shellLaunchConfig.type;
+		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
+		const promptInputModel = commandDetection?.promptInputModel;
+		const nonTaskSpinner = type === 'Task' ? '' : ' $(loading~spin)';
 		const templateProperties: ITerminalLabelTemplateProperties = {
 			cwd: instance.cwd || instance.initialCwd || '',
 			cwdFolder: '',
@@ -2490,7 +2513,14 @@ export class TerminalLabelComputer extends Disposable {
 			fixedDimensions: instance.fixedCols
 				? (instance.fixedRows ? `\u2194${instance.fixedCols} \u2195${instance.fixedRows}` : `\u2194${instance.fixedCols}`)
 				: (instance.fixedRows ? `\u2195${instance.fixedRows}` : ''),
-			separator: { label: this._terminalConfigurationService.config.tabs.separator }
+			separator: { label: this._terminalConfigurationService.config.tabs.separator },
+			shellType: instance.shellType,
+			shellCommand: commandDetection?.executingCommand && promptInputModel
+				? promptInputModel.value + nonTaskSpinner
+				: undefined,
+			shellPromptInput: commandDetection?.executingCommand && promptInputModel
+				? promptInputModel.getCombinedString(true) + nonTaskSpinner
+				: promptInputModel?.getCombinedString(true),
 		};
 		templateProperties.workspaceFolderName = instance.workspaceFolder?.name ?? templateProperties.workspaceFolder;
 		labelTemplate = labelTemplate.trim();

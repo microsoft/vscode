@@ -37,7 +37,8 @@ export const enum HoverStartMode {
 
 export const enum HoverStartSource {
 	Mouse = 0,
-	Keyboard = 1
+	Click = 1,
+	Keyboard = 2
 }
 
 export class HoverResult<TArgs, TResult> {

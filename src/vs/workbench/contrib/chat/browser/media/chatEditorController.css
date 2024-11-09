@@ -1,0 +1,23 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-diff-change-content-widget {
+	display: none;
+}
+
+.chat-diff-change-content-widget.hover {
+	display: inherit;
+}
+
+.chat-diff-change-content-widget .monaco-text-button {
+	padding: 0 2px;
+	z-index: 9;
+	font-size: 11px;
+	line-height: 16px;
+}
+
+.chat-diff-change-content-widget .monaco-text-button .codicon[class*='codicon-'] {
+	font-size: 11px;
+}
