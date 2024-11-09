@@ -20,6 +20,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../files/browser/fileConstants.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { TerminalContextKeys } from '../common/terminalContextKey.js';
 
 // Register services
 registerMainProcessRemoteService(ILocalPtyService, TerminalIpcChannels.LocalPty);
@@ -46,7 +48,7 @@ registerContextualInstanceAction({
 			nativeHostService.showItemInFolder(uri.fsPath);
 		}
 	},
-	precondition: IsWebContext.toNegated()
+	precondition: ContextKeyExpr.and(IsWebContext.toNegated(), TerminalContextKeys.terminalHasCwdDetectionCapability)
 });
 registerContextualInstanceAction({
 	id: TerminalCommandId.RevealInExplorer,
@@ -58,7 +60,7 @@ registerContextualInstanceAction({
 			commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, uri);
 		}
 	},
-	precondition: IsWebContext.toNegated()
+	precondition: ContextKeyExpr.and(IsWebContext.toNegated(), TerminalContextKeys.terminalHasCwdDetectionCapability)
 });
 registerContextualInstanceAction({
 	id: TerminalCommandId.RevealInExternalTerminal,
@@ -70,5 +72,5 @@ registerContextualInstanceAction({
 			commandService.executeCommand('openInTerminal', uri);
 		}
 	},
-	precondition: IsWebContext.toNegated()
+	precondition: ContextKeyExpr.and(IsWebContext.toNegated(), TerminalContextKeys.terminalHasCwdDetectionCapability)
 });
