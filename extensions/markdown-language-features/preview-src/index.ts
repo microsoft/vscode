@@ -11,6 +11,7 @@ import { SettingsManager, getData } from './settings';
 import throttle = require('lodash.throttle');
 import morphdom from 'morphdom';
 import type { ToWebviewMessage } from '../types/previewMessaging';
+import { isURL } from '../src/util/is-url';
 
 let scrollDisabledCount = 0;
 
@@ -146,23 +147,31 @@ async function copyImage(image: HTMLImageElement, retries = 5) {
 	}
 
 	try {
-		await navigator.clipboard.write([new ClipboardItem({
-			'image/png': new Promise((resolve) => {
+		const imageSrc = image.getAttribute('data-src') || 'src-not-found';
+
+		if (isURL(imageSrc)) {
+			await navigator.clipboard.writeText(imageSrc);
+		} else {
+			const blobImage: Blob = await new Promise((resolve) => {
 				const canvas = document.createElement('canvas');
+
 				if (canvas !== null) {
 					canvas.width = image.naturalWidth;
 					canvas.height = image.naturalHeight;
 					const context = canvas.getContext('2d');
 					context?.drawImage(image, 0, 0);
 				}
+
 				canvas.toBlob((blob) => {
 					if (blob) {
 						resolve(blob);
 					}
 					canvas.remove();
 				}, 'image/png');
-			})
-		})]);
+			});
+
+			await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobImage })]);
+		}
 	} catch (e) {
 		console.error(e);
 	}
