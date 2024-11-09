@@ -139,6 +139,7 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 				],
 				resources: vscodeResources,
 				fileContentMapper: filePath => {
+					filePath = path.posix.normalize(filePath.replace(/\\/g, '/'));
 					if (
 						filePath.endsWith('vs/code/electron-sandbox/workbench/workbench.js') ||
 						filePath.endsWith('vs/code/electron-sandbox/processExplorer/processExplorer.js')) {
@@ -149,9 +150,11 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 					}
 					return undefined;
 				},
-				skipTSBoilerplateRemoval: entryPoint =>
-					entryPoint === 'vs/code/electron-sandbox/workbench/workbench' ||
-					entryPoint === 'vs/code/electron-sandbox/processExplorer/processExplorer',
+				skipTSBoilerplateRemoval: entryPoint => {
+					entryPoint = path.posix.normalize(entryPoint.replace(/\\/g, '/'));
+					return entryPoint === 'vs/code/electron-sandbox/workbench/workbench' ||
+						entryPoint === 'vs/code/electron-sandbox/processExplorer/processExplorer'
+				}
 			}
 		}
 	)
