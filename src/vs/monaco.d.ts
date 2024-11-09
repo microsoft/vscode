@@ -3812,6 +3812,10 @@ declare namespace monaco.editor {
 		 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
 		 */
 		inlineCompletionsAccessibilityVerbose?: boolean;
+		/**
+		 * Use virtual space
+		 */
+		virtualSpace?: boolean;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -5029,7 +5033,8 @@ declare namespace monaco.editor {
 		wrappingInfo = 149,
 		defaultColorDecorators = 150,
 		colorDecoratorsActivatedOn = 151,
-		inlineCompletionsAccessibilityVerbose = 152
+		inlineCompletionsAccessibilityVerbose = 152,
+		virtualSpace = 153
 	}
 
 	export const EditorOptions: {
@@ -5159,6 +5164,7 @@ declare namespace monaco.editor {
 		suggest: IEditorOption<EditorOption.suggest, Readonly<Required<ISuggestOptions>>>;
 		inlineSuggest: IEditorOption<EditorOption.inlineSuggest, Readonly<RequiredRecursive<IInlineSuggestOptions>>>;
 		inlineCompletionsAccessibilityVerbose: IEditorOption<EditorOption.inlineCompletionsAccessibilityVerbose, boolean>;
+		virtualSpace: IEditorOption<EditorOption.virtualSpace, boolean>;
 		suggestFontSize: IEditorOption<EditorOption.suggestFontSize, number>;
 		suggestLineHeight: IEditorOption<EditorOption.suggestLineHeight, number>;
 		suggestOnTriggerCharacters: IEditorOption<EditorOption.suggestOnTriggerCharacters, boolean>;

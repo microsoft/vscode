@@ -41,11 +41,6 @@ const editorConfiguration: IConfigurationNode = {
 			default: 'tabSize',
 			markdownDescription: nls.localize('indentSize', "The number of spaces used for indentation or `\"tabSize\"` to use the value from `#editor.tabSize#`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
 		},
-		'editor.virtualSpace': {
-			type: 'boolean',
-			default: EDITOR_MODEL_DEFAULTS.virtualSpace,
-			markdownDescription: nls.localize('virtualSpace', "Reduce distracting horizontal movement when moving the cursor vertically.") // Add virtual space
-		},
 		'editor.insertSpaces': {
 			type: 'boolean',
 			default: EDITOR_MODEL_DEFAULTS.insertSpaces,

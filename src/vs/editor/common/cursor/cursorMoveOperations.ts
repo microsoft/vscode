@@ -113,9 +113,9 @@ export class MoveOperations {
 	}
 
 	public static rightPosition(model: ICursorSimpleModel, lineNumber: number, column: number, virtualSpace: boolean): Position {
-		console.log('rightPosition');
-		console.log('lineNumber:', lineNumber);
-		console.log('column:', column);
+		// console.log('rightPosition');
+		// console.log('lineNumber:', lineNumber);
+		// console.log('column:', column);
 		if (column < model.getLineMaxColumn(lineNumber)) {
 			column = column + strings.nextCharLength(model.getLineContent(lineNumber), column - 1);
 		} else {
@@ -126,7 +126,7 @@ export class MoveOperations {
 				column = model.getLineMinColumn(lineNumber);
 			}
 		}
-		console.log('column : ', column);
+		// console.log('column : ', column);
 		return new Position(lineNumber, column);
 	}
 
@@ -172,12 +172,13 @@ export class MoveOperations {
 	}
 
 	public static vertical(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, columnHint: number | null, newLineNumber: number, allowMoveOnEdgeLine: boolean, normalizationAffinity?: PositionAffinity): CursorPosition {
-		console.log('vertical');
-		console.log('lineNumber:', lineNumber);
-		console.log('column:', column);
-		console.log('columnHint:', columnHint);
-		console.log('newLineNumber:', newLineNumber);
-		console.log('allowMoveOnEdgeLine:', allowMoveOnEdgeLine);
+		// console.log('vertical');
+		// console.log('lineNumber:', lineNumber);
+		// console.log('column:', column);
+		// console.log('columnHint:', columnHint);
+		// console.log('newLineNumber:', newLineNumber);
+		// console.log('allowMoveOnEdgeLine:', allowMoveOnEdgeLine);
+
 		// let currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
 		// if (columnHint !== null) {
 		// 	currentVisibleColumn = columnHint;
@@ -187,8 +188,8 @@ export class MoveOperations {
 
 		const currentVisibleColumn = columnHint ?? CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
 		let definedColumnHint: number | null = columnHint ?? currentVisibleColumn;
-		console.log('currentVisibleColumn:', currentVisibleColumn);
-		console.log('definedColumnHint:', definedColumnHint);
+		// console.log('currentVisibleColumn:', currentVisibleColumn);
+		// console.log('definedColumnHint:', definedColumnHint);
 
 		const lineCount = model.getLineCount();
 		lineNumber = newLineNumber;
@@ -197,9 +198,9 @@ export class MoveOperations {
 			const wasOnLastPosition = (lineNumber === lineCount && column === model.getLineMaxColumn(lineNumber));
 			const wasAtEdgePosition = (newLineNumber < lineNumber ? wasOnFirstPosition : wasOnLastPosition);
 
-			console.log('wasOnFirstPosition:', wasOnFirstPosition);
-			console.log('wasOnLastPosition:', wasOnLastPosition);
-			console.log('wasAtEdgePosition:', wasAtEdgePosition);
+			// console.log('wasOnFirstPosition:', wasOnFirstPosition);
+			// console.log('wasOnLastPosition:', wasOnLastPosition);
+			// console.log('wasAtEdgePosition:', wasAtEdgePosition);
 
 			if (wasAtEdgePosition) {
 				// columnHint = null;
@@ -215,11 +216,11 @@ export class MoveOperations {
 						definedColumnHint = null;
 					}
 					column = firstColumn;
-					console.log('firstColumn : ', firstColumn);
-					console.log('column : ', column);
+					// console.log('firstColumn : ', firstColumn);
+					// console.log('column : ', column);
 				} else {
 					column = Math.min(model.getLineMaxColumn(lineNumber), column);
-					console.log('column : ', column);
+					// console.log('column : ', column);
 				}
 			} else if (lineNumber > lineCount) {
 				lineNumber = lineCount;
@@ -230,21 +231,21 @@ export class MoveOperations {
 						definedColumnHint = null;
 					}
 					column = lastColumn;
-					console.log('lastColumn : ', lastColumn);
-					console.log('column : ', column);
+					// console.log('lastColumn : ', lastColumn);
+					// console.log('column : ', column);
 				} else {
 					column = Math.min(model.getLineMaxColumn(lineNumber), column);
-					console.log('column : ', column);
+					// console.log('column : ', column);
 				}
 			} else {
 				column = config.columnFromVisibleColumn(model, lineNumber, currentVisibleColumn);
-				console.log('column : ', column);
+				// console.log('column : ', column);
 			}
 		} else {
 			lineNumber = Math.min(Math.max(1, lineNumber), lineCount);
 			column = config.columnFromVisibleColumn(model, lineNumber, currentVisibleColumn);
-			console.log('lineNumber : ', lineNumber);
-			console.log('column : ', column);
+			// console.log('lineNumber : ', lineNumber);
+			// console.log('column : ', column);
 		}
 
 		if (normalizationAffinity !== undefined) {

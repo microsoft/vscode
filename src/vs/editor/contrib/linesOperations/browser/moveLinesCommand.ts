@@ -54,15 +54,15 @@ export class MoveLinesCommand implements ICommand {
 		};
 
 		let s = this._selection;
-		console.log('s : ', s);
+		// console.log('s : ', s);
 		const maxStartColumn = model.getLineMaxColumn(s.startLineNumber);
-		console.log('maxStartColumn : ', maxStartColumn);
+		// console.log('maxStartColumn : ', maxStartColumn);
 		if (s.startColumn >= maxStartColumn) {
 			this.startVirtualSpace = s.startColumn - maxStartColumn;
 			s = s.setStartPosition(s.startLineNumber, maxStartColumn);
 		}
 		const maxEndColumn = model.getLineMaxColumn(s.endLineNumber);
-		console.log('maxEndColumn : ', maxEndColumn);
+		// console.log('maxEndColumn : ', maxEndColumn);
 		if (s.endColumn >= maxEndColumn) {
 			this.endVirtualSpace = s.endColumn - maxEndColumn;
 			s = s.setEndPosition(s.endLineNumber, maxEndColumn);
@@ -457,18 +457,18 @@ export class MoveLinesCommand implements ICommand {
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		let result = helper.getTrackedSelection(this._selectionId!);
 
-		console.log('computeCursorState');
-		console.log('this.endVirtualSpace : ', this.endVirtualSpace);
-		console.log('this.startVirtualSpace : ', this.startVirtualSpace);
+		// console.log('computeCursorState');
+		// console.log('this.endVirtualSpace : ', this.endVirtualSpace);
+		// console.log('this.startVirtualSpace : ', this.startVirtualSpace);
 
 		if (this.endVirtualSpace > 0) {
 			result = result.setEndPosition(result.endLineNumber, result.endColumn + this.endVirtualSpace);
-			console.log('result : ', result);
+			// console.log('result : ', result);
 		}
 
 		if (this.startVirtualSpace > 0) {
 			result = result.setStartPosition(result.startLineNumber, result.startColumn + this.startVirtualSpace);
-			console.log('result : ', result);
+			// console.log('result : ', result);
 		}
 
 		if (this._moveEndPositionDown) {

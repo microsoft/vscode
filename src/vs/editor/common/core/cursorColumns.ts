@@ -39,13 +39,13 @@ export class CursorColumns {
 	 * @see {@link CursorColumns}
 	 */
 	public static visibleColumnFromColumn(lineContent: string, column: number, tabSize: number): number {
-		console.log('visibleColumnFromColumn');
+		// console.log('visibleColumnFromColumn');
 		const textLen = Math.min(column - 1, lineContent.length);
-		console.log('textLen:', textLen);
+		// console.log('textLen:', textLen);
 		const extra = column - 1 - textLen;
-		console.log('extra:', extra);
+		// console.log('extra:', extra);
 		const text = lineContent.substring(0, textLen);
-		console.log('text:', text);
+		// console.log('text:', text);
 		const iterator = new strings.GraphemeIterator(text);
 
 		let result = 0;
@@ -55,7 +55,7 @@ export class CursorColumns {
 
 			result = this._nextVisibleColumn(codePoint, result, tabSize);
 		}
-		console.log('result + extra : ', result + extra);
+		// console.log('result + extra : ', result + extra);
 		return result + extra;
 	}
 
@@ -64,7 +64,7 @@ export class CursorColumns {
 	 * @see {@link CursorColumns}
 	 */
 	public static toStatusbarColumn(lineContent: string, column: number, tabSize: number): number {
-		console.log('toStatusbarColumn');
+		// console.log('toStatusbarColumn');
 		const text = lineContent.substring(0, Math.min(column - 1, lineContent.length));
 		const iterator = new strings.CodePointIterator(text);
 
@@ -80,7 +80,7 @@ export class CursorColumns {
 		}
 
 		const extra = Math.max(0, column - 1 - lineContent.length);
-		console.log('extra:', extra);
+		// console.log('extra:', extra);
 		return result + 1 + extra;
 	}
 
@@ -121,8 +121,8 @@ export class CursorColumns {
 
 		// walked the entire string
 		const extra = visibleColumn - beforeVisibleColumn;
-		console.log('columnFromVisibleColumn');
-		console.log('extra:', extra);
+		// console.log('columnFromVisibleColumn');
+		// console.log('extra:', extra);
 		return lineContentLength + 1 + extra;
 	}
 

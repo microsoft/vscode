@@ -145,7 +145,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 		this._linesContent = linesContent;
 		this._textRangeRestingSpot = document.createElement('div');
 		this._visibleLines = new VisibleLinesCollection({
-			createLine: () => new ViewLine(this._viewLineOptions),
+			createLine: () => new ViewLine(this._viewLineOptions, context),
 		});
 		this.domNode = this._visibleLines.domNode;
 
@@ -420,12 +420,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 		}
 
 		const originalEndLineNumber = _range.endLineNumber;
-		console.log('originalEndLineNumber : ', originalEndLineNumber);
-		const _visibleRange = this._lastRenderedData.getCurrentVisibleRange();
-		console.log('_visibleRange : ', _visibleRange);
-		const visibleRange = new Range(_visibleRange.startLineNumber, _visibleRange.startColumn, _visibleRange.endLineNumber, Infinity);
-		console.log('visibleRange : ', visibleRange);
-		const range = Range.intersectRanges(_range, visibleRange);
+		const range = Range.intersectRanges(_range, this._lastRenderedData.getCurrentVisibleRange());
 		if (!range) {
 			return null;
 		}

@@ -403,10 +403,10 @@ export class CursorMoveCommands {
 			} else {
 				newViewLineNumber = viewLineNumber;
 			}
-			console.log('findPositionInViewportIfOutside');
-			console.log('cursor.viewState.columnHint : ', cursor.viewState.position.column);
+			// console.log('findPositionInViewportIfOutside');
+			// console.log('cursor.viewState.columnHint : ', cursor.viewState.position.column);
 			const position = MoveOperations.vertical(viewModel.cursorConfig, viewModel, viewLineNumber, cursor.viewState.position.column, cursor.viewState.columnHint, newViewLineNumber, false);
-			console.log('position.columnHint : ', position.columnHint);
+			// console.log('position.columnHint : ', position.columnHint);
 			return CursorState.fromViewState(cursor.viewState.move(inSelectionMode, position.lineNumber, position.column, position.columnHint));
 		}
 	}

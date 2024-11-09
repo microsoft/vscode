@@ -156,10 +156,12 @@ export class ViewCursor {
 	private _getGraphemeAwarePosition(): [Position, string] {
 		const { lineNumber, column } = this._position;
 		const lineContent = this._context.viewModel.getLineContent(lineNumber);
-		console.log('_getGraphemeAwarePosition:');
-		console.log('lineContent:', lineContent);
-		console.log('column:', column);
-		if (column > lineContent.length) {
+		// console.log('_getGraphemeAwarePosition:');
+		// console.log('lineContent:', lineContent);
+		// console.log('column:', column);
+		const virtualSpace = this._context.configuration.options.get(EditorOption.virtualSpace);
+		// Since the column can be past the line content length, we need return an appropriate next grapheme for this case
+		if (virtualSpace && column > lineContent.length) {
 			return [new Position(lineNumber, column), ''];
 		} else {
 			const [startOffset, endOffset] = strings.getCharContainingOffset(lineContent, column - 1);
@@ -171,9 +173,9 @@ export class ViewCursor {
 		let textContent = '';
 		let textContentClassName = '';
 		const [position, nextGrapheme] = this._getGraphemeAwarePosition();
-		console.log('_prepareRender:');
-		console.log('position:', position);
-		console.log('nextGrapheme:', nextGrapheme);
+		// console.log('_prepareRender:');
+		// console.log('position:', position);
+		// console.log('nextGrapheme:', nextGrapheme);
 
 		if (this._cursorStyle === TextEditorCursorStyle.Line || this._cursorStyle === TextEditorCursorStyle.LineThin) {
 			const visibleRange = ctx.visibleRangeForPosition(position);
@@ -206,7 +208,7 @@ export class ViewCursor {
 			return new ViewCursorRenderData(top, left, paddingLeft, width, this._lineHeight, textContent, textContentClassName);
 		}
 
-		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(position.lineNumber, position.column, position.lineNumber, position.column + Math.max(nextGrapheme.length, 1)), false);
+		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(position.lineNumber, position.column, position.lineNumber, position.column + nextGrapheme.length), false);
 		if (!visibleRangeForCharacter || visibleRangeForCharacter.length === 0) {
 			// Outside viewport
 			return null;

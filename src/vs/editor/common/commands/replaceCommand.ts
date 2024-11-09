@@ -23,21 +23,24 @@ export class ReplaceCommand implements ICommand {
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		let range = this._range;
 		let text = this._text;
-		let lineLen = model.getLineMaxColumn(range.startLineNumber);
+		let lineLength = model.getLineMaxColumn(range.startLineNumber);
 		console.log('getEditOperations');
+		console.log('range : ', range);
+		console.log('text:', text);
 		console.log('range.startColumn : ', range.startColumn);
-		console.log('lineLen:', lineLen);
-		if (range.startColumn > lineLen) {
-			text = ' '.repeat(range.startColumn - lineLen) + text;
+		console.log('lineLen:', lineLength);
+		if (range.startColumn > lineLength) {
+			// Need to insert tabs if tabs are used
+			text = ' '.repeat(range.startColumn - lineLength) + text;
 			console.log('text:', text);
-			range = new Range(range.startLineNumber, lineLen, range.endLineNumber, range.endColumn);
+			range = new Range(range.startLineNumber, lineLength, range.endLineNumber, range.endColumn);
 		}
 		if (range.endColumn !== range.startColumn) {
 			console.log('range.endColumn : ', range.endColumn);
-			lineLen = model.getLineMaxColumn(range.endLineNumber);
-			console.log('lineLen:', lineLen);
-			if (range.endColumn > lineLen) {
-				range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, lineLen);
+			lineLength = model.getLineMaxColumn(range.endLineNumber);
+			console.log('lineLen:', lineLength);
+			if (range.endColumn > lineLength) {
+				range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, lineLength);
 			}
 		}
 		builder.addTrackedEditOperation(range, text);

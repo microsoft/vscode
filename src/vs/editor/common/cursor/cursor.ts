@@ -926,9 +926,9 @@ export class CommandExecutor {
 				} else {
 					// Try to lock it with surrounding text
 					const maxLineColumn = ctx.model.getLineMaxColumn(selection.startLineNumber);
-					console.log('trackSelection');
-					console.log('selection.startColumn : ', selection.startColumn);
-					console.log('maxLineColumn : ', maxLineColumn);
+					// console.log('trackSelection');
+					// console.log('selection.startColumn : ', selection.startColumn);
+					// console.log('maxLineColumn : ', maxLineColumn);
 					if (selection.startColumn >= maxLineColumn) {
 						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
 					} else {
