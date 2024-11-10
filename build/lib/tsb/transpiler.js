@@ -11,11 +11,6 @@ const threads = require("node:worker_threads");
 const Vinyl = require("vinyl");
 const node_os_1 = require("node:os");
 function transpile(tsSrc, options) {
-    const isAmd = /\n(import|export)/m.test(tsSrc);
-    if (!isAmd && options.compilerOptions?.module === ts.ModuleKind.AMD) {
-        // enforce NONE module-system for not-amd cases
-        options = { ...options, ...{ compilerOptions: { ...options.compilerOptions, module: ts.ModuleKind.None } } };
-    }
     const out = ts.transpileModule(tsSrc, options);
     return {
         jsSrc: out.outputText,
