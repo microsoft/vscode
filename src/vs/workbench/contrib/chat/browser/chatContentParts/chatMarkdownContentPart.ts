@@ -340,6 +340,7 @@ class CollapsedCodeBlock extends Disposable {
 
 		const iconEl = dom.$('span.icon');
 		iconEl.classList.add(...iconClasses);
+		Object.assign(iconEl.dataset, iconAttributes);
 		this.element.replaceChildren(iconEl, dom.$('span.icon-label', {}, iconText));
 	}
 }

@@ -191,6 +191,7 @@ export class InlineAnchorWidget extends Disposable {
 
 		const iconEl = dom.$('span.icon');
 		iconEl.classList.add(...iconClasses);
+		Object.assign(iconEl.dataset, iconAttributes);
 		element.replaceChildren(iconEl, dom.$('span.icon-label', {}, iconText));
 
 		const fragment = location.range ? `${location.range.startLineNumber},${location.range.startColumn}` : '';
