@@ -9,7 +9,6 @@ import { ContextKeyExpression } from '../../../../../platform/contextkey/common/
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ChatAgentService, IChatAgentData, IChatAgentImplementation } from '../../common/chatAgents.js';
-import { TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 
 const testAgentId = 'testAgent';
 const testAgentData: IChatAgentData = {
@@ -42,7 +41,7 @@ suite('ChatAgents', function () {
 	let contextKeyService: TestingContextKeyService;
 	setup(() => {
 		contextKeyService = new TestingContextKeyService();
-		chatAgentService = store.add(new ChatAgentService(contextKeyService, new TestExtensionService()));
+		chatAgentService = store.add(new ChatAgentService(contextKeyService));
 	});
 
 	test('registerAgent', async () => {
@@ -79,18 +78,18 @@ suite('ChatAgents', function () {
 			provideFollowups: async () => { return []; },
 		};
 
-		test('should register an agent implementation', async () => {
+		test('should register an agent implementation', () => {
 			store.add(chatAgentService.registerAgent(testAgentId, testAgentData));
-			store.add(await chatAgentService.registerAgentImplementation(testAgentId, agentImpl));
+			store.add(chatAgentService.registerAgentImplementation(testAgentId, agentImpl));
 
 			const agents = chatAgentService.getActivatedAgents();
 			assert.strictEqual(agents.length, 1);
 			assert.strictEqual(agents[0].id, testAgentId);
 		});
 
-		test('can dispose an agent implementation', async () => {
+		test('can dispose an agent implementation', () => {
 			store.add(chatAgentService.registerAgent(testAgentId, testAgentData));
-			const implRegistration = await chatAgentService.registerAgentImplementation(testAgentId, agentImpl);
+			const implRegistration = chatAgentService.registerAgentImplementation(testAgentId, agentImpl);
 			implRegistration.dispose();
 
 			const agents = chatAgentService.getActivatedAgents();
@@ -98,14 +97,14 @@ suite('ChatAgents', function () {
 		});
 
 		test('should throw error if agent does not exist', () => {
-			assert.rejects(() => chatAgentService.registerAgentImplementation('nonexistentAgent', agentImpl));
+			assert.throws(() => chatAgentService.registerAgentImplementation('nonexistentAgent', agentImpl));
 		});
 
-		test('should throw error if agent already has an implementation', async () => {
+		test('should throw error if agent already has an implementation', () => {
 			store.add(chatAgentService.registerAgent(testAgentId, testAgentData));
-			store.add(await chatAgentService.registerAgentImplementation(testAgentId, agentImpl));
+			store.add(chatAgentService.registerAgentImplementation(testAgentId, agentImpl));
 
-			assert.rejects(() => chatAgentService.registerAgentImplementation(testAgentId, agentImpl));
+			assert.throws(() => chatAgentService.registerAgentImplementation(testAgentId, agentImpl));
 		});
 	});
 });
