@@ -74,6 +74,22 @@ if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	builtin unset VSCODE_ENV_APPEND
 fi
 
+__vsc_print_ctrl() {
+	# Print VSCODE specific control sequence
+
+	if [[ -n "$TMUX" ]]; then
+		# Tmux does not passthrough control sequence unless escaped
+		builtin printf '\ePtmux;\e'
+	fi
+
+	builtin printf "$@"
+
+	if [[ -n "$TMUX" ]]; then
+		# Tmux does not passthrough control sequence unless escaped
+		builtin printf '\e\\'
+	fi
+}
+
 __vsc_get_trap() {
 	# 'trap -p DEBUG' outputs a shell command like `trap -- '…shellcode…' DEBUG`.
 	# The terms are quoted literals, but are not guaranteed to be on a single line.
@@ -145,7 +161,7 @@ __vsc_escape_value() {
 # Send the IsWindows property if the environment looks like Windows
 __vsc_regex_environment="^CYGWIN*|MINGW*|MSYS*"
 if [[ "$(uname -s)" =~ $__vsc_regex_environment ]]; then
-	builtin printf '\e]633;P;IsWindows=True\a'
+	__vsc_print_ctrl '\e]633;P;IsWindows=True\a'
 	__vsc_is_windows=1
 else
 	__vsc_is_windows=0
@@ -181,7 +197,7 @@ unset VSCODE_STABLE
 
 # Report continuation prompt
 if [ "$__vsc_stable" = "0" ]; then
-	builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
+	__vsc_print_ctrl "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
 fi
 
 __vsc_report_prompt() {
@@ -194,15 +210,15 @@ __vsc_report_prompt() {
 	fi
 
 	__vsc_prompt="$(builtin printf "%s" "${__vsc_prompt//[$'\001'$'\002']}")"
-	builtin printf "\e]633;P;Prompt=%s\a" "$(__vsc_escape_value "${__vsc_prompt}")"
+	__vsc_print_ctrl "\e]633;P;Prompt=%s\a" "$(__vsc_escape_value "${__vsc_prompt}")"
 }
 
 __vsc_prompt_start() {
-	builtin printf '\e]633;A\a'
+	__vsc_print_ctrl '\e]633;A\a'
 }
 
 __vsc_prompt_end() {
-	builtin printf '\e]633;B\a'
+	__vsc_print_ctrl '\e]633;B\a'
 }
 
 __vsc_update_cwd() {
@@ -211,23 +227,23 @@ __vsc_update_cwd() {
 	else
 		__vsc_cwd="$PWD"
 	fi
-	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$__vsc_cwd")"
+	__vsc_print_ctrl '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$__vsc_cwd")"
 }
 
 __vsc_command_output_start() {
 	if [[ -z "${__vsc_first_prompt-}" ]]; then
 		builtin return
 	fi
-	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
-	builtin printf '\e]633;C\a'
+	__vsc_print_ctrl '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
+	__vsc_print_ctrl '\e]633;C\a'
 }
 
 __vsc_continuation_start() {
-	builtin printf '\e]633;F\a'
+	__vsc_print_ctrl '\e]633;F\a'
 }
 
 __vsc_continuation_end() {
-	builtin printf '\e]633;G\a'
+	__vsc_print_ctrl '\e]633;G\a'
 }
 
 __vsc_command_complete() {
@@ -235,9 +251,9 @@ __vsc_command_complete() {
 		builtin return
 	fi
 	if [ "$__vsc_current_command" = "" ]; then
-		builtin printf '\e]633;D\a'
+		__vsc_print_ctrl '\e]633;D\a'
 	else
-		builtin printf '\e]633;D;%s\a' "$__vsc_status"
+		__vsc_print_ctrl '\e]633;D;%s\a' "$__vsc_status"
 	fi
 	__vsc_update_cwd
 }
@@ -248,12 +264,22 @@ __vsc_update_prompt() {
 		# means the user re-exported the PS1 so we should re-wrap it
 		if [[ "$__vsc_custom_PS1" == "" || "$__vsc_custom_PS1" != "$PS1" ]]; then
 			__vsc_original_PS1=$PS1
-			__vsc_custom_PS1="\[$(__vsc_prompt_start)\]$__vsc_original_PS1\[$(__vsc_prompt_end)\]"
+			if [[ -n "$TMUX" ]]; then
+				# Updated prompt cannot be displayed properly in tmux
+				__vsc_custom_PS1="\[$(__vsc_prompt_start >/dev/null)\]$__vsc_original_PS1\[$(__vsc_prompt_end >/dev/null)\]"
+			else
+				__vsc_custom_PS1="\[$(__vsc_prompt_start)\]$__vsc_original_PS1\[$(__vsc_prompt_end)\]"
+			fi
 			PS1="$__vsc_custom_PS1"
 		fi
 		if [[ "$__vsc_custom_PS2" == "" || "$__vsc_custom_PS2" != "$PS2" ]]; then
 			__vsc_original_PS2=$PS2
-			__vsc_custom_PS2="\[$(__vsc_continuation_start)\]$__vsc_original_PS2\[$(__vsc_continuation_end)\]"
+			if [[ -n "$TMUX" ]]; then
+				# Updated prompt cannot be displayed properly in tmux
+				__vsc_custom_PS2="\[$(__vsc_continuation_start >/dev/null)\]$__vsc_original_PS2\[$(__vsc_continuation_end >/dev/null)\]"
+			else
+				__vsc_custom_PS2="\[$(__vsc_continuation_start)\]$__vsc_original_PS2\[$(__vsc_continuation_end)\]"
+			fi
 			PS2="$__vsc_custom_PS2"
 		fi
 		__vsc_in_command_execution="0"
