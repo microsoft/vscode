@@ -50,11 +50,11 @@ class GettingStartedAccessibleProvider extends Disposable implements IAccessible
 	constructor(
 		private contextService: IContextKeyService,
 		private readonly _gettingStartedPage: GettingStartedPage,
-		private readonly _focusedItem: IResolvedWalkthrough,
+		private readonly _walkthrough: IResolvedWalkthrough,
 		private readonly _focusedStep?: string | undefined,
 	) {
 		super();
-		this._activeWalkthroughSteps = _focusedItem.steps.filter(step => !step.when || this.contextService.contextMatchesRules(step.when));
+		this._activeWalkthroughSteps = _walkthrough.steps.filter(step => !step.when || this.contextService.contextMatchesRules(step.when));
 	}
 
 	readonly id = AccessibleViewProviderId.Walkthrough;
@@ -68,19 +68,24 @@ class GettingStartedAccessibleProvider extends Disposable implements IAccessible
 				this._currentStepIndex = stepIndex;
 			}
 		}
-		return this._getContent(this._currentStepIndex + 1, this._focusedItem, this._activeWalkthroughSteps[this._currentStepIndex]);
+		return this._getContent(this._walkthrough, this._activeWalkthroughSteps[this._currentStepIndex], /* includeTitle */true);
 	}
 
-	private _getContent(index: number, waltkrough: IResolvedWalkthrough, step: IResolvedWalkthroughStep): string {
+	private _getContent(waltkrough: IResolvedWalkthrough, step: IResolvedWalkthroughStep, includeTitle?: boolean): string {
 
 		const stepsContent =
-			localize('gettingStarted.step', 'Step {0}: {1}\nDescription: {2}', index, step.title, step.description.join(' '));
+			localize('gettingStarted.step', '{0}\nDescription: {1}', step.title, step.description.join(' '));
 
-		return [
-			localize('gettingStarted.title', 'Title: {0}', waltkrough.title),
-			localize('gettingStarted.description', 'Description: {0}', waltkrough.description),
-			stepsContent
-		].join('\n\n');
+		if (includeTitle) {
+			return [
+				localize('gettingStarted.title', 'Title: {0}', waltkrough.title),
+				localize('gettingStarted.description', 'Description: {0}', waltkrough.description),
+				stepsContent
+			].join('\n');
+		}
+		else {
+			return stepsContent;
+		}
 	}
 
 	provideNextContent(): string | undefined {
@@ -88,7 +93,7 @@ class GettingStartedAccessibleProvider extends Disposable implements IAccessible
 			--this._currentStepIndex;
 			return;
 		}
-		return this._getContent(this._currentStepIndex + 1, this._focusedItem, this._activeWalkthroughSteps[this._currentStepIndex]);
+		return this._getContent(this._walkthrough, this._activeWalkthroughSteps[this._currentStepIndex]);
 	}
 
 	providePreviousContent(): string | undefined {
@@ -96,13 +101,13 @@ class GettingStartedAccessibleProvider extends Disposable implements IAccessible
 			++this._currentStepIndex;
 			return;
 		}
-		return this._getContent(this._currentStepIndex + 1, this._focusedItem, this._activeWalkthroughSteps[this._currentStepIndex]);
+		return this._getContent(this._walkthrough, this._activeWalkthroughSteps[this._currentStepIndex]);
 	}
 
 	onClose(): void {
 		if (this._currentStepIndex > -1) {
 			const currentStep = this._activeWalkthroughSteps[this._currentStepIndex];
-			this._gettingStartedPage.makeCategoryVisibleWhenAvailable(this._focusedItem.id, currentStep.id);
+			this._gettingStartedPage.makeCategoryVisibleWhenAvailable(this._walkthrough.id, currentStep.id);
 		}
 	}
 }

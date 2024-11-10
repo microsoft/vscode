@@ -75,9 +75,7 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 		this._register(toDisposable((() => this.editor.removeContentWidget(this))));
 
 		this._register(this.editor.onDidChangeCursorPosition(e => {
-			if (!range.containsPosition(e.position)) {
-				this.dispose();
-			}
+			this.dispose();
 		}));
 
 		this._register(Event.runAndSubscribe(_keybindingService.onDidUpdateKeybindings, () => {

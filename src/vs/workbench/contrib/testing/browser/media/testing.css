@@ -408,6 +408,10 @@
 }
 
 .monaco-workbench .test-error-content-widget {
+	z-index: 0;
+}
+
+.monaco-workbench .test-error-content-widget .inner {
 	margin-left: 20px;
 	color: var(--vscode-testing-message-error-badgeForeground) !important;
 	background: var(--vscode-testing-message-error-badgeBackground);
@@ -421,6 +425,9 @@
 	user-select: none;
 	cursor: pointer;
 	box-sizing: border-box;
+	position: relative;
+	border: 1px solid var(--vscode-testing-message-error-badgeBorder);
+	border-left: none;
 
 	&.is-current {
 		display: none !important;
@@ -441,11 +448,14 @@
 
 	.arrow svg {
 		position: absolute;
-		right: calc(100% - 0.4px);
-		height: 100%;
-		top: 0;
-		width: 10px;
+		height: calc(100% + 2px);
+		top: -1px;
+		width: 15px;
+		left: -10px;
 		fill: var(--vscode-testing-message-error-badgeBackground);
+		z-index: -1;
+		stroke-width: 0.71px; /* 1 / sqrt(2) */
+		stroke: var(--vscode-testing-message-error-badgeBorder);
 	}
 }
 

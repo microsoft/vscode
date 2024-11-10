@@ -1450,6 +1450,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
 				return extHostChatAgents2.registerChatParticipantDetectionProvider(extension, provider);
 			},
+			registerRelatedFilesProvider(provider: vscode.ChatRelatedFilesProvider) {
+				checkProposedApiEnabled(extension, 'chatEditing');
+				return extHostChatAgents2.registerRelatedFilesProvider(extension, provider);
+			}
 		};
 
 		// namespace: lm

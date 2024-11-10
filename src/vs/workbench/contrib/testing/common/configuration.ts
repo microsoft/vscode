@@ -7,12 +7,13 @@ import { observableFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IConfigurationNode } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ConfigurationKeyValuePairs, Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 
 export const enum TestingConfigKeys {
-	AutoRunDelay = 'testing.autoRun.delay',
 	AutoOpenPeekView = 'testing.automaticallyOpenPeekView',
 	AutoOpenPeekViewDuringContinuousRun = 'testing.automaticallyOpenPeekViewDuringAutoRun',
-	OpenTesting = 'testing.openTesting',
+	OpenResults = 'testing.automaticallyOpenResults',
 	FollowRunningTest = 'testing.followRunningTest',
 	DefaultGutterClickAction = 'testing.defaultGutterClickAction',
 	GutterEnabled = 'testing.gutterEnabled',
@@ -65,12 +66,6 @@ export const testingConfiguration: IConfigurationNode = {
 	title: localize('testConfigurationTitle', "Testing"),
 	type: 'object',
 	properties: {
-		[TestingConfigKeys.AutoRunDelay]: {
-			type: 'integer',
-			minimum: 0,
-			description: localize('testing.autoRun.delay', "How long to wait, in milliseconds, after a test is marked as outdated and starting a new run."),
-			default: 1000,
-		},
 		[TestingConfigKeys.AutoOpenPeekView]: {
 			description: localize('testing.automaticallyOpenPeekView', "Configures when the error Peek view is automatically opened."),
 			enum: [
@@ -114,7 +109,7 @@ export const testingConfiguration: IConfigurationNode = {
 		[TestingConfigKeys.FollowRunningTest]: {
 			description: localize('testing.followRunningTest', 'Controls whether the running test should be followed in the Test Explorer view.'),
 			type: 'boolean',
-			default: true,
+			default: false,
 		},
 		[TestingConfigKeys.DefaultGutterClickAction]: {
 			description: localize('testing.defaultGutterClickAction', 'Controls the action to take when left-clicking on a test decoration in the gutter.'),
@@ -142,7 +137,7 @@ export const testingConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true,
 		},
-		[TestingConfigKeys.OpenTesting]: {
+		[TestingConfigKeys.OpenResults]: {
 			enum: [
 				AutoOpenTesting.NeverOpen,
 				AutoOpenTesting.OpenOnTestStart,
@@ -199,6 +194,14 @@ export const testingConfiguration: IConfigurationNode = {
 	}
 };
 
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'testing.openTesting',
+		migrateFn: (value: AutoOpenTesting): ConfigurationKeyValuePairs => {
+			return [[TestingConfigKeys.OpenResults, { value }]];
+		}
+	}]);
+
 export interface ITestingCoverageBarThresholds {
 	red: number;
 	green: number;
@@ -206,7 +209,6 @@ export interface ITestingCoverageBarThresholds {
 }
 
 export interface ITestingConfiguration {
-	[TestingConfigKeys.AutoRunDelay]: number;
 	[TestingConfigKeys.AutoOpenPeekView]: AutoOpenPeekViewWhen;
 	[TestingConfigKeys.AutoOpenPeekViewDuringContinuousRun]: boolean;
 	[TestingConfigKeys.CountBadge]: TestingCountBadge;
@@ -214,7 +216,7 @@ export interface ITestingConfiguration {
 	[TestingConfigKeys.DefaultGutterClickAction]: DefaultGutterClickAction;
 	[TestingConfigKeys.GutterEnabled]: boolean;
 	[TestingConfigKeys.SaveBeforeTest]: boolean;
-	[TestingConfigKeys.OpenTesting]: AutoOpenTesting;
+	[TestingConfigKeys.OpenResults]: AutoOpenTesting;
 	[TestingConfigKeys.AlwaysRevealTestOnStateChange]: boolean;
 	[TestingConfigKeys.ShowAllMessages]: boolean;
 	[TestingConfigKeys.CoveragePercent]: TestingDisplayedCoveragePercent;

@@ -342,5 +342,6 @@ class CollapsedCodeBlock extends Disposable {
 		iconEl.classList.add(...iconClasses);
 		Object.assign(iconEl.dataset, iconAttributes);
 		this.element.replaceChildren(iconEl, dom.$('span.icon-label', {}, iconText));
+		this.element.title = this.labelService.getUriLabel(uri, { relative: false });
 	}
 }
