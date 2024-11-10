@@ -571,13 +571,14 @@ class ResourceLabelWidget extends IconLabel {
 			return false;
 		}
 
-		const iconLabelOptions: IIconLabelValueOptions & { extraClasses: string[] } = {
+		const iconLabelOptions: IIconLabelValueOptions & { extraClasses: string[]; extraAttributes: { [attrName: string]: string } } = {
 			title: '',
 			italic: this.options?.italic,
 			strikethrough: this.options?.strikethrough,
 			matches: this.options?.matches,
 			descriptionMatches: this.options?.descriptionMatches,
 			extraClasses: [],
+			extraAttributes: {},
 			separator: this.options?.separator,
 			domId: this.options?.domId,
 			disabledCommand: this.options?.disabledCommand,
