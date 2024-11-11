@@ -158,10 +158,12 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle) {
                     // source map handling:
                     // * rewrite sourceMappingURL
                     // * save to disk so that upload-task picks this up
-                    const contents = data.contents.toString('utf8');
-                    data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
-                        return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
-                    }), 'utf8');
+                    if (path.extname(data.basename) === '.js') {
+                        const contents = data.contents.toString('utf8');
+                        data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
+                            return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
+                        }), 'utf8');
+                    }
                     this.emit('data', data);
                 }));
             });
