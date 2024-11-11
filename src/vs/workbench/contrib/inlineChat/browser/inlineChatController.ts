@@ -566,7 +566,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 
 		if (message & Message.ACCEPT_SESSION) {
-			this._ui.value.widget.selectAll(false);
+			this._ui.value.widget.selectAll();
 			return State.ACCEPT;
 		}
 
@@ -593,7 +593,7 @@ export class InlineChatController implements IEditorContribution {
 		assertType(request.response);
 
 		this._showWidget(this._session.headless, false);
-		this._ui.value.widget.selectAll(false);
+		this._ui.value.widget.selectAll();
 		this._ui.value.widget.updateInfo('');
 		this._ui.value.widget.toggleStatus(true);
 
@@ -979,14 +979,8 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	private _forcedPlaceholder: string | undefined = undefined;
-
 	private _updatePlaceholder(): void {
-		this._ui.value.widget.placeholder = this._getPlaceholderText();
-	}
-
-	private _getPlaceholderText(): string {
-		return this._forcedPlaceholder ?? this._session?.agent.description ?? '';
+		this._ui.value.widget.placeholder = this._session?.agent.description ?? '';
 	}
 
 	// ---- controller API
