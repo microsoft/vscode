@@ -13,14 +13,14 @@ steps:
     inputs:
       azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
-      SecretsFilter: "github-distro-mixin-password,esrp-aad-username,esrp-aad-password"
+      SecretsFilter: "github-distro-mixin-password"
 
   - task: AzureKeyVault@2
-    displayName: "Azure Key Vault: Get Secrets"
+    displayName: "Azure Key Vault: Get ESRP Secrets"
     inputs:
-      azureSubscription: vscode
-      KeyVaultName: vscode-build-packages
-      SecretsFilter: "vscode-esrp,c24324f7-e65f-4c45-8702-ed2d4c35df99"
+      azureSubscription: vscode-esrp
+      KeyVaultName: vscode-esrp
+      SecretsFilter: "esrp-auth,esrp-sign,esrp-aad-username,esrp-aad-password"
 
   # allow-any-unicode-next-line
   - pwsh: Write-Host "##vso[build.addbuildtag]🚀"
@@ -67,10 +67,10 @@ steps:
   - pwsh: |
       $ErrorActionPreference = "Stop"
       $CertCollection = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
-      $AuthCertBytes = [System.Convert]::FromBase64String("$(vscode-esrp)")
+      $AuthCertBytes = [System.Convert]::FromBase64String("$(esrp-auth)")
       $CertCollection.Import($AuthCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
       $RequestSigningCertIndex = $CertCollection.Count
-      $RequestSigningCertBytes = [System.Convert]::FromBase64String("$(c24324f7-e65f-4c45-8702-ed2d4c35df99)")
+      $RequestSigningCertBytes = [System.Convert]::FromBase64String("$(esrp-sign)")
       $CertCollection.Import($RequestSigningCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
       $CertStore = New-Object System.Security.Cryptography.X509Certificates.X509Store("My","LocalMachine")
       $CertStore.Open("ReadWrite")
