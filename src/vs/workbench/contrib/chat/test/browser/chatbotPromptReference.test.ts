@@ -59,18 +59,7 @@ const createFolder = async (
 suite('ChatbotPromptReference', function () {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	// let instantiationService: TestInstantiationService;
-
-	// setup(function () {
-	// 	instantiationService = testDisposables.add(new TestInstantiationService());
-	// });
-
-	// testDisposables.add(new RunOnDispose(() => {
-	// 	const fileService = new FileService(new NullLogService());
-
-	// 	fileService.del(rootFolder);
-	// }));
-
+	// TODO: @legomushroom - finish the test
 	test('resolves nested file references', async function () {
 		// const fileService = testDisposables.add(new TestFileService());
 		// Set up filesystem
@@ -79,7 +68,8 @@ suite('ChatbotPromptReference', function () {
 		fileService.registerProvider(Schemas.file, fileSystemProvider);
 
 		const filesStructure: IFolder = {
-			name: 'test-name', // TODO: @legomushroom - generate a random name?
+			// TODO: @legomushroom - generate a random name?
+			name: 'resolves-nested-file-references',
 			children: [
 				{
 					name: 'file1.txt',

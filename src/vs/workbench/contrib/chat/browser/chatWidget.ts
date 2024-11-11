@@ -6,6 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
+import { assertDefined } from '../../../../base/common/assert.js';
 import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -192,7 +193,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return { text: '', parts: [] };
 			}
 
-			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent });
+			assertDefined(
+				this.viewModel,
+				'View model must be defined when trying to get parsed input.',
+			);
+
+			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser)
+				.parseChatRequest(
+					this.viewModel.sessionId,
+					this.getInput(),
+					this.location,
+					{ selectedAgent: this._lastSelectedAgent },
+				);
 		}
 
 		return this.parsedChatRequest;
@@ -472,7 +484,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!this.viewModel) {
 			return;
 		}
-		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent });
+		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser)
+			.parseChatRequest(
+				this.viewModel.sessionId,
+				this.getInput(),
+				this.location,
+				{ selectedAgent: this._lastSelectedAgent },
+			);
 		this._onDidChangeParsedInput.fire();
 	}
 

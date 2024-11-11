@@ -31,9 +31,6 @@ export class ChatbotPromptDecoder extends BaseDecoder<TChatbotPromptToken, TSimp
 		return this;
 	}
 
-	/**
-	 * TODO: @legomushroom
-	 */
 	protected override onStreamData(simpleToken: TSimpleToken): void {
 		// handle the word tokens only
 		if (!(simpleToken instanceof Word)) {
