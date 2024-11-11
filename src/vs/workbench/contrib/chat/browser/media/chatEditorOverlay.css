@@ -44,7 +44,8 @@
 
 .chat-editor-overlay-widget .action-item.disabled > .action-label.codicon::before,
 .chat-editor-overlay-widget .action-item.disabled > .action-label.codicon,
-.chat-editor-overlay-widget .action-item.disabled > .action-label {
+.chat-editor-overlay-widget .action-item.disabled > .action-label,
+.chat-editor-overlay-widget .action-item.disabled > .action-label:hover {
 	color: var(--vscode-button-foreground);
 	opacity: 0.7;
 }
