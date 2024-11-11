@@ -63,7 +63,7 @@ export class ViewCursor {
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 
-		const typeMode = options.get(EditorOption.inputType);
+		const typeMode = options.get(EditorOption.inputMode);
 		this._cursorStyle = typeMode === 'overtype' ? options.get(EditorOption.overtypeCursorStyle) : options.get(EditorOption.cursorStyle);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
@@ -131,7 +131,7 @@ export class ViewCursor {
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 
-		const typeMode = options.get(EditorOption.inputType);
+		const typeMode = options.get(EditorOption.inputMode);
 		this._cursorStyle = typeMode === 'overtype' ? options.get(EditorOption.overtypeCursorStyle) : options.get(EditorOption.cursorStyle);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;

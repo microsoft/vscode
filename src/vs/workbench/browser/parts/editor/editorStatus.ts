@@ -56,6 +56,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { TabFocus } from '../../../../editor/browser/config/tabFocus.js';
 import { IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { InputMode } from '../../../../editor/browser/config/inputMode.js';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -149,6 +150,7 @@ class StateChange {
 	encoding: boolean = false;
 	EOL: boolean = false;
 	tabFocusMode: boolean = false;
+	inputMode: boolean = false;
 	columnSelectionMode: boolean = false;
 	metadata: boolean = false;
 
@@ -160,6 +162,7 @@ class StateChange {
 		this.encoding = this.encoding || other.encoding;
 		this.EOL = this.EOL || other.EOL;
 		this.tabFocusMode = this.tabFocusMode || other.tabFocusMode;
+		this.inputMode = this.inputMode || other.inputMode;
 		this.columnSelectionMode = this.columnSelectionMode || other.columnSelectionMode;
 		this.metadata = this.metadata || other.metadata;
 	}
@@ -172,6 +175,7 @@ class StateChange {
 			|| this.encoding
 			|| this.EOL
 			|| this.tabFocusMode
+			|| this.inputMode
 			|| this.columnSelectionMode
 			|| this.metadata;
 	}
@@ -186,6 +190,7 @@ type StateDelta = (
 	| { type: 'tabFocusMode'; tabFocusMode: boolean }
 	| { type: 'columnSelectionMode'; columnSelectionMode: boolean }
 	| { type: 'metadata'; metadata: string | undefined }
+	| { type: 'inputMode'; inputMode: 'overtype' | 'insert' }
 );
 
 class State {
@@ -207,6 +212,9 @@ class State {
 
 	private _tabFocusMode: boolean | undefined;
 	get tabFocusMode(): boolean | undefined { return this._tabFocusMode; }
+
+	private _inputMode: 'overtype' | 'insert' | undefined;
+	get inputMode(): 'overtype' | 'insert' | undefined { return this._inputMode; }
 
 	private _columnSelectionMode: boolean | undefined;
 	get columnSelectionMode(): boolean | undefined { return this._columnSelectionMode; }
@@ -260,6 +268,13 @@ class State {
 				}
 				break;
 
+			case 'inputMode':
+				if (this._inputMode !== update.inputMode) {
+					this._inputMode = update.inputMode;
+					change.inputMode = true;
+				}
+				break;
+
 			case 'columnSelectionMode':
 				if (this._columnSelectionMode !== update.columnSelectionMode) {
 					this._columnSelectionMode = update.columnSelectionMode;
@@ -307,6 +322,30 @@ class TabFocusMode extends Disposable {
 	}
 }
 
+class StatusInputMode extends Disposable {
+
+	private readonly _onDidChange = this._register(new Emitter<'overtype' | 'insert'>());
+	readonly onDidChange = this._onDidChange.event;
+
+	constructor(@IConfigurationService private readonly configurationService: IConfigurationService) {
+		super();
+		this.registerListeners();
+		const inputMode = configurationService.getValue<'overtype' | 'insert'>('editor.inputMode');
+		InputMode.setInputMode(inputMode);
+	}
+
+	private registerListeners(): void {
+		this._register(InputMode.onDidChangeInputMode(inputMode => this._onDidChange.fire(inputMode)));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.inputMode')) {
+				const inputMode = this.configurationService.getValue<'overtype' | 'insert'>('editor.inputMode');
+				InputMode.setInputMode(inputMode);
+				this._onDidChange.fire(inputMode);
+			}
+		}));
+	}
+}
+
 const nlsSingleSelectionRange = localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
 const nlsSingleSelection = localize('singleSelection', "Ln {0}, Col {1}");
 const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections ({1} characters selected)");
@@ -317,6 +356,7 @@ const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
 class EditorStatus extends Disposable {
 
 	private readonly tabFocusModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly inputModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly columnSelectionModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly indentationElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly selectionElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -327,6 +367,7 @@ class EditorStatus extends Disposable {
 
 	private readonly currentMarkerStatus = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
 	private readonly tabFocusMode = this._register(this.instantiationService.createInstance(TabFocusMode));
+	private readonly inputMode = this._register(this.instantiationService.createInstance(StatusInputMode));
 
 	private readonly state = new State();
 	private toRender: StateChange | undefined = undefined;
@@ -359,6 +400,13 @@ class EditorStatus extends Disposable {
 				this.onTabFocusModeChange(tabFocusMode);
 			} else {
 				this.onTabFocusModeChange(this.configurationService.getValue('editor.tabFocusMode'));
+			}
+		}));
+		this._register(Event.runAndSubscribe(this.inputMode.onDidChange, (inputMode) => {
+			if (inputMode !== undefined) {
+				this.onInputModeChange(inputMode);
+			} else {
+				this.onInputModeChange(this.configurationService.getValue('editor.inputMode'));
 			}
 		}));
 	}
@@ -419,6 +467,26 @@ class EditorStatus extends Disposable {
 			}
 		} else {
 			this.tabFocusModeElement.clear();
+		}
+	}
+
+	private updateInputModeElement(inputMode: 'overtype' | 'insert' | undefined): void {
+		if (!!inputMode) {
+			if (!this.inputModeElement.value) {
+				const text = inputMode === 'overtype' ?
+					localize('inputModeOvertype', 'OVR')
+					: localize('inputModeInsert', 'INS');
+				this.inputModeElement.value = this.statusbarService.addEntry({
+					name: localize('status.editor.inputMode', "Accessibility Mode"),
+					text,
+					ariaLabel: text,
+					tooltip: localize('Toggle Input Mode', "Toggle Input Mode"),
+					command: 'editor.action.toggleOvertypeInsertMode',
+					kind: 'prominent'
+				}, 'status.editor.inputMode', StatusbarAlignment.RIGHT, 100.6);
+			}
+		} else {
+			this.inputModeElement.clear();
 		}
 	}
 
@@ -586,6 +654,7 @@ class EditorStatus extends Disposable {
 
 	private doRenderNow(): void {
 		this.updateTabFocusModeElement(!!this.state.tabFocusMode);
+		this.updateInputModeElement(this.state.inputMode);
 		this.updateColumnSelectionModeElement(!!this.state.columnSelectionMode);
 		this.updateIndentationElement(this.state.indentation);
 		this.updateSelectionElement(this.state.selectionStatus);
@@ -869,6 +938,11 @@ class EditorStatus extends Disposable {
 
 	private onTabFocusModeChange(tabFocusMode: boolean): void {
 		const info: StateDelta = { type: 'tabFocusMode', tabFocusMode };
+		this.updateState(info);
+	}
+
+	private onInputModeChange(inputMode: 'insert' | 'overtype'): void {
+		const info: StateDelta = { type: 'inputMode', inputMode };
 		this.updateState(info);
 	}
 

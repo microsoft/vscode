@@ -554,7 +554,7 @@ export class CursorsController extends Disposable {
 	public type(eventsCollector: ViewModelEventsCollector, editorConfiguration: IEditorConfiguration, text: string, source?: string | null | undefined): void { //
 		this._executeEdit(() => {
 			console.log('source : ', source);
-			const inputType = editorConfiguration.getRawOptions().inputType;
+			const inputMode = editorConfiguration.getRawOptions().inputMode;
 			if (source === 'keyboard') {
 				// If this event is coming straight from the keyboard, look for electric characters and enter
 
@@ -565,13 +565,13 @@ export class CursorsController extends Disposable {
 					const chr = text.substr(offset, charLength);
 
 					// Here we must interpret each typed character individually
-					this._executeEditOperation(TypeOperations.typeWithInterceptors(inputType, !!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr));
+					this._executeEditOperation(TypeOperations.typeWithInterceptors(inputMode, !!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr));
 
 					offset += charLength;
 				}
 
 			} else {
-				this._executeEditOperation(TypeOperations.typeWithoutInterceptors(inputType, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), text));
+				this._executeEditOperation(TypeOperations.typeWithoutInterceptors(inputMode, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), text));
 			}
 		}, eventsCollector, source);
 	}

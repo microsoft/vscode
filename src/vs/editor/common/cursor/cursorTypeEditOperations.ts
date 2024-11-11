@@ -483,14 +483,14 @@ export class InterceptorElectricCharOperation {
 
 export class SimpleCharacterTypeOperation {
 
-	public static getEdits(inputType: 'insert' | 'overtype' | undefined, prevEditOperationType: EditOperationType, selections: Selection[], ch: string): EditOperationResult { //
+	public static getEdits(inputMode: 'insert' | 'overtype' | undefined, prevEditOperationType: EditOperationType, selections: Selection[], ch: string): EditOperationResult { //
 		// A simple character type
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
-			const ChosenReplaceCommand = inputType === 'overtype' ? ReplaceOvertypeCommand : ReplaceCommand;
+			const ChosenReplaceCommand = inputMode === 'overtype' ? ReplaceOvertypeCommand : ReplaceCommand;
 			commands[i] = new ChosenReplaceCommand(selections[i], ch);
 		}
-		console.log('inputType : ', inputType);
+		console.log('inputType : ', inputMode);
 		console.log('SimpleCharacterTypeOperation.getEdits : ', commands);
 		const opType = getTypingOperation(ch, prevEditOperationType);
 		return new EditOperationResult(opType, commands, {

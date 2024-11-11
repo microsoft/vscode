@@ -38,6 +38,7 @@ import { ICommandActionTitle } from '../../../../platform/action/common/action.j
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { resolveCommandsContext } from './editorCommandsContext.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
+import { InputMode } from '../../../../editor/browser/config/inputMode.js';
 
 class ExecuteCommandAction extends Action2 {
 
@@ -2715,10 +2716,8 @@ export class ToggleOvertypeInsertMode extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		const inputType = configurationService.getValue<'insert' | 'overtype' | undefined>('editor.inputType');
-		const newInputType = inputType ? (inputType === 'insert' ? 'overtype' : 'insert') : 'insert';
-		return configurationService.updateValue('editor.inputType', newInputType);
+		const oldInputMode = InputMode.getInputMode();
+		const newInputMode = oldInputMode === 'insert' ? 'overtype' : 'insert';
+		InputMode.setInputMode(newInputMode);
 	}
 }
-

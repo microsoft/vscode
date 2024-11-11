@@ -59,7 +59,7 @@ export class ViewCursors extends ViewPart {
 		const options = this._context.configuration.options;
 		this._readOnly = options.get(EditorOption.readOnly);
 		this._cursorBlinking = options.get(EditorOption.cursorBlinking);
-		const typeMode = options.get(EditorOption.inputType);
+		const typeMode = options.get(EditorOption.inputMode);
 		this._cursorStyle = typeMode === 'overtype' ? options.get(EditorOption.overtypeCursorStyle) : options.get(EditorOption.cursorStyle);
 		this._cursorSmoothCaretAnimation = options.get(EditorOption.cursorSmoothCaretAnimation);
 		this._experimentalEditContextEnabled = options.get(EditorOption.experimentalEditContextEnabled);
@@ -115,7 +115,7 @@ export class ViewCursors extends ViewPart {
 
 		this._readOnly = options.get(EditorOption.readOnly);
 		this._cursorBlinking = options.get(EditorOption.cursorBlinking);
-		const typeMode = options.get(EditorOption.inputType);
+		const typeMode = options.get(EditorOption.inputMode);
 		this._cursorStyle = typeMode === 'overtype' ? options.get(EditorOption.overtypeCursorStyle) : options.get(EditorOption.cursorStyle);
 		this._cursorSmoothCaretAnimation = options.get(EditorOption.cursorSmoothCaretAnimation);
 		this._experimentalEditContextEnabled = options.get(EditorOption.experimentalEditContextEnabled);

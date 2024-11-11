@@ -239,7 +239,7 @@ export enum EditorOption {
 	hover = 63,
 	inDiffEditor = 64,
 	inlineSuggest = 65,
-	inputType = 66,
+	inputMode = 66,
 	letterSpacing = 67,
 	lightbulb = 68,
 	lineDecorationsWidth = 69,

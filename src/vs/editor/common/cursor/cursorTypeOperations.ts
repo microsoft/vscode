@@ -162,7 +162,7 @@ export class TypeOperations {
 		return null;
 	}
 
-	public static typeWithInterceptors(inputType: 'insert' | 'overtype' | undefined, isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult { //
+	public static typeWithInterceptors(inputMode: 'insert' | 'overtype' | undefined, isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult { //
 
 		const enterEdits = EnterOperation.getEdits(config, model, selections, ch, isDoingComposition);
 		if (enterEdits !== undefined) {
@@ -194,11 +194,11 @@ export class TypeOperations {
 			return interceptorElectricCharOperation;
 		}
 
-		return SimpleCharacterTypeOperation.getEdits(inputType, prevEditOperationType, selections, ch);
+		return SimpleCharacterTypeOperation.getEdits(inputMode, prevEditOperationType, selections, ch);
 	}
 
-	public static typeWithoutInterceptors(inputType: 'insert' | 'overtype' | undefined, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], str: string): EditOperationResult { //
-		return TypeWithoutInterceptorsOperation.getEdits(inputType, prevEditOperationType, selections, str);
+	public static typeWithoutInterceptors(inputMode: 'insert' | 'overtype' | undefined, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], str: string): EditOperationResult { //
+		return TypeWithoutInterceptorsOperation.getEdits(inputMode, prevEditOperationType, selections, str);
 	}
 }
 

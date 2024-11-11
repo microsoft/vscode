@@ -3816,9 +3816,9 @@ declare namespace monaco.editor {
 		 */
 		inlineCompletionsAccessibilityVerbose?: boolean;
 		/**
-		 * Controls the input type mode, whether it is insert or overtype
+		 * Controls the input mode, whether it is insert or overtype
 		 */
-		inputType?: 'insert' | 'overtype';
+		inputMode?: 'insert' | 'overtype';
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -4950,7 +4950,7 @@ declare namespace monaco.editor {
 		hover = 63,
 		inDiffEditor = 64,
 		inlineSuggest = 65,
-		inputType = 66,
+		inputMode = 66,
 		letterSpacing = 67,
 		lightbulb = 68,
 		lineDecorationsWidth = 69,
@@ -5110,7 +5110,7 @@ declare namespace monaco.editor {
 		hideCursorInOverviewRuler: IEditorOption<EditorOption.hideCursorInOverviewRuler, boolean>;
 		hover: IEditorOption<EditorOption.hover, Readonly<Required<IEditorHoverOptions>>>;
 		inDiffEditor: IEditorOption<EditorOption.inDiffEditor, boolean>;
-		inputType: IEditorOption<EditorOption.inputType, 'insert' | 'overtype'>;
+		inputMode: IEditorOption<EditorOption.inputMode, 'insert' | 'overtype'>;
 		letterSpacing: IEditorOption<EditorOption.letterSpacing, number>;
 		lightbulb: IEditorOption<EditorOption.lightbulb, Readonly<Required<IEditorLightbulbOptions>>>;
 		lineDecorationsWidth: IEditorOption<EditorOption.lineDecorationsWidth, number>;
