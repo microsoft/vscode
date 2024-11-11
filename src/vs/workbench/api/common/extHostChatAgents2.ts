@@ -31,6 +31,7 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { isChatViewTitleActionContext } from '../../contrib/chat/common/chatActions.js';
+import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 
 class ChatAgentResponseStream {
 
@@ -305,6 +306,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private static _participantDetectionProviderIdPool = 0;
 	private readonly _participantDetectionProviders = new Map<number, ExtHostParticipantDetector>();
 
+	private static _relatedFilesProviderIdPool = 0;
+	private readonly _relatedFilesProviders = new Map<number, ExtHostRelatedFilesProvider>();
+
 	private readonly _sessionDisposables: DisposableMap<string, DisposableStore> = this._register(new DisposableMap());
 	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
 
@@ -360,6 +364,26 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			this._participantDetectionProviders.delete(handle);
 			this._proxy.$unregisterChatParticipantDetectionProvider(handle);
 		});
+	}
+
+	registerRelatedFilesProvider(extension: IExtensionDescription, provider: vscode.ChatRelatedFilesProvider): vscode.Disposable {
+		const handle = ExtHostChatAgents2._relatedFilesProviderIdPool++;
+		this._relatedFilesProviders.set(handle, new ExtHostRelatedFilesProvider(extension, provider));
+		this._proxy.$registerRelatedFilesProvider(handle);
+		return toDisposable(() => {
+			this._relatedFilesProviders.delete(handle);
+			this._proxy.$unregisterRelatedFilesProvider(handle);
+		});
+	}
+
+	async $provideRelatedFiles(handle: number, request: IChatRequestDraft, token: CancellationToken): Promise<URI[] | undefined> {
+		const provider = this._relatedFilesProviders.get(handle);
+		if (!provider) {
+			return Promise.resolve([]);
+		}
+
+		const extRequestDraft = typeConvert.ChatRequestDraft.to(request);
+		return await provider.provider.provideRelatedFiles(extRequestDraft, token) ?? undefined;
 	}
 
 	async $detectChatParticipant(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { location: ChatAgentLocation; participants?: vscode.ChatParticipantMetadata[] }, token: CancellationToken): Promise<vscode.ChatParticipantDetectionResult | null | undefined> {
@@ -636,6 +660,13 @@ class ExtHostParticipantDetector {
 	constructor(
 		public readonly extension: IExtensionDescription,
 		public readonly provider: vscode.ChatParticipantDetectionProvider,
+	) { }
+}
+
+class ExtHostRelatedFilesProvider {
+	constructor(
+		public readonly extension: IExtensionDescription,
+		public readonly provider: vscode.ChatRelatedFilesProvider,
 	) { }
 }
 

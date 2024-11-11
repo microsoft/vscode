@@ -15,7 +15,7 @@ import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlCon
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableMap, DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -541,9 +541,6 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	}
 
 	private clearResults() {
-		for (const widget of this.errorContentWidgets.values()) {
-			this.editor.removeContentWidget(widget);
-		}
 		this.errorContentWidgets.clearAndDisposeAll();
 	}
 
@@ -559,9 +556,8 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			this.applyContentWidgetsFromResult(this.results.results[0], uriStr, seen, seenLines);
 		}
 
-		for (const [message, widget] of this.errorContentWidgets) {
+		for (const message of this.errorContentWidgets.keys()) {
 			if (!seen.has(message)) {
-				this.editor.removeContentWidget(widget);
 				this.errorContentWidgets.deleteAndDispose(message);
 			}
 		}
@@ -606,7 +602,6 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 								testExtId: test.item.extId,
 							})
 						);
-						this.editor.addContentWidget(deco);
 						this.errorContentWidgets.set(m, deco);
 					}
 					seen.add(m);
@@ -1344,9 +1339,11 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 	public readonly allowEditorOverflow = false;
 
 	private readonly node = dom.h('div.test-error-content-widget', [
-		dom.h('div.arrow@arrow'),
-		dom.h(`span${ThemeIcon.asCSSSelector(testingStatesToIcons.get(TestResultState.Failed)!)}`),
-		dom.h('span.content@name'),
+		dom.h('div.inner@inner', [
+			dom.h('div.arrow@arrow'),
+			dom.h(`span${ThemeIcon.asCSSSelector(testingStatesToIcons.get(TestResultState.Failed)!)}`),
+			dom.h('span.content@name'),
+		]),
 	]);
 
 	public get line() {
@@ -1389,16 +1386,19 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 		this.node.name.innerText = text || 'Test Failed';
 
 		const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-		svg.setAttribute('width', '10');
+		svg.setAttribute('width', '15');
 		svg.setAttribute('height', '10');
 		svg.setAttribute('preserveAspectRatio', 'none');
-		svg.setAttribute('viewBox', '0 0 10 10');
+		svg.setAttribute('viewBox', '0 0 15 10');
 
 		const leftArrow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-		leftArrow.setAttribute('d', 'M10 0 L0 5 L10 10 Z');
+		leftArrow.setAttribute('d', 'M15 0 L10 0 L0 5 L10 10 L15 10 Z');
 		svg.append(leftArrow);
 
 		this.node.arrow.appendChild(svg);
+
+		editor.addContentWidget(this);
+		this._register(toDisposable(() => editor.removeContentWidget(this)));
 	}
 
 	public getId(): string {
@@ -1418,8 +1418,9 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 
 	afterRender(_position: ContentWidgetPositionPreference | null, coordinate: IContentWidgetRenderedCoordinate | null): void {
 		if (coordinate) {
-			const { contentWidth, verticalScrollbarWidth } = this.editor.getLayoutInfo();
-			this.node.root.style.maxWidth = `${contentWidth - verticalScrollbarWidth - coordinate.left - 20}px`;
+			const { verticalScrollbarWidth } = this.editor.getLayoutInfo();
+			const scrollWidth = this.editor.getScrollWidth();
+			this.node.inner.style.maxWidth = `${scrollWidth - verticalScrollbarWidth - coordinate.left - 20}px`;
 		}
 	}
 }

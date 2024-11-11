@@ -59,8 +59,6 @@ import { ReplInputHintContentWidget } from '../../interactive/browser/replInputH
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { localize } from '../../../../nls.js';
-import { NotebookViewModel } from '../../notebook/browser/viewModel/notebookViewModelImpl.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
 
@@ -131,8 +129,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
-		@IExtensionService extensionService: IExtensionService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IExtensionService extensionService: IExtensionService
 	) {
 		super(
 			REPL_EDITOR_ID,
@@ -543,26 +540,10 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 			if (addedCells.length) {
 				const viewModel = notebookWidget.viewModel;
 				if (viewModel) {
-					this.handleAppend(notebookWidget, viewModel);
+					this._notebookWidgetService.updateReplContextKey(viewModel.notebookDocument.uri.toString());
 					break;
 				}
 			}
-		}
-	}
-
-	private handleAppend(notebookWidget: NotebookEditorWidget, viewModel: NotebookViewModel) {
-		this._notebookWidgetService.updateReplContextKey(viewModel.notebookDocument.uri.toString());
-		const navigateToCell = this._configurationService.getValue(ReplEditorSettings.autoFocusAppendedCell);
-		if ((this._accessibilityService.isScreenReaderOptimized() && navigateToCell !== 'never')
-			|| navigateToCell === 'always') {
-
-			setTimeout(() => {
-				const lastCellIndex = viewModel.length - 1;
-				if (lastCellIndex >= 0) {
-					const cell = viewModel.viewCells[lastCellIndex];
-					notebookWidget.focusNotebookCell(cell, 'container');
-				}
-			}, 0);
 		}
 	}
 

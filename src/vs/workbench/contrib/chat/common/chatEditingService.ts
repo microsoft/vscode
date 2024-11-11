@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -40,6 +41,17 @@ export interface IChatEditingService {
 	createSnapshot(requestId: string): void;
 	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
 	restoreSnapshot(requestId: string | undefined): Promise<void>;
+
+	registerRelatedFilesProvider(handle: number, provider: IChatRelatedFilesProvider): IDisposable;
+}
+
+export interface IChatRequestDraft {
+	readonly prompt: string;
+	readonly files: readonly URI[];
+}
+
+export interface IChatRelatedFilesProvider {
+	provideRelatedFiles(chatRequest: IChatRequestDraft, token: CancellationToken): Promise<URI[] | undefined>;
 }
 
 export interface IChatEditingSession {

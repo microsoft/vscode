@@ -18,10 +18,10 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ITerminalCommand, TerminalCapability, type ICommandDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IStatusbarService, StatusbarAlignment, type IStatusbarEntry, type IStatusbarEntryAccessor } from '../../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarService, StatusbarAlignment, type IStatusbarEntry } from '../../../../services/statusbar/browser/statusbar.js';
 import { IInternalXtermTerminal, ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
@@ -214,6 +214,12 @@ registerTerminalAction({
 	}
 });
 
+const enum DevModeContributionState {
+	Off,
+	WaitingForCapability,
+	On,
+}
+
 class DevModeContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.devMode';
 	static get(instance: ITerminalInstance): DevModeContribution | null {
@@ -224,13 +230,11 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 	private readonly _activeDevModeDisposables = new MutableDisposable();
 	private _currentColor = 0;
 
-	private _statusbarEntry: IStatusbarEntry | undefined;
-	private readonly _statusbarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor> = this._register(new MutableDisposable());
+	private _state: DevModeContributionState = DevModeContributionState.Off;
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 	) {
 		super();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -252,6 +256,10 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 		const commandDetection = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection);
 		if (devMode) {
 			if (commandDetection) {
+				if (this._state === DevModeContributionState.On) {
+					return;
+				}
+				this._state = DevModeContributionState.On;
 				const commandDecorations = new DisposableMap<ITerminalCommand, IDisposable>();
 				const otherDisposables = new DisposableStore();
 				this._activeDevModeDisposables.value = combinedDisposable(
@@ -328,9 +336,11 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 						}
 					})
 				);
-
-				this._updatePromptInputStatusBar(commandDetection);
 			} else {
+				if (this._state === DevModeContributionState.WaitingForCapability) {
+					return;
+				}
+				this._state = DevModeContributionState.WaitingForCapability;
 				this._activeDevModeDisposables.value = this._ctx.instance.capabilities.onDidAddCapabilityType(e => {
 					if (e === TerminalCapability.CommandDetection) {
 						this._updateDevMode();
@@ -338,33 +348,16 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 				});
 			}
 		} else {
+			if (this._state === DevModeContributionState.Off) {
+				return;
+			}
+			this._state = DevModeContributionState.Off;
 			this._activeDevModeDisposables.clear();
 		}
 	}
 
 	private _isEnabled(): boolean {
 		return this._configurationService.getValue(TerminalSettingId.DevMode) || false;
-	}
-
-	private _updatePromptInputStatusBar(commandDetection: ICommandDetectionCapability) {
-		const promptInputModel = commandDetection.promptInputModel;
-		if (promptInputModel) {
-			const name = localize('terminalDevMode', 'Terminal Dev Mode');
-			const isExecuting = promptInputModel.cursorIndex === -1;
-			this._statusbarEntry = {
-				name,
-				text: `$(${isExecuting ? 'loading~spin' : 'terminal'}) ${promptInputModel.getCombinedString()}`,
-				ariaLabel: name,
-				tooltip: 'The detected terminal prompt input',
-				kind: 'prominent'
-			};
-			if (!this._statusbarEntryAccessor.value) {
-				this._statusbarEntryAccessor.value = this._statusbarService.addEntry(this._statusbarEntry, `terminal.promptInput.${this._ctx.instance.instanceId}`, StatusbarAlignment.LEFT);
-			} else {
-				this._statusbarEntryAccessor.value.update(this._statusbarEntry);
-			}
-			this._statusbarService.updateEntryVisibility(`terminal.promptInput.${this._ctx.instance.instanceId}`, this._ctx.instance.hasFocus);
-		}
 	}
 }
 

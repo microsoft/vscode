@@ -57,6 +57,7 @@ import * as types from './extHostTypes.js';
 import { IChatResponseTextPart, IChatResponsePromptTsxPart } from '../../contrib/chat/common/languageModels.js';
 import { LanguageModelTextPart, LanguageModelPromptTsxPart } from './extHostTypes.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
+import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 
 export namespace Command {
 
@@ -2793,6 +2794,15 @@ export namespace ChatAgentRequest {
 			location2,
 			toolInvocationToken: Object.freeze({ sessionId: request.sessionId }) as never,
 			model
+		};
+	}
+}
+
+export namespace ChatRequestDraft {
+	export function to(request: IChatRequestDraft): vscode.ChatRequestDraft {
+		return {
+			prompt: request.prompt,
+			files: request.files.map((uri) => URI.revive(uri))
 		};
 	}
 }

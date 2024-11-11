@@ -576,11 +576,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	private get refreshScheduler(): RunOnceScheduler {
 		const autoExpanded = new Set<string>();
 		return new RunOnceScheduler(async () => {
-			if (!this.tree) {
-				return;
-			}
-
-			if (!this.tree.getInput()) {
+			if (!this.tree || !this.tree.getInput() || !this.isVisible()) {
 				return;
 			}
 
