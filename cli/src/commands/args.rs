@@ -272,6 +272,8 @@ pub enum ExtensionSubcommand {
 	Uninstall(UninstallExtensionArgs),
 	/// Update the installed extensions.
 	Update,
+	/// Download an extension.
+	Download(DownloadExtensionArgs),
 }
 
 impl ExtensionSubcommand {
@@ -304,6 +306,14 @@ impl ExtensionSubcommand {
 			}
 			ExtensionSubcommand::Update => {
 				target.push("--update-extensions".to_string());
+			}
+			ExtensionSubcommand::Download(args) => {
+				for id in args.id_or_path.iter() {
+					target.push(format!("--download-extension={id}"));
+				}
+				if args.location {
+					target.push("--location".to_string());
+				}
 			}
 		}
 	}
@@ -345,6 +355,21 @@ pub struct UninstallExtensionArgs {
 	/// to latest version.
 	#[clap(name = "ext-id")]
 	pub id: Vec<String>,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct DownloadExtensionArgs {
+	/// Id of the extension to download. The identifier of an
+	/// extension is '${publisher}.${name}'. Should provide '--location' to specify the location to download the VSIX.
+	/// To download a specific version provide '@${version}'.
+	/// For example: 'vscode.csharp@1.2.3'.
+	#[clap(name = "ext-id")]
+	pub id_or_path: Vec<String>,
+
+	/// Specify the location to download the VSIX.
+	#[clap(long, value_name = "path")]
+	pub location: String,
+
 }
 
 #[derive(Args, Debug, Clone)]

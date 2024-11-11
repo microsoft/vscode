@@ -64,6 +64,7 @@ pub fn try_parse_legacy(
 	// Now translate them to subcommands.
 	// --list-extensions        -> ext list
 	// --update-extensions      -> update
+	// --download-extension      -> ext download <id>
 	// --install-extension=id   -> ext install <id>
 	// --uninstall-extension=id -> ext uninstall <id>
 	// --status                 -> status
@@ -74,6 +75,17 @@ pub fn try_parse_legacy(
 				subcommand: ExtensionSubcommand::List(ListExtensionArgs {
 					category: get_first_arg_value("category"),
 					show_versions: args.contains_key("show-versions"),
+				}),
+				desktop_code_options,
+			})),
+			..Default::default()
+		})
+	} else if let Some(exts) = args.remove("download-extension") {
+		Some(CliCore {
+			subcommand: Some(Commands::Extension(ExtensionArgs {
+				subcommand: ExtensionSubcommand::Download(DownloadExtensionArgs {
+					id: exts,
+					location: get_first_arg_value("location"),
 				}),
 				desktop_code_options,
 			})),
