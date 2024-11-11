@@ -215,7 +215,7 @@ export class DiffEditorViewZones extends Disposable {
 								InlineDecorationType.Regular
 							));
 						}
-						const result = renderLines(source, renderOptions, decorations, deletedCodeDomNode);
+						const result = renderLines(this._editors.modified._getViewModel()?.cursorConfig, source, renderOptions, decorations, deletedCodeDomNode);
 
 						const marginDomNode = document.createElement('div');
 						marginDomNode.className = 'inline-deleted-margin-view-zone';

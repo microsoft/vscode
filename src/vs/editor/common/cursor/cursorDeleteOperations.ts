@@ -29,7 +29,7 @@ export class DeleteOperations {
 				const position = selection.getPosition();
 				// Pass `false` as `virtualSpace` so we move to the next line
 				// if the current position is at the end of the line or beyond
-				const rightOfPosition = MoveOperations.right(config, model, position, false);
+				const rightOfPosition = MoveOperations.right(config, model, position);
 				deleteSelection = new Range(
 					rightOfPosition.lineNumber,
 					rightOfPosition.column,

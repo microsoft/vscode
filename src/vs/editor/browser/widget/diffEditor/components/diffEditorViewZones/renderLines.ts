@@ -14,10 +14,11 @@ import { IViewLineTokens, LineTokens } from '../../../../../common/tokens/lineTo
 import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';
 import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
 import { InlineDecoration, ViewLineRenderingData } from '../../../../../common/viewModel.js';
+import { CursorConfiguration } from '../../../../../common/cursorCommon.js';
 
 const ttPolicy = createTrustedTypesPolicy('diffEditorWidget', { createHTML: value => value });
 
-export function renderLines(source: LineSource, options: RenderOptions, decorations: InlineDecoration[], domNode: HTMLElement): RenderLinesResult {
+export function renderLines(config: CursorConfiguration | undefined, source: LineSource, options: RenderOptions, decorations: InlineDecoration[], domNode: HTMLElement): RenderLinesResult {
 	applyFontInfo(domNode, options.fontInfo);
 
 	const hasCharChanges = (decorations.length > 0);
@@ -37,6 +38,7 @@ export function renderLines(source: LineSource, options: RenderOptions, decorati
 			for (const breakOffset of lineBreakData.breakOffsets) {
 				const viewLineTokens = lineTokens.sliceAndInflate(lastBreakOffset, breakOffset, 0);
 				maxCharsPerLine = Math.max(maxCharsPerLine, renderOriginalLine(
+					config,
 					renderedLineCount,
 					viewLineTokens,
 					LineDecoration.extractWrapped(actualDecorations, lastBreakOffset, breakOffset),
@@ -53,6 +55,7 @@ export function renderLines(source: LineSource, options: RenderOptions, decorati
 		} else {
 			viewLineCounts.push(1);
 			maxCharsPerLine = Math.max(maxCharsPerLine, renderOriginalLine(
+				config,
 				renderedLineCount,
 				lineTokens,
 				actualDecorations,
@@ -135,6 +138,7 @@ export interface RenderLinesResult {
 }
 
 function renderOriginalLine(
+	cursorConfig: CursorConfiguration | undefined,
 	viewLineIdx: number,
 	lineTokens: IViewLineTokens,
 	decorations: LineDecoration[],
@@ -181,5 +185,5 @@ function renderOriginalLine(
 
 	sb.appendString('</div>');
 
-	return output.characterMapping.getHorizontalOffset(output.characterMapping.length);
+	return output.characterMapping.getHorizontalOffset(cursorConfig, output.characterMapping.length);
 }

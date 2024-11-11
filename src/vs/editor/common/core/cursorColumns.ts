@@ -42,7 +42,7 @@ export class CursorColumns {
 		// console.log('visibleColumnFromColumn');
 		const textLen = Math.min(column - 1, lineContent.length);
 		// console.log('textLen:', textLen);
-		const extra = column - 1 - textLen;
+		const extra = 0; // column - 1 - textLen;
 		// console.log('extra:', extra);
 		const text = lineContent.substring(0, textLen);
 		// console.log('text:', text);
@@ -79,9 +79,9 @@ export class CursorColumns {
 			}
 		}
 
-		const extra = Math.max(0, column - 1 - lineContent.length);
+		const extra = Math.max(1, column - lineContent.length);
 		// console.log('extra:', extra);
-		return result + 1 + extra;
+		return result + extra;
 	}
 
 	/**
@@ -120,7 +120,7 @@ export class CursorColumns {
 		}
 
 		// walked the entire string
-		const extra = visibleColumn - beforeVisibleColumn;
+		const extra = 0; // visibleColumn - beforeVisibleColumn;
 		// console.log('columnFromVisibleColumn');
 		// console.log('extra:', extra);
 		return lineContentLength + 1 + extra;

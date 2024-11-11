@@ -488,7 +488,7 @@ export class LiveStrategy extends EditModeStrategy {
 						);
 						const domNode = document.createElement('div');
 						domNode.className = 'inline-chat-original-zone2';
-						const result = renderLines(source, renderOptions, [new InlineDecoration(new Range(originalRange.startLineNumber, 1, originalRange.startLineNumber, 1), '', InlineDecorationType.Regular)], domNode);
+						const result = renderLines(this._editor._getViewModel()?.cursorConfig, source, renderOptions, [new InlineDecoration(new Range(originalRange.startLineNumber, 1, originalRange.startLineNumber, 1), '', InlineDecorationType.Regular)], domNode);
 						const viewZoneData: IViewZone = {
 							afterLineNumber: -1,
 							heightInLines: result.heightInLines,

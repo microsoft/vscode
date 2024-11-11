@@ -11,6 +11,7 @@ import { StringBuilder } from '../core/stringBuilder.js';
 import { LineDecoration, LineDecorationsNormalizer } from './lineDecorations.js';
 import { InlineDecorationType } from '../viewModel.js';
 import { LinePart, LinePartMetadata } from './linePart.js';
+import { CursorConfiguration } from '../cursorCommon.js';
 
 export const enum RenderWhitespace {
 	None = 0,
@@ -223,27 +224,20 @@ export class CharacterMapping {
 		this._horizontalOffset[column - 1] = horizontalOffset;
 	}
 
-	public getHorizontalOffset(column: number): number {
+	// check if virtual space is used
+	public getHorizontalOffset(config: CursorConfiguration | undefined, column: number): number {
 		// console.log('getHorizontalOffset');
+		const virtualSpace = config?.virtualSpace;
 		const lineLength = this._horizontalOffset.length;
 		// console.log('lineLength : ', lineLength);
 		if (lineLength === 0) {
 			// No characters on this line
-			const extra = column - 1;
-			// console.log('extra : ', extra);
-			return extra;
+			return virtualSpace ? 0 : column - 1;
 		}
-		if (column > lineLength) {
-			const extra = column - lineLength;
-			// console.log('extra : ', extra);
-			const result = this._horizontalOffset[lineLength - 1] + extra;
-			// console.log('result : ', result);
-			return result;
-		} else {
-			const result = this._horizontalOffset[column - 1];
-			// console.log('result : ', result);
-			return result;
+		if (virtualSpace && column > lineLength) {
+			return this._horizontalOffset[lineLength - 1] + column - lineLength;
 		}
+		return this._horizontalOffset[column - 1];
 	}
 
 	private charOffsetToPartData(charOffset: number): number {

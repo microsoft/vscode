@@ -87,7 +87,8 @@ export class OriginalEditorInlineDiffView extends Disposable {
 				deletedCodeDomNode.classList.add('view-lines', 'line-insert', 'monaco-mouse-cursor-text');
 				// .inline-deleted-margin-view-zone
 
-				const result = renderLines(source, renderOptions, decorations, deletedCodeDomNode);
+				const config = this._originalEditor._getViewModel()?.cursorConfig;
+				const result = renderLines(config, source, renderOptions, decorations, deletedCodeDomNode);
 
 				origViewZones.push({
 					afterLineNumber: diff.original.endLineNumberExclusive - 1,

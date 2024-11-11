@@ -26,10 +26,10 @@ export class CursorPosition {
 }
 
 export class MoveOperations {
-	public static leftPosition(model: ICursorSimpleModel, position: Position, virtualSpace: boolean): Position {
+	public static leftPosition(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): Position {
 		if (position.column > model.getLineMinColumn(position.lineNumber)) {
 			return position.delta(undefined, -strings.prevCharLength(model.getLineContent(position.lineNumber), position.column - 1));
-		} else if (!virtualSpace && position.lineNumber > 1) {
+		} else if (!config.virtualSpace && position.lineNumber > 1) {
 			const newLineNumber = position.lineNumber - 1;
 			return new Position(newLineNumber, model.getLineMaxColumn(newLineNumber));
 		} else {
@@ -37,7 +37,7 @@ export class MoveOperations {
 		}
 	}
 
-	private static leftPositionAtomicSoftTabs(model: ICursorSimpleModel, position: Position, tabSize: number, virtualSpace: boolean): Position {
+	private static leftPositionAtomicSoftTabs(config: CursorConfiguration, model: ICursorSimpleModel, position: Position, tabSize: number): Position {
 		if (position.column <= model.getLineIndentColumn(position.lineNumber)) {
 			const minColumn = model.getLineMinColumn(position.lineNumber);
 			const lineContent = model.getLineContent(position.lineNumber);
@@ -46,16 +46,13 @@ export class MoveOperations {
 				return new Position(position.lineNumber, newPosition + 1);
 			}
 		}
-		return this.leftPosition(model, position, virtualSpace);
+		return this.leftPosition(config, model, position);
 	}
 
-	private static left(config: CursorConfiguration, model: ICursorSimpleModel, position: Position, virtualSpace: boolean | null = null): CursorPosition {
-		// if (virtualSpace === null) {
-		// 	virtualSpace = config.virtualSpace;
-		// }
+	private static left(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): CursorPosition {
 		const pos = config.stickyTabStops
-			? MoveOperations.leftPositionAtomicSoftTabs(model, position, config.tabSize, config.virtualSpace)
-			: MoveOperations.leftPosition(model, position, config.virtualSpace);
+			? MoveOperations.leftPositionAtomicSoftTabs(config, model, position, config.tabSize)
+			: MoveOperations.leftPosition(config, model, position);
 		return new CursorPosition(pos.lineNumber, pos.column, null);
 	}
 
@@ -78,7 +75,7 @@ export class MoveOperations {
 			const pos = cursor.position.delta(undefined, -(noOfColumns - 1));
 			// We clip the position before normalization, as normalization is not defined
 			// for possibly negative columns.
-			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model, config.virtualSpace), PositionAffinity.Left);
+			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(config, pos, model), PositionAffinity.Left);
 			const p = MoveOperations.left(config, model, normalizedPos);
 
 			lineNumber = p.lineNumber;
@@ -91,35 +88,33 @@ export class MoveOperations {
 	/**
 	 * Adjusts the column so that it is within min/max of the line.
 	*/
-	private static clipPositionColumn(position: Position, model: ICursorSimpleModel, virtualSpace: boolean): Position {
+	private static clipPositionColumn(config: CursorConfiguration, position: Position, model: ICursorSimpleModel): Position {
 		return new Position(
 			position.lineNumber,
-			MoveOperations.clipRange(
-				position.column,
-				model.getLineMinColumn(position.lineNumber),
-				(virtualSpace ? null : model.getLineMaxColumn(position.lineNumber))
+			MoveOperations.clipRange(position.column, model.getLineMinColumn(position.lineNumber),
+				(config.virtualSpace ? Infinity : model.getLineMaxColumn(position.lineNumber))
 			)
 		);
 	}
 
-	private static clipRange(value: number, min: number, max: number | null): number {
+	private static clipRange(value: number, min: number, max: number): number {
 		if (value < min) {
 			return min;
 		}
-		if (max !== null && value > max) {
+		if (value > max) {
 			return max;
 		}
 		return value;
 	}
 
-	public static rightPosition(model: ICursorSimpleModel, lineNumber: number, column: number, virtualSpace: boolean): Position {
+	public static rightPosition(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number): Position {
 		// console.log('rightPosition');
 		// console.log('lineNumber:', lineNumber);
 		// console.log('column:', column);
 		if (column < model.getLineMaxColumn(lineNumber)) {
 			column = column + strings.nextCharLength(model.getLineContent(lineNumber), column - 1);
 		} else {
-			if (virtualSpace) {
+			if (config.virtualSpace) {
 				column = column + 1;
 			} else if (lineNumber < model.getLineCount()) {
 				lineNumber = lineNumber + 1;
@@ -130,7 +125,7 @@ export class MoveOperations {
 		return new Position(lineNumber, column);
 	}
 
-	public static rightPositionAtomicSoftTabs(model: ICursorSimpleModel, lineNumber: number, column: number, tabSize: number, indentSize: number, virtualSpace: boolean): Position {
+	public static rightPositionAtomicSoftTabs(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, tabSize: number, indentSize: number): Position {
 		if (column < model.getLineIndentColumn(lineNumber)) {
 			const lineContent = model.getLineContent(lineNumber);
 			const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, column - 1, tabSize, Direction.Right);
@@ -138,17 +133,13 @@ export class MoveOperations {
 				return new Position(lineNumber, newPosition + 1);
 			}
 		}
-		return this.rightPosition(model, lineNumber, column, virtualSpace);
+		return this.rightPosition(config, model, lineNumber, column);
 	}
 
-	public static right(config: CursorConfiguration, model: ICursorSimpleModel, position: Position, virtualSpace: boolean | null = null): CursorPosition {
-		// if (virtualSpace === null) {
-		// 	virtualSpace = config.virtualSpace;
-		// }
-		const definedVirtualSpace = virtualSpace ?? config.virtualSpace;
+	public static right(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): CursorPosition {
 		const pos = config.stickyTabStops
-			? MoveOperations.rightPositionAtomicSoftTabs(model, position.lineNumber, position.column, config.tabSize, config.indentSize, definedVirtualSpace)
-			: MoveOperations.rightPosition(model, position.lineNumber, position.column, definedVirtualSpace);
+			? MoveOperations.rightPositionAtomicSoftTabs(config, model, position.lineNumber, position.column, config.tabSize, config.indentSize)
+			: MoveOperations.rightPosition(config, model, position.lineNumber, position.column);
 		return new CursorPosition(pos.lineNumber, pos.column, null);
 	}
 
@@ -162,7 +153,7 @@ export class MoveOperations {
 			column = cursor.selection.endColumn;
 		} else {
 			const pos = cursor.position.delta(undefined, noOfColumns - 1);
-			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model, config.virtualSpace), PositionAffinity.Right);
+			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(config, pos, model), PositionAffinity.Right);
 			const r = MoveOperations.right(config, model, normalizedPos);
 			lineNumber = r.lineNumber;
 			column = r.column;
@@ -171,6 +162,7 @@ export class MoveOperations {
 		return cursor.move(inSelectionMode, lineNumber, column, null);
 	}
 
+	// TODO undo all this and find how to properly change this instead
 	public static vertical(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, columnHint: number | null, newLineNumber: number, allowMoveOnEdgeLine: boolean, normalizationAffinity?: PositionAffinity): CursorPosition {
 		// console.log('vertical');
 		// console.log('lineNumber:', lineNumber);
@@ -178,13 +170,6 @@ export class MoveOperations {
 		// console.log('columnHint:', columnHint);
 		// console.log('newLineNumber:', newLineNumber);
 		// console.log('allowMoveOnEdgeLine:', allowMoveOnEdgeLine);
-
-		// let currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
-		// if (columnHint !== null) {
-		// 	currentVisibleColumn = columnHint;
-		// } else {
-		// 	columnHint = currentVisibleColumn;
-		// }
 
 		const currentVisibleColumn = columnHint ?? CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize);
 		let definedColumnHint: number | null = columnHint ?? currentVisibleColumn;

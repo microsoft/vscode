@@ -361,7 +361,7 @@ class FastRenderedViewLine implements IRenderedViewLine {
 
 	public getWidth(context: DomReadingContext | null): number {
 		if (!this.domNode || this.input.lineContent.length < Constants.MaxMonospaceDistance) {
-			const horizontalOffset = this._characterMapping.getHorizontalOffset(this._characterMapping.length);
+			const horizontalOffset = this._characterMapping.getHorizontalOffset(this._context.viewModel.cursorConfig, this._characterMapping.length);
 			return Math.round(this._charWidth * horizontalOffset);
 		}
 		if (this._cachedWidth === -1) {
@@ -402,8 +402,9 @@ class FastRenderedViewLine implements IRenderedViewLine {
 	}
 
 	private _getColumnPixelOffset(lineNumber: number, column: number, context: DomReadingContext): number {
+		const cursorConfig = this._context.viewModel.cursorConfig;
 		if (column <= Constants.MaxMonospaceDistance) {
-			const horizontalOffset = this._characterMapping.getHorizontalOffset(column);
+			const horizontalOffset = this._characterMapping.getHorizontalOffset(cursorConfig, column);
 			return this._charWidth * horizontalOffset;
 		}
 
@@ -420,12 +421,12 @@ class FastRenderedViewLine implements IRenderedViewLine {
 
 		if (keyColumnPixelOffset === -1) {
 			// Could not read actual key column pixel offset
-			const horizontalOffset = this._characterMapping.getHorizontalOffset(column);
+			const horizontalOffset = this._characterMapping.getHorizontalOffset(cursorConfig, column);
 			return this._charWidth * horizontalOffset;
 		}
 
-		const keyColumnHorizontalOffset = this._characterMapping.getHorizontalOffset(keyColumn);
-		const horizontalOffset = this._characterMapping.getHorizontalOffset(column);
+		const keyColumnHorizontalOffset = this._characterMapping.getHorizontalOffset(cursorConfig, keyColumn);
+		const horizontalOffset = this._characterMapping.getHorizontalOffset(cursorConfig, column);
 		return keyColumnPixelOffset + this._charWidth * (horizontalOffset - keyColumnHorizontalOffset);
 	}
 
@@ -584,10 +585,11 @@ class RenderedViewLine implements IRenderedViewLine {
 		// console.log('column : ', column);
 		// console.log('this._characterMapping.length : ', this._characterMapping.length);
 		if (virtualSpace && column > this._characterMapping.length) {
-			const last = this._readPixelOffset(domNode, lineNumber, this._characterMapping.length, context);
+			const maxFullLineColumns = this._characterMapping.length;
+			const last = this._readPixelOffset(domNode, lineNumber, maxFullLineColumns, context);
 			// console.log('last : ', last);
 			// console.log('last + spaceWidth * (column - this._characterMapping.length) : ', last + spaceWidth * (column - this._characterMapping.length));
-			return last + spaceWidth * (column - this._characterMapping.length);
+			return last + spaceWidth * (column - maxFullLineColumns);
 		} else {
 			if (this._pixelOffsetCache !== null) {
 				// the text is LTR
@@ -630,7 +632,7 @@ class RenderedViewLine implements IRenderedViewLine {
 		}
 		const result = r[0].left;
 		if (this.input.isBasicASCII) {
-			const horizontalOffset = this._characterMapping.getHorizontalOffset(column);
+			const horizontalOffset = this._characterMapping.getHorizontalOffset(this._context.viewModel.cursorConfig, column);
 			const expectedResult = Math.round(this.input.spaceWidth * horizontalOffset);
 			if (Math.abs(expectedResult - result) <= 1) {
 				return expectedResult;

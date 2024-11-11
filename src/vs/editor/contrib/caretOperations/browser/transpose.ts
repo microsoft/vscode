@@ -68,12 +68,13 @@ class TransposeLettersAction extends EditorAction {
 
 			// handle special case: when at end of line, transpose left two chars
 			// otherwise, transpose left and right chars
+			const cursorConfig = editor._getViewModel().cursorConfig;
 			const endPosition = (column === lastColumn) ?
 				selection.getPosition() :
-				MoveOperations.rightPosition(model, selection.getPosition().lineNumber, selection.getPosition().column, false);
+				MoveOperations.rightPosition(cursorConfig, model, selection.getPosition().lineNumber, selection.getPosition().column);
 
-			const middlePosition = MoveOperations.leftPosition(model, endPosition, false);
-			const beginPosition = MoveOperations.leftPosition(model, middlePosition, false);
+			const middlePosition = MoveOperations.leftPosition(cursorConfig, model, endPosition);
+			const beginPosition = MoveOperations.leftPosition(cursorConfig, model, middlePosition);
 
 			const leftChar = model.getValueInRange(Range.fromPositions(beginPosition, middlePosition));
 			const rightChar = model.getValueInRange(Range.fromPositions(middlePosition, endPosition));

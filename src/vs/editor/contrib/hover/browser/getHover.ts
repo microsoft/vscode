@@ -35,13 +35,6 @@ async function executeProvider(provider: HoverProvider, ordinal: number, model: 
 }
 
 export function getHoverProviderResultsAsAsyncIterable(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken, recursive = false): AsyncIterableObject<HoverProviderResult> {
-	// console.log('getHoverProviderResultsAsAsyncIterable');
-	const maxColumn = model.getLineMaxColumn(position.lineNumber);
-	// console.log('position.column : ', position.column);
-	// console.log('maxColumn:', maxColumn);
-	if (position.column > maxColumn) {
-		position = new Position(position.lineNumber, maxColumn);
-	}
 	const providers = registry.ordered(model, recursive);
 	const promises = providers.map((provider, index) => executeProvider(provider, index, model, position, token));
 	return AsyncIterableObject.fromPromisesResolveOrder(promises).coalesce();
