@@ -31,7 +31,9 @@ import { autorun, observableValue, type IObservable } from '../../../../../base/
 
 const enum Constants {
 	HorizontalMargin = 10,
-	VerticalMargin = 30
+	VerticalMargin = 30,
+	/** The right padding of the widget, this should align exactly with that in the editor. */
+	RightPadding = 12,
 }
 
 const enum Message {
@@ -194,8 +196,7 @@ export class TerminalChatWidget extends Disposable {
 		}
 		const style = getActiveWindow().getComputedStyle(xtermElement);
 		const xtermLeftPadding = parseInt(style.paddingLeft);
-		// TODO: Remove magic number https://github.com/microsoft/vscode/issues/233206
-		const width = xtermElement.clientWidth - xtermLeftPadding - 12;
+		const width = xtermElement.clientWidth - xtermLeftPadding - Constants.RightPadding;
 		const terminalWrapperHeight = this._getTerminalWrapperHeight() ?? Number.MAX_SAFE_INTEGER;
 		let height = Math.min(480, heightInPixel, terminalWrapperHeight);
 		const top = this._getTop() ?? 0;
