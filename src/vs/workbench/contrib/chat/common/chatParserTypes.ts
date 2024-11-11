@@ -5,15 +5,12 @@
 
 import { revive } from '../../../../base/common/marshalling.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI } from '../../../../base/common/uri.js';
 import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/offsetRange.js';
-import { IRange, Range } from '../../../../editor/common/core/range.js';
-import { FileReference } from '../../../common/codecs/chatbotPromptCodec/tokens/fileReference.js';
+import { IRange } from '../../../../editor/common/core/range.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatSlashData } from './chatSlashCommands.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { IToolData } from './languageModelToolsService.js';
-import { Location } from '../../../../editor/common/languages.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
 
@@ -139,29 +136,29 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 	}
 }
 
-/**
- * TODO: @legomushroom
- */
-const chatRequestVariableValueToUri = (value: IChatRequestVariableValue): URI => {
-	if (value instanceof URI) {
-		return value;
-	}
+// /**
+//  * TODO: @legomushroom
+//  */
+// const chatRequestVariableValueToUri = (value: IChatRequestVariableValue): URI => {
+// 	if (value instanceof URI) {
+// 		return value;
+// 	}
 
-	if (typeof value === 'string') {
-		return URI.file(value);
-	}
+// 	if (typeof value === 'string') {
+// 		return URI.file(value);
+// 	}
 
-	// TODO: double check if this is correct
-	if (value instanceof Uint8Array) {
-		return URI.file(value.toString());
-	}
+// 	// TODO: double check if this is correct
+// 	if (value instanceof Uint8Array) {
+// 		return URI.file(value.toString());
+// 	}
 
-	if ((value as Location).uri instanceof URI) {
-		return (value as Location).uri;
-	}
+// 	if ((value as Location).uri instanceof URI) {
+// 		return (value as Location).uri;
+// 	}
 
-	throw new Error(`Unexpected value type: ${typeof value}`);
-};
+// 	throw new Error(`Unexpected value type: ${typeof value}`);
+// };
 
 /**
  * An invocation of a dynamic reference like '#file:'
@@ -189,21 +186,22 @@ export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 		return this.text;
 	}
 
-	/**
-	 * Convert this dynamic variable to a file reference.
-	 */
-	public toFileReference(): FileReference {
-		return new FileReference(
-			new Range(
-				this.editorRange.startLineNumber,
-				this.editorRange.startColumn,
-				this.editorRange.endLineNumber,
-				this.editorRange.endColumn,
-			),
-			this.text,
-			chatRequestVariableValueToUri(this.data),
-		);
-	}
+	// TODO: @legomushroom - remove?
+	// /**
+	//  * Convert this dynamic variable to a file reference.
+	//  */
+	// public toFileReference(): FileReference {
+	// 	return new FileReference(
+	// 		new Range(
+	// 			this.editorRange.startLineNumber,
+	// 			this.editorRange.startColumn,
+	// 			this.editorRange.endLineNumber,
+	// 			this.editorRange.endColumn,
+	// 		),
+	// 		this.text,
+	// 		chatRequestVariableValueToUri(this.data),
+	// 	);
+	// }
 }
 
 export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsedChatRequest {

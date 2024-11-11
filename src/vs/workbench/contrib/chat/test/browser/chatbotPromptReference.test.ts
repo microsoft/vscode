@@ -121,8 +121,9 @@ suite('ChatbotPromptReference', function () {
 		const reference = new ChatbotPromptReference(
 			FileReference.fromWord(new Word(
 				new Range(2, 15, 2, 15 + 23),
-				`#file:${filesStructure.name}/file2.txt`,
+				`#file:/${filesStructure.name}/file2.txt`,
 			)),
+			URI.file(''),
 			fileService,
 		);
 

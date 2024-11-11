@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RangedToken } from '../../rangedToken.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { Word } from '../../simpleCodec/tokens/index.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 // Start sequence for a file reference token in a prompt.
 const TOKEN_START: string = '#file:';
@@ -21,10 +21,23 @@ export class FileReference extends RangedToken {
 
 	constructor(
 		range: Range,
-		public readonly text: string,
-		public readonly uri: URI,
+		public readonly path: string,
 	) {
 		super(range);
+	}
+
+	/**
+	 * Get full text of the file reference token.
+	 */
+	get text(): string {
+		return `${TOKEN_START}${this.path}`;
+	}
+
+	/**
+	 * The `URI` of the file reference.
+	 */
+	get uri(): URI {
+		return URI.file(this.path);
 	}
 
 	/**
@@ -62,12 +75,12 @@ export class FileReference extends RangedToken {
 			`The reference path must be defined, got ${second}.`,
 		);
 
-		return new FileReference(
+		const reference = new FileReference(
 			word.range,
-			text,
-			// TODO: @legomushroom - validate the URI?
-			URI.file(second),
+			second,
 		);
+
+		return reference;
 	}
 
 	/**
@@ -75,10 +88,6 @@ export class FileReference extends RangedToken {
 	 */
 	public equals(other: FileReference): boolean {
 		if (!super.sameRange(other.range)) {
-			return false;
-		}
-
-		if (this.uri.toString() !== other.uri.toString()) {
 			return false;
 		}
 

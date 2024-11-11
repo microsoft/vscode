@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { newWriteableStream } from '../../../../../base/common/stream.js';
@@ -22,28 +21,23 @@ suite('ChatbotPromptCodec', () => {
 		const expectedTokens = [
 			new FileReference(
 				new Range(1, 1, 1, 1 + 16),
-				'#file:/etc/hosts',
-				URI.file('/etc/hosts'),
+				'/etc/hosts',
 			),
 			new FileReference(
 				new Range(2, 7, 2, 7 + 17),
-				'#file:./README.md',
-				URI.file('./README.md'),
+				'./README.md',
 			),
 			new FileReference(
 				new Range(4, 1, 4, 1 + 16),
-				'#file:LICENSE.md',
-				URI.file('LICENSE.md'),
+				'LICENSE.md',
 			),
 			new FileReference(
 				new Range(4, 21, 4, 21 + 16),
-				'#file:.gitignore',
-				URI.file('.gitignore'),
+				'.gitignore',
 			),
 			new FileReference(
 				new Range(7, 5, 7, 5 + 38),
-				'#file:/Users/legomushroom/repos/vscode',
-				URI.file('/Users/legomushroom/repos/vscode'),
+				'/Users/legomushroom/repos/vscode',
 			),
 		];
 

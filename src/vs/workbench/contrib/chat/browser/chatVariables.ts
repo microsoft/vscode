@@ -98,7 +98,8 @@ export class ChatbotPromptReference extends Disposable {
 	}
 
 	constructor(
-		private readonly value: FileReference,
+		private readonly file: FileReference,
+		private readonly rootUri: URI,
 		private readonly fileService: IFileService,
 	) {
 		super();
@@ -108,21 +109,29 @@ export class ChatbotPromptReference extends Disposable {
 	 * Get the file reference `range` value.
 	 */
 	public get range() {
-		return this.value.range;
+		return this.file.range;
 	}
 
 	/**
 	 * Get the file `URI` value.
 	 */
+	// TODO: add unit test for this?
 	public get uri() {
-		return this.value.uri;
+		return URI.joinPath(this.rootUri, this.file.path);
+	}
+
+	/**
+	 * Get the parent folder of the file reference.
+	 */
+	public get parentFolder() {
+		return URI.joinPath(this.uri, '..');
 	}
 
 	/**
 	 * Get the file `text` value.
 	 */
 	public get text() {
-		return this.value.text;
+		return this.file.text;
 	}
 
 	/**
@@ -130,7 +139,7 @@ export class ChatbotPromptReference extends Disposable {
 	 */
 	private async getFileStream(): Promise<IFileStreamContent | null> {
 		try {
-			const fileStream = await this.fileService.readFileStream(this.value.uri);
+			const fileStream = await this.fileService.readFileStream(this.uri);
 
 			this.fileExists = true;
 
@@ -160,7 +169,11 @@ export class ChatbotPromptReference extends Disposable {
 
 		// recursively resolve all references and add to the `children` array
 		for (const reference of references) {
-			const child = this._register(new ChatbotPromptReference(reference, this.fileService));
+			const child = this._register(new ChatbotPromptReference(
+				reference,
+				this.parentFolder,
+				this.fileService,
+			));
 
 			// TODO: @legomushroom - do this in parallel
 			this.children.push(await child.resolve());
