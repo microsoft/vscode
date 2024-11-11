@@ -41,11 +41,13 @@ import { KeybindingWeight } from '../../../../../../platform/keybinding/common/k
 import { IPastFutureElements, IUndoRedoElement, IUndoRedoService, UndoRedoElementType } from '../../../../../../platform/undoRedo/common/undoRedo.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../common/notebookContextKeys.js';
+import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../common/notebookContextKeys.js';
 import { INotebookActionContext, NotebookAction } from '../../controller/coreActions.js';
-import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
+import { CellFindMatchWithIndex, getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
 import { CellEditorOptions } from '../../view/cellParts/cellEditorOptions.js';
+import { NotebookFindContrib } from '../find/notebookFindWidget.js';
+import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 
 const NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID = 'notebook.addFindMatchToSelection';
 const NOTEBOOK_SELECT_ALL_FIND_MATCHES_ID = 'notebook.selectAllFindMatches';
@@ -628,12 +630,89 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		}
 	}
 
-	public async selectAllMatches(cell: ICellViewModel): Promise<void> {
+	public async selectAllMatches(cell: ICellViewModel, matches?: CellFindMatchWithIndex[]): Promise<void> {
 		const notebookTextModel = this.notebookEditor.textModel;
 		if (!notebookTextModel) {
 			return; // should not happen
 		}
 
+		// triggered while find widget is open, so we already have all the match info
+		if (matches) {
+			await this.handleFindWidgetSelectAllMatches(notebookTextModel, cell, matches);
+		} else {
+			await this.handleCellEditorSelectAllMatches(notebookTextModel, cell);
+		}
+
+		// get cursor controllers in sync with the viewmodel selections
+		this.trackedCells.forEach(cell => {
+			const controller = this.cursorsControllers.get(cell.cellViewModel.uri);
+			if (!controller) {
+				// should not happen
+				return;
+			}
+
+			const selections = cell.matchSelections;
+			controller.setSelections(new ViewModelEventsCollector(), undefined, selections, CursorChangeReason.Explicit);
+		});
+
+		this.updateLazyDecorations();
+	}
+
+	private async handleFindWidgetSelectAllMatches(notebookTextModel: NotebookTextModel, cell: ICellViewModel, matches: CellFindMatchWithIndex[]) {
+		// TODO: support selecting state maybe. UX could get confusing since selecting state could be hit via ctrl+d which would have different filters (case sensetive + whole word)
+		if (this.state !== NotebookMultiCursorState.Idle) {
+			return;
+		}
+
+		if (!matches.length) {
+			return;
+		}
+
+		this.notebookEditor.focusNotebookCell(matches[0].cell, 'editor');
+		this.anchorCell = this.notebookEditor.activeCellAndCodeEditor;
+
+		this.trackedCells = [];
+		for (const match of matches) {
+
+			const initialSelection = match.cell.getSelections()[0];
+			const newSelections = match.contentMatches.map(match => Selection.fromRange(match.range, SelectionDirection.LTR));
+			if (match.cell.handle === matches[0].cell.handle) {
+				// only explicitly set the focused cell's selections, the rest are handled by cursor controllers + decorations
+				match.cell.setSelections(newSelections);
+			}
+
+			const textModel = await match.cell.resolveTextModel();
+			textModel.pushStackElement();
+
+			const editorConfig = this.constructCellEditorOptions(match.cell);
+			const rawEditorOptions = editorConfig.getRawOptions();
+			const cursorConfig: NotebookCursorConfig = {
+				cursorStyle: cursorStyleFromString(rawEditorOptions.cursorStyle!),
+				cursorBlinking: cursorBlinkingStyleFromString(rawEditorOptions.cursorBlinking!),
+				cursorSmoothCaretAnimation: rawEditorOptions.cursorSmoothCaretAnimation!
+			};
+
+			this.trackedCells.push({
+				cellViewModel: match.cell,
+				initialSelection: initialSelection,
+				matchSelections: newSelections,
+				editorConfig: editorConfig,
+				cursorConfig: cursorConfig,
+				decorationIds: [],
+				undoRedoHistory: this.undoRedoService.getElements(match.cell.uri)
+			});
+		}
+
+		this._nbIsMultiSelectSession.set(true);
+		this.state = NotebookMultiCursorState.Selecting;
+		this._nbMultiSelectState.set(NotebookMultiCursorState.Selecting);
+
+		// manually handle the new anchor cell process to avoid race conditions
+		await this.updateCursorsControllers();
+		this.updateAnchorListeners();
+	}
+
+	private async handleCellEditorSelectAllMatches(notebookTextModel: NotebookTextModel, cell: ICellViewModel) {
 		// can be triggered mid multiselect session, or from idle state
 		if (this.state === NotebookMultiCursorState.Idle) {
 			// get word from current selection + rest of notebook objects
@@ -711,7 +790,6 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			// manually handle the new anchor cell process to avoid race conditions
 			await this.updateCursorsControllers();
 			this.updateAnchorListeners();
-
 		} else if (this.state === NotebookMultiCursorState.Selecting) {
 			// we will already have a word + some number of tracked matches, need to update them with the rest given findAllMatches result
 			const findResults = notebookTextModel.findAllMatches(this.word, false, true, USUAL_WORD_SEPARATORS);
@@ -760,20 +838,6 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			// todo: enable running this mid session during the editing state
 			return;
 		}
-
-		// get cursor controllers in sync with the viewmodel selections
-		this.trackedCells.forEach(cell => {
-			const controller = this.cursorsControllers.get(cell.cellViewModel.uri);
-			if (!controller) {
-				// should not happen
-				return;
-			}
-
-			const selections = cell.matchSelections;
-			controller.setSelections(new ViewModelEventsCollector(), undefined, selections, CursorChangeReason.Explicit);
-		});
-
-		this.updateLazyDecorations();
 	}
 
 	public async deleteLeft(): Promise<void> {
@@ -1065,14 +1129,18 @@ class NotebookSelectAllFindMatches extends NotebookAction {
 			title: localize('selectAllFindMatches', "Select All Find Matches"),
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
-				NOTEBOOK_IS_ACTIVE_EDITOR,
-				NOTEBOOK_CELL_EDITOR_FOCUSED,
 			),
 			keybinding: {
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
-					NOTEBOOK_IS_ACTIVE_EDITOR,
-					NOTEBOOK_CELL_EDITOR_FOCUSED,
+				when: ContextKeyExpr.or(
+					ContextKeyExpr.and(
+						ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						NOTEBOOK_CELL_EDITOR_FOCUSED,
+					),
+					ContextKeyExpr.and(
+						ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
+						KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED
+					),
 				),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL,
 				weight: KeybindingWeight.WorkbenchContrib
@@ -1092,8 +1160,15 @@ class NotebookSelectAllFindMatches extends NotebookAction {
 			return;
 		}
 
-		const controller = editor.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
-		controller.selectAllMatches(context.cell);
+		const cursorController = editor.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
+		const findController = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
+		if (findController.widget.isVisible) {
+			const findModel = findController.widget.findModel;
+			cursorController.selectAllMatches(context.cell, findModel.findMatches);
+		} else {
+			cursorController.selectAllMatches(context.cell);
+		}
+
 	}
 }
 
