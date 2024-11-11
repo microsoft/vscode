@@ -275,13 +275,37 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			diffHunkDecoCollection.clear();
 		}));
 
+
+
+		const positionObs = observableFromEvent(this._editor.onDidChangeCursorPosition, _ => this._editor.getPosition());
+
+		const activeWidgetIdx = derived(r => {
+			const position = positionObs.read(r);
+			if (!position) {
+				return -1;
+			}
+			const idx = diffHunkDecoCollection.getRanges().findIndex(r => r.containsPosition(position));
+			return idx;
+		});
 		const toggleWidget = (activeWidget: DiffHunkWidget | undefined) => {
-			for (const widget of this._diffHunkWidgets) {
-				widget.toggle(widget === activeWidget);
+			const positionIdx = activeWidgetIdx.get();
+			for (let i = 0; i < this._diffHunkWidgets.length; i++) {
+				const widget = this._diffHunkWidgets[i];
+				widget.toggle(widget === activeWidget || i === positionIdx);
 			}
 		};
 
+		this._diffHunksRenderStore.add(autorun(r => {
+			// reveal when cursor inside
+			const idx = activeWidgetIdx.read(r);
+			const widget = this._diffHunkWidgets[idx];
+			toggleWidget(widget);
+		}));
+
+
 		this._diffHunksRenderStore.add(this._editor.onMouseMove(e => {
+
+			// reveal when hovering over
 			if (e.target.type === MouseTargetType.OVERLAY_WIDGET) {
 				const id = e.target.detail;
 				const widget = this._diffHunkWidgets.find(w => w.getId() === id);
@@ -433,7 +457,7 @@ class DiffHunkWidget implements IOverlayWidget {
 			},
 			buttonConfigProvider: () => {
 				return {
-					isSecondary: true,
+					isSecondary: false,
 					showIcon: true,
 					showLabel: true
 				};
