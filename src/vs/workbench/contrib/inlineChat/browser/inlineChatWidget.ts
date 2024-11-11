@@ -313,11 +313,16 @@ export class InlineChatWidget {
 	}
 
 	layout(widgetDim: Dimension) {
+		const contentHeight = this.contentHeight;
 		this._isLayouting = true;
 		try {
 			this._doLayout(widgetDim);
 		} finally {
 			this._isLayouting = false;
+
+			if (this.contentHeight !== contentHeight) {
+				this._onDidChangeHeight.fire();
+			}
 		}
 	}
 
