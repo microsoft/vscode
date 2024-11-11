@@ -601,6 +601,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const inputHasText = !!model && model.getValue().trim().length > 0;
 			this.inputEditorHasText.set(inputHasText);
 		}));
+		this._register(this._inputEditor.onDidContentSizeChange(e => {
+			if (e.contentHeightChanged) {
+				this.inputEditorHeight = e.contentHeight;
+				this._onDidChangeHeight.fire();
+			}
+		}));
 		this._register(this._inputEditor.onDidFocusEditorText(() => {
 			this.inputEditorHasFocus.set(true);
 			this._onDidFocus.fire();
