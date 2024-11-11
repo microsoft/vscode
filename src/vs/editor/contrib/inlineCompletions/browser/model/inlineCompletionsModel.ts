@@ -371,6 +371,9 @@ export class InlineCompletionsModel extends Disposable {
 	public readonly inlineCompletionState = derived(reader => {
 		const s = this.state.read(reader);
 		if (!s || s.kind !== 'ghostText') { return undefined; }
+		if (this._editorObs.inComposition.read(reader)) {
+			return undefined;
+		}
 		return s;
 	});
 
