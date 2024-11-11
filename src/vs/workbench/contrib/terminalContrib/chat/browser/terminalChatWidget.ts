@@ -34,6 +34,10 @@ const enum Constants {
 	VerticalMargin = 30,
 	/** The right padding of the widget, this should align exactly with that in the editor. */
 	RightPadding = 12,
+	/** The max allowed height of the widget. */
+	MaxHeight = 480,
+	/** The max allowed height of the widget as a percentage of the terminal viewport. */
+	MaxHeightPercentageOfViewport = 0.75,
 }
 
 const enum Message {
@@ -185,38 +189,38 @@ export class TerminalChatWidget extends Disposable {
 
 	private _relayout() {
 		if (this._dimension) {
-			this._doLayout(this._inlineChatWidget.contentHeight);
+			this._doLayout();
 		}
 	}
 
-	private _doLayout(heightInPixel: number) {
+	private _doLayout() {
 		const xtermElement = this._xterm.raw!.element;
 		if (!xtermElement) {
 			return;
 		}
+
 		const style = getActiveWindow().getComputedStyle(xtermElement);
+
+		// Calculate width
 		const xtermLeftPadding = parseInt(style.paddingLeft);
 		const width = xtermElement.clientWidth - xtermLeftPadding - Constants.RightPadding;
-		const terminalWrapperHeight = this._getTerminalWrapperHeight() ?? Number.MAX_SAFE_INTEGER;
-		let height = Math.min(480, heightInPixel, terminalWrapperHeight);
-		const top = this._getTop() ?? 0;
-		if (width === 0 || height === 0) {
+		if (width === 0) {
 			return;
 		}
 
-		let adjustedHeight = undefined;
-		if (height < this._inlineChatWidget.contentHeight) {
-			if (height - top > 0) {
-				height = height - top - Constants.VerticalMargin;
-			} else {
-				height = height - Constants.VerticalMargin;
-				adjustedHeight = height;
-			}
+		// Calculate height
+		const terminalViewportHeight = this._getTerminalViewportHeight();
+		const widgetAllowedPercentBasedHeight = (terminalViewportHeight ?? 0) * Constants.MaxHeightPercentageOfViewport;
+		const height = Math.max(Math.min(Constants.MaxHeight, this._inlineChatWidget.contentHeight, widgetAllowedPercentBasedHeight), this._inlineChatWidget.minHeight);
+		if (height === 0) {
+			return;
 		}
+
+		// Layout
 		this._dimension = new Dimension(width, height);
 		this._inlineChatWidget.layout(this._dimension);
 		this._inlineChatWidget.domNode.style.paddingLeft = `${xtermLeftPadding}px`;
-		this._updateVerticalPosition(adjustedHeight);
+		this._updateXtermViewportPosition();
 	}
 
 	private _resetPlaceholder() {
@@ -225,7 +229,7 @@ export class TerminalChatWidget extends Disposable {
 
 	async reveal(viewState?: IChatViewState): Promise<void> {
 		await this._createSession(viewState);
-		this._doLayout(this._inlineChatWidget.contentHeight);
+		this._doLayout();
 		this._container.classList.remove('hide');
 		this._visibleContextKey.set(true);
 		this._resetPlaceholder();
@@ -233,39 +237,39 @@ export class TerminalChatWidget extends Disposable {
 		this._instance.scrollToBottom();
 	}
 
-	private _getTop(): number | undefined {
+	private _getTerminalCursorTop(): number | undefined {
 		const font = this._instance.xterm?.getFont();
 		if (!font?.charHeight) {
 			return;
 		}
-		const terminalWrapperHeight = this._getTerminalWrapperHeight() ?? 0;
+		const terminalWrapperHeight = this._getTerminalViewportHeight() ?? 0;
 		const cellHeight = font.charHeight * font.lineHeight;
 		const topPadding = terminalWrapperHeight - (this._instance.rows * cellHeight);
 		const cursorY = (this._instance.xterm?.raw.buffer.active.cursorY ?? 0) + 1;
 		return topPadding + cursorY * cellHeight;
 	}
 
-	private _updateVerticalPosition(adjustedHeight?: number): void {
-		const top = this._getTop();
+	private _updateXtermViewportPosition(): void {
+		const top = this._getTerminalCursorTop();
 		if (!top) {
 			return;
 		}
 		this._container.style.top = `${top}px`;
-		const widgetHeight = this._inlineChatWidget.contentHeight;
-		const terminalWrapperHeight = this._getTerminalWrapperHeight();
-		if (!terminalWrapperHeight) {
+		const terminalViewportHeight = this._getTerminalViewportHeight();
+		if (!terminalViewportHeight) {
 			return;
 		}
-		if (top > terminalWrapperHeight - widgetHeight && terminalWrapperHeight - widgetHeight > 0) {
-			this._setTerminalOffset(top - (terminalWrapperHeight - widgetHeight));
-		} else if (adjustedHeight) {
-			this._setTerminalOffset(adjustedHeight);
+
+		const widgetAllowedPercentBasedHeight = terminalViewportHeight * Constants.MaxHeightPercentageOfViewport;
+		const height = Math.max(Math.min(Constants.MaxHeight, this._inlineChatWidget.contentHeight, widgetAllowedPercentBasedHeight), this._inlineChatWidget.minHeight);
+		if (top > terminalViewportHeight - height && terminalViewportHeight - height > 0) {
+			this._setTerminalViewportOffset(top - (terminalViewportHeight - height));
 		} else {
-			this._setTerminalOffset(undefined);
+			this._setTerminalViewportOffset(undefined);
 		}
 	}
 
-	private _getTerminalWrapperHeight(): number | undefined {
+	private _getTerminalViewportHeight(): number | undefined {
 		return this._terminalElement.clientHeight;
 	}
 
@@ -277,10 +281,10 @@ export class TerminalChatWidget extends Disposable {
 		this._visibleContextKey.set(false);
 		this._inlineChatWidget.value = '';
 		this._instance.focus();
-		this._setTerminalOffset(undefined);
+		this._setTerminalViewportOffset(undefined);
 		this._onDidHide.fire();
 	}
-	private _setTerminalOffset(offset: number | undefined) {
+	private _setTerminalViewportOffset(offset: number | undefined) {
 		if (offset === undefined || this._container.classList.contains('hide')) {
 			this._terminalElement.style.position = '';
 			this._terminalElement.style.bottom = '';
