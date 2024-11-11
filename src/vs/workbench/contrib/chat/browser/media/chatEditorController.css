@@ -6,6 +6,7 @@
 .chat-diff-change-content-widget {
 	opacity: 0;
 	transition: opacity 0.2s ease-in-out;
+	display: flex;
 }
 
 .chat-diff-change-content-widget.hover {
