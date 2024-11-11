@@ -93,7 +93,7 @@ export class IssueReporter extends BaseIssueReporterService {
 			console.error('Issue body is too long.');
 			return false;
 		}
-		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues?labels=bug&labels=needs-triage`;
+		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
 		const init = {
 			method: 'POST',
 			body: JSON.stringify({
