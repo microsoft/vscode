@@ -13,7 +13,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { IFileService, IFileStreamContent } from '../../../../platform/files/common/files.js';
 import { ChatbotPromptCodec } from '../../../common/codecs/chatbotPromptCodec/chatbotPromptCodec.js';
-import { FileReference } from '../../../common/codecs/chatbotPromptCodec/tokens/fileReference.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../common/chatAgents.js';
 import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from '../common/chatModel.js';
@@ -98,27 +97,26 @@ export class ChatbotPromptReference extends Disposable {
 	}
 
 	constructor(
-		private readonly file: FileReference,
-		private readonly rootUri: URI,
+		public readonly uri: URI,
 		private readonly fileService: IFileService,
 	) {
 		super();
 	}
 
-	/**
-	 * Get the file reference `range` value.
-	 */
-	public get range() {
-		return this.file.range;
-	}
+	// /**
+	//  * Get the file reference `range` value.
+	//  */
+	// public get range() {
+	// 	return this.file.range;
+	// }
 
-	/**
-	 * Get the file `URI` value.
-	 */
-	// TODO: add unit test for this?
-	public get uri() {
-		return URI.joinPath(this.rootUri, this.file.path);
-	}
+	// /**
+	//  * Get the file `URI` value.
+	//  */
+	// // TODO: add unit test for this?
+	// public get uri() {
+	// 	return URI.joinPath(this.rootUri, this.file.path);
+	// }
 
 	/**
 	 * Get the parent folder of the file reference.
@@ -127,12 +125,12 @@ export class ChatbotPromptReference extends Disposable {
 		return URI.joinPath(this.uri, '..');
 	}
 
-	/**
-	 * Get the file `text` value.
-	 */
-	public get text() {
-		return this.file.text;
-	}
+	// /**
+	//  * Get the file `text` value.
+	//  */
+	// public get text() {
+	// 	return this.file.text;
+	// }
 
 	/**
 	 * Get file stream, if the file exsists.
@@ -170,8 +168,7 @@ export class ChatbotPromptReference extends Disposable {
 		// recursively resolve all references and add to the `children` array
 		for (const reference of references) {
 			const child = this._register(new ChatbotPromptReference(
-				reference,
-				this.parentFolder,
+				URI.joinPath(this.parentFolder, reference.path), // TODO: unit test the absolute paths
 				this.fileService,
 			));
 

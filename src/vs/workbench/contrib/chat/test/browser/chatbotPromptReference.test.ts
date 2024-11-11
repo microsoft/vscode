@@ -8,9 +8,6 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { ChatbotPromptReference } from '../../browser/chatVariables.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { FileReference } from '../../../../common/codecs/chatbotPromptCodec/tokens/fileReference.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { Word } from '../../../../common/codecs/simpleCodec/tokens/word.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -119,11 +116,7 @@ suite('ChatbotPromptReference', function () {
 		// ];
 
 		const reference = new ChatbotPromptReference(
-			FileReference.fromWord(new Word(
-				new Range(2, 15, 2, 15 + 23),
-				`#file:/${filesStructure.name}/file2.txt`,
-			)),
-			URI.file(''),
+			URI.file(`/${filesStructure.name}/file2.txt`),
 			fileService,
 		);
 

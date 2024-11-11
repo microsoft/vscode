@@ -7,7 +7,6 @@ import { RangedToken } from '../../rangedToken.js';
 import { Word } from '../../simpleCodec/tokens/index.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { URI } from '../../../../../base/common/uri.js';
 
 // Start sequence for a file reference token in a prompt.
 const TOKEN_START: string = '#file:';
@@ -31,13 +30,6 @@ export class FileReference extends RangedToken {
 	 */
 	get text(): string {
 		return `${TOKEN_START}${this.path}`;
-	}
-
-	/**
-	 * The `URI` of the file reference.
-	 */
-	get uri(): URI {
-		return URI.file(this.path);
 	}
 
 	/**
