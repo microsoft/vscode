@@ -252,6 +252,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			// we are already shutting down...
 			return;
 		}
+		(process as any).profile();
 		this._isTerminating = true;
 		this._logService.info(`Extension host terminating: ${reason}`);
 		this._logService.flush();
@@ -276,8 +277,13 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				this._logService.info(`Extension host exiting with code ${code}`);
 			}
 			this._logService.flush();
-			this._logService.dispose();
-			this._hostUtils.exit(code);
+			(process as any).profileEnd().then((path: string) => {
+				this._logService.info(`Extension host cpu profile saved at : ${path}`);
+				this._logService.flush();
+			}).finally(() => {
+				this._logService.dispose();
+				this._hostUtils.exit(code);
+			});
 		});
 	}
 
