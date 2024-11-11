@@ -57,6 +57,8 @@ declare module 'vscode' {
 	export class ChatResponseTextEditPart {
 		uri: Uri;
 		edits: TextEdit[];
+		isDone?: boolean;
+		constructor(uri: Uri, done: true);
 		constructor(uri: Uri, edits: TextEdit | TextEdit[]);
 	}
 
@@ -168,6 +170,9 @@ declare module 'vscode' {
 		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): void;
 
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
+
+		textEdit(target: Uri, isDone: true): void;
+
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
 		codeblockUri(uri: Uri): void;
 		detectedParticipant(participant: string, command?: ChatCommand): void;
@@ -366,7 +371,8 @@ declare module 'vscode' {
 
 	export enum ChatEditingSessionActionOutcome {
 		Accepted = 1,
-		Rejected = 2
+		Rejected = 2,
+		Saved = 3
 	}
 
 	export interface ChatUserActionEvent {

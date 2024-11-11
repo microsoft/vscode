@@ -576,11 +576,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	private get refreshScheduler(): RunOnceScheduler {
 		const autoExpanded = new Set<string>();
 		return new RunOnceScheduler(async () => {
-			if (!this.tree) {
-				return;
-			}
-
-			if (!this.tree.getInput()) {
+			if (!this.tree || !this.tree.getInput() || !this.isVisible()) {
 				return;
 			}
 
@@ -906,8 +902,7 @@ class AcceptReplInputAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'repl.action.acceptInput',
-			label: localize({ key: 'actions.repl.acceptInput', comment: ['Apply input from the debug console input box'] }, "Debug Console: Accept Input"),
-			alias: 'Debug Console: Accept Input',
+			label: localize2({ key: 'actions.repl.acceptInput', comment: ['Apply input from the debug console input box'] }, "Debug Console: Accept Input"),
 			precondition: CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,

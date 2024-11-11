@@ -278,6 +278,7 @@ export function fromGithub({ name, version, repo, sha256, metadata }: IExtension
 const excludedExtensions = [
 	'vscode-api-tests',
 	'vscode-colorize-tests',
+	'vscode-colorize-perf-tests',
 	'vscode-test-resolver',
 	'ms-vscode.node-debug',
 	'ms-vscode.node-debug2',

@@ -9,7 +9,7 @@ import { IMenu, MenuItemAction } from '../../../../platform/actions/common/actio
 import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
-import { createActionViewItem, createAndFillInActionBarActions, getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getActionBarActions, getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -68,10 +68,7 @@ export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], s
 	let cachedSecondary: IAction[] = [];
 
 	const updateActions = () => {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary, secondary }, primaryGroup);
+		const { primary, secondary } = getActionBarActions(menu.getActions({ shouldForwardArgs: true }), primaryGroup);
 
 		if (equals(cachedPrimary, primary, compareActions) && equals(cachedSecondary, secondary, compareActions)) {
 			return;

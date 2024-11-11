@@ -28,7 +28,7 @@ import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/co
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsFailedContextKey, IChatEditingService, isChatEditingActionContext, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatProgress, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
@@ -211,7 +211,8 @@ export function registerChatTitleActions() {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 
 			let item = args[0];
-			if (typeof item === 'object' && !!item && 'sessionId' in item) {
+			if (isChatEditingActionContext(item)) {
+				// Resolve chat editing action context to the last response VM
 				item = chatWidgetService.getWidgetBySessionId(item.sessionId)?.viewModel?.getItems().at(-1);
 			}
 			if (!isResponseVM(item)) {
@@ -452,20 +453,20 @@ export function registerChatTitleActions() {
 					if (undecidedEdits.length) {
 						const { result } = await dialogService.prompt({
 							title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
-							message: localize('chat.startEditing.confirmation.pending.message', "Starting a new editing session will end your current session. Do you want to discard pending edits to {0} files?", undecidedEdits.length),
+							message: localize('chat.startEditing.confirmation.pending.message.2', "Starting a new editing session will end your current session. Do you want to accept pending edits to {0} files?", undecidedEdits.length),
 							type: 'info',
 							buttons: [
-								{
-									label: localize('chat.startEditing.confirmation.discardEdits', "Discard & Continue"),
-									run: async () => {
-										await currentEditingSession.reject();
-										return true;
-									}
-								},
 								{
 									label: localize('chat.startEditing.confirmation.acceptEdits', "Accept & Continue"),
 									run: async () => {
 										await currentEditingSession.accept();
+										return true;
+									}
+								},
+								{
+									label: localize('chat.startEditing.confirmation.discardEdits', "Discard & Continue"),
+									run: async () => {
+										await currentEditingSession.reject();
 										return true;
 									}
 								}

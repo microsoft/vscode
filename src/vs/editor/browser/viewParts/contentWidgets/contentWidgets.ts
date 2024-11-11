@@ -567,7 +567,7 @@ class Widget {
 			}
 
 			if (typeof this._actual.afterRender === 'function') {
-				safeInvoke(this._actual.afterRender, this._actual, null);
+				safeInvoke(this._actual.afterRender, this._actual, null, null);
 			}
 			return;
 		}
@@ -588,7 +588,7 @@ class Widget {
 		}
 
 		if (typeof this._actual.afterRender === 'function') {
-			safeInvoke(this._actual.afterRender, this._actual, this._renderData.position);
+			safeInvoke(this._actual.afterRender, this._actual, this._renderData.position, this._renderData.coordinate);
 		}
 	}
 }

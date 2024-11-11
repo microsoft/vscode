@@ -753,7 +753,7 @@ export class InlineChatController implements IEditorContribution {
 		await responsePromise.p;
 		await progressiveEditsQueue.whenIdle();
 
-		if (response.result?.errorDetails) {
+		if (response.result?.errorDetails && !response.result.errorDetails.responseIsFiltered) {
 			await this._session.undoChangesUntil(response.requestId);
 		}
 

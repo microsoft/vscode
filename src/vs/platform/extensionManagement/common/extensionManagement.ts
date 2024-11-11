@@ -357,6 +357,7 @@ export interface IExtensionQueryOptions {
 	compatible?: boolean;
 	queryAllVersions?: boolean;
 	source?: string;
+	preferResourceApi?: boolean;
 }
 
 export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
@@ -638,3 +639,4 @@ export async function computeSize(location: URI, fileService: IFileService): Pro
 
 export const ExtensionsLocalizedLabel = localize2('extensions', "Extensions");
 export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences');
+export const UseUnpkgResourceApi = 'extensions.gallery.useUnpkgResourceApi';
