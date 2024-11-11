@@ -7,7 +7,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ErrorNoTelemetry, getErrorMessage } from 'vs/base/common/errors';
 import { mark } from 'vs/base/common/performance';
 // eslint-disable-next-line local/code-import-patterns
-import { membraneApi } from 'vs/code/browser/workbench/workbench';
+import { membraneApi } from 'vs/code/browser/workbench/membrane';
 
 class MissingStoresError extends Error {
 	constructor(readonly db: IDBDatabase) {
