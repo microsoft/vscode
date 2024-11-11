@@ -92,24 +92,17 @@ class NotebookChatEditorController extends Disposable {
 			entryObs.set(entry, undefined);
 		}));
 
-		this._register(autorunWithStore((r, store) => {
-			const entry = entryObs.read(r);
-			const model = notebookModel.read(r);
-			if (!entry || !model) {
-				return;
-			}
-			const notebookSynchronizer = store.add(this.instantiationService.createInstance(NotebookModelSynchronizer, this.notebookEditor, entry, model.viewType));
-			store.add(notebookSynchronizer.onDidUpdateNotebookModel(e => {
-				notebookDiff.set(e, undefined);
-			}));
-		}));
-
 		this._register(autorunWithStore(async (r, store) => {
 			const entry = entryObs.read(r);
 			const model = notebookModel.read(r);
 			if (!entry || !model) {
 				return;
 			}
+			const notebookSynchronizer = store.add(this.instantiationService.createInstance(NotebookModelSynchronizer, this.notebookEditor, entry, model.viewType));
+			notebookDiff.set(undefined, undefined);
+			store.add(notebookSynchronizer.onDidUpdateNotebookModel(e => {
+				notebookDiff.set(e, undefined);
+			}));
 			const result = this._register(await this.getOriginalNotebookModel(entry, model));
 			originalModel.set(result.object, undefined);
 		}));
