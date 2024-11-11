@@ -139,7 +139,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._chatService.transferChatSession({ sessionId, inputValue }, URI.revive(toWorkspace));
 	}
 
-	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): void {
+	async $registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): Promise<void> {
+		await this._extensionService.whenInstalledExtensionsRegistered();
 		const staticAgentRegistration = this._chatAgentService.getAgent(id, true);
 		if (!staticAgentRegistration && !dynamicProps) {
 			if (this._chatAgentService.getAgentsByName(id).length) {
@@ -209,7 +210,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		});
 	}
 
-	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void {
+	async $updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): Promise<void> {
+		await this._extensionService.whenInstalledExtensionsRegistered();
 		const data = this._agents.get(handle);
 		if (!data) {
 			this._logService.error(`MainThreadChatAgents2#$updateAgent: No agent with handle ${handle} registered`);

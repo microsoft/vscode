@@ -10,7 +10,7 @@ import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../
 import { autorun, derived, observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../base/common/themables.js';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { diffAddDecoration, diffDeleteDecoration, diffWholeLineAddDecoration } from '../../../../editor/browser/widget/diffEditor/registrations.contribution.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
@@ -29,7 +29,6 @@ import { Event } from '../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { IPosition } from '../../../../editor/common/core/position.js';
 
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
 
@@ -276,27 +275,30 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			diffHunkDecoCollection.clear();
 		}));
 
-		const showHunkMenu = (position: IPosition) => {
-			let activeWidget: DiffHunkWidget | undefined;
-			if (position) {
-				for (let i = 0; i < diffHunkDecoCollection.length; i++) {
-					const range = diffHunkDecoCollection.getRange(i);
-					if (range?.containsPosition(position)) {
-						activeWidget = this._diffHunkWidgets[i];
-						break;
-					}
-				}
-			}
-			if (activeWidget) {
-				for (const widget of this._diffHunkWidgets) {
-					widget.toggle(widget === activeWidget);
-				}
+		const toggleWidget = (activeWidget: DiffHunkWidget | undefined) => {
+			for (const widget of this._diffHunkWidgets) {
+				widget.toggle(widget === activeWidget);
 			}
 		};
 
 		this._diffHunksRenderStore.add(this._editor.onMouseMove(e => {
-			if (e.target.position) {
-				showHunkMenu(e.target.position);
+			if (e.target.type === MouseTargetType.OVERLAY_WIDGET) {
+				const id = e.target.detail;
+				const widget = this._diffHunkWidgets.find(w => w.getId() === id);
+				toggleWidget(widget);
+
+			} else if (e.target.type === MouseTargetType.CONTENT_VIEW_ZONE) {
+				const zone = e.target.detail;
+				const idx = this._viewZones.findIndex(id => id === zone.viewZoneId);
+				toggleWidget(this._diffHunkWidgets[idx]);
+
+			} else if (e.target.position) {
+				const { position } = e.target;
+				const idx = diffHunkDecoCollection.getRanges().findIndex(r => r.containsPosition(position));
+				toggleWidget(this._diffHunkWidgets[idx]);
+
+			} else {
+				toggleWidget(undefined);
 			}
 		}));
 
