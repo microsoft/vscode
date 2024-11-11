@@ -19,10 +19,11 @@ import { ITextModel } from '../model.js';
 import { EnterAction, IndentAction, StandardAutoClosingPairConditional } from '../languages/languageConfiguration.js';
 import { getIndentationAtPosition } from '../languages/languageConfigurationRegistry.js';
 import { IElectricAction } from '../languages/supports/electricCharacter.js';
-import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from '../config/editorOptions.js';
+import { EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorOption } from '../config/editorOptions.js';
 import { createScopedLineTokens } from '../languages/supports.js';
 import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from '../languages/autoIndent.js';
 import { getEnterAction } from '../languages/enterAction.js';
+import { IEditorConfiguration } from '../config/editorConfiguration.js';
 
 export class AutoIndentOperation {
 
@@ -483,7 +484,8 @@ export class InterceptorElectricCharOperation {
 
 export class SimpleCharacterTypeOperation {
 
-	public static getEdits(inputMode: 'insert' | 'overtype' | undefined, prevEditOperationType: EditOperationType, selections: Selection[], ch: string): EditOperationResult { //
+	public static getEdits(editorConfig: IEditorConfiguration, prevEditOperationType: EditOperationType, selections: Selection[], ch: string): EditOperationResult { //
+		const inputMode = editorConfig.options.get(EditorOption.inputMode);
 		// A simple character type
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
@@ -740,12 +742,11 @@ export class CompositionOperation {
 
 export class TypeWithoutInterceptorsOperation {
 
-	public static getEdits(inputType: 'insert' | 'overtype' | undefined, prevEditOperationType: EditOperationType, selections: Selection[], str: string): EditOperationResult { //
+	public static getEdits(prevEditOperationType: EditOperationType, selections: Selection[], str: string): EditOperationResult { //
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			commands[i] = new ReplaceCommand(selections[i], str);
 		}
-		console.log('TypeWithoutInterceptorsOperation commands : ', commands);
 		const opType = getTypingOperation(str, prevEditOperationType);
 		return new EditOperationResult(opType, commands, {
 			shouldPushStackElementBefore: shouldPushStackElementBetween(prevEditOperationType, opType),

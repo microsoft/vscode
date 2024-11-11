@@ -22,6 +22,7 @@ import { registerThemingParticipant } from '../../../../platform/theme/common/th
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { CursorChangeReason } from '../../../common/cursorEvents.js';
 import { WindowIntervalTimer, getWindow } from '../../../../base/browser/dom.js';
+import { InputMode } from '../../config/inputMode.js';
 
 /**
  * View cursors is a view part responsible for rendering the primary cursor and
@@ -33,7 +34,7 @@ export class ViewCursors extends ViewPart {
 
 	private _readOnly: boolean;
 	private _cursorBlinking: TextEditorCursorBlinkingStyle;
-	private _cursorStyle: TextEditorCursorStyle;
+	private _cursorStyle!: TextEditorCursorStyle;
 	private _cursorSmoothCaretAnimation: 'off' | 'explicit' | 'on';
 	private _experimentalEditContextEnabled: boolean;
 	private _selectionIsEmpty: boolean;
@@ -59,8 +60,7 @@ export class ViewCursors extends ViewPart {
 		const options = this._context.configuration.options;
 		this._readOnly = options.get(EditorOption.readOnly);
 		this._cursorBlinking = options.get(EditorOption.cursorBlinking);
-		const typeMode = options.get(EditorOption.inputMode);
-		this._cursorStyle = typeMode === 'overtype' ? options.get(EditorOption.overtypeCursorStyle) : options.get(EditorOption.cursorStyle);
+		this._setCursorStyle();
 		this._cursorSmoothCaretAnimation = options.get(EditorOption.cursorSmoothCaretAnimation);
 		this._experimentalEditContextEnabled = options.get(EditorOption.experimentalEditContextEnabled);
 		this._selectionIsEmpty = true;
@@ -68,7 +68,7 @@ export class ViewCursors extends ViewPart {
 
 		this._isVisible = false;
 
-		this._primaryCursor = new ViewCursor(this._context, CursorPlurality.Single);
+		this._primaryCursor = this._register(new ViewCursor(this._context, CursorPlurality.Single));
 		this._secondaryCursors = [];
 		this._renderData = [];
 
@@ -86,12 +86,17 @@ export class ViewCursors extends ViewPart {
 
 		this._editorHasFocus = false;
 		this._updateBlinking();
+
+		this._register(InputMode.onDidChangeInputMode(() => {
+			this._setCursorStyle();
+		}));
 	}
 
 	public override dispose(): void {
 		super.dispose();
 		this._startCursorBlinkAnimation.dispose();
 		this._cursorFlatBlinkInterval.dispose();
+		this._secondaryCursors.forEach((cursor) => cursor.dispose());
 	}
 
 	public getDomNode(): FastDomNode<HTMLElement> {
@@ -115,13 +120,12 @@ export class ViewCursors extends ViewPart {
 
 		this._readOnly = options.get(EditorOption.readOnly);
 		this._cursorBlinking = options.get(EditorOption.cursorBlinking);
-		const typeMode = options.get(EditorOption.inputMode);
-		this._cursorStyle = typeMode === 'overtype' ? options.get(EditorOption.overtypeCursorStyle) : options.get(EditorOption.cursorStyle);
 		this._cursorSmoothCaretAnimation = options.get(EditorOption.cursorSmoothCaretAnimation);
 		this._experimentalEditContextEnabled = options.get(EditorOption.experimentalEditContextEnabled);
 
 		this._updateBlinking();
 		this._updateDomClassName();
+		this._setCursorStyle();
 
 		this._primaryCursor.onConfigurationChanged(e);
 		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
@@ -151,7 +155,8 @@ export class ViewCursors extends ViewPart {
 			const removeCnt = this._secondaryCursors.length - secondaryPositions.length;
 			for (let i = 0; i < removeCnt; i++) {
 				this._domNode.removeChild(this._secondaryCursors[0].getDomNode());
-				this._secondaryCursors.splice(0, 1);
+				const deletedCursors = this._secondaryCursors.splice(0, 1);
+				deletedCursors.forEach((deletedCursor) => deletedCursor.dispose());
 			}
 		}
 
@@ -339,6 +344,12 @@ export class ViewCursors extends ViewPart {
 			result += ' cursor-smooth-caret-animation';
 		}
 		return result;
+	}
+
+	private _setCursorStyle(): void {
+		const options = this._context.configuration.options;
+		const inputMode = InputMode.getInputMode();
+		this._cursorStyle = inputMode === 'overtype' ? options.get(EditorOption.overtypeCursorStyle) : options.get(EditorOption.cursorStyle);
 	}
 
 	private _show(): void {
