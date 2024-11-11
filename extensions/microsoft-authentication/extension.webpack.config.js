@@ -16,7 +16,7 @@ module.exports = withDefaults({
 		extension: './src/extension.ts'
 	},
 	externals: {
-		'keytar': 'commonjs keytar',
+		// 'keytar': 'commonjs keytar',
 		'./msal-node-runtime': 'commonjs ./msal-node-runtime'
 	},
 	plugins: [
