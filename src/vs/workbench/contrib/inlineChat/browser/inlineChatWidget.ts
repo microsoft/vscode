@@ -384,18 +384,8 @@ export class InlineChatWidget {
 		this._chatWidget.setInput(value);
 	}
 
-
-	selectAll(includeSlashCommand: boolean = true) {
-		// DEBT@jrieken
-		// REMOVE when agents are adopted
-		let startColumn = 1;
-		if (!includeSlashCommand) {
-			const match = /^(\/\w+)\s*/.exec(this._chatWidget.inputEditor.getModel()!.getLineContent(1));
-			if (match) {
-				startColumn = match[1].length + 1;
-			}
-		}
-		this._chatWidget.inputEditor.setSelection(new Selection(1, startColumn, Number.MAX_SAFE_INTEGER, 1));
+	selectAll() {
+		this._chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
 	}
 
 	set placeholder(value: string) {
