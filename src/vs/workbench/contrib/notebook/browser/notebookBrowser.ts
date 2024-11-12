@@ -373,7 +373,7 @@ export interface INotebookEditorContributionDescription {
 }
 
 export interface INotebookEditorCreationOptions {
-	readonly isEmbedded?: boolean;
+	readonly isReplHistory?: boolean;
 	readonly isReadOnly?: boolean;
 	readonly contributions?: INotebookEditorContributionDescription[];
 	readonly cellEditorContributions?: IEditorContributionDescription[];
@@ -464,6 +464,7 @@ export interface INotebookViewModel {
 	setTrackedRange(id: string | null, newRange: ICellRange | null, newStickiness: TrackedRangeStickiness): string | null;
 	getSelections(): ICellRange[];
 	getCellIndex(cell: ICellViewModel): number;
+	getMostRecentlyExecutedCell(): ICellViewModel | undefined;
 	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookDeltaCellStatusBarItems[]): string[];
 	getFoldedLength(index: number): number;
 	replaceOne(cell: ICellViewModel, range: Range, text: string): Promise<void>;

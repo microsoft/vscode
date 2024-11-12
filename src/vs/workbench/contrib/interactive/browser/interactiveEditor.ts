@@ -31,13 +31,12 @@ import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modes
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from './interactiveCommon.js';
+import { ReplEditorSettings, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from './interactiveCommon.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { NotebookOptions } from '../../notebook/browser/notebookOptions.js';
 import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { createActionViewItem, createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { createActionViewItem, getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { ParameterHintsController } from '../../../../editor/contrib/parameterHints/browser/parameterHints.js';
 import { MenuPreventer } from '../../codeEditor/browser/menuPreventer.js';
@@ -218,11 +217,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 			renderDropdownAsChildElement: true
 		}));
 
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result);
+		const { primary, secondary } = getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 		this._runbuttonToolbar.setActions([...primary, ...secondary]);
 	}
 
@@ -370,7 +365,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		this._widgetDisposableStore.clear();
 
 		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group.id, notebookInput, {
-			isEmbedded: true,
+			isReplHistory: true,
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
 				ExecutionStateCellStatusBarContrib.id,
@@ -517,7 +512,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		}));
 
 		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(InteractiveWindowSetting.showExecutionHint)) {
+			if (e.affectsConfiguration(ReplEditorSettings.showExecutionHint)) {
 				this._updateInputHint();
 			}
 		});
@@ -596,7 +591,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		const index = this._notebookWidget.value!.getCellIndex(cvm);
 		if (index === this._notebookWidget.value!.getLength() - 1) {
 			// If we're already at the bottom or auto scroll is enabled, scroll to the bottom
-			if (this._configurationService.getValue<boolean>(InteractiveWindowSetting.interactiveWindowAlwaysScrollOnNewCell) || this._cellAtBottom(cvm)) {
+			if (this._configurationService.getValue<boolean>(ReplEditorSettings.interactiveWindowAlwaysScrollOnNewCell) || this._cellAtBottom(cvm)) {
 				this._notebookWidget.value!.scrollToBottom();
 			}
 		}
@@ -678,7 +673,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 
 		const shouldHide =
 			!this._codeEditorWidget.hasModel() ||
-			this._configurationService.getValue<boolean>(InteractiveWindowSetting.showExecutionHint) === false ||
+			this._configurationService.getValue<boolean>(ReplEditorSettings.showExecutionHint) === false ||
 			this._codeEditorWidget.getModel()!.getValueLength() !== 0 ||
 			this._hasConflictingDecoration();
 

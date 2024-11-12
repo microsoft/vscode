@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, l10n, LogLevel } from 'vscode';
+import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, l10n, LogLevel, languages } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
@@ -22,7 +22,7 @@ import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
 import { TerminalEnvironmentManager, TerminalShellExecutionManager } from './terminal';
 import { createIPCServer, IPCServer } from './ipc/ipcServer';
-import { GitEditor } from './gitEditor';
+import { GitEditor, GitEditorDocumentLinkProvider } from './gitEditor';
 import { GitPostCommitCommandsProvider } from './postCommitCommands';
 import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
 import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManager } from './diagnostics';
@@ -125,6 +125,9 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 
 	const codeActionsProvider = new GitCommitInputBoxCodeActionsProvider(diagnosticsManager);
 	disposables.push(codeActionsProvider);
+
+	const gitEditorDocumentLinkProvider = languages.registerDocumentLinkProvider('git-commit', new GitEditorDocumentLinkProvider(model));
+	disposables.push(gitEditorDocumentLinkProvider);
 
 	checkGitVersion(info);
 	commands.executeCommand('setContext', 'gitVersion2.35', git.compareGitVersionTo('2.35') >= 0);

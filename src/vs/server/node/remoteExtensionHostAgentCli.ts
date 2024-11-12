@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
-import { ConsoleLogger, getLogLevel, ILoggerService, ILogService, NullLogger } from '../../platform/log/common/log.js';
+import { ConsoleLogger, getLogLevel, ILoggerService, ILogService } from '../../platform/log/common/log.js';
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { ConfigurationService } from '../../platform/configuration/common/configurationService.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
@@ -128,7 +128,7 @@ class CliMain extends Disposable {
 			userDataProfilesService.init()
 		]);
 
-		services.set(IRequestService, new SyncDescriptor(RequestService, [new NullLogger()]));
+		services.set(IRequestService, new SyncDescriptor(RequestService));
 		services.set(IDownloadService, new SyncDescriptor(DownloadService));
 		services.set(ITelemetryService, NullTelemetryService);
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));

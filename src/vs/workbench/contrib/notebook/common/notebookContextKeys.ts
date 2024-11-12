@@ -12,11 +12,13 @@ import { INTERACTIVE_WINDOW_EDITOR_ID, NOTEBOOK_EDITOR_ID, REPL_EDITOR_ID } from
 export const HAS_OPENED_NOTEBOOK = new RawContextKey<boolean>('userHasOpenedNotebook', false);
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 export const InteractiveWindowOpen = new RawContextKey<boolean>('interactiveWindowOpen', false);
+export const MOST_RECENT_REPL_EDITOR = new RawContextKey<string>('mostRecentReplEditor', undefined);
 
 // Is Notebook
 export const NOTEBOOK_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', NOTEBOOK_EDITOR_ID);
 export const INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', INTERACTIVE_WINDOW_EDITOR_ID);
 export const REPL_NOTEBOOK_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', REPL_EDITOR_ID);
+export const IS_COMPOSITE_NOTEBOOK = new RawContextKey<boolean>('isCompositeNotebook', false);
 
 // Editor keys
 // based on the focus of the notebook editor widget
@@ -63,5 +65,6 @@ export const NOTEBOOK_KERNEL_SELECTED = new RawContextKey<boolean>('notebookKern
 export const NOTEBOOK_INTERRUPTIBLE_KERNEL = new RawContextKey<boolean>('notebookInterruptibleKernel', false);
 export const NOTEBOOK_MISSING_KERNEL_EXTENSION = new RawContextKey<boolean>('notebookMissingKernelExtension', false);
 export const NOTEBOOK_HAS_OUTPUTS = new RawContextKey<boolean>('notebookHasOutputs', false);
+export const KERNEL_HAS_VARIABLE_PROVIDER = new RawContextKey<boolean>('kernelHasVariableProvider', false);
 
 //#endregion

@@ -26,6 +26,7 @@ export interface IDropdownWithPrimaryActionViewItemOptions {
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	hoverDelegate?: IHoverDelegate;
 	menuAsChild?: boolean;
+	skipTelemetry?: boolean;
 }
 
 export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
@@ -61,9 +62,17 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 			menuAsChild: _options?.menuAsChild ?? true,
 			classNames: className ? ['codicon', 'codicon-chevron-down', className] : ['codicon', 'codicon-chevron-down'],
 			actionRunner: this._options?.actionRunner,
-			keybindingProvider: this._options?.getKeyBinding,
-			hoverDelegate: _options?.hoverDelegate
+			keybindingProvider: this._options?.getKeyBinding ?? (action => _keybindingService.lookupKeybinding(action.id)),
+			hoverDelegate: _options?.hoverDelegate,
+			skipTelemetry: _options?.skipTelemetry,
 		});
+	}
+
+	override set actionRunner(actionRunner: IActionRunner) {
+		super.actionRunner = actionRunner;
+
+		this._primaryAction.actionRunner = actionRunner;
+		this._dropdown.actionRunner = actionRunner;
 	}
 
 	override setActionContext(newContext: unknown): void {
@@ -77,6 +86,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		super.render(this._container);
 		this._container.classList.add('monaco-dropdown-with-primary');
 		const primaryContainer = DOM.$('.action-container');
+		primaryContainer.role = 'button';
 		this._primaryAction.render(DOM.append(this._container, primaryContainer));
 		this._dropdownContainer = DOM.$('.dropdown-action-container');
 		this._dropdown.render(DOM.append(this._container, this._dropdownContainer));
@@ -142,6 +152,10 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		if (this._dropdownContainer) {
 			this._dropdown.render(this._dropdownContainer);
 		}
+	}
+
+	showDropdown(): void {
+		this._dropdown.show();
 	}
 
 	override dispose() {

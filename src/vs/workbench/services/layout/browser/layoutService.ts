@@ -318,14 +318,10 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined;
 }
 
-export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean, zenModeActive?: boolean): boolean {
+export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean): boolean {
 
 	if (!hasCustomTitlebar(configurationService)) {
 		return false;
-	}
-
-	if (zenModeActive) {
-		return !configurationService.getValue<boolean>(ZenModeSettings.FULLSCREEN);
 	}
 
 	const inFullscreen = isFullscreen(window);

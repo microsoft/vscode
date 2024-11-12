@@ -65,8 +65,6 @@ export class TestParcelWatcher extends ParcelWatcher {
 // mocha but generally). as such they will run only on demand
 // whenever we update the watcher library.
 
-/* eslint-disable local/code-ensure-no-disposables-leak-in-test */
-
 suite.skip('File Watcher (parcel)', function () {
 
 	this.timeout(10000);

@@ -40,6 +40,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 	private readonly canvas: HTMLCanvasElement;
 
+	private _initViewportData?: ViewportData[];
 	private _lastViewportData?: ViewportData;
 	private _lastViewLineOptions?: ViewLineOptions;
 
@@ -176,12 +177,12 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._device, this.canvas, atlas));
 
 		this._glyphStorageBuffer[0] = this._register(GPULifecycle.createBuffer(this._device, {
-			label: 'Monaco glyph storage buffer',
+			label: 'Monaco glyph storage buffer [0]',
 			size: GlyphStorageBufferInfo.BytesPerEntry * TextureAtlasPage.maximumGlyphCount,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		})).object;
 		this._glyphStorageBuffer[1] = this._register(GPULifecycle.createBuffer(this._device, {
-			label: 'Monaco glyph storage buffer',
+			label: 'Monaco glyph storage buffer [1]',
 			size: GlyphStorageBufferInfo.BytesPerEntry * TextureAtlasPage.maximumGlyphCount,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		})).object;
@@ -285,10 +286,26 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		// endregion Bind group
 
 		this._initialized = true;
+
+		// Render the initial viewport immediately after initialization
+		if (this._initViewportData) {
+			// HACK: Rendering multiple times in the same frame like this isn't ideal, but there
+			//       isn't an easy way to merge viewport data
+			for (const viewportData of this._initViewportData) {
+				this.renderText(viewportData);
+			}
+			this._initViewportData = undefined;
+		}
 	}
 
 	private _updateAtlasStorageBufferAndTexture() {
 		for (const [layerIndex, page] of ViewGpuContext.atlas.pages.entries()) {
+			if (layerIndex >= 2) {
+				// TODO: Support arbitrary number of layers
+				console.log(`Attempt to upload atlas page [${layerIndex}], only 2 are supported currently`);
+				continue;
+			}
+
 			// Skip the update if it's already the latest version
 			if (page.version === this._atlasGpuTextureVersions[layerIndex]) {
 				continue;
@@ -334,12 +351,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		}
 	}
 
-	public static canRender(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): boolean {
-		const d = viewportData.getViewLineRenderingData(lineNumber);
-		// TODO
-		return d.content.indexOf('e') !== -1;
-	}
-
 	public prepareRender(ctx: RenderingContext): void {
 		throw new BugIndicatingError('Should not be called');
 	}
@@ -361,6 +372,9 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	public renderText(viewportData: ViewportData): void {
 		if (this._initialized) {
 			return this._renderText(viewportData);
+		} else {
+			this._initViewportData = this._initViewportData ?? [];
+			this._initViewportData.push(viewportData);
 		}
 	}
 
@@ -418,10 +432,23 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			return null;
 		}
 
+		// Resolve tab widths for this line
+		const lineData = viewportData.getViewLineRenderingData(lineNumber);
+		const content = lineData.content;
+		let startColumnResolvedTabWidth = 0;
+		let endColumnResolvedTabWidth = 0;
+		for (let x = 0; x < startColumn - 1; x++) {
+			startColumnResolvedTabWidth += content[x] === '\t' ? lineData.tabSize : 1;
+		}
+		endColumnResolvedTabWidth = startColumnResolvedTabWidth;
+		for (let x = startColumn - 1; x < endColumn - 1; x++) {
+			endColumnResolvedTabWidth += content[x] === '\t' ? lineData.tabSize : 1;
+		}
+
 		// Visible horizontal range in _scaled_ pixels
 		const result = new VisibleRanges(false, [new FloatHorizontalRange(
-			(startColumn - 1) * viewLineOptions.spaceWidth,
-			(endColumn - startColumn - 1) * viewLineOptions.spaceWidth)
+			startColumnResolvedTabWidth * viewLineOptions.spaceWidth,
+			endColumnResolvedTabWidth * viewLineOptions.spaceWidth)
 		]);
 
 		return result;

@@ -14,7 +14,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
-import { createActionViewItem, createAndFillInActionBarActions } from './menuEntryActionViewItem.js';
+import { createActionViewItem, getActionBarActions } from './menuEntryActionViewItem.js';
 import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../common/actions.js';
 import { createConfigureKeybindingAction } from '../common/menuService.js';
 import { ICommandService } from '../../commands/common/commands.js';
@@ -349,7 +349,7 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 			resetMenu: menuId,
 			...options,
 			actionViewItemProvider: (action, opts) => {
-				let provider = actionViewService.lookUp(menuId, action.id);
+				let provider = actionViewService.lookUp(menuId, action instanceof SubmenuItemAction ? action.item.submenu.id : action.id);
 				if (!provider) {
 					provider = options?.actionViewItemProvider;
 				}
@@ -357,19 +357,15 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 				if (viewItem) {
 					return viewItem;
 				}
-				return createActionViewItem(instaService, action, options);
+				return createActionViewItem(instaService, action, opts);
 			}
 		}, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 
 		// update logic
 		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: options?.eventDebounceDelay }));
 		const updateToolbar = () => {
-			const primary: IAction[] = [];
-			const secondary: IAction[] = [];
-			createAndFillInActionBarActions(
-				menu,
-				options?.menuOptions,
-				{ primary, secondary },
+			const { primary, secondary } = getActionBarActions(
+				menu.getActions(options?.menuOptions),
 				options?.toolbarOptions?.primaryGroup, options?.toolbarOptions?.shouldInlineSubmenu, options?.toolbarOptions?.useSeparatorsInPrimaryActions
 			);
 			container.classList.toggle('has-no-actions', primary.length === 0 && secondary.length === 0);

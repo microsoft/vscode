@@ -187,6 +187,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}, 0);
 	};
 
+	const isEditableElement = (element: Element) => {
+		return element.tagName.toLowerCase() === 'input' || element.tagName.toLowerCase() === 'textarea' || 'editContext' in element;
+	};
+
 	// check if an input element is focused within the output element
 	const checkOutputInputFocus = (e: FocusEvent) => {
 		lastFocusedOutput = getOutputContainer(e);
@@ -3105,8 +3109,4 @@ export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOp
 		(${webviewPreloads})(
 			JSON.parse(decodeURIComponent("${encodeURIComponent(JSON.stringify(ctx))}"))
 		)\n//# sourceURL=notebookWebviewPreloads.js\n`;
-}
-
-export function isEditableElement(element: Element): boolean {
-	return element.tagName.toLowerCase() === 'input' || element.tagName.toLowerCase() === 'textarea' || 'editContext' in element;
 }

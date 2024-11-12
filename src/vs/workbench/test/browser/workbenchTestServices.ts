@@ -93,7 +93,7 @@ import { TestDialogService } from '../../../platform/dialogs/test/common/testDia
 import { CodeEditorService } from '../../services/editor/browser/codeEditorService.js';
 import { MainEditorPart } from '../../browser/parts/editor/editorPart.js';
 import { ICodeEditor } from '../../../editor/browser/editorBrowser.js';
-import { IDiffEditor } from '../../../editor/common/editorCommon.js';
+import { IDiffEditor, IEditor } from '../../../editor/common/editorCommon.js';
 import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
 import { QuickInputService } from '../../services/quickinput/browser/quickInputService.js';
 import { IListService } from '../../../platform/list/browser/listService.js';
@@ -728,6 +728,10 @@ export class TestPaneCompositeService extends Disposable implements IPaneComposi
 		throw new Error('Method not implemented.');
 	}
 
+	getPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
+		throw new Error('Method not implemented.');
+	}
+
 	getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
 		return assertIsDefined(this.parts.get(viewContainerLocation));
 	}
@@ -763,6 +767,7 @@ export class TestSideBarPart implements IPaneCompositePart {
 	dispose() { }
 	getPinnedPaneCompositeIds() { return []; }
 	getVisiblePaneCompositeIds() { return []; }
+	getPaneCompositeIds() { return []; }
 	layout(width: number, height: number, top: number, left: number): void { }
 }
 
@@ -784,6 +789,7 @@ export class TestPanelPart implements IPaneCompositePart {
 	getPaneComposites() { return []; }
 	getPinnedPaneCompositeIds() { return []; }
 	getVisiblePaneCompositeIds() { return []; }
+	getPaneCompositeIds() { return []; }
 	getActivePaneComposite(): IPaneComposite { return activeViewlet; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
 	dispose() { }
@@ -1028,6 +1034,7 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 	mostRecentlyActiveEditors: readonly IEditorIdentifier[] = [];
 	visibleEditorPanes: readonly IVisibleEditorPane[] = [];
 	visibleTextEditorControls = [];
+	getVisibleTextEditorControls(order: EditorsOrder): readonly (IEditor | IDiffEditor)[] { return this.visibleTextEditorControls; }
 	visibleEditors: readonly EditorInput[] = [];
 	count = this.editors.length;
 
@@ -1561,12 +1568,10 @@ export class TestHostService implements IHostService {
 
 	async toggleFullScreen(): Promise<void> { }
 
+	async getScreenshot(): Promise<ArrayBufferLike | undefined> { return undefined; }
+
 	readonly colorScheme = ColorScheme.DARK;
 	onDidChangeColorScheme = Event.None;
-
-	getPathForFile(file: File): string | undefined {
-		return undefined;
-	}
 }
 
 export class TestFilesConfigurationService extends FilesConfigurationService {
@@ -1972,13 +1977,14 @@ export class TestWorkspacesService implements IWorkspacesService {
 
 export class TestTerminalInstanceService implements ITerminalInstanceService {
 	onDidCreateInstance = Event.None;
+	onDidRegisterBackend = Event.None;
 	declare readonly _serviceBrand: undefined;
 
 	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig { throw new Error('Method not implemented.'); }
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, remoteAuthority: string | undefined): Promise<string> { throw new Error('Method not implemented.'); }
 	createInstance(options: ICreateTerminalOptions, target: TerminalLocation): ITerminalInstance { throw new Error('Method not implemented.'); }
 	async getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined> { throw new Error('Method not implemented.'); }
-	didRegisterBackend(remoteAuthority?: string): void { throw new Error('Method not implemented.'); }
+	didRegisterBackend(backend: ITerminalBackend): void { throw new Error('Method not implemented.'); }
 	getRegisteredBackends(): IterableIterator<ITerminalBackend> { throw new Error('Method not implemented.'); }
 }
 
@@ -2244,7 +2250,6 @@ export class TestUserDataProfileService implements IUserDataProfileService {
 	readonly onDidChangeCurrentProfile = Event.None;
 	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }), URI.file('tests').with({ scheme: 'vscode-tests' }));
 	async updateCurrentProfile(): Promise<void> { }
-	getShortName(profile: IUserDataProfile): string { return profile.shortName ?? profile.name; }
 }
 
 export class TestWebExtensionsScannerService implements IWebExtensionsScannerService {

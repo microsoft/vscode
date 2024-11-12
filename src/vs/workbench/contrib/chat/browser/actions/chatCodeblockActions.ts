@@ -3,31 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { TextEdit } from '../../../../../editor/common/languages.js';
 import { CopyAction } from '../../../../../editor/contrib/clipboard/browser/clipboard.js';
-import { localize, localize2 } from '../../../../../nls.js';
+import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
 import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
-import { ICodeMapperCodeBlock, ICodeMapperService } from '../../common/chatCodeMapperService.js';
-import { CONTEXT_CHAT_EDIT_APPLIED, CONTEXT_CHAT_ENABLED, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION } from '../../common/chatContextKeys.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { ChatAgentLocation } from '../../common/chatAgents.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ChatCopyKind, IChatService } from '../../common/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../chat.js';
@@ -191,7 +186,7 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.applyInEditor',
 				title: localize2('interactive.applyInEditor.label', "Apply in Editor"),
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.gitPullRequestGoToChanges,
@@ -200,13 +195,13 @@ export function registerChatCodeBlockActions() {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
 					when: ContextKeyExpr.and(
-						CONTEXT_IN_CHAT_SESSION,
+						ChatContextKeys.inChatSession,
 						...shellLangIds.map(e => ContextKeyExpr.notEquals(EditorContextKeys.languageId.key, e))
 					),
 					order: 10
 				},
 				keybinding: {
-					when: ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate()), accessibleViewInCodeBlock),
+					when: ContextKeyExpr.or(ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()), accessibleViewInCodeBlock),
 					primary: KeyMod.CtrlCmd | KeyCode.Enter,
 					mac: { primary: KeyMod.WinCtrl | KeyCode.Enter },
 					weight: KeybindingWeight.ExternalExtension + 1
@@ -222,83 +217,29 @@ export function registerChatCodeBlockActions() {
 		}
 	});
 
-	registerAction2(class ApplyAllAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.chat.applyAll',
-				title: localize2('chat.applyAll.label', "Apply All Edits"),
-				precondition: CONTEXT_CHAT_ENABLED, // improve this condition
-				f1: true,
-				category: CHAT_CATEGORY,
-				icon: Codicon.edit
-			});
-		}
-
-		override async run(accessor: ServicesAccessor, ...args: any[]) {
-			const chatWidgetService = accessor.get(IChatWidgetService);
-			const codemapperService = accessor.get(ICodeMapperService);
-			const chatEditingService = accessor.get(IChatEditingService);
-			const notificationService = accessor.get(INotificationService);
-
-			if (chatEditingService.currentEditingSession) {
-				// there is already an editing session active, we should not start a new one
-				// TODO: figure out a way to implement follow-ups
-				notificationService.info(localize('chatCodeBlock.applyAll.editingSessionActive', 'An editing session is already active, please accept or reject the current proposed edits before continuing.'));
-				return;
-			}
-
-			const widget = chatWidgetService.lastFocusedWidget;
-			if (!widget) {
-				return;
-			}
-
-			const items = widget.viewModel?.getItems() ?? [];
-			const item = widget.getFocus() ?? items[items.length - 1];
-			if (!isResponseVM(item)) {
-				return;
-			}
-
-			const codeblocks = widget.getCodeBlockInfosForResponse(item);
-			const request: ICodeMapperCodeBlock[] = [];
-			for (const codeblock of codeblocks) {
-				if (codeblock.codemapperUri && codeblock.uri) {
-					const code = codeblock.getContent();
-					request.push({ resource: codeblock.codemapperUri, code });
-				}
-			}
-
-			await chatEditingService.createEditingSession(item.sessionId, async (stream) => {
-
-				const response = {
-					textEdit: (resource: URI, textEdits: TextEdit[]) => {
-						stream.textEdits(resource, textEdits);
-					}
-				};
-
-				// Invoke the code mapper for all the code blocks in this response
-				const tokenSource = new CancellationTokenSource();
-				await codemapperService.mapCode({ codeBlocks: request, conversation: [] }, response, tokenSource.token);
-			});
-		}
-	});
-
 	registerAction2(class SmartApplyInEditorAction extends ChatCodeBlockAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertCodeBlock',
 				title: localize2('interactive.insertCodeBlock.label', "Insert At Cursor"),
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.insert,
-				menu: {
+				menu: [{
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
-					when: CONTEXT_IN_CHAT_SESSION,
+					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Terminal)),
 					order: 20
-				},
+				}, {
+					id: MenuId.ChatCodeBlock,
+					group: 'navigation',
+					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Terminal)),
+					isHiddenByDefault: true,
+					order: 20
+				}],
 				keybinding: {
-					when: ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate()), accessibleViewInCodeBlock),
+					when: ContextKeyExpr.or(ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()), accessibleViewInCodeBlock),
 					primary: KeyMod.CtrlCmd | KeyCode.Enter,
 					mac: { primary: KeyMod.WinCtrl | KeyCode.Enter },
 					weight: KeybindingWeight.ExternalExtension + 1
@@ -317,7 +258,7 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.insertIntoNewFile',
 				title: localize2('interactive.insertIntoNewFile.label', "Insert into New File"),
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.newFile,
@@ -364,7 +305,7 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.runInTerminal',
 				title: localize2('interactive.runInTerminal.label', "Insert into Terminal"),
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.terminal,
@@ -372,7 +313,7 @@ export function registerChatCodeBlockActions() {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
 					when: ContextKeyExpr.and(
-						CONTEXT_IN_CHAT_SESSION,
+						ChatContextKeys.inChatSession,
 						ContextKeyExpr.or(...shellLangIds.map(e => ContextKeyExpr.equals(EditorContextKeys.languageId.key, e)))
 					),
 				},
@@ -381,7 +322,7 @@ export function registerChatCodeBlockActions() {
 					group: 'navigation',
 					isHiddenByDefault: true,
 					when: ContextKeyExpr.and(
-						CONTEXT_IN_CHAT_SESSION,
+						ChatContextKeys.inChatSession,
 						...shellLangIds.map(e => ContextKeyExpr.notEquals(EditorContextKeys.languageId.key, e))
 					)
 				}],
@@ -391,7 +332,7 @@ export function registerChatCodeBlockActions() {
 						primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Enter
 					},
 					weight: KeybindingWeight.EditorContrib,
-					when: ContextKeyExpr.or(CONTEXT_IN_CHAT_SESSION, accessibleViewInCodeBlock),
+					when: ContextKeyExpr.or(ChatContextKeys.inChatSession, accessibleViewInCodeBlock),
 				}]
 			});
 		}
@@ -481,9 +422,9 @@ export function registerChatCodeBlockActions() {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown,
 					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown, },
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: CONTEXT_IN_CHAT_SESSION,
+					when: ChatContextKeys.inChatSession,
 				},
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});
@@ -503,9 +444,9 @@ export function registerChatCodeBlockActions() {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp,
 					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp, },
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: CONTEXT_IN_CHAT_SESSION,
+					when: ChatContextKeys.inChatSession,
 				},
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});
@@ -570,7 +511,7 @@ export function registerChatCodeCompareBlockActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.check,
-				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, CONTEXT_CHAT_EDIT_APPLIED.negate()),
+				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, ChatContextKeys.editApplied.negate()),
 				menu: {
 					id: MenuId.ChatCompareBlock,
 					group: 'navigation',
@@ -602,7 +543,7 @@ export function registerChatCodeCompareBlockActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.trash,
-				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, CONTEXT_CHAT_EDIT_APPLIED.negate()),
+				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, ChatContextKeys.editApplied.negate()),
 				menu: {
 					id: MenuId.ChatCompareBlock,
 					group: 'navigation',

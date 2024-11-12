@@ -12,6 +12,7 @@ export const enum TerminalSuggestCommandId {
 	AcceptSelectedSuggestionEnter = 'workbench.action.terminal.acceptSelectedSuggestionEnter',
 	HideSuggestWidget = 'workbench.action.terminal.hideSuggestWidget',
 	ClearSuggestCache = 'workbench.action.terminal.clearSuggestCache',
+	RequestCompletions = 'workbench.action.terminal.requestCompletions',
 }
 
 export const defaultTerminalSuggestCommandsToSkipShell = [
@@ -23,4 +24,5 @@ export const defaultTerminalSuggestCommandsToSkipShell = [
 	TerminalSuggestCommandId.AcceptSelectedSuggestionEnter,
 	TerminalSuggestCommandId.HideSuggestWidget,
 	TerminalSuggestCommandId.ClearSuggestCache,
+	TerminalSuggestCommandId.RequestCompletions,
 ];

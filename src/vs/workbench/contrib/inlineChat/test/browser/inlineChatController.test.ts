@@ -160,7 +160,6 @@ suite('InteractiveChatController', function () {
 			[ICommandService, new SyncDescriptor(TestCommandService)],
 			[IChatEditingService, new class extends mock<IChatEditingService>() {
 				override onDidCreateEditingSession: Event<IChatEditingSession> = Event.None;
-				override onDidDisposeEditingSession: Event<IChatEditingSession> = Event.None;
 			}],
 			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
 				override markChanged(session: Session): void {

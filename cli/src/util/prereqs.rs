@@ -121,7 +121,7 @@ impl PreReqChecker {
 
 		let bullets = errors
 			.iter()
-			.map(|e| format!("  - {}", e))
+			.map(|e| format!("  - {e}"))
 			.collect::<Vec<String>>()
 			.join("\n");
 
@@ -142,8 +142,7 @@ async fn check_musl_interpreter() -> Result<(), String> {
 
 	if fs::metadata(MUSL_PATH).await.is_err() {
 		return Err(format!(
-			"find {}, which is required to run the {} in musl environments",
-			MUSL_PATH, QUALITYLESS_SERVER_NAME
+			"find {MUSL_PATH}, which is required to run the {QUALITYLESS_SERVER_NAME} in musl environments"
 		));
 	}
 
@@ -231,8 +230,7 @@ async fn check_glibcxx_version() -> Result<bool, String> {
 		Some(path) => match fs::read(&path).await {
 			Ok(contents) => check_for_sufficient_glibcxx_versions(contents),
 			Err(e) => Err(format!(
-				"validate GLIBCXX version for GNU environments, but could not: {}",
-				e
+				"validate GLIBCXX version for GNU environments, but could not: {e}"
 			)),
 		},
 		None => Err("find libstdc++.so or ldconfig for GNU environments".to_owned()),

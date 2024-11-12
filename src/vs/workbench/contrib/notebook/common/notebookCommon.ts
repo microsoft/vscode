@@ -844,8 +844,8 @@ export interface INotebookEditorModel extends IDisposable {
 }
 
 export interface INotebookDiffEditorModel extends IDisposable {
-	original: IResolvedNotebookEditorModel;
-	modified: IResolvedNotebookEditorModel;
+	original: { notebook: NotebookTextModel; resource: URI; viewType: string };
+	modified: { notebook: NotebookTextModel; resource: URI; viewType: string };
 }
 
 export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {
@@ -1018,7 +1018,7 @@ export const NotebookSetting = {
 	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
 	cellChat: 'notebook.experimental.cellChat',
 	cellGenerate: 'notebook.experimental.generate',
-	notebookVariablesView: 'notebook.experimental.variablesView',
+	notebookVariablesView: 'notebook.variablesView',
 	InteractiveWindowPromptToSave: 'interactiveWindow.promptToSaveOnClose',
 	cellFailureDiagnostics: 'notebook.cellFailureDiagnostics',
 	outputBackupSizeLimit: 'notebook.backup.sizeLimit',
