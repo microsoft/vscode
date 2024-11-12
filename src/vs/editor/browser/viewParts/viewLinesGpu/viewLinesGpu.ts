@@ -11,7 +11,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import type { Position } from '../../../common/core/position.js';
 import type { Range } from '../../../common/core/range.js';
-import type { ViewLinesChangedEvent, ViewScrollChangedEvent } from '../../../common/viewEvents.js';
+import type { ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewScrollChangedEvent } from '../../../common/viewEvents.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { TextureAtlasPage } from '../../gpu/atlas/textureAtlasPage.js';
@@ -369,6 +369,11 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	}
 
 	override onLinesChanged(e: ViewLinesChangedEvent): boolean {
+		return true;
+	}
+
+	override onLinesDeleted(e: ViewLinesDeletedEvent): boolean {
+		this._renderStrategy.onLinesDeleted(e);
 		return true;
 	}
 
