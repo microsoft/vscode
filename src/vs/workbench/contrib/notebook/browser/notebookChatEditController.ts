@@ -38,6 +38,9 @@ import { NotebookCellTextModel } from '../common/model/notebookCellTextModel.js'
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
 import { INotebookLoggingService } from '../common/notebookLoggingService.js';
+import { TextEdit } from '../../../../editor/common/core/textEdit.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { DetailedLineRangeMapping, RangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 
 
 export const INotebookOriginalModelReferenceFactory = createDecorator<INotebookOriginalModelReferenceFactory>('INotebookOriginalModelReferenceFactory');
@@ -121,13 +124,13 @@ class NotebookChatEditorController extends Disposable {
 				return;
 			}
 			diffInfo.cellDiff.forEach((diff) => {
-				if (diff.type === 'modified') {
+				if (diff.type === 'modified' || diff.type === 'insert') {
 					const modifiedCell = modified.cells[diff.modifiedCellIndex];
-					const originalCell = original.cells[diff.originalCellIndex];
+					const originalCellValue = diff.type === 'modified' ? original.cells[diff.originalCellIndex].getValue() : undefined;
 					const editor = this.notebookEditor.codeEditors.find(([vm,]) => vm.handle === modifiedCell.handle)?.[1];
 					if (editor && decorators.get(modifiedCell)?.editor !== editor) {
 						decorators.get(modifiedCell)?.dispose();
-						const decorator = this.instantiationService.createInstance(NotebookCellDiffDecorator, editor, originalCell.getValue(), modifiedCell.cellKind);
+						const decorator = this.instantiationService.createInstance(NotebookCellDiffDecorator, editor, originalCellValue, modifiedCell.cellKind);
 						decorators.set(modifiedCell, decorator);
 						this._register(editor.onDidDispose(() => {
 							decorator.dispose();
@@ -230,13 +233,28 @@ class NotebookCellDiffDecorator extends DisposableStore {
 		}
 
 		const version = model.getVersionId();
-		const diff = await this.computeDiff();
 		const originalModel = this.getOrCreateOriginalModel();
+		const diff = originalModel ? await this.computeDiff() : undefined;
+		if (this.isDisposed) {
+			return;
+		}
 
-		if (diff && originalModel && model === this.editor.getModel() && this.editor.getModel()?.getVersionId() === version && !this.isDisposed) {
+		if ((originalModel && !diff) || model !== this.editor.getModel() || this.editor.getModel()?.getVersionId() !== version) {
+			this._clearRendering();
+		}
+
+		if (diff && originalModel) {
 			this._updateWithDiff(originalModel, diff);
 		} else {
-			this._clearRendering();
+			const edit = TextEdit.insert(new Position(0, 0), model.getValue());
+			const rangeMapping = RangeMapping.fromEdit(edit);
+			const insertDiff: IDocumentDiff = {
+				identical: false,
+				moves: [],
+				quitEarly: false,
+				changes: [DetailedLineRangeMapping.fromRangeMappings(rangeMapping)],
+			};
+			this._updateWithDiff(undefined, insertDiff);
 		}
 	}
 
@@ -288,7 +306,7 @@ class NotebookCellDiffDecorator extends DisposableStore {
 		);
 	}
 
-	private _updateWithDiff(originalModel: ITextModel, diff: IDocumentDiff): void {
+	private _updateWithDiff(originalModel: ITextModel | undefined, diff: IDocumentDiff): void {
 		const chatDiffAddDecoration = ModelDecorationOptions.createDynamic({
 			...diffAddDecoration,
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
@@ -314,15 +332,17 @@ class NotebookCellDiffDecorator extends DisposableStore {
 			}
 			this._viewZones = [];
 			const modifiedDecorations: IModelDeltaDecoration[] = [];
-			const mightContainNonBasicASCII = originalModel.mightContainNonBasicASCII();
-			const mightContainRTL = originalModel.mightContainRTL();
+			const mightContainNonBasicASCII = originalModel?.mightContainNonBasicASCII();
+			const mightContainRTL = originalModel?.mightContainRTL();
 			const renderOptions = RenderOptions.fromEditor(this.editor);
 
 			for (const diffEntry of diff.changes) {
 				const originalRange = diffEntry.original;
-				originalModel.tokenization.forceTokenization(Math.max(1, originalRange.endLineNumberExclusive - 1));
+				if (originalModel) {
+					originalModel.tokenization.forceTokenization(Math.max(1, originalRange.endLineNumberExclusive - 1));
+				}
 				const source = new LineSource(
-					originalRange.mapToLineArray(l => originalModel.tokenization.getLineTokens(l)),
+					(originalRange.length && originalModel) ? originalRange.mapToLineArray(l => originalModel.tokenization.getLineTokens(l)) : [],
 					[],
 					mightContainNonBasicASCII,
 					mightContainRTL,
