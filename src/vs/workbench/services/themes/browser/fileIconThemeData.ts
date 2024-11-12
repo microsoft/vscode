@@ -15,6 +15,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { fontCharacterRegex, fontColorRegex, fontSizeRegex } from '../common/productIconThemeSchema.js';
 
 export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
@@ -152,11 +153,11 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 }
 
 interface IconDefinition {
-	iconPath: string;
-	fontColor: string;
-	fontCharacter: string;
-	fontSize: string;
-	fontId: string;
+	readonly iconPath: string;
+	readonly fontColor: string;
+	readonly fontCharacter: string;
+	readonly fontSize: string;
+	readonly fontId: string;
 }
 
 interface FontDefinition {
@@ -419,14 +420,14 @@ export class FileIconThemeLoader {
 					cssRules.push(`${selectors.join(', ')} { content: '${emQuad}'; background-image: ${asCSSUrl(resolvePath(definition.iconPath))}; }`);
 				} else if (definition.fontCharacter || definition.fontColor) {
 					const body = [];
-					if (definition.fontColor) {
+					if (definition.fontColor && definition.fontColor.match(fontColorRegex)) {
 						body.push(`color: ${definition.fontColor};`);
 					}
-					if (definition.fontCharacter) {
-						body.push(`content: ${asCSSStringValue(definition.fontCharacter)};`);
+					if (definition.fontCharacter && definition.fontCharacter.match(fontCharacterRegex)) {
+						body.push(`content: ${asCSSStringValue(definition.fontCharacter, false)};`);
 					}
 					const fontSize = definition.fontSize ?? (definition.fontId ? fontSizes.get(definition.fontId) : undefined);
-					if (fontSize) {
+					if (fontSize && fontSize.match(fontSizeRegex)) {
 						body.push(`font-size: ${fontSize};`);
 					}
 					if (definition.fontId) {

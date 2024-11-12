@@ -26,7 +26,10 @@ export function asCssValueWithDefault(cssPropertyValue: string | undefined, dflt
  *
  * https://developer.mozilla.org/en-US/docs/Web/CSS/string
  */
-export function asCSSStringValue(value: string) {
+export function asCSSStringValue(value: string, escapeBackslash = true): string {
+	if (escapeBackslash) {
+		value = value.replace(/\\/g, '\\\\');
+	}
 	return `'${value.replace(/'/g, '\\27')}'`;
 }
 

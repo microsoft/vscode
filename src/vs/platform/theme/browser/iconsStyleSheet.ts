@@ -40,7 +40,7 @@ export function getIconsStyleSheet(themeService: IThemeService | undefined): IIc
 					continue;
 				}
 
-				const fontCharacterCSSValue = asCSSStringValue(definition.fontCharacter);
+				const fontCharacterCSSValue = asCSSStringValue(definition.fontCharacter, false);
 
 				const fontContribution = definition.font;
 				const fontFamilyVar = `--vscode-icon-${contribution.id}-font-family`;

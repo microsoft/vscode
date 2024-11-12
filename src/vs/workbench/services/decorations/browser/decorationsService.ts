@@ -137,7 +137,7 @@ class DecorationRule {
 		}
 		createCSSRule(
 			`.${this.iconBadgeClassName}::after`,
-			`content: ${asCSSStringValue(definition.fontCharacter)};
+			`content: ${asCSSStringValue(definition.fontCharacter, false)};
 			color: ${icon.color ? getColor(icon.color.id) : getColor(color)};
 			font-family: ${asCSSStringValue(definition.font?.id ?? 'codicon')};
 			font-size: 16px;
