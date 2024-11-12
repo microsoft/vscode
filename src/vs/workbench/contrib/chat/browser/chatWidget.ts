@@ -534,8 +534,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
 							// Re-render if element becomes hidden due to undo/redo
 							`_${element.isHidden ? '1' : '0'}` +
-							// Re-render if element working set state changes
-							(isResponseVM(element) ? `_${element.editChangeCount}` : '') +
 							// Rerender request if we got new content references in the response
 							// since this may change how we render the corresponding attachments in the request
 							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '');
