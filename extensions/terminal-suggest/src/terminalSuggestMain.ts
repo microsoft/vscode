@@ -131,7 +131,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 					for (const suggestion of spec.args.suggestions) {
 						const suggestionName = getLabel(suggestion);
 						if (suggestionName) {
-							result.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, ' ', suggestionName, `Suggestion for ${name}: ${suggestion.description}`));
+							result.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, ' ', suggestionName, suggestion.description, terminalContext.cursorPosition));
 						}
 					}
 				}
@@ -191,13 +191,13 @@ function getLabel(spec: FigSpec | Option | Subcommand | Suggestion): string | un
 	return spec.name[0];
 }
 
-function createCompletionItem(commandLine: string, cursorPosition: number, prefix: string, label: string, description?: string): vscode.TerminalCompletionItem {
+function createCompletionItem(commandLine: string, cursorPosition: number, prefix: string, label: string, description?: string, replacementIndex?: number): vscode.TerminalCompletionItem {
 	return {
 		label,
 		isFile: false,
 		isDirectory: false,
 		detail: description ?? '',
-		replacementIndex: cursorPosition - prefix.length,
+		replacementIndex: replacementIndex ?? cursorPosition - prefix.length,
 		replacementLength: label.length - prefix.length,
 	};
 }
