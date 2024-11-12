@@ -41,8 +41,6 @@ import { PreferredPasteConfiguration } from './copyPasteContribution.js';
 import { DefaultTextPasteOrDropEditProvider } from './defaultProviders.js';
 import { createCombinedWorkspaceEdit, sortEditsByYieldTo } from './edit.js';
 import { PostEditWidgetManager } from './postEditWidget.js';
-import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
-import { ClipboardEventUtils } from '../../../browser/controller/editContext/textArea/textAreaEditContextInput.js';
 
 export const changePasteTypeCommandId = 'editor.changePasteType';
 
