@@ -16,6 +16,8 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { provideDecorations } from '../../browser/views/explorerDecorationsProvider.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullFilesConfigurationService } from '../../../../test/common/workbenchTestServices.js';
+import { CountBadge } from '../../../../../base/browser/ui/countBadge/countBadge.js';
+import { defaultCountBadgeStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 
 suite('Files - ExplorerView', () => {
 
@@ -95,7 +97,8 @@ suite('Files - ExplorerView', () => {
 			label: <any>{
 				container: label,
 				onDidRender: emitter.event
-			}
+			},
+			badge: new CountBadge(label.lastElementChild as HTMLElement, {}, defaultCountBadgeStyles)
 		}, 1, false);
 
 		ds.add(navigationController);
