@@ -218,17 +218,13 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		const original = this._getModel(originalUrl);
 		const modified = this._getModel(modifiedUrl);
 
-		let diffResult = await this.$computeDiffWithCellIds(original, modified);
+		const [originalSeq, modifiedSeq] = await Promise.all([
+			CellSequence.create(original),
+			CellSequence.create(modified),
+		]);
 
-		if (!diffResult) {
-			const [originalSeq, modifiedSeq] = await Promise.all([
-				CellSequence.create(original),
-				CellSequence.create(modified),
-			]);
-
-			const diff = new LcsDiff(originalSeq, modifiedSeq);
-			diffResult = diff.ComputeDiff(false);
-		}
+		const diff = new LcsDiff(originalSeq, modifiedSeq);
+		const diffResult = diff.ComputeDiff(false);
 
 		const originalMetadata = filter(original.metadata, key => !original.transientDocumentMetadata[key]);
 		const modifiedMetadata = filter(modified.metadata, key => !modified.transientDocumentMetadata[key]);

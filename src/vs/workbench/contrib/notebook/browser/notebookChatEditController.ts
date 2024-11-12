@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isEqual } from '../../../../base/common/resources.js';
-import { AsyncReferenceCollection, Disposable, DisposableStore, dispose, IDisposable, IReference, ReferenceCollection, toDisposable } from '../../../../base/common/lifecycle.js';
+import { AsyncReferenceCollection, Disposable, DisposableStore, dispose, IReference, ReferenceCollection, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, autorunWithStore, derived, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { IChatEditingService, WorkingSetEntryState, IModifiedFileEntry, ChatEditingSessionState } from '../../chat/common/chatEditingService.js';
 import { INotebookService } from '../common/notebookService.js';
@@ -36,6 +36,8 @@ import { overviewRulerModifiedForeground, minimapGutterModifiedBackground, overv
 import { Range } from '../../../../editor/common/core/range.js';
 import { NotebookCellTextModel } from '../common/model/notebookCellTextModel.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { INotebookLoggingService } from '../common/notebookLoggingService.js';
 
 
 export const INotebookOriginalModelReferenceFactory = createDecorator<INotebookOriginalModelReferenceFactory>('INotebookOriginalModelReferenceFactory');
@@ -109,7 +111,6 @@ class NotebookChatEditorController extends Disposable {
 
 		const onDidChangeVisibleRanges = observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges);
 		const decorators = new Map<NotebookCellTextModel, NotebookCellDiffDecorator>();
-		const editors = new WeakMap<ICodeEditor, IDisposable>();
 		this._register(autorun(r => {
 			const entry = entryObs.read(r);
 			const diffInfo = notebookDiff.read(r);
@@ -127,9 +128,12 @@ class NotebookChatEditorController extends Disposable {
 					if (editor && decorators.get(modifiedCell)?.editor !== editor) {
 						decorators.get(modifiedCell)?.dispose();
 						const decorator = this.instantiationService.createInstance(NotebookCellDiffDecorator, editor, originalCell.getValue(), modifiedCell.cellKind);
-						editors.set(editor, decorator);
+						decorators.set(modifiedCell, decorator);
 						this._register(editor.onDidDispose(() => {
 							decorator.dispose();
+							if (decorators.get(modifiedCell) === decorator) {
+								decorators.set(modifiedCell, decorator);
+							}
 						}));
 					}
 				}
@@ -144,9 +148,9 @@ class NotebookChatEditorController extends Disposable {
 
 
 class NotebookCellDiffDecorator extends DisposableStore {
-	private readonly _sessionStore = this.add(new DisposableStore());
 	private readonly _decorations = this.editor.createDecorationsCollection();
 	private _viewZones: string[] = [];
+	private readonly throttledDecorator = new ThrottledDelayer(100);
 
 	constructor(
 		public readonly editor: ICodeEditor,
@@ -159,10 +163,10 @@ class NotebookCellDiffDecorator extends DisposableStore {
 
 	) {
 		super();
-		this.add(this.editor.onDidChangeModel(() => this._update()));
+		this.add(this.editor.onDidChangeModel(() => this.update()));
 		this.add(this.editor.onDidChangeConfiguration((e) => {
 			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.lineHeight)) {
-				this._update();
+				this.update();
 			}
 		}));
 		this.add(toDisposable(() => this._clearRendering()));
@@ -203,22 +207,20 @@ class NotebookCellDiffDecorator extends DisposableStore {
 		this.update();
 	}
 
-	private _update(): void {
-		this._sessionStore.clear();
-		if (!this.editor.hasModel()) {
+	public update(): void {
+		this.throttledDecorator.trigger(() => this._updateImpl());
+	}
+
+	private async _updateImpl() {
+		if (this.isDisposed) {
 			return;
 		}
-		if (this.editor.getOption(EditorOption.inDiffEditor)) {
+		if (!this.editor.hasModel()) {
+			this._clearRendering();
 			return;
 		}
 		if (this.editor.getOption(EditorOption.inDiffEditor)) {
 			this._clearRendering();
-			return;
-		}
-		this.update();
-	}
-	public update(): void {
-		if (this.isDisposed) {
 			return;
 		}
 		const model = this.editor.getModel();
@@ -228,11 +230,14 @@ class NotebookCellDiffDecorator extends DisposableStore {
 		}
 
 		const version = model.getVersionId();
-		this.computeDiff().then((diff) => {
-			if (diff && this.editor.getModel()?.getVersionId() === version && !this.isDisposed) {
-				this._updateWithDiff(diff);
-			}
-		});
+		const diff = await this.computeDiff();
+		const originalModel = this.getOrCreateOriginalModel();
+
+		if (diff && originalModel && model === this.editor.getModel() && this.editor.getModel()?.getVersionId() === version && !this.isDisposed) {
+			this._updateWithDiff(originalModel, diff);
+		} else {
+			this._clearRendering();
+		}
 	}
 
 	private _clearRendering() {
@@ -283,13 +288,7 @@ class NotebookCellDiffDecorator extends DisposableStore {
 		);
 	}
 
-	private _updateWithDiff(diff: IDocumentDiff): void {
-		const originalModel = this.getOrCreateOriginalModel();
-		if (!originalModel) {
-			this._clearRendering();
-			return;
-		}
-
+	private _updateWithDiff(originalModel: ITextModel, diff: IDocumentDiff): void {
 		const chatDiffAddDecoration = ModelDecorationOptions.createDynamic({
 			...diffAddDecoration,
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
@@ -395,8 +394,8 @@ class NotebookModelSynchronizer extends Disposable {
 		private readonly notebookEditor: INotebookEditor,
 		public readonly entry: IModifiedFileEntry,
 		viewType: string,
-		@INotebookOriginalModelReferenceFactory private readonly originalModelRefFactory: INotebookOriginalModelReferenceFactory,
 		@INotebookService private readonly notebookService: INotebookService,
+		@INotebookLoggingService private readonly logService: INotebookLoggingService,
 		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService
 	) {
 		super();
@@ -416,40 +415,95 @@ class NotebookModelSynchronizer extends Disposable {
 	}
 
 	private async updateNotebookModel(entry: IModifiedFileEntry, viewType: string, token: CancellationToken) {
+		const modifiedModelVersion = (entry as ChatEditingModifiedFileEntry).modifiedModel.getVersionId();
+		const original = this.notebookEditor.textModel;
+		const originalModelVersion = original?.versionId ?? 0;
 		const model = await this.getModifiedModelForDiff(entry, viewType, token);
-		if (!model || token.isCancellationRequested) {
+		if (!model || token.isCancellationRequested || !original) {
 			return;
 		}
-		const diffResult = await this.computeDiff(entry, model, token);
-		if (!diffResult || token.isCancellationRequested) {
+		const cellDiffInfo = (await this.computeDiff(original, model, token))?.cellDiffInfo;
+		const currentVersion = (entry as ChatEditingModifiedFileEntry).modifiedModel.getVersionId();
+		if (!cellDiffInfo || token.isCancellationRequested || currentVersion !== modifiedModelVersion || originalModelVersion !== original.versionId) {
 			return;
 		}
-		const { cellDiffInfo, original } = diffResult;
-		if (cellDiffInfo.some(d => d.type !== 'unchanged')) {
-			// Replace all cells starting from firstChangeIndex
-			const activeModel = this.notebookEditor.textModel;
-			if (activeModel) {
-				const edits: ICellReplaceEdit[] = [
-					{
-						editType: CellEditType.Replace,
-						index: 0,
-						count: original.object.cells.length,
-						cells: model.cells.map(cell => ({
-							source: cell.getValue(),
-							cellKind: cell.cellKind,
-							language: cell.language,
-							outputs: cell.outputs.map(output => output.asDto()),
-							mime: cell.mime,
-							metadata: cell.metadata,
-							collapseState: cell.collapseState,
-							internalMetadata: cell.internalMetadata
-						} satisfies ICellDto2))
-					}
-				];
-				activeModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
-				this._onDidUpdateNotebookModel.fire({ cellDiff: cellDiffInfo, modelVersion: activeModel.versionId });
+		if (cellDiffInfo.every(d => d.type === 'unchanged')) {
+			return;
+		}
+
+		const edits: ICellReplaceEdit[] = [];
+		const mappings = new Map<number, number>();
+
+		// First Delete.
+		const deletedIndexes: number[] = [];
+		cellDiffInfo.reverse().forEach(diff => {
+			if (diff.type === 'delete') {
+				deletedIndexes.push(diff.originalCellIndex);
+				edits.push({
+					editType: CellEditType.Replace,
+					index: diff.originalCellIndex,
+					cells: [],
+					count: 1
+				});
 			}
+		});
+		if (edits.length) {
+			original.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+			edits.length = 0;
+			// Fix indexes.
 		}
+
+		// Next insert.
+		cellDiffInfo.reverse().forEach(diff => {
+			if (diff.type === 'modified' || diff.type === 'unchanged') {
+				mappings.set(diff.modifiedCellIndex, diff.originalCellIndex);
+			}
+			if (diff.type === 'insert') {
+				const originalIndex = mappings.get(diff.modifiedCellIndex - 1) ?? 0;
+				mappings.set(diff.modifiedCellIndex, originalIndex);
+				const cell = model.cells[diff.modifiedCellIndex];
+				const newCell: ICellDto2 =
+				{
+					source: cell.getValue(),
+					cellKind: cell.cellKind,
+					language: cell.language,
+					outputs: cell.outputs.map(output => output.asDto()),
+					mime: cell.mime,
+					metadata: cell.metadata,
+					collapseState: cell.collapseState,
+					internalMetadata: cell.internalMetadata
+				};
+				edits.push({
+					editType: CellEditType.Replace,
+					index: originalIndex + 1,
+					cells: [newCell],
+					count: 0
+				});
+			}
+		});
+		if (edits.length) {
+			original.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+			edits.length = 0;
+		}
+
+		// Finally update
+		cellDiffInfo.forEach(diff => {
+			if (diff.type === 'modified') {
+				const cell = original.cells[diff.originalCellIndex];
+				const textModel = cell.textModel;
+				if (textModel) {
+					const newText = model.cells[diff.modifiedCellIndex].getValue();
+					textModel.pushEditOperations(null, [
+						EditOperation.replace(textModel.getFullModelRange(), newText)
+					], () => null);
+				}
+			}
+		});
+
+		if (edits.length) {
+			original.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+		}
+		this._onDidUpdateNotebookModel.fire({ cellDiff: cellDiffInfo, modelVersion: original.versionId });
 	}
 	private previousUriOfModelForDiff?: URI;
 
@@ -471,26 +525,22 @@ class NotebookModelSynchronizer extends Disposable {
 			this._register(model);
 			return model;
 		} catch (ex) {
-			console.error(ex);
+			this.logService.warn('NotebookChatEdit', `Failed to deserialize Notebook for ${uri.toString}, ${ex.message}`);
+			this.logService.debug('NotebookChatEdit', ex.toString());
 			return;
 		}
 	}
 
-	private async getOriginalNotebookModel(entry: IModifiedFileEntry, modified: NotebookTextModel): Promise<IReference<NotebookTextModel>> {
-		return this._register(await this.originalModelRefFactory.getOrCreate(entry, modified.viewType));
-	}
-
-	async computeDiff(entry: IModifiedFileEntry, modified: NotebookTextModel, token: CancellationToken) {
-		const original = await this.getOriginalNotebookModel(entry, modified);
-		const diffResult = await raceCancellation(this.notebookEditorWorkerService.computeDiff(original.object.uri, modified.uri), token);
+	async computeDiff(original: NotebookTextModel, modified: NotebookTextModel, token: CancellationToken) {
+		const diffResult = await raceCancellation(this.notebookEditorWorkerService.computeDiff(original.uri, modified.uri), token);
 		if (!diffResult || token.isCancellationRequested) {
 			// after await the editor might be disposed.
 			return;
 		}
 
-		prettyChanges(original.object, modified, diffResult.cellsDiff);
+		prettyChanges(original, modified, diffResult.cellsDiff);
 
-		return { original, ...computeDiff(original.object, modified, diffResult) };
+		return computeDiff(original, modified, diffResult);
 	}
 }
 
