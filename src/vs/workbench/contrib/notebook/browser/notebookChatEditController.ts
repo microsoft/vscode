@@ -83,7 +83,7 @@ class NotebookChatEditorController extends Disposable {
 		const notebookDiff = observableValue<{ cellDiff: CellDiffInfo[]; modelVersion: number } | undefined>('cellDiffInfo', undefined);
 		const originalModel = observableValue<NotebookTextModel | undefined>('originalModel', undefined);
 		this._register(toDisposable(() => {
-			dispose(Array.from(decorators.values()));
+			disposeDecorators();
 		}));
 		this._register(autorun(r => {
 			const session = this._chatEditingService.currentEditingSessionObs.read(r);
@@ -94,8 +94,13 @@ class NotebookChatEditorController extends Disposable {
 			const entry = session.entries.read(r).find(e => isEqual(e.modifiedURI, model.uri));
 
 			if (!entry || entry.state.read(r) !== WorkingSetEntryState.Modified) {
-				dispose(Array.from(decorators.values()));
+				disposeDecorators();
 				return;
+			}
+			// If we have a new entry for the file, then clear old decorators.
+			// User could be cycling through different edit sessions (Undo Last Edit / Redo Last Edit).
+			if (entryObs.read(r) && entryObs.read(r) !== entry) {
+				disposeDecorators();
 			}
 			entryObs.set(entry, undefined);
 		}));
@@ -111,12 +116,16 @@ class NotebookChatEditorController extends Disposable {
 			store.add(notebookSynchronizer.onDidUpdateNotebookModel(e => {
 				notebookDiff.set(e, undefined);
 			}));
-			const result = this._register(await this.getOriginalNotebookModel(entry, model));
+			const result = this._register(await this.originalModelRefFactory.getOrCreate(entry, model.viewType));
 			originalModel.set(result.object, undefined);
 		}));
 
 		const onDidChangeVisibleRanges = observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges);
 		const decorators = new Map<NotebookCellTextModel, NotebookCellDiffDecorator>();
+		const disposeDecorators = () => {
+			dispose(Array.from(decorators.values()));
+			decorators.clear();
+		};
 		this._register(autorun(r => {
 			const entry = entryObs.read(r);
 			const diffInfo = notebookDiff.read(r);
@@ -146,10 +155,6 @@ class NotebookChatEditorController extends Disposable {
 			});
 		}));
 	}
-	private async getOriginalNotebookModel(entry: IModifiedFileEntry, modified: NotebookTextModel): Promise<IReference<NotebookTextModel>> {
-		return this._register(await this.originalModelRefFactory.getOrCreate(entry, modified.viewType));
-	}
-
 }
 
 
