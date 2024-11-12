@@ -351,12 +351,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		}
 	}
 
-	public static canRender(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): boolean {
-		const d = viewportData.getViewLineRenderingData(lineNumber);
-		// TODO
-		return d.content.indexOf('e') !== -1;
-	}
-
 	public prepareRender(ctx: RenderingContext): void {
 		throw new BugIndicatingError('Should not be called');
 	}
