@@ -437,6 +437,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'resolvers');
 				return initData.commit;
 			},
+			get handle(): string | undefined {
+				checkProposedApiEnabled(extension, 'nativeWindowHandle');
+				return initData.handle;
+			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
 			// allow to patch env-function when running tests
@@ -1450,6 +1454,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
 				return extHostChatAgents2.registerChatParticipantDetectionProvider(extension, provider);
 			},
+			registerRelatedFilesProvider(provider: vscode.ChatRelatedFilesProvider) {
+				checkProposedApiEnabled(extension, 'chatEditing');
+				return extHostChatAgents2.registerRelatedFilesProvider(extension, provider);
+			}
 		};
 
 		// namespace: lm

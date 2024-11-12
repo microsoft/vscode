@@ -29,6 +29,7 @@ import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.
 import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
 import { ISearchService } from '../../../../services/search/common/search.js';
 import { ChatAgentLocation, IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
@@ -437,6 +438,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -571,6 +573,16 @@ class BuiltinDynamicCompletions extends Disposable {
 					continue;
 				}
 				result.suggestions.push(makeFileCompletionItem(match.resource));
+			}
+		}
+
+		// RELATED FILES
+		if (widget.location === ChatAgentLocation.EditingSession && widget.viewModel && this._chatEditingService.currentEditingSessionObs.get()?.chatSessionId === widget.viewModel?.sessionId) {
+			for (const relatedFile of (await this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), token) ?? [])) {
+				if (seen.has(relatedFile)) {
+					continue;
+				}
+				result.suggestions.push(makeFileCompletionItem(relatedFile));
 			}
 		}
 

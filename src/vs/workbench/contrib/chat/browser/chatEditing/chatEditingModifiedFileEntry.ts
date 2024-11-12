@@ -9,7 +9,6 @@ import { Disposable, IReference, toDisposable } from '../../../../../base/common
 import { IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
@@ -27,6 +26,7 @@ import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { SaveReason } from '../../../../common/editor.js';
 import { IResolvedTextFileEditorModel } from '../../../../services/textfile/common/textfiles.js';
 import { IChatAgentResult } from '../../common/chatAgents.js';
 import { ChatEditKind, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
@@ -124,7 +124,6 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@ILanguageService languageService: ILanguageService,
-		@IBulkEditService public readonly bulkEditService: IBulkEditService,
 		@IChatService private readonly _chatService: IChatService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
@@ -308,11 +307,9 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			if (!isLastEdits) {
 				this._stateObs.set(WorkingSetEntryState.Modified, tx);
 				this._isCurrentlyBeingModifiedObs.set(true, tx);
-				if (ops.length > 0) {
-					const maxLineNumber = ops.reduce((max, op) => Math.max(max, op.range.endLineNumber), 0);
-					const lineCount = this.doc.getLineCount();
-					this._rewriteRatioObs.set(Math.min(1, maxLineNumber / lineCount), tx);
-				}
+				const maxLineNumber = ops.reduce((max, op) => Math.max(max, op.range.endLineNumber), 0);
+				const lineCount = this.doc.getLineCount();
+				this._rewriteRatioObs.set(Math.min(1, maxLineNumber / lineCount), tx);
 			} else {
 				this._resetEditsState(tx);
 				this._updateDiffInfoSeq(true);
@@ -398,10 +395,9 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		} else {
 			this._setDocValue(this.docSnapshot.getValue());
 			if (this._allEditsAreFromUs) {
-				// soft revert unsets the dirty state which is OK
-				// to do if all edits are from us otherwise we keep
-				// the dirty state
-				this.docFileEditorModel.revert({ soft: true });
+				// save the file after discarding so that the dirty indicator goes away
+				// and so that an intermediate saved state gets reverted
+				await this.docFileEditorModel.save({ reason: SaveReason.EXPLICIT });
 			}
 			await this.collapse(transaction);
 		}

@@ -435,7 +435,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				id: string;
 			};
 			this.telemetryService.publicLog2<GettingStartedAutoOpenEvent, GettingStartedAutoOpenClassification>('gettingStarted.didAutoOpenWalkthrough', { id: sectionToOpen });
-			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen, true);
+			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen);
 		}
 	}
 

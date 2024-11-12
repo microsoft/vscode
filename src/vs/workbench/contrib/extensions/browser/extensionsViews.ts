@@ -174,7 +174,7 @@ export class ExtensionsListView extends ViewPane {
 		super.renderHeader(container);
 
 		if (!this.options.hideBadge) {
-			this.badge = new CountBadge(append(container, $('.count-badge-wrapper')), {}, defaultCountBadgeStyles);
+			this.badge = this._register(new CountBadge(append(container, $('.count-badge-wrapper')), {}, defaultCountBadgeStyles));
 		}
 	}
 

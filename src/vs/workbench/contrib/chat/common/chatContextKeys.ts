@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatAgentLocation } from './chatAgents.js';
 
 export namespace ChatContextKeys {
@@ -42,11 +42,14 @@ export namespace ChatContextKeys {
 	export const languageModelsAreUserSelectable = new RawContextKey<boolean>('chatModelsAreUserSelectable', false, { type: 'boolean', description: localize('chatModelsAreUserSelectable', "True when the chat model can be selected manually by the user.") });
 
 	export const ChatSetup = {
-		entitled: new RawContextKey<boolean>('chatSetupEntitled', false, { type: 'boolean', description: localize('chatSetupEntitled', "True when chat setup is offered for a signed-in, entitled user.") }),
 		signedIn: new RawContextKey<boolean>('chatSetupSignedIn', false, { type: 'boolean', description: localize('chatSetupSignedIn', "True when chat setup is offered for a signed-in user.") }),
+		entitled: new RawContextKey<boolean>('chatSetupEntitled', false, { type: 'boolean', description: localize('chatSetupEntitled', "True when chat setup is offered for a signed-in, entitled user.") }),
+
+		triggering: new RawContextKey<boolean>('chatSetupTriggered', false, { type: 'boolean', description: localize('chatSetupTriggered', "True when chat setup is triggered.") }),
 		installing: new RawContextKey<boolean>('chatSetupInstalling', false, { type: 'boolean', description: localize('chatSetupInstalling', "True when chat setup is installing chat.") }),
 		signingIn: new RawContextKey<boolean>('chatSetupSigningIn', false, { type: 'boolean', description: localize('chatSetupSigningIn', "True when chat setup is waiting for signing in.") })
 	};
+	export const setupRunning = ContextKeyExpr.or(ChatSetup.triggering, ChatSetup.signingIn, ChatSetup.installing);
 
 	export const shouldShowMovedViewWelcome = new RawContextKey<boolean>('chatShouldShowMovedViewWelcome', false, { type: 'boolean', description: localize('chatShouldShowMovedViewWelcome', "True when the user should be shown the moved view welcome view.") });
 }

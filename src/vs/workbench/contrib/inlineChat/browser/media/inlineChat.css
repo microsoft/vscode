@@ -73,7 +73,7 @@
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part {
-	padding: 4px 8px 0 8px;
+	padding: 4px 0 0 0;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {

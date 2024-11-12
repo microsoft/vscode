@@ -130,6 +130,8 @@ import { NotebookMultiDiffEditorInput } from './diff/notebookMultiDiffEditorInpu
 import { getFormattedMetadataJSON } from '../common/model/notebookCellTextModel.js';
 import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from './viewModel/notebookOutlineEntryFactory.js';
 import { getFormattedNotebookMetadataJSON } from '../common/model/notebookMetadataTextModel.js';
+import { INotebookOriginalModelReferenceFactory, NotebookChatEditorControllerContrib, NotebookOriginalModelReferenceFactory } from './notebookChatEditController.js';
+import { registerNotebookContribution } from './notebookEditorExtensions.js';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -875,6 +877,9 @@ registerSingleton(INotebookKeymapService, NotebookKeymapService, InstantiationTy
 registerSingleton(INotebookLoggingService, NotebookLoggingService, InstantiationType.Delayed);
 registerSingleton(INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFactory, InstantiationType.Delayed);
 registerSingleton(INotebookOutlineEntryFactory, NotebookOutlineEntryFactory, InstantiationType.Delayed);
+
+registerNotebookContribution(NotebookChatEditorControllerContrib.ID, NotebookChatEditorControllerContrib);
+registerSingleton(INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory, InstantiationType.Delayed);
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {

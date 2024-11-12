@@ -18,19 +18,17 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
@@ -46,16 +44,7 @@ import { clearChatEditor } from './chatClear.js';
 import product from '../../../../../platform/product/common/product.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
-import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IChatViewsWelcomeContributionRegistry, ChatViewsWelcomeExtensions } from '../viewsWelcome/chatViewsWelcome.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Event } from '../../../../../base/common/event.js';
-import { timeout } from '../../../../../base/common/async.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -88,18 +77,6 @@ export interface IChatViewOpenRequestEntry {
 	request: string;
 	response: string;
 }
-
-const defaultChat = {
-	extensionId: product.defaultChatAgent?.extensionId ?? '',
-	name: product.defaultChatAgent?.name ?? '',
-	providerId: product.defaultChatAgent?.providerId ?? '',
-	providerName: product.defaultChatAgent?.providerName ?? '',
-	providerScopes: product.defaultChatAgent?.providerScopes ?? [],
-	icon: Codicon[product.defaultChatAgent?.icon as keyof typeof Codicon ?? 'commentDiscussion'],
-	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
-	gettingStartedCommand: product.defaultChatAgent?.gettingStartedCommand ?? '',
-	welcomeTitle: product.defaultChatAgent?.welcomeTitle ?? '',
-};
 
 class OpenChatGlobalAction extends Action2 {
 
@@ -472,9 +449,37 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(InstallChatAction);
-	registerAction2(SignInAndInstallChatAction);
-	registerAction2(LearnMoreChatAction);
+	registerAction2(class LearnMoreChatAction extends Action2 {
+
+		static readonly ID = 'workbench.action.chat.learnMore';
+		static readonly TITLE = localize2('learnMore', "Learn More");
+
+		constructor() {
+			super({
+				id: LearnMoreChatAction.ID,
+				title: LearnMoreChatAction.TITLE,
+				category: CHAT_CATEGORY,
+				menu: [{
+					id: MenuId.ChatCommandCenter,
+					group: 'a_atfirst',
+					order: 2,
+					when: ChatContextKeys.panelParticipantRegistered.negate()
+				}, {
+					id: MenuId.ChatCommandCenter,
+					group: 'z_atlast',
+					order: 1,
+					when: ChatContextKeys.panelParticipantRegistered
+				}]
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const openerService = accessor.get(IOpenerService);
+			if (defaultChat.documentationUrl) {
+				openerService.open(URI.parse(defaultChat.documentationUrl));
+			}
+		}
+	});
 }
 
 export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewModel, includeName = true): string {
@@ -487,6 +492,12 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 
 
 // --- command center chat
+
+const defaultChat = {
+	name: product.defaultChatAgent?.name ?? '',
+	icon: Codicon[product.defaultChatAgent?.icon as keyof typeof Codicon ?? 'commentDiscussion'],
+	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
+};
 
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	submenu: MenuId.ChatCommandCenter,
@@ -533,40 +544,6 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 		@IChatAgentService agentService: IChatAgentService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		// --- action to show dropdown
-		const that = this;
-		const showDropdownActionId = 'chatMenu.showDropdown';
-		registerAction2(class OpenChatMenuDropdown extends Action2 {
-			constructor() {
-				super({
-					id: showDropdownActionId,
-					title: defaultChat.name,
-					f1: false
-				});
-			}
-			run() {
-				that._dropdown?.showDropdown();
-			}
-		});
-
-		// --- chat setup welcome
-		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
-			title: defaultChat.welcomeTitle,
-			when: ChatContextKeys.ChatSetup.signingIn,
-			icon: defaultChat.icon,
-			progress: localize('setupChatSigningIn', "Signing in to {0}...", defaultChat.providerName),
-			content: new MarkdownString(`\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`, { isTrusted: true }),
-		});
-
-		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
-			title: defaultChat.welcomeTitle,
-			when: ChatContextKeys.ChatSetup.installing,
-			icon: defaultChat.icon,
-			progress: localize('setupChatInstalling', "Setting up Chat for you..."),
-			content: new MarkdownString(`\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`, { isTrusted: true }),
-		});
-
-		// --- dropdown menu
 		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
@@ -581,8 +558,8 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 			const chatExtensionInstalled = agentService.getAgents().some(agent => agent.isDefault);
 
 			const primaryAction = instantiationService.createInstance(MenuItemAction, {
-				id: chatExtensionInstalled ? CHAT_OPEN_ACTION_ID : showDropdownActionId,
-				title: chatExtensionInstalled ? OpenChatGlobalAction.TITLE : defaultChat.name,
+				id: chatExtensionInstalled ? CHAT_OPEN_ACTION_ID : 'workbench.action.chat.triggerSetup', // TODO@bpasero revisit layering of this action
+				title: OpenChatGlobalAction.TITLE,
 				icon: defaultChat.icon,
 			}, undefined, undefined, undefined, undefined);
 
@@ -597,166 +574,3 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 	}
 }
 
-type InstallChatClassification = {
-	owner: 'bpasero';
-	comment: 'Provides insight into chat installation.';
-	installResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the extension was installed successfully, cancelled or failed to install.' };
-	signedIn: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user did sign in prior to installing the extension.' };
-};
-type InstallChatEvent = {
-	installResult: 'installed' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn';
-	signedIn: boolean;
-};
-
-class InstallChatAction extends Action2 {
-
-	static readonly ID = 'workbench.action.chat.install';
-	static readonly TITLE = localize2('installChat', "Install {0}", defaultChat.name);
-
-	constructor() {
-		super({
-			id: InstallChatAction.ID,
-			title: InstallChatAction.TITLE,
-			category: CHAT_CATEGORY,
-			menu: {
-				id: MenuId.ChatCommandCenter,
-				group: 'a_atfirst',
-				order: 1,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.panelParticipantRegistered.negate(),
-					ContextKeyExpr.or(
-						ChatContextKeys.ChatSetup.entitled,
-						ChatContextKeys.ChatSetup.signedIn
-					)
-				)
-			}
-		});
-	}
-
-	override run(accessor: ServicesAccessor): Promise<void> {
-		return InstallChatAction.install(accessor, false);
-	}
-
-	static async install(accessor: ServicesAccessor, signedIn: boolean) {
-		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-		const productService = accessor.get(IProductService);
-		const telemetryService = accessor.get(ITelemetryService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		const viewsService = accessor.get(IViewsService);
-		const chatAgentService = accessor.get(IChatAgentService);
-
-		const setupInstallingContextKey = ChatContextKeys.ChatSetup.installing.bindTo(contextKeyService);
-
-		let installResult: 'installed' | 'cancelled' | 'failedInstall';
-		try {
-			setupInstallingContextKey.set(true);
-			showChatView(viewsService);
-
-			await extensionsWorkbenchService.install(defaultChat.extensionId, {
-				enable: true,
-				isMachineScoped: false,
-				installPreReleaseVersion: productService.quality !== 'stable'
-			}, CHAT_VIEW_ID);
-
-			installResult = 'installed';
-		} catch (error) {
-			installResult = isCancellationError(error) ? 'cancelled' : 'failedInstall';
-		} finally {
-			Promise.race([
-				timeout(2000), 										// helps prevent flicker with sign-in welcome view
-				Event.toPromise(chatAgentService.onDidChangeAgents)	// https://github.com/microsoft/vscode-copilot/issues/9274
-			]).finally(() => setupInstallingContextKey.reset());
-		}
-
-		telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signedIn });
-	}
-}
-
-class SignInAndInstallChatAction extends Action2 {
-
-	static readonly ID = 'workbench.action.chat.signInAndInstall';
-	static readonly TITLE = localize2('signInAndInstallChat', "Sign in to use {0}", defaultChat.name);
-
-	constructor() {
-		super({
-			id: SignInAndInstallChatAction.ID,
-			title: SignInAndInstallChatAction.TITLE,
-			category: CHAT_CATEGORY,
-			menu: {
-				id: MenuId.ChatCommandCenter,
-				group: 'a_atfirst',
-				order: 1,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.panelParticipantRegistered.negate(),
-					ChatContextKeys.ChatSetup.entitled.negate(),
-					ChatContextKeys.ChatSetup.signedIn.negate()
-				)
-			}
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const authenticationService = accessor.get(IAuthenticationService);
-		const instantiationService = accessor.get(IInstantiationService);
-		const telemetryService = accessor.get(ITelemetryService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		const viewsService = accessor.get(IViewsService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-
-		const hideSecondarySidebar = !layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-
-		const setupSigningInContextKey = ChatContextKeys.ChatSetup.signingIn.bindTo(contextKeyService);
-
-		let session: AuthenticationSession | undefined;
-		try {
-			setupSigningInContextKey.set(true);
-			showChatView(viewsService);
-			session = await authenticationService.createSession(defaultChat.providerId, defaultChat.providerScopes);
-		} catch (error) {
-			// noop
-		} finally {
-			setupSigningInContextKey.reset();
-		}
-
-		if (session) {
-			instantiationService.invokeFunction(accessor => InstallChatAction.install(accessor, true));
-		} else {
-			if (hideSecondarySidebar) {
-				layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
-			}
-			telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', signedIn: false });
-		}
-	}
-}
-
-class LearnMoreChatAction extends Action2 {
-
-	static readonly ID = 'workbench.action.chat.learnMore';
-	static readonly TITLE = localize2('learnMore', "Learn More");
-
-	constructor() {
-		super({
-			id: LearnMoreChatAction.ID,
-			title: LearnMoreChatAction.TITLE,
-			category: CHAT_CATEGORY,
-			menu: [{
-				id: MenuId.ChatCommandCenter,
-				group: 'a_atfirst',
-				order: 2,
-				when: ChatContextKeys.panelParticipantRegistered.negate()
-			}, {
-				id: MenuId.ChatCommandCenter,
-				group: 'z_atlast',
-				order: 1,
-				when: ChatContextKeys.panelParticipantRegistered
-			}]
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const openerService = accessor.get(IOpenerService);
-		if (defaultChat.documentationUrl) {
-			openerService.open(URI.parse(defaultChat.documentationUrl));
-		}
-	}
-}

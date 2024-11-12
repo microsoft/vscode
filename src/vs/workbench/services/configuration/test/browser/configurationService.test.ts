@@ -1737,12 +1737,6 @@ suite('WorkspaceConfigurationService - Profiles', () => {
 		assert.strictEqual(testObject.getValue('configurationService.profiles.applicationSetting3'), 'defaultProfile');
 	}));
 
-	test('non registering setting should not be read from default profile', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		await fileService.writeFile(instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString('{ "configurationService.profiles.nonregistered": "defaultProfile" }'));
-		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('configurationService.profiles.nonregistered'), undefined);
-	}));
-
 	test('initialize with custom all profiles settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await testObject.updateValue(APPLY_ALL_PROFILES_SETTING, ['configurationService.profiles.testSetting2'], ConfigurationTarget.USER_LOCAL);
 

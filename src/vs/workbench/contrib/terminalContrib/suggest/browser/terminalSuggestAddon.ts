@@ -23,11 +23,11 @@ import { ITerminalConfigurationService } from '../../../terminal/browser/termina
 import type { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
 import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
-import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
+import { SimpleCompletionItem, ISimpleCompletion } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import type { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
-import { ITerminalCompletionService, TerminalCompletionItem } from './terminalSuggestionService.js';
+import { ITerminalCompletionService } from './terminalCompletionService.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export interface ISuggestController {
@@ -56,21 +56,18 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _enableWidget: boolean = true;
 	private _pathSeparator: string = sep;
 	private _isFilteringDirectories: boolean = false;
-	private _mostRecentCompletion?: TerminalCompletionItem;
+	private _mostRecentCompletion?: ISimpleCompletion;
 
 	// TODO: Remove these in favor of prompt input state
 	private _leadingLineContent?: string;
 	private _cursorIndexDelta: number = 0;
+	private _requestedCompletionsIndex: number = 0;
+	private _providerReplacementIndex: number = 0;
 
 	private _lastUserData?: string;
 	static lastAcceptedCompletionTimestamp: number = 0;
 
 	isPasting: boolean = false;
-
-	static requestCompletionsSequence = '\x1b[24~e'; // F12,e
-	static requestGlobalCompletionsSequence = '\x1b[24~f'; // F12,f
-	static requestEnableGitCompletionsSequence = '\x1b[24~g'; // F12,g
-	static requestEnableCodeCompletionsSequence = '\x1b[24~h'; // F12,h
 
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
@@ -78,8 +75,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
 	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
-	private _requestedCompletionsIndex: number = 0;
-	private _providerReplacementIndex: number = 0;
 
 	constructor(
 		private readonly _shellType: TerminalShellType | undefined,
@@ -120,7 +115,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}));
 	}
 
-	private async _handleExtensionProviders(terminal?: Terminal): Promise<void> {
+	private async _handleCompletionProviders(terminal?: Terminal): Promise<void> {
 		// Nothing to handle if the terminal is not attached
 		if (!terminal?.element || !this._enableWidget || !this._promptInputModel) {
 			return;
@@ -135,7 +130,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		this._requestedCompletionsIndex = this._promptInputModel.cursorIndex;
-		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._promptInputModel.cursorIndex, this._shellType, this._configurationService.getValue('terminal.integrated.developer.devMode'));
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._promptInputModel.cursorIndex, this._shellType);
 		if (!providedCompletions?.length) {
 			return;
 		}
@@ -210,7 +205,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		await this._handleExtensionProviders(this._terminal);
+		await this._handleCompletionProviders(this._terminal);
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
@@ -280,8 +275,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
 			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._requestedCompletionsIndex);
 			let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(this._providerReplacementIndex, this._requestedCompletionsIndex + this._cursorIndexDelta);
-			// this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._replacementIndex + this._replacementLength);
-			// let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(this._replacementIndex, this._replacementIndex + this._replacementLength + this._cursorIndexDelta);
 			if (this._isFilteringDirectories) {
 				normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 			}

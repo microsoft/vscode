@@ -11,21 +11,26 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { CHAT_OPEN_ACTION_ID } from './chatActions.js';
 import { IExtensionManagementService, InstallOperation } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
 
 export class ChatGettingStartedContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatGettingStarted';
 	private recentlyInstalled: boolean = false;
 
+	private static readonly hideWelcomeView = 'workbench.chat.hideWelcomeView';
+
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
-		if (!this.productService.gitHubEntitlement) {
+		const hideWelcomeView = this.storageService.getBoolean(ChatGettingStartedContribution.hideWelcomeView, StorageScope.APPLICATION, false);
+		if (!this.productService.gitHubEntitlement || hideWelcomeView) {
 			return;
 		}
 
@@ -49,6 +54,7 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 					const extensionStatus = this.extensionService.getExtensionsStatus();
 					if (extensionStatus[ext.value].activationTimes && this.recentlyInstalled) {
 						await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID);
+						this.storageService.store(ChatGettingStartedContribution.hideWelcomeView, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 						this.recentlyInstalled = false;
 						return;
 					}

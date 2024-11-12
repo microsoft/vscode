@@ -315,6 +315,7 @@ export class InlineEditsView extends Disposable {
 			scrollbar: {
 				vertical: 'hidden',
 				horizontal: 'hidden',
+				handleMouseWheel: false,
 			},
 			readOnly: true,
 			wordWrap: 'off',

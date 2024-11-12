@@ -168,9 +168,11 @@ export interface IChatResponseModel {
 	readonly voteDownReason: ChatAgentVoteDownReason | undefined;
 	readonly followups?: IChatFollowup[] | undefined;
 	readonly result?: IChatAgentResult;
+	readonly editChangeCount: number;
 	setVote(vote: ChatAgentVoteDirection): void;
 	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
+	reportEditCountChange(): void;
 }
 
 export class ChatRequestModel implements IChatRequestModel {
@@ -307,27 +309,26 @@ export class Response extends Disposable implements IResponse {
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit') {
-			if (progress.edits.length > 0 || typeof progress.done === 'boolean') {
-				// merge text edits for the same file no matter when they come in
-				let found = false;
-				for (let i = 0; !found && i < this._responseParts.length; i++) {
-					const candidate = this._responseParts[i];
-					if (candidate.kind === 'textEditGroup' && isEqual(candidate.uri, progress.uri)) {
-						candidate.edits.push(progress.edits);
-						candidate.done = progress.done;
-						found = true;
-					}
+			// merge text edits for the same file no matter when they come in
+			let found = false;
+			for (let i = 0; !found && i < this._responseParts.length; i++) {
+				const candidate = this._responseParts[i];
+				if (candidate.kind === 'textEditGroup' && isEqual(candidate.uri, progress.uri)) {
+					candidate.edits.push(progress.edits);
+					candidate.done = progress.done;
+					found = true;
 				}
-				if (!found) {
-					this._responseParts.push({
-						kind: 'textEditGroup',
-						uri: progress.uri,
-						edits: [progress.edits],
-						done: progress.done
-					});
-				}
-				this._updateRepr(quiet);
 			}
+			if (!found) {
+				this._responseParts.push({
+					kind: 'textEditGroup',
+					uri: progress.uri,
+					edits: [progress.edits],
+					done: progress.done
+				});
+			}
+			this._updateRepr(quiet);
+
 		} else if (progress.kind === 'progressTask') {
 			// Add a new resolving part
 			const responsePosition = this._responseParts.push(progress) - 1;
@@ -417,6 +418,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	public get session() {
 		return this._session;
+	}
+
+	private _editChangeCount: number = 0;
+	public get editChangeCount(): number {
+		return this._editChangeCount;
 	}
 
 	public get isHidden() {
@@ -559,7 +565,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	setAgent(agent: IChatAgentData, slashCommand?: IChatAgentCommand) {
 		this._agent = agent;
 		this._slashCommand = slashCommand;
-		this._agentOrSlashCommandDetected = true;
+		this._agentOrSlashCommandDetected = !agent.isDefault;
 		this._onDidChange.fire();
 	}
 
@@ -608,6 +614,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		edit.state.applied = editCount; // must not be edit.edits.length
 		this._onDidChange.fire();
 		return true;
+	}
+
+	reportEditCountChange() {
+		this._editChangeCount++;
+		this._onDidChange.fire();
 	}
 
 	adoptTo(session: ChatModel) {
