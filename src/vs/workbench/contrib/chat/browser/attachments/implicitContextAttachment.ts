@@ -23,7 +23,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
+import { ChatImplicitContext } from '../contrib/chatImplicitContext.js';
 
 export class ImplicitContextAttachmentWidget extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -31,7 +31,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(
-		private readonly attachment: IChatRequestImplicitVariableEntry,
+		private readonly attachment: ChatImplicitContext,
 		private readonly resourceLabels: ResourceLabels,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -66,6 +66,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const currentFile = localize('openEditor', "Current file context");
 		const inactive = localize('enableHint', "disabled");
 		const currentFileHint = currentFile + (this.attachment.enabled ? '' : ` (${inactive})`);
+		// TODO: @legomushroom - add child references to title
 		const title = `${currentFileHint}\n${uriLabel}`;
 		label.setFile(file, {
 			fileKind: FileKind.FILE,
@@ -75,7 +76,11 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		});
 		this.domNode.ariaLabel = ariaLabel;
 		this.domNode.tabIndex = 0;
-		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, 'Current file'));
+
+		const childReferencesSuffix = this.attachment.childReferences
+			? ` (+${this.attachment.childReferences.length} more)`
+			: '';
+		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, `Current file${childReferencesSuffix}`));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
 		const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current file context") : localize('enable', "Enable current file context");

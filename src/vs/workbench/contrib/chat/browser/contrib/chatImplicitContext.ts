@@ -11,6 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Location } from '../../../../../editor/common/languages.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -18,6 +19,7 @@ import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { IBaseChatRequestVariableEntry, IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatReference } from './chatDynamicVariable.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
@@ -111,20 +113,36 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			newValue = undefined;
 		}
 
-		if (cancelTokenSource.token.isCancellationRequested) {
+		if (!newValue || cancelTokenSource.token.isCancellationRequested) {
 			return;
 		}
 
 		const widgets = updateWidget ? [updateWidget] : [...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel), ...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Editor)];
 		for (const widget of widgets) {
-			if (widget.input.implicitContext) {
-				widget.input.implicitContext.setValue(newValue, isSelection);
-			}
+			widget.input.setImplicitContext(newValue, isSelection);
 		}
 	}
 }
 
-export class ChatImplicitContext extends Disposable implements IChatRequestImplicitVariableEntry {
+export class ChatImplicitContext extends ChatReference implements IChatRequestImplicitVariableEntry {
+	private _onDidChangeValue = new Emitter<void>();
+	readonly onDidChangeValue = this._onDidChangeValue.event;
+
+	constructor(
+		value: Location | URI,
+		fileService: IFileService,
+	) {
+		const uri = value instanceof URI ? value : value.uri;
+		super(uri, fileService);
+		this._value = value;
+
+		// when nested file references are updated (if any),
+		// fire the `onDidChangeValue` too
+		this._register(this.onReferencesUpdated(() => {
+			this._onDidChangeValue.fire();
+		}));
+	}
+
 	get id() {
 		if (URI.isUri(this.value)) {
 			return 'vscode.implicit.file';
@@ -170,10 +188,11 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		return this._isSelection;
 	}
 
-	private _onDidChangeValue = new Emitter<void>();
-	readonly onDidChangeValue = this._onDidChangeValue.event;
+	public set isSelection(value: boolean) {
+		this._isSelection = value;
+	}
 
-	private _value: Location | URI | undefined;
+	private _value: Location | URI;
 	get value() {
 		return this._value;
 	}
@@ -188,12 +207,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		this._onDidChangeValue.fire();
 	}
 
-	constructor(value?: Location | URI) {
-		super();
-		this._value = value;
-	}
-
-	setValue(value: Location | URI | undefined, isSelection: boolean) {
+	setValue(value: Location | URI, isSelection: boolean) {
 		this._value = value;
 		this._isSelection = isSelection;
 		this._onDidChangeValue.fire();

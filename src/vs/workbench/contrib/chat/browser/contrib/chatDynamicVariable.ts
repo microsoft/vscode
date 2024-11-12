@@ -15,10 +15,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 /**
  * TODO: @legomushroom
  */
-export class ChatDynamicVariable extends Disposable implements IDynamicVariable {
-	// The URI of the file reference.
-	private readonly uri: URI;
-
+export class ChatReference extends Disposable {
 	// Chatbot prompt reference instance for prompt files.
 	private readonly promptSnippetReference?: ChatbotPromptReference;
 
@@ -37,14 +34,12 @@ export class ChatDynamicVariable extends Disposable implements IDynamicVariable 
 	}
 
 	constructor(
-		private readonly reference: IDynamicVariable,
-		private readonly fileService: IFileService,
+		protected readonly uri: URI,
+		protected readonly fileService: IFileService,
 	) {
 		super();
 
-		this.uri = this.parseUri(reference.data);
-
-		if (reference.isFile && this.uri.path.endsWith('.copilot-prompt')) {
+		if (uri.path.endsWith('.copilot-prompt')) {
 			// TODO: @legomushroom - subscribe to file changes and re-resolve
 			this.promptSnippetReference = this._register(new ChatbotPromptReference(this.uri, this.fileService));
 			// start resolving the prompt file references immediately
@@ -73,32 +68,72 @@ export class ChatDynamicVariable extends Disposable implements IDynamicVariable 
 		this.resolveReferencesReady = Promise.resolve([]);
 	}
 
-	/**
-	 * Parse the `data` property of a reference as an `URI`.
-	 *
-	 * Throws! if the reference is not defined or an invalid `URI`.
-	 */
-	private parseUri(data: IDynamicVariable['data']): URI {
-		assertDefined(
-			data,
-			`The reference must have a \`data\` property, got ${data}.`,
-		);
+	// /**
+	//  * Parse the `data` property of a reference as an `URI`.
+	//  *
+	//  * Throws! if the reference is not defined or an invalid `URI`.
+	//  */
+	// private parseUri(data: IDynamicVariable['data']): URI {
+	// 	assertDefined(
+	// 		data,
+	// 		`The reference must have a \`data\` property, got ${data}.`,
+	// 	);
 
-		if (typeof data === 'string') {
-			return URI.parse(data);
-		}
+	// 	if (typeof data === 'string') {
+	// 		return URI.parse(data);
+	// 	}
 
-		if (data instanceof URI) {
-			return data;
-		}
+	// 	if (data instanceof URI) {
+	// 		return data;
+	// 	}
 
-		if ('uri' in data && data.uri instanceof URI) {
-			return data.uri;
-		}
+	// 	if ('uri' in data && data.uri instanceof URI) {
+	// 		return data.uri;
+	// 	}
 
-		throw new Error(
-			`The reference must have a \`data\` property parseable as an 'URI', got ${data}.`,
-		);
+	// 	throw new Error(
+	// 		`The reference must have a \`data\` property parseable as an 'URI', got ${data}.`,
+	// 	);
+	// }
+}
+
+/**
+ * Parse the `data` property of a reference as an `URI`.
+ *
+ * Throws! if the reference is not defined or an invalid `URI`.
+ */
+const parseUri = (data: IDynamicVariable['data']): URI => {
+	assertDefined(
+		data,
+		`The reference must have a \`data\` property, got ${data}.`,
+	);
+
+	if (typeof data === 'string') {
+		return URI.parse(data);
+	}
+
+	if (data instanceof URI) {
+		return data;
+	}
+
+	if ('uri' in data && data.uri instanceof URI) {
+		return data.uri;
+	}
+
+	throw new Error(
+		`The reference must have a \`data\` property parseable as an 'URI', got ${data}.`,
+	);
+};
+
+/**
+ * TODO: @legomushroom
+ */
+export class ChatDynamicVariable extends ChatReference implements IDynamicVariable {
+	constructor(
+		private readonly reference: IDynamicVariable,
+		fileService: IFileService,
+	) {
+		super(parseUri(reference.data), fileService);
 	}
 
 	// TODO: @legomushroom - is it possible to use a `Proxy` instead of all

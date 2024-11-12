@@ -78,7 +78,7 @@ import { revealInSideBarCommand } from '../../files/browser/fileActions.contribu
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
-import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IBaseChatRequestVariableEntry, IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatRequestDynamicVariablePart } from '../common/chatParserTypes.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
@@ -96,6 +96,7 @@ import { ChatEditingSaveAllAction } from './chatEditorSaving.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatViewState } from './chatWidget.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
+import { Location } from '../../../../editor/common/languages.js';
 
 const $ = dom.$;
 
@@ -148,8 +149,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public getAttachedAndImplicitContext(): IChatRequestVariableEntry[] {
 		const contextArr = [...this.attachmentModel.attachments];
-		if (this.implicitContext?.enabled && this.implicitContext.value) {
-			contextArr.push(this.implicitContext.toBaseEntry());
+		if (this._implicitContext?.enabled && this._implicitContext.value) {
+			const mainEntry = this._implicitContext.toBaseEntry();
+			contextArr.push(mainEntry);
+
+			// TODO: @legomushroom - remove?
+			if (this._implicitContext.childReferences) {
+				const childReferences = this._implicitContext.childReferences
+					.map((uri): IBaseChatRequestVariableEntry => {
+						return {
+							name: basename(uri.path),
+							// -
+							id: mainEntry.id,
+							kind: 'reference',
+							value: uri,
+							isFile: true,
+							isDynamic: true,
+							modelDescription: mainEntry.modelDescription,
+						};
+					});
+				contextArr.push(...childReferences);
+			}
 		}
 
 		return contextArr;
@@ -158,9 +178,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _indexOfLastAttachedContextDeletedWithKeyboard: number = -1;
 
 	private _implicitContext: ChatImplicitContext | undefined;
-	public get implicitContext(): ChatImplicitContext | undefined {
-		return this._implicitContext;
-	}
 
 	private _hasFileAttachmentContextKey: IContextKey<boolean>;
 
@@ -538,6 +555,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _handleAttachedContextChange() {
 		this._hasFileAttachmentContextKey.set(Boolean(this._attachmentModel.attachments.find(a => a.isFile)));
 		this.renderAttachedContext();
+
+		return this;
 	}
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
@@ -580,10 +599,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const toolbarsContainer = elements.inputToolbars;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.renderAttachedContext();
-		if (this.options.enableImplicitContext) {
-			this._implicitContext = this._register(new ChatImplicitContext());
-			this._register(this._implicitContext.onDidChangeValue(() => this._handleAttachedContextChange()));
-		}
 
 		this._register(this._attachmentModel.onDidChangeContext(() => this._handleAttachedContextChange()));
 		this.renderChatEditingSessionState(null, widget);
@@ -764,6 +779,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 	}
 
+	public setImplicitContext(
+		uri: URI | Location,
+		isSelection: boolean,
+	): this {
+		if (!this.options.enableImplicitContext) {
+			return this;
+		}
+
+		if (!this._implicitContext) {
+			this._implicitContext = this._register(new ChatImplicitContext(uri, this.fileService));
+			this._implicitContext.isSelection = isSelection;
+			this._register(this._implicitContext.onDidChangeValue(() => {
+				return this._handleAttachedContextChange();
+			}));
+		}
+
+		this._implicitContext.setValue(uri, isSelection);
+
+		return this;
+	}
+
 	private async renderAttachedContext() {
 		const container = this.attachedContextContainer;
 		const oldHeight = container.offsetHeight;
@@ -776,13 +812,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Render as attachments anything that isn't a file, but still render specific ranges in a file
 			? [...this.attachmentModel.attachments.entries()].filter(([_, attachment]) => !attachment.isFile || attachment.isFile && typeof attachment.value === 'object' && !!attachment.value && 'range' in attachment.value)
 			: [...this.attachmentModel.attachments.entries()];
-		dom.setVisibility(Boolean(attachments.length) || Boolean(this.implicitContext?.value), this.attachedContextContainer);
+		dom.setVisibility(Boolean(attachments.length) || Boolean(this._implicitContext?.value), this.attachedContextContainer);
 		if (!attachments.length) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 		}
 
-		if (this.implicitContext?.value) {
-			const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels));
+		if (this._implicitContext?.value) {
+			const implicitPart = store.add(this.instantiationService.createInstance(
+				ImplicitContextAttachmentWidget,
+				this._implicitContext,
+				this._contextResourceLabels),
+			);
 			container.appendChild(implicitPart.domNode);
 		}
 
@@ -1073,12 +1113,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			});
 
 			// if nested child references are found in the file represented
-			// by the dynamic variable, add them to the working set as well
+			// by the dynamic variable, add them to the attached entries
 			const childReferences = part.childReferences ?? [];
 			for (const child of childReferences) {
 				entries.unshift({
 					reference: child,
-					state: WorkingSetEntryState.Transient, // TODO: @legomushroom - should it be `attached`?
+					state: WorkingSetEntryState.Attached, // TODO: @legomushroom - should it be `attached`?
 					kind: 'reference',
 				});
 
