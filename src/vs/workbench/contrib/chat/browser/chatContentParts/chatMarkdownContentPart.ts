@@ -18,6 +18,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -27,6 +28,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatMarkdownContent } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
@@ -141,8 +143,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					return ref.object.element;
 				} else {
 					const requestId = isRequestVM(element) ? element.id : element.requestId;
-					const isStreaming = isResponseVM(element) ? !element.isComplete : !isCodeBlockComplete;
-					const ref = this.renderCodeBlockPill(element.sessionId, requestId, codeBlockInfo.codemapperUri, !isStreaming);
+					const ref = this.renderCodeBlockPill(element.sessionId, requestId, codeBlockInfo.codemapperUri, !isCodeBlockComplete);
 					if (isResponseVM(codeBlockInfo.element)) {
 						// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
 						this.codeBlockModelCollection.update(codeBlockInfo.element.sessionId, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId, isComplete: isCodeBlockComplete }).then((e) => {
@@ -157,7 +158,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						readonly ownerMarkdownPartId = ownerMarkdownPartId;
 						readonly codeBlockIndex = index;
 						readonly element = element;
-						readonly isStreaming = isStreaming;
+						readonly isStreaming = !isCodeBlockComplete;
 						readonly codemapperUri = codemapperUri;
 						public get uri() {
 							return undefined;
@@ -185,10 +186,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		this.domNode = result.element;
 	}
 
-	private renderCodeBlockPill(sessionId: string, requestId: string, codemapperUri: URI | undefined, isCodeBlockComplete?: boolean): IDisposableReference<CollapsedCodeBlock> {
+	private renderCodeBlockPill(sessionId: string, requestId: string, codemapperUri: URI | undefined, isStreaming: boolean): IDisposableReference<CollapsedCodeBlock> {
 		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, sessionId, requestId);
 		if (codemapperUri) {
-			codeBlock.render(codemapperUri, !isCodeBlockComplete);
+			codeBlock.render(codemapperUri, isStreaming);
 		}
 		return {
 			object: codeBlock,
@@ -280,8 +281,6 @@ class CollapsedCodeBlock extends Disposable {
 		return this._uri;
 	}
 
-	private isStreaming: boolean | undefined;
-
 	constructor(
 		sessionId: string,
 		requestId: string,
@@ -292,6 +291,7 @@ class CollapsedCodeBlock extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
+		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 	) {
 		super();
 		this.element = $('.chat-codeblock-pill-widget');
@@ -316,18 +316,15 @@ class CollapsedCodeBlock extends Disposable {
 		}));
 	}
 
-	render(uri: URI, isStreaming?: boolean) {
-		if (this.uri?.toString() === uri.toString() && this.isStreaming === isStreaming) {
-			return;
-		}
-
+	render(uri: URI, isStreaming?: boolean): void {
 		this._uri = uri;
-		this.isStreaming = isStreaming;
 
 		const iconText = this.labelService.getUriBasenameLabel(uri);
+		const modifiedEntry = this.chatEditingService.currentEditingSession?.entries.get().find(entry => entry.modifiedURI.toString() === uri.toString());
+		const isComplete = !modifiedEntry?.isCurrentlyBeingModified.get();
 
 		let iconClasses: string[] = [];
-		if (isStreaming) {
+		if (isStreaming || !isComplete) {
 			const codicon = ThemeIcon.modify(Codicon.loading, 'spin');
 			iconClasses = ThemeIcon.asClassNameArray(codicon);
 		} else {
@@ -337,7 +334,17 @@ class CollapsedCodeBlock extends Disposable {
 
 		const iconEl = dom.$('span.icon');
 		iconEl.classList.add(...iconClasses);
-		this.element.replaceChildren(iconEl, dom.$('span.icon-label', {}, iconText));
+
+		const statusText = isStreaming ? localize('chat.codeblock.generating', "Generating edits...")
+			: !isComplete ? localize('chat.codeblock.applying', "Applying edits...")
+				: '';
+
+		const children = [dom.$('span.icon-label', {}, iconText)];
+		if (statusText) {
+			children.push(dom.$('span.label-detail', {}, statusText));
+		}
+
+		this.element.replaceChildren(iconEl, ...children);
 		this.element.title = this.labelService.getUriLabel(uri, { relative: false });
 	}
 }
