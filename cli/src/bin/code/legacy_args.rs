@@ -80,11 +80,11 @@ pub fn try_parse_legacy(
 			})),
 			..Default::default()
 		})
-	} else if let Some(exts) = args.remove("download-extension") {
+	} else if let Some(exts) = args.get("download-extension") {
 		Some(CliCore {
 			subcommand: Some(Commands::Extension(ExtensionArgs {
 				subcommand: ExtensionSubcommand::Download(DownloadExtensionArgs {
-					id: exts,
+					id: exts.to_vec(),
 					location: get_first_arg_value("location"),
 				}),
 				desktop_code_options,
