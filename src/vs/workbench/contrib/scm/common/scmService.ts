@@ -363,14 +363,20 @@ export class SCMService implements ISCMService {
 	readonly onDidRemoveRepository: Event<ISCMRepository> = this._onDidRemoveProvider.event;
 
 	constructor(
-		@ILogService private readonly logService: ILogService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService storageService: IStorageService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	    @ILogService private readonly logService: ILogService,
+	    @IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+	    @IContextKeyService contextKeyService: IContextKeyService,
+	    @IStorageService storageService: IStorageService,
+	    @IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
-		this.inputHistory = new SCMInputHistory(storageService, workspaceContextService);
-		this.providerCount = contextKeyService.createKey('scm.providerCount', 0);
+	    this.inputHistory = new SCMInputHistory(storageService, workspaceContextService);
+	    this.providerCount = contextKeyService.createKey('scm.providerCount', 0);
+	
+	    // Validate and enforce a minimum git.autofetchPeriod
+	    // Related Issue: https://github.com/microsoft/vscode/issues/233650
+	    const autofetchPeriod = workspaceContextService.getValue<number>('git.autofetchPeriod') ?? 0;
+	    const validatedAutofetchPeriod = Math.max(autofetchPeriod, 10); // Enforce a minimum of 10 seconds
+	    workspaceContextService.updateValue('git.autofetchPeriod', validatedAutofetchPeriod);
 	}
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
