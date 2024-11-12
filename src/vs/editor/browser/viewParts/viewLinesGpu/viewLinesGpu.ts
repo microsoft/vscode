@@ -437,10 +437,23 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			return null;
 		}
 
+		// Resolve tab widths for this line
+		const lineData = viewportData.getViewLineRenderingData(lineNumber);
+		const content = lineData.content;
+		let startColumnResolvedTabWidth = 0;
+		let endColumnResolvedTabWidth = 0;
+		for (let x = 0; x < startColumn - 1; x++) {
+			startColumnResolvedTabWidth += content[x] === '\t' ? lineData.tabSize : 1;
+		}
+		endColumnResolvedTabWidth = startColumnResolvedTabWidth;
+		for (let x = startColumn - 1; x < endColumn - 1; x++) {
+			endColumnResolvedTabWidth += content[x] === '\t' ? lineData.tabSize : 1;
+		}
+
 		// Visible horizontal range in _scaled_ pixels
 		const result = new VisibleRanges(false, [new FloatHorizontalRange(
-			(startColumn - 1) * viewLineOptions.spaceWidth,
-			(endColumn - startColumn - 1) * viewLineOptions.spaceWidth)
+			startColumnResolvedTabWidth * viewLineOptions.spaceWidth,
+			endColumnResolvedTabWidth * viewLineOptions.spaceWidth)
 		]);
 
 		return result;
