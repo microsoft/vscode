@@ -75,6 +75,8 @@ export interface NativeParsedArgs {
 	'disable-extensions'?: boolean;
 	'disable-extension'?: string[]; // undefined or array of 1 or more
 	'list-extensions'?: boolean;
+	'download-extension'?: string[];
+	'location'?: string;
 	'show-versions'?: boolean;
 	'category'?: string;
 	'install-extension'?: string[]; // undefined or array of 1 or more
