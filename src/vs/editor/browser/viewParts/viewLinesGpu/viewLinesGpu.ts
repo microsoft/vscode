@@ -70,9 +70,18 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		this.canvas = this._viewGpuContext.canvas.domNode;
 
+		// Re-render the following frame after canvas device pixel dimensions change, provided a
+		// new render does not occur.
 		this._register(autorun(reader => {
-			/*const dims = */this._viewGpuContext.canvasDevicePixelDimensions.read(reader);
-			// TODO: Request render, should this just call renderText with the last viewportData
+			this._viewGpuContext.canvasDevicePixelDimensions.read(reader);
+			const lastViewportData = this._lastViewportData;
+			if (lastViewportData) {
+				setTimeout(() => {
+					if (lastViewportData === this._lastViewportData) {
+						this.renderText(lastViewportData);
+					}
+				});
+			}
 		}));
 
 		this.initWebgpu();
