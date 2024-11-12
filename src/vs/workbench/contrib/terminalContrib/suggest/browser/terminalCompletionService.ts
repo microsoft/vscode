@@ -18,6 +18,7 @@ export enum ISimpleCompletionKind {
 }
 
 export interface ITerminalCompletionProvider {
+	id: string;
 	shellTypes?: TerminalShellType[];
 	provideCompletions(value: string, cursorPosition: number): Promise<ISimpleCompletion[] | undefined>;
 	triggerCharacters?: string[];
@@ -25,14 +26,16 @@ export interface ITerminalCompletionProvider {
 
 export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
+	providers: ITerminalCompletionProvider[];
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider, ...triggerCharacters: string[]): IDisposable;
-	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType): Promise<ISimpleCompletion[] | undefined>;
+	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, triggeredProviders?: ITerminalCompletionProvider[]): Promise<ISimpleCompletion[] | undefined>;
 }
 
 // TODO: make name consistent
 export class TerminalCompletionService extends Disposable implements ITerminalCompletionService {
 	declare _serviceBrand: undefined;
 	private readonly _providers: Map</*ext id*/string, Map</*provider id*/string, ITerminalCompletionProvider>> = new Map();
+	get providers() { return [...this._providers.values()].flatMap(providerMap => [...providerMap.values()]); }
 
 	constructor(@IConfigurationService private readonly _configurationService: IConfigurationService) {
 		super();
@@ -45,6 +48,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			this._providers.set(extensionIdentifier, extMap);
 		}
 		provider.triggerCharacters = triggerCharacters;
+		provider.id = id;
 		extMap.set(id, provider);
 		return toDisposable(() => {
 			const extMap = this._providers.get(extensionIdentifier);
@@ -57,31 +61,40 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		});
 	}
 
-	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType): Promise<ISimpleCompletion[] | undefined> {
+	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, triggeredProviders?: ITerminalCompletionProvider[]): Promise<ISimpleCompletion[] | undefined> {
 		const completionItems: ISimpleCompletion[] = [];
 
 		if (!this._providers || !this._providers.values) {
 			return undefined;
 		}
 
-		// TODO: Use Promise.all so all providers are called in parallel
-		for (const providerMap of this._providers.values()) {
-			for (const [extensionId, provider] of providerMap) {
+		const collectCompletions = async (providers: ITerminalCompletionProvider[]) => {
+			await Promise.all(providers.map(async provider => {
 				if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
-					continue;
+					return;
 				}
 				const completions = await provider.provideCompletions(promptValue, cursorPosition);
 				const devModeEnabled = this._configurationService.getValue(TerminalSettingId.DevMode);
 				if (completions) {
 					for (const completion of completions) {
-						if (devModeEnabled && !completion.detail?.includes(extensionId)) {
-							completion.detail = `(${extensionId}) ${completion.detail ?? ''}`;
+						if (devModeEnabled && !completion.detail?.includes(provider.id)) {
+							completion.detail = `(${provider.id}) ${completion.detail ?? ''}`;
 						}
 						completionItems.push(completion);
 					}
 				}
-			}
+			}));
+		};
+
+		if (triggeredProviders) {
+			// trigger characters were pressed, only get completions from those providers
+			console.log('triggered providers', triggeredProviders.map(p => p.id));
+			await collectCompletions(triggeredProviders);
+		} else {
+			const allProviders = [...this._providers.values()].flatMap(providerMap => [...providerMap.values()]);
+			await collectCompletions(allProviders);
 		}
+
 		return completionItems.length > 0 ? completionItems : undefined;
 	}
 }

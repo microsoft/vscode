@@ -57,16 +57,6 @@ declare module 'vscode' {
 		 */
 		isKeyword?: boolean;
 
-		/**
-		 * Whether a file completion should be provided upon accept of this completion item.
-		 */
-		fileArgument?: boolean;
-
-		/**
-		 * Whether a folder completion should be provided upon accept of this completion item.
-		 */
-		folderArgument?: boolean;
-
 		replacementIndex: number;
 
 		replacementLength: number;

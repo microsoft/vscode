@@ -13,7 +13,7 @@ export interface Arg {
 	template?: string;
 	description: string;
 	isOptional?: boolean;
-	generators?: () => any; // Replace with the actual type if known
+	generators?: any;
 	suggestions?: Suggestion[];
 }
 

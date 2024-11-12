@@ -7,7 +7,6 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import { Arg, FigSpec, Option, Subcommand, Suggestion } from './types';
-
 const builtinCommands: string[] | undefined = getBuiltinCommands();
 
 // TODO: use shell type to determine which builtin commands to use
@@ -60,7 +59,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 	// TODO: try to use typescript instead?
 	try {
 		// Use a relative path to the autocomplete/src folder
-		const dirPath = path.resolve(__dirname, 'autocomplete/src');
+		const dirPath = path.resolve(__dirname, 'autocomplete');
 		const files = await findFiles(dirPath, '.js');
 
 		const filtered = files.filter(file => commands.has(path.basename(file).replace('.js', '')));
@@ -99,22 +98,50 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 		// TODO: Leverage shellType when available https://github.com/microsoft/vscode/issues/230165
 		//       terminal.state.shellType
 
+		// TODO: cache
 		const availableCommands = await getCommandsInPath();
 		const specs = await getCompletionSpecs(availableCommands);
 		builtinCommands?.forEach(command => availableCommands.add(command));
 
 		const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
-		if (prefix === undefined) {
-			return;
-		}
+
 		const result: vscode.TerminalCompletionItem[] = [];
 		for (const spec of specs) {
 			const name = getLabel(spec);
 			if (!name || !availableCommands.has(name)) {
 				continue;
 			}
+			if (spec.args && name === 'cd') {
+				const escapedName = escapeRegExp(name);
+				if (terminalContext.commandLine.match(new RegExp(`${escapedName}\\s+$`))) {
+					console.log('command has args', spec.args, terminalContext.commandLine.match(new RegExp(`${escapedName}\\s+`)));
+				}
+			}
+
+			if (spec.args && terminalContext.commandLine.match(new RegExp(`${escapeRegExp(name)}\\s+$`))) {
+				const fileArgument = shouldShowFile(spec.args) && !onlyShowFolders(spec.args);
+				const folderArgument = onlyShowFolders(spec.args);
+				console.log('command has fileArgument, folderArgument', fileArgument, folderArgument);
+				if (fileArgument || folderArgument) {
+					// TODO: return special items
+					console.log('pushing');
+					result.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, ' ', fileArgument ? 'file' : 'folder', fileArgument ? 'File argument' : 'Folder argument'));
+				}
+				if (spec.args.suggestions) {
+					for (const suggestion of spec.args.suggestions) {
+						const suggestionName = getLabel(suggestion);
+						if (suggestionName) {
+							result.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, ' ', suggestionName, `Suggestion for ${name}: ${suggestion.description}`));
+						}
+					}
+				}
+			}
+
+			if (!prefix) {
+				continue;
+			}
 			if (name.startsWith(prefix)) {
-				result.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, name, spec.description, spec.args));
+				result.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, name, spec.description));
 			}
 			// TODO:
 			// deal with args on FigSpec, esp if non optional.
@@ -152,7 +179,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 		// Return the completion results or undefined if no results
 		return result.length ? result : undefined;
 	}
-});
+}, [' ']);
 
 function getLabel(spec: FigSpec | Option | Subcommand | Suggestion): string | undefined {
 	if (typeof spec.name === 'string') {
@@ -164,14 +191,12 @@ function getLabel(spec: FigSpec | Option | Subcommand | Suggestion): string | un
 	return spec.name[0];
 }
 
-function createCompletionItem(commandLine: string, cursorPosition: number, prefix: string, label: string, description?: string, arg?: Arg): vscode.TerminalCompletionItem {
+function createCompletionItem(commandLine: string, cursorPosition: number, prefix: string, label: string, description?: string): vscode.TerminalCompletionItem {
 	return {
 		label,
 		isFile: false,
 		isDirectory: false,
 		detail: description ?? '',
-		fileArgument: shouldShowFile(arg) && !onlyShowFolders(arg),
-		folderArgument: onlyShowFolders(arg),
 		replacementIndex: cursorPosition - prefix.length,
 		replacementLength: label.length - prefix.length,
 	};
@@ -182,16 +207,33 @@ function shouldShowFile(arg?: Arg): boolean {
 }
 
 function onlyShowFolders(arg?: Arg): boolean {
-	if (arg?.generators?.name === 'autocomplete_generators_1.filepaths') {
-		if ('showFolders' in arg.generators()) {
-			const showFolders = arg.generators().showFolders;
-			const onlyShowFolders = showFolders === 'only';
-			return onlyShowFolders;
-		}
-	}
-	return false;
+	console.log(isFilepathsGenerator(arg?.generators));
+	return isFilepathsGenerator(arg?.generators);
 }
+function isFilepathsGenerator(generator: any) {
+	if (!generator || typeof generator !== 'object') {
+		return false;
+	}
+	// HACK because the generator object is not at all what I expect
+	// per logging below
+	return !!Object.keys(generator).find(key => key === 'getQueryTerm');
+	// console.log('Generator:', generator);
+	// console.log('Type of generator:', typeof generator);
 
+	// if (generator && typeof generator === 'object') {
+	// 	console.log('Keys in generator:', Object.keys(generator));
+	// 	Object.keys(generator).forEach(key => {
+	// 		console.log(`Key: ${key}, Type: ${typeof generator[key]}`);
+	// 	});
+	// 	console.log('showFolders:', generator?.showFolders);
+	// }
+	// return (
+	// 	generator &&
+	// 	typeof generator === 'object' &&
+	// 	'showFolders' in generator &&
+	// 	generator.showFolders === 'only'
+	// );
+}
 async function getCommandsInPath(): Promise<Set<string>> {
 	// todo: use semicolon for windows
 	const paths = process.env.PATH?.split(':') || [];
@@ -218,7 +260,7 @@ async function getCommandsInPath(): Promise<Set<string>> {
 }
 
 function getPrefix(commandLine: string, cursorPosition: number): string | undefined {
-	// Check if cursor is at the end or there's whitespace after the cursor
+	// Check if cursor is not at the end and there's non-whitespace after the cursor
 	if (cursorPosition < commandLine.length && /\S/.test(commandLine[cursorPosition])) {
 		return undefined;
 	}
@@ -231,4 +273,7 @@ function getPrefix(commandLine: string, cursorPosition: number): string | undefi
 
 	// Return the match if found, otherwise undefined
 	return match ? match[0] : undefined;
+}
+function escapeRegExp(str: string) {
+	return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

@@ -27,7 +27,7 @@ import { SimpleCompletionItem, ISimpleCompletion } from '../../../../services/su
 import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import type { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
-import { ITerminalCompletionService } from './terminalCompletionService.js';
+import { ITerminalCompletionProvider, ITerminalCompletionService } from './terminalCompletionService.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export interface ISuggestController {
@@ -115,7 +115,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}));
 	}
 
-	private async _handleCompletionProviders(terminal?: Terminal): Promise<void> {
+	private async _handleCompletionProviders(terminal: Terminal | undefined, providers?: ITerminalCompletionProvider[]): Promise<void> {
 		// Nothing to handle if the terminal is not attached
 		if (!terminal?.element || !this._enableWidget || !this._promptInputModel) {
 			return;
@@ -130,7 +130,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		this._requestedCompletionsIndex = this._promptInputModel.cursorIndex;
-		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._promptInputModel.cursorIndex, this._shellType);
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._promptInputModel.cursorIndex, this._shellType, providers);
 		if (!providedCompletions?.length) {
 			return;
 		}
@@ -196,7 +196,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._screen = screen;
 	}
 
-	async requestCompletions(): Promise<void> {
+	async requestCompletions(providers?: ITerminalCompletionProvider[]): Promise<void> {
 		if (!this._promptInputModel) {
 			return;
 		}
@@ -205,7 +205,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		await this._handleCompletionProviders(this._terminal);
+		await this._handleCompletionProviders(this._terminal, providers);
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
@@ -246,7 +246,22 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					this.requestCompletions();
 					sent = true;
 				}
-				// TODO: eventually add an appropriate trigger char check for other shells
+				const providersToRequest: ITerminalCompletionProvider[] = [];
+				for (const provider of this._terminalCompletionService.providers) {
+					if (!provider.triggerCharacters) {
+						continue;
+					}
+					for (const char of provider.triggerCharacters) {
+						if (prefix?.endsWith(char)) {
+							providersToRequest.push(provider);
+							break;
+						}
+					}
+					if (providersToRequest.length > 0) {
+						this.requestCompletions(providersToRequest);
+						sent = true;
+					}
+				}
 			}
 			// #endregion
 		}

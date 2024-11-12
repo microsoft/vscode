@@ -53,6 +53,8 @@ const enum RequestCompletionsSequence {
 }
 
 export class PwshCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
+	id: string = PwshCompletionProviderAddon.ID;
+	triggerCharacters?: string[] | undefined;
 	static readonly ID = 'terminal.pwshCompletionProvider';
 	static cachedPwshCommands: Set<ISimpleCompletion>;
 	readonly shellTypes = [GeneralShellType.PowerShell];
