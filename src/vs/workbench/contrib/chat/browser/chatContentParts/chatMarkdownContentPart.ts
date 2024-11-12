@@ -7,7 +7,8 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -34,6 +35,7 @@ import { IChatMarkdownContent } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo, IChatListItemRendererOptions } from '../chat.js';
+import { AnimatedValue, ObservableAnimatedValue } from '../chatEditorOverlay.js';
 import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
@@ -281,6 +283,8 @@ class CollapsedCodeBlock extends Disposable {
 		return this._uri;
 	}
 
+	private readonly _progressStore = new DisposableStore();
+
 	constructor(
 		sessionId: string,
 		requestId: string,
@@ -317,6 +321,8 @@ class CollapsedCodeBlock extends Disposable {
 	}
 
 	render(uri: URI, isStreaming?: boolean): void {
+		this._progressStore.clear();
+
 		this._uri = uri;
 
 		const iconText = this.labelService.getUriBasenameLabel(uri);
@@ -335,16 +341,39 @@ class CollapsedCodeBlock extends Disposable {
 		const iconEl = dom.$('span.icon');
 		iconEl.classList.add(...iconClasses);
 
-		const statusText = isStreaming ? localize('chat.codeblock.generating', "Generating edits...")
-			: !isComplete ? localize('chat.codeblock.applying', "Applying edits...")
-				: '';
-
 		const children = [dom.$('span.icon-label', {}, iconText)];
-		if (statusText) {
-			children.push(dom.$('span.label-detail', {}, statusText));
+		if (isStreaming) {
+			children.push(dom.$('span.label-detail', {}, localize('chat.codeblock.generating', "Generating edits...")));
+		} else if (!isComplete) {
+			children.push(dom.$('span.label-detail', {}, ''));
 		}
-
 		this.element.replaceChildren(iconEl, ...children);
 		this.element.title = this.labelService.getUriLabel(uri, { relative: false });
+
+		// Show a percentage progress that is driven by the rewrite
+		const slickRatio = ObservableAnimatedValue.const(0);
+		let t = Date.now();
+		this._progressStore.add(autorun(r => {
+			const rewriteRatio = modifiedEntry?.rewriteRatio.read(r);
+			if (rewriteRatio) {
+				slickRatio.changeAnimation(prev => {
+					const result = new AnimatedValue(prev.getValue(), rewriteRatio, Date.now() - t);
+					t = Date.now();
+					return result;
+				}, undefined);
+			}
+
+			const labelDetail = this.element.querySelector('.label-detail');
+			const isComplete = !modifiedEntry?.isCurrentlyBeingModified.read(r);
+			if (labelDetail && !isStreaming && !isComplete) {
+				const value = slickRatio.getValue(undefined);
+				labelDetail.textContent = value === 0 ? localize('chat.codeblock.applying', "Applying edits...") : localize('chat.codeblock.applyingPercentage', "Applying edits ({0}%)...", Math.round(value * 100));
+			} else if (labelDetail && !isStreaming && isComplete) {
+				iconEl.classList.remove(...iconClasses);
+				const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
+				iconEl.classList.add(...getIconClasses(this.modelService, this.languageService, uri, fileKind));
+				labelDetail.textContent = '';
+			}
+		}));
 	}
 }
