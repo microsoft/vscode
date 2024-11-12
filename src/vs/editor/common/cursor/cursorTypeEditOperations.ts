@@ -6,7 +6,7 @@
 import { CharCode } from '../../../base/common/charCode.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import * as strings from '../../../base/common/strings.js';
-import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection, ReplaceOvertypeCommand, OvertypePasteCommand } from '../commands/replaceCommand.js';
+import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection, ReplaceOvertypeCommand, OvertypePasteCommand, ReplaceOvertypeCommandWithOffsetCursorState } from '../commands/replaceCommand.js';
 import { ShiftCommand } from '../commands/shiftCommand.js';
 import { SurroundSelectionCommand } from '../commands/surroundSelectionCommand.js';
 import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from '../cursorCommon.js';
@@ -723,14 +723,14 @@ export class PasteOperation {
 export class CompositionOperation {
 
 	public static getEdits(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) {
-		const commands = selections.map(selection => this._compositionType(model, selection, text, replacePrevCharCnt, replaceNextCharCnt, positionDelta));
+		const commands = selections.map(selection => this._compositionType(config, model, selection, text, replacePrevCharCnt, replaceNextCharCnt, positionDelta));
 		return new EditOperationResult(EditOperationType.TypingOther, commands, {
 			shouldPushStackElementBefore: shouldPushStackElementBetween(prevEditOperationType, EditOperationType.TypingOther),
 			shouldPushStackElementAfter: false
 		});
 	}
 
-	private static _compositionType(model: ITextModel, selection: Selection, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): ICommand | null {
+	private static _compositionType(config: CursorConfiguration, model: ITextModel, selection: Selection, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): ICommand | null {
 		if (!selection.isEmpty()) {
 			// looks like https://github.com/microsoft/vscode/issues/2773
 			// where a cursor operation occurred before a canceled composition
@@ -741,7 +741,11 @@ export class CompositionOperation {
 		const startColumn = Math.max(1, pos.column - replacePrevCharCnt);
 		const endColumn = Math.min(model.getLineMaxColumn(pos.lineNumber), pos.column + replaceNextCharCnt);
 		const range = new Range(pos.lineNumber, startColumn, pos.lineNumber, endColumn);
-		return new ReplaceCommandWithOffsetCursorState(range, text, 0, positionDelta);
+
+		const inputMode = InputMode.getInputMode();
+		const shouldOvertypeOnPaste = config.overtypeOnPaste && inputMode === 'overtype';
+		const ChosenReplaceCommand = shouldOvertypeOnPaste ? ReplaceOvertypeCommandWithOffsetCursorState : ReplaceCommandWithOffsetCursorState;
+		return new ChosenReplaceCommand(range, text, 0, positionDelta);
 	}
 }
 

@@ -170,6 +170,45 @@ export class ReplaceCommandWithOffsetCursorState implements ICommand {
 	}
 }
 
+export class ReplaceOvertypeCommandWithOffsetCursorState implements ICommand {
+
+	private readonly _range: Range;
+	private readonly _text: string;
+	private readonly _columnDeltaOffset: number;
+	private readonly _lineNumberDeltaOffset: number;
+	public readonly insertsAutoWhitespace: boolean;
+
+	constructor(range: Range, text: string, lineNumberDeltaOffset: number, columnDeltaOffset: number, insertsAutoWhitespace: boolean = false) {
+		this._range = range;
+		this._text = text;
+		this._columnDeltaOffset = columnDeltaOffset;
+		this._lineNumberDeltaOffset = lineNumberDeltaOffset;
+		this.insertsAutoWhitespace = insertsAutoWhitespace;
+	}
+
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void { // TODO
+		const startPosition = this._range.getStartPosition();
+		const endPosition = this._range.getEndPosition();
+		const rangeEndOffset = model.getOffsetAt(endPosition);
+		const endOffset = rangeEndOffset + this._text.length + (this._range.isEmpty() ? 0 : - 1);
+		const endOfLine = model.getEndOfLineSequence() === EndOfLineSequence.CRLF ? '\r\n' : '\n';
+		const lastCharacter = model.getValueInRange(Range.fromPositions(model.getPositionAt(endOffset - 1), model.getPositionAt(endOffset)));
+		const newEndOffset = lastCharacter === endOfLine ? endOffset - 1 : endOffset;
+		const replaceRange = Range.fromPositions(startPosition, model.getPositionAt(newEndOffset));
+		console.log('ReplaceOvertypeCommandWithOffsetCursorState');
+		console.log('this._range : ', this._range);
+		console.log('replaceRange : ', replaceRange);
+		console.log('this._text : ', this._text);
+		builder.addTrackedEditOperation(replaceRange, this._text);
+	}
+
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		const inverseEditOperations = helper.getInverseEditOperations();
+		const srcRange = inverseEditOperations[0].range;
+		return Selection.fromPositions(srcRange.getEndPosition().delta(this._lineNumberDeltaOffset, this._columnDeltaOffset));
+	}
+}
+
 export class ReplaceCommandThatPreservesSelection implements ICommand {
 
 	private readonly _range: Range;
