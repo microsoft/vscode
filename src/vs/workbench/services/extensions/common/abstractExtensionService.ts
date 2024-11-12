@@ -318,7 +318,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._extensionsProposedApi.updateEnabledApiProposals(toAdd);
 
 		// Update extension points
-		this._doHandleExtensionPoints((<IExtensionDescription[]>[]).concat(toAdd).concat(toRemove));
+		this._doHandleExtensionPoints((<IExtensionDescription[]>[]).concat(toAdd).concat(toRemove), false);
 
 		// Update the extension host
 		await this._updateExtensionsOnExtHosts(result.versionId, toAdd, toRemove.map(e => e.identifier));
@@ -453,7 +453,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		const lock = await this._registry.acquireLock('_initialize');
 		try {
-			const resolvedExtensions = await this._resolveExtensions();
+			const resolvedExtensions = await this._resolveExtensions(lock);
 
 			this._processExtensions(lock, resolvedExtensions);
 
@@ -498,9 +498,33 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 		}
 
-		const allExtensions = remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions);
 
-		const result = this._registry.deltaExtensions(lock, allExtensions, []);
+		let toAdd: IExtensionDescription[] = [];
+		const toRemove: IExtensionDescription[] = [];
+		const existingExtensions = this._registry.getAllExtensionDescriptions();
+
+		if (existingExtensions.length) {
+			// If there are existing extensions, we need to find out the delta
+			// We need to add new extensions, remove those that are not there anymore and keep the existing ones
+			const allExtensions = remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions);
+			const allExtensionsMap = new Map<string, IExtensionDescription>();
+			for (const extension of allExtensions) {
+				allExtensionsMap.set(`${extension.identifier.value}:${extension.extensionLocation.toString()}`, extension);
+				const existing = this._registry.getExtensionDescription(extension.identifier);
+				if (!existing || existing.extensionLocation.toString() !== extension.extensionLocation.toString()) {
+					toAdd.push(extension);
+				}
+			}
+			for (const existing of existingExtensions) {
+				if (!allExtensionsMap.has(`${existing.identifier.value}:${existing.extensionLocation.toString()}`)) {
+					toRemove.push(existing);
+				}
+			}
+		} else {
+			toAdd = remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions);
+		}
+
+		const result = this._registry.deltaExtensions(lock, toAdd, toRemove.map(e => e.identifier));
 		if (result.removedDueToLooping.length > 0) {
 			this._notificationService.notify({
 				severity: Severity.Error,
@@ -508,7 +532,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			});
 		}
 
-		this._doHandleExtensionPoints(this._registry.getAllExtensionDescriptions());
+		this._doHandleExtensionPoints(toAdd.concat(toRemove), false);
+	}
+
+	protected _handleResolverExtensions(lock: ExtensionDescriptionRegistryLock, resolverExtensions: IExtensionDescription[]): void {
+		this._registry.deltaExtensions(lock, resolverExtensions, []);
+		this._doHandleExtensionPoints(resolverExtensions, true);
 	}
 
 	private async _handleExtensionTests(): Promise<void> {
@@ -1031,7 +1060,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	private _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {
+	private _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[], onlyResolverExtensionPoints: boolean): void {
 		const affectedExtensionPoints: { [extPointName: string]: boolean } = Object.create(null);
 		for (const extensionDescription of affectedExtensions) {
 			if (extensionDescription.contributes) {
@@ -1045,8 +1074,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		const messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
 		const availableExtensions = this._registry.getAllExtensionDescriptions();
-		const extensionPoints = ExtensionsRegistry.getExtensionPoints();
-		perf.mark('code/willHandleExtensionPoints');
+		const extensionPoints = onlyResolverExtensionPoints
+			? ExtensionsRegistry.getExtensionPoints().filter(extensionPoint => extensionPoint.canHandleResolver)
+			: ExtensionsRegistry.getExtensionPoints();
+		perf.mark(onlyResolverExtensionPoints ? 'code/willHandleResolverExtensionPoints' : 'code/willHandleExtensionPoints');
 		for (const extensionPoint of extensionPoints) {
 			if (affectedExtensionPoints[extensionPoint.name]) {
 				perf.mark(`code/willHandleExtensionPoint/${extensionPoint.name}`);
@@ -1054,7 +1085,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				perf.mark(`code/didHandleExtensionPoint/${extensionPoint.name}`);
 			}
 		}
-		perf.mark('code/didHandleExtensionPoints');
+		perf.mark(onlyResolverExtensionPoints ? 'code/didHandleResolverExtensionPoints' : 'code/didHandleExtensionPoints');
 	}
 
 	private _getOrCreateExtensionStatus(extensionId: ExtensionIdentifier): ExtensionStatus {
@@ -1192,7 +1223,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#endregion
 
-	protected abstract _resolveExtensions(): Promise<ResolvedExtensions>;
+	protected abstract _resolveExtensions(lock: ExtensionDescriptionRegistryLock): Promise<ResolvedExtensions>;
 	protected abstract _onExtensionHostExit(code: number): Promise<void>;
 	protected abstract _resolveAuthority(remoteAuthority: string): Promise<ResolverResult>;
 }
@@ -1298,6 +1329,10 @@ class DeltaExtensionsQueueItem {
 		public readonly toAdd: IExtension[],
 		public readonly toRemove: string[] | IExtension[]
 	) { }
+}
+
+export function isResolverExtension(extension: IExtensionDescription): boolean {
+	return !!extension.activationEvents?.some(activationEvent => activationEvent.startsWith('onResolveRemoteAuthority:'));
 }
 
 /**
