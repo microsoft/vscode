@@ -999,7 +999,7 @@ class NotebookSelectAllFindMatches extends NotebookAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_SELECT_ALL_FIND_MATCHES_ID,
-			title: localize('selectAllFindMatches', "Select All Find Matches"),
+			title: localize('selectAllFindMatches', "Select All Occurrences of Find Match"),
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 			),
@@ -1050,7 +1050,7 @@ class NotebookAddMatchToMultiSelectionAction extends NotebookAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID,
-			title: localize('addFindMatchToSelection', "Add Find Match to Selection"),
+			title: localize('addFindMatchToSelection', "Add Selection To Next Find Match"),
 			precondition: ContextKeyExpr.and(
 				ContextKeyExpr.equals('config.notebook.multiCursor.enabled', true),
 				NOTEBOOK_IS_ACTIVE_EDITOR,
