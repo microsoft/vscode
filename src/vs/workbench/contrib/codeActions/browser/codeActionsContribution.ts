@@ -115,7 +115,7 @@ export const notebookEditorConfiguration = Object.freeze<IConfigurationNode>({
 export class CodeActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	private _contributedCodeActions: CodeActionsExtensionPoint[] = [];
-	private settings: Set<string> = new Set<string>();
+	private readonly settings: Set<string> = new Set<string>();
 
 	private readonly _onDidChangeContributions = this._register(new Emitter<void>());
 
@@ -127,16 +127,16 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		super();
 
 		// TODO: @justschen caching of code actions based on extensions loaded: https://github.com/microsoft/vscode/issues/216019
-		languageFeatures.codeActionProvider.onDidChange(() => {
+		this._register(languageFeatures.codeActionProvider.onDidChange(() => {
 			this.updateSettingsFromCodeActionProviders();
 			this.updateConfigurationSchemaFromContribs();
-		}, 2000);
+		}, 2000));
 
-		codeActionsExtensionPoint.setHandler(extensionPoints => {
+		this._register(codeActionsExtensionPoint.setHandler(extensionPoints => {
 			this._contributedCodeActions = extensionPoints.flatMap(x => x.value).filter(x => Array.isArray(x.actions));
 			this.updateConfigurationSchema(this._contributedCodeActions);
 			this._onDidChangeContributions.fire();
-		});
+		}));
 
 		keybindingService.registerSchemaContribution({
 			getSchemaAdditions: () => this.getSchemaAdditions(),
