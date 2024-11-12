@@ -308,7 +308,7 @@ impl ExtensionSubcommand {
 				target.push("--update-extensions".to_string());
 			}
 			ExtensionSubcommand::Download(args) => {
-				for id in args.id_or_path.iter() {
+				for id in args.id.iter() {
 					target.push(format!("--download-extension={id}"));
 				}
 				if let Some(location) = &args.location {
@@ -366,7 +366,7 @@ pub struct DownloadExtensionArgs {
 	/// To download a specific version provide '@${version}'.
 	/// For example: 'vscode.csharp@1.2.3'.
 	#[clap(name = "ext-id")]
-	pub id_or_path: Vec<String>,
+	pub id: Vec<String>,
 
 	/// Specify the location to download the VSIX.
 	#[clap(long, value_name = "location")]
