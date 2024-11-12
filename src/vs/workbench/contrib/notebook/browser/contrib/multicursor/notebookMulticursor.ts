@@ -48,6 +48,7 @@ import { registerNotebookContribution } from '../../notebookEditorExtensions.js'
 import { CellEditorOptions } from '../../view/cellParts/cellEditorOptions.js';
 import { NotebookFindContrib } from '../find/notebookFindWidget.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
+import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
 
 const NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID = 'notebook.addFindMatchToSelection';
 const NOTEBOOK_SELECT_ALL_FIND_MATCHES_ID = 'notebook.selectAllFindMatches';
@@ -130,105 +131,12 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		// need to create new controllers when the anchor cell changes, then update their listeners
 		// ** cursor controllers need to happen first, because anchor listeners relay to them
 		this._register(this.onDidChangeAnchorCell(async () => {
-			await this.updateCursorsControllers();
-			this.updateAnchorListeners();
+			await this.syncCursorsControllers();
+			this.syncAnchorListeners();
 		}));
 	}
 
-	private async updateCursorsControllers() {
-		this.cursorsDisposables.clear(); // TODO: dial this back for perf and just update the relevant controllers
-		await Promise.all(this.trackedCells.map(async cell => {
-			const controller = await this.createCursorController(cell);
-			if (controller) {
-				this.cursorsControllers.set(cell.cellViewModel.uri, controller);
-			}
-		}));
-	}
-
-	private async createCursorController(cell: TrackedCell): Promise<CursorsController | undefined> {
-		const textModelRef = await this.textModelService.createModelReference(cell.cellViewModel.uri);
-		const textModel = textModelRef.object.textEditorModel;
-		if (!textModel) {
-			return undefined;
-		}
-
-		const cursorSimpleModel = this.constructCursorSimpleModel(cell.cellViewModel);
-		const converter = this.constructCoordinatesConverter();
-		const editorConfig = cell.editorConfig;
-
-		const controller = this.cursorsDisposables.add(new CursorsController(
-			textModel,
-			cursorSimpleModel,
-			converter,
-			new CursorConfiguration(textModel.getLanguageId(), textModel.getOptions(), editorConfig, this.languageConfigurationService)
-		));
-
-		controller.setSelections(new ViewModelEventsCollector(), undefined, cell.matchSelections, CursorChangeReason.Explicit);
-		return controller;
-	}
-
-	private constructCoordinatesConverter(): ICoordinatesConverter {
-		return {
-			convertViewPositionToModelPosition(viewPosition: Position): Position {
-				return viewPosition;
-			},
-			convertViewRangeToModelRange(viewRange: Range): Range {
-				return viewRange;
-			},
-			validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position {
-				return viewPosition;
-			},
-			validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
-				return viewRange;
-			},
-			convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity, allowZeroLineNumber?: boolean, belowHiddenRanges?: boolean): Position {
-				return modelPosition;
-			},
-			convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range {
-				return modelRange;
-			},
-			modelPositionIsVisible(modelPosition: Position): boolean {
-				return true;
-			},
-			getModelLineViewLineCount(modelLineNumber: number): number {
-				return 1;
-			},
-			getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number {
-				return modelLineNumber;
-			}
-		};
-	}
-
-	private constructCursorSimpleModel(cell: ICellViewModel): ICursorSimpleModel {
-		return {
-			getLineCount(): number {
-				return cell.textBuffer.getLineCount();
-			},
-			getLineContent(lineNumber: number): string {
-				return cell.textBuffer.getLineContent(lineNumber);
-			},
-			getLineMinColumn(lineNumber: number): number {
-				return cell.textBuffer.getLineMinColumn(lineNumber);
-			},
-			getLineMaxColumn(lineNumber: number): number {
-				return cell.textBuffer.getLineMaxColumn(lineNumber);
-			},
-			getLineFirstNonWhitespaceColumn(lineNumber: number): number {
-				return cell.textBuffer.getLineFirstNonWhitespaceColumn(lineNumber);
-			},
-			getLineLastNonWhitespaceColumn(lineNumber: number): number {
-				return cell.textBuffer.getLineLastNonWhitespaceColumn(lineNumber);
-			},
-			normalizePosition(position: Position, affinity: PositionAffinity): Position {
-				return position;
-			},
-			getLineIndentColumn(lineNumber: number): number {
-				return indentOfLine(cell.textBuffer.getLineContent(lineNumber)) + 1;
-			}
-		};
-	}
-
-	private updateAnchorListeners() {
+	private syncAnchorListeners() {
 		this.anchorDisposables.clear();
 
 		if (!this.anchorCell) {
@@ -332,6 +240,105 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				this.resetToIdleState();
 			}
 		}));
+	}
+
+	private async syncCursorsControllers() {
+		this.cursorsDisposables.clear(); // TODO: dial this back for perf and just update the relevant controllers
+		await Promise.all(this.trackedCells.map(async cell => {
+			const controller = await this.createCursorController(cell);
+			if (!controller) {
+				return;
+			}
+			this.cursorsControllers.set(cell.cellViewModel.uri, controller);
+
+			const selections = cell.matchSelections;
+			controller.setSelections(new ViewModelEventsCollector(), undefined, selections, CursorChangeReason.Explicit);
+		}));
+
+		this.updateLazyDecorations();
+	}
+
+	private async createCursorController(cell: TrackedCell): Promise<CursorsController | undefined> {
+		const textModelRef = await this.textModelService.createModelReference(cell.cellViewModel.uri);
+		const textModel = textModelRef.object.textEditorModel;
+		if (!textModel) {
+			return undefined;
+		}
+
+		const cursorSimpleModel = this.constructCursorSimpleModel(cell.cellViewModel);
+		const converter = this.constructCoordinatesConverter();
+		const editorConfig = cell.editorConfig;
+
+		const controller = this.cursorsDisposables.add(new CursorsController(
+			textModel,
+			cursorSimpleModel,
+			converter,
+			new CursorConfiguration(textModel.getLanguageId(), textModel.getOptions(), editorConfig, this.languageConfigurationService)
+		));
+
+		controller.setSelections(new ViewModelEventsCollector(), undefined, cell.matchSelections, CursorChangeReason.Explicit);
+		return controller;
+	}
+
+	private constructCoordinatesConverter(): ICoordinatesConverter {
+		return {
+			convertViewPositionToModelPosition(viewPosition: Position): Position {
+				return viewPosition;
+			},
+			convertViewRangeToModelRange(viewRange: Range): Range {
+				return viewRange;
+			},
+			validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position {
+				return viewPosition;
+			},
+			validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
+				return viewRange;
+			},
+			convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity, allowZeroLineNumber?: boolean, belowHiddenRanges?: boolean): Position {
+				return modelPosition;
+			},
+			convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range {
+				return modelRange;
+			},
+			modelPositionIsVisible(modelPosition: Position): boolean {
+				return true;
+			},
+			getModelLineViewLineCount(modelLineNumber: number): number {
+				return 1;
+			},
+			getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number {
+				return modelLineNumber;
+			}
+		};
+	}
+
+	private constructCursorSimpleModel(cell: ICellViewModel): ICursorSimpleModel {
+		return {
+			getLineCount(): number {
+				return cell.textBuffer.getLineCount();
+			},
+			getLineContent(lineNumber: number): string {
+				return cell.textBuffer.getLineContent(lineNumber);
+			},
+			getLineMinColumn(lineNumber: number): number {
+				return cell.textBuffer.getLineMinColumn(lineNumber);
+			},
+			getLineMaxColumn(lineNumber: number): number {
+				return cell.textBuffer.getLineMaxColumn(lineNumber);
+			},
+			getLineFirstNonWhitespaceColumn(lineNumber: number): number {
+				return cell.textBuffer.getLineFirstNonWhitespaceColumn(lineNumber);
+			},
+			getLineLastNonWhitespaceColumn(lineNumber: number): number {
+				return cell.textBuffer.getLineLastNonWhitespaceColumn(lineNumber);
+			},
+			normalizePosition(position: Position, affinity: PositionAffinity): Position {
+				return position;
+			},
+			getLineIndentColumn(lineNumber: number): number {
+				return indentOfLine(cell.textBuffer.getLineContent(lineNumber)) + 1;
+			}
+		};
 	}
 
 	private async handleEditorOperationEvent(e: any) {
@@ -454,21 +461,21 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		this.word = '';
 	}
 
-	public async findAndTrackNextSelection(cell: ICellViewModel): Promise<void> {
+	public async findAndTrackNextSelection(focusedCell: ICellViewModel): Promise<void> {
 		if (this.state === NotebookMultiCursorState.Idle) { // move cursor to end of the symbol + track it, transition to selecting state
-			const textModel = cell.textModel;
+			const textModel = focusedCell.textModel;
 			if (!textModel) {
 				return;
 			}
 
-			const inputSelection = cell.getSelections()[0];
+			const inputSelection = focusedCell.getSelections()[0];
 			const word = this.getWord(inputSelection, textModel);
 			if (!word) {
 				return;
 			}
 			this.word = word.word;
 
-			const index = this.notebookEditor.getCellIndex(cell);
+			const index = this.notebookEditor.getCellIndex(focusedCell);
 			if (index === undefined) {
 				return;
 			}
@@ -484,41 +491,22 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				inputSelection.startLineNumber,
 				word.endColumn
 			);
-			cell.setSelections([newSelection]);
+			focusedCell.setSelections([newSelection]);
 
 			this.anchorCell = this.notebookEditor.activeCellAndCodeEditor;
-			if (!this.anchorCell || this.anchorCell[0].handle !== cell.handle) {
+			if (!this.anchorCell || this.anchorCell[0].handle !== focusedCell.handle) {
 				throw new Error('Active cell is not the same as the cell passed as context');
 			}
 			if (!(this.anchorCell[1] instanceof CodeEditorWidget)) {
 				throw new Error('Active cell is not an instance of CodeEditorWidget');
 			}
 
-			textModel.pushStackElement();
-
-			this.trackedCells = [];
-			const editorConfig = this.constructCellEditorOptions(this.anchorCell[0]);
-			const rawEditorOptions = editorConfig.getRawOptions();
-			const cursorConfig: NotebookCursorConfig = {
-				cursorStyle: cursorStyleFromString(rawEditorOptions.cursorStyle!),
-				cursorBlinking: cursorBlinkingStyleFromString(rawEditorOptions.cursorBlinking!),
-				cursorSmoothCaretAnimation: rawEditorOptions.cursorSmoothCaretAnimation!
-			};
-
-			const newMatch: TrackedCell = {
-				cellViewModel: cell,
-				initialSelection: inputSelection,
-				matchSelections: [newSelection],
-				editorConfig: editorConfig, // cache this in the match so we can create new cursors controllers with the correct language config
-				cursorConfig: cursorConfig,
-				decorationIds: [],
-				undoRedoHistory: this.undoRedoService.getElements(cell.uri)
-			};
-			this.trackedCells.push(newMatch);
+			await this.updateTrackedCell(focusedCell, [newSelection]);
 
 			this._nbIsMultiSelectSession.set(true);
 			this.state = NotebookMultiCursorState.Selecting;
 			this._nbMultiSelectState.set(NotebookMultiCursorState.Selecting);
+
 			this._onDidChangeAnchorCell.fire();
 
 		} else if (this.state === NotebookMultiCursorState.Selecting) { // use the word we stored from idle state transition to find next match, track it
@@ -527,7 +515,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				return; // should not happen
 			}
 
-			const index = this.notebookEditor.getCellIndex(cell);
+			const index = this.notebookEditor.getCellIndex(focusedCell);
 			if (index === undefined) {
 				return; // should not happen
 			}
@@ -538,127 +526,66 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 			const findResult = notebookTextModel.findNextMatch(
 				this.word,
-				{ cellIndex: index, position: cell.getSelections()[cell.getSelections().length - 1].getEndPosition() },
+				{ cellIndex: index, position: focusedCell.getSelections()[focusedCell.getSelections().length - 1].getEndPosition() },
 				false,
 				true,
 				USUAL_WORD_SEPARATORS,
 				this.startPosition,
 			);
 			if (!findResult) {
-				this.state = NotebookMultiCursorState.Editing;
 				return;
 			}
 
-			const resultCellViewModel = this.notebookEditor.getCellByHandle(findResult.cell.handle);
-			if (!resultCellViewModel) {
+			const findResultCellViewModel = this.notebookEditor.getCellByHandle(findResult.cell.handle);
+			if (!findResultCellViewModel) {
 				return;
 			}
 
-			let newMatch: TrackedCell | undefined;
-			if (findResult.cell.handle === cell.handle) { // match is in the same cell, find tracked entry, update and set selections in viewmodel and cursorController
-				newMatch = this.trackedCells.find(cell => cell.cellViewModel.handle === findResult.cell.handle)!;
-				newMatch.matchSelections.push(Selection.fromRange(findResult.match.range, SelectionDirection.LTR));
-				resultCellViewModel.setSelections(newMatch.matchSelections);
+			if (findResult.cell.handle === focusedCell.handle) { // match is in the same cell, find tracked entry, update and set selections in viewmodel and cursorController
+				const selections = [...focusedCell.getSelections(), Selection.fromRange(findResult.match.range, SelectionDirection.LTR)];
+				const trackedCell = await this.updateTrackedCell(focusedCell, selections);
+				findResultCellViewModel.setSelections(trackedCell.matchSelections);
 
-				const controller = this.cursorsControllers.get(newMatch.cellViewModel.uri);
-				if (!controller) {
-					// should not happen
-					return;
-				}
-				controller.setSelections(new ViewModelEventsCollector(), undefined, newMatch.matchSelections, CursorChangeReason.Explicit);
-			} else if (findResult.cell.handle !== cell.handle) {	// result is in a different cell, move focus there and apply selection, then update anchor
-				await this.notebookEditor.revealRangeInViewAsync(resultCellViewModel, findResult.match.range);
-				this.notebookEditor.focusNotebookCell(resultCellViewModel, 'editor');
 
-				const initialSelection = resultCellViewModel.getSelections()[0];
-				const newSelection = Selection.fromRange(findResult.match.range, SelectionDirection.LTR);
-				resultCellViewModel.setSelections([newSelection]);
-				if (this.notebookEditor.activeCellAndCodeEditor?.[0].handle !== resultCellViewModel.handle) {
-					// should not happen
-					throw new Error('Focused cell does not match the find match data');
-				}
+			} else if (findResult.cell.handle !== focusedCell.handle) {	// result is in a different cell, move focus there and apply selection, then update anchor
+				await this.notebookEditor.revealRangeInViewAsync(findResultCellViewModel, findResult.match.range);
+				await this.notebookEditor.focusNotebookCell(findResultCellViewModel, 'editor');
+
+				const trackedCell = await this.updateTrackedCell(findResultCellViewModel, [Selection.fromRange(findResult.match.range, SelectionDirection.LTR)]);
+				findResultCellViewModel.setSelections(trackedCell.matchSelections);
 
 				this.anchorCell = this.notebookEditor.activeCellAndCodeEditor;
 				if (!this.anchorCell || !(this.anchorCell[1] instanceof CodeEditorWidget)) {
 					throw new Error('Active cell is not an instance of CodeEditorWidget');
 				}
 
-				const textModel = await resultCellViewModel.resolveTextModel();
-				textModel.pushStackElement();
-
-				const editorConfig = this.constructCellEditorOptions(this.anchorCell[0]);
-				const rawEditorOptions = editorConfig.getRawOptions();
-				const cursorConfig: NotebookCursorConfig = {
-					cursorStyle: cursorStyleFromString(rawEditorOptions.cursorStyle!),
-					cursorBlinking: cursorBlinkingStyleFromString(rawEditorOptions.cursorBlinking!),
-					cursorSmoothCaretAnimation: rawEditorOptions.cursorSmoothCaretAnimation!
-				};
-
-				newMatch = this.trackedCells.find(cell => cell.cellViewModel.handle === findResult.cell.handle);
-				if (newMatch) {
-					newMatch.matchSelections.push(Selection.fromRange(findResult.match.range, SelectionDirection.LTR));
-					this.clearDecorations(newMatch); // clear old decorations for this cell, since we are active here again
-					resultCellViewModel.setSelections(newMatch.matchSelections);
-					const controller = this.cursorsControllers.get(newMatch.cellViewModel.uri);
-					if (!controller) {
-						// should not happen
-						return;
-					}
-					controller.setSelections(new ViewModelEventsCollector(), undefined, newMatch.matchSelections, CursorChangeReason.Explicit);
-				} else {
-					newMatch = {
-						cellViewModel: resultCellViewModel,
-						initialSelection: initialSelection,
-						matchSelections: [newSelection],
-						editorConfig: editorConfig,
-						cursorConfig: cursorConfig,
-						decorationIds: [],
-						undoRedoHistory: this.undoRedoService.getElements(resultCellViewModel.uri)
-					} satisfies TrackedCell;
-					this.trackedCells.push(newMatch);
-				}
 				this._onDidChangeAnchorCell.fire();
 
 				// we set the decorations manually for the cell we have just departed, since it blurs
 				// we can find the match with the handle that the find and track request originated
-				this.initializeMultiSelectDecorations(this.trackedCells.find(trackedCell => trackedCell.cellViewModel.handle === cell.handle));
-			} else {
-				// should not happen
-				return;
+				this.initializeMultiSelectDecorations(this.trackedCells.find(trackedCell => trackedCell.cellViewModel.handle === focusedCell.handle));
 			}
-
 		}
 	}
 
-	public async selectAllMatches(cell: ICellViewModel, matches?: CellFindMatchWithIndex[]): Promise<void> {
+	public async selectAllMatches(focusedCell: ICellViewModel, matches?: CellFindMatchWithIndex[]): Promise<void> {
 		const notebookTextModel = this.notebookEditor.textModel;
 		if (!notebookTextModel) {
 			return; // should not happen
 		}
 
-		// triggered while find widget is open, so we already have all the match info
 		if (matches) {
-			await this.handleFindWidgetSelectAllMatches(notebookTextModel, cell, matches);
+			await this.handleFindWidgetSelectAllMatches(matches);
 		} else {
-			await this.handleCellEditorSelectAllMatches(notebookTextModel, cell);
+			await this.handleCellEditorSelectAllMatches(notebookTextModel, focusedCell);
 		}
 
-		// get cursor controllers in sync with the viewmodel selections
-		this.trackedCells.forEach(cell => {
-			const controller = this.cursorsControllers.get(cell.cellViewModel.uri);
-			if (!controller) {
-				// should not happen
-				return;
-			}
-
-			const selections = cell.matchSelections;
-			controller.setSelections(new ViewModelEventsCollector(), undefined, selections, CursorChangeReason.Explicit);
-		});
-
+		await this.syncCursorsControllers();
+		this.syncAnchorListeners();
 		this.updateLazyDecorations();
 	}
 
-	private async handleFindWidgetSelectAllMatches(notebookTextModel: NotebookTextModel, cell: ICellViewModel, matches: CellFindMatchWithIndex[]) {
+	private async handleFindWidgetSelectAllMatches(matches: CellFindMatchWithIndex[]) {
 		// TODO: support selecting state maybe. UX could get confusing since selecting state could be hit via ctrl+d which would have different filters (case sensetive + whole word)
 		if (this.state !== NotebookMultiCursorState.Idle) {
 			return;
@@ -668,65 +595,39 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			return;
 		}
 
-		this.notebookEditor.focusNotebookCell(matches[0].cell, 'editor');
+		await this.notebookEditor.focusNotebookCell(matches[0].cell, 'editor');
 		this.anchorCell = this.notebookEditor.activeCellAndCodeEditor;
 
 		this.trackedCells = [];
 		for (const match of matches) {
+			this.updateTrackedCell(match.cell, match.contentMatches.map(match => Selection.fromRange(match.range, SelectionDirection.LTR)));
 
-			const initialSelection = match.cell.getSelections()[0];
-			const newSelections = match.contentMatches.map(match => Selection.fromRange(match.range, SelectionDirection.LTR));
-			if (match.cell.handle === matches[0].cell.handle) {
+			if (this.anchorCell && match.cell.handle === this.anchorCell[0].handle) {
 				// only explicitly set the focused cell's selections, the rest are handled by cursor controllers + decorations
-				match.cell.setSelections(newSelections);
+				match.cell.setSelections(match.contentMatches.map(match => Selection.fromRange(match.range, SelectionDirection.LTR)));
 			}
-
-			const textModel = await match.cell.resolveTextModel();
-			textModel.pushStackElement();
-
-			const editorConfig = this.constructCellEditorOptions(match.cell);
-			const rawEditorOptions = editorConfig.getRawOptions();
-			const cursorConfig: NotebookCursorConfig = {
-				cursorStyle: cursorStyleFromString(rawEditorOptions.cursorStyle!),
-				cursorBlinking: cursorBlinkingStyleFromString(rawEditorOptions.cursorBlinking!),
-				cursorSmoothCaretAnimation: rawEditorOptions.cursorSmoothCaretAnimation!
-			};
-
-			this.trackedCells.push({
-				cellViewModel: match.cell,
-				initialSelection: initialSelection,
-				matchSelections: newSelections,
-				editorConfig: editorConfig,
-				cursorConfig: cursorConfig,
-				decorationIds: [],
-				undoRedoHistory: this.undoRedoService.getElements(match.cell.uri)
-			});
 		}
 
 		this._nbIsMultiSelectSession.set(true);
 		this.state = NotebookMultiCursorState.Selecting;
 		this._nbMultiSelectState.set(NotebookMultiCursorState.Selecting);
-
-		// manually handle the new anchor cell process to avoid race conditions
-		await this.updateCursorsControllers();
-		this.updateAnchorListeners();
 	}
 
-	private async handleCellEditorSelectAllMatches(notebookTextModel: NotebookTextModel, cell: ICellViewModel) {
+	private async handleCellEditorSelectAllMatches(notebookTextModel: NotebookTextModel, focusedCell: ICellViewModel) {
 		// can be triggered mid multiselect session, or from idle state
 		if (this.state === NotebookMultiCursorState.Idle) {
 			// get word from current selection + rest of notebook objects
-			const textModel = cell.textModel;
+			const textModel = focusedCell.textModel;
 			if (!textModel) {
 				return;
 			}
-			const inputSelection = cell.getSelections()[0];
+			const inputSelection = focusedCell.getSelections()[0];
 			const word = this.getWord(inputSelection, textModel);
 			if (!word) {
 				return;
 			}
 			this.word = word.word;
-			const index = this.notebookEditor.getCellIndex(cell);
+			const index = this.notebookEditor.getCellIndex(focusedCell);
 			if (index === undefined) {
 				return;
 			}
@@ -736,7 +637,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			};
 
 			this.anchorCell = this.notebookEditor.activeCellAndCodeEditor;
-			if (!this.anchorCell || this.anchorCell[0].handle !== cell.handle) {
+			if (!this.anchorCell || this.anchorCell[0].handle !== focusedCell.handle) {
 				throw new Error('Active cell is not the same as the cell passed as context');
 			}
 			if (!(this.anchorCell[1] instanceof CodeEditorWidget)) {
@@ -749,95 +650,67 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			// create the tracked matches for every result, needed for cursor controllers
 			this.trackedCells = [];
 			for (const res of findResults) {
-				const resultCellViewModel = this.notebookEditor.getCellByHandle(res.cell.handle);
-				if (!resultCellViewModel) {
-					continue;
+				await this.updateTrackedCell(res.cell, res.matches.map(match => Selection.fromRange(match.range, SelectionDirection.LTR)));
+
+				if (res.cell.handle === focusedCell.handle) {
+					const cellViewModel = this.notebookEditor.getCellByHandle(res.cell.handle);
+					if (cellViewModel) {
+						cellViewModel.setSelections(res.matches.map(match => Selection.fromRange(match.range, SelectionDirection.LTR)));
+					}
 				}
-
-				const initialSelection = resultCellViewModel.getSelections()[0];
-				const newSelections = res.matches.map(match => Selection.fromRange(match.range, SelectionDirection.LTR));
-				if (resultCellViewModel.handle === cell.handle) {
-					// only explicitly set the focused cell's selections, the rest are handled by cursor controllers + decorations
-					resultCellViewModel.setSelections(newSelections);
-				}
-
-				const textModel = await resultCellViewModel.resolveTextModel();
-				textModel.pushStackElement();
-
-				const editorConfig = this.constructCellEditorOptions(resultCellViewModel);
-				const rawEditorOptions = editorConfig.getRawOptions();
-				const cursorConfig: NotebookCursorConfig = {
-					cursorStyle: cursorStyleFromString(rawEditorOptions.cursorStyle!),
-					cursorBlinking: cursorBlinkingStyleFromString(rawEditorOptions.cursorBlinking!),
-					cursorSmoothCaretAnimation: rawEditorOptions.cursorSmoothCaretAnimation!
-				};
-
-				this.trackedCells.push({
-					cellViewModel: resultCellViewModel,
-					initialSelection: initialSelection,
-					matchSelections: newSelections,
-					editorConfig: editorConfig,
-					cursorConfig: cursorConfig,
-					decorationIds: [],
-					undoRedoHistory: this.undoRedoService.getElements(resultCellViewModel.uri)
-				});
 			}
 
 			this._nbIsMultiSelectSession.set(true);
 			this.state = NotebookMultiCursorState.Selecting;
 			this._nbMultiSelectState.set(NotebookMultiCursorState.Selecting);
 
-			// manually handle the new anchor cell process to avoid race conditions
-			await this.updateCursorsControllers();
-			this.updateAnchorListeners();
 		} else if (this.state === NotebookMultiCursorState.Selecting) {
 			// we will already have a word + some number of tracked matches, need to update them with the rest given findAllMatches result
 			const findResults = notebookTextModel.findAllMatches(this.word, false, true, USUAL_WORD_SEPARATORS);
 
 			// update existing tracked matches with new selections and create new tracked matches for cells that aren't tracked yet
 			for (const res of findResults) {
-				const resultCellViewModel = this.notebookEditor.getCellByHandle(res.cell.handle);
-				if (!resultCellViewModel) {
-					continue;
-				}
-
-				const newSelections = res.matches.map(match => Selection.fromRange(match.range, SelectionDirection.LTR));
-				const trackedMatch = this.trackedCells.find(trackedCell => trackedCell.cellViewModel.handle === res.cell.handle);
-				if (trackedMatch) {
-					trackedMatch.matchSelections = newSelections;
-					if (resultCellViewModel.handle === cell.handle) {
-						resultCellViewModel.setSelections(newSelections);
-					}
-				} else {
-					const initialSelection = resultCellViewModel.getSelections()[0];
-					const textModel = await resultCellViewModel.resolveTextModel();
-					textModel.pushStackElement();
-
-					const editorConfig = this.constructCellEditorOptions(resultCellViewModel);
-					const rawEditorOptions = editorConfig.getRawOptions();
-					const cursorConfig: NotebookCursorConfig = {
-						cursorStyle: cursorStyleFromString(rawEditorOptions.cursorStyle!),
-						cursorBlinking: cursorBlinkingStyleFromString(rawEditorOptions.cursorBlinking!),
-						cursorSmoothCaretAnimation: rawEditorOptions.cursorSmoothCaretAnimation!
-					};
-
-					this.trackedCells.push({
-						cellViewModel: resultCellViewModel,
-						initialSelection: initialSelection,
-						matchSelections: newSelections,
-						editorConfig: editorConfig,
-						cursorConfig: cursorConfig,
-						decorationIds: [],
-						undoRedoHistory: this.undoRedoService.getElements(resultCellViewModel.uri)
-					});
-				}
+				await this.updateTrackedCell(res.cell, res.matches.map(match => Selection.fromRange(match.range, SelectionDirection.LTR)));
 			}
-			await this.updateCursorsControllers();
-			this.updateLazyDecorations();
-		} else {
-			// todo: enable running this mid session during the editing state
-			return;
 		}
+	}
+
+	private async updateTrackedCell(cell: ICellViewModel | NotebookCellTextModel, selections: Selection[]) {
+		const cellViewModel = cell instanceof NotebookCellTextModel ? this.notebookEditor.getCellByHandle(cell.handle) : cell;
+		if (!cellViewModel) {
+			throw new Error('Cell not found');
+		}
+
+		let trackedMatch = this.trackedCells.find(trackedCell => trackedCell.cellViewModel.handle === cellViewModel.handle);
+
+		if (trackedMatch) {
+			this.clearDecorations(trackedMatch); // need this to avoid leaking decorations -- TODO: just optimize the lazy decorations fn
+			trackedMatch.matchSelections = selections;
+		} else {
+			const initialSelection = cellViewModel.getSelections()[0];
+			const textModel = await cellViewModel.resolveTextModel();
+			textModel.pushStackElement();
+
+			const editorConfig = this.constructCellEditorOptions(cellViewModel);
+			const rawEditorOptions = editorConfig.getRawOptions();
+			const cursorConfig: NotebookCursorConfig = {
+				cursorStyle: cursorStyleFromString(rawEditorOptions.cursorStyle!),
+				cursorBlinking: cursorBlinkingStyleFromString(rawEditorOptions.cursorBlinking!),
+				cursorSmoothCaretAnimation: rawEditorOptions.cursorSmoothCaretAnimation!
+			};
+
+			trackedMatch = {
+				cellViewModel: cellViewModel,
+				initialSelection: initialSelection,
+				matchSelections: selections,
+				editorConfig: editorConfig,
+				cursorConfig: cursorConfig,
+				decorationIds: [],
+				undoRedoHistory: this.undoRedoService.getElements(cellViewModel.uri)
+			};
+			this.trackedCells.push(trackedMatch);
+		}
+		return trackedMatch;
 	}
 
 	public async deleteLeft(): Promise<void> {
@@ -1150,8 +1023,8 @@ class NotebookSelectAllFindMatches extends NotebookAction {
 
 	override async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor) {
 			return;
 		}
@@ -1162,7 +1035,8 @@ class NotebookSelectAllFindMatches extends NotebookAction {
 
 		const cursorController = editor.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
 		const findController = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
-		if (findController.widget.isVisible) {
+
+		if (findController.widget.isFocused) {
 			const findModel = findController.widget.findModel;
 			cursorController.selectAllMatches(context.cell, findModel.findMatches);
 		} else {

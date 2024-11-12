@@ -77,6 +77,7 @@ export class NotebookFindContrib extends Disposable implements INotebookEditorCo
 
 class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
 	protected _findWidgetFocused: IContextKey<boolean>;
+	private _isFocused: boolean = false;
 	private _showTimeout: number | null = null;
 	private _hideTimeout: number | null = null;
 	private _previousFocusElement?: HTMLElement;
@@ -130,6 +131,10 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 
 	get findModel(): FindModel {
 		return this._findModel;
+	}
+
+	get isFocused(): boolean {
+		return this._isFocused;
 	}
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
@@ -234,11 +239,13 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 
 	protected onFocusTrackerFocus() {
 		this._findWidgetFocused.set(true);
+		this._isFocused = true;
 	}
 
 	protected onFocusTrackerBlur() {
 		this._previousFocusElement = undefined;
 		this._findWidgetFocused.reset();
+		this._isFocused = false;
 	}
 
 	protected onReplaceInputFocusTrackerFocus(): void {
