@@ -369,8 +369,8 @@ pub struct DownloadExtensionArgs {
 	pub id_or_path: Vec<String>,
 
 	/// Specify the location to download the VSIX.
-	#[clap(long, value_name = "path")]
-	pub location: String,
+	#[clap(long, value_name = "location")]
+	pub location: Option<String>,
 
 }
 
