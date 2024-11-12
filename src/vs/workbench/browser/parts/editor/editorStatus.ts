@@ -476,9 +476,7 @@ class EditorStatus extends Disposable {
 				const text = inputMode === 'overtype' ?
 					localize('inputModeOvertype', 'OVR')
 					: localize('inputModeInsert', 'INS');
-				const name = inputMode === 'overtype' ?
-					localize('status.editor.insertMode', "Toggle Insert Mode")
-					: localize('status.editor.overtypeMode', "Toggle Overtype Mode");
+				const name = localize('status.editor.inputMode', "Toggle Input Mode");
 				return {
 					name,
 					text,
