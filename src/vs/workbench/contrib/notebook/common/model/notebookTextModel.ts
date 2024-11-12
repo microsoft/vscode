@@ -1243,7 +1243,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return null;
 	}
 
-	findAllMatches(searchString: string, isRegex: boolean, matchCase: boolean, wordSeparators: string | null): { cell: NotebookCellTextModel; matches: FindMatch[] }[] {
+	findMatches(searchString: string, isRegex: boolean, matchCase: boolean, wordSeparators: string | null): { cell: NotebookCellTextModel; matches: FindMatch[] }[] {
 		const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
 		const searchData = searchParams.parseSearchRequest();
 

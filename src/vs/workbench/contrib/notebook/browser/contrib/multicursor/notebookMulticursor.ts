@@ -645,7 +645,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			}
 
 			// get all matches in the notebook
-			const findResults = notebookTextModel.findAllMatches(this.word, false, true, USUAL_WORD_SEPARATORS);
+			const findResults = notebookTextModel.findMatches(this.word, false, true, USUAL_WORD_SEPARATORS);
 
 			// create the tracked matches for every result, needed for cursor controllers
 			this.trackedCells = [];
@@ -666,7 +666,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 		} else if (this.state === NotebookMultiCursorState.Selecting) {
 			// we will already have a word + some number of tracked matches, need to update them with the rest given findAllMatches result
-			const findResults = notebookTextModel.findAllMatches(this.word, false, true, USUAL_WORD_SEPARATORS);
+			const findResults = notebookTextModel.findMatches(this.word, false, true, USUAL_WORD_SEPARATORS);
 
 			// update existing tracked matches with new selections and create new tracked matches for cells that aren't tracked yet
 			for (const res of findResults) {
