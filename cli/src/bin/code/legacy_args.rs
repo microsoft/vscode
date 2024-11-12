@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use cli::commands::args::{
 	CliCore, Commands, DesktopCodeOptions, ExtensionArgs, ExtensionSubcommand,
-	InstallExtensionArgs, ListExtensionArgs, UninstallExtensionArgs,
+	InstallExtensionArgs, ListExtensionArgs, UninstallExtensionArgs, DownloadExtensionArgs,
 };
 
 /// Tries to parse the argv using the legacy CLI interface, looking for its
