@@ -2710,6 +2710,11 @@ export class ToggleOvertypeInsertMode extends Action2 {
 			metadata: {
 				description: localize2('toggleOvertypeMode.description', "Toggle between overtype and insert mode"),
 			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.Insert,
+				secondary: [KeyMod.Shift | KeyCode.Ctrl | KeyCode.KeyI],
+			},
 			f1: true,
 			category: Categories.View
 		});

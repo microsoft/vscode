@@ -483,7 +483,6 @@ class EditorStatus extends Disposable {
 					ariaLabel: text,
 					tooltip: name,
 					command: 'editor.action.toggleOvertypeInsertMode',
-					kind: 'prominent'
 				};
 			};
 			if (!this.inputModeElement.value) {
