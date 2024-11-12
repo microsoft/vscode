@@ -260,11 +260,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		// before deactivating extensions incase process.exit
 		// fails due to busy event loop.
 		if (!this._initData.parentPid) {
-			type ProcessWithWatchdogSupport = NodeJS.Process & {
-				startWatchdog?(duration: number, exitCode: number): void;
-			};
-			if (typeof (process as ProcessWithWatchdogSupport).startWatchdog === 'function') {
-				(process as ProcessWithWatchdogSupport).startWatchdog!(10, 87);
+			if (typeof (process as any).startWatchdog === 'function') {
+				(process as any).startWatchdog(10, 87);
 			}
 		}
 
