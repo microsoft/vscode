@@ -46,11 +46,21 @@ export class ReplaceOvertypeCommand implements ICommand {
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		const startPosition = this._range.getStartPosition();
 		const endPosition = this._range.getEndPosition();
+		const rangeStartOffset = model.getOffsetAt(startPosition);
 		const rangeEndOffset = model.getOffsetAt(endPosition);
 		const endOffset = rangeEndOffset + this._text.length + (this._range.isEmpty() ? 0 : - 1);
-		const lastCharacter = model.getValueInRange(Range.fromPositions(model.getPositionAt(endOffset - 1), model.getPositionAt(endOffset)));
 		const endOfLine = model.getEndOfLineSequence() === EndOfLineSequence.CRLF ? '\r\n' : '\n';
-		const newEndOffset = lastCharacter === endOfLine ? endOffset - 1 : endOffset;
+		let newEndOffset = endOffset;
+		for (let i = 0; i < endOffset - rangeStartOffset; i++) {
+			const characterStartPosition = model.getPositionAt(endOffset - i - 1);
+			const characterEndPosition = model.getPositionAt(endOffset - i);
+			const character = model.getValueInRange(Range.fromPositions(characterStartPosition, characterEndPosition));
+			if (character === endOfLine) {
+				newEndOffset -= 1;
+			} else {
+				break;
+			}
+		}
 		const replaceRange = Range.fromPositions(startPosition, model.getPositionAt(newEndOffset));
 		builder.addTrackedEditOperation(replaceRange, this._text);
 	}

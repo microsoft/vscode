@@ -639,7 +639,7 @@ export class EnterOperation {
 
 export class PasteOperation {
 
-	public static getEdits(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]) {
+	public static getEdits(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]) { //
 		const distributedPaste = this._distributePasteToCursors(config, selections, text, pasteOnNewLine, multicursorText);
 		if (distributedPaste) {
 			selections = selections.sort(Range.compareRangesUsingStarts);
@@ -678,6 +678,7 @@ export class PasteOperation {
 	}
 
 	private static _distributedPaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string[]): EditOperationResult {
+		console.log('_distributedPaste');
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			commands[i] = new ReplaceCommand(selections[i], text[i]);
@@ -689,6 +690,7 @@ export class PasteOperation {
 	}
 
 	private static _simplePaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean): EditOperationResult {
+		console.log('_simplePaste');
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -699,12 +701,16 @@ export class PasteOperation {
 			if (pasteOnNewLine && text.indexOf('\n') !== text.length - 1) {
 				pasteOnNewLine = false;
 			}
+			console.log('pasteOnNewLine : ', pasteOnNewLine);
 			if (pasteOnNewLine) {
 				// Paste entire line at the beginning of line
 				const typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
 				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text, selection, true);
 			} else {
-				commands[i] = new ReplaceCommand(selection, text);
+				const inputMode = InputMode.getInputMode();
+				const shouldOvertypeOnPaste = config.overtypeOnPaste && inputMode === 'overtype';
+				const ChosenReplaceCommand = shouldOvertypeOnPaste ? ReplaceOvertypeCommand : ReplaceCommand;
+				commands[i] = new ChosenReplaceCommand(selection, text);
 			}
 		}
 		return new EditOperationResult(EditOperationType.Other, commands, {

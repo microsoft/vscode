@@ -783,6 +783,11 @@ export interface IEditorOptions {
 	 * Controls the input mode, whether it is insert or overtype
 	 */
 	inputMode?: 'insert' | 'overtype';
+
+	/**
+	 *  Paste in overtype mode should overwrite.
+	 */
+	overtypeOnPaste?: boolean;
 }
 
 /**
@@ -5420,6 +5425,7 @@ export const enum EditorOption {
 	multiCursorLimit,
 	occurrencesHighlight,
 	occurrencesHighlightDelay,
+	overtypeOnPaste,
 	overviewRulerBorder,
 	overviewRulerLanes,
 	padding,
@@ -5981,6 +5987,9 @@ export const EditorOptions = {
 			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
 			tags: ['preview']
 		}
+	)),
+	overtypeOnPaste: register(new EditorBooleanOption(
+		EditorOption.overtypeOnPaste, 'overtypeOnPaste', true
 	)),
 	overviewRulerBorder: register(new EditorBooleanOption(
 		EditorOption.overviewRulerBorder, 'overviewRulerBorder', true,
