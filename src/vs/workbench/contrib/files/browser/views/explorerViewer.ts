@@ -72,7 +72,7 @@ import { TreeFindMatchType, TreeFindMode } from '../../../../../base/browser/ui/
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { CountBadge } from '../../../../../base/browser/ui/countBadge/countBadge.js';
-import { listFilterMatchHighlight, listFilterMatchHighlightBorder } from '../../../../../platform/theme/common/colors/listColors.js';
+import { listFilterMatchHighlight, listFilterMatchHighlightBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
@@ -721,7 +721,6 @@ export interface IFileTemplateData {
 	readonly label: IResourceLabel;
 	readonly container: HTMLElement;
 	readonly contribs: IExplorerFileContribution[];
-	readonly badge: CountBadge;
 	currentContext?: ExplorerItem;
 }
 
@@ -797,9 +796,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			contr.setResource(templateData.currentContext?.resource);
 		}));
 
-		const badge = new CountBadge(label.element.lastElementChild as HTMLElement, {}, { ...defaultCountBadgeStyles, badgeBackground: asCssVariable(listFilterMatchHighlight), badgeBorder: asCssVariable(listFilterMatchHighlightBorder) });
-
-		const templateData: IFileTemplateData = { templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), label, container, contribs, badge };
+		const templateData: IFileTemplateData = { templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), label, container, contribs };
 		return templateData;
 	}
 
@@ -913,8 +910,12 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		});
 
 		const highlightResults = stat.isDirectory ? this.highlightTree.get(stat) : 0;
-		templateData.badge.setCount(highlightResults);
-		templateData.badge.setTitleFormat(localize('filesExplorerBadgeTitle', "Contains {0} matches", highlightResults));
+		if (highlightResults > 0) {
+			const badge = new CountBadge(templateData.label.element.lastElementChild as HTMLElement, {}, { ...defaultCountBadgeStyles, badgeBackground: asCssVariable(listFilterMatchHighlight), badgeBorder: asCssVariable(listFilterMatchHighlightBorder) });
+			badge.setCount(highlightResults);
+			badge.setTitleFormat(localize('explorerHighlightFolderBadgeTitle', "Directory contains {0} matches", highlightResults));
+			templateData.elementDisposables.add(badge);
+		}
 		templateData.label.element.classList.toggle('highlight-badge', highlightResults > 0);
 	}
 
