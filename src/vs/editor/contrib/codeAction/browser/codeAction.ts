@@ -289,7 +289,7 @@ export async function applyCodeAction(
 		codeActionIsPreferred: !!item.action.isPreferred,
 		reason: codeActionReason,
 	});
-	await accessibilitySignalService.playSignal(AccessibilitySignal.codeActionTriggered);
+accessibilitySignalService.playSignal(AccessibilitySignal.codeActionTriggered);
 	await item.resolve(token);
 	if (token.isCancellationRequested) {
 		return;
