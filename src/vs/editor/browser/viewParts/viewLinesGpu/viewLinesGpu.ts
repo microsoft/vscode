@@ -11,7 +11,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import type { Position } from '../../../common/core/position.js';
 import type { Range } from '../../../common/core/range.js';
-import type { ViewLinesChangedEvent, ViewScrollChangedEvent } from '../../../common/viewEvents.js';
+import type { ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewScrollChangedEvent } from '../../../common/viewEvents.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { TextureAtlasPage } from '../../gpu/atlas/textureAtlasPage.js';
@@ -70,9 +70,18 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		this.canvas = this._viewGpuContext.canvas.domNode;
 
+		// Re-render the following frame after canvas device pixel dimensions change, provided a
+		// new render does not occur.
 		this._register(autorun(reader => {
-			/*const dims = */this._viewGpuContext.canvasDevicePixelDimensions.read(reader);
-			// TODO: Request render, should this just call renderText with the last viewportData
+			this._viewGpuContext.canvasDevicePixelDimensions.read(reader);
+			const lastViewportData = this._lastViewportData;
+			if (lastViewportData) {
+				setTimeout(() => {
+					if (lastViewportData === this._lastViewportData) {
+						this.renderText(lastViewportData);
+					}
+				});
+			}
 		}));
 
 		this.initWebgpu();
@@ -360,6 +369,11 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	}
 
 	override onLinesChanged(e: ViewLinesChangedEvent): boolean {
+		return true;
+	}
+
+	override onLinesDeleted(e: ViewLinesDeletedEvent): boolean {
+		this._renderStrategy.onLinesDeleted(e);
 		return true;
 	}
 
