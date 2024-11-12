@@ -425,6 +425,7 @@ class RemoteBadge extends Disposable {
 export class ExtensionPackCountWidget extends ExtensionWidget {
 
 	private element: HTMLElement | undefined;
+	private countBadge: CountBadge | undefined;
 
 	constructor(
 		private readonly parent: HTMLElement,
@@ -436,6 +437,8 @@ export class ExtensionPackCountWidget extends ExtensionWidget {
 
 	private clear(): void {
 		this.element?.remove();
+		this.countBadge?.dispose();
+		this.countBadge = undefined;
 	}
 
 	render(): void {
@@ -444,8 +447,8 @@ export class ExtensionPackCountWidget extends ExtensionWidget {
 			return;
 		}
 		this.element = append(this.parent, $('.extension-badge.extension-pack-badge'));
-		const countBadge = new CountBadge(this.element, {}, defaultCountBadgeStyles);
-		countBadge.setCount(this.extension.extensionPack.length);
+		this.countBadge = new CountBadge(this.element, {}, defaultCountBadgeStyles);
+		this.countBadge.setCount(this.extension.extensionPack.length);
 	}
 }
 
