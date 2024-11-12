@@ -321,7 +321,8 @@ export async function applyCodeAction(
 					: nls.localize('applyCodeActionFailed', "An unknown error occurred while applying the code action"));
 		}
 	}
-	accessibilitySignalService.playSignal(AccessibilitySignal.codeActionApplied);
+	// ensure the start sound and end sound do not overlap
+	setTimeout(() => accessibilitySignalService.playSignal(AccessibilitySignal.codeActionApplied), 100);
 }
 
 function asMessage(err: any): string | undefined {
