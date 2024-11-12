@@ -749,12 +749,11 @@ export class NativeWindow extends BaseWindow {
 			}
 		}
 
-		// macOS 10.13 and 10.14 warning
+		// macOS 10.15 warning
 		if (isMacintosh) {
 			const majorVersion = this.nativeEnvironmentService.os.release.split('.')[0];
 			const eolReleases = new Map<string, string>([
-				['17', 'macOS High Sierra'],
-				['18', 'macOS Mojave'],
+				['19', 'macOS Catalina'],
 			]);
 
 			if (eolReleases.has(majorVersion)) {
