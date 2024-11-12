@@ -252,7 +252,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			// we are already shutting down...
 			return;
 		}
-		(process as any).profile();
 		this._isTerminating = true;
 		this._logService.info(`Extension host terminating: ${reason}`);
 		this._logService.flush();
@@ -267,24 +266,33 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		// Invalidate all proxies
 		this._extHostContext.dispose();
 
-		const extensionsDeactivated = this._deactivateAll();
-
-		// Give extensions at most 5 seconds to wrap up any async deactivate, then exit
-		Promise.race([timeout(5000), extensionsDeactivated]).finally(() => {
+		if (this._initData.parentPid) {
+			const extensionsDeactivated = this._deactivateAll();
+			// Give extensions at most 5 seconds to wrap up any async deactivate, then exit
+			Promise.race([timeout(5000), extensionsDeactivated]).finally(() => {
+				if (this._hostUtils.pid) {
+					this._logService.info(`Extension host with pid ${this._hostUtils.pid} exiting with code ${code}`);
+				} else {
+					this._logService.info(`Extension host exiting with code ${code}`);
+				}
+				this._logService.flush();
+				this._logService.dispose();
+				this._hostUtils.exit(code);
+			});
+		} else {
+			// Signal process.exit before deactivating extensions
+			// so that utility process watchdog will terminate the process
+			// after a predefined timeout of 6s.
 			if (this._hostUtils.pid) {
 				this._logService.info(`Extension host with pid ${this._hostUtils.pid} exiting with code ${code}`);
 			} else {
 				this._logService.info(`Extension host exiting with code ${code}`);
 			}
 			this._logService.flush();
-			(process as any).profileEnd().then((path: string) => {
-				this._logService.info(`Extension host cpu profile saved at : ${path}`);
-				this._logService.flush();
-			}).finally(() => {
-				this._logService.dispose();
-				this._hostUtils.exit(code);
-			});
-		});
+			this._logService.dispose();
+			this._hostUtils.exit(code);
+			this._deactivateAll();
+		}
 	}
 
 	public isActivated(extensionId: ExtensionIdentifier): boolean {
