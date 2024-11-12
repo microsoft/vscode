@@ -110,6 +110,12 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(Build.SourcesDirectory)/extensions/microsoft-authentication/node_modules/@azure/msal-node-runtime
+      artifactName: msal-node-runtime
+    displayName: Publish @azure/msal-node-runtime folder
+
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: node build/azure-pipelines/distro/mixin-npm
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
