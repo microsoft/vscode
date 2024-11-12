@@ -1270,7 +1270,7 @@ class TerminalEditorStyle extends Themable {
 					if (def) {
 						css += (
 							`.monaco-workbench .terminal-tab.codicon-${icon.id}::before` +
-							`{content: '${def.fontCharacter}' !important; font-family: ${cssJs.asCSSPropertyValue(def.font?.id ?? 'codicon')} !important;}`
+							`{content: ${cssJs.asCSSStringValue(def.fontCharacter)} !important; font-family: ${cssJs.asCSSStringValue(def.font?.id ?? 'codicon')} !important;}`
 						);
 					}
 				}

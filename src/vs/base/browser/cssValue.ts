@@ -20,8 +20,14 @@ export function asCssValueWithDefault(cssPropertyValue: string | undefined, dflt
 	return dflt;
 }
 
-export function asCSSPropertyValue(value: string) {
-	return `'${value.replace(/'/g, '%27')}'`;
+/**
+ * Create a CSS string value from a string. CSS string value is composed of any number of Unicode characters surrounded by either double (") or single (') quotes
+ * Strings are used in numerous CSS properties, such as content, font-family, and quotes.
+ *
+ * https://developer.mozilla.org/en-US/docs/Web/CSS/string
+ */
+export function asCSSStringValue(value: string) {
+	return `'${value.replace(/'/g, '\\27')}'`;
 }
 
 /**

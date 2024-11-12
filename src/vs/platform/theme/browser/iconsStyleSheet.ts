@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asCSSPropertyValue, asCSSUrl } from '../../../base/browser/cssValue.js';
+import { asCSSStringValue, asCSSUrl } from '../../../base/browser/cssValue.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
@@ -40,20 +40,28 @@ export function getIconsStyleSheet(themeService: IThemeService | undefined): IIc
 					continue;
 				}
 
+				const fontCharacterCSSValue = asCSSStringValue(definition.fontCharacter);
+
 				const fontContribution = definition.font;
 				const fontFamilyVar = `--vscode-icon-${contribution.id}-font-family`;
 				const contentVar = `--vscode-icon-${contribution.id}-content`;
 				if (fontContribution) {
+					const fontFamilyCSSValue = asCSSStringValue(fontContribution.id);
+
 					usedFontIds[fontContribution.id] = fontContribution.definition;
 					rootAttribs.push(
-						`${fontFamilyVar}: ${asCSSPropertyValue(fontContribution.id)};`,
-						`${contentVar}: '${definition.fontCharacter}';`,
+						`${fontFamilyVar}: ${fontFamilyCSSValue};`,
+						`${contentVar}: ${fontCharacterCSSValue};`,
 					);
-					rules.push(`.codicon-${contribution.id}:before { content: '${definition.fontCharacter}'; font-family: ${asCSSPropertyValue(fontContribution.id)}; }`);
+					rules.push(`.codicon-${contribution.id}:before { content: ${fontCharacterCSSValue}; font-family: ${fontFamilyCSSValue}; }`);
 				} else {
-					rootAttribs.push(`${contentVar}: '${definition.fontCharacter}'; ${fontFamilyVar}: 'codicon';`);
-					rules.push(`.codicon-${contribution.id}:before { content: '${definition.fontCharacter}'; }`);
+					rootAttribs.push(
+						`${fontFamilyVar}: 'codicon';`,
+						`${contentVar}: ${fontCharacterCSSValue};`
+					);
+					rules.push(`.codicon-${contribution.id}:before { content: ${fontCharacterCSSValue}; }`);
 				}
+
 			}
 
 			for (const id in usedFontIds) {
@@ -61,10 +69,10 @@ export function getIconsStyleSheet(themeService: IThemeService | undefined): IIc
 				const fontWeight = definition.weight ? `font-weight: ${definition.weight};` : '';
 				const fontStyle = definition.style ? `font-style: ${definition.style};` : '';
 				const src = definition.src.map(l => `${asCSSUrl(l.location)} format('${l.format}')`).join(', ');
-				rules.push(`@font-face { src: ${src}; font-family: ${asCSSPropertyValue(id)};${fontWeight}${fontStyle} font-display: block; }`);
+				rules.push(`@font-face { src: ${src}; font-family: ${asCSSStringValue(id)};${fontWeight}${fontStyle} font-display: block; }`);
 			}
 
-			rules.push(`:root { ${rootAttribs.join(' ')} }`);
+			rules.push(`:root { ${rootAttribs.join('\n')} }`);
 
 			return rules.join('\n');
 		}

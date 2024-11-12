@@ -10,7 +10,7 @@ import * as resources from '../../../../base/common/resources.js';
 import * as Json from '../../../../base/common/json.js';
 import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from '../common/workbenchThemeService.js';
 import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.js';
-import { asCSSUrl } from '../../../../base/browser/cssValue.js';
+import { asCSSStringValue, asCSSUrl } from '../../../../base/browser/cssValue.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -398,14 +398,14 @@ export class FileIconThemeLoader {
 			const defaultFontSize = this.tryNormalizeFontSize(fonts[0].size) || '150%';
 			fonts.forEach(font => {
 				const src = font.src.map(l => `${asCSSUrl(resolvePath(l.path))} format('${l.format}')`).join(', ');
-				cssRules.push(`@font-face { src: ${src}; font-family: '${font.id}'; font-weight: ${font.weight}; font-style: ${font.style}; font-display: block; }`);
+				cssRules.push(`@font-face { src: ${src}; font-family: ${asCSSStringValue(font.id)}; font-weight: ${font.weight}; font-style: ${font.style}; font-display: block; }`);
 
 				const fontSize = this.tryNormalizeFontSize(font.size);
 				if (fontSize !== undefined && fontSize !== defaultFontSize) {
 					fontSizes.set(font.id, fontSize);
 				}
 			});
-			cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: '${fonts[0].id}'; font-size: ${defaultFontSize}; }`);
+			cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: ${asCSSStringValue(fonts[0].id)}; font-size: ${defaultFontSize}; }`);
 		}
 
 		// Use emQuads to prevent the icon from collapsing to zero height for image icons
@@ -423,14 +423,14 @@ export class FileIconThemeLoader {
 						body.push(`color: ${definition.fontColor};`);
 					}
 					if (definition.fontCharacter) {
-						body.push(`content: '${definition.fontCharacter}';`);
+						body.push(`content: ${asCSSStringValue(definition.fontCharacter)};`);
 					}
 					const fontSize = definition.fontSize ?? (definition.fontId ? fontSizes.get(definition.fontId) : undefined);
 					if (fontSize) {
 						body.push(`font-size: ${fontSize};`);
 					}
 					if (definition.fontId) {
-						body.push(`font-family: ${definition.fontId};`);
+						body.push(`font-family: ${asCSSStringValue(definition.fontId)};`);
 					}
 					if (showLanguageModeIcons) {
 						body.push(`background-image: unset;`); // potentially set by the language default
