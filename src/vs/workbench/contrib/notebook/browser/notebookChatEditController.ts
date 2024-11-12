@@ -82,6 +82,9 @@ class NotebookChatEditorController extends Disposable {
 		const entryObs = observableValue<IModifiedFileEntry | undefined>('fileentry', undefined);
 		const notebookDiff = observableValue<{ cellDiff: CellDiffInfo[]; modelVersion: number } | undefined>('cellDiffInfo', undefined);
 		const originalModel = observableValue<NotebookTextModel | undefined>('originalModel', undefined);
+		this._register(toDisposable(() => {
+			dispose(Array.from(decorators.values()));
+		}));
 		this._register(autorun(r => {
 			const session = this._chatEditingService.currentEditingSessionObs.read(r);
 			const model = notebookModel.read(r);
@@ -172,7 +175,6 @@ class NotebookCellDiffDecorator extends DisposableStore {
 				this.update();
 			}
 		}));
-		this.add(toDisposable(() => this._clearRendering()));
 
 		const shouldBeReadOnly = derived(this, r => {
 			const value = this._chatEditingService.currentEditingSessionObs.read(r);
@@ -208,6 +210,11 @@ class NotebookCellDiffDecorator extends DisposableStore {
 			}
 		}));
 		this.update();
+	}
+
+	override dispose(): void {
+		this._clearRendering();
+		super.dispose();
 	}
 
 	public update(): void {
@@ -283,8 +290,8 @@ class NotebookCellDiffDecorator extends DisposableStore {
 		const cellUri = model.uri;
 		const languageId = model.getLanguageId();
 
-		const scheme = `${CellUri.scheme}-chat-edit-${Date.now()}`;
-		const originalCellUri = URI.from({ scheme, path: cellUri.path });
+		const scheme = `${CellUri.scheme}-chat-edit`;
+		const originalCellUri = URI.from({ scheme, fragment: cellUri.fragment, path: cellUri.path });
 		const languageSelection = this._languageService.getLanguageIdByLanguageName(languageId) ? this._languageService.createById(languageId) : this.cellKind === CellKind.Markup ? this._languageService.createById('markdown') : null;
 		return this._originalModel = this.add(this.modelService.createModel(this.originalCellValue, languageSelection, originalCellUri));
 	}
@@ -421,7 +428,6 @@ class NotebookModelSynchronizer extends Disposable {
 		super();
 		const cancellationTokenStore = this._register(new DisposableStore());
 		let cancellationToken = cancellationTokenStore.add(new CancellationTokenSource());
-
 		const updateNotebookModel = (entry: IModifiedFileEntry, viewType: string, token: CancellationToken) => {
 			this.throttledUpdateNotebookModel.trigger(() => this.updateNotebookModel(entry, viewType, token));
 		};
