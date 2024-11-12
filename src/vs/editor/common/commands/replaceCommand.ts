@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { Selection, SelectionDirection } from '../core/selection.js';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../editorCommon.js';
@@ -46,23 +47,49 @@ export class ReplaceOvertypeCommand implements ICommand {
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		const startPosition = this._range.getStartPosition();
 		const endPosition = this._range.getEndPosition();
-		const rangeStartOffset = model.getOffsetAt(startPosition);
 		const rangeEndOffset = model.getOffsetAt(endPosition);
 		const endOffset = rangeEndOffset + this._text.length + (this._range.isEmpty() ? 0 : - 1);
 		const endOfLine = model.getEndOfLineSequence() === EndOfLineSequence.CRLF ? '\r\n' : '\n';
-		let newEndOffset = endOffset;
-		for (let i = 0; i < endOffset - rangeStartOffset; i++) {
-			const characterStartPosition = model.getPositionAt(endOffset - i - 1);
-			const characterEndPosition = model.getPositionAt(endOffset - i);
-			const character = model.getValueInRange(Range.fromPositions(characterStartPosition, characterEndPosition));
-			if (character === endOfLine) {
-				newEndOffset -= 1;
-			} else {
-				break;
-			}
-		}
+		const lastCharacter = model.getValueInRange(Range.fromPositions(model.getPositionAt(endOffset - 1), model.getPositionAt(endOffset)));
+		const newEndOffset = lastCharacter === endOfLine ? endOffset - 1 : endOffset;
 		const replaceRange = Range.fromPositions(startPosition, model.getPositionAt(newEndOffset));
 		builder.addTrackedEditOperation(replaceRange, this._text);
+	}
+
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		const inverseEditOperations = helper.getInverseEditOperations();
+		const srcRange = inverseEditOperations[0].range;
+		return Selection.fromPositions(srcRange.getEndPosition());
+	}
+}
+
+export class OvertypePasteCommand implements ICommand {
+
+	private readonly _range: Range;
+	private readonly _text: string;
+	public readonly insertsAutoWhitespace: boolean;
+
+	constructor(range: Range, text: string, insertsAutoWhitespace: boolean = false) {
+		this._range = range;
+		this._text = text;
+		this.insertsAutoWhitespace = insertsAutoWhitespace;
+	}
+
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
+		const startPosition = this._range.getStartPosition();
+		const endPosition = this._range.getEndPosition();
+		const endLine = endPosition.lineNumber;
+		const potentialEndOffset = model.getOffsetAt(endPosition) + this._text.length + (this._range.isEmpty() ? 0 : - 1);
+		const potentialEndPosition = model.getPositionAt(potentialEndOffset);
+		let newEndPosition: Position;
+		if (potentialEndPosition.lineNumber > endLine) {
+			const endLineMaxColumn = model.getLineMaxColumn(endLine);
+			newEndPosition = new Position(endLine, endLineMaxColumn);
+		} else {
+			newEndPosition = potentialEndPosition;
+		}
+		const range = Range.fromPositions(startPosition, newEndPosition);
+		builder.addTrackedEditOperation(range, this._text);
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
