@@ -256,6 +256,18 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._logService.info(`Extension host terminating: ${reason}`);
 		this._logService.flush();
 
+		// Start the utility process watchdog
+		// before deactivating extensions incase process.exit
+		// fails due to busy event loop.
+		if (!this._initData.parentPid) {
+			type ProcessWithWatchdogSupport = NodeJS.Process & {
+				startWatchdog?(duration: number, exitCode: number): void;
+			};
+			if (typeof (process as ProcessWithWatchdogSupport).startWatchdog === 'function') {
+				(process as ProcessWithWatchdogSupport).startWatchdog!(10, 87);
+			}
+		}
+
 		this._extHostTerminalService.dispose();
 		this._activator.dispose();
 
@@ -266,23 +278,9 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		// Invalidate all proxies
 		this._extHostContext.dispose();
 
-		if (this._initData.parentPid) {
-			const extensionsDeactivated = this._deactivateAll();
-			// Give extensions at most 5 seconds to wrap up any async deactivate, then exit
-			Promise.race([timeout(5000), extensionsDeactivated]).finally(() => {
-				if (this._hostUtils.pid) {
-					this._logService.info(`Extension host with pid ${this._hostUtils.pid} exiting with code ${code}`);
-				} else {
-					this._logService.info(`Extension host exiting with code ${code}`);
-				}
-				this._logService.flush();
-				this._logService.dispose();
-				this._hostUtils.exit(code);
-			});
-		} else {
-			// Signal process.exit before deactivating extensions
-			// so that utility process watchdog will terminate the process
-			// after a predefined timeout of 6s.
+		const extensionsDeactivated = this._deactivateAll();
+		// Give extensions at most 5 seconds to wrap up any async deactivate, then exit
+		Promise.race([timeout(5000), extensionsDeactivated]).finally(() => {
 			if (this._hostUtils.pid) {
 				this._logService.info(`Extension host with pid ${this._hostUtils.pid} exiting with code ${code}`);
 			} else {
@@ -291,8 +289,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			this._logService.flush();
 			this._logService.dispose();
 			this._hostUtils.exit(code);
-			this._deactivateAll();
-		}
+		});
 	}
 
 	public isActivated(extensionId: ExtensionIdentifier): boolean {
