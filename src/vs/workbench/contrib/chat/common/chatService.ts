@@ -201,7 +201,7 @@ export interface IChatToolInvocation {
 	confirmed: DeferredPromise<boolean>;
 	/** A 3-way: undefined=don't know yet. */
 	isConfirmed: boolean | undefined;
-	invocationMessage: string;
+	invocationMessage: string | IMarkdownString;
 
 	isComplete: boolean;
 	isCompleteDeferred: DeferredPromise<void>;
@@ -212,7 +212,7 @@ export interface IChatToolInvocation {
  * This is a IChatToolInvocation that has been serialized, like after window reload, so it is no longer an active tool invocation.
  */
 export interface IChatToolInvocationSerialized {
-	invocationMessage: string;
+	invocationMessage: string | IMarkdownString;
 	isConfirmed: boolean;
 	isComplete: boolean;
 	kind: 'toolInvocationSerialized';
