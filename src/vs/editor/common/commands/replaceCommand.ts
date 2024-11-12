@@ -6,7 +6,7 @@
 import { Range } from '../core/range.js';
 import { Selection, SelectionDirection } from '../core/selection.js';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../editorCommon.js';
-import { ITextModel } from '../model.js';
+import { EndOfLineSequence, ITextModel } from '../model.js';
 
 export class ReplaceCommand implements ICommand {
 
@@ -47,9 +47,12 @@ export class ReplaceOvertypeCommand implements ICommand {
 		const startPosition = this._range.getStartPosition();
 		const endPosition = this._range.getEndPosition();
 		const rangeEndOffset = model.getOffsetAt(endPosition);
-		const endOffset = rangeEndOffset + this._text.length;
-		const newRange = Range.fromPositions(startPosition, model.getPositionAt(endOffset));
-		builder.addTrackedEditOperation(newRange, this._text);
+		const endOffset = rangeEndOffset + this._text.length + (this._range.isEmpty() ? 0 : - 1);
+		const lastCharacter = model.getValueInRange(Range.fromPositions(model.getPositionAt(endOffset - 1), model.getPositionAt(endOffset)));
+		const endOfLine = model.getEndOfLineSequence() === EndOfLineSequence.CRLF ? '\r\n' : '\n';
+		const newEndOffset = lastCharacter === endOfLine ? endOffset - 1 : endOffset;
+		const replaceRange = Range.fromPositions(startPosition, model.getPositionAt(newEndOffset));
+		builder.addTrackedEditOperation(replaceRange, this._text);
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
