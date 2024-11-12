@@ -21,8 +21,8 @@ export function asCssValueWithDefault(cssPropertyValue: string | undefined, dflt
 }
 
 /**
- * Create a CSS string value from a string. CSS string value is composed of any number of Unicode characters surrounded by either double (") or single (') quotes
- * Strings are used in numerous CSS properties, such as content, font-family, and quotes.
+ * Creates a CSS string value from a string. A CSS string value is composed of any number of Unicode characters surrounded by either double (") or single (') quotes.
+ * CSS strings are used in numerous CSS properties, such as content, font-family, and quotes.
  *
  * https://developer.mozilla.org/en-US/docs/Web/CSS/string
  */
