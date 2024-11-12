@@ -311,7 +311,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const entriesArr: ChatEditingModifiedFileEntry[] = [];
 		// Restore all entries from the snapshot
 		for (const snapshotEntry of snapshot.entries.values()) {
-			const entry = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, snapshotEntry.telemetryInfo);
+			const { entry } = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, snapshotEntry.telemetryInfo);
 			entry.restoreFromSnapshot(snapshotEntry);
 			entriesArr.push(entry);
 		}
@@ -539,8 +539,11 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			get requestId() { return responseModel.requestId; }
 			get result() { return responseModel.result; }
 		};
-		const entry = await this._getOrCreateModifiedFileEntry(resource, telemetryInfo);
+		const { entry, isFirstEditForFileInResponse } = await this._getOrCreateModifiedFileEntry(resource, telemetryInfo);
 		entry.acceptAgentEdits(textEdits, isLastEdits);
+		if (isFirstEditForFileInResponse || isLastEdits) {
+			responseModel.reportEditCountChange();
+		}
 		// await this._editorService.openEditor({ resource: entry.modifiedURI, options: { inactive: true } });
 	}
 
@@ -554,13 +557,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._onDidChange.fire();
 	}
 
-	private async _getOrCreateModifiedFileEntry(resource: URI, responseModel: IModifiedEntryTelemetryInfo): Promise<ChatEditingModifiedFileEntry> {
+	private async _getOrCreateModifiedFileEntry(resource: URI, responseModel: IModifiedEntryTelemetryInfo): Promise<{ entry: ChatEditingModifiedFileEntry; isFirstEditForFileInResponse: boolean }> {
 		const existingEntry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, resource));
 		if (existingEntry) {
-			if (responseModel.requestId !== existingEntry.telemetryInfo.requestId) {
+			const isFirstEditForFileInResponse = responseModel.requestId !== existingEntry.telemetryInfo.requestId;
+			if (isFirstEditForFileInResponse) {
 				existingEntry.updateTelemetryInfo(responseModel);
 			}
-			return existingEntry;
+			return { entry: existingEntry, isFirstEditForFileInResponse };
 		}
 
 		// This gets manually disposed in .dispose() or in .restoreSnapshot()
@@ -582,7 +586,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._entriesObs.set(entriesArr, undefined);
 		this._onDidChange.fire();
 
-		return entry;
+		return { entry, isFirstEditForFileInResponse: true };
 	}
 
 	private async _createModifiedFileEntry(resource: URI, responseModel: IModifiedEntryTelemetryInfo, mustExist = false): Promise<ChatEditingModifiedFileEntry> {
