@@ -180,6 +180,7 @@ export interface IChatResponseViewModel {
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
 	readonly isHidden: boolean;
 	readonly isCompleteAddedRequest: boolean;
+	readonly editChangeCount: number;
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: ChatAgentVoteDirection): void;
@@ -406,6 +407,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get id() {
 		return this._model.id;
+	}
+
+	get editChangeCount() {
+		return this._model.editChangeCount;
 	}
 
 	get dataId() {
