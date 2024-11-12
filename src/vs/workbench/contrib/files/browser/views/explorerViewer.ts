@@ -282,34 +282,27 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		return !!this.filterSessionStartState;
 	}
 
-	startSession(): void {
-		this.sessionId++;
-	}
-
-	private startFilterSession(): void {
-		const tree = this.treeProvider();
-		const input = tree.getInput();
-		if (!input) {
-			return;
-		}
-
-		const roots = this.explorerService.roots.filter(root => this.searchService.schemeHasFileSearchProvider(root.resource.scheme));
-		this.filterSessionStartState = { viewState: tree.getViewState(), input, rootsWithProviders: new Set(roots) };
-
-		this.explorerFindActiveContextKey.set(true);
-	}
-
-	private startHighlightSession(): void {
-		const roots = this.explorerService.roots.filter(root => this.searchService.schemeHasFileSearchProvider(root.resource.scheme));
-		this.highlightSessionStartState = { rootsWithProviders: new Set(roots) };
-	}
-
 	isVisible(element: ExplorerItem): boolean {
 		if (!this.filterSessionStartState) {
 			throw new Error('No active session');
 		}
 
 		return this.filterSessionStartState.rootsWithProviders.has(element.root) ? element.isMarkedAsFiltered() : true;
+	}
+
+	startSession(): void {
+		this.sessionId++;
+	}
+
+	async endSession(): Promise<void> {
+		// Restore view state
+		if (this.filterSessionStartState) {
+			await this.endFilterSession();
+		}
+
+		if (this.highlightSessionStartState) {
+			this.endHighlightSession();
+		}
 	}
 
 	async find(pattern: string, toggles: IAsyncFindToggles, token: CancellationToken): Promise<IAsyncFindResultMetadata> {
@@ -331,7 +324,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 				this.startHighlightSession();
 			}
 
-			this.doHighlightFind(pattern, toggles.matchType, token);
+			await this.doHighlightFind(pattern, toggles.matchType, token);
 
 			return {};
 		}
@@ -345,6 +338,21 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		}
 
 		return await this.doFilterFind(pattern, toggles.matchType, token);
+	}
+
+	// Filter
+
+	private startFilterSession(): void {
+		const tree = this.treeProvider();
+		const input = tree.getInput();
+		if (!input) {
+			return;
+		}
+
+		const roots = this.explorerService.roots.filter(root => this.searchService.schemeHasFileSearchProvider(root.resource.scheme));
+		this.filterSessionStartState = { viewState: tree.getViewState(), input, rootsWithProviders: new Set(roots) };
+
+		this.explorerFindActiveContextKey.set(true);
 	}
 
 	async doFilterFind(pattern: string, matchType: TreeFindMatchType, token: CancellationToken): Promise<IAsyncFindResultMetadata> {
@@ -371,6 +379,93 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		return { warningMessage: hitMaxResults ? localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.") : undefined };
 	}
 
+	private addFolderFilterResults(root: ExplorerItem, results: URI[]): void {
+		for (const resource of results) {
+			const element = this.explorerService.findClosest(resource);
+			if (element && element.root === root) {
+				// File is already in the model
+				element.markItemAndParentsAsFiltered();
+				continue;
+			}
+
+			// File is not in the model, create phantom items for the file and it's parents
+			const phantomElements = this.createPhantomItems(resource, root);
+			if (phantomElements.length === 0) {
+				throw new Error('Phantom item was not created even though it is not in the model');
+			}
+
+			// Store the first ancestor of the file which is already present in the model
+			const firstPhantomParent = phantomElements[0].parent!;
+			if (!(firstPhantomParent instanceof PhantomExplorerItem)) {
+				this.phantomParents.add(firstPhantomParent);
+			}
+
+			const phantomFileElement = phantomElements[phantomElements.length - 1];
+			phantomFileElement.markItemAndParentsAsFiltered();
+		}
+	}
+
+	private createPhantomItems(resource: URI, root: ExplorerItem): PhantomExplorerItem[] {
+		const relativePathToRoot = relativePath(root.resource, resource);
+		if (!relativePathToRoot) {
+			throw new Error('Resource is not a child of the root');
+		}
+
+		const phantomElements: PhantomExplorerItem[] = [];
+
+		let currentItem = root;
+		let currentResource = root.resource;
+		const pathSegments = relativePathToRoot.split('/');
+		for (const stat of pathSegments) {
+			currentResource = currentResource.with({ path: `${currentResource.path}/${stat}` });
+
+			let child = currentItem.getChild(stat);
+			if (!child) {
+				const isDirectory = pathSegments[pathSegments.length - 1] !== stat;
+				child = new PhantomExplorerItem(currentResource, this.fileService, this.configurationService, this.filesConfigService, currentItem, isDirectory);
+				currentItem.addChild(child);
+				phantomElements.push(child as PhantomExplorerItem);
+			}
+
+			currentItem = child;
+		}
+
+		return phantomElements;
+	}
+
+	async endFilterSession(): Promise<void> {
+		this.clearPhantomElements();
+
+		this.explorerFindActiveContextKey.set(false);
+
+		// Restore view state
+		if (!this.filterSessionStartState) {
+			throw new Error('ExplorerFindProvider: no session state to restore');
+		}
+
+		const tree = this.treeProvider();
+		await tree.setInput(this.filterSessionStartState.input, this.filterSessionStartState.viewState);
+
+		this.filterSessionStartState = undefined;
+		this.explorerService.refresh();
+	}
+
+	private clearPhantomElements(): void {
+		for (const phantomParent of this.phantomParents) {
+			// Clear phantom nodes from model
+			phantomParent.forgetChildren();
+		}
+		this.phantomParents.clear();
+		this.explorerService.roots.forEach(root => root.unmarkItemAndChildren());
+	}
+
+	// Highlight
+
+	private startHighlightSession(): void {
+		const roots = this.explorerService.roots.filter(root => this.searchService.schemeHasFileSearchProvider(root.resource.scheme));
+		this.highlightSessionStartState = { rootsWithProviders: new Set(roots) };
+	}
+
 	async doHighlightFind(pattern: string, matchType: TreeFindMatchType, token: CancellationToken): Promise<void> {
 		if (!this.highlightSessionStartState) {
 			throw new Error('ExplorerFindProvider: no highlight session state');
@@ -383,11 +478,59 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 			return;
 		}
 
-		this.findHighlightTree.clear();
+		this.clearHighlights();
 		for (const { explorerRoot, results } of searchResults) {
 			this.addFolderHighlightResults(explorerRoot, results);
 		}
 	}
+
+	private addFolderHighlightResults(root: ExplorerItem, results: URI[]): void {
+		const highlightedDirectories = new Set<ExplorerItem>();
+		const storeDirectories = (item: ExplorerItem | undefined) => {
+			while (item) {
+				highlightedDirectories.add(item);
+				item = item.parent;
+			}
+		};
+
+		for (const resource of results) {
+			const element = this.explorerService.findClosest(resource);
+			if (element && element.root === root) {
+				// File is already in the model
+				this.findHighlightTree.add(resource, root);
+				storeDirectories(element.parent);
+				continue;
+			}
+
+			const firstParent = findFirstParent(resource, root);
+			if (firstParent) {
+				this.findHighlightTree.add(resource, root);
+				storeDirectories(firstParent);
+			}
+		}
+
+		const tree = this.treeProvider();
+		for (const directory of highlightedDirectories) {
+			tree.rerender(directory);
+		}
+	}
+
+	private endHighlightSession(): void {
+		this.highlightSessionStartState = undefined;
+		this.clearHighlights();
+	}
+
+	private clearHighlights(): void {
+		const tree = this.treeProvider();
+		for (const item of this.findHighlightTree.highlightedItems) {
+			if (tree.hasNode(item)) {
+				tree.rerender(item);
+			}
+		}
+		this.findHighlightTree.clear();
+	}
+
+	// Search
 
 	async getSearchResults(pattern: string, roots: ExplorerItem[], matchType: TreeFindMatchType, token: CancellationToken): Promise<{ explorerRoot: ExplorerItem; results: URI[]; hitMaxResults: boolean }[]> {
 		const patternLowercase = pattern.toLowerCase();
@@ -432,161 +575,28 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 			return { explorerRoot, results, hitMaxResults: result.limitHit ?? false };
 		}));
 	}
+}
 
-	async endSession(): Promise<void> {
-		// Restore view state
-		if (this.filterSessionStartState) {
-			await this.endFilterSession();
-		}
-
-		if (this.highlightSessionStartState) {
-			this.endHighlightSession();
-		}
+function findFirstParent(resource: URI, root: ExplorerItem): ExplorerItem | undefined {
+	const relativePathToRoot = relativePath(root.resource, resource);
+	if (!relativePathToRoot) {
+		throw new Error('Resource is not a child of the root');
 	}
 
-	async endFilterSession(): Promise<void> {
-		this.clearPhantomElements();
-
-		this.explorerFindActiveContextKey.set(false);
-
-		// Restore view state
-		if (!this.filterSessionStartState) {
-			throw new Error('ExplorerFindProvider: no session state to restore');
+	let currentItem = root;
+	let currentResource = root.resource;
+	const pathSegments = relativePathToRoot.split('/');
+	for (const stat of pathSegments) {
+		currentResource = currentResource.with({ path: `${currentResource.path}/${stat}` });
+		const child = currentItem.getChild(stat);
+		if (!child) {
+			return currentItem;
 		}
 
-		const tree = this.treeProvider();
-		await tree.setInput(this.filterSessionStartState.input, this.filterSessionStartState.viewState);
-
-		this.filterSessionStartState = undefined;
-		this.explorerService.refresh();
+		currentItem = child;
 	}
 
-	private endHighlightSession(): void {
-		this.highlightSessionStartState = undefined;
-		const tree = this.treeProvider();
-		for (const item of this.findHighlightTree.highlightedItems) {
-			if (tree.hasNode(item)) {
-				tree.rerender(item);
-			}
-		}
-		this.findHighlightTree.clear();
-	}
-
-	private clearPhantomElements(): void {
-		for (const phantomParent of this.phantomParents) {
-			// Clear phantom nodes from model
-			phantomParent.forgetChildren();
-		}
-		this.phantomParents.clear();
-		this.explorerService.roots.forEach(root => root.unmarkItemAndChildren());
-	}
-
-	private addFolderFilterResults(root: ExplorerItem, results: URI[]): void {
-		for (const resource of results) {
-			const element = this.explorerService.findClosest(resource);
-			if (element && element.root === root) {
-				// File is already in the model
-				element.markItemAndParentsAsFiltered();
-				continue;
-			}
-
-			// File is not in the model, create phantom items for the file and it's parents
-			const phantomElements = this.createPhantomItems(resource, root);
-			if (phantomElements.length === 0) {
-				throw new Error('Phantom item was not created even though it is not in the model');
-			}
-
-			// Store the first ancestor of the file which is already present in the model
-			const firstPhantomParent = phantomElements[0].parent!;
-			if (!(firstPhantomParent instanceof PhantomExplorerItem)) {
-				this.phantomParents.add(firstPhantomParent);
-			}
-
-			const phantomFileElement = phantomElements[phantomElements.length - 1];
-			phantomFileElement.markItemAndParentsAsFiltered();
-		}
-	}
-
-	private addFolderHighlightResults(root: ExplorerItem, results: URI[]): void {
-		const highlightedDirectories = new Set<ExplorerItem>();
-		const storeDirectories = (item: ExplorerItem | undefined) => {
-			while (item) {
-				highlightedDirectories.add(item);
-				item = item.parent;
-			}
-		};
-
-		for (const resource of results) {
-			const element = this.explorerService.findClosest(resource);
-			if (element && element.root === root) {
-				// File is already in the model
-				this.findHighlightTree.add(resource, root);
-				storeDirectories(element.parent);
-				continue;
-			}
-
-			const firstParent = this.findFirstParent(resource, root);
-			if (firstParent) {
-				this.findHighlightTree.add(resource, root);
-				storeDirectories(firstParent);
-			}
-		}
-
-		const tree = this.treeProvider();
-		for (const directory of highlightedDirectories) {
-			tree.rerender(directory);
-		}
-	}
-
-	private createPhantomItems(resource: URI, root: ExplorerItem): PhantomExplorerItem[] {
-		const relativePathToRoot = relativePath(root.resource, resource);
-		if (!relativePathToRoot) {
-			throw new Error('Resource is not a child of the root');
-		}
-
-		const phantomElements: PhantomExplorerItem[] = [];
-
-		let currentItem = root;
-		let currentResource = root.resource;
-		const pathSegments = relativePathToRoot.split('/');
-		for (const stat of pathSegments) {
-			currentResource = currentResource.with({ path: `${currentResource.path}/${stat}` });
-
-			let child = currentItem.getChild(stat);
-			if (!child) {
-				const isDirectory = pathSegments[pathSegments.length - 1] !== stat;
-				child = new PhantomExplorerItem(currentResource, this.fileService, this.configurationService, this.filesConfigService, currentItem, isDirectory);
-				currentItem.addChild(child);
-				phantomElements.push(child as PhantomExplorerItem);
-			}
-
-			currentItem = child;
-		}
-
-		return phantomElements;
-	}
-
-	private findFirstParent(resource: URI, root: ExplorerItem): ExplorerItem | undefined {
-		const relativePathToRoot = relativePath(root.resource, resource);
-		if (!relativePathToRoot) {
-			throw new Error('Resource is not a child of the root');
-		}
-
-		let currentItem = root;
-		let currentResource = root.resource;
-		const pathSegments = relativePathToRoot.split('/');
-		for (const stat of pathSegments) {
-			currentResource = currentResource.with({ path: `${currentResource.path}/${stat}` });
-			const child = currentItem.getChild(stat);
-			if (!child) {
-				return currentItem;
-			}
-
-			currentItem = child;
-		}
-
-		return undefined;
-	}
+	return undefined;
 }
 
 function caseInsensitiveGlobPattern(pattern: string): string {
