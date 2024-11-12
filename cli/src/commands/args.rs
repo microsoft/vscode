@@ -311,9 +311,11 @@ impl ExtensionSubcommand {
 				for id in args.id_or_path.iter() {
 					target.push(format!("--download-extension={id}"));
 				}
-				if args.location {
-					target.push("--location".to_string());
-				}
+				if let Some(location) = &args.location {
+					if !location.is_empty() {
+						 target.push(format!("--location={location}"));
+					}
+			  }
 			}
 		}
 	}
