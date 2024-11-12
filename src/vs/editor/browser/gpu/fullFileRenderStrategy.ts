@@ -188,6 +188,9 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 
 			// Only attempt to render lines that the GPU renderer can handle
 			if (!ViewGpuContext.canRender(viewLineOptions, viewportData, y)) {
+				fillStartIndex = ((y - 1) * FullFileRenderStrategy._columnCount) * Constants.IndicesPerCell;
+				fillEndIndex = (y * FullFileRenderStrategy._columnCount) * Constants.IndicesPerCell;
+				cellBuffer.fill(0, fillStartIndex, fillEndIndex);
 				continue;
 			}
 
@@ -235,24 +238,22 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 					continue;
 				}
 
-
 				tokenMetadata = tokens.getMetadata(tokenIndex);
 
-				// console.log(`token: start=${tokenStartIndex}, end=${tokenEndIndex}, fg=${colorMap[tokenFg]}`);
-
-
 				for (x = tokenStartIndex; x < tokenEndIndex; x++) {
-					// HACK: Prevent rendering past the end of the render buffer
 					// TODO: This needs to move to a dynamic long line rendering strategy
 					if (x > FullFileRenderStrategy._columnCount) {
 						break;
 					}
 					chars = content.charAt(x);
-					if (chars === ' ') {
-						continue;
-					}
-					if (chars === '\t') {
-						xOffset = CursorColumns.nextRenderTabStop(x + xOffset, lineData.tabSize) - x - 1;
+					if (chars === ' ' || chars === '\t') {
+						// Zero out glyph to ensure it doesn't get rendered
+						cellIndex = ((y - 1) * FullFileRenderStrategy._columnCount + x) * Constants.IndicesPerCell;
+						cellBuffer.fill(0, cellIndex, cellIndex + CellBufferInfo.FloatsPerEntry);
+						// Adjust xOffset for tab stops
+						if (chars === '\t') {
+							xOffset = CursorColumns.nextRenderTabStop(x + xOffset, lineData.tabSize) - x - 1;
+						}
 						continue;
 					}
 
@@ -273,7 +274,7 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 					wgslX = zeroToOneX * 2 - 1;
 					wgslY = zeroToOneY * 2 - 1;
 
-					cellIndex = ((y - 1) * FullFileRenderStrategy._columnCount + (x + xOffset)) * Constants.IndicesPerCell;
+					cellIndex = ((y - 1) * FullFileRenderStrategy._columnCount + x) * Constants.IndicesPerCell;
 					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = wgslX;
 					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = -wgslY;
 					cellBuffer[cellIndex + CellBufferInfo.GlyphIndex] = glyph.glyphIndex;
@@ -284,7 +285,7 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 			}
 
 			// Clear to end of line
-			fillStartIndex = ((y - 1) * FullFileRenderStrategy._columnCount + (tokenEndIndex + xOffset)) * Constants.IndicesPerCell;
+			fillStartIndex = ((y - 1) * FullFileRenderStrategy._columnCount + tokenEndIndex) * Constants.IndicesPerCell;
 			fillEndIndex = (y * FullFileRenderStrategy._columnCount) * Constants.IndicesPerCell;
 			cellBuffer.fill(0, fillStartIndex, fillEndIndex);
 
