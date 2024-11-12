@@ -19,14 +19,14 @@ import { Context as SuggestContext } from '../../../suggest/browser/suggest.js';
 import { inlineSuggestCommitId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 import { InlineCompletionsController } from './inlineCompletionsController.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 
 export class ShowNextInlineSuggestionAction extends EditorAction {
 	public static ID = showNextInlineSuggestionActionId;
 	constructor() {
 		super({
 			id: ShowNextInlineSuggestionAction.ID,
-			label: nls.localize('action.inlineSuggest.showNext', "Show Next Inline Suggestion"),
-			alias: 'Show Next Inline Suggestion',
+			label: nls.localize2('action.inlineSuggest.showNext', "Show Next Inline Suggestion"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, InlineCompletionContextKeys.inlineSuggestionVisible),
 			kbOpts: {
 				weight: 100,
@@ -46,8 +46,7 @@ export class ShowPreviousInlineSuggestionAction extends EditorAction {
 	constructor() {
 		super({
 			id: ShowPreviousInlineSuggestionAction.ID,
-			label: nls.localize('action.inlineSuggest.showPrevious', "Show Previous Inline Suggestion"),
-			alias: 'Show Previous Inline Suggestion',
+			label: nls.localize2('action.inlineSuggest.showPrevious', "Show Previous Inline Suggestion"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, InlineCompletionContextKeys.inlineSuggestionVisible),
 			kbOpts: {
 				weight: 100,
@@ -66,8 +65,7 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inlineSuggest.trigger',
-			label: nls.localize('action.inlineSuggest.trigger', "Trigger Inline Suggestion"),
-			alias: 'Trigger Inline Suggestion',
+			label: nls.localize2('action.inlineSuggest.trigger', "Trigger Inline Suggestion"),
 			precondition: EditorContextKeys.writable
 		});
 	}
@@ -82,12 +80,34 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 	}
 }
 
+export class TriggerInlineEditAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.inlineSuggest.trigger.inlineEdit',
+			label: nls.localize2('action.inlineSuggest.trigger.inlineEdit', "Trigger Inline Edit"),
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		const notificationService = accessor!.get(INotificationService);
+		const controller = InlineCompletionsController.get(editor);
+
+		await controller?.model.get()?.triggerExplicitly(undefined, true);
+		if (!controller?.model.get()?.inlineEditAvailable.get()) {
+			notificationService.notify({
+				severity: Severity.Info,
+				message: nls.localize('noInlineEditAvailable', "No inline edit is available.")
+			});
+		}
+	}
+}
+
 export class AcceptNextWordOfInlineCompletion extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inlineSuggest.acceptNextWord',
-			label: nls.localize('action.inlineSuggest.acceptNextWord', "Accept Next Word Of Inline Suggestion"),
-			alias: 'Accept Next Word Of Inline Suggestion',
+			label: nls.localize2('action.inlineSuggest.acceptNextWord', "Accept Next Word Of Inline Suggestion"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, InlineCompletionContextKeys.inlineSuggestionVisible),
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 1,
@@ -113,8 +133,7 @@ export class AcceptNextLineOfInlineCompletion extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inlineSuggest.acceptNextLine',
-			label: nls.localize('action.inlineSuggest.acceptNextLine', "Accept Next Line Of Inline Suggestion"),
-			alias: 'Accept Next Line Of Inline Suggestion',
+			label: nls.localize2('action.inlineSuggest.acceptNextLine', "Accept Next Line Of Inline Suggestion"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, InlineCompletionContextKeys.inlineSuggestionVisible),
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 1,
@@ -138,8 +157,7 @@ export class AcceptInlineCompletion extends EditorAction {
 	constructor() {
 		super({
 			id: inlineSuggestCommitId,
-			label: nls.localize('action.inlineSuggest.accept', "Accept Inline Suggestion"),
-			alias: 'Accept Inline Suggestion',
+			label: nls.localize2('action.inlineSuggest.accept', "Accept Inline Suggestion"),
 			precondition: ContextKeyExpr.or(InlineCompletionContextKeys.inlineSuggestionVisible, InlineCompletionContextKeys.inlineEditVisible),
 			menuOpts: [{
 				menuId: MenuId.InlineSuggestionToolbar,
@@ -203,8 +221,7 @@ export class JumpToNextInlineEdit extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inlineSuggest.jump',
-			label: nls.localize('action.inlineSuggest.jump', "Jump to next inline edit"),
-			alias: 'Jump to next inline edit',
+			label: nls.localize2('action.inlineSuggest.jump', "Jump to next inline edit"),
 			precondition: InlineCompletionContextKeys.inlineEditVisible,
 			menuOpts: [{
 				menuId: MenuId.InlineEditsActions,
@@ -241,8 +258,7 @@ export class HideInlineCompletion extends EditorAction {
 	constructor() {
 		super({
 			id: HideInlineCompletion.ID,
-			label: nls.localize('action.inlineSuggest.hide', "Hide Inline Suggestion"),
-			alias: 'Hide Inline Suggestion',
+			label: nls.localize2('action.inlineSuggest.hide', "Hide Inline Suggestion"),
 			precondition: ContextKeyExpr.or(InlineCompletionContextKeys.inlineSuggestionVisible, InlineCompletionContextKeys.inlineEditVisible),
 			kbOpts: {
 				weight: 100,

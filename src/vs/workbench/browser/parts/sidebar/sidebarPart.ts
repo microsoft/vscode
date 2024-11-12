@@ -179,10 +179,12 @@ export class SidebarPart extends AbstractPaneCompositePart {
 				position: () => this.getCompositeBarPosition() === CompositeBarPosition.BOTTOM ? HoverPosition.ABOVE : HoverPosition.BELOW,
 			},
 			fillExtraContextMenuActions: actions => {
-				const viewsSubmenuAction = this.getViewsSubmenuAction();
-				if (viewsSubmenuAction) {
-					actions.push(new Separator());
-					actions.push(viewsSubmenuAction);
+				if (this.getCompositeBarPosition() === CompositeBarPosition.TITLE) {
+					const viewsSubmenuAction = this.getViewsSubmenuAction();
+					if (viewsSubmenuAction) {
+						actions.push(new Separator());
+						actions.push(viewsSubmenuAction);
+					}
 				}
 			},
 			compositeSize: 0,

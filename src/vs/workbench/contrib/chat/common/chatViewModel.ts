@@ -320,7 +320,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			if (token.type === 'code') {
 				const lang = token.lang || '';
 				const text = token.text;
-				this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text, languageId: lang });
+				this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text, languageId: lang, isComplete: true });
 			}
 		});
 	}

@@ -10,6 +10,9 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
+import { autorunWithStore } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize } from '../../../../nls.js';
@@ -26,7 +29,10 @@ import { IFilesConfigurationService } from '../../../services/filesConfiguration
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { IChatModel } from '../common/chatModel.js';
+import { IChatService } from '../common/chatService.js';
+import { ChatEditingModifiedFileEntry } from './chatEditing/chatEditingModifiedFileEntry.js';
 
 export class ChatEditorSaving extends Disposable implements IWorkbenchContribution {
 
@@ -43,12 +49,32 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 		@ITextFileService textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
 		@IDialogService dialogService: IDialogService,
+		@IChatService private readonly _chatService: IChatService,
 		@IFilesConfigurationService private readonly _fileConfigService: IFilesConfigurationService,
 	) {
 		super();
 
-		const store = this._store.add(new DisposableStore());
+		// --- report that save happened
+		this._store.add(autorunWithStore((r, store) => {
+			const session = chatEditingService.currentEditingSessionObs.read(r);
+			if (!session) {
+				return;
+			}
+			const chatSession = this._chatService.getSession(session.chatSessionId);
+			if (!chatSession) {
+				return;
+			}
+			const entries = session.entries.read(r);
 
+			store.add(textFileService.files.onDidSave(e => {
+				const entry = entries.find(entry => isEqual(entry.modifiedURI, e.model.resource));
+				if (entry && entry.state.get() === WorkingSetEntryState.Modified) {
+					this._reportSavedWhenReady(chatSession, entry);
+				}
+			}));
+		}));
+
+		const store = this._store.add(new DisposableStore());
 
 		const update = () => {
 
@@ -155,6 +181,35 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 			}
 		});
 		update();
+	}
+
+	private _reportSaved(entry: IModifiedFileEntry) {
+		assertType(entry instanceof ChatEditingModifiedFileEntry);
+
+		this._chatService.notifyUserAction({
+			action: { kind: 'chatEditingSessionAction', uri: entry.modifiedURI, hasRemainingEdits: false, outcome: 'saved' },
+			agentId: entry.telemetryInfo.agentId,
+			command: entry.telemetryInfo.command,
+			sessionId: entry.telemetryInfo.sessionId,
+			requestId: entry.telemetryInfo.requestId,
+			result: entry.telemetryInfo.result
+		});
+	}
+
+	private _reportSavedWhenReady(session: IChatModel, entry: IModifiedFileEntry) {
+		if (!session.requestInProgress) {
+			this._reportSaved(entry);
+			return;
+		}
+		// wait until no more request is pending
+		const d = session.onDidChange(e => {
+			if (!session.requestInProgress) {
+				this._reportSaved(entry);
+				this._store.delete(d);
+				d.dispose();
+			}
+		});
+		this._store.add(d);
 	}
 
 	private _handleNewEditingSession(session: IChatEditingSession, container: DisposableStore) {

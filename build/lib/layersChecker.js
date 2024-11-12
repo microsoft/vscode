@@ -67,6 +67,7 @@ const CORE_TYPES = [
     'fetch',
     'RequestInit',
     'Headers',
+    'Request',
     'Response',
     'Body',
     '__type',

@@ -1847,7 +1847,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.telemetryService.publicLog2<GalleryServiceUpdatesCheckEvent, GalleryServiceUpdatesCheckClassification>('galleryService:checkingForUpdates', {
 				count: infos.length,
 			});
-			const galleryExtensions = await this.galleryService.getExtensions(infos, { targetPlatform, compatible: true, productVersion: this.getProductVersion() }, CancellationToken.None);
+			const galleryExtensions = await this.galleryService.getExtensions(infos, { targetPlatform, compatible: true, productVersion: this.getProductVersion(), preferResourceApi: true }, CancellationToken.None);
 			if (galleryExtensions.length) {
 				await this.syncInstalledExtensionsWithGallery(galleryExtensions);
 			}
@@ -2236,7 +2236,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return false;
 	}
 
-	async install(arg: string | URI | IExtension, installOptions: InstallExtensionOptions = {}, progressLocation?: ProgressLocation): Promise<IExtension> {
+	async install(arg: string | URI | IExtension, installOptions: InstallExtensionOptions = {}, progressLocation?: ProgressLocation | string): Promise<IExtension> {
 		let installable: URI | IGalleryExtension | IResourceExtension | undefined;
 		let extension: IExtension | undefined;
 
@@ -2607,7 +2607,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return extension;
 	}
 
-	private doInstall(extension: IExtension | undefined, installTask: () => Promise<ILocalExtension>, progressLocation?: ProgressLocation): Promise<IExtension> {
+	private doInstall(extension: IExtension | undefined, installTask: () => Promise<ILocalExtension>, progressLocation?: ProgressLocation | string): Promise<IExtension> {
 		const title = extension ? nls.localize('installing named extension', "Installing '{0}' extension....", extension.displayName) : nls.localize('installing extension', 'Installing extension....');
 		return this.withProgress({
 			location: progressLocation ?? ProgressLocation.Extensions,

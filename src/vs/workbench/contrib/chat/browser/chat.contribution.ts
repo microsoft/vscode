@@ -44,7 +44,7 @@ import { registerChatCodeBlockActions, registerChatCodeCompareBlockActions } fro
 import { registerChatContextActions } from './actions/chatContextActions.js';
 import { registerChatCopyActions } from './actions/chatCopyActions.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
-import { SubmitAction, registerChatExecuteActions } from './actions/chatExecuteActions.js';
+import { ChatSubmitAction, registerChatExecuteActions } from './actions/chatExecuteActions.js';
 import { registerChatFileTreeActions } from './actions/chatFileTreeActions.js';
 import { registerChatExportActions } from './actions/chatImportExport.js';
 import { registerMoveActions } from './actions/chatMoveActions.js';
@@ -123,6 +123,12 @@ configurationRegistry.registerConfiguration({
 			tags: ['preview'],
 			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for chat actions (requires {0}).", '`#window.commandCenter#`'),
 			default: true
+		},
+		'chat.experimental.offerSetup': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('chat.experimental.offerSetup', "Controls whether setup is offered for Chat if not done already."),
+			tags: ['experimental', 'onExP']
 		},
 		'chat.editing.alwaysSaveWithGeneratedChanges': {
 			type: 'boolean',
@@ -288,7 +294,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 
 					return (agentLine + '\n' + commandText).trim();
 				}))).join('\n');
-			progress.report({ content: new MarkdownString(agentText, { isTrusted: { enabledCommands: [SubmitAction.ID] } }), kind: 'markdownContent' });
+			progress.report({ content: new MarkdownString(agentText, { isTrusted: { enabledCommands: [ChatSubmitAction.ID] } }), kind: 'markdownContent' });
 
 			// Report variables
 			if (defaultAgent?.metadata.helpTextVariablesPrefix) {

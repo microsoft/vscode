@@ -280,12 +280,15 @@ export class View extends ViewEventHandler {
 			return;
 		}
 		this._experimentalEditContextEnabled = experimentalEditContextEnabled;
+		const isEditContextFocused = this._editContext.isFocused();
+		const indexOfEditContext = this._viewParts.indexOf(this._editContext);
 		this._editContext.dispose();
 		this._editContext = this._instantiateEditContext(experimentalEditContextEnabled);
-		// Replace the view parts with the new edit context
-		const indexOfEditContextHandler = this._viewParts.indexOf(this._editContext);
-		if (indexOfEditContextHandler !== -1) {
-			this._viewParts.splice(indexOfEditContextHandler, 1, this._editContext);
+		if (isEditContextFocused) {
+			this._editContext.focus();
+		}
+		if (indexOfEditContext !== -1) {
+			this._viewParts.splice(indexOfEditContext, 1, this._editContext);
 		}
 	}
 
@@ -672,10 +675,6 @@ export class View extends ViewEventHandler {
 		this._contentWidgets.addWidget(widgetData.widget);
 		this.layoutContentWidget(widgetData);
 		this._scheduleRender();
-	}
-
-	public getTextAreaDomNode(): HTMLTextAreaElement {
-		return this._editContext.getTextAreaDomNode();
 	}
 
 	public layoutContentWidget(widgetData: IContentWidgetData): void {

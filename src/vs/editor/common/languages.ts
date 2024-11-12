@@ -93,6 +93,7 @@ export interface ITreeSitterTokenizationSupport {
 	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): Parser.QueryCapture[];
 	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[];
 	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
+	tokenizeEncodedInstrumented(lineNumber: number, textModel: model.ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined;
 }
 
 /**

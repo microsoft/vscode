@@ -40,6 +40,7 @@ import { SuggestItemInfo } from './suggestWidgetAdaptor.js';
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this._textModelVersionId, this._debounceValue));
 	private readonly _isActive = observableValue<boolean>(this, false);
+	private readonly _onlyRequestInlineEditsSignal = observableSignal(this);
 	private readonly _forceUpdateExplicitlySignal = observableSignal(this);
 
 	// We use a semantic id to keep the same inline completion selected even if the provider reorders the completions.
@@ -107,7 +108,8 @@ export class InlineCompletionsModel extends Disposable {
 		createEmptyChangeSummary: () => ({
 			dontRefetch: false,
 			preserveCurrentCompletion: false,
-			inlineCompletionTriggerKind: InlineCompletionTriggerKind.Automatic
+			inlineCompletionTriggerKind: InlineCompletionTriggerKind.Automatic,
+			onlyRequestInlineEdits: false,
 		}),
 		handleChange: (ctx, changeSummary) => {
 			/** @description fetch inline completions */
@@ -117,11 +119,14 @@ export class InlineCompletionsModel extends Disposable {
 				changeSummary.inlineCompletionTriggerKind = InlineCompletionTriggerKind.Explicit;
 			} else if (ctx.didChange(this.dontRefetchSignal)) {
 				changeSummary.dontRefetch = true;
+			} else if (ctx.didChange(this._onlyRequestInlineEditsSignal)) {
+				changeSummary.onlyRequestInlineEdits = true;
 			}
 			return true;
 		},
 	}, (reader, changeSummary) => {
 		this.dontRefetchSignal.read(reader);
+		this._onlyRequestInlineEditsSignal.read(reader);
 		this._forceUpdateExplicitlySignal.read(reader);
 		const shouldUpdate = (this._enabled.read(reader) && this.selectedSuggestItem.read(reader)) || this._isActive.read(reader);
 		if (!shouldUpdate) {
@@ -152,7 +157,7 @@ export class InlineCompletionsModel extends Disposable {
 		const context: InlineCompletionContext = {
 			triggerKind: changeSummary.inlineCompletionTriggerKind,
 			selectedSuggestionInfo: suggestItem?.toSelectedSuggestionInfo(),
-			includeInlineCompletions: true,
+			includeInlineCompletions: !changeSummary.onlyRequestInlineEdits,
 			includeInlineEdits: this._inlineEditsEnabled.read(reader),
 		};
 		const itemToPreserveCandidate = this.selectedInlineCompletion.get();
@@ -166,8 +171,11 @@ export class InlineCompletionsModel extends Disposable {
 		await this._fetchInlineCompletionsPromise.get();
 	}
 
-	public async triggerExplicitly(tx?: ITransaction): Promise<void> {
+	public async triggerExplicitly(tx?: ITransaction, onlyFetchInlineEdits: boolean = false): Promise<void> {
 		subtransaction(tx, tx => {
+			if (onlyFetchInlineEdits) {
+				this._onlyRequestInlineEditsSignal.trigger(tx);
+			}
 			this._isActive.set(true, tx);
 			this._forceUpdateExplicitlySignal.trigger(tx);
 		});
@@ -299,10 +307,13 @@ export class InlineCompletionsModel extends Disposable {
 			const currentItemIsCollapsed = !disableCollapsing && (cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEditCompletion.semanticId);
 
 			const commands = item.inlineEditCompletion.inlineCompletion.source.inlineCompletions.commands;
-			const inlineEdit = new InlineEdit(edit, currentItemIsCollapsed, false, commands ?? []);
+			const renderExplicitly = this._jumpedTo.read(reader);
+			const inlineEdit = new InlineEdit(edit, currentItemIsCollapsed, renderExplicitly, commands ?? []);
 
 			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: item.inlineEditCompletion, edits: [edit], cursorAtInlineEdit };
 		}
+
+		this._jumpedTo.set(false, undefined);
 
 		const suggestItem = this.selectedSuggestItem.read(reader);
 		if (suggestItem) {
@@ -360,6 +371,9 @@ export class InlineCompletionsModel extends Disposable {
 	public readonly inlineCompletionState = derived(reader => {
 		const s = this.state.read(reader);
 		if (!s || s.kind !== 'ghostText') { return undefined; }
+		if (this._editorObs.inComposition.read(reader)) {
+			return undefined;
+		}
 		return s;
 	});
 
@@ -647,11 +661,14 @@ export class InlineCompletionsModel extends Disposable {
 		};
 	}
 
+	private _jumpedTo = observableValue(this, false);
+
 	public jump(): void {
 		const s = this.inlineEditState.get();
 		if (!s) { return; }
 
 		transaction(tx => {
+			this._jumpedTo.set(true, tx);
 			this.dontRefetchSignal.trigger(tx);
 			this._editor.setPosition(s.inlineEdit.range.getStartPosition(), 'inlineCompletions.jump');
 			this._editor.revealLine(s.inlineEdit.range.startLineNumber);
