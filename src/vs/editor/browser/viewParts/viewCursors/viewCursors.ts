@@ -155,8 +155,8 @@ export class ViewCursors extends ViewPart {
 			const removeCnt = this._secondaryCursors.length - secondaryPositions.length;
 			for (let i = 0; i < removeCnt; i++) {
 				this._domNode.removeChild(this._secondaryCursors[0].getDomNode());
-				const deletedCursors = this._secondaryCursors.splice(0, 1);
-				deletedCursors.forEach((deletedCursor) => deletedCursor.dispose());
+				const cursors = this._secondaryCursors.splice(0, 1);
+				cursors.forEach((cursor) => cursor.dispose());
 			}
 		}
 

@@ -492,8 +492,7 @@ export class SimpleCharacterTypeOperation {
 			const ChosenReplaceCommand = inputMode === 'overtype' ? ReplaceOvertypeCommand : ReplaceCommand;
 			commands[i] = new ChosenReplaceCommand(selections[i], ch);
 		}
-		console.log('inputType : ', inputMode);
-		console.log('SimpleCharacterTypeOperation.getEdits : ', commands);
+
 		const opType = getTypingOperation(ch, prevEditOperationType);
 		return new EditOperationResult(opType, commands, {
 			shouldPushStackElementBefore: shouldPushStackElementBetween(prevEditOperationType, opType),
@@ -742,7 +741,7 @@ export class CompositionOperation {
 
 export class TypeWithoutInterceptorsOperation {
 
-	public static getEdits(prevEditOperationType: EditOperationType, selections: Selection[], str: string): EditOperationResult { //
+	public static getEdits(prevEditOperationType: EditOperationType, selections: Selection[], str: string): EditOperationResult {
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			commands[i] = new ReplaceCommand(selections[i], str);

@@ -476,11 +476,14 @@ class EditorStatus extends Disposable {
 				const text = inputMode === 'overtype' ?
 					localize('inputModeOvertype', 'OVR')
 					: localize('inputModeInsert', 'INS');
+				const name = inputMode === 'overtype' ?
+					localize('status.editor.overtypeMode', "Toggle Overtype Mode")
+					: localize('status.editor.insertMode', "Toggle Insert Mode");
 				this.inputModeElement.value = this.statusbarService.addEntry({
-					name: localize('status.editor.inputMode', "Accessibility Mode"),
+					name,
 					text,
 					ariaLabel: text,
-					tooltip: localize('Toggle Input Mode', "Toggle Input Mode"),
+					tooltip: name,
 					command: 'editor.action.toggleOvertypeInsertMode',
 					kind: 'prominent'
 				}, 'status.editor.inputMode', StatusbarAlignment.RIGHT, 100.6);
