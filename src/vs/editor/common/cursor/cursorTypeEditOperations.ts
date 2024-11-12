@@ -19,11 +19,11 @@ import { ITextModel } from '../model.js';
 import { EnterAction, IndentAction, StandardAutoClosingPairConditional } from '../languages/languageConfiguration.js';
 import { getIndentationAtPosition } from '../languages/languageConfigurationRegistry.js';
 import { IElectricAction } from '../languages/supports/electricCharacter.js';
-import { EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorOption } from '../config/editorOptions.js';
+import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from '../config/editorOptions.js';
 import { createScopedLineTokens } from '../languages/supports.js';
 import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from '../languages/autoIndent.js';
 import { getEnterAction } from '../languages/enterAction.js';
-import { IEditorConfiguration } from '../config/editorConfiguration.js';
+import { InputMode } from '../../../base/common/inputMode.js';
 
 export class AutoIndentOperation {
 
@@ -484,11 +484,11 @@ export class InterceptorElectricCharOperation {
 
 export class SimpleCharacterTypeOperation {
 
-	public static getEdits(editorConfig: IEditorConfiguration, prevEditOperationType: EditOperationType, selections: Selection[], ch: string): EditOperationResult { //
-		const inputMode = editorConfig.options.get(EditorOption.inputMode);
+	public static getEdits(prevEditOperationType: EditOperationType, selections: Selection[], ch: string): EditOperationResult {
 		// A simple character type
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
+			const inputMode = InputMode.getInputMode();
 			const ChosenReplaceCommand = inputMode === 'overtype' ? ReplaceOvertypeCommand : ReplaceCommand;
 			commands[i] = new ChosenReplaceCommand(selections[i], ch);
 		}

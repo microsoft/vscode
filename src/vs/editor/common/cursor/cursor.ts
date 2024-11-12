@@ -22,7 +22,6 @@ import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequest
 import { dispose, Disposable } from '../../../base/common/lifecycle.js';
 import { ICoordinatesConverter } from '../viewModel.js';
 import { CursorStateChangedEvent, ViewModelEventsCollector } from '../viewModelEventDispatcher.js';
-import { IEditorConfiguration } from '../config/editorConfiguration.js';
 
 export class CursorsController extends Disposable {
 
@@ -551,7 +550,7 @@ export class CursorsController extends Disposable {
 		}, eventsCollector, source);
 	}
 
-	public type(eventsCollector: ViewModelEventsCollector, config: IEditorConfiguration, text: string, source?: string | null | undefined): void { //
+	public type(eventsCollector: ViewModelEventsCollector, text: string, source?: string | null | undefined): void {
 		this._executeEdit(() => {
 			if (source === 'keyboard') {
 				// If this event is coming straight from the keyboard, look for electric characters and enter
@@ -563,7 +562,7 @@ export class CursorsController extends Disposable {
 					const chr = text.substr(offset, charLength);
 
 					// Here we must interpret each typed character individually
-					this._executeEditOperation(TypeOperations.typeWithInterceptors(config, !!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr));
+					this._executeEditOperation(TypeOperations.typeWithInterceptors(!!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr));
 
 					offset += charLength;
 				}

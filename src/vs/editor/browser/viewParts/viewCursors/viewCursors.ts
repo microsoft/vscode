@@ -22,7 +22,7 @@ import { registerThemingParticipant } from '../../../../platform/theme/common/th
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { CursorChangeReason } from '../../../common/cursorEvents.js';
 import { WindowIntervalTimer, getWindow } from '../../../../base/browser/dom.js';
-import { InputMode } from '../../config/inputMode.js';
+import { InputMode } from '../../../../base/common/inputMode.js';
 
 /**
  * View cursors is a view part responsible for rendering the primary cursor and

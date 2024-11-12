@@ -1040,7 +1040,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._withViewEventsCollector(eventsCollector => this._cursor.restoreState(eventsCollector, states));
 	}
 
-	private _executeCursorEdit(callback: (eventsCollector: ViewModelEventsCollector, editorConfiguration: IEditorConfiguration) => void): void {
+	private _executeCursorEdit(callback: (eventsCollector: ViewModelEventsCollector) => void): void {
 		if (this._cursor.context.cursorConfig.readOnly) {
 			// we cannot edit when read only...
 			this._eventDispatcher.emitOutgoingEvent(new ReadOnlyEditAttemptEvent());
@@ -1058,7 +1058,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._executeCursorEdit(eventsCollector => this._cursor.endComposition(eventsCollector, source));
 	}
 	public type(text: string, source?: string | null | undefined): void {
-		this._executeCursorEdit((eventsCollector, editorConfiguration) => this._cursor.type(eventsCollector, editorConfiguration, text, source));
+		this._executeCursorEdit(eventsCollector => this._cursor.type(eventsCollector, text, source));
 	}
 	public compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number, source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.compositionType(eventsCollector, text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source));
@@ -1107,11 +1107,11 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 	//#endregion
 
-	private _withViewEventsCollector<T>(callback: (eventsCollector: ViewModelEventsCollector, editorConfiguration: IEditorConfiguration) => T): T {
+	private _withViewEventsCollector<T>(callback: (eventsCollector: ViewModelEventsCollector) => T): T {
 		return this._transactionalTarget.batchChanges(() => {
 			try {
 				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-				return callback(eventsCollector, this._configuration);
+				return callback(eventsCollector);
 			} finally {
 				this._eventDispatcher.endEmitViewEvents();
 			}
