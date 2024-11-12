@@ -43,6 +43,7 @@ export class CountBadge extends Disposable {
 		this.countFormat = this.options.countFormat || '{0}';
 		this.titleFormat = this.options.titleFormat || '';
 		this.setCount(this.options.count || 0);
+		this.updateHover();
 	}
 
 	setCount(count: number) {
@@ -57,14 +58,16 @@ export class CountBadge extends Disposable {
 
 	setTitleFormat(titleFormat: string) {
 		this.titleFormat = titleFormat;
+		this.updateHover();
 		this.render();
 	}
 
 	private updateHover(): void {
-		this.hover?.dispose();
-		this.hover = undefined;
-		if (this.titleFormat !== '') {
-			this.hover = getBaseLayerHoverDelegate().setupDelayedHoverAtMouse(this.element, { content: format(this.titleFormat, this.count), appearance: { compact: true } });
+		if (this.titleFormat !== '' && !this.hover) {
+			this.hover = getBaseLayerHoverDelegate().setupDelayedHoverAtMouse(this.element, () => ({ content: format(this.titleFormat, this.count), appearance: { compact: true } }));
+		} else if (this.titleFormat === '' && this.hover) {
+			this.hover?.dispose();
+			this.hover = undefined;
 		}
 	}
 
@@ -77,7 +80,10 @@ export class CountBadge extends Disposable {
 		if (this.styles.badgeBorder) {
 			this.element.style.border = `1px solid ${this.styles.badgeBorder}`;
 		}
+	}
 
-		this.updateHover();
+	public override dispose(): void {
+		this.hover?.dispose();
+		super.dispose();
 	}
 }
