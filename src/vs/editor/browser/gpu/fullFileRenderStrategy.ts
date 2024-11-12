@@ -183,8 +183,8 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 
 			// Only attempt to render lines that the GPU renderer can handle
 			if (!ViewGpuContext.canRender(viewLineOptions, viewportData, y)) {
-				fillStartIndex = ((y - 1) * FullFileRenderStrategy._columnCount) * Constants.IndicesPerCell;
-				fillEndIndex = (y * FullFileRenderStrategy._columnCount) * Constants.IndicesPerCell;
+				fillStartIndex = ((y - 1) * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
+				fillEndIndex = (y * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
 				cellBuffer.fill(0, fillStartIndex, fillEndIndex);
 				continue;
 			}
@@ -243,7 +243,7 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 					chars = content.charAt(x);
 					if (chars === ' ' || chars === '\t') {
 						// Zero out glyph to ensure it doesn't get rendered
-						cellIndex = ((y - 1) * FullFileRenderStrategy._columnCount + x) * Constants.IndicesPerCell;
+						cellIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + x) * Constants.IndicesPerCell;
 						cellBuffer.fill(0, cellIndex, cellIndex + CellBufferInfo.FloatsPerEntry);
 						// Adjust xOffset for tab stops
 						if (chars === '\t') {
