@@ -39,15 +39,6 @@
 	justify-content: center;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace {
-	display: flex;
-	height: 100%;
-	max-width: 700px;
-	margin: auto;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-}
 
 .monaco-workbench .part.editor > .content .editor-group-container:not(.empty) > .editor-group-watermark-workspace {
 	display: none;
@@ -70,12 +61,6 @@
 	transform: translate(-50%, -50%);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .button-container {
-	width: 100%;
-	display: flex;
-	justify-content: center;
-	margin-bottom: 30px;
-}
 
 /* Parent Container Styles */
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace {
@@ -85,6 +70,9 @@
 	padding: 20px;
 	box-sizing: border-box;
 	width: 100%;
+	height: 100%;
+	margin: auto;
+	justify-content: center;
 }
 
 /* Button Container Styles */
@@ -132,7 +120,8 @@
 
 /* Recent Item Styles */
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-item {
-	display: inline-block;
+	display: flex;
+	align-items: center;
 	max-width: 100%;
 	white-space: nowrap;
 	overflow: hidden;
@@ -142,19 +131,21 @@
 	opacity: 0.8;
 	font-size: 14px;
 	color: var(--vscode-foreground);
-	vertical-align: middle;
 }
 
 /* File Name Styles */
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-item .name {
-	font-weight: normal;
-	color: var(--vscode-foreground);
+    font-weight: normal;
+    color: var(--vscode-foreground);
 }
 
 /* Path Styles */
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-item .path {
-	opacity: 0.6;
-	color: var(--vscode-editorWatermark-foreground);
+    opacity: 0.6;
+    color: var(--vscode-editorWatermark-foreground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 /* Add Space Between Name and Path */
@@ -214,6 +205,29 @@
 	opacity: 1;
 }
 
+@media (max-width: 720px)  {
+
+	.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-item {
+		display: inline-block;
+		max-width: 100%;
+		white-space: normal;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		padding: 6px 0;
+		cursor: pointer;
+		opacity: 0.8;
+		font-size: 14px;
+		color: var(--vscode-foreground);
+		vertical-align: middle;
+	}
+	.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-item .path {
+		opacity: 0.6;
+		color: var(--vscode-editorWatermark-foreground);
+		white-space: normal;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+}
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-workspace > .letterpress {
 	width: 100%;
 	max-height: 100%;
