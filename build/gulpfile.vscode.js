@@ -31,7 +31,7 @@ const { config } = require('./lib/electron');
 const createAsar = require('./lib/asar').createAsar;
 const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
-const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
+const { compileNativeExtensionsBuildTask, compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
 const { promisify } = require('util');
 const glob = promisify(require('glob'));
 const rcedit = promisify(require('rcedit'));
@@ -502,15 +502,18 @@ BUILD_TARGETS.forEach(buildTarget => {
 			tasks.push(patchWin32DependenciesTask(destinationFolderName));
 		}
 
-		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...tasks));
+		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
+			compileNativeExtensionsBuildTask,
+			...tasks
+		));
 		gulp.task(vscodeTaskCI);
 
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-			compileBuildTask,
+			// compileBuildTask,
 			compileExtensionsBuildTask,
 			compileExtensionMediaBuildTask,
 			minified ? minifyVSCodeTask : bundleVSCodeTask,
-			vscodeTaskCI
+			...tasks
 		));
 		gulp.task(vscodeTask);
 

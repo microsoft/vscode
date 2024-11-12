@@ -277,6 +277,10 @@ export function fromGithub({ name, version, repo, sha256, metadata }: IExtension
 		.pipe(packageJsonFilter.restore);
 }
 
+const nativeExtensions = [
+	'microsoft-authentication',
+];
+
 const excludedExtensions = [
 	'vscode-api-tests',
 	'vscode-colorize-tests',
@@ -334,7 +338,15 @@ function isWebExtension(manifest: IExtensionManifest): boolean {
 	return true;
 }
 
+export function packageLocalNativeExtensionsStream(): Stream {
+	return doPackageLocalExtensionsStream(false, false, nativeExtensions);
+}
+
 export function packageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean): Stream {
+	return doPackageLocalExtensionsStream(forWeb, disableMangle);
+}
+
+function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean, extensionFilter?: string[]): Stream {
 	const localExtensionsDescriptions = (
 		(<string[]>glob.sync('extensions/*/package.json'))
 			.map(manifestPath => {
@@ -343,6 +355,7 @@ export function packageLocalExtensionsStream(forWeb: boolean, disableMangle: boo
 				const extensionName = path.basename(extensionPath);
 				return { name: extensionName, path: extensionPath, manifestPath: absoluteManifestPath };
 			})
+			.filter(({ name }) => extensionFilter ? extensionFilter.indexOf(name) >= 0 : true)
 			.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
 			.filter(({ name }) => builtInExtensions.every(b => b.name !== name))
 			.filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true))

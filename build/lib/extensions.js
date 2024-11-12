@@ -6,6 +6,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.fromMarketplace = fromMarketplace;
 exports.fromGithub = fromGithub;
+exports.packageLocalNativeExtensionsStream = packageLocalNativeExtensionsStream;
 exports.packageLocalExtensionsStream = packageLocalExtensionsStream;
 exports.packageMarketplaceExtensionsStream = packageMarketplaceExtensionsStream;
 exports.scanBuiltinExtensions = scanBuiltinExtensions;
@@ -245,6 +246,9 @@ function fromGithub({ name, version, repo, sha256, metadata }) {
         .pipe(json({ __metadata: metadata }))
         .pipe(packageJsonFilter.restore);
 }
+const nativeExtensions = [
+    'microsoft-authentication',
+];
 const excludedExtensions = [
     'vscode-api-tests',
     'vscode-colorize-tests',
@@ -289,7 +293,13 @@ function isWebExtension(manifest) {
     }
     return true;
 }
+function packageLocalNativeExtensionsStream() {
+    return doPackageLocalExtensionsStream(false, false, nativeExtensions);
+}
 function packageLocalExtensionsStream(forWeb, disableMangle) {
+    return doPackageLocalExtensionsStream(forWeb, disableMangle);
+}
+function doPackageLocalExtensionsStream(forWeb, disableMangle, extensionFilter) {
     const localExtensionsDescriptions = (glob.sync('extensions/*/package.json')
         .map(manifestPath => {
         const absoluteManifestPath = path.join(root, manifestPath);
@@ -297,6 +307,7 @@ function packageLocalExtensionsStream(forWeb, disableMangle) {
         const extensionName = path.basename(extensionPath);
         return { name: extensionName, path: extensionPath, manifestPath: absoluteManifestPath };
     })
+        .filter(({ name }) => extensionFilter ? extensionFilter.indexOf(name) >= 0 : true)
         .filter(({ name }) => excludedExtensions.indexOf(name) === -1)
         .filter(({ name }) => builtInExtensions.every(b => b.name !== name))
         .filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true)));
