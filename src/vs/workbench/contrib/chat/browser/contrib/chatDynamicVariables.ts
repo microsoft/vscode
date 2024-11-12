@@ -23,140 +23,16 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { IChatWidget } from '../chat.js';
 import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
 import { IChatRequestVariableValue, IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
+import { ChatDynamicVariable } from './chatDynamicVariable.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
-
-// import { assertDefined } from '../../../../../base/common/assert.js';
-// import { FileReference } from '../../../../common/codecs/chatbotPromptCodec/tokens/fileReference.js';
-// import { IFileService } from '../../../../../platform/files/common/files.js';
-// import { ChatbotPromptReference } from '../chatVariables.js';
-// /**
-//  * TODO: @legomushroom
-//  */
-// class DynamicVariable implements IDynamicVariable {
-// 	private readonly uri: URI;
-
-// 	private readonly promptSnippetReference?: ChatbotPromptReference;
-
-// 	constructor(
-// 		private readonly reference: IDynamicVariable,
-// 		private readonly fileService: IFileService,
-// 	) {
-// 		this.uri = this.parseUri(reference.data);
-
-// 		if (reference.isFile && this.uri.path.endsWith('.copilot-prompt')) {
-// 			const fileReference = new FileReference(
-// 				new Range(
-// 					this.range.startLineNumber,
-// 					this.range.startColumn,
-// 					this.range.endLineNumber,
-// 					this.range.endColumn,
-// 				),
-// 				`#file:${this.uri.path}`,
-// 				this.uri,
-// 			);
-
-// 			this.promptSnippetReference = new ChatbotPromptReference(fileReference, this.fileService);
-// 		}
-// 	}
-
-// 	/**
-// 	 * Resolve possible nested file references in the prompt file.
-// 	 */
-// 	public async getChildFileReferences(): Promise<ReadonlyArray<IDynamicVariable>> {
-// 		// not a prompt file so nothing to resolve
-// 		if (!this.promptSnippetReference) {
-// 			return [];
-// 		}
-
-// 		// otherwise, resolve nested prompt file references
-// 		return (await this.promptSnippetReference.resolve())
-// 			// change tree data to a flat array data structure
-// 			.flatten()
-// 			// skip the first reference that contains data for the DynamicVariable itself
-// 			.slice(1)
-// 			// map to the dynamic variable
-// 			.map((child) => {
-// 				return {
-// 					id: this.reference.id,
-// 					isFile: true,
-// 					// this is the range in the prompt file, hence is not too useful in this context
-// 					range: child.range,
-// 					data: child.uri,
-// 					prefix: 'file', // TODO: @legomushroom - move to/use a const?
-// 				};
-// 			})
-// 			// reverse the order so that child references come first
-// 			.reverse();
-// 	}
-
-// 	/**
-// 	 * Parse the `data` property of a reference as an `URI`.
-// 	 *
-// 	 * Throws! if the reference is not defined or an invalid `URI`.
-// 	 */
-// 	private parseUri(data: IDynamicVariable['data']): URI {
-// 		assertDefined(
-// 			data,
-// 			`The reference must have a \`data\` property, got ${data}.`,
-// 		);
-
-// 		if (typeof data === 'string') {
-// 			return URI.parse(data);
-// 		}
-
-// 		if (data instanceof URI) {
-// 			return data;
-// 		}
-
-// 		if ('uri' in data && data.uri instanceof URI) {
-// 			return data.uri;
-// 		}
-
-// 		throw new Error(
-// 			`The reference must have a \`data\` property parseable as an 'URI', got ${data}.`,
-// 		);
-// 	}
-
-// 	// TODO: @legomushroom - is it possible to use a `Proxy` instead of all the getters?
-// 	get id() {
-// 		return this.reference.id;
-// 	}
-
-// 	get range() {
-// 		return this.reference.range;
-// 	}
-
-// 	set range(range: IRange) {
-// 		this.reference.range = range;
-// 	}
-
-// 	get data(): URI {
-// 		return this.uri;
-// 	}
-
-// 	get prefix() {
-// 		return this.reference.prefix;
-// 	}
-
-// 	get isFile() {
-// 		return this.reference.isFile;
-// 	}
-
-// 	get fullName() {
-// 		return this.reference.fullName;
-// 	}
-
-// 	get modelDescription() {
-// 		return this.reference.modelDescription;
-// 	}
-// }
 
 export class ChatDynamicVariableModel extends Disposable implements IChatWidgetContrib {
 	public static readonly ID = 'chatDynamicVariableModel';
 
-	private _variables: IDynamicVariable[] = [];
-	get variables(): ReadonlyArray<IDynamicVariable> {
+	private _variables: ChatDynamicVariable[] = [];
+	get variables(): ReadonlyArray<ChatDynamicVariable> {
 		return [...this._variables];
 	}
 
@@ -167,12 +43,13 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	constructor(
 		private readonly widget: IChatWidget,
 		@ILabelService private readonly labelService: ILabelService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
 			e.changes.forEach(c => {
 				// Don't mutate entries in _variables, since they will be returned from the getter
-				this._variables = coalesce(this._variables.map(ref => {
+				this._variables = coalesce(this._variables.map((ref) => {
 					const intersection = Range.intersectRanges(ref.range, c.range);
 					if (intersection && !intersection.isEmpty()) {
 						// The reference text was changed, it's broken.
@@ -190,13 +67,14 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 					if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
 						const delta = c.text.length - c.rangeLength;
-						return {
-							...ref,
+						ref.range = {
 							startLineNumber: ref.range.startLineNumber,
 							startColumn: ref.range.startColumn + delta,
 							endLineNumber: ref.range.endLineNumber,
 							endColumn: ref.range.endColumn + delta,
 						};
+
+						return ref;
 					}
 
 					return ref;
@@ -205,10 +83,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 			this.updateDecorations();
 		}));
-	}
-
-	getInputState(): any {
-		return this.variables;
 	}
 
 	setInputState(s: any): void {
@@ -220,10 +94,14 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		this.updateDecorations();
 	}
 
-	addReference(ref: IDynamicVariable): void {
-		// TODO: @legomushroom - remove
-		// const variable = new DynamicVariable(ref, this.fileService);
-		this._variables.push(ref);
+	public addReference(ref: IDynamicVariable): void {
+		const variable = this._register(new ChatDynamicVariable(ref, this.fileService));
+		this._register(variable.onReferencesUpdated(() => {
+			this.updateDecorations();
+			this.widget.refreshParsedInput();
+		}));
+
+		this._variables.push(variable);
 		this.updateDecorations();
 		this.widget.refreshParsedInput();
 	}

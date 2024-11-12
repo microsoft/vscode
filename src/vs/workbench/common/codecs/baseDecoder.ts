@@ -9,10 +9,11 @@ import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { ReadableStream } from '../../../base/common/stream.js';
 import { TStreamListenerNames } from './types/TStreamListenerEventNames.js';
 
-// TODO: @legomushroom - add the `eof` tokens
+// TODO: @legomushroom - add the `eof` tokens?
 
 /**
- * TODO: @legomushroom
+ * Base decoder class that can be used to decode a stream of data of one type into another.
+ * Aimed to be a part of a "codec" implementation and not to be used directly.
  */
 // TODO: @legomushroom - when a decoder is disposed, we need to emit/throw errors
 // 						 if the object still being used by someone
@@ -87,7 +88,7 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K = VSBuffer> 
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Add listener for the `data` event.
 	 */
 	public addDataListener(callback: (data: T) => void): void {
 		let currentListeners = this._listeners.get('data');
@@ -101,7 +102,7 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K = VSBuffer> 
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Add listener for the `error` event.
 	 */
 	public addErrorListener(callback: (error: Error) => void): void {
 		let currentListeners = this._listeners.get('error');
@@ -115,7 +116,7 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K = VSBuffer> 
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Add listener for the `end` event.
 	 */
 	public addEndListener(callback: () => void): void {
 		let currentListeners = this._listeners.get('end');

@@ -51,13 +51,10 @@ import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatInputPart, IChatInputStyles } from './chatInputPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
-import { ChatViewWelcomePart } from './viewsWelcome/chatViewWelcomeController.js';
-import { ChatbotPromptReference } from './chatVariables.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-
 import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
+import { ChatViewWelcomePart } from './viewsWelcome/chatViewWelcomeController.js';
 
 const $ = dom.$;
 
@@ -243,7 +240,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 

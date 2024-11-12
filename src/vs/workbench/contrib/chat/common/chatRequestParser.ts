@@ -225,7 +225,12 @@ export class ChatRequestParser {
 		return;
 	}
 
-	private tryToParseDynamicVariable(message: string, offset: number, position: IPosition, references: ReadonlyArray<IDynamicVariable>): ChatRequestDynamicVariablePart | undefined {
+	private tryToParseDynamicVariable(
+		message: string,
+		offset: number,
+		position: IPosition,
+		references: ReadonlyArray<IDynamicVariable>,
+	): ChatRequestDynamicVariablePart | undefined {
 		const refAtThisPosition = references.find(r =>
 			r.range.startLineNumber === position.lineNumber &&
 			r.range.startColumn === position.column);
@@ -233,7 +238,11 @@ export class ChatRequestParser {
 			const length = refAtThisPosition.range.endColumn - refAtThisPosition.range.startColumn;
 			const text = message.substring(0, length);
 			const range = new OffsetRange(offset, offset + length);
-			return new ChatRequestDynamicVariablePart(range, refAtThisPosition.range, text, refAtThisPosition.id, refAtThisPosition.modelDescription, refAtThisPosition.data, refAtThisPosition.fullName, refAtThisPosition.icon, refAtThisPosition.isFile);
+			return new ChatRequestDynamicVariablePart(
+				range,
+				text,
+				refAtThisPosition,
+			);
 		}
 
 		return;

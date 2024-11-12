@@ -5,11 +5,12 @@
 
 import { revive } from '../../../../base/common/marshalling.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/offsetRange.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatSlashData } from './chatSlashCommands.js';
-import { IChatRequestVariableValue } from './chatVariables.js';
+import { IChatRequestVariableValue, IDynamicVariable } from './chatVariables.js';
 import { IToolData } from './languageModelToolsService.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
@@ -136,47 +137,59 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 	}
 }
 
-// /**
-//  * TODO: @legomushroom
-//  */
-// const chatRequestVariableValueToUri = (value: IChatRequestVariableValue): URI => {
-// 	if (value instanceof URI) {
-// 		return value;
-// 	}
-
-// 	if (typeof value === 'string') {
-// 		return URI.file(value);
-// 	}
-
-// 	// TODO: double check if this is correct
-// 	if (value instanceof Uint8Array) {
-// 		return URI.file(value.toString());
-// 	}
-
-// 	if ((value as Location).uri instanceof URI) {
-// 		return (value as Location).uri;
-// 	}
-
-// 	throw new Error(`Unexpected value type: ${typeof value}`);
-// };
-
 /**
- * An invocation of a dynamic reference like '#file:'
+ * An invocation of a dynamic reference like '#file:'.
  */
 export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
 	readonly kind = ChatRequestDynamicVariablePart.Kind;
 	constructor(
-		readonly range: OffsetRange,
-		readonly editorRange: IRange,
-		readonly text: string,
-		readonly id: string,
-		readonly modelDescription: string | undefined,
-		readonly data: IChatRequestVariableValue,
-		readonly fullName?: string,
-		readonly icon?: ThemeIcon,
-		readonly isFile?: boolean,
+		public readonly range: OffsetRange,
+		public readonly text: string,
+		private readonly variable: IDynamicVariable,
 	) { }
+
+	// TODO: @legomushroom
+	public get childReferences(): ReadonlyArray<URI> | undefined {
+		return this.variable.childReferences;
+	}
+
+	// TODO: @legomushroom
+	public get resolveReferencesReady(): Promise<readonly URI[]> | undefined {
+		return this.variable.resolveReferencesReady;
+	}
+
+	public toDynamicVariable(): IDynamicVariable {
+		return this.variable;
+	}
+
+	public get id(): string {
+		return this.variable.id;
+	}
+
+	public get editorRange(): IRange {
+		return this.variable.range;
+	}
+
+	public get modelDescription(): string | undefined {
+		return this.variable.modelDescription;
+	}
+
+	public get data(): IChatRequestVariableValue {
+		return this.variable.data;
+	}
+
+	public get fullName(): string | undefined {
+		return this.variable.fullName;
+	}
+
+	public get icon(): ThemeIcon | undefined {
+		return this.variable.icon;
+	}
+
+	public get isFile(): boolean | undefined {
+		return this.variable.isFile;
+	}
 
 	get referenceText(): string {
 		return this.text.replace(chatVariableLeader, '');
@@ -185,23 +198,6 @@ export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	get promptText(): string {
 		return this.text;
 	}
-
-	// TODO: @legomushroom - remove?
-	// /**
-	//  * Convert this dynamic variable to a file reference.
-	//  */
-	// public toFileReference(): FileReference {
-	// 	return new FileReference(
-	// 		new Range(
-	// 			this.editorRange.startLineNumber,
-	// 			this.editorRange.startColumn,
-	// 			this.editorRange.endLineNumber,
-	// 			this.editorRange.endColumn,
-	// 		),
-	// 		this.text,
-	// 		chatRequestVariableValueToUri(this.data),
-	// 	);
-	// }
 }
 
 export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsedChatRequest {
@@ -252,21 +248,20 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					part.editorRange,
 					(part as ChatRequestSlashCommandPart).slashCommand
 				);
-			} else if (part.kind === ChatRequestDynamicVariablePart.Kind) {
+			}
+
+			if (part.kind === ChatRequestDynamicVariablePart.Kind) {
+				const variable = (part as ChatRequestDynamicVariablePart).toDynamicVariable();
+				variable.data = revive(variable.data);
+
 				return new ChatRequestDynamicVariablePart(
 					new OffsetRange(part.range.start, part.range.endExclusive),
-					part.editorRange,
 					(part as ChatRequestDynamicVariablePart).text,
-					(part as ChatRequestDynamicVariablePart).id,
-					(part as ChatRequestDynamicVariablePart).modelDescription,
-					revive((part as ChatRequestDynamicVariablePart).data),
-					(part as ChatRequestDynamicVariablePart).fullName,
-					(part as ChatRequestDynamicVariablePart).icon,
-					(part as ChatRequestDynamicVariablePart).isFile
+					variable,
 				);
-			} else {
-				throw new Error(`Unknown chat request part: ${part.kind}`);
 			}
+
+			throw new Error(`Unknown chat request part '${part.kind}'.`);
 		})
 	};
 }

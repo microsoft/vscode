@@ -91,11 +91,6 @@ export class ChatbotPromptReference extends Disposable {
 	// Whether the referenced file exists on disk (private attribute).
 	private fileExists?: boolean = undefined;
 
-	// Whether the referenced file exists on disk.
-	public get isFileExists(): boolean | undefined {
-		return this.fileExists;
-	}
-
 	constructor(
 		public readonly uri: URI,
 		private readonly fileService: IFileService,
@@ -103,20 +98,10 @@ export class ChatbotPromptReference extends Disposable {
 		super();
 	}
 
-	// /**
-	//  * Get the file reference `range` value.
-	//  */
-	// public get range() {
-	// 	return this.file.range;
-	// }
-
-	// /**
-	//  * Get the file `URI` value.
-	//  */
-	// // TODO: add unit test for this?
-	// public get uri() {
-	// 	return URI.joinPath(this.rootUri, this.file.path);
-	// }
+	// Whether the referenced file exists on disk.
+	public get isFileExists(): boolean | undefined {
+		return this.fileExists;
+	}
 
 	/**
 	 * Get the parent folder of the file reference.
@@ -124,13 +109,6 @@ export class ChatbotPromptReference extends Disposable {
 	public get parentFolder() {
 		return URI.joinPath(this.uri, '..');
 	}
-
-	// /**
-	//  * Get the file `text` value.
-	//  */
-	// public get text() {
-	// 	return this.file.text;
-	// }
 
 	/**
 	 * Get file stream, if the file exsists.
@@ -181,8 +159,6 @@ export class ChatbotPromptReference extends Disposable {
 
 	/**
 	 * Flatten the current file reference tree into a single array.
-	 *
-	 * TODO: @legomushroom - add a test for this
 	 */
 	public flatten(): ChatbotPromptReference[] {
 		const result: ChatbotPromptReference[] = [];
@@ -197,114 +173,7 @@ export class ChatbotPromptReference extends Disposable {
 
 		return result;
 	}
-
 }
-
-// /**
-//  * TODO: @legomushroom
-//  */
-// class DynamicVariableResolver extends Disposable {
-// 	constructor(
-// 		private readonly fileService: IFileService,
-// 	) {
-// 		super();
-// 		// TODO: @legomushroom - remove
-// 		console.log(this.fileService);
-// 	}
-
-// 	/**
-// 	 * Resolve the provided dynamic variable.
-// 	 */
-// 	public async resolve(
-// 		dynamicVariable: ChatRequestDynamicVariablePart,
-// 	): Promise<IChatRequestVariableEntry[]> {
-// 		const mainEntry = this.createVariableEntry(dynamicVariable);
-// 		// If the dynamic variable is not a file reference with specific file
-// 		// extension, we can just return it as is
-// 		if (!this.shouldResolveNestedFileReferences(dynamicVariable)) {
-// 			return [mainEntry];
-// 		}
-
-// 		const { data } = dynamicVariable;
-
-// 		assertDefined(
-// 			data,
-// 			`Failed to resolve nested file references: "dynamicVariable" does not have a data property.`,
-// 		);
-// 		assert(
-// 			data instanceof URI,
-// 			`Failed to resolve nested file references: "dynamicVariable" must be a URI, got ${data}.`,
-// 		);
-
-// 		return [
-// 			...(await this.resolveNestedFileReferences(data)),
-// 			mainEntry,
-// 		];
-// 	}
-
-// 	/**
-// 	 * Resolve nested file references that the file may contain.
-// 	 */
-// 	private async resolveNestedFileReferences(
-// 		fileUri: URI,
-// 	): Promise<IChatRequestVariableEntry[]> {
-// 		try {
-// 			// const fileStream = await this.fileService.readFileStream(fileUri);
-// 			// const promptSyntaxCodec = this._register(new PromptSyntaxCodec());
-
-
-// 			// const promptTokensStream = promptSyntaxCodec.decode(fileStream.value);
-// 			// streams.consumeReadable<TPromptToken>(promptTokensStream, token => {
-// 			// 	return new FileContent();
-// 			// });
-
-// 			// while (fileStream.value.read()) {
-// 			// 	chunks.push(chunk);
-// 			// }
-
-// 			// fileStream.value
-// 			// TODO: find references in the file
-// 			// TODO: recursivelly resolve nested file references
-// 		} catch (error) {
-// 			// TODO: @legomushroom - add logging / telemetry
-// 			return [];
-// 		}
-
-// 		return unimplemented();
-// 	}
-
-// 	/**
-// 	 * If the dynamic variable is a file reference and has a specific file extension,
-// 	 * we need to resolve nested file references that the file may contain.
-// 	 */
-// 	private shouldResolveNestedFileReferences(
-// 		dynamicVariable: ChatRequestDynamicVariablePart,
-// 	): boolean {
-// 		if (!dynamicVariable.isFile) {
-// 			return false;
-// 		}
-
-// 		// TODO: @legomushroom add more file extensions
-// 		return dynamicVariable.referenceText.endsWith('.copilot-prompt');
-// 	}
-
-// 	/**
-// 	 * Convert a `ChatRequestDynamicVariablePart` into `IChatRequestVariableEntry`.
-// 	 */
-// 	private createVariableEntry(
-// 		dynamicVariable: ChatRequestDynamicVariablePart,
-// 	): IChatRequestVariableEntry {
-// 		return {
-// 			id: dynamicVariable.id,
-// 			name: dynamicVariable.referenceText,
-// 			range: dynamicVariable.range,
-// 			value: dynamicVariable.data,
-// 			fullName: dynamicVariable.fullName,
-// 			icon: dynamicVariable.icon,
-// 			isFile: dynamicVariable.isFile,
-// 		};
-// 	}
-// }
 
 export class ChatVariablesService implements IChatVariablesService {
 	declare _serviceBrand: undefined;
