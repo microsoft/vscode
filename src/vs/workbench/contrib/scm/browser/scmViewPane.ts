@@ -964,6 +964,8 @@ export const ContextKeys = {
 	SCMProviderRootUri: new RawContextKey<string | undefined>('scmProviderRootUri', undefined),
 	SCMProviderHasRootUri: new RawContextKey<boolean>('scmProviderHasRootUri', undefined),
 	SCMHistoryItemCount: new RawContextKey<number>('scmHistoryItemCount', 0),
+	SCMCurrentHistoryItemRefHasRemote: new RawContextKey<boolean>('scmCurrentHistoryItemRefHasRemote', false),
+	SCMCurrentHistoryItemRefInFilter: new RawContextKey<boolean>('scmCurrentHistoryItemRefInFilter', false),
 	RepositoryCount: new RawContextKey<number>('scmRepositoryCount', 0),
 	RepositoryVisibilityCount: new RawContextKey<number>('scmRepositoryVisibleCount', 0),
 	RepositoryVisibility(repository: ISCMRepository) {

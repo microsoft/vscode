@@ -1968,8 +1968,23 @@
       "scm/history/title": [
         {
           "command": "git.fetchAll",
-          "group": "navigation@999",
+          "group": "navigation@900",
           "when": "scmProvider == git"
+        },
+        {
+          "command": "git.pullRef",
+          "group": "navigation@901",
+          "when": "scmProvider == git && scmCurrentHistoryItemRefInFilter && scmCurrentHistoryItemRefHasRemote"
+        },
+        {
+          "command": "git.pushRef",
+          "when": "scmProvider == git && scmCurrentHistoryItemRefInFilter && scmCurrentHistoryItemRefHasRemote",
+          "group": "navigation@902"
+        },
+        {
+          "command": "git.publish",
+          "when": "scmProvider == git && scmCurrentHistoryItemRefInFilter && !scmCurrentHistoryItemRefHasRemote",
+          "group": "navigation@903"
         }
       ],
       "scm/historyItem/context": [
