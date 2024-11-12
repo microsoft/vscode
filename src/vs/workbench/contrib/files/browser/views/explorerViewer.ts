@@ -60,7 +60,7 @@ import { WebFileSystemAccess } from '../../../../../platform/files/browser/webFi
 import { IgnoreFile } from '../../../../services/search/common/ignoreFile.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { TernarySearchTree } from '../../../../../base/common/ternarySearchTree.js';
-import { defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultCountBadgeStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -71,6 +71,9 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { TreeFindMatchType, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { CountBadge } from '../../../../../base/browser/ui/countBadge/countBadge.js';
+import { listFilterMatchHighlight, listFilterMatchHighlightBorder } from '../../../../../platform/theme/common/colors/listColors.js';
+import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -179,12 +182,88 @@ export class PhantomExplorerItem extends ExplorerItem {
 	}
 }
 
+interface FindHighlightLayer {
+	total: number;
+	stats: {
+		[statName: string]: FindHighlightLayer;
+	};
+}
+
+interface IExplorerFindHighlightTree {
+	get(item: ExplorerItem): number;
+}
+
+class ExplorerFindHighlightTree implements IExplorerFindHighlightTree {
+
+	private readonly _tree = new Map<string, FindHighlightLayer>();
+	private readonly _highlightedItems = new Map<string, ExplorerItem>();
+	get highlightedItems(): ExplorerItem[] {
+		return Array.from(this._highlightedItems.values());
+	}
+
+	get(item: ExplorerItem): number {
+		const rootLayer = this._tree.get(item.root.name);
+		if (rootLayer === undefined) {
+			return 0;
+		}
+
+		const relPath = relativePath(item.root.resource, item.resource);
+		if (relPath === undefined || relPath.startsWith('..')) {
+			throw new Error('Resource is not a child of the root');
+		}
+
+		let treeLayer = rootLayer;
+		for (const segment of relPath.split('/')) {
+			if (!treeLayer.stats[segment]) {
+				return 0;
+			}
+
+			treeLayer = treeLayer.stats[segment];
+		}
+
+		this._highlightedItems.set(relPath, item);
+
+		return treeLayer.total;
+	}
+
+	add(resource: URI, root: ExplorerItem): void {
+		const relPath = relativePath(root.resource, resource);
+		if (relPath === undefined || relPath.startsWith('..')) {
+			throw new Error('Resource is not a child of the root');
+		}
+
+		if (!this._tree.get(root.name)) {
+			this._tree.set(root.name, { total: 0, stats: {} });
+		}
+
+		let treeLayer = this._tree.get(root.name)!;
+		for (const segment of relPath.split('/')) {
+			if (!treeLayer.stats[segment]) {
+				treeLayer.stats[segment] = { total: 0, stats: {} };
+			}
+
+			treeLayer = treeLayer.stats[segment];
+			treeLayer.total++;
+		}
+	}
+
+	clear(): void {
+		this._tree.clear();
+	}
+
+}
+
 export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 
 	private sessionId: number = 0;
 	private filterSessionStartState: { viewState: IAsyncDataTreeViewState; input: ExplorerItem[] | ExplorerItem; rootsWithProviders: Set<ExplorerItem> } | undefined;
+	private highlightSessionStartState: { rootsWithProviders: Set<ExplorerItem> } | undefined;
 	private explorerFindActiveContextKey: IContextKey<boolean>;
 	private phantomParents = new Set<ExplorerItem>();
+	private findHighlightTree = new ExplorerFindHighlightTree();
+	get highlightTree(): IExplorerFindHighlightTree {
+		return this.findHighlightTree;
+	}
 
 	constructor(
 		private readonly treeProvider: () => WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>,
@@ -220,12 +299,17 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		this.explorerFindActiveContextKey.set(true);
 	}
 
+	private startHighlightSession(): void {
+		const roots = this.explorerService.roots.filter(root => this.searchService.schemeHasFileSearchProvider(root.resource.scheme));
+		this.highlightSessionStartState = { rootsWithProviders: new Set(roots) };
+	}
+
 	isVisible(element: ExplorerItem): boolean {
 		if (!this.filterSessionStartState) {
 			throw new Error('No active session');
 		}
 
-		return this.filterSessionStartState.rootsWithProviders.has(element.root) ? element.isMarkedAsFound() : true;
+		return this.filterSessionStartState.rootsWithProviders.has(element.root) ? element.isMarkedAsFiltered() : true;
 	}
 
 	async find(pattern: string, toggles: IAsyncFindToggles, token: CancellationToken): Promise<IAsyncFindResultMetadata> {
@@ -238,13 +322,22 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 	}
 
 	async doFind(pattern: string, toggles: IAsyncFindToggles, token: CancellationToken): Promise<IAsyncFindResultMetadata> {
-		// When in highlight mode, we highlight matches synchronously
-		// If we toggled from filter to highlight mode, we need to end the previous async find session
 		if (toggles.findMode === TreeFindMode.Highlight) {
 			if (this.filterSessionStartState) {
 				await this.endFilterSession();
 			}
+
+			if (!this.highlightSessionStartState) {
+				this.startHighlightSession();
+			}
+
+			this.doHighlightFind(pattern, toggles.matchType, token);
+
 			return {};
+		}
+
+		if (this.highlightSessionStartState) {
+			this.endHighlightSession();
 		}
 
 		if (!this.filterSessionStartState) {
@@ -268,7 +361,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 
 		this.clearPhantomElements();
 		for (const { explorerRoot, results } of searchResults) {
-			this.addFolderFindResults(explorerRoot, results);
+			this.addFolderFilterResults(explorerRoot, results);
 		}
 
 		const tree = this.treeProvider();
@@ -276,6 +369,24 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 
 		const hitMaxResults = searchResults.some(({ hitMaxResults }) => hitMaxResults);
 		return { warningMessage: hitMaxResults ? localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.") : undefined };
+	}
+
+	async doHighlightFind(pattern: string, matchType: TreeFindMatchType, token: CancellationToken): Promise<void> {
+		if (!this.highlightSessionStartState) {
+			throw new Error('ExplorerFindProvider: no highlight session state');
+		}
+
+		const roots = Array.from(this.highlightSessionStartState.rootsWithProviders);
+		const searchResults = await this.getSearchResults(pattern, roots, matchType, token);
+
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		this.findHighlightTree.clear();
+		for (const { explorerRoot, results } of searchResults) {
+			this.addFolderHighlightResults(explorerRoot, results);
+		}
 	}
 
 	async getSearchResults(pattern: string, roots: ExplorerItem[], matchType: TreeFindMatchType, token: CancellationToken): Promise<{ explorerRoot: ExplorerItem; results: URI[]; hitMaxResults: boolean }[]> {
@@ -327,6 +438,10 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		if (this.filterSessionStartState) {
 			await this.endFilterSession();
 		}
+
+		if (this.highlightSessionStartState) {
+			this.endHighlightSession();
+		}
 	}
 
 	async endFilterSession(): Promise<void> {
@@ -346,25 +461,32 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		this.explorerService.refresh();
 	}
 
+	private endHighlightSession(): void {
+		this.highlightSessionStartState = undefined;
+		const tree = this.treeProvider();
+		for (const item of this.findHighlightTree.highlightedItems) {
+			if (tree.hasNode(item)) {
+				tree.rerender(item);
+			}
+		}
+		this.findHighlightTree.clear();
+	}
+
 	private clearPhantomElements(): void {
 		for (const phantomParent of this.phantomParents) {
 			// Clear phantom nodes from model
 			phantomParent.forgetChildren();
 		}
 		this.phantomParents.clear();
-
 		this.explorerService.roots.forEach(root => root.unmarkItemAndChildren());
 	}
 
-	private addFolderFindResults(root: ExplorerItem, results: URI[]): void {
-		const parentsOfFileResults = new Set<ExplorerItem>();
-
+	private addFolderFilterResults(root: ExplorerItem, results: URI[]): void {
 		for (const resource of results) {
 			const element = this.explorerService.findClosest(resource);
 			if (element && element.root === root) {
 				// File is already in the model
-				element.markItemAndParents();
-				parentsOfFileResults.add(element.parent!);
+				element.markItemAndParentsAsFiltered();
 				continue;
 			}
 
@@ -381,8 +503,38 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 			}
 
 			const phantomFileElement = phantomElements[phantomElements.length - 1];
-			phantomFileElement.markItemAndParents();
-			parentsOfFileResults.add(phantomFileElement.parent!);
+			phantomFileElement.markItemAndParentsAsFiltered();
+		}
+	}
+
+	private addFolderHighlightResults(root: ExplorerItem, results: URI[]): void {
+		const highlightedDirectories = new Set<ExplorerItem>();
+		const storeDirectories = (item: ExplorerItem | undefined) => {
+			while (item) {
+				highlightedDirectories.add(item);
+				item = item.parent;
+			}
+		};
+
+		for (const resource of results) {
+			const element = this.explorerService.findClosest(resource);
+			if (element && element.root === root) {
+				// File is already in the model
+				this.findHighlightTree.add(resource, root);
+				storeDirectories(element.parent);
+				continue;
+			}
+
+			const firstParent = this.findFirstParent(resource, root);
+			if (firstParent) {
+				this.findHighlightTree.add(resource, root);
+				storeDirectories(firstParent);
+			}
+		}
+
+		const tree = this.treeProvider();
+		for (const directory of highlightedDirectories) {
+			tree.rerender(directory);
 		}
 	}
 
@@ -412,6 +564,28 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		}
 
 		return phantomElements;
+	}
+
+	private findFirstParent(resource: URI, root: ExplorerItem): ExplorerItem | undefined {
+		const relativePathToRoot = relativePath(root.resource, resource);
+		if (!relativePathToRoot) {
+			throw new Error('Resource is not a child of the root');
+		}
+
+		let currentItem = root;
+		let currentResource = root.resource;
+		const pathSegments = relativePathToRoot.split('/');
+		for (const stat of pathSegments) {
+			currentResource = currentResource.with({ path: `${currentResource.path}/${stat}` });
+			const child = currentItem.getChild(stat);
+			if (!child) {
+				return currentItem;
+			}
+
+			currentItem = child;
+		}
+
+		return undefined;
 	}
 }
 
@@ -547,6 +721,7 @@ export interface IFileTemplateData {
 	readonly label: IResourceLabel;
 	readonly container: HTMLElement;
 	readonly contribs: IExplorerFileContribution[];
+	readonly badge: CountBadge;
 	currentContext?: ExplorerItem;
 }
 
@@ -563,6 +738,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	constructor(
 		container: HTMLElement,
 		private labels: ResourceLabels,
+		private highlightTree: IExplorerFindHighlightTree,
 		private updateWidth: (stat: ExplorerItem) => void,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -621,7 +797,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			contr.setResource(templateData.currentContext?.resource);
 		}));
 
-		const templateData: IFileTemplateData = { templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), label, container, contribs };
+		const badge = new CountBadge(label.element.lastElementChild as HTMLElement, {}, { ...defaultCountBadgeStyles, badgeBackground: asCssVariable(listFilterMatchHighlight), badgeBorder: asCssVariable(listFilterMatchHighlightBorder) });
+
+		const templateData: IFileTemplateData = { templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), label, container, contribs, badge };
 		return templateData;
 	}
 
@@ -733,6 +911,11 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
 			domId
 		});
+
+		const highlightResults = stat.isDirectory ? this.highlightTree.get(stat) : 0;
+		templateData.badge.setCount(highlightResults);
+		templateData.badge.setTitleFormat(localize('filesExplorerBadgeTitle', "Contains {0} matches", highlightResults));
+		templateData.label.element.classList.toggle('highlight-badge', highlightResults > 0);
 	}
 
 	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: IEditableData): IDisposable {
