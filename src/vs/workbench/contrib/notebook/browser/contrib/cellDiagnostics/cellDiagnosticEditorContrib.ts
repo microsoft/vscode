@@ -117,11 +117,8 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 		}
 
 		const metadata = cell.model.internalMetadata;
-		if (cell instanceof CodeCellViewModel && !metadata.lastRunSuccess && metadata?.error?.location) {
+		if (cell instanceof CodeCellViewModel && !metadata.lastRunSuccess) {
 			const disposables: IDisposable[] = [];
-			const marker = this.createMarkerData(metadata.error.message, metadata.error.location);
-			this.markerService.changeOne(CellDiagnostics.ID, cell.uri, [marker]);
-			disposables.push(toDisposable(() => this.markerService.changeOne(CellDiagnostics.ID, cell.uri, [])));
 			cell.excecutionError.set(metadata.error, undefined);
 			disposables.push(toDisposable(() => cell.excecutionError.set(undefined, undefined)));
 			disposables.push(cell.model.onDidChangeOutputs(() => {
@@ -132,7 +129,13 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 			disposables.push(cell.model.onDidChangeContent(() => {
 				this.clear(cellHandle);
 			}));
-			this.diagnosticsByHandle.set(cellHandle, { cellUri: cell.uri, error: metadata.error, disposables });
+
+			if (metadata?.error?.location) {
+				const marker = this.createMarkerData(metadata.error.message, metadata.error.location);
+				this.markerService.changeOne(CellDiagnostics.ID, cell.uri, [marker]);
+				disposables.push(toDisposable(() => this.markerService.changeOne(CellDiagnostics.ID, cell.uri, [])));
+				this.diagnosticsByHandle.set(cellHandle, { cellUri: cell.uri, error: metadata.error, disposables });
+			}
 		}
 	}
 
