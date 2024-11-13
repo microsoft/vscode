@@ -342,6 +342,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 			this._viewController.setSelection(modelSelection);
 		}));
 
+		let compositionStartPosition: Position | undefined;
 		this._register(this._textAreaInput.onCompositionStart((e) => {
 
 			// The textarea might contain some content when composition starts.
@@ -365,6 +366,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 			const ta = this.textArea.domNode;
 			const modelSelection = this._modelSelections[0];
+			compositionStartPosition = modelSelection.getPosition();
 
 			const { distanceToModelLineStart, widthOfHiddenTextBefore } = (() => {
 				// Find the text that is on the current line before the selection
@@ -449,7 +451,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 			this._render();
 
 			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-			this._viewController.compositionEnd();
+			const compositionRange = compositionStartPosition ? Range.fromPositions(compositionStartPosition, this._modelSelections[0].getPosition()) : undefined;
+			this._viewController.compositionEnd(compositionRange);
+			compositionStartPosition = undefined;
 			this._context.viewModel.onCompositionEnd();
 		}));
 
