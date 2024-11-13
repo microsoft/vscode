@@ -142,7 +142,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._hasActivatedExtensions = true;
 		}
 
-		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._promptInputModel.cursorIndex, this._shellType, providers);
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._promptInputModel.cursorIndex, this._shellType, token, providers);
 		if (!providedCompletions?.length || token.isCancellationRequested) {
 			return;
 		}

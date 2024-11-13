@@ -153,6 +153,9 @@ vscode.window.registerTerminalCompletionProvider({
 				result.push(createCompletionItem(terminalContext.cursorPosition, prefix, commandName, spec.description));
 			}
 		}
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 		return result.length ? result : undefined;
 	}
 });

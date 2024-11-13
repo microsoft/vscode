@@ -271,8 +271,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		// Proxy completion provider requests through the extension host
 		this._completionProviders.set(id, this._terminalCompletionService.registerTerminalCompletionProvider(extensionIdentifier, id, {
 			id,
-			provideCompletions: async (commandLine, cursorPosition) => {
-				return await this._proxy.$provideTerminalCompletions(id, { commandLine, cursorPosition });
+			provideCompletions: async (commandLine, cursorPosition, token) => {
+				return await this._proxy.$provideTerminalCompletions(id, { commandLine, cursorPosition }, token);
 			}
 		}, ...triggerCharacters));
 	}

@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -21,7 +22,7 @@ export enum ISimpleCompletionKind {
 export interface ITerminalCompletionProvider {
 	id: string;
 	shellTypes?: TerminalShellType[];
-	provideCompletions(value: string, cursorPosition: number): Promise<ISimpleCompletion[] | undefined>;
+	provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<ISimpleCompletion[] | undefined>;
 	triggerCharacters?: string[];
 	isBuiltin?: boolean;
 }
@@ -30,7 +31,7 @@ export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	providers: ITerminalCompletionProvider[];
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider, ...triggerCharacters: string[]): IDisposable;
-	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, triggeredProviders?: ITerminalCompletionProvider[]): Promise<ISimpleCompletion[] | undefined>;
+	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggeredProviders?: ITerminalCompletionProvider[]): Promise<ISimpleCompletion[] | undefined>;
 }
 
 export class TerminalCompletionService extends Disposable implements ITerminalCompletionService {
@@ -62,7 +63,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		});
 	}
 
-	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, triggeredProviders?: ITerminalCompletionProvider[]): Promise<ISimpleCompletion[] | undefined> {
+	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggeredProviders?: ITerminalCompletionProvider[]): Promise<ISimpleCompletion[] | undefined> {
 		const completionItems: ISimpleCompletion[] = [];
 
 		if (!this._providers || !this._providers.values) {
@@ -74,7 +75,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
 					return;
 				}
-				const completions = await provider.provideCompletions(promptValue, cursorPosition);
+				const completions = await provider.provideCompletions(promptValue, cursorPosition, token);
 				const devModeEnabled = this._configurationService.getValue(TerminalSettingId.DevMode);
 				if (completions) {
 					for (const completion of completions) {
