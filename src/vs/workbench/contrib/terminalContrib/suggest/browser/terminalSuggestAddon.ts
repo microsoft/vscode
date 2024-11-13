@@ -139,7 +139,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		// ATM, the two providers calculate the same replacement index / prefix, so we can just take the first one
 		// TODO: figure out if we can add support for multiple replacement indices
-		const replacementIndices = [...new Set(providedCompletions.filter(p => p.replacementIndex !== undefined).map(c => c.replacementIndex))];
+		const replacementIndices = [...new Set(providedCompletions.map(c => c.replacementIndex))];
 		const replacementIndex = replacementIndices.length === 1 ? replacementIndices[0] : 0;
 		this._providerReplacementIndex = replacementIndex;
 
