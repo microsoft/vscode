@@ -226,7 +226,7 @@ class Scheduler {
 	}
 }
 
-class AnimatedValue {
+export class AnimatedValue {
 
 	static const(value: number): AnimatedValue {
 		return new AnimatedValue(value, value, 0);

@@ -34,7 +34,7 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsContextKey, applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsContextKey, applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingSession } from './chatEditingSession.js';
@@ -394,7 +394,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		});
 	}
 
-	async getRelatedFiles(chatSessionId: string, prompt: string, token: CancellationToken): Promise<readonly URI[] | undefined> {
+	async getRelatedFiles(chatSessionId: string, prompt: string, token: CancellationToken): Promise<readonly IChatRelatedFile[] | undefined> {
 		const currentSession = this._currentSessionObs.get();
 		if (!currentSession || chatSessionId !== currentSession.chatSessionId) {
 			return undefined;
@@ -410,7 +410,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			}
 		}));
 
-		return result.reduce<URI[]>((acc, cur) => {
+		return result.reduce<IChatRelatedFile[]>((acc, cur) => {
 			if (cur) {
 				acc.push(...cur);
 			}

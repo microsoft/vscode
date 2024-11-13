@@ -13,6 +13,23 @@ import { conditionalRegistration, requireMinVersion } from './util/dependentRegi
 
 const minVersion = API.v570;
 
+interface CopilotApi {
+	registerRelatedFilesProvider(providerId: {
+		extensionId: string;
+		languageId: string;
+	}, callback: (uri: vscode.Uri, context: {
+		flags: Record<string, unknown>;
+	}, cancellationToken: vscode.CancellationToken) => Promise<{
+		entries: vscode.Uri[];
+		traits?: Array<{
+			name: string;
+			value: string;
+			includeInPrompt?: boolean;
+			promptTextOverride?: string;
+		}>;
+	}>): vscode.Disposable;
+}
+
 export function register(
 	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
@@ -24,21 +41,10 @@ export function register(
 		if (!ext) {
 			return new vscode.Disposable(() => { });
 		}
+
 		const disposers: vscode.Disposable[] = [];
 		ext.activate().then(() => {
-			const relatedAPI = ext.exports as {
-				registerRelatedFilesProvider(
-					providerId: { extensionId: string; languageId: string },
-					callback: (
-						uri: vscode.Uri,
-						context: { flags: Record<string, unknown> },
-						cancellationToken: vscode.CancellationToken
-					) => Promise<{
-						entries: vscode.Uri[];
-						traits?: Array<{ name: string; value: string; includeInPrompt?: boolean; promptTextOverride?: string }>;
-					}>
-				): vscode.Disposable;
-			} | undefined;
+			const relatedAPI = ext.exports as CopilotApi | undefined;
 			if (relatedAPI?.registerRelatedFilesProvider) {
 				for (const syntax of selector.syntax) {
 					if (!syntax.language) {
@@ -79,6 +85,13 @@ export function register(
 				}
 			}
 		});
-		return vscode.Disposable.from(...disposers);
+
+		return {
+			dispose: () => {
+				for (const disposer of disposers) {
+					disposer.dispose();
+				}
+			}
+		};
 	});
 }
