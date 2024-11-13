@@ -93,7 +93,6 @@ import { ChatEditingSaveAllAction } from './chatEditorSaving.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatViewState } from './chatWidget.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
-import { ChatCodeBlockContentProvider } from './codeBlockPart.js';
 
 const $ = dom.$;
 
@@ -969,8 +968,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const url = URL.createObjectURL(blob);
 		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
 		const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
-
-
 
 		const existingPill = widget.querySelector('.chat-attached-context-pill');
 		if (existingPill) {

@@ -113,8 +113,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 				if (!this.attachedContextDisposables.isDisposed) {
 					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement));
 				}
-			} else if (typeof attachment.value === 'string') {
-
+			} else if (attachment.code) {
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
 				const hoverContent: IManagedHoverTooltipMarkdownString = {
@@ -126,6 +125,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 
 				const classNames = ['file-icon', `${attachment.language}-lang-file-icon`];
 				label.setLabel(attachment.fullName ?? attachment.name, undefined, { extraClasses: classNames });
+				widget.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.name}`));
 
 				widget.style.position = 'relative';
 

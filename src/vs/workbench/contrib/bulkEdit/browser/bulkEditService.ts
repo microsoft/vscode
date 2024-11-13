@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IBulkEditOptions, IBulkEditPreviewHandler, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from '../../../../editor/browser/services/bulkEditService.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
-import { WorkspaceEdit } from '../../../../editor/common/languages.js';
+import { ICustomEdit, WorkspaceEdit, WorkspaceEditMetadata } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -21,13 +21,16 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProgress, IProgressStep, Progress } from '../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { UndoRedoGroup, UndoRedoSource } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { IUndoRedoService, UndoRedoElementType, UndoRedoGroup, UndoRedoSource } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { BulkCellEdits, ResourceNotebookCellEdit } from './bulkCellEdits.js';
 import { BulkFileEdits } from './bulkFileEdits.js';
 import { BulkTextEdits } from './bulkTextEdits.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { IChatRequestVariableEntry } from '../../chat/common/chatModel.js';
+import { isObject } from '../../../../base/common/types.js';
 
 function liftEdits(edits: ResourceEdit[]): ResourceEdit[] {
 	return edits.map(edit => {
@@ -40,6 +43,11 @@ function liftEdits(edits: ResourceEdit[]): ResourceEdit[] {
 		if (ResourceNotebookCellEdit.is(edit)) {
 			return ResourceNotebookCellEdit.lift(edit);
 		}
+
+		if (ResourceAttachmentEdit.is(edit)) {
+			return ResourceAttachmentEdit.lift(edit);
+		}
+
 		throw new Error('Unsupported edit');
 	});
 }
@@ -58,6 +66,7 @@ class BulkEdit {
 		private readonly _confirmBeforeUndo: boolean,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
+		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService
 	) {
 
 	}
@@ -122,6 +131,8 @@ class BulkEdit {
 				resources.push(await this._performTextEdits(<ResourceTextEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress));
 			} else if (group[0] instanceof ResourceNotebookCellEdit) {
 				resources.push(await this._performCellEdits(<ResourceNotebookCellEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress));
+			} else if (group[0] instanceof ResourceAttachmentEdit) {
+				resources.push(await this._performCustomEdits(<ResourceAttachmentEdit[]>group, this._undoRedoGroup, this._undoRedoSource, progress));
 			} else {
 				console.log('UNKNOWN EDIT');
 			}
@@ -148,6 +159,19 @@ class BulkEdit {
 		const model = this._instaService.createInstance(BulkCellEdits, undoRedoGroup, undoRedoSource, progress, this._token, edits);
 		return await model.apply();
 	}
+
+	private async _performCustomEdits(edits: ResourceAttachmentEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>): Promise<readonly URI[]> {
+		this._logService.debug('_performCustomEdits', JSON.stringify(edits));
+		this._undoRedoService.pushElement({
+			type: UndoRedoElementType.Resource,
+			resource: edits[0].resource,
+			label: 'Custom Edit',
+			code: 'pasteCustomEdit',
+			undo: edits[0].undo,
+			redo: edits[0].redo,
+		}, undoRedoGroup, undoRedoSource);
+		return [];
+	}
 }
 
 export class BulkEditService implements IBulkEditService {
@@ -165,6 +189,7 @@ export class BulkEditService implements IBulkEditService {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService
 	) { }
 
 	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable {
@@ -238,6 +263,13 @@ export class BulkEditService implements IBulkEditService {
 			options?.undoRedoSource,
 			!!options?.confirmBeforeUndo
 		);
+
+		for (const edit of edits) {
+			if (edit instanceof ResourceAttachmentEdit) {
+				const widget = this._chatWidgetService.getWidgetByInputUri(edit.resource);
+				widget?.attachmentModel.addContext(edit.variable);
+			}
+		}
 
 		let listener: IDisposable | undefined;
 		try {
@@ -324,3 +356,42 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		}
 	}
 });
+
+
+export class ResourceAttachmentEdit extends ResourceEdit implements IAttachmentEdit {
+
+	static is(candidate: any): candidate is IAttachmentEdit {
+		if (candidate instanceof ResourceAttachmentEdit) {
+			return true;
+		} else {
+			return isObject(candidate)
+				&& (Boolean((<IAttachmentEdit>candidate).undo && (<IAttachmentEdit>candidate).redo));
+		}
+	}
+
+	static lift(edit: IAttachmentEdit): ResourceAttachmentEdit {
+		if (edit instanceof ResourceAttachmentEdit) {
+			return edit;
+		} else {
+			return new ResourceAttachmentEdit(edit.resource, edit.variable, edit.undo, edit.redo, edit.metadata);
+		}
+	}
+
+	constructor(
+		readonly resource: URI,
+		readonly variable: IChatRequestVariableEntry,
+		readonly undo: () => Promise<void> | void,
+		readonly redo: () => Promise<void> | void,
+		metadata?: WorkspaceEditMetadata
+	) {
+		super(metadata);
+	}
+}
+
+export interface IAttachmentEdit extends ICustomEdit {
+	readonly resource: URI;
+	readonly metadata?: WorkspaceEditMetadata;
+	readonly variable: IChatRequestVariableEntry;
+	undo(): Promise<void> | void;
+	redo(): Promise<void> | void;
+}
