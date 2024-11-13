@@ -106,7 +106,7 @@ export class SimpleCompletionModel {
 			// filter and score against. In theory each suggestion uses a
 			// different word, but in practice not - that's why we cache
 			// TODO: Fix
-			const overwriteBefore = item.completion.replacementLength; // item.position.column - item.editStart.column;
+			const overwriteBefore = item.completion.replacementLength - item.completion.replacementIndex; // item.position.column - item.editStart.column;
 			const wordLen = overwriteBefore + characterCountDelta; // - (item.position.column - this._column);
 			if (word.length !== wordLen) {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
