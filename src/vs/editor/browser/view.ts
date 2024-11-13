@@ -348,7 +348,6 @@ export class View extends ViewEventHandler {
 				this.render(true, false);
 			},
 			shouldSuppressMouseDownOnViewZone: (viewZoneId: string) => {
-				// TODO: Defer to viewLinesGpu?
 				return this._viewZones.shouldSuppressMouseDownOnViewZone(viewZoneId);
 			},
 			shouldSuppressMouseDownOnWidget: (widgetId: string) => {
@@ -356,7 +355,6 @@ export class View extends ViewEventHandler {
 			},
 			getPositionFromDOMInfo: (spanNode: HTMLElement, offset: number) => {
 				this._flushAccumulatedAndRenderNow();
-				// TODO: Defer to viewLinesGpu?
 				return this._viewLines.getPositionFromDOMInfo(spanNode, offset);
 			},
 

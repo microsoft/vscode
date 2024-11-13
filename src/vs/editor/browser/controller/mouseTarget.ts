@@ -776,7 +776,6 @@ export class MouseTargetFactory {
 
 				const position = ctx.viewLinesGpu.getPositionAtCoordinate(lineNumber, request.mouseContentHorizontalOffset);
 				if (position) {
-					// TODO: Are these values right?
 					const detail: IMouseTargetContentTextData = {
 						injectedText: null,
 						mightBeForeignElement: false
