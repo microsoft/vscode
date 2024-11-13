@@ -975,7 +975,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 					if (typeof value === 'string') {
 						this._findWidgetSearchHistory.save(value);
 					}
-				}
+				},
+				reduceToLimit: (limit) => {
+					this._findWidgetSearchHistory.reduceToLimit(limit);
+				},
 			}
 		}, this._contextKeyService));
 		this._findInput.setRegex(!!this._state.isRegex);

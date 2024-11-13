@@ -8,6 +8,7 @@ import { ArrayNavigator, INavigator } from './navigator.js';
 
 export interface IPersistentStorage {
 	save<T>(t: T): void;
+	reduceToLimit(limit: number): void;
 }
 
 export class HistoryNavigator<T> implements INavigator<T> {
@@ -94,6 +95,7 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		const data = this._elements;
 		if (data.length > this._limit) {
 			this._initialize(data.slice(data.length - this._limit));
+			this._persistentStorage?.reduceToLimit(this._limit);
 		}
 	}
 

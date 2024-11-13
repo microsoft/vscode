@@ -8,6 +8,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 export interface IPersistentSearchHistory {
 	load(): string[];
 	save(history: string): void;
+	reduceToLimit(limit: number): void;
 }
 
 export interface ISearchValue {
@@ -75,6 +76,30 @@ export class FindWidgetSearchHistory implements IPersistentSearchHistory {
 			} catch (e) {
 				// Invalid data
 			}
+		}
+	}
+
+	reduceToLimit(limit: number) {
+		const raw = this.storageService.get(
+			FindWidgetSearchHistory.FIND_HISTORY_KEY,
+			StorageScope.WORKSPACE
+		);
+
+		if (!raw) {
+			return;
+		}
+
+		try {
+			let array: ISearchValue[] = JSON.parse(raw);
+			array = array.slice(array.length - limit);
+			this.storageService.store(
+				FindWidgetSearchHistory.FIND_HISTORY_KEY,
+				JSON.stringify(array),
+				StorageScope.WORKSPACE,
+				StorageTarget.USER
+			);
+		} catch (e) {
+			// Invalid data
 		}
 	}
 }
