@@ -23,15 +23,6 @@ module.exports = withDefaults({
 		extensions: ['.ts', '.js'] // support ts-files and js-files
 	},
 	plugins: [
-		// Handle dynamic imports from the autocomplete directory
-		new webpack.ContextReplacementPlugin(
-			// The (\\|\/) piece accounts for path separators in *nix and Windows
-			/\.\/autocomplete$/,
-			path.resolve(__dirname, 'autocomplete'),
-			{
-				// Include only .js files
-				'./': /\.js$/
-			}
-		)
+		new webpack.IgnorePlugin({ resourceRegExp: /\.\/autocomplete$/, })
 	]
 });
