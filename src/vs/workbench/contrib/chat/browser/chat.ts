@@ -35,6 +35,10 @@ export interface IChatWidgetService {
 	 */
 	readonly lastFocusedWidget: IChatWidget | undefined;
 
+	readonly onDidAddWidget: Event<IChatWidget>;
+
+	getAllWidgets(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
+
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
 	getWidgetByLocation(location: ChatAgentLocation): IChatWidget[];
@@ -88,6 +92,7 @@ export interface IChatCodeBlockInfo {
 	readonly codeBlockIndex: number;
 	readonly element: ChatTreeItem;
 	readonly uri: URI | undefined;
+	readonly uriPromise: Promise<URI | undefined>;
 	codemapperUri: URI | undefined;
 	readonly isStreaming: boolean;
 	focus(): void;
@@ -112,6 +117,7 @@ export interface IChatListItemRendererOptions {
 }
 
 export interface IChatWidgetViewOptions {
+	autoScroll?: boolean;
 	renderInputOnTop?: boolean;
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
@@ -135,6 +141,7 @@ export interface IChatWidgetViewOptions {
 	};
 	defaultElementHeight?: number;
 	editorOverflowWidgetsDomNode?: HTMLElement;
+	enableImplicitContext?: boolean;
 }
 
 export interface IChatViewViewContext {
@@ -146,6 +153,11 @@ export interface IChatResourceViewContext {
 }
 
 export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewContext | {};
+
+export interface IChatAcceptInputOptions {
+	noCommandDetection?: boolean;
+	isVoiceInput?: boolean;
+}
 
 export interface IChatWidget {
 	readonly onDidChangeViewModel: Event<void>;
@@ -172,8 +184,9 @@ export interface IChatWidget {
 	getFocus(): ChatTreeItem | undefined;
 	setInput(query?: string): void;
 	getInput(): string;
+	refreshParsedInput(): void;
 	logInputHistory(): void;
-	acceptInput(query?: string, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined>;
+	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
 	acceptInputWithPrefix(prefix: string): void;
 	setInputPlaceholder(placeholder: string): void;
 	resetInputPlaceholder(): void;

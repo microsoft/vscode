@@ -226,8 +226,8 @@ export class ConfigurationManager implements IConfigurationManager {
 					const picks: Promise<IDynamicPickItem[]>[] = [];
 					const provider = this.configProviders.find(p => p.type === type && p.triggerKind === DebugConfigurationProviderTriggerKind.Dynamic && p.provideDebugConfigurations);
 					this.getLaunches().forEach(launch => {
-						if (launch.workspace && provider) {
-							picks.push(provider.provideDebugConfigurations!(launch.workspace.uri, token.token).then(configurations => configurations.map(config => ({
+						if (provider) {
+							picks.push(provider.provideDebugConfigurations!(launch.workspace?.uri, token.token).then(configurations => configurations.map(config => ({
 								label: config.name,
 								description: launch.name,
 								config,

@@ -20,6 +20,7 @@ import { getAuthenticationProviderActivationEvent } from '../../services/authent
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { ILogService } from '../../../platform/log/common/log.js';
 
 interface AuthenticationForceNewSessionOptions {
 	detail?: string;
@@ -81,7 +82,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -96,6 +98,16 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): Promise<void> {
+		if (!this.authenticationService.declaredProviders.find(p => p.id === id)) {
+			// If telemetry shows that this is not happening much, we can instead throw an error here.
+			this.logService.warn(`Authentication provider ${id} was not declared in the Extension Manifest.`);
+			type AuthProviderNotDeclaredClassification = {
+				owner: 'TylerLeonhardt';
+				comment: 'An authentication provider was not declared in the Extension Manifest.';
+				id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider id.' };
+			};
+			this.telemetryService.publicLog2<{ id: string }, AuthProviderNotDeclaredClassification>('authentication.providerNotDeclared', { id });
+		}
 		const emitter = new Emitter<AuthenticationSessionsChangeEvent>();
 		this._registrations.set(id, emitter);
 		const provider = new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, this.notificationService, emitter);
@@ -210,11 +222,12 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			this._removeAccountPreference(extensionId, providerId, scopes);
 		}
 
-		const matchingAccountPreferenceSession = this._getAccountPreference(extensionId, providerId, scopes, sessions)
-			// If account was specified, grab the first session since all sessions will be using that account (will be undefined if there are no sessions)
-			?? options.account
-			? sessions[0]
-			: undefined;
+		const matchingAccountPreferenceSession =
+			// If an account was passed in, that takes precedence over the account preference
+			options.account
+				// We only support one session per account per set of scopes so grab the first one here
+				? sessions[0]
+				: this._getAccountPreference(extensionId, providerId, scopes, sessions);
 
 		// Check if the sessions we have are valid
 		if (!options.forceNewSession && sessions.length) {
@@ -289,7 +302,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		if (session) {
 			this.sendProviderUsageTelemetry(extensionId, providerId);
-			this.authenticationUsageService.addAccountUsage(providerId, session.account.label, extensionId, extensionName);
+			this.authenticationUsageService.addAccountUsage(providerId, session.account.label, scopes, extensionId, extensionName);
 		}
 
 		return session;

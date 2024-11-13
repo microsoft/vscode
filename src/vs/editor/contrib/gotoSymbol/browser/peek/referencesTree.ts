@@ -118,7 +118,7 @@ class FileReferencesTemplate extends Disposable {
 		parent.classList.add('reference-file');
 		this.file = this._register(new IconLabel(parent, { supportHighlights: true }));
 
-		this.badge = new CountBadge(dom.append(parent, dom.$('.count')), {}, defaultCountBadgeStyles);
+		this.badge = this._register(new CountBadge(dom.append(parent, dom.$('.count')), {}, defaultCountBadgeStyles));
 
 		container.appendChild(parent);
 	}

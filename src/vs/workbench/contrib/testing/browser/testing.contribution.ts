@@ -149,7 +149,7 @@ registerEditorContribution(Testing.CoverageDecorationsContributionId, CodeCovera
 CommandsRegistry.registerCommand({
 	id: '_revealTestInExplorer',
 	handler: async (accessor: ServicesAccessor, testId: string | ITestItem, focus?: boolean) => {
-		accessor.get(ITestExplorerFilterState).reveal.value = typeof testId === 'string' ? testId : testId.extId;
+		accessor.get(ITestExplorerFilterState).reveal.set(typeof testId === 'string' ? testId : testId.extId, undefined);
 		accessor.get(IViewsService).openView(Testing.ExplorerViewId, focus);
 	}
 });
@@ -180,7 +180,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.revealTest',
-	handler: async (accessor: ServicesAccessor, extId: string) => {
+	handler: async (accessor: ServicesAccessor, extId: string, opts?: { preserveFocus?: boolean; openToSide?: boolean }) => {
 		const test = accessor.get(ITestService).collection.getNodeById(extId);
 		if (!test) {
 			return;
@@ -198,7 +198,7 @@ CommandsRegistry.registerCommand({
 		// revealed range to those decorations (#133441).
 		const position = accessor.get(ITestingDecorationsService).getDecoratedTestPosition(uri, extId) || range?.getStartPosition();
 
-		accessor.get(ITestExplorerFilterState).reveal.value = extId;
+		accessor.get(ITestExplorerFilterState).reveal.set(extId, undefined);
 		accessor.get(ITestingPeekOpener).closeAllPeeks();
 
 		let isFile = true;
@@ -217,7 +217,13 @@ CommandsRegistry.registerCommand({
 
 		await openerService.open(position
 			? uri.with({ fragment: `L${position.lineNumber}:${position.column}` })
-			: uri
+			: uri,
+			{
+				openToSide: opts?.openToSide,
+				editorOptions: {
+					preserveFocus: opts?.preserveFocus,
+				}
+			}
 		);
 	}
 });

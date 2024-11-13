@@ -25,8 +25,7 @@ registerEditorAction(class FormatModifiedAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.formatChanges',
-			label: nls.localize('formatChanges', "Format Modified Lines"),
-			alias: 'Format Modified Lines',
+			label: nls.localize2('formatChanges', "Format Modified Lines"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentSelectionFormattingProvider),
 		});
 	}

@@ -29,7 +29,6 @@ export interface IUserDataProfileService {
 	readonly currentProfile: IUserDataProfile;
 	readonly onDidChangeCurrentProfile: Event<DidChangeUserDataProfileEvent>;
 	updateCurrentProfile(currentProfile: IUserDataProfile): Promise<void>;
-	getShortName(profile: IUserDataProfile): string;
 }
 
 export interface IProfileTemplateInfo {
