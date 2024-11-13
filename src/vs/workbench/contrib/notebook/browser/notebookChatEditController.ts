@@ -482,7 +482,7 @@ class NotebookModelSynchronizer extends Disposable {
 		super();
 
 		this._register(chatService.onDidPerformUserAction(async e => {
-			if (e.action.kind === 'chatEditingSessionAction' && !e.action.hasRemainingEdits && e.action.uri === entry.modifiedURI) {
+			if (e.action.kind === 'chatEditingSessionAction' && !e.action.hasRemainingEdits && isEqual(e.action.uri, entry.modifiedURI)) {
 				if (e.action.outcome === 'accepted') {
 					await this.accept();
 					await this.createSnapshot();
