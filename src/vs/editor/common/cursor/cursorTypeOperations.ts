@@ -164,7 +164,6 @@ export class TypeOperations {
 	}
 
 	private static _getOvertypeEdits(compositions: CompositionOutcome[] | null): EditOperationResult | undefined {
-		console.log('compositions', compositions);
 		if (!compositions) {
 			return undefined;
 		}
