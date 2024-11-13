@@ -358,7 +358,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				this._logService.info(`Finished waiting on IWorkspaceTrustManagementService.workspaceResolved.`);
 			}
 
-			const localExtensions = await this._extensionScanner.scannedExtensions;
+			const localExtensions = await this._scanAllLocalExtensions();
 			const resolverExtensions = localExtensions.filter(extension => isResolverExtension(extension));
 			handleResolverExtensions(resolverExtensions);
 
