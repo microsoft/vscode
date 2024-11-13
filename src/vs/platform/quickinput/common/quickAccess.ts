@@ -21,7 +21,7 @@ export interface IQuickAccessProviderRunOptions {
 	 * this particular showing of the quick access.
 	 * @param item The item that was accepted.
 	 */
-	readonly handleAccept?: (item: IQuickPickItem) => void;
+	readonly handleAccept?: (item: IQuickPickItem, isBackgroundAccept: boolean) => void;
 }
 
 /**

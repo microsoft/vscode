@@ -844,8 +844,8 @@ export interface INotebookEditorModel extends IDisposable {
 }
 
 export interface INotebookDiffEditorModel extends IDisposable {
-	original: IResolvedNotebookEditorModel;
-	modified: IResolvedNotebookEditorModel;
+	original: { notebook: NotebookTextModel; resource: URI; viewType: string };
+	modified: { notebook: NotebookTextModel; resource: URI; viewType: string };
 }
 
 export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {

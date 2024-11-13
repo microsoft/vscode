@@ -45,7 +45,7 @@ export class GlyphHoverWidget extends Disposable implements IOverlayWidget, IHov
 		this._isVisible = false;
 		this._messages = [];
 
-		this._hover = this._register(new HoverWidget());
+		this._hover = this._register(new HoverWidget(true));
 		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 
 		this._markdownRenderer = this._register(new MarkdownRenderer({ editor: this._editor }, languageService, openerService));

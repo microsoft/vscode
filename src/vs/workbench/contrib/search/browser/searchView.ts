@@ -9,7 +9,7 @@ import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
 import { IAsyncDataSource, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
-import { Delayer, RunOnceScheduler } from '../../../../base/common/async.js';
+import { Delayer, RunOnceScheduler, Throttler } from '../../../../base/common/async.js';
 import * as errors from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -168,6 +168,7 @@ export class SearchView extends ViewPane {
 
 	private searchDataSource: SearchViewDataSource | undefined;
 
+	private refreshTreeController: RefreshTreeController;
 	constructor(
 		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
@@ -222,6 +223,7 @@ export class SearchView extends ViewPane {
 		this.hasFilePatternKey = Constants.SearchContext.ViewHasFilePatternKey.bindTo(this.contextKeyService);
 		this.hasSomeCollapsibleResultKey = Constants.SearchContext.ViewHasSomeCollapsibleKey.bindTo(this.contextKeyService);
 		this.treeViewKey = Constants.SearchContext.InTreeViewKey.bindTo(this.contextKeyService);
+		this.refreshTreeController = this._register(this.instantiationService.createInstance(RefreshTreeController, this, () => this.searchConfig));
 
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			const keys = Constants.SearchContext.hasAIResultProvider.keys();
@@ -248,7 +250,7 @@ export class SearchView extends ViewPane {
 					// so that updated files are re-retrieved next time.
 					this.removeFileStats();
 				}
-				await this.refreshTree();
+				await this.refreshTreeController.queue();
 			}
 		}));
 
@@ -279,7 +281,7 @@ export class SearchView extends ViewPane {
 			this._saveSearchHistoryService();
 		}));
 
-		this._register(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, SearchHistoryService.SEARCH_HISTORY_KEY, this._register(new DisposableStore()))(() => {
+		this._register(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, SearchHistoryService.SEARCH_HISTORY_KEY, this._store)(() => {
 			const restoredHistory = this.searchHistoryService.load();
 
 			if (restoredHistory.include) {
@@ -299,6 +301,9 @@ export class SearchView extends ViewPane {
 		this.changedWhileHidden = this.hasSearchResults();
 	}
 
+	async queueRefreshTree(): Promise<void> {
+		return this.refreshTreeController.queue();
+	}
 	get isTreeLayoutViewVisible(): boolean {
 		return this.treeViewKey.get() ?? false;
 	}
@@ -313,7 +318,7 @@ export class SearchView extends ViewPane {
 		}
 		this.isTreeLayoutViewVisible = visible;
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
-		return this.refreshTree();
+		return this.refreshTreeController.queue();
 	}
 
 	private get state(): SearchUIState {
@@ -403,13 +408,7 @@ export class SearchView extends ViewPane {
 			return this.onSearchError(e, progressComplete, undefined, undefined);
 		});
 
-		const collapseResults = this.searchConfig.collapseResults;
-		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
-			const onlyMatch = this.viewModel.searchResult.matches()[0];
-			if (onlyMatch.count() < 50) {
-				await this.tree.expand(onlyMatch);
-			}
-		}
+		await this.expandIfSingularResult();
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -616,10 +615,10 @@ export class SearchView extends ViewPane {
 		this._register(this.searchWidget.onSearchSubmit(options => this.triggerQueryChange(options)));
 		this._register(this.searchWidget.onSearchCancel(({ focus }) => this.cancelSearch(focus)));
 		this._register(this.searchWidget.searchInput.onDidOptionChange(() => {
-			this.triggerQueryChange();
+			this.triggerQueryChange({ shouldKeepAIResults: true });
 		}));
 
-		this._register(this.searchWidget.getNotebookFilters().onDidChange(() => this.triggerQueryChange()));
+		this._register(this.searchWidget.getNotebookFilters().onDidChange(() => this.triggerQueryChange({ shouldKeepAIResults: true })));
 
 		const updateHasPatternKey = () => this.hasSearchPatternKey.set(this.searchWidget.searchInput ? (this.searchWidget.searchInput.getValue().length > 0) : false);
 		updateHasPatternKey();
@@ -634,17 +633,17 @@ export class SearchView extends ViewPane {
 		this._register(this.searchWidget.onReplaceToggled(() => this.reLayout()));
 		this._register(this.searchWidget.onReplaceStateChange(async (state) => {
 			this.viewModel.replaceActive = state;
-			await this.refreshTree();
+			await this.refreshTreeController.queue();
 		}));
 
 		this._register(this.searchWidget.onPreserveCaseChange(async (state) => {
 			this.viewModel.preserveCase = state;
-			await this.refreshTree();
+			await this.refreshTreeController.queue();
 		}));
 
 		this._register(this.searchWidget.onReplaceValueChanged(() => {
 			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
-			this.delayedRefresh.trigger(async () => this.refreshTree());
+			this.delayedRefresh.trigger(async () => this.refreshTreeController.queue());
 		}));
 
 		this._register(this.searchWidget.onBlur(() => {
@@ -663,7 +662,7 @@ export class SearchView extends ViewPane {
 	}
 	private async onConfigurationUpdated(event?: IConfigurationChangeEvent): Promise<void> {
 		if (event && (event.affectsConfiguration('search.decorations.colors') || event.affectsConfiguration('search.decorations.badges'))) {
-			return this.refreshTree();
+			return this.refreshTreeController.queue();
 		}
 	}
 
@@ -694,40 +693,10 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	public refreshTreePromiseSerializer: Promise<void> = Promise.resolve();
 	private async refreshAndUpdateCount(event?: IChangeEvent): Promise<void> {
 		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
 		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, event?.clearingAll);
-		return this.refreshTree(event);
-	}
-
-	private async refreshTree(event?: IChangeEvent): Promise<void> {
-		this.refreshTreePromiseSerializer = this.refreshTreePromiseSerializer.then(async () => {
-			if (!event || event.added || event.removed) {
-				// Refresh whole tree
-				if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
-					// Ensure all matches have retrieved their file stat
-					await this.retrieveFileStats()
-						.then(() => this.tree.updateChildren(undefined));
-				} else {
-					await this.tree.updateChildren(undefined);
-				}
-			} else {
-				// If updated counts affect our search order, re-sort the view.
-				if (this.searchConfig.sortOrder === SearchSortOrder.CountAscending ||
-					this.searchConfig.sortOrder === SearchSortOrder.CountDescending) {
-
-					await this.tree.updateChildren(undefined);
-				} else {
-					// IFileMatchInstance modified, refresh those elements
-					await Promise.all(event.elements.map(async element => {
-						await this.tree.updateChildren(element);
-						this.tree.rerender(element);
-					}));
-				}
-			}
-		});
-		return this.refreshTreePromiseSerializer;
+		return this.refreshTreeController.queue(event);
 	}
 
 	private originalShouldCollapse(match: RenderableMatch) {
@@ -737,7 +706,7 @@ export class SearchView extends ViewPane {
 			ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded;
 	}
 
-	private shouldCollapse(match: RenderableMatch): boolean {
+	private shouldCollapseAccordingToConfig(match: RenderableMatch): boolean {
 		const collapseResults = this.originalShouldCollapse(match);
 		if (collapseResults === ObjectTreeElementCollapseState.PreserveOrCollapsed) {
 			return true;
@@ -918,11 +887,16 @@ export class SearchView extends ViewPane {
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				paddingBottom: SearchDelegate.ITEM_HEIGHT,
 				collapseByDefault: (e: RenderableMatch) => {
-					if (isTextSearchHeading(e) && e.isAIContributed) {
-						// always collapse the ai text search result
-						return true;
+					if (isTextSearchHeading(e)) {
+						// always collapse the ai text search result, but always expand the text result
+						return e.isAIContributed;
 					}
-					return this.shouldCollapse(e);
+
+					// always expand compressed nodes
+					if (isSearchTreeFolderMatch(e) && e.matches().length === 1 && isSearchTreeFolderMatch(e.matches()[0])) {
+						return false;
+					}
+					return this.shouldCollapseAccordingToConfig(e);
 				}
 			}));
 
@@ -1366,22 +1340,22 @@ export class SearchView extends ViewPane {
 
 	toggleCaseSensitive(): void {
 		this.searchWidget.searchInput?.setCaseSensitive(!this.searchWidget.searchInput.getCaseSensitive());
-		this.triggerQueryChange();
+		this.triggerQueryChange({ shouldKeepAIResults: true });
 	}
 
 	toggleWholeWords(): void {
 		this.searchWidget.searchInput?.setWholeWords(!this.searchWidget.searchInput.getWholeWords());
-		this.triggerQueryChange();
+		this.triggerQueryChange({ shouldKeepAIResults: true });
 	}
 
 	toggleRegex(): void {
 		this.searchWidget.searchInput?.setRegex(!this.searchWidget.searchInput.getRegex());
-		this.triggerQueryChange();
+		this.triggerQueryChange({ shouldKeepAIResults: true });
 	}
 
 	togglePreserveCase(): void {
 		this.searchWidget.replaceInput?.setPreserveCase(!this.searchWidget.replaceInput.getPreserveCase());
-		this.triggerQueryChange();
+		this.triggerQueryChange({ shouldKeepAIResults: true });
 	}
 
 	setSearchParameters(args: IFindInFilesArgs = {}): void {
@@ -1479,7 +1453,7 @@ export class SearchView extends ViewPane {
 		this.searchWidget.focus(false);
 	}
 
-	triggerQueryChange(_options?: { preserveFocus?: boolean; triggeredOnType?: boolean; delay?: number }) {
+	triggerQueryChange(_options?: { preserveFocus?: boolean; triggeredOnType?: boolean; delay?: number; shouldKeepAIResults?: boolean }): void {
 		const options = { preserveFocus: true, triggeredOnType: false, delay: 0, ..._options };
 
 		if (options.triggeredOnType && !this.searchConfig.searchOnType) { return; }
@@ -1488,7 +1462,7 @@ export class SearchView extends ViewPane {
 
 			const delay = options.triggeredOnType ? options.delay : 0;
 			this.triggerQueryDelayer.trigger(() => {
-				this._onQueryChanged(options.preserveFocus, options.triggeredOnType);
+				this._onQueryChanged(options.preserveFocus, options.triggeredOnType, options.shouldKeepAIResults);
 			}, delay);
 		}
 	}
@@ -1501,15 +1475,11 @@ export class SearchView extends ViewPane {
 		return this.inputPatternIncludes.getValue().trim();
 	}
 
-	private _onQueryChanged(preserveFocus: boolean, triggeredOnType = false): void {
+	private _onQueryChanged(preserveFocus: boolean, triggeredOnType = false, shouldKeepAIResults = false): void {
 		if (!(this.searchWidget.searchInput?.inputBox.isInputValid())) {
 			return;
 		}
 
-		// ensure that the node is closed when a new search is triggered
-		if (this.tree.hasNode(this.searchResult.aiTextSearchResult)) {
-			this.tree.collapse(this.searchResult.aiTextSearchResult);
-		}
 		const isRegex = this.searchWidget.searchInput.getRegex();
 		const isInNotebookMarkdownInput = this.searchWidget.getNotebookFilters().markupInput;
 		const isInNotebookMarkdownPreview = this.searchWidget.getNotebookFilters().markupPreview;
@@ -1583,7 +1553,12 @@ export class SearchView extends ViewPane {
 		}
 
 		this.validateQuery(query).then(() => {
-			this.onQueryTriggered(query, options, excludePatternText, includePatternText, triggeredOnType);
+			// ensure that the node is closed when a new search is triggered
+			if (!shouldKeepAIResults && this.tree.hasNode(this.searchResult.aiTextSearchResult)) {
+				this.tree.collapse(this.searchResult.aiTextSearchResult);
+			}
+
+			this.onQueryTriggered(query, options, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults);
 
 			if (!preserveFocus) {
 				this.searchWidget.focus(false, undefined, true); // focus back to input field
@@ -1613,7 +1588,7 @@ export class SearchView extends ViewPane {
 		});
 	}
 
-	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): void {
+	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean, shouldKeepAIResults: boolean): void {
 		this.addToSearchHistoryDelayer.trigger(() => {
 			this.searchWidget.searchInput?.onSearchSubmit();
 			this.inputPatternExcludes.onSearchSubmit();
@@ -1624,7 +1599,7 @@ export class SearchView extends ViewPane {
 		this.viewModel.cancelAISearch(true);
 
 		this.currentSearchQ = this.currentSearchQ
-			.then(() => this.doSearch(query, excludePatternText, includePatternText, triggeredOnType))
+			.then(() => this.doSearch(query, excludePatternText, includePatternText, triggeredOnType, shouldKeepAIResults))
 			.then(() => undefined, () => undefined);
 	}
 
@@ -1646,22 +1621,29 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	private async onSearchComplete(progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete) {
+	private async expandIfSingularResult() {
+		// expand if just 1 file with less than 50 matches
+
+		const collapseResults = this.searchConfig.collapseResults;
+		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
+			const onlyMatch = this.viewModel.searchResult.matches()[0];
+			await this.tree.expandTo(onlyMatch);
+			if (onlyMatch.count() < 50) {
+				await this.tree.expand(onlyMatch);
+			}
+		}
+	}
+
+	private async onSearchComplete(progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete, shouldDoFinalRefresh = true) {
 
 		this.state = SearchUIState.Idle;
 
 		// Complete up to 100% as needed
 		progressComplete();
 
-		// Do final render, then expand if just 1 file with less than 50 matches
-		this.onSearchResultsChanged();
-
-		const collapseResults = this.searchConfig.collapseResults;
-		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
-			const onlyMatch = this.viewModel.searchResult.matches()[0];
-			if (onlyMatch.count() < 50) {
-				await this.tree.expand(onlyMatch);
-			}
+		if (shouldDoFinalRefresh) {
+			// anything that gets called from `getChildren` should not do this, since the tree will refresh anyways.
+			await this.refreshAndUpdateCount();
 		}
 
 		const hasResults = !this.viewModel.searchResult.isEmpty();
@@ -1749,10 +1731,10 @@ export class SearchView extends ViewPane {
 		this.reLayout();
 	}
 
-	private async onSearchError(e: any, progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete) {
+	private async onSearchError(e: any, progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete, shouldDoFinalRefresh = true) {
 		this.state = SearchUIState.Idle;
 		if (errors.isCancellationError(e)) {
-			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, completed);
+			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, completed, shouldDoFinalRefresh);
 		} else {
 			progressComplete();
 			this.searchWidget.searchInput?.showMessage({ content: e.message, type: MessageType.ERROR });
@@ -1780,26 +1762,22 @@ export class SearchView extends ViewPane {
 
 		this._visibleMatches = 0;
 
-		this._refreshResultsScheduler.schedule();
-
-		this.searchWidget.setReplaceAllActionState(false);
-
 		this.tree.setSelection([]);
 		this.tree.setFocus([]);
 
 		this.viewModel.replaceString = this.searchWidget.getReplaceValue();
+		this.viewModel.searchResult.setAIQueryUsingTextQuery();
 		const result = this.viewModel.addAIResults();
 		return result.then((complete) => {
 			clearTimeout(slowTimer);
-			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
+			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete, false);
 		}, (e) => {
 			clearTimeout(slowTimer);
-			return this.onSearchError(e, progressComplete, excludePatternText, includePatternText);
+			return this.onSearchError(e, progressComplete, excludePatternText, includePatternText, undefined, false);
 		});
-
 	}
 
-	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): Thenable<void> {
+	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean, shouldKeepAIResults: boolean): Thenable<void> {
 		let progressComplete: () => void;
 		this.progressService.withProgress({ location: this.getProgressLocation(), delay: triggeredOnType ? 300 : 0 }, _progress => {
 			return new Promise<void>(resolve => progressComplete = resolve);
@@ -1824,6 +1802,10 @@ export class SearchView extends ViewPane {
 
 		this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 		const result = this.viewModel.search(query);
+
+		if (!shouldKeepAIResults) {
+			this.viewModel.searchResult.setAIQueryUsingTextQuery(query);
+		}
 		return result.asyncResults.then((complete) => {
 			clearTimeout(slowTimer);
 			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
@@ -2100,7 +2082,7 @@ export class SearchView extends ViewPane {
 			const changedMatches = matches.filter(m => e.contains(m.resource));
 			if (changedMatches.length && this.searchConfig.sortOrder === SearchSortOrder.Modified) {
 				// No matches need to be removed, but modified files need to have their file stat updated.
-				this.updateFileStats(changedMatches).then(async () => this.refreshTree());
+				this.updateFileStats(changedMatches).then(async () => this.refreshTreeController.queue());
 			}
 		}
 	}
@@ -2197,10 +2179,6 @@ export class SearchView extends ViewPane {
 		this.searchHistoryService.save(history);
 	}
 
-	private async retrieveFileStats(): Promise<void> {
-		const files = this.searchResult.matches().filter(f => !f.fileStat).map(f => f.resolveFileStat(this.fileService));
-		await Promise.all(files);
-	}
 
 	private async updateFileStats(elements: ISearchTreeFileMatch[]): Promise<void> {
 		const files = elements.map(f => f.resolveFileStat(this.fileService));
@@ -2420,5 +2398,76 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 			throw new Error('Invalid element passed to getParent');
 		}
 		return parent;
+	}
+}
+
+class RefreshTreeController extends Disposable {
+
+	private refreshTreeThrottler: Throttler;
+
+	constructor(
+		private readonly searchView: SearchView,
+		private readonly geSearchConfig: () => ISearchConfigurationProperties,
+		@IFileService private readonly fileService: IFileService,
+	) {
+		super();
+		this.refreshTreeThrottler = this._register(new Throttler());
+	}
+
+	private queuedIChangeEvents: IChangeEvent[] = [];
+
+	public async queue(e?: IChangeEvent): Promise<void> {
+		if (e) {
+			this.queuedIChangeEvents.push(e);
+		}
+		return this.refreshTreeThrottler.queue(this.refreshTreeUsingQueue.bind(this));
+	}
+
+	private async refreshTreeUsingQueue(): Promise<void> {
+		const aggregateChangeEvent: IChangeEvent | undefined = this.queuedIChangeEvents.length === 0 ? undefined : {
+			elements: this.queuedIChangeEvents.map(e => e.elements).flat(),
+			added: this.queuedIChangeEvents.some(e => e.added),
+			removed: this.queuedIChangeEvents.some(e => e.removed),
+			clearingAll: this.queuedIChangeEvents.some(e => e.clearingAll),
+		};
+		this.queuedIChangeEvents = [];
+		return this.refreshTree(aggregateChangeEvent);
+	}
+
+	private async retrieveFileStats(): Promise<void> {
+		const files = this.searchView.model.searchResult.matches().filter(f => !f.fileStat).map(f => f.resolveFileStat(this.fileService));
+		await Promise.all(files);
+	}
+
+	private async refreshTree(event?: IChangeEvent): Promise<void> {
+		const searchConfig = this.geSearchConfig();
+		if (!event || event.added || event.removed) {
+			// Refresh whole tree
+			if (searchConfig.sortOrder === SearchSortOrder.Modified) {
+				// Ensure all matches have retrieved their file stat
+				await this.retrieveFileStats()
+					.then(() => this.searchView.getControl().updateChildren(undefined));
+			} else {
+				await this.searchView.getControl().updateChildren(undefined);
+			}
+		} else {
+			// If updated counts affect our search order, re-sort the view.
+			if (searchConfig.sortOrder === SearchSortOrder.CountAscending ||
+				searchConfig.sortOrder === SearchSortOrder.CountDescending) {
+
+				await this.searchView.getControl().updateChildren(undefined);
+			} else {
+				const treeHasAllElements = event.elements.every(elem => this.searchView.getControl().hasNode(elem));
+				if (treeHasAllElements) {
+					// IFileMatchInstance modified, refresh those elements
+					await Promise.all(event.elements.map(async element => {
+						await this.searchView.getControl().updateChildren(element);
+						this.searchView.getControl().rerender(element);
+					}));
+				} else {
+					this.searchView.getControl().updateChildren(undefined);
+				}
+			}
+		}
 	}
 }

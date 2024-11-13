@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { ViewLinesDeletedEvent } from '../../common/viewEvents.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
 
@@ -20,6 +21,8 @@ export const enum BindingId {
 export interface IGpuRenderStrategy {
 	readonly wgsl: string;
 	readonly bindGroupEntries: GPUBindGroupEntry[];
+
+	onLinesDeleted(e: ViewLinesDeletedEvent): void;
 
 	/**
 	 * Resets the render strategy, clearing all data and setting up for a new frame.
