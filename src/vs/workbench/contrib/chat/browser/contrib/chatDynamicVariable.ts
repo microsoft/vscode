@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { PromptReference } from '../promptReference.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
-import { assertDefined } from '../../../../../base/common/assert.js';
 import { Location } from '../../../../../editor/common/languages.js';
+import { assertDefined } from '../../../../../base/common/assertDefined.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { ChatbotPromptReference } from '../chatbotPromptReference.js';
 
 /**
  * Parse the `data` property of a reference as an `URI`.
@@ -42,7 +42,7 @@ const parseUri = (data: IDynamicVariable['data']): URI | Location => {
 /**
  * TODO: @legomushroom
  */
-export class ChatDynamicVariable extends ChatbotPromptReference implements IDynamicVariable {
+export class ChatDynamicVariable extends PromptReference implements IDynamicVariable {
 	constructor(
 		private readonly reference: IDynamicVariable,
 		fileService: IFileService,
@@ -83,15 +83,4 @@ export class ChatDynamicVariable extends ChatbotPromptReference implements IDyna
 	get modelDescription() {
 		return this.reference.modelDescription;
 	}
-
-	// TODO: @legomushroom - remove?
-	// public override dispose() {
-	// 	if (this.resolveReferencesReady) {
-	// 		// unfortunately, we can't cancel the promise so
-	// 		// all we do here is to delete the reference
-	// 		delete this.resolveReferencesReady;
-	// 	}
-
-	// 	super.dispose();
-	// }
 }

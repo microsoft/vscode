@@ -19,7 +19,7 @@ import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { IBaseChatRequestVariableEntry, IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { ChatbotPromptReference } from '../chatbotPromptReference.js';
+import { PromptReference } from '../promptReference.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
@@ -130,7 +130,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	private _onDidChangeValue = this._register(new Emitter<void>());
 	readonly onDidChangeValue = this._onDidChangeValue.event;
 
-	private chatReference?: ChatbotPromptReference;
+	private chatReference?: PromptReference;
 
 	constructor(
 		private readonly fileService: IFileService,
@@ -203,7 +203,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Get child file references list, if any.
 	 */
 	public get childReferences(): ReadonlyArray<URI> {
 		if (!this.chatReference) {
@@ -215,13 +215,18 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 			.flatten()
 			// remove self from the list
 			.slice(1)
-			// keep only ones that exist on disk
-			.filter((ref) => ref.isFileExists)
+			// keep only ones that resolved successfully
+			.filter((ref) => {
+				return ref.resolveFailed === false;
+			})
 			// convert to URIs
 			.map((child) => child.uri);
 	}
 
-	setValue(
+	/**
+	 * Set value of the implicit context or remove it if `undefined` is provided.
+	 */
+	public setValue(
 		value: Location | URI | undefined,
 		isSelection: boolean,
 	) {
@@ -233,12 +238,15 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 
 		// if a `URI` is provided but no chat reference exists, create it
 		if (value && !this.chatReference) {
-			this.chatReference = this._register(new ChatbotPromptReference(
+			this.chatReference = this._register(new PromptReference(
 				value,
 				this.fileService,
 			));
 
-			// start resolving the chat references immediately
+			// start resolving the chat references immediately and
+			// subscribe to filesystem changes for the file reference
+			// TODO: @legomushroom - can we have non-file references here?
+			this.chatReference.addFilesystemListeners();
 			this.chatReference.resolve();
 
 			// subscribe to updates of the chat reference
