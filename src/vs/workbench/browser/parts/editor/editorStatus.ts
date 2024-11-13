@@ -471,24 +471,18 @@ class EditorStatus extends Disposable {
 	}
 
 	private updateInputModeElement(inputMode: 'overtype' | 'insert' | undefined): void {
-		if (!!inputMode) {
-			const getStatusBarEntry = (inputMode: 'overtype' | 'insert'): IStatusbarEntry => {
-				const text = inputMode === 'overtype' ?
-					localize('inputModeOvertype', 'OVR')
-					: localize('inputModeInsert', 'INS');
-				const name = localize('status.editor.inputMode', "Toggle Input Mode");
-				return {
+		if (!!inputMode && inputMode === 'overtype') {
+			if (!this.inputModeElement.value) {
+				const text = localize('inputModeOvertype', 'OVR');
+				const name = localize('status.editor.enableInsertMode', "Enable Insert Mode");
+				this.inputModeElement.value = this.statusbarService.addEntry({
 					name,
 					text,
 					ariaLabel: text,
 					tooltip: name,
 					command: 'editor.action.toggleOvertypeInsertMode',
-				};
-			};
-			if (!this.inputModeElement.value) {
-				this.inputModeElement.value = this.statusbarService.addEntry(getStatusBarEntry(inputMode), 'status.editor.inputMode', StatusbarAlignment.RIGHT, 100.6);
-			} else {
-				this.inputModeElement.value.update(getStatusBarEntry(inputMode));
+					kind: 'prominent'
+				}, 'status.editor.inputMode', StatusbarAlignment.RIGHT, 100.6);
 			}
 		} else {
 			this.inputModeElement.clear();
