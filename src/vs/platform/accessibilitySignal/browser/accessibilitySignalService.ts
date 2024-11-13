@@ -304,11 +304,11 @@ export class Sound {
 	public static readonly diffLineInserted = Sound.register({ fileName: 'diffLineInserted.mp3' });
 	public static readonly diffLineDeleted = Sound.register({ fileName: 'diffLineDeleted.mp3' });
 	public static readonly diffLineModified = Sound.register({ fileName: 'diffLineModified.mp3' });
-	public static readonly chatRequestSent = Sound.register({ fileName: 'chatRequestSent.mp3' });
-	public static readonly chatResponseReceived1 = Sound.register({ fileName: 'chatResponseReceived1.mp3' });
-	public static readonly chatResponseReceived2 = Sound.register({ fileName: 'chatResponseReceived2.mp3' });
-	public static readonly chatResponseReceived3 = Sound.register({ fileName: 'chatResponseReceived3.mp3' });
-	public static readonly chatResponseReceived4 = Sound.register({ fileName: 'chatResponseReceived4.mp3' });
+	public static readonly requestSent = Sound.register({ fileName: 'requestSent.mp3' });
+	public static readonly responseReceived1 = Sound.register({ fileName: 'responseReceived1.mp3' });
+	public static readonly responseReceived2 = Sound.register({ fileName: 'responseReceived2.mp3' });
+	public static readonly responseReceived3 = Sound.register({ fileName: 'responseReceived3.mp3' });
+	public static readonly responseReceived4 = Sound.register({ fileName: 'responseReceived4.mp3' });
 	public static readonly clear = Sound.register({ fileName: 'clear.mp3' });
 	public static readonly save = Sound.register({ fileName: 'save.mp3' });
 	public static readonly format = Sound.register({ fileName: 'format.mp3' });
@@ -543,7 +543,7 @@ export class AccessibilitySignal {
 
 	public static readonly chatRequestSent = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.chatRequestSent', 'Chat Request Sent'),
-		sound: Sound.chatRequestSent,
+		sound: Sound.requestSent,
 		legacySoundSettingsKey: 'audioCues.chatRequestSent',
 		legacyAnnouncementSettingsKey: 'accessibility.alert.chatRequestSent',
 		announcementMessage: localize('accessibility.signals.chatRequestSent', 'Chat Request Sent'),
@@ -555,14 +555,38 @@ export class AccessibilitySignal {
 		legacySoundSettingsKey: 'audioCues.chatResponseReceived',
 		sound: {
 			randomOneOf: [
-				Sound.chatResponseReceived1,
-				Sound.chatResponseReceived2,
-				Sound.chatResponseReceived3,
-				Sound.chatResponseReceived4
+				Sound.responseReceived1,
+				Sound.responseReceived2,
+				Sound.responseReceived3,
+				Sound.responseReceived4
 			]
 		},
 		settingsKey: 'accessibility.signals.chatResponseReceived'
 	});
+
+	public static readonly codeActionTriggered = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.codeActionRequestTriggered', 'Code Action Request Triggered'),
+		sound: Sound.requestSent,
+		legacySoundSettingsKey: 'audioCues.codeActionRequestTriggered',
+		legacyAnnouncementSettingsKey: 'accessibility.alert.codeActionRequestTriggered',
+		announcementMessage: localize('accessibility.signals.codeActionRequestTriggered', 'Code Action Request Triggered'),
+		settingsKey: 'accessibility.signals.codeActionTriggered',
+	});
+
+	public static readonly codeActionApplied = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.codeActionApplied', 'Code Action Applied'),
+		legacySoundSettingsKey: 'audioCues.codeActionApplied',
+		sound: {
+			randomOneOf: [
+				Sound.responseReceived1,
+				Sound.responseReceived2,
+				Sound.responseReceived3,
+				Sound.responseReceived4
+			]
+		},
+		settingsKey: 'accessibility.signals.codeActionApplied'
+	});
+
 
 	public static readonly progress = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.progress', 'Progress'),

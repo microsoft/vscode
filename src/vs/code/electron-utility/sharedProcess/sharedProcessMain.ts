@@ -326,14 +326,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Extension Management
 		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService, undefined, true));
 		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService, undefined, true));
-
-		if (productService.quality === 'stable') {
-			services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
-		} else {
-			// Do extension signature verification in the main process in insiders
-			services.set(IExtensionSignatureVerificationService, ProxyChannel.toService(mainProcessService.getChannel('signatureVerificationService')));
-		}
-
+		services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
 		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService, undefined, true));
 
 		// Extension Gallery

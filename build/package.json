@@ -5,7 +5,6 @@
   "devDependencies": {
     "@azure/cosmos": "^3",
     "@azure/identity": "^4.2.1",
-    "@azure/storage-blob": "^12.17.0",
     "@electron/get": "^2.0.0",
     "@types/ansi-colors": "^3.2.0",
     "@types/byline": "^4.2.32",
@@ -15,7 +14,6 @@
     "@types/fs-extra": "^9.0.12",
     "@types/glob": "^7.1.1",
     "@types/gulp": "^4.0.17",
-    "@types/gulp-concat": "^0.0.32",
     "@types/gulp-filter": "^3.0.32",
     "@types/gulp-gzip": "^0.0.31",
     "@types/gulp-json-editor": "^2.2.31",
@@ -31,14 +29,11 @@
     "@types/rimraf": "^2.0.4",
     "@types/through": "^0.0.29",
     "@types/through2": "^2.0.36",
-    "@types/tmp": "^0.2.1",
     "@types/workerpool": "^6.4.0",
     "@types/xml2js": "0.0.33",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/vsce": "2.20.1",
     "byline": "^5.0.0",
-    "colors": "^1.4.0",
-    "commander": "^7.0.0",
     "debug": "^4.3.2",
     "electron-osx-sign": "^0.4.16",
     "esbuild": "0.23.0",
@@ -50,7 +45,7 @@
     "source-map": "0.6.1",
     "ternary-stream": "^3.0.0",
     "through2": "^4.0.2",
-    "tmp": "^0.2.1",
+    "tree-sitter": "^0.20.5",
     "vscode-universal-bundler": "^0.1.3",
     "workerpool": "^6.4.0",
     "yauzl": "^2.10.0"
@@ -62,7 +57,6 @@
     "npmCheckJs": "../node_modules/.bin/tsc --noEmit"
   },
   "optionalDependencies": {
-    "tree-sitter": "^0.20.5",
     "tree-sitter-typescript": "^0.20.5",
     "vscode-gulp-watch": "^5.0.3"
   }

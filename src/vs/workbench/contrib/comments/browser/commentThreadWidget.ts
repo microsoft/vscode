@@ -36,7 +36,6 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { LayoutableEditor } from './simpleCommentEditor.js';
-import { DomEmitter } from '../../../../base/browser/event.js';
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
@@ -68,8 +67,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		private _contextKeyService: IContextKeyService,
 		private _scopedInstantiationService: IInstantiationService,
 		private _commentThread: languages.CommentThread<T>,
-		private _pendingComment: string | undefined,
-		private _pendingEdits: { [key: number]: string } | undefined,
+		private _pendingComment: languages.PendingComment | undefined,
+		private _pendingEdits: { [key: number]: languages.PendingComment } | undefined,
 		private _markdownOptions: IMarkdownRendererOptions,
 		private _commentOptions: languages.CommentOptions | undefined,
 		private _containerDelegate: {
@@ -157,14 +156,6 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 
 		this.currentThreadListeners();
-		this._register(new DomEmitter(this.container, 'keydown').event(e => {
-			if (dom.isKeyboardEvent(e) && e.key === 'Escape') {
-				if (Range.isIRange(this.commentThread.range) && isCodeEditor(this._parentEditor)) {
-					this._parentEditor.setSelection(this.commentThread.range);
-				}
-				this.collapse();
-			}
-		}));
 	}
 
 	private _setAriaLabel(): void {
@@ -333,11 +324,11 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		return this._body.getCommentCoords(commentUniqueId);
 	}
 
-	getPendingEdits(): { [key: number]: string } {
+	getPendingEdits(): { [key: number]: languages.PendingComment } {
 		return this._body.getPendingEdits();
 	}
 
-	getPendingComment(): string | undefined {
+	getPendingComment(): languages.PendingComment | undefined {
 		if (this._commentReply) {
 			return this._commentReply.getPendingComment();
 		}
@@ -345,9 +336,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		return undefined;
 	}
 
-	setPendingComment(comment: string) {
-		this._pendingComment = comment;
-		this._commentReply?.setPendingComment(comment);
+	setPendingComment(pending: languages.PendingComment) {
+		this._pendingComment = pending;
+		this._commentReply?.setPendingComment(pending);
 	}
 
 	getDimensions() {
@@ -378,12 +369,15 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		const activeComment = this._body.activeComment;
 		if (activeComment) {
 			return activeComment.submitComment();
-		} else if ((this._commentReply?.getPendingComment()?.length ?? 0) > 0) {
+		} else if ((this._commentReply?.getPendingComment()?.body.length ?? 0) > 0) {
 			return this._commentReply?.submitComment();
 		}
 	}
 
 	collapse() {
+		if (Range.isIRange(this.commentThread.range) && isCodeEditor(this._parentEditor)) {
+			this._parentEditor.setSelection(this.commentThread.range);
+		}
 		this._containerDelegate.collapse();
 	}
 

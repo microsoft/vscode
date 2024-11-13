@@ -11,7 +11,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import type { Position } from '../../../common/core/position.js';
 import type { Range } from '../../../common/core/range.js';
-import type { ViewLinesChangedEvent, ViewScrollChangedEvent } from '../../../common/viewEvents.js';
+import type { ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewScrollChangedEvent } from '../../../common/viewEvents.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { TextureAtlasPage } from '../../gpu/atlas/textureAtlasPage.js';
@@ -40,6 +40,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 	private readonly canvas: HTMLCanvasElement;
 
+	private _initViewportData?: ViewportData[];
 	private _lastViewportData?: ViewportData;
 	private _lastViewLineOptions?: ViewLineOptions;
 
@@ -69,9 +70,18 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		this.canvas = this._viewGpuContext.canvas.domNode;
 
+		// Re-render the following frame after canvas device pixel dimensions change, provided a
+		// new render does not occur.
 		this._register(autorun(reader => {
-			/*const dims = */this._viewGpuContext.canvasDevicePixelDimensions.read(reader);
-			// TODO: Request render, should this just call renderText with the last viewportData
+			this._viewGpuContext.canvasDevicePixelDimensions.read(reader);
+			const lastViewportData = this._lastViewportData;
+			if (lastViewportData) {
+				setTimeout(() => {
+					if (lastViewportData === this._lastViewportData) {
+						this.renderText(lastViewportData);
+					}
+				});
+			}
 		}));
 
 		this.initWebgpu();
@@ -173,15 +183,15 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		// #region Storage buffers
 
-		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._device, this.canvas, atlas));
+		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._viewGpuContext, this._device));
 
 		this._glyphStorageBuffer[0] = this._register(GPULifecycle.createBuffer(this._device, {
-			label: 'Monaco glyph storage buffer',
+			label: 'Monaco glyph storage buffer [0]',
 			size: GlyphStorageBufferInfo.BytesPerEntry * TextureAtlasPage.maximumGlyphCount,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		})).object;
 		this._glyphStorageBuffer[1] = this._register(GPULifecycle.createBuffer(this._device, {
-			label: 'Monaco glyph storage buffer',
+			label: 'Monaco glyph storage buffer [1]',
 			size: GlyphStorageBufferInfo.BytesPerEntry * TextureAtlasPage.maximumGlyphCount,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		})).object;
@@ -285,10 +295,26 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		// endregion Bind group
 
 		this._initialized = true;
+
+		// Render the initial viewport immediately after initialization
+		if (this._initViewportData) {
+			// HACK: Rendering multiple times in the same frame like this isn't ideal, but there
+			//       isn't an easy way to merge viewport data
+			for (const viewportData of this._initViewportData) {
+				this.renderText(viewportData);
+			}
+			this._initViewportData = undefined;
+		}
 	}
 
 	private _updateAtlasStorageBufferAndTexture() {
 		for (const [layerIndex, page] of ViewGpuContext.atlas.pages.entries()) {
+			if (layerIndex >= 2) {
+				// TODO: Support arbitrary number of layers
+				console.log(`Attempt to upload atlas page [${layerIndex}], only 2 are supported currently`);
+				continue;
+			}
+
 			// Skip the update if it's already the latest version
 			if (page.version === this._atlasGpuTextureVersions[layerIndex]) {
 				continue;
@@ -334,12 +360,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		}
 	}
 
-	public static canRender(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): boolean {
-		const d = viewportData.getViewLineRenderingData(lineNumber);
-		// TODO
-		return d.content.indexOf('e') !== -1;
-	}
-
 	public prepareRender(ctx: RenderingContext): void {
 		throw new BugIndicatingError('Should not be called');
 	}
@@ -352,6 +372,11 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		return true;
 	}
 
+	override onLinesDeleted(e: ViewLinesDeletedEvent): boolean {
+		this._renderStrategy.onLinesDeleted(e);
+		return true;
+	}
+
 	override onScrollChanged(e: ViewScrollChangedEvent): boolean {
 		return true;
 	}
@@ -361,6 +386,9 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	public renderText(viewportData: ViewportData): void {
 		if (this._initialized) {
 			return this._renderText(viewportData);
+		} else {
+			this._initViewportData = this._initViewportData ?? [];
+			this._initViewportData.push(viewportData);
 		}
 	}
 
@@ -417,10 +445,23 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			return null;
 		}
 
+		// Resolve tab widths for this line
+		const lineData = viewportData.getViewLineRenderingData(lineNumber);
+		const content = lineData.content;
+		let startColumnResolvedTabWidth = 0;
+		let endColumnResolvedTabWidth = 0;
+		for (let x = 0; x < startColumn - 1; x++) {
+			startColumnResolvedTabWidth += content[x] === '\t' ? lineData.tabSize : 1;
+		}
+		endColumnResolvedTabWidth = startColumnResolvedTabWidth;
+		for (let x = startColumn - 1; x < endColumn - 1; x++) {
+			endColumnResolvedTabWidth += content[x] === '\t' ? lineData.tabSize : 1;
+		}
+
 		// Visible horizontal range in _scaled_ pixels
 		const result = new VisibleRanges(false, [new FloatHorizontalRange(
-			(startColumn - 1) * viewLineOptions.spaceWidth,
-			(endColumn - startColumn - 1) * viewLineOptions.spaceWidth)
+			startColumnResolvedTabWidth * viewLineOptions.spaceWidth,
+			endColumnResolvedTabWidth * viewLineOptions.spaceWidth)
 		]);
 
 		return result;

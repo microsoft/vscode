@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable no-restricted-globals */
-
 (function () {
 
 	type ISandboxConfiguration = import('vs/base/parts/sandbox/common/sandboxTypes.js').ISandboxConfiguration;

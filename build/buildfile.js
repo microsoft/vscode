@@ -36,7 +36,6 @@ exports.workbenchDesktop = [
 	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
 	createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
 	createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
-	createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'),
 	createModuleDescription('vs/workbench/workbench.desktop.main')
 ];
 
@@ -53,7 +52,9 @@ exports.code = [
 	// 'vs/code/node/cli' is not included here because it comes in via ./src/cli.js
 	createModuleDescription('vs/code/node/cliProcessMain'),
 	createModuleDescription('vs/code/electron-utility/sharedProcess/sharedProcessMain'),
-	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
+	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain'),
+	createModuleDescription('vs/code/electron-sandbox/workbench/workbench'),
+	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorer')
 ];
 
 exports.codeWeb = createModuleDescription('vs/code/browser/workbench/workbench');

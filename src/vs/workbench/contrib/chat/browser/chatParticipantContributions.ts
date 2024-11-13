@@ -5,7 +5,9 @@
 
 import { coalesce, isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import * as strings from '../../../../base/common/strings.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -23,7 +25,7 @@ import * as extensionsRegistry from '../../../services/extensions/common/extensi
 import { showExtensionsWithIdsCommandId } from '../../extensions/browser/extensionsActions.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
-import { CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_EXTENSION_INVALID, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED } from '../common/chatContextKeys.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IRawChatParticipantContribution } from '../common/chatParticipantContribTypes.js';
 import { CHAT_VIEW_ID } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from './chatViewPane.js';
@@ -148,10 +150,6 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 						}
 					}
 				},
-				supportsToolReferences: {
-					description: localize('chatParticipantSupportsToolReferences', "Whether this participant supports {0}.", 'ChatRequest#toolReferences'),
-					type: 'boolean'
-				}
 			}
 		}
 	},
@@ -204,7 +202,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						continue;
 					}
 
-					if ((providerDescriptor.defaultImplicitVariables || providerDescriptor.locations || providerDescriptor.supportsModelPicker) && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
+					if ((providerDescriptor.defaultImplicitVariables || providerDescriptor.locations) && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
 						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: chatParticipantAdditions.`);
 						continue;
 					}
@@ -220,54 +218,54 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						examples: string[];
 					}[] = [];
 
-					if (isProposedApiEnabled(extension.description, 'contribChatParticipantDetection')) {
-						if (providerDescriptor.disambiguation?.length) {
-							participantsAndCommandsDisambiguation.push(...providerDescriptor.disambiguation.map((d) => ({
-								...d, category: d.category ?? d.categoryName
-							})));
-						}
-						if (providerDescriptor.commands) {
-							for (const command of providerDescriptor.commands) {
-								if (command.disambiguation?.length) {
-									participantsAndCommandsDisambiguation.push(...command.disambiguation.map((d) => ({
-										...d, category: d.category ?? d.categoryName
-									})));
-								}
+					if (providerDescriptor.disambiguation?.length) {
+						participantsAndCommandsDisambiguation.push(...providerDescriptor.disambiguation.map((d) => ({
+							...d, category: d.category ?? d.categoryName
+						})));
+					}
+					if (providerDescriptor.commands) {
+						for (const command of providerDescriptor.commands) {
+							if (command.disambiguation?.length) {
+								participantsAndCommandsDisambiguation.push(...command.disambiguation.map((d) => ({
+									...d, category: d.category ?? d.categoryName
+								})));
 							}
 						}
 					}
 
-					const store = new DisposableStore();
-					store.add(this._chatAgentService.registerAgent(
-						providerDescriptor.id,
-						{
-							extensionId: extension.description.identifier,
-							publisherDisplayName: extension.description.publisherDisplayName ?? extension.description.publisher, // May not be present in OSS
-							extensionPublisherId: extension.description.publisher,
-							extensionDisplayName: extension.description.displayName ?? extension.description.name,
-							id: providerDescriptor.id,
-							description: providerDescriptor.description,
-							supportsModelPicker: providerDescriptor.supportsModelPicker,
-							when: providerDescriptor.when,
-							metadata: {
-								isSticky: providerDescriptor.isSticky,
-								sampleRequest: providerDescriptor.sampleRequest,
-							},
-							name: providerDescriptor.name,
-							fullName: providerDescriptor.fullName,
-							isDefault: providerDescriptor.isDefault,
-							locations: isNonEmptyArray(providerDescriptor.locations) ?
-								providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
-								[ChatAgentLocation.Panel],
-							slashCommands: providerDescriptor.commands ?? [],
-							disambiguation: coalesce(participantsAndCommandsDisambiguation.flat()),
-							supportsToolReferences: providerDescriptor.supportsToolReferences,
-						} satisfies IChatAgentData));
+					try {
+						const store = new DisposableStore();
+						store.add(this._chatAgentService.registerAgent(
+							providerDescriptor.id,
+							{
+								extensionId: extension.description.identifier,
+								publisherDisplayName: extension.description.publisherDisplayName ?? extension.description.publisher, // May not be present in OSS
+								extensionPublisherId: extension.description.publisher,
+								extensionDisplayName: extension.description.displayName ?? extension.description.name,
+								id: providerDescriptor.id,
+								description: providerDescriptor.description,
+								when: providerDescriptor.when,
+								metadata: {
+									isSticky: providerDescriptor.isSticky,
+									sampleRequest: providerDescriptor.sampleRequest,
+								},
+								name: providerDescriptor.name,
+								fullName: providerDescriptor.fullName,
+								isDefault: providerDescriptor.isDefault,
+								locations: isNonEmptyArray(providerDescriptor.locations) ?
+									providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
+									[ChatAgentLocation.Panel],
+								slashCommands: providerDescriptor.commands ?? [],
+								disambiguation: coalesce(participantsAndCommandsDisambiguation.flat()),
+							} satisfies IChatAgentData));
 
-					this._participantRegistrationDisposables.set(
-						getParticipantKey(extension.description.identifier, providerDescriptor.id),
-						store
-					);
+						this._participantRegistrationDisposables.set(
+							getParticipantKey(extension.description.identifier, providerDescriptor.id),
+							store
+						);
+					} catch (e) {
+						this.logService.error(`Failed to register participant ${providerDescriptor.id}: ${toErrorMessage(e, true)}`);
+					}
 				}
 			}
 
@@ -292,7 +290,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			storageId: viewContainerId,
 			hideIfEmpty: true,
 			order: 100,
-		}, ViewContainerLocation.Sidebar);
+		}, ViewContainerLocation.AuxiliaryBar, { doNotRegisterOpenCommand: true });
 
 		return viewContainer;
 	}
@@ -308,8 +306,24 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			name: { value: name, original: name },
 			canToggleVisibility: false,
 			canMoveView: true,
-			ctorDescriptor: new SyncDescriptor(ChatViewPane),
-			when: ContextKeyExpr.or(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_EXTENSION_INVALID)
+			openCommandActionDescriptor: {
+				id: CHAT_SIDEBAR_PANEL_ID,
+				title: this._viewContainer.title,
+				mnemonicTitle: localize({ key: 'miToggleChat', comment: ['&& denotes a mnemonic'] }, "&&Chat"),
+				keybindings: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
+					}
+				},
+				order: 1
+			},
+			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.Panel }]),
+			when: ContextKeyExpr.or(
+				ChatContextKeys.panelParticipantRegistered,
+				ChatContextKeys.extensionInvalid,
+				ChatContextKeys.setupRunning
+			)
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, this._viewContainer);
 
@@ -320,7 +334,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 	private registerChatEditingView(): IDisposable {
 		const title = localize2('chatEditing.viewContainer.label', "Copilot Edits");
-		const icon = Codicon.requestChanges;
+		const icon = Codicon.editSession;
 		const viewContainerId = CHAT_EDITING_SIDEBAR_PANEL_ID;
 		const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 			id: viewContainerId,
@@ -329,20 +343,32 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [viewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
 			storageId: viewContainerId,
 			hideIfEmpty: true,
-			order: 100,
-		}, ViewContainerLocation.AuxiliaryBar);
+			order: 101,
+		}, ViewContainerLocation.AuxiliaryBar, { doNotRegisterOpenCommand: true });
 
 		const id = 'workbench.panel.chat.view.edits';
 		const viewDescriptor: IViewDescriptor[] = [{
-			id: id,
+			id,
 			containerIcon: viewContainer.icon,
 			containerTitle: title.value,
 			singleViewPaneContainerTitle: title.value,
 			name: { value: title.value, original: title.value },
 			canToggleVisibility: false,
 			canMoveView: true,
-			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ id, title: title.value }, { location: ChatAgentLocation.EditingSession }]),
-			when: CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED
+			openCommandActionDescriptor: {
+				id: viewContainerId,
+				title,
+				mnemonicTitle: localize({ key: 'miToggleEdits', comment: ['&& denotes a mnemonic'] }, "Copilot Ed&&its"),
+				keybindings: {
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
+					linux: {
+						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI
+					}
+				},
+				order: 2
+			},
+			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.EditingSession }]),
+			when: ChatContextKeys.editingParticipantRegistered
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, viewContainer);
 
@@ -371,7 +397,7 @@ export class ChatCompatibilityNotifier extends Disposable implements IWorkbenchC
 
 		// It may be better to have some generic UI for this, for any extension that is incompatible,
 		// but this is only enabled for Copilot Chat now and it needs to be obvious.
-		const isInvalid = CONTEXT_CHAT_EXTENSION_INVALID.bindTo(contextKeyService);
+		const isInvalid = ChatContextKeys.extensionInvalid.bindTo(contextKeyService);
 		this._register(Event.runAndSubscribe(
 			extensionsWorkbenchService.onDidChangeExtensionsNotification,
 			() => {
@@ -400,7 +426,7 @@ export class ChatCompatibilityNotifier extends Disposable implements IWorkbenchC
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		this._register(viewsRegistry.registerViewWelcomeContent(CHAT_VIEW_ID, {
 			content: [mainMessage, commandButton, versionMessage].join('\n\n'),
-			when: CONTEXT_CHAT_EXTENSION_INVALID,
+			when: ChatContextKeys.extensionInvalid,
 		}));
 	}
 }
