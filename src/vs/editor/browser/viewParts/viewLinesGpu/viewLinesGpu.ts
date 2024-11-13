@@ -11,7 +11,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import type { Position } from '../../../common/core/position.js';
 import type { Range } from '../../../common/core/range.js';
-import type { ViewLinesChangedEvent, ViewScrollChangedEvent } from '../../../common/viewEvents.js';
+import type { ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewScrollChangedEvent } from '../../../common/viewEvents.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { TextureAtlasPage } from '../../gpu/atlas/textureAtlasPage.js';
@@ -70,9 +70,18 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		this.canvas = this._viewGpuContext.canvas.domNode;
 
+		// Re-render the following frame after canvas device pixel dimensions change, provided a
+		// new render does not occur.
 		this._register(autorun(reader => {
-			/*const dims = */this._viewGpuContext.canvasDevicePixelDimensions.read(reader);
-			// TODO: Request render, should this just call renderText with the last viewportData
+			this._viewGpuContext.canvasDevicePixelDimensions.read(reader);
+			const lastViewportData = this._lastViewportData;
+			if (lastViewportData) {
+				setTimeout(() => {
+					if (lastViewportData === this._lastViewportData) {
+						this.renderText(lastViewportData);
+					}
+				});
+			}
 		}));
 
 		this.initWebgpu();
@@ -174,7 +183,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		// #region Storage buffers
 
-		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._device, this.canvas, atlas));
+		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._viewGpuContext, this._device));
 
 		this._glyphStorageBuffer[0] = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco glyph storage buffer [0]',
@@ -351,12 +360,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		}
 	}
 
-	public static canRender(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): boolean {
-		const d = viewportData.getViewLineRenderingData(lineNumber);
-		// TODO
-		return d.content.indexOf('e') !== -1;
-	}
-
 	public prepareRender(ctx: RenderingContext): void {
 		throw new BugIndicatingError('Should not be called');
 	}
@@ -366,6 +369,11 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	}
 
 	override onLinesChanged(e: ViewLinesChangedEvent): boolean {
+		return true;
+	}
+
+	override onLinesDeleted(e: ViewLinesDeletedEvent): boolean {
+		this._renderStrategy.onLinesDeleted(e);
 		return true;
 	}
 
@@ -437,10 +445,23 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			return null;
 		}
 
+		// Resolve tab widths for this line
+		const lineData = viewportData.getViewLineRenderingData(lineNumber);
+		const content = lineData.content;
+		let startColumnResolvedTabWidth = 0;
+		let endColumnResolvedTabWidth = 0;
+		for (let x = 0; x < startColumn - 1; x++) {
+			startColumnResolvedTabWidth += content[x] === '\t' ? lineData.tabSize : 1;
+		}
+		endColumnResolvedTabWidth = startColumnResolvedTabWidth;
+		for (let x = startColumn - 1; x < endColumn - 1; x++) {
+			endColumnResolvedTabWidth += content[x] === '\t' ? lineData.tabSize : 1;
+		}
+
 		// Visible horizontal range in _scaled_ pixels
 		const result = new VisibleRanges(false, [new FloatHorizontalRange(
-			(startColumn - 1) * viewLineOptions.spaceWidth,
-			(endColumn - startColumn - 1) * viewLineOptions.spaceWidth)
+			startColumnResolvedTabWidth * viewLineOptions.spaceWidth,
+			endColumnResolvedTabWidth * viewLineOptions.spaceWidth)
 		]);
 
 		return result;
