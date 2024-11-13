@@ -579,10 +579,10 @@ class BuiltinDynamicCompletions extends Disposable {
 		// RELATED FILES
 		if (widget.location === ChatAgentLocation.EditingSession && widget.viewModel && this._chatEditingService.currentEditingSessionObs.get()?.chatSessionId === widget.viewModel?.sessionId) {
 			for (const relatedFile of (await this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), token) ?? [])) {
-				if (seen.has(relatedFile)) {
+				if (seen.has(relatedFile.uri)) {
 					continue;
 				}
-				result.suggestions.push(makeFileCompletionItem(relatedFile));
+				result.suggestions.push(makeFileCompletionItem(relatedFile.uri));
 			}
 		}
 

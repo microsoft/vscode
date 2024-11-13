@@ -15,7 +15,6 @@ import type { ViewLineRenderingData } from '../../common/viewModel.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
 import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
 import type { ITextureAtlasPageGlyph } from './atlas/atlas.js';
-import type { TextureAtlas } from './atlas/textureAtlas.js';
 import { fullFileRenderStrategyWgsl } from './fullFileRenderStrategy.wgsl.js';
 import { BindingId, type IGpuRenderStrategy } from './gpu.js';
 import { GPULifecycle } from './gpuDisposable.js';
@@ -40,9 +39,6 @@ const enum CellBufferInfo {
 }
 
 export class FullFileRenderStrategy extends Disposable implements IGpuRenderStrategy {
-
-	private static _lineCount = 3000;
-	private static _columnCount = 200;
 
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
@@ -75,9 +71,8 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 
 	constructor(
 		private readonly _context: ViewContext,
+		private readonly _viewGpuContext: ViewGpuContext,
 		private readonly _device: GPUDevice,
-		private readonly _canvas: HTMLCanvasElement,
-		private readonly _atlas: TextureAtlas,
 	) {
 		super();
 
@@ -87,7 +82,7 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 
 		this._glyphRasterizer = this._register(new GlyphRasterizer(fontSize, fontFamily));
 
-		const bufferSize = FullFileRenderStrategy._lineCount * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
+		const bufferSize = this._viewGpuContext.maxGpuLines * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco full file cell buffer',
 			size: bufferSize,
@@ -158,7 +153,7 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 
 		// Update cell data
 		const cellBuffer = new Float32Array(this._cellValueBuffers[this._activeDoubleBufferIndex]);
-		const lineIndexCount = FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
+		const lineIndexCount = this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
 
 		const upToDateLines = this._upToDateLines[this._activeDoubleBufferIndex];
 		let dirtyLineStart = Number.MAX_SAFE_INTEGER;
@@ -170,9 +165,9 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 			const e = queuedBufferUpdates.shift()!;
 
 			// Shift content below deleted line up
-			const deletedLineContentStartIndex = (e.fromLineNumber - 1) * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
-			const deletedLineContentEndIndex = (e.toLineNumber) * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
-			const nullContentStartIndex = (this._finalRenderedLine - (e.toLineNumber - e.fromLineNumber + 1)) * FullFileRenderStrategy._columnCount * Constants.IndicesPerCell;
+			const deletedLineContentStartIndex = (e.fromLineNumber - 1) * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
+			const deletedLineContentEndIndex = (e.toLineNumber) * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
+			const nullContentStartIndex = (this._finalRenderedLine - (e.toLineNumber - e.fromLineNumber + 1)) * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
 			cellBuffer.set(cellBuffer.subarray(deletedLineContentEndIndex), deletedLineContentStartIndex);
 
 			// Zero out content on lines that are no longer valid
@@ -188,6 +183,9 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 
 			// Only attempt to render lines that the GPU renderer can handle
 			if (!ViewGpuContext.canRender(viewLineOptions, viewportData, y)) {
+				fillStartIndex = ((y - 1) * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
+				fillEndIndex = (y * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
+				cellBuffer.fill(0, fillStartIndex, fillEndIndex);
 				continue;
 			}
 
@@ -235,28 +233,26 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 					continue;
 				}
 
-
 				tokenMetadata = tokens.getMetadata(tokenIndex);
 
-				// console.log(`token: start=${tokenStartIndex}, end=${tokenEndIndex}, fg=${colorMap[tokenFg]}`);
-
-
 				for (x = tokenStartIndex; x < tokenEndIndex; x++) {
-					// HACK: Prevent rendering past the end of the render buffer
 					// TODO: This needs to move to a dynamic long line rendering strategy
-					if (x > FullFileRenderStrategy._columnCount) {
+					if (x > this._viewGpuContext.maxGpuCols) {
 						break;
 					}
 					chars = content.charAt(x);
-					if (chars === ' ') {
-						continue;
-					}
-					if (chars === '\t') {
-						xOffset = CursorColumns.nextRenderTabStop(x + xOffset, lineData.tabSize) - x - 1;
+					if (chars === ' ' || chars === '\t') {
+						// Zero out glyph to ensure it doesn't get rendered
+						cellIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + x) * Constants.IndicesPerCell;
+						cellBuffer.fill(0, cellIndex, cellIndex + CellBufferInfo.FloatsPerEntry);
+						// Adjust xOffset for tab stops
+						if (chars === '\t') {
+							xOffset = CursorColumns.nextRenderTabStop(x + xOffset, lineData.tabSize) - x - 1;
+						}
 						continue;
 					}
 
-					glyph = this._atlas.getGlyph(this._glyphRasterizer, chars, tokenMetadata);
+					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer, chars, tokenMetadata);
 
 					// TODO: Support non-standard character widths
 					screenAbsoluteX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);
@@ -268,12 +264,12 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 							Math.floor((viewportData.lineHeight - this._context.configuration.options.get(EditorOption.fontSize)) / 2)
 						) * dpr)
 					);
-					zeroToOneX = screenAbsoluteX / this._canvas.width;
-					zeroToOneY = screenAbsoluteY / this._canvas.height;
+					zeroToOneX = screenAbsoluteX / this._viewGpuContext.canvas.domNode.width;
+					zeroToOneY = screenAbsoluteY / this._viewGpuContext.canvas.domNode.height;
 					wgslX = zeroToOneX * 2 - 1;
 					wgslY = zeroToOneY * 2 - 1;
 
-					cellIndex = ((y - 1) * FullFileRenderStrategy._columnCount + (x + xOffset)) * Constants.IndicesPerCell;
+					cellIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + x) * Constants.IndicesPerCell;
 					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = wgslX;
 					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = -wgslY;
 					cellBuffer[cellIndex + CellBufferInfo.GlyphIndex] = glyph.glyphIndex;
@@ -284,8 +280,8 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 			}
 
 			// Clear to end of line
-			fillStartIndex = ((y - 1) * FullFileRenderStrategy._columnCount + (tokenEndIndex + xOffset)) * Constants.IndicesPerCell;
-			fillEndIndex = (y * FullFileRenderStrategy._columnCount) * Constants.IndicesPerCell;
+			fillStartIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + tokenEndIndex) * Constants.IndicesPerCell;
+			fillEndIndex = (y * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
 			cellBuffer.fill(0, fillStartIndex, fillEndIndex);
 
 			upToDateLines.add(y);
@@ -321,7 +317,7 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 			quadVertices.length / 2,
 			this._visibleObjectCount,
 			undefined,
-			(viewportData.startLineNumber - 1) * FullFileRenderStrategy._columnCount
+			(viewportData.startLineNumber - 1) * this._viewGpuContext.maxGpuCols
 		);
 	}
 

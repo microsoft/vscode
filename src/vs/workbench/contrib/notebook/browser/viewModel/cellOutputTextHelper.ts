@@ -55,7 +55,7 @@ export function getAllOutputsText(notebook: NotebookTextModel, viewCell: ICellVi
 		outputContent = outputText[0] ?? '';
 	}
 
-	return outputContent.trim();
+	return outputContent;
 }
 
 export function getOutputStreamText(output: ICellOutputViewModel): { text: string; count: number } {
@@ -75,7 +75,7 @@ export function getOutputStreamText(output: ICellOutputViewModel): { text: strin
 		count++;
 	}
 
-	return { text, count };
+	return { text: text.trim(), count };
 }
 
 const decoder = new TextDecoder();
@@ -102,7 +102,7 @@ export function getOutputText(mimeType: string, buffer: IOutputItemDto) {
 		}
 	}
 
-	return text;
+	return text.trim();
 }
 
 export async function copyCellOutput(mimeType: string | undefined, outputViewModel: ICellOutputViewModel, clipboardService: IClipboardService, logService: ILogService) {
