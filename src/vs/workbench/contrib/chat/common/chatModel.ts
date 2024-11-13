@@ -42,6 +42,7 @@ export interface IBaseChatRequestVariableEntry {
 	 */
 	isDynamic?: boolean;
 	isFile?: boolean;
+	isDirectory?: boolean;
 	isTool?: boolean;
 	isImage?: boolean;
 }
