@@ -23,6 +23,6 @@ module.exports = withDefaults({
 		extensions: ['.ts', '.js'] // support ts-files and js-files
 	},
 	plugins: [
-		new webpack.IgnorePlugin({ resourceRegExp: /\.\/autocomplete$/, })
+		new webpack.IgnorePlugin({ resourceRegExp: /out[\/\\]autocomplete[\/\\].*\.js$/ })
 	]
 });
