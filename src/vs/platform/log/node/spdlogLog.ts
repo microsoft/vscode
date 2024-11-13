@@ -110,6 +110,10 @@ export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
 	}
 
 	override flush(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+
 		if (this._logger) {
 			this._logger.flush();
 		} else {
