@@ -111,6 +111,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._promptInputModel = undefined;
 			}
 		}));
+		this._register(this._extensionService.onDidChangeExtensions(() => this._hasActivatedExtensions = false));
+		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._hasActivatedExtensions = false));
+		this._register(this._extensionService.onDidChangeResponsiveChange(() => this._hasActivatedExtensions = false));
+		this._register(this._extensionService.onDidRegisterExtensions(() => this._hasActivatedExtensions = false));
 	}
 
 	activate(xterm: Terminal): void {
