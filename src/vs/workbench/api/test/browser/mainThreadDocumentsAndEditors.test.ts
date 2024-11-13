@@ -36,6 +36,7 @@ import { LanguageService } from '../../../../editor/common/services/languageServ
 import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { TestLanguageConfigurationService } from '../../../../editor/test/common/modes/testLanguageConfigurationService.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { IDirtyDiffModelService } from '../../../contrib/scm/browser/diff.js';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -121,6 +122,11 @@ suite('MainThreadDocumentsAndEditors', () => {
 			},
 			new TestPathService(),
 			new TestConfigurationService(),
+			new class extends mock<IDirtyDiffModelService>() {
+				override getOrCreateModel() {
+					return undefined;
+				}
+			}
 		);
 	});
 

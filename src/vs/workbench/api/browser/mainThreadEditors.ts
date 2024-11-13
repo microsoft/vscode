@@ -29,7 +29,7 @@ import { IEditorControl } from '../../common/editor.js';
 import { getCodeEditor, ICodeEditor } from '../../../editor/browser/editorBrowser.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { DirtyDiffContribution } from '../../contrib/scm/browser/dirtydiffDecorator.js';
-import { autorun, autorunWithStore } from '../../../base/common/observable.js';
+import { IDirtyDiffModelService } from '../../contrib/scm/browser/diff.js';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -54,7 +54,8 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IDirtyDiffModelService private readonly _dirtyDiffModelService: IDirtyDiffModelService
 	) {
 		this._instanceId = String(++MainThreadTextEditors.INSTANCE_COUNT);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
@@ -91,42 +92,33 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		const codeEditor = textEditor.getCodeEditor();
 		const codeEditorTextModel = codeEditor?.getModel();
 
-		if (codeEditor && codeEditorTextModel) {
-			const dirtyDiffContribution = codeEditor.getContribution('editor.contrib.dirtydiff') as DirtyDiffContribution | undefined;
+		if (codeEditorTextModel) {
+			const dirtyDiffModel = this._dirtyDiffModelService.getOrCreateModel(codeEditorTextModel);
 
-			toDispose.push(autorunWithStore((reader, store) => {
-				const modelRegistry = dirtyDiffContribution?.modelRegistryObs.read(reader);
-				if (!modelRegistry) {
-					return;
-				}
+			if (dirtyDiffModel) {
+				toDispose.push(dirtyDiffModel.onDidChange(e => {
+					const scmQuickDiff = dirtyDiffModel.quickDiffs.find(diff => diff.isSCM === true);
+					const scmQuickDiffChanges = e.changes.filter(change => change.label === scmQuickDiff?.label);
 
-				modelRegistry.onDidChangeModelsSignal.read(reader);
-				const dirtyDiffModel = modelRegistry.getModel(codeEditorTextModel, codeEditor);
-				if (dirtyDiffModel) {
-					store.add(dirtyDiffModel.onDidChange(e => {
-						const scmQuickDiff = dirtyDiffModel.quickDiffs.find(diff => diff.isSCM === true);
-						const scmQuickDiffChanges = e.changes.filter(change => change.label === scmQuickDiff?.label);
+					const diff: [
+						number /* originalStartLineNumber */,
+						number /* originalEndLineNumber */,
+						number /* modifiedStartLineNumber */,
+						number /* modifiedEndLineNumber */
+					][] = scmQuickDiffChanges.map(change => [
+						change.change.originalStartLineNumber,
+						change.change.originalEndLineNumber,
+						change.change.modifiedStartLineNumber,
+						change.change.modifiedEndLineNumber
+					]);
 
-						const diff: [
-							number /* originalStartLineNumber */,
-							number /* originalEndLineNumber */,
-							number /* modifiedStartLineNumber */,
-							number /* modifiedEndLineNumber */
-						][] = scmQuickDiffChanges.map(change => [
-							change.change.originalStartLineNumber,
-							change.change.originalEndLineNumber,
-							change.change.modifiedStartLineNumber,
-							change.change.modifiedEndLineNumber
-						]);
-
-						this._proxy.$acceptEditorDiffInformation(id, {
-							original: scmQuickDiff?.originalResource,
-							modified: codeEditorTextModel.uri,
-							diff
-						});
-					}));
-				}
-			}));
+					this._proxy.$acceptEditorDiffInformation(id, {
+						original: scmQuickDiff?.originalResource,
+						modified: codeEditorTextModel.uri,
+						diff
+					});
+				}));
+			}
 		}
 
 		this._textEditorsListenersMap[id] = toDispose;
