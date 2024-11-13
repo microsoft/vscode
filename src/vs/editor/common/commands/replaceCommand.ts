@@ -50,7 +50,8 @@ export class ReplaceOvertypeCommand implements ICommand {
 		const rangeEndOffset = model.getOffsetAt(endPosition);
 		const endOffset = rangeEndOffset + this._text.length + (this._range.isEmpty() ? 0 : - 1);
 		const endOfLine = model.getEndOfLineSequence() === EndOfLineSequence.CRLF ? '\r\n' : '\n';
-		const lastCharacter = model.getValueInRange(Range.fromPositions(model.getPositionAt(endOffset - 1), model.getPositionAt(endOffset)));
+		const lastCharacterRange = Range.fromPositions(model.getPositionAt(endOffset - 1), model.getPositionAt(endOffset));
+		const lastCharacter = model.getValueInRange(lastCharacterRange);
 		const newEndOffset = lastCharacter === endOfLine ? endOffset - 1 : endOffset;
 		const replaceRange = Range.fromPositions(startPosition, model.getPositionAt(newEndOffset));
 		builder.addTrackedEditOperation(replaceRange, this._text);
@@ -78,18 +79,17 @@ export class OvertypePasteCommand implements ICommand {
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		const startPosition = this._range.getStartPosition();
 		const endPosition = this._range.getEndPosition();
-		const endLine = endPosition.lineNumber;
+		const endLineNumber = endPosition.lineNumber;
 		const potentialEndOffset = model.getOffsetAt(endPosition) + this._text.length + (this._range.isEmpty() ? 0 : - 1);
 		const potentialEndPosition = model.getPositionAt(potentialEndOffset);
 		let newEndPosition: Position;
-		if (potentialEndPosition.lineNumber > endLine) {
-			const endLineMaxColumn = model.getLineMaxColumn(endLine);
-			newEndPosition = new Position(endLine, endLineMaxColumn);
+		if (potentialEndPosition.lineNumber > endLineNumber) {
+			newEndPosition = new Position(endLineNumber, model.getLineMaxColumn(endLineNumber));
 		} else {
 			newEndPosition = potentialEndPosition;
 		}
-		const range = Range.fromPositions(startPosition, newEndPosition);
-		builder.addTrackedEditOperation(range, this._text);
+		const replaceRange = Range.fromPositions(startPosition, newEndPosition);
+		builder.addTrackedEditOperation(replaceRange, this._text);
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
@@ -186,8 +186,8 @@ export class ReplaceOvertypeCommandInComposition implements ICommand {
 		if (endPosition.lineNumber > this._range.endLineNumber) {
 			endPosition = new Position(this._range.endLineNumber, model.getLineMaxColumn(this._range.endLineNumber));
 		}
-		const range = Range.fromPositions(startPosition, endPosition);
-		builder.addTrackedEditOperation(range, text);
+		const replaceRange = Range.fromPositions(startPosition, endPosition);
+		builder.addTrackedEditOperation(replaceRange, text);
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {

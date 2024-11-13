@@ -3820,7 +3820,7 @@ declare namespace monaco.editor {
 		 */
 		inputMode?: 'insert' | 'overtype';
 		/**
-		 *  Paste in overtype mode should overwrite.
+		 *  Controls whether paste in overtype mode should overwrite or insert.
 		 */
 		overtypeOnPaste?: boolean;
 	}

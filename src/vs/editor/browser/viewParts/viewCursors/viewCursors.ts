@@ -7,7 +7,7 @@ import './viewCursors.css';
 import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../base/common/async.js';
 import { ViewPart } from '../../view/viewPart.js';
-import { IViewCursorRenderData, ViewCursor, CursorPlurality } from './viewCursor.js';
+import { IViewCursorRenderData, ViewCursor, CursorPlurality, getCursorStyle } from './viewCursor.js';
 import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle, EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import {
@@ -91,9 +91,9 @@ export class ViewCursors extends ViewPart {
 
 		this._editorHasFocus = false;
 		this._updateBlinking();
-		this._setCursorStyle();
+		this._updateCursorStyle();
 		this._register(InputMode.onDidChangeInputMode(() => {
-			this._setCursorStyle();
+			this._updateCursorStyle();
 		}));
 	}
 
@@ -130,7 +130,7 @@ export class ViewCursors extends ViewPart {
 
 		this._updateBlinking();
 		this._updateDomClassName();
-		this._setCursorStyle();
+		this._updateCursorStyle();
 
 		this._primaryCursor.onConfigurationChanged(e);
 		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
@@ -351,10 +351,8 @@ export class ViewCursors extends ViewPart {
 		return result;
 	}
 
-	private _setCursorStyle(): void {
-		const options = this._context.configuration.options;
-		const inputMode = InputMode.getInputMode();
-		this._cursorStyle = inputMode === 'overtype' ? options.get(EditorOption.overtypeCursorStyle) : options.get(EditorOption.cursorStyle);
+	private _updateCursorStyle(): void {
+		this._cursorStyle = getCursorStyle(this._context.configuration.options);
 		this.forceShouldRender();
 		this._viewHelper.renderNow();
 	}

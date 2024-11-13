@@ -785,7 +785,7 @@ export interface IEditorOptions {
 	inputMode?: 'insert' | 'overtype';
 
 	/**
-	 *  Paste in overtype mode should overwrite.
+	 *  Controls whether paste in overtype mode should overwrite or insert.
 	 */
 	overtypeOnPaste?: boolean;
 }
@@ -5877,7 +5877,7 @@ export const EditorOptions = {
 				nls.localize('inputMode.insert', "Insert text at cursor position"),
 				nls.localize('inputMode.overtype', "Replace text at cursor position")
 			],
-			description: nls.localize('inputMode', "Controls how text is inputted, whether it is inserted or it overwrites existing content.")
+			description: nls.localize('inputMode', "Controls whether new text is inserted or it replaces existing text, at the cursor position.")
 		}
 	)),
 	letterSpacing: register(new EditorFloatOption(

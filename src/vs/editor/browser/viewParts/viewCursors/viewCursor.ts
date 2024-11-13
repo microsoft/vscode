@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
 import * as strings from '../../../../base/common/strings.js';
 import { applyFontInfo } from '../../config/domFontInfo.js';
-import { TextEditorCursorStyle, EditorOption } from '../../../common/config/editorOptions.js';
+import { TextEditorCursorStyle, EditorOption, IComputedEditorOptions } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
@@ -66,7 +66,6 @@ export class ViewCursor extends Disposable {
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 
-		this._setCursorStyle();
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
@@ -89,8 +88,9 @@ export class ViewCursor extends Disposable {
 		this._lastRenderedContent = '';
 		this._renderData = null;
 
+		this._updateCursorStyle();
 		this._register(InputMode.onDidChangeInputMode(() => {
-			this._setCursorStyle();
+			this._updateCursorStyle();
 		}));
 	}
 
@@ -137,7 +137,7 @@ export class ViewCursor extends Disposable {
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 
-		this._setCursorStyle();
+		this._updateCursorStyle();
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
@@ -241,10 +241,8 @@ export class ViewCursor extends Disposable {
 		return new ViewCursorRenderData(top, range.left, 0, width, height, textContent, textContentClassName);
 	}
 
-	private _setCursorStyle(): void {
-		const options = this._context.configuration.options;
-		const inputMode = InputMode.getInputMode();
-		this._cursorStyle = inputMode === 'overtype' ? options.get(EditorOption.overtypeCursorStyle) : options.get(EditorOption.cursorStyle);
+	private _updateCursorStyle(): void {
+		this._cursorStyle = getCursorStyle(this._context.configuration.options);
 	}
 
 	private _getTokenClassName(position: Position): string {
@@ -286,4 +284,10 @@ export class ViewCursor extends Disposable {
 			width: 2
 		};
 	}
+}
+
+export function getCursorStyle(options: IComputedEditorOptions) {
+	return InputMode.getInputMode() === 'overtype' ?
+		options.get(EditorOption.overtypeCursorStyle) :
+		options.get(EditorOption.cursorStyle);
 }
