@@ -6,7 +6,7 @@
 import { $, append } from '../../dom.js';
 import { format } from '../../../common/strings.js';
 import './countBadge.css';
-import { Disposable, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 
 export interface ICountBadgeOptions {
@@ -33,7 +33,7 @@ export class CountBadge extends Disposable {
 	private count: number = 0;
 	private countFormat: string;
 	private titleFormat: string;
-	private hover: IDisposable | undefined;
+	private readonly hover = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(container: HTMLElement, private readonly options: ICountBadgeOptions, private readonly styles: ICountBadgeStyles) {
 
@@ -63,11 +63,10 @@ export class CountBadge extends Disposable {
 	}
 
 	private updateHover(): void {
-		if (this.titleFormat !== '' && !this.hover) {
-			this.hover = getBaseLayerHoverDelegate().setupDelayedHoverAtMouse(this.element, () => ({ content: format(this.titleFormat, this.count), appearance: { compact: true } }));
-		} else if (this.titleFormat === '' && this.hover) {
-			this.hover?.dispose();
-			this.hover = undefined;
+		if (this.titleFormat !== '' && !this.hover.value) {
+			this.hover.value = getBaseLayerHoverDelegate().setupDelayedHoverAtMouse(this.element, () => ({ content: format(this.titleFormat, this.count), appearance: { compact: true } }));
+		} else if (this.titleFormat === '' && this.hover.value) {
+			this.hover.value = undefined;
 		}
 	}
 
@@ -80,10 +79,5 @@ export class CountBadge extends Disposable {
 		if (this.styles.badgeBorder) {
 			this.element.style.border = `1px solid ${this.styles.badgeBorder}`;
 		}
-	}
-
-	public override dispose(): void {
-		this.hover?.dispose();
-		super.dispose();
 	}
 }
