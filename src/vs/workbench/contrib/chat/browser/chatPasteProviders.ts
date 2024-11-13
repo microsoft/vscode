@@ -19,7 +19,6 @@ import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { Mimes } from '../../../../base/common/mime.js';
-import { IAttachmentEdit } from '../../bulkEdit/browser/bulkEditService.js';
 
 export class PasteImageProvider implements DocumentPasteEditProvider {
 
@@ -90,7 +89,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const customEdit: IAttachmentEdit = {
+		const customEdit = {
 			resource: model.uri,
 			variable: imageContext,
 			undo: () => {
@@ -226,7 +225,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const customEdit: IAttachmentEdit = {
+		const customEdit = {
 			resource: model.uri,
 			variable: copiedContext,
 			undo: () => {
