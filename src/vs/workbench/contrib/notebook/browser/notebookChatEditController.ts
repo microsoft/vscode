@@ -49,6 +49,7 @@ import { DefaultLineHeight } from './diff/diffElementViewModel.js';
 import { filter } from '../../../../base/common/objects.js';
 import { INotebookEditorModelResolverService } from '../common/notebookEditorModelResolverService.js';
 import { SaveReason } from '../../../common/editor.js';
+import { IChatService } from '../../chat/common/chatService.js';
 
 
 export const INotebookOriginalModelReferenceFactory = createDecorator<INotebookOriginalModelReferenceFactory>('INotebookOriginalModelReferenceFactory');
@@ -128,9 +129,15 @@ class NotebookChatEditorController extends Disposable {
 			}));
 			store.add(notebookSynchronizer.onDidRevert(e => {
 				if (e) {
+					notebookDiff.set(undefined, undefined);
 					disposeDecorators();
 					this.deletedCellOverlayer.clear();
 				}
+			}));
+			store.add(notebookSynchronizer.onDidAccept(() => {
+				notebookDiff.set(undefined, undefined);
+				disposeDecorators();
+				this.deletedCellOverlayer.clear();
 			}));
 			const result = this._register(await this.originalModelRefFactory.getOrCreate(entry, model.viewType));
 			originalModel.set(result.object, undefined);
@@ -181,7 +188,7 @@ class NotebookChatEditorController extends Disposable {
 				return;
 			}
 			if (!diffInfo) {
-				// User reverted the changes, hence original === modified.
+				// User reverted or accepted the changes, hence original === modified.
 				this.deletedCellOverlayer.clear();
 				return;
 			}
@@ -457,6 +464,8 @@ class NotebookModelSynchronizer extends Disposable {
 	public readonly onDidUpdateNotebookModel = this._onDidUpdateNotebookModel.event;
 	private readonly _onDidRevert = this._register(new Emitter<boolean>());
 	public readonly onDidRevert = this._onDidRevert.event;
+	private readonly _onDidAccept = this._register(new Emitter<void>());
+	public readonly onDidAccept = this._onDidAccept.event;
 	private snapshot?: { bytes: VSBuffer; dirty: boolean };
 	private isEditFromUs: boolean = false;
 	constructor(
@@ -464,12 +473,29 @@ class NotebookModelSynchronizer extends Disposable {
 		public readonly entry: IModifiedFileEntry,
 		private readonly viewType: string,
 		@INotebookService private readonly notebookService: INotebookService,
+		@IChatService chatService: IChatService,
 		@INotebookLoggingService private readonly logService: INotebookLoggingService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
 		@INotebookEditorModelResolverService private readonly notebookModelResolverService: INotebookEditorModelResolverService,
 	) {
 		super();
+
+		this._register(chatService.onDidPerformUserAction(async e => {
+			if (e.action.kind === 'chatEditingSessionAction' && !e.action.hasRemainingEdits && isEqual(e.action.uri, entry.modifiedURI)) {
+				if (e.action.outcome === 'accepted') {
+					await this.accept();
+					await this.createSnapshot();
+					this._onDidAccept.fire();
+				}
+				else if (e.action.outcome === 'rejected') {
+					if (await this.revert()) {
+						this._onDidRevert.fire(true);
+					}
+				}
+			}
+		}));
+
 		const cancellationTokenStore = this._register(new DisposableStore());
 		let cancellationToken = cancellationTokenStore.add(new CancellationTokenSource());
 		const updateNotebookModel = (entry: IModifiedFileEntry, viewType: string, token: CancellationToken) => {
@@ -477,10 +503,12 @@ class NotebookModelSynchronizer extends Disposable {
 		};
 		const modelObs = observableFromEvent(notebookEditor.onDidChangeModel, e => e);
 		const modifiedModel = (entry as ChatEditingModifiedFileEntry).modifiedModel;
-		this._register(modifiedModel.onDidChangeContent(() => {
+		this._register(modifiedModel.onDidChangeContent(async () => {
 			cancellationTokenStore.clear();
 			if (!modifiedModel.isDisposed() && !entry.originalModel.isDisposed() && modifiedModel.getValue() === entry.originalModel.getValue()) {
-				this.revert();
+				if (await this.revert()) {
+					this._onDidRevert.fire(true);
+				}
 				return;
 			}
 			cancellationToken = cancellationTokenStore.add(new CancellationTokenSource());
@@ -555,27 +583,40 @@ class NotebookModelSynchronizer extends Disposable {
 		}
 	}
 
-	public async revert(): Promise<void> {
-		if (!this.snapshot || !this.notebookEditor.textModel) {
+	private async revert(): Promise<boolean> {
+		if (!this.snapshot) {
+			return false;
+		}
+		await this.updateNotebook(this.snapshot.bytes, this.snapshot.dirty);
+		return true;
+	}
+
+	private async updateNotebook(bytes: VSBuffer, dirty: boolean) {
+		if (!this.notebookEditor.textModel) {
 			return;
 		}
 
 		const ref = await this.notebookModelResolverService.resolve(this.notebookEditor.textModel.uri);
 		try {
 			const serializer = await this.getNotebookSerializer();
-			const data = await serializer.dataToNotebook(this.snapshot.bytes);
+			const data = await serializer.dataToNotebook(bytes);
 			this.notebookEditor.textModel.reset(data.cells, data.metadata, serializer.options);
 
-			if (!this.snapshot.dirty) {
+			if (!dirty) {
 				// save the file after discarding so that the dirty indicator goes away
 				// and so that an intermediate saved state gets reverted
 				// await this.notebookEditor.textModel.save({ reason: SaveReason.EXPLICIT });
 				await ref.object.save({ reason: SaveReason.EXPLICIT });
 			}
-			this._onDidRevert.fire(true);
 		} finally {
 			ref.dispose();
 		}
+	}
+
+	private async accept() {
+		const modifiedModel = (this.entry as ChatEditingModifiedFileEntry).modifiedModel;
+		const content = modifiedModel.getValue();
+		await this.updateNotebook(VSBuffer.fromString(content), false);
 	}
 
 	async getNotebookSerializer() {
