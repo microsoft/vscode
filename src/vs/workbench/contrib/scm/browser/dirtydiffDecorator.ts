@@ -59,7 +59,6 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { IQuickDiffService, QuickDiff } from '../common/quickDiff.js';
 import { IQuickDiffSelectItem, SwitchQuickDiffBaseAction, SwitchQuickDiffViewItem } from './dirtyDiffSwitcher.js';
 import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
-import { IObservable, IObservableSignal, observableSignal, observableValue } from '../../../../base/common/observable.js';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -73,13 +72,11 @@ class DiffActionRunner extends ActionRunner {
 }
 
 export interface IModelRegistry {
-	readonly onDidChangeModelsSignal: IObservableSignal<void>;
 	getModel(editorModel: IEditorModel, codeEditor: ICodeEditor): DirtyDiffModel | undefined;
 }
 
 export interface DirtyDiffContribution extends IEditorContribution {
 	getChanges(): IChange[];
-	readonly modelRegistryObs: IObservable<IModelRegistry | null>;
 }
 
 export const isDirtyDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
@@ -706,7 +703,6 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 	}
 
 	modelRegistry: IModelRegistry | null = null;
-	readonly modelRegistryObs = observableValue<IModelRegistry | null>(this, null);
 
 	private model: DirtyDiffModel | null = null;
 	private widget: DirtyDiffWidget | null = null;
@@ -1534,8 +1530,6 @@ interface IViewState {
 
 export class DirtyDiffWorkbenchController extends Disposable implements ext.IWorkbenchContribution, IModelRegistry {
 
-	readonly onDidChangeModelsSignal = observableSignal(this);
-
 	private enabled = false;
 	private viewState: IViewState = { width: 3, visibility: 'always' };
 	private items = new ResourceMap<Map<string, DirtyDiffItem>>(); // resource -> editor id -> DirtyDiffItem
@@ -1645,7 +1639,6 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 
 				if (controller) {
 					controller.modelRegistry = this;
-					controller.modelRegistryObs.set(this, undefined);
 				}
 
 				if (textModel && (!this.items.has(textModel.uri) || !this.items.get(textModel.uri)!.has(editor.getId()))) {
@@ -1658,7 +1651,6 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 							this.items.set(textModel.uri, new Map());
 						}
 						this.items.get(textModel.uri)?.set(editor.getId(), new DirtyDiffItem(dirtyDiffModel, decorator));
-						this.onDidChangeModelsSignal.trigger(undefined);
 					}
 				}
 			}
@@ -1673,7 +1665,6 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 						item.delete(editorId);
 						if (item.size === 0) {
 							this.items.delete(uri);
-							this.onDidChangeModelsSignal.trigger(undefined);
 						}
 					}
 				}
