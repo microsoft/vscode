@@ -8,7 +8,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { PromptReference } from '../../browser/promptReference.js';
+import { PromptFileReference } from '../../browser/promptFileReference.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -115,7 +115,7 @@ suite('ChatbotPromptReference', function () {
 		// 	)),
 		// ];
 
-		const reference = new PromptReference(
+		const reference = new PromptFileReference(
 			URI.file(`/${filesStructure.name}/file2.txt`),
 			fileService,
 		);

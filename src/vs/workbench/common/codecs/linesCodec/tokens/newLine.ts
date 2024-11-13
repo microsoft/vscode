@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Line } from './line.js';
 import { RangedToken } from '../../rangedToken.js';
-import { Line } from '../../linesCodec/tokens/line.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 
@@ -13,13 +13,6 @@ import { Position } from '../../../../../editor/common/core/position.js';
  * The `range` reflects the position of the token in the original data.
  */
 export class NewLine extends RangedToken {
-	/**
-	 * Return a string representation of the token.
-	 */
-	public override toString(): string {
-		return `newline${this.range}`;
-	}
-
 	// TODO: @legomushroom
 	public static newOnLine(
 		// TODO: @legomushroom
@@ -36,5 +29,19 @@ export class NewLine extends RangedToken {
 		return new NewLine(
 			Range.fromPositions(startPosition, endPosition),
 		);
+	}
+
+	/**
+	 * Check if this token is equal to another one.
+	 */
+	public equals(other: NewLine): boolean {
+		return super.sameRange(other.range);
+	}
+
+	/**
+	 * Return a string representation of the token.
+	 */
+	public override toString(): string {
+		return `newline${this.range}`;
 	}
 }

@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Set of tokens that are handled by the `SimpleCodec`.
+ * Set of tokens that are handled by the `LinesCodec`.
  */
 
-import { Tab } from './tab.js';
-import { Word } from './word.js';
-import { Space } from './space.js';
-import { NewLine } from '../../linesCodec/tokens/newLine.js';
+import { Line } from './line.js';
+import { NewLine } from './newLine.js';
 
-export { Word, Space, Tab, NewLine };
+export { Line, NewLine };

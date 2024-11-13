@@ -7,75 +7,69 @@ import { URI } from '../../../../base/common/uri.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Location } from '../../../../editor/common/languages.js';
+import { FileOpenFailed, RecursiveReference } from './promptFileReferenceErrors.js';
 import { ChatbotPromptCodec } from '../../../common/codecs/chatbotPromptCodec/chatbotPromptCodec.js';
 import { FileChangesEvent, FileChangeType, IFileService, IFileStreamContent } from '../../../../platform/files/common/files.js';
 
 /**
  * TODO: @legomushroom
- *  - subscribe to child updates inside `PromptReference`
  *  - improve LineDecoder to also emit `newline` tokens
- *  - handle recursive child references, add `error conditions` attribute to prompt reference
+ *  - handle recursive child references
  *  - use cancellation tokens
  *  - add tracing/telemetry
  *  - add unit tests
- *  - add docs
+ *  - add more docs
  */
-
-// TODO: @legomushroom - move out the error classes to a separate file
-
-/**
- * Base resolve error class used when file reference resolution fails.
- */
-abstract class ResolveError extends Error { }
-
-/**
- * Error that reflects the case when attempt to open target file fails.
- */
-export class FileOpenFailed extends ResolveError {
-	constructor(
-		public readonly uri: URI,
-		public readonly originalError: unknown,
-	) {
-		super(`Failed to open file '${uri.toString()}'.`);
-	}
-}
-
-/**
- * Error that reflects the case when attempt resolve nested file
- * references failes due to a recursive reference, e.g.,
- *
- * ```markdown
- * // a.md
- * #file:b.md
- * ```
- *
- * ```markdown
- * // b.md
- * #file:a.md
- * ```
- */
-// TODO: @legomushroom - put this to good use
-export class RecursiveReference extends ResolveError {
-	constructor(
-		public readonly uri: URI,
-		public readonly originalError: unknown,
-	) {
-		// TODO: @legomushroom - add more details re the recursion
-		super(`File '${uri.toString()}' contains recursive references.`);
-	}
-}
 
 /**
  * Error conditions that may happen during the file reference resolution.
  */
 export type TErrorCondition = FileOpenFailed | RecursiveReference;
 
-// TODO: @legomushroom - subscribe to child updates
-
 /**
- * TODO: @legomushroom
+ * Represents a file reference in the chatbot prompt, e.g. `#file:./path/to/file.md`.
+ * Contains logic to resolve all nested file references in the target file and all
+ * referenced child files recursively, if any.
+ *
+ * ## Examples
+ *
+ * ```typescript
+ * const fileReference = new PromptFileReference(
+ * 	 URI.file('/path/to/file.md'),
+ * 	 fileService,
+ * );
+ *
+ * // subscribe to updates to the file reference tree
+ * fileReference.onUpdate(() => {
+ * 	 // .. do something with the file reference tree ..
+ * 	 // e.g. get URIs of all resolved file references in the tree
+ * 	 const resolved = fileReference
+ * 		// get all file references as a flat array
+ * 		.flatten()
+ * 		// remove self from the list if only child references are needed
+ * 		.slice(1)
+ * 		// filter out unresolved references
+ * 		.filter(reference => reference.resolveFailed === flase)
+ * 		// convert to URIs only
+ * 		.map(reference => reference.uri);
+ *
+ * 	 console.log(resolved);
+ * });
+ *
+ * // *optional* if need to re-resolve file references when target files change
+ * // note that this does not sets up filesystem listeners for nested file references
+ * fileReference.addFilesystemListeners();
+ *
+ * // start resolving the file reference tree; this can also be `await`ed if needed
+ * // to wait for the resolution on the main file reference to complete (the nested
+ * // references can still be resolving in the background)
+ * fileReference.resolve();
+ *
+ * // don't forget to dispose when no longer needed!
+ * fileReference.dispose();
+ * ```
  */
-export class PromptReference extends Disposable {
+export class PromptFileReference extends Disposable {
 	/**
 	 * Chatbot prompt message codec helps to parse out prompt syntax.
 	 */
@@ -84,7 +78,7 @@ export class PromptReference extends Disposable {
 	/**
 	 * Child references of the current one.
 	 */
-	private readonly children: PromptReference[] = [];
+	private readonly children: PromptFileReference[] = [];
 
 	private readonly _onUpdate = this._register(new Emitter<void>());
 	/**
@@ -197,7 +191,6 @@ export class PromptReference extends Disposable {
 	 * Resolve the current file reference on the disk and
 	 * all nested file references that may exist in the file.
 	 */
-	// TODO: @legomushroom - use only one current `resolve` call at a time
 	// TODO: @legomushroom - add cancellation token
 	public async resolve(): Promise<this> {
 		// remove current error condition from the previous resolve attempt, if any
@@ -225,20 +218,23 @@ export class PromptReference extends Disposable {
 		//		 explicitly in the `dispose` override method of this class. This is done to prevent
 		//       the disposables store to be littered with already-disposed child instances due to
 		// 		 the fact that the `resolve` method can be called multiple times on target file changes
-		const children = [];
 		for (const reference of references) {
-			const child = new PromptReference(
+			const child = new PromptFileReference(
 				URI.joinPath(this.parentFolder, reference.path), // TODO: unit test the absolute paths
 				this.fileService
 			);
 
-			children.push(child.resolve());
+			// subscribe to child updates
+			// TODO: @legomushroom - throttle the child update events
+			this._register(child.onUpdate(
+				this._onUpdate.fire.bind(this._onUpdate),
+			));
+			this.children.push(child);
+
+			// start resolving the child immediately in the background
+			child.resolve();
 		}
 
-		// resolve child references in parallel
-		this.children.push(
-			...(await Promise.all(children)),
-		);
 		this._onUpdate.fire();
 
 		return this;
@@ -253,6 +249,7 @@ export class PromptReference extends Disposable {
 		}
 
 		this.children.length = 0;
+		this._onUpdate.fire();
 
 		return this;
 	}
@@ -260,8 +257,8 @@ export class PromptReference extends Disposable {
 	/**
 	 * Flatten the current file reference tree into a single array.
 	 */
-	public flatten(): PromptReference[] {
-		const result: PromptReference[] = [];
+	public flatten(): PromptFileReference[] {
+		const result: PromptFileReference[] = [];
 
 		// then add self to the result
 		result.push(this);

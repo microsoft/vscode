@@ -19,7 +19,7 @@ import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { IBaseChatRequestVariableEntry, IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { PromptReference } from '../promptReference.js';
+import { PromptFileReference } from '../promptFileReference.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
@@ -130,7 +130,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	private _onDidChangeValue = this._register(new Emitter<void>());
 	readonly onDidChangeValue = this._onDidChangeValue.event;
 
-	private chatReference?: PromptReference;
+	private chatReference?: PromptFileReference;
 
 	constructor(
 		private readonly fileService: IFileService,
@@ -238,7 +238,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 
 		// if a `URI` is provided but no chat reference exists, create it
 		if (value && !this.chatReference) {
-			this.chatReference = this._register(new PromptReference(
+			this.chatReference = this._register(new PromptFileReference(
 				value,
 				this.fileService,
 			));

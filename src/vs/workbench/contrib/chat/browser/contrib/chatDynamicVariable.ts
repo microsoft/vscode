@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { PromptReference } from '../promptReference.js';
+import { PromptFileReference } from '../promptFileReference.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { Location } from '../../../../../editor/common/languages.js';
@@ -42,7 +42,7 @@ const parseUri = (data: IDynamicVariable['data']): URI | Location => {
 /**
  * TODO: @legomushroom
  */
-export class ChatDynamicVariable extends PromptReference implements IDynamicVariable {
+export class ChatDynamicVariable extends PromptFileReference implements IDynamicVariable {
 	constructor(
 		private readonly reference: IDynamicVariable,
 		fileService: IFileService,
