@@ -266,8 +266,6 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 		if (this._lastUserDataTimestamp > SuggestAddon.lastAcceptedCompletionTimestamp) {
 			this._onDidRequestSendText.fire(RequestCompletionsSequence.Contextual);
 		}
-
-		// Check for cancellation again before awaiting the completions promise
 		if (token.isCancellationRequested) {
 			return Promise.resolve(undefined);
 		}
