@@ -57,8 +57,14 @@ declare module 'vscode' {
 		 */
 		isKeyword?: boolean;
 
+		/**
+		 * The index of the start of the range to replace.
+		 */
 		replacementIndex: number;
 
+		/**
+		 * The length of the range to replace.
+		 */
 		replacementLength: number;
 	}
 
