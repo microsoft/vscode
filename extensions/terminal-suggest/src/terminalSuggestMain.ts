@@ -9,15 +9,24 @@ import * as path from 'path';
 import { ExecOptionsWithStringEncoding, execSync } from 'child_process';
 import { FigSpec, Option, Subcommand, Suggestion } from './types';
 
+let cachedAvailableCommands: Set<string> | undefined;
+let cachedCompletionSpecs: FigSpec[] | undefined;
+let cachedBuiltinCommands: Map<string, string[]> | undefined;
+
 function getBuiltinCommands(shell: string): string[] | undefined {
 	try {
 		const shellType = path.basename(shell);
+		const cachedCommands = cachedBuiltinCommands?.get(shellType);
+		if (cachedCommands) {
+			return cachedCommands;
+		}
 		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell };
 		switch (shellType) {
 			case 'bash': {
 				const bashOutput = execSync('compgen -b', options);
 				const bashResult = bashOutput.split('\n').filter(cmd => cmd);
 				if (bashResult.length) {
+					cachedBuiltinCommands?.set(shellType, bashResult);
 					return bashResult;
 				}
 				break;
@@ -26,6 +35,7 @@ function getBuiltinCommands(shell: string): string[] | undefined {
 				const zshOutput = execSync('printf "%s\\n" ${(k)builtins}', options);
 				const zshResult = zshOutput.split('\n').filter(cmd => cmd);
 				if (zshResult.length) {
+					cachedBuiltinCommands?.set(shellType, zshResult);
 					return zshResult;
 				}
 			}
@@ -35,6 +45,7 @@ function getBuiltinCommands(shell: string): string[] | undefined {
 				const fishOutput = execSync('functions -n', options);
 				const fishResult = fishOutput.split(', ').filter(cmd => cmd);
 				if (fishResult.length) {
+					cachedBuiltinCommands?.set(shellType, fishResult);
 					return fishResult;
 				}
 				break;
@@ -65,6 +76,9 @@ async function findFiles(dir: string, ext: string): Promise<string[]> {
 
 
 async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[] | undefined> {
+	if (cachedCompletionSpecs) {
+		return cachedCompletionSpecs;
+	}
 	const completionSpecs: FigSpec[] = [];
 	try {
 		const dirPath = path.resolve(__dirname, 'autocomplete');
@@ -92,6 +106,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[] | un
 	} catch (error) {
 		console.warn(`Error importing completion specs: ${error.message}`);
 	}
+	cachedCompletionSpecs = completionSpecs;
 	return completionSpecs;
 }
 
@@ -102,7 +117,6 @@ vscode.window.registerTerminalCompletionProvider({
 			return;
 		}
 
-		// TODO: Cache available commands
 		const availableCommands = await getCommandsInPath();
 		if (!availableCommands) {
 			return;
@@ -166,6 +180,9 @@ function createCompletionItem(cursorPosition: number, prefix: string, label: str
 }
 
 async function getCommandsInPath(): Promise<Set<string> | undefined> {
+	if (cachedAvailableCommands) {
+		return cachedAvailableCommands;
+	}
 	const paths = os.platform() === 'win32' ? process.env.PATH?.split(';') : process.env.PATH?.split(':');
 	if (!paths) {
 		return;
@@ -189,6 +206,7 @@ async function getCommandsInPath(): Promise<Set<string> | undefined> {
 			continue;
 		}
 	}
+	cachedAvailableCommands = executables;
 	return executables;
 }
 
@@ -203,7 +221,6 @@ function getPrefix(commandLine: string, cursorPosition: number): string | undefi
 
 	// Find the last word boundary before the cursor
 	const match = beforeCursor.match(/\b\w+$/);
-	console.log('match', match, 'before cursor', beforeCursor);
 
 	// Return the match if found, otherwise undefined
 	return match ? match[0] : undefined;
