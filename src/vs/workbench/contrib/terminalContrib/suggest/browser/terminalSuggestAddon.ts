@@ -136,9 +136,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		this._onDidReceiveCompletions.fire();
 
-		const replacementIndices = [...new Set(providedCompletions.filter(p => p.replacementIndex !== undefined).map(c => c.replacementIndex))].sort();
-		// this is of length 1 because all extension providers should have the same replacement index, so we just take the last one
-		const replacementIndex = replacementIndices.length > 0 ? replacementIndices[replacementIndices.length - 1] : 0;
+		// ATM, the two providers calculate the same replacement index / prefix, so we can just take the first one
+		// TODO: figure out if we can add support for multiple replacement indices
+		const replacementIndex = providedCompletions[0].replacementIndex;
+		if (!replacementIndex) {
+			return;
+		}
 		this._providerReplacementIndex = replacementIndex;
 
 		this._currentPromptInputState = {
