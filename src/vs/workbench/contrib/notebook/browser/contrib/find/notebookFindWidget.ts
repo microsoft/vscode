@@ -47,7 +47,7 @@ export class NotebookFindContrib extends Disposable implements INotebookEditorCo
 
 	static readonly id: string = 'workbench.notebook.find';
 
-	private readonly widget: Lazy<NotebookFindWidget>;
+	private readonly _widget: Lazy<NotebookFindWidget>;
 
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
@@ -55,24 +55,29 @@ export class NotebookFindContrib extends Disposable implements INotebookEditorCo
 	) {
 		super();
 
-		this.widget = new Lazy(() => this._register(this.instantiationService.createInstance(NotebookFindWidget, this.notebookEditor)));
+		this._widget = new Lazy(() => this._register(this.instantiationService.createInstance(NotebookFindWidget, this.notebookEditor)));
+	}
+
+	get widget(): NotebookFindWidget {
+		return this._widget.value;
 	}
 
 	show(initialInput?: string, options?: IShowNotebookFindWidgetOptions): Promise<void> {
-		return this.widget.value.show(initialInput, options);
+		return this._widget.value.show(initialInput, options);
 	}
 
 	hide() {
-		this.widget.rawValue?.hide();
+		this._widget.rawValue?.hide();
 	}
 
 	replace(searchString: string | undefined) {
-		return this.widget.value.replace(searchString);
+		return this._widget.value.replace(searchString);
 	}
 }
 
 class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
 	protected _findWidgetFocused: IContextKey<boolean>;
+	private _isFocused: boolean = false;
 	private _showTimeout: number | null = null;
 	private _hideTimeout: number | null = null;
 	private _previousFocusElement?: HTMLElement;
@@ -124,6 +129,13 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		}, true));
 	}
 
+	get findModel(): FindModel {
+		return this._findModel;
+	}
+
+	get isFocused(): boolean {
+		return this._isFocused;
+	}
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 		if (e.equals(KeyCode.Enter)) {
@@ -227,11 +239,13 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 
 	protected onFocusTrackerFocus() {
 		this._findWidgetFocused.set(true);
+		this._isFocused = true;
 	}
 
 	protected onFocusTrackerBlur() {
 		this._previousFocusElement = undefined;
 		this._findWidgetFocused.reset();
+		this._isFocused = false;
 	}
 
 	protected onReplaceInputFocusTrackerFocus(): void {
