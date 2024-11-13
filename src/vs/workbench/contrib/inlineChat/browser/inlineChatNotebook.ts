@@ -67,8 +67,7 @@ export class InlineChatNotebookContribution {
 					return `<notebook>${editor.getId()}#${uri}`;
 				}
 
-				return '';
-				// throw illegalState('Expected notebook editor');
+				throw illegalState('Expected notebook editor');
 			}
 		}));
 
