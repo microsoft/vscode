@@ -482,11 +482,17 @@ class NotebookModelSynchronizer extends Disposable {
 		super();
 
 		this._register(chatService.onDidPerformUserAction(async e => {
-			if (e.action.kind === 'chatEditingSessionAction' && !e.action.hasRemainingEdits
-				&& e.action.outcome === 'accepted' && e.action.uri === entry.modifiedURI) {
-				await this.accept();
-				await this.createSnapshot();
-				this._onDidAccept.fire();
+			if (e.action.kind === 'chatEditingSessionAction' && !e.action.hasRemainingEdits && e.action.uri === entry.modifiedURI) {
+				if (e.action.outcome === 'accepted') {
+					await this.accept();
+					await this.createSnapshot();
+					this._onDidAccept.fire();
+				}
+				else if (e.action.outcome === 'rejected') {
+					if (await this.revert()) {
+						this._onDidRevert.fire(true);
+					}
+				}
 			}
 		}));
 
@@ -497,10 +503,12 @@ class NotebookModelSynchronizer extends Disposable {
 		};
 		const modelObs = observableFromEvent(notebookEditor.onDidChangeModel, e => e);
 		const modifiedModel = (entry as ChatEditingModifiedFileEntry).modifiedModel;
-		this._register(modifiedModel.onDidChangeContent(() => {
+		this._register(modifiedModel.onDidChangeContent(async () => {
 			cancellationTokenStore.clear();
 			if (!modifiedModel.isDisposed() && !entry.originalModel.isDisposed() && modifiedModel.getValue() === entry.originalModel.getValue()) {
-				this.revert();
+				if (await this.revert()) {
+					this._onDidRevert.fire(true);
+				}
 				return;
 			}
 			cancellationToken = cancellationTokenStore.add(new CancellationTokenSource());
@@ -575,12 +583,12 @@ class NotebookModelSynchronizer extends Disposable {
 		}
 	}
 
-	public async revert(): Promise<void> {
-		if (!this.snapshot || !this.notebookEditor.textModel) {
-			return;
+	private async revert(): Promise<boolean> {
+		if (!this.snapshot) {
+			return false;
 		}
-
 		await this.updateNotebook(this.snapshot.bytes, this.snapshot.dirty);
+		return true;
 	}
 
 	private async updateNotebook(bytes: VSBuffer, dirty: boolean) {
@@ -600,7 +608,6 @@ class NotebookModelSynchronizer extends Disposable {
 				// await this.notebookEditor.textModel.save({ reason: SaveReason.EXPLICIT });
 				await ref.object.save({ reason: SaveReason.EXPLICIT });
 			}
-			this._onDidRevert.fire(true);
 		} finally {
 			ref.dispose();
 		}
