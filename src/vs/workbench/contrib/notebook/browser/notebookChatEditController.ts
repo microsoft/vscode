@@ -139,12 +139,7 @@ class NotebookChatEditorController extends Disposable {
 			const original = originalModel.read(r);
 			onDidChangeVisibleRanges.read(r);
 
-			if (!entry || !modified || !original || (diffInfo && diffInfo.modelVersion !== modified.versionId)) {
-				return;
-			}
-			if (!diffInfo) {
-				// User reverted the changes, hence original === modified.
-				this.deletedCellOverlayer.clear();
+			if (!entry || !modified || !original || !diffInfo || diffInfo.modelVersion !== modified.versionId) {
 				return;
 			}
 
