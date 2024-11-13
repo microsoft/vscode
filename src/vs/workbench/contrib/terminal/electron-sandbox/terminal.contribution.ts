@@ -40,8 +40,6 @@ registerContextualInstanceAction({
 	title: localize2('workbench.action.terminal.revealInFinder', 'Reveal Current Working Directory in Finder'),
 	run: async (instance, c, accessor) => {
 		const nativeHostService = accessor.get(INativeHostService);
-		// TODO: cwd is empty when the terminal is restore from editor.
-		// const cwd = instance.cwd || instance.initialCwd;
 		const cwd = instance.cwd;
 		if (cwd) {
 			const uri = URI.file(cwd);
