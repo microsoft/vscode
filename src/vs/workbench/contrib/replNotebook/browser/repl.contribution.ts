@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -18,7 +17,6 @@ import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/c
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
 import { localize2 } from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -46,9 +44,8 @@ import { INotebookEditorOptions } from '../../notebook/browser/notebookBrowser.j
 import { NotebookEditorWidget } from '../../notebook/browser/notebookEditorWidget.js';
 import * as icons from '../../notebook/browser/notebookIcons.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
-import { getAllOutputsText } from '../../notebook/browser/viewModel/cellOutputTextHelper.js';
 import { CellEditType, CellKind, NotebookSetting, NotebookWorkingCopyTypeIdentifier, REPL_EDITOR_ID } from '../../notebook/common/notebookCommon.js';
-import { IS_COMPOSITE_NOTEBOOK, MOST_RECENT_REPL_EDITOR, NOTEBOOK_CELL_LIST_FOCUSED } from '../../notebook/common/notebookContextKeys.js';
+import { IS_COMPOSITE_NOTEBOOK, MOST_RECENT_REPL_EDITOR, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../notebook/common/notebookContextKeys.js';
 import { NotebookEditorInputOptions } from '../../notebook/common/notebookEditorInput.js';
 import { INotebookEditorModelResolverService } from '../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
@@ -238,6 +235,11 @@ registerAction2(class extends Action2 {
 				id: MenuId.CommandPalette,
 				when: MOST_RECENT_REPL_EDITOR,
 			},
+			keybinding: [{
+				primary: KeyChord(KeyMod.Alt | KeyCode.End, KeyMod.Alt | KeyCode.End),
+				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT,
+				when: ContextKeyExpr.or(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_CELL_LIST_FOCUSED.negate())
+			}],
 			precondition: MOST_RECENT_REPL_EDITOR
 		});
 	}
@@ -284,33 +286,34 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'repl.readLastExecutionOutput',
-			title: localize2('repl.readMostRecentExecution', 'Read Most Recent Execution Output'),
+			id: 'repl.input.focus',
+			title: localize2('repl.input.focus', 'Focus Input Editor'),
 			category: 'REPL',
-			keybinding: [{
-				primary: KeyChord(KeyMod.Alt | KeyCode.End, KeyMod.Alt | KeyCode.End),
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			}],
 			menu: {
 				id: MenuId.CommandPalette,
 				when: MOST_RECENT_REPL_EDITOR,
 			},
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.or(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_CELL_LIST_FOCUSED.negate()),
-				MOST_RECENT_REPL_EDITOR,
-				CONTEXT_ACCESSIBILITY_MODE_ENABLED)
+			keybinding: [{
+				when: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED),
+				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT,
+				primary: KeyMod.CtrlCmd | KeyCode.DownArrow
+			}, {
+				when: ContextKeyExpr.and(MOST_RECENT_REPL_EDITOR),
+				weight: KeybindingWeight.WorkbenchContrib + 5,
+				primary: KeyChord(KeyMod.Alt | KeyCode.Home, KeyMod.Alt | KeyCode.Home),
+			}]
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: UriComponents): Promise<void> {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const editorControl = editorService.activeEditorPane?.getControl();
 		const contextKeyService = accessor.get(IContextKeyService);
 
-		let notebookEditor: NotebookEditorWidget | undefined;
-		if (editorControl && isReplEditorControl(editorControl)) {
-			notebookEditor = editorControl.notebookEditor;
-		} else {
+		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
+			editorService.activeEditorPane?.focus();
+		}
+		else {
 			const uriString = MOST_RECENT_REPL_EDITOR.getValue(contextKeyService);
 			const uri = uriString ? URI.parse(uriString) : undefined;
 
@@ -320,22 +323,7 @@ registerAction2(class extends Action2 {
 			const replEditor = editorService.findEditors(uri)[0];
 
 			if (replEditor) {
-				const editor = await editorService.openEditor({ resource: uri, options: { preserveFocus: true } }, replEditor.groupId);
-				const editorControl = editor?.getControl();
-
-				if (editorControl && isReplEditorControl(editorControl)) {
-					notebookEditor = editorControl.notebookEditor;
-				}
-			}
-		}
-
-		const viewModel = notebookEditor?.getViewModel();
-		const notebook = notebookEditor?.textModel;
-		if (viewModel && notebook) {
-			const cell = viewModel.getMostRecentlyExecutedCell();
-			if (cell) {
-				const text = getAllOutputsText(notebook, cell);
-				alert(text);
+				await editorService.openEditor({ resource: uri, options: { preserveFocus: false } }, replEditor.groupId);
 			}
 		}
 	}

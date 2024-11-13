@@ -55,7 +55,7 @@ export class NotebookAccessibilityProvider extends Disposable implements IListAc
 				if (this.shouldReadCellOutputs(lastUpdate.state)) {
 					const cell = viewModel.getCellByHandle(lastUpdate.cellHandle);
 					if (cell && cell.outputsViewModels.length) {
-						const text = getAllOutputsText(viewModel.notebookDocument, cell);
+						const text = getAllOutputsText(viewModel.notebookDocument, cell, true);
 						alert(text);
 					}
 				}
