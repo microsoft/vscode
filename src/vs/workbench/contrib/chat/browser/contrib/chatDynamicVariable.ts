@@ -10,11 +10,13 @@ import { IDynamicVariable } from '../../common/chatVariables.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../base/common/assert.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Location } from '../../../../../editor/common/languages.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 
 /**
  * TODO: @legomushroom
  */
+// TODO: @legomushroom - use `ChatbotPromptReference` directly instead?
 export class ChatReference extends Disposable {
 	// Chatbot prompt reference instance for prompt files.
 	private readonly promptSnippetReference?: ChatbotPromptReference;
@@ -34,12 +36,12 @@ export class ChatReference extends Disposable {
 	}
 
 	constructor(
-		protected readonly uri: URI,
+		public readonly _uri: URI | Location,
 		protected readonly fileService: IFileService,
 	) {
 		super();
 
-		if (uri.path.endsWith('.copilot-prompt')) {
+		if (this.uri.path.endsWith('.copilot-prompt')) {
 			// TODO: @legomushroom - subscribe to file changes and re-resolve
 			this.promptSnippetReference = this._register(new ChatbotPromptReference(this.uri, this.fileService));
 			// start resolving the prompt file references immediately
@@ -66,6 +68,21 @@ export class ChatReference extends Disposable {
 		// if not a prompt file, then there are no nested file references to resolve
 		// we use an empty promise to keep the logic simple and consistent for consumers
 		this.resolveReferencesReady = Promise.resolve([]);
+	}
+
+	public get uri(): URI {
+		return this._uri instanceof URI
+			? this._uri
+			: this._uri.uri;
+	}
+
+	/**
+	 * Check if the current chat reference has the given URI.
+	 */
+	public sameUri(other: URI | Location): boolean {
+		const otherUri = other instanceof URI ? other : other.uri;
+
+		return this.uri.toString() === otherUri.toString();
 	}
 
 	// /**
@@ -102,7 +119,7 @@ export class ChatReference extends Disposable {
  *
  * Throws! if the reference is not defined or an invalid `URI`.
  */
-const parseUri = (data: IDynamicVariable['data']): URI => {
+const parseUri = (data: IDynamicVariable['data']): URI | Location => {
 	assertDefined(
 		data,
 		`The reference must have a \`data\` property, got ${data}.`,

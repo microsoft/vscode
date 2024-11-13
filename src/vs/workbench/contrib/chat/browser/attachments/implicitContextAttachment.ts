@@ -62,12 +62,10 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const friendlyName = `${fileBasename} ${fileDirname}`;
 		const ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
 
-		const uriLabel = this.labelService.getUriLabel(file, { relative: true });
 		const currentFile = localize('openEditor', "Current file context");
 		const inactive = localize('enableHint', "disabled");
 		const currentFileHint = currentFile + (this.attachment.enabled ? '' : ` (${inactive})`);
-		// TODO: @legomushroom - add child references to title
-		const title = `${currentFileHint}\n${uriLabel}`;
+		const title = `${currentFileHint}${this.getUriLabel(file)}`;
 		label.setFile(file, {
 			fileKind: FileKind.FILE,
 			hidePath: true,
@@ -77,10 +75,14 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		this.domNode.ariaLabel = ariaLabel;
 		this.domNode.tabIndex = 0;
 
-		const childReferencesSuffix = this.attachment.childReferences
-			? ` (+${this.attachment.childReferences.length} more)`
-			: '';
-		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, `Current file${childReferencesSuffix}`));
+		const hintElement = dom.append(
+			this.domNode,
+			dom.$(
+				'span.chat-implicit-hint',
+				undefined,
+				`Current file${this.getReferencesSuffix()}`,
+			),
+		);
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
 		const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current file context") : localize('enable', "Enable current file context");
@@ -110,5 +112,33 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 				},
 			});
 		}));
+	}
+
+	/**
+	 * If file is a prompt that references other files,
+	 * include number of references in the label.
+	 */
+	private getReferencesSuffix(): string {
+		const referencesCount = this.attachment.childReferences.length;
+
+		return referencesCount
+			? ` (+${referencesCount} more)`
+			: '';
+	}
+
+	/**
+	 *	Get file URIs label.
+	 */
+	private getUriLabel(
+		file: URI,
+	): string {
+		const result = [this.labelService.getUriLabel(file, { relative: true })];
+
+		// if file is a prompt that references other files, add them to the label
+		for (const child of this.attachment.childReferences) {
+			result.push(this.labelService.getUriLabel(child, { relative: true }));
+		}
+
+		return '\n• ' + result.join('\n  • ');
 	}
 }

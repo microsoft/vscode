@@ -113,34 +113,29 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			newValue = undefined;
 		}
 
-		if (!newValue || cancelTokenSource.token.isCancellationRequested) {
+		if (cancelTokenSource.token.isCancellationRequested) {
 			return;
 		}
 
 		const widgets = updateWidget ? [updateWidget] : [...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel), ...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Editor)];
 		for (const widget of widgets) {
-			widget.input.setImplicitContext(newValue, isSelection);
+			if (widget.input.implicitContext) {
+				widget.input.implicitContext.setValue(newValue, isSelection);
+			}
 		}
 	}
 }
 
-export class ChatImplicitContext extends ChatReference implements IChatRequestImplicitVariableEntry {
-	private _onDidChangeValue = new Emitter<void>();
+export class ChatImplicitContext extends Disposable implements IChatRequestImplicitVariableEntry {
+	private _onDidChangeValue = this._register(new Emitter<void>());
 	readonly onDidChangeValue = this._onDidChangeValue.event;
 
-	constructor(
-		value: Location | URI,
-		fileService: IFileService,
-	) {
-		const uri = value instanceof URI ? value : value.uri;
-		super(uri, fileService);
-		this._value = value;
+	private chatReference?: ChatReference;
 
-		// when nested file references are updated (if any),
-		// fire the `onDidChangeValue` too
-		this._register(this.onReferencesUpdated(() => {
-			this._onDidChangeValue.fire();
-		}));
+	constructor(
+		private readonly fileService: IFileService,
+	) {
+		super();
 	}
 
 	get id() {
@@ -192,7 +187,7 @@ export class ChatImplicitContext extends ChatReference implements IChatRequestIm
 		this._isSelection = value;
 	}
 
-	private _value: Location | URI;
+	private _value: Location | URI | undefined;
 	get value() {
 		return this._value;
 	}
@@ -207,10 +202,49 @@ export class ChatImplicitContext extends ChatReference implements IChatRequestIm
 		this._onDidChangeValue.fire();
 	}
 
-	setValue(value: Location | URI, isSelection: boolean) {
+	/**
+	 * TODO: @legomushroom
+	 */
+	public get childReferences(): ReadonlyArray<URI> {
+		if (!this.chatReference?.childReferences) {
+			return [];
+		}
+
+		return this.chatReference.childReferences;
+	}
+
+	setValue(
+		value: Location | URI | undefined,
+		isSelection: boolean,
+	) {
+		// if new value is `undefined` or a new `URI` is provided,
+		// remove existing chat reference
+		if (!value || !this.chatReference?.sameUri(value)) {
+			this.removeChatReference();
+		}
+
+		if (value && !this.chatReference) {
+			this.chatReference = this._register(new ChatReference(value, this.fileService));
+
+			this._register(
+				this.chatReference.onReferencesUpdated(
+					this._onDidChangeValue.fire.bind(this._onDidChangeValue),
+				),
+			);
+		}
+
 		this._value = value;
 		this._isSelection = isSelection;
 		this._onDidChangeValue.fire();
+	}
+
+	private removeChatReference() {
+		if (!this.chatReference) {
+			return;
+		}
+
+		this.chatReference.dispose();
+		delete this.chatReference;
 	}
 
 	toBaseEntry(): IBaseChatRequestVariableEntry {
