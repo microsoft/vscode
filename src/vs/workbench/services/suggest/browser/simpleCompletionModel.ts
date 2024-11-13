@@ -174,9 +174,11 @@ export class SimpleCompletionModel {
 
 			item.idx = i;
 			target.push(item);
+
 			// update stats
 			labelLengths.push(item.completion.label.length);
 		}
+
 		this._filteredItems = target.sort((a, b) => {
 			// Keywords should always appear at the bottom when they are not an exact match
 			let score = 0;
@@ -210,6 +212,7 @@ export class SimpleCompletionModel {
 			return score;
 		});
 		this._refilterKind = Refilter.Nothing;
+
 		this._stats = {
 			pLabelLen: labelLengths.length ?
 				quickSelect(labelLengths.length - .85, labelLengths, (a, b) => a - b)
