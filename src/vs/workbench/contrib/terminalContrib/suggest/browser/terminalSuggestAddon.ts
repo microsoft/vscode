@@ -115,6 +115,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._hasActivatedExtensions = false));
 		this._register(this._extensionService.onDidChangeResponsiveChange(() => this._hasActivatedExtensions = false));
 		this._register(this._extensionService.onDidRegisterExtensions(() => this._hasActivatedExtensions = false));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(terminalSuggestConfigSection)) {
+				const enableExtensionCompletions = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enableExtensionCompletions;
+				if (enableExtensionCompletions) {
+					this._hasActivatedExtensions = false;
+				}
+			}
+		}));
 	}
 
 	activate(xterm: Terminal): void {
@@ -145,7 +153,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			this._hasActivatedExtensions = true;
 		}
 
-		this._requestedCompletionsIndex = this._promptInputModel.cursorIndex;
 		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._promptInputModel.cursorIndex, this._shellType, providers);
 		if (!providedCompletions?.length || token.isCancellationRequested) {
 			return;
@@ -157,6 +164,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const replacementIndices = [...new Set(providedCompletions.map(c => c.replacementIndex))];
 		const replacementIndex = replacementIndices.length === 1 ? replacementIndices[0] : 0;
 		this._providerReplacementIndex = replacementIndex;
+		this._requestedCompletionsIndex = this._promptInputModel.cursorIndex;
 
 		this._currentPromptInputState = {
 			value: this._promptInputModel.value,

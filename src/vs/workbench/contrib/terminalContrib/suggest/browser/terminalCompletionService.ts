@@ -7,6 +7,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalSettingId, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ISimpleCompletion } from '../../../../services/suggest/browser/simpleCompletionItem.js';
+import { ITerminalSuggestConfiguration, terminalSuggestConfigSection } from '../common/terminalSuggestConfiguration.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -22,6 +23,7 @@ export interface ITerminalCompletionProvider {
 	shellTypes?: TerminalShellType[];
 	provideCompletions(value: string, cursorPosition: number): Promise<ISimpleCompletion[] | undefined>;
 	triggerCharacters?: string[];
+	isBuiltin?: boolean;
 }
 
 export interface ITerminalCompletionService {
@@ -31,7 +33,6 @@ export interface ITerminalCompletionService {
 	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, triggeredProviders?: ITerminalCompletionProvider[]): Promise<ISimpleCompletion[] | undefined>;
 }
 
-// TODO: make name consistent
 export class TerminalCompletionService extends Disposable implements ITerminalCompletionService {
 	declare _serviceBrand: undefined;
 	private readonly _providers: Map</*ext id*/string, Map</*provider id*/string, ITerminalCompletionProvider>> = new Map();
@@ -86,12 +87,20 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			}));
 		};
 
+
+		const extensionCompletionsEnabled = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enableExtensionCompletions;
+		let providers;
 		if (triggeredProviders) {
-			await collectCompletions(triggeredProviders);
+			providers = triggeredProviders;
 		} else {
-			const allProviders = [...this._providers.values()].flatMap(providerMap => [...providerMap.values()]);
-			await collectCompletions(allProviders);
+			providers = [...this._providers.values()].flatMap(providerMap => [...providerMap.values()]);
 		}
+
+		if (!extensionCompletionsEnabled) {
+			providers = providers.filter(p => p.isBuiltin);
+		}
+
+		await collectCompletions(providers);
 
 		return completionItems.length > 0 ? completionItems : undefined;
 	}
