@@ -27,7 +27,7 @@ import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWo
 import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from './webWorkerExtensionHost.js';
 import { FetchFileSystemProvider } from './webWorkerFileSystemProvider.js';
 import { AbstractExtensionService, IExtensionHostFactory, ResolvedExtensions, checkEnabledAndProposedAPI, isResolverExtension } from '../common/abstractExtensionService.js';
-import { ExtensionDescriptionRegistryLock, ExtensionDescriptionRegistrySnapshot } from '../common/extensionDescriptionRegistry.js';
+import { ExtensionDescriptionRegistrySnapshot } from '../common/extensionDescriptionRegistry.js';
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from '../common/extensionHostKind.js';
 import { IExtensionManifestPropertiesService } from '../common/extensionManifestPropertiesService.js';
 import { ExtensionRunningLocation } from '../common/extensionRunningLocation.js';
@@ -146,7 +146,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		return new ResolvedExtensions(localExtensions, remoteExtensions, /*hasLocalProcess*/false, /*allowRemoteExtensionsInLocalWebWorker*/true);
 	}
 
-	protected async _resolveExtensions(lock: ExtensionDescriptionRegistryLock): Promise<ResolvedExtensions> {
+	protected async _resolveExtensions(handleResolverExtensions: (resolverExtensions: IExtensionDescription[]) => void): Promise<ResolvedExtensions> {
 		if (!this._browserEnvironmentService.expectsResolverExtension) {
 			return this._resolveExtensionsDefault();
 		}
@@ -160,7 +160,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		const localExtensions = await this._scanWebExtensions();
 		const resolverExtensions = localExtensions.filter(extension => isResolverExtension(extension));
-		this._handleResolverExtensions(lock, resolverExtensions);
+		handleResolverExtensions(resolverExtensions);
 
 		let resolverResult: ResolverResult;
 		try {

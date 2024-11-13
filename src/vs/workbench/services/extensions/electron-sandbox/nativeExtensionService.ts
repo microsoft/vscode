@@ -41,7 +41,7 @@ import { IWorkbenchEnvironmentService } from '../../environment/common/environme
 import { EnablementState, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../extensionManagement/common/extensionManagement.js';
 import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from '../browser/webWorkerExtensionHost.js';
 import { AbstractExtensionService, ExtensionHostCrashTracker, IExtensionHostFactory, ResolvedExtensions, checkEnabledAndProposedAPI, extensionIsEnabled, isResolverExtension } from '../common/abstractExtensionService.js';
-import { ExtensionDescriptionRegistryLock, ExtensionDescriptionRegistrySnapshot } from '../common/extensionDescriptionRegistry.js';
+import { ExtensionDescriptionRegistrySnapshot } from '../common/extensionDescriptionRegistry.js';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions.js';
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from '../common/extensionHostKind.js';
 import { IExtensionHostManager } from '../common/extensionHostManagers.js';
@@ -316,7 +316,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		throw new Error(`Cannot get canonical URI because no extension is installed to resolve ${getRemoteAuthorityPrefix(remoteAuthority)}`);
 	}
 
-	protected async _resolveExtensions(lock: ExtensionDescriptionRegistryLock): Promise<ResolvedExtensions> {
+	protected async _resolveExtensions(handleResolverExtensions: (resolverExtensions: IExtensionDescription[]) => void): Promise<ResolvedExtensions> {
 		this._extensionScanner.startScanningExtensions();
 
 		const remoteAuthority = this._environmentService.remoteAuthority;
@@ -360,7 +360,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 
 			const localExtensions = await this._extensionScanner.scannedExtensions;
 			const resolverExtensions = localExtensions.filter(extension => isResolverExtension(extension));
-			this._handleResolverExtensions(lock, resolverExtensions);
+			handleResolverExtensions(resolverExtensions);
 
 			let resolverResult: ResolverResult;
 			try {

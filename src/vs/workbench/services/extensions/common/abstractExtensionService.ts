@@ -453,9 +453,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		const lock = await this._registry.acquireLock('_initialize');
 		try {
-			const resolvedExtensions = await this._resolveExtensions(lock);
+			const registeredResolverExtensions: IExtensionDescription[] = [];
+			const resolvedExtensions = await this._resolveExtensions((resolverExtensions: IExtensionDescription[]) => {
+				this._registry.deltaExtensions(lock, resolverExtensions, []);
+				this._doHandleExtensionPoints(resolverExtensions, true);
+				registeredResolverExtensions.push(...resolverExtensions);
+			});
 
-			this._processExtensions(lock, resolvedExtensions);
+			this._processExtensions(lock, resolvedExtensions, registeredResolverExtensions);
 
 			// Start extension hosts which are not automatically started
 			const snapshot = this._registry.getSnapshot();
@@ -474,7 +479,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		await this._handleExtensionTests();
 	}
 
-	private _processExtensions(lock: ExtensionDescriptionRegistryLock, resolvedExtensions: ResolvedExtensions): void {
+	private _processExtensions(lock: ExtensionDescriptionRegistryLock, resolvedExtensions: ResolvedExtensions, registeredResolverExtensions: IExtensionDescription[]): void {
 		const { allowRemoteExtensionsInLocalWebWorker, hasLocalProcess } = resolvedExtensions;
 		const localExtensions = checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, resolvedExtensions.local, false);
 		let remoteExtensions = checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, resolvedExtensions.remote, false);
@@ -498,46 +503,25 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 		}
 
+		const allExtensions: IExtensionDescription[] = remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions);
 
-		let toAdd: IExtensionDescription[] = [];
-		const toRemove: IExtensionDescription[] = [];
-		const existingExtensions = this._registry.getAllExtensionDescriptions();
-
-		if (existingExtensions.length) {
-			// If there are existing extensions, we need to find out the delta
-			// We need to add new extensions, remove those that are not there anymore and keep the existing ones
-			const allExtensions = remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions);
-			const allExtensionsMap = new Map<string, IExtensionDescription>();
-			for (const extension of allExtensions) {
-				allExtensionsMap.set(`${extension.identifier.value}:${extension.extensionLocation.toString()}`, extension);
-				const existing = this._registry.getExtensionDescription(extension.identifier);
-				if (!existing || existing.extensionLocation.toString() !== extension.extensionLocation.toString()) {
-					toAdd.push(extension);
-				}
+		if (registeredResolverExtensions.length) {
+			// Remove extensions that are registered as resolvers but are not in the final resolved set
+			const toRemove = registeredResolverExtensions.filter(registered => !allExtensions.some(e => ExtensionIdentifier.equals(e.identifier, registered.identifier) && e.extensionLocation.toString() === registered.extensionLocation.toString()));
+			if (toRemove.length) {
+				this._registry.deltaExtensions(lock, [], toRemove.map(e => e.identifier));
+				this._doHandleExtensionPoints(toRemove, true);
 			}
-			for (const existing of existingExtensions) {
-				if (!allExtensionsMap.has(`${existing.identifier.value}:${existing.extensionLocation.toString()}`)) {
-					toRemove.push(existing);
-				}
-			}
-		} else {
-			toAdd = remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions);
 		}
 
-		const result = this._registry.deltaExtensions(lock, toAdd, toRemove.map(e => e.identifier));
+		const result = this._registry.deltaExtensions(lock, allExtensions, []);
 		if (result.removedDueToLooping.length > 0) {
 			this._notificationService.notify({
 				severity: Severity.Error,
 				message: nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', '))
 			});
 		}
-
-		this._doHandleExtensionPoints(toAdd.concat(toRemove), false);
-	}
-
-	protected _handleResolverExtensions(lock: ExtensionDescriptionRegistryLock, resolverExtensions: IExtensionDescription[]): void {
-		this._registry.deltaExtensions(lock, resolverExtensions, []);
-		this._doHandleExtensionPoints(resolverExtensions, true);
+		this._doHandleExtensionPoints(allExtensions, false);
 	}
 
 	private async _handleExtensionTests(): Promise<void> {
@@ -1223,7 +1207,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#endregion
 
-	protected abstract _resolveExtensions(lock: ExtensionDescriptionRegistryLock): Promise<ResolvedExtensions>;
+	protected abstract _resolveExtensions(handleResolverExtensions: (resolverExtensions: IExtensionDescription[]) => void): Promise<ResolvedExtensions>;
 	protected abstract _onExtensionHostExit(code: number): Promise<void>;
 	protected abstract _resolveAuthority(remoteAuthority: string): Promise<ResolverResult>;
 }
