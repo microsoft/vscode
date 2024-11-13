@@ -39,6 +39,9 @@ export class NotebookAccessibilityProvider extends Disposable implements IListAc
 			(last: executionUpdate[] | undefined, e: ICellExecutionStateChangedEvent | IExecutionStateChangedEvent) => this.mergeEvents(last, e),
 			100
 		)((updates: executionUpdate[]) => {
+			if (!updates.length) {
+				return;
+			}
 			const viewModel = this.viewModel();
 			if (viewModel) {
 				for (const update of updates) {

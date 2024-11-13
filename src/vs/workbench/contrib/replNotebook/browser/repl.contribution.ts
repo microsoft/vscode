@@ -296,7 +296,7 @@ registerAction2(class extends Action2 {
 				when: MOST_RECENT_REPL_EDITOR,
 			},
 			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.or(IS_COMPOSITE_NOTEBOOK || NOTEBOOK_CELL_LIST_FOCUSED.negate()),
+				ContextKeyExpr.or(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_CELL_LIST_FOCUSED.negate()),
 				MOST_RECENT_REPL_EDITOR,
 				CONTEXT_ACCESSIBILITY_MODE_ENABLED)
 		});
