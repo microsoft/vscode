@@ -565,14 +565,13 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 			shouldGlobMatchFilePattern: true,
 			cacheKey: `explorerfindprovider:${root.name}:${rootIndex}:${this.sessionId}`,
 			excludePattern: searchExcludePattern,
-			maxResults: 512
 		};
 
 		let fileResults: ISearchComplete | undefined;
 		let folderResults: ISearchComplete | undefined;
 		try {
 			[fileResults, folderResults] = await Promise.all([
-				this.searchService.fileSearch({ ...searchOptions, filePattern: `**/${segmentMatchPattern}` }, token),
+				this.searchService.fileSearch({ ...searchOptions, filePattern: `**/${segmentMatchPattern}`, maxResults: 512 }, token),
 				this.searchService.fileSearch({ ...searchOptions, filePattern: `**/${segmentMatchPattern}/**` }, token)
 			]);
 		} catch (e) {
