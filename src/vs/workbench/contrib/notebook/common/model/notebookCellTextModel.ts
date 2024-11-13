@@ -20,6 +20,7 @@ import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { toFormattedString } from '../../../../../base/common/jsonFormatter.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { splitLines } from '../../../../../base/common/strings.js';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
@@ -106,7 +107,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._onDidChangeContent.fire('mime');
 	}
 
-	private _textBuffer!: model.IReadonlyTextBuffer;
+	private _textBuffer!: model.ITextBuffer;
 
 	get textBuffer() {
 		if (this._textBuffer) {
@@ -429,10 +430,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	 * - language
 	 * - mime
 	 * - cellKind
-	 * - internal metadata
+	 * - internal metadata (conditionally)
 	 * - source
 	 */
-	fastEqual(b: ICellDto2): boolean {
+	fastEqual(b: ICellDto2, ignoreMetadata: boolean): boolean {
 		if (this.language !== b.language) {
 			return false;
 		}
@@ -445,21 +446,38 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return false;
 		}
 
-		if (this.internalMetadata?.executionOrder !== b.internalMetadata?.executionOrder
-			|| this.internalMetadata?.lastRunSuccess !== b.internalMetadata?.lastRunSuccess
-			|| this.internalMetadata?.runStartTime !== b.internalMetadata?.runStartTime
-			|| this.internalMetadata?.runStartTimeAdjustment !== b.internalMetadata?.runStartTimeAdjustment
-			|| this.internalMetadata?.runEndTime !== b.internalMetadata?.runEndTime) {
-			return false;
+		if (!ignoreMetadata) {
+			if (this.internalMetadata?.executionOrder !== b.internalMetadata?.executionOrder
+				|| this.internalMetadata?.lastRunSuccess !== b.internalMetadata?.lastRunSuccess
+				|| this.internalMetadata?.runStartTime !== b.internalMetadata?.runStartTime
+				|| this.internalMetadata?.runStartTimeAdjustment !== b.internalMetadata?.runStartTimeAdjustment
+				|| this.internalMetadata?.runEndTime !== b.internalMetadata?.runEndTime) {
+				return false;
+			}
 		}
 
 		// Once we attach the cell text buffer to an editor, the source of truth is the text buffer instead of the original source
-		if (this._textBuffer && this.getValue() !== b.source) {
-			return false;
+		if (this._textBuffer) {
+			if (!NotebookCellTextModel.linesAreEqual(this.textBuffer.getLinesContent(), b.source)) {
+				return false;
+			}
 		} else if (this._source !== b.source) {
 			return false;
 		}
 
+		return true;
+	}
+
+	private static linesAreEqual(aLines: string[], b: string) {
+		const bLines = splitLines(b);
+		if (aLines.length !== bLines.length) {
+			return false;
+		}
+		for (let i = 0; i < aLines.length; i++) {
+			if (aLines[i] !== bLines[i]) {
+				return false;
+			}
+		}
 		return true;
 	}
 

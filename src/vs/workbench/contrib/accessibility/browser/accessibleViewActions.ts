@@ -330,7 +330,7 @@ class AccessibleViewAcceptInlineCompletionAction extends Action2 {
 			return;
 		}
 		const model = InlineCompletionsController.get(editor)?.model.get();
-		const state = model?.state.get();
+		const state = model?.inlineCompletionState.get();
 		if (!model || !state) {
 			return;
 		}

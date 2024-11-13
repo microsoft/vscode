@@ -18,6 +18,7 @@ import { ServiceCollection } from '../../../platform/instantiation/common/servic
 import { ILabelService } from '../../../platform/label/common/label.js';
 import { AbstractMessageLogger, ILogger, LogLevel } from '../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { IOpenWindowOptions, IWindowOpenable } from '../../../platform/window/common/window.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { IExtensionManagementServerService } from '../../services/extensionManagement/common/extensionManagement.js';
@@ -65,28 +66,34 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 			lines.push(message);
 		}
 	}();
-	const cliService = instantiationService.createChild(new ServiceCollection([IExtensionManagementService, remoteExtensionManagementService])).createInstance(RemoteExtensionManagementCLI, logger);
+	const childInstantiationService = instantiationService.createChild(new ServiceCollection([IExtensionManagementService, remoteExtensionManagementService]));
+	try {
+		const cliService = childInstantiationService.createInstance(RemoteExtensionManagementCLI, logger);
 
-	if (args.list) {
-		await cliService.listExtensions(!!args.list.showVersions, args.list.category, undefined);
-	} else {
-		const revive = (inputs: (string | UriComponents)[]) => inputs.map(input => isString(input) ? input : URI.revive(input));
-		if (Array.isArray(args.install) && args.install.length) {
-			try {
-				await cliService.installExtensions(revive(args.install), [], { isMachineScoped: true }, !!args.force);
-			} catch (e) {
-				lines.push(e.message);
+		if (args.list) {
+			await cliService.listExtensions(!!args.list.showVersions, args.list.category, undefined);
+		} else {
+			const revive = (inputs: (string | UriComponents)[]) => inputs.map(input => isString(input) ? input : URI.revive(input));
+			if (Array.isArray(args.install) && args.install.length) {
+				try {
+					await cliService.installExtensions(revive(args.install), [], { isMachineScoped: true }, !!args.force);
+				} catch (e) {
+					lines.push(e.message);
+				}
+			}
+			if (Array.isArray(args.uninstall) && args.uninstall.length) {
+				try {
+					await cliService.uninstallExtensions(revive(args.uninstall), !!args.force, undefined);
+				} catch (e) {
+					lines.push(e.message);
+				}
 			}
 		}
-		if (Array.isArray(args.uninstall) && args.uninstall.length) {
-			try {
-				await cliService.uninstallExtensions(revive(args.uninstall), !!args.force, undefined);
-			} catch (e) {
-				lines.push(e.message);
-			}
-		}
+		return lines.join('\n');
+	} finally {
+		childInstantiationService.dispose();
 	}
-	return lines.join('\n');
+
 });
 
 class RemoteExtensionManagementCLI extends ExtensionManagementCLI {
@@ -97,11 +104,12 @@ class RemoteExtensionManagementCLI extends ExtensionManagementCLI {
 		logger: ILogger,
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ILabelService labelService: ILabelService,
 		@IWorkbenchEnvironmentService envService: IWorkbenchEnvironmentService,
 		@IExtensionManifestPropertiesService private readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
-		super(logger, extensionManagementService, extensionGalleryService);
+		super(logger, extensionManagementService, extensionGalleryService, uriIdentityService);
 
 		const remoteAuthority = envService.remoteAuthority;
 		this._location = remoteAuthority ? labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority) : undefined;

@@ -14,8 +14,8 @@ import { IEditorHoverRenderContext } from '../../../hover/browser/hoverTypes.js'
 import { getColors } from '../color.js';
 import { ColorDetector } from '../colorDetector.js';
 import { ColorPickerModel } from '../colorPickerModel.js';
-import { BaseColor, createColorHover, updateColorPresentations, updateEditorModel } from '../colorPickerParticipantUtils.js';
-import { ColorPickerWidget } from '../hoverColorPicker/hoverColorPickerWidget.js';
+import { BaseColor, ColorPickerWidgetType, createColorHover, updateColorPresentations, updateEditorModel } from '../colorPickerParticipantUtils.js';
+import { ColorPickerWidget } from '../colorPickerWidget.js';
 import { Range } from '../../../../common/core/range.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
@@ -93,7 +93,7 @@ export class StandaloneColorPickerParticipant {
 		const colorHover = hoverParts[0];
 		const editorModel = this._editor.getModel();
 		const model = colorHover.model;
-		const colorPicker = disposables.add(new ColorPickerWidget(context.fragment, model, this._editor.getOption(EditorOption.pixelRatio), this._themeService, true));
+		const colorPicker = disposables.add(new ColorPickerWidget(context.fragment, model, this._editor.getOption(EditorOption.pixelRatio), this._themeService, ColorPickerWidgetType.Standalone));
 
 		let editorUpdatedByColorPicker = false;
 		const range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);

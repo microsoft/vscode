@@ -446,10 +446,16 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 		this._ensureOutputsTop();
 
-		if (index === 0 || height > 0) {
-			this._outputViewModels[index].setVisible(true);
-		} else if (height === 0) {
-			this._outputViewModels[index].setVisible(false);
+		try {
+			if (index === 0 || height > 0) {
+				this._outputViewModels[index].setVisible(true);
+			} else if (height === 0) {
+				this._outputViewModels[index].setVisible(false);
+			}
+		} catch (e) {
+			const errorMessage = `Failed to update output height for cell ${this.handle}, output ${index}. `
+				+ `this.outputCollection.length: ${this._outputCollection.length}, this._outputViewModels.length: ${this._outputViewModels.length}`;
+			throw new Error(`${errorMessage}.\n Error: ${e.message}`);
 		}
 
 		if (this._outputViewModels[index].visible.get() && height < 28) {

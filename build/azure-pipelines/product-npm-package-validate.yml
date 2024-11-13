@@ -68,19 +68,27 @@ jobs:
               fi
 
               echo "Attempt $attempt: Running npm ci"
-              if npm ci --ignore-scripts; then
-                echo "npm ci succeeded on attempt $attempt"
-                exit 0
+              if npm i --ignore-scripts; then
+                if node build/npm/postinstall.js; then
+                  echo "npm i succeeded on attempt $attempt"
+                  exit 0
+                else
+                  echo "node build/npm/postinstall.js failed on attempt $attempt"
+                fi
               else
-                echo "npm ci failed on attempt $attempt"
+                echo "npm i failed on attempt $attempt"
               fi
             done
 
-            echo "npm ci failed after 6 attempts"
+            echo "npm i failed after 6 attempts"
             exit 1
           env:
+            npm_command: 'install --ignore-scripts'
             ELECTRON_SKIP_BINARY_DOWNLOAD: 1
             PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
             GITHUB_TOKEN: "$(github-distro-mixin-password)"
           displayName: Install dependencies with retries
           timeoutInMinutes: 400
+
+        - script: .github/workflows/check-clean-git-state.sh
+          displayName: Check clean git state

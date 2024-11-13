@@ -8,7 +8,6 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { ICodeEditorViewState, ICompositeCodeEditor } from '../../../../editor/common/editorCommon.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -19,7 +18,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { EditorPaneSelectionChangeReason, IEditorMemento, IEditorOpenContext, IEditorPaneScrollPosition, IEditorPaneSelectionChangeEvent, IEditorPaneWithScrolling } from '../../../common/editor.js';
 import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
-import { ICellViewModel, INotebookEditorOptions, INotebookEditorViewState } from '../../notebook/browser/notebookBrowser.js';
+import { ICellViewModel, INotebookEditorOptions, INotebookEditorViewState, INotebookViewCellsUpdateEvent } from '../../notebook/browser/notebookBrowser.js';
 import { NotebookEditorExtensionsRegistry } from '../../notebook/browser/notebookEditorExtensions.js';
 import { IBorrowValue, INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { getDefaultNotebookCreationOptions, NotebookEditorWidget } from '../../notebook/browser/notebookEditorWidget.js';
@@ -29,13 +28,12 @@ import { INotebookKernelService } from '../../notebook/common/notebookKernelServ
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from '../../interactive/browser/interactiveCommon.js';
+import { ReplEditorSettings, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from '../../interactive/browser/interactiveCommon.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { NotebookOptions } from '../../notebook/browser/notebookOptions.js';
 import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { createActionViewItem, createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { createActionViewItem, getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { SelectionClipboardContributionID } from '../../codeEditor/browser/selectionClipboard.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
@@ -60,6 +58,7 @@ import { ReplEditorInput } from './replEditorInput.js';
 import { ReplInputHintContentWidget } from '../../interactive/browser/replInputHintContentWidget.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { localize } from '../../../../nls.js';
 
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
 
@@ -121,7 +120,6 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotebookEditorService notebookWidgetService: INotebookEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@INotebookKernelService notebookKernelService: INotebookKernelService,
 		@ILanguageService languageService: ILanguageService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -131,7 +129,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
-		@IExtensionService extensionService: IExtensionService,
+		@IExtensionService extensionService: IExtensionService
 	) {
 		super(
 			REPL_EDITOR_ID,
@@ -207,11 +205,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 			renderDropdownAsChildElement: true
 		}));
 
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result);
+		const { primary, secondary } = getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 		this._runbuttonToolbar.setActions([...primary, ...secondary]);
 	}
 
@@ -283,6 +277,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 			...editorOptions,
 			...editorOptionsOverride,
 			...{
+				ariaLabel: localize('replEditorInput', "REPL Input"),
 				glyphMargin: true,
 				padding: {
 					top: INPUT_EDITOR_PADDING,
@@ -527,8 +522,29 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 
 		this._widgetDisposableStore.add(this._notebookWidget.value!.onDidScroll(() => this._onDidChangeScroll.fire()));
 
+
+		this._widgetDisposableStore.add(this._notebookWidget.value!.onDidChangeViewCells(this.handleViewCellChange, this));
+
 		this._updateInputHint();
 		this._syncWithKernel();
+	}
+
+	private handleViewCellChange(e: INotebookViewCellsUpdateEvent) {
+		const notebookWidget = this._notebookWidget.value;
+		if (!notebookWidget) {
+			return;
+		}
+
+		for (const splice of e.splices) {
+			const [_start, _delete, addedCells] = splice;
+			if (addedCells.length) {
+				const viewModel = notebookWidget.viewModel;
+				if (viewModel) {
+					this._notebookWidgetService.updateReplContextKey(viewModel.notebookDocument.uri.toString());
+					break;
+				}
+			}
+		}
 	}
 
 	override setOptions(options: INotebookEditorOptions | undefined): void {
@@ -558,7 +574,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		const index = this._notebookWidget.value!.getCellIndex(cvm);
 		if (index === this._notebookWidget.value!.getLength() - 1) {
 			// If we're already at the bottom or auto scroll is enabled, scroll to the bottom
-			if (this._configurationService.getValue<boolean>(InteractiveWindowSetting.interactiveWindowAlwaysScrollOnNewCell) || this._cellAtBottom(cvm)) {
+			if (this._configurationService.getValue<boolean>(ReplEditorSettings.interactiveWindowAlwaysScrollOnNewCell) || this._cellAtBottom(cvm)) {
 				this._notebookWidget.value!.scrollToBottom();
 			}
 		}
@@ -640,7 +656,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 
 		const shouldHide =
 			!this._codeEditorWidget.hasModel() ||
-			this._configurationService.getValue<boolean>(InteractiveWindowSetting.showExecutionHint) === false ||
+			this._configurationService.getValue<boolean>(ReplEditorSettings.showExecutionHint) === false ||
 			this._codeEditorWidget.getModel()!.getValueLength() !== 0 ||
 			this._hasConflictingDecoration();
 
