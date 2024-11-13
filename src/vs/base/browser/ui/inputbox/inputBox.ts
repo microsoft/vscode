@@ -17,7 +17,7 @@ import { ScrollableElement } from '../scrollbar/scrollableElement.js';
 import { Widget } from '../widget.js';
 import { IAction } from '../../../common/actions.js';
 import { Emitter, Event } from '../../../common/event.js';
-import { HistoryNavigator } from '../../../common/history.js';
+import { HistoryNavigator, IPersistentStorage } from '../../../common/history.js';
 import { equals } from '../../../common/objects.js';
 import { ScrollbarVisibility } from '../../../common/scrollable.js';
 import './inputBox.css';
@@ -39,6 +39,7 @@ export interface IInputOptions {
 	readonly flexibleMaxHeight?: number;
 	readonly actions?: ReadonlyArray<IAction>;
 	readonly inputBoxStyles: IInputBoxStyles;
+	persistentStorage?: IPersistentStorage;
 }
 
 export interface IInputBoxStyles {
@@ -650,7 +651,7 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 		}, ' ({0} for history)', `\u21C5`);
 
 		super(container, contextViewProvider, options);
-		this.history = new HistoryNavigator<string>(options.history, 100);
+		this.history = new HistoryNavigator<string>(options.history, 100, options.persistentStorage);
 
 		// Function to append the history suffix to the placeholder if necessary
 		const addSuffix = () => {

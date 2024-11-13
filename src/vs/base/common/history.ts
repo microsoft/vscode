@@ -6,16 +6,26 @@
 import { SetWithKey } from './collections.js';
 import { ArrayNavigator, INavigator } from './navigator.js';
 
+export interface IPersistentStorage {
+	save<T>(t: T): void;
+}
+
 export class HistoryNavigator<T> implements INavigator<T> {
 
 	private _history!: Set<T>;
 	private _limit: number;
 	private _navigator!: ArrayNavigator<T>;
+	private _persistentStorage?: IPersistentStorage;
 
-	constructor(history: readonly T[] = [], limit: number = 10) {
+	constructor(
+		history: readonly T[] = [],
+		limit: number = 10,
+		persistanceStorage?: IPersistentStorage,
+	) {
 		this._initialize(history);
 		this._limit = limit;
 		this._onChange();
+		this._persistentStorage = persistanceStorage;
 	}
 
 	public getHistory(): T[] {
@@ -25,6 +35,7 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	public add(t: T) {
 		this._history.delete(t);
 		this._history.add(t);
+		this._persistentStorage?.save(t);
 		this._onChange();
 	}
 

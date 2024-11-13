@@ -17,6 +17,7 @@ import './findInput.css';
 import * as nls from '../../../../nls.js';
 import { DisposableStore, MutableDisposable } from '../../../common/lifecycle.js';
 import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { IPersistentStorage } from '../../../common/history.js';
 
 
 export interface IFindInputOptions {
@@ -37,6 +38,7 @@ export interface IFindInputOptions {
 	readonly showHistoryHint?: () => boolean;
 	readonly toggleStyles: IToggleStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
+	persistentStorage?: IPersistentStorage;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -112,6 +114,7 @@ export class FindInput extends Widget {
 			flexibleWidth,
 			flexibleMaxHeight,
 			inputBoxStyles: options.inputBoxStyles,
+			persistentStorage: options.persistentStorage
 		}));
 
 		const hoverDelegate = this._register(createInstantHoverDelegate());
