@@ -17,7 +17,14 @@
 /** Cell insert higlight */
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-insertHighlight .cell-focus-indicator,
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-insertHighlight {
-	background-color: var(--vscode-diffEditor-insertedTextBackground) !important;
+	background-color: var(--vscode-diffEditor-insertedLineBackground, var(--vscode-diffEditor-insertedTextBackground)) !important;
+}
+
+.notebookOverlay .cell .cell-statusbar-container .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-insertHighlight .cell-focus-indicator .cell-inner-container,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-insertHighlight .monaco-editor-background,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-insertHighlight .margin-view-overlays,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-insertHighlight .cell-statusbar-container {
+	background-color: var(--vscode-diffEditor-insertedLineBackground, var(--vscode-diffEditor-insertedTextBackground)) !important;
 }
 
 .monaco-workbench .notebookOverlay .view-zones .cell-editor-part {
