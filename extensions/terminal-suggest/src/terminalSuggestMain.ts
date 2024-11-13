@@ -153,7 +153,6 @@ vscode.window.registerTerminalCompletionProvider({
 				result.push(createCompletionItem(terminalContext.cursorPosition, prefix, commandName, spec.description));
 			}
 		}
-
 		return result.length ? result : undefined;
 	}
 });
@@ -174,7 +173,7 @@ function createCompletionItem(cursorPosition: number, prefix: string, label: str
 		isFile: false,
 		isDirectory: false,
 		detail: description ?? '',
-		replacementIndex: cursorPosition - prefix.length,
+		replacementIndex: prefix === '' ? 0 : cursorPosition - prefix.length,
 		replacementLength: label.length - prefix.length,
 	};
 }
