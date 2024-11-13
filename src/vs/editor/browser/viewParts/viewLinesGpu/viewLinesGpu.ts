@@ -425,7 +425,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		pass.setBindGroup(0, this._bindGroup);
 
 		if (this._renderStrategy?.draw) {
-			// TODO: Don't draw lines if ViewLinesGpu.canRender is false
 			this._renderStrategy.draw(pass, viewportData);
 		} else {
 			pass.draw(quadVertices.length / 2, visibleObjectCount);
@@ -543,5 +542,44 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			return null;
 		}
 		return new HorizontalPosition(visibleRanges.outsideRenderedLine, visibleRanges.ranges[0].left);
+	}
+
+	getLineWidth(lineNumber: number): number | undefined {
+		if (!this._lastViewportData || !this._lastViewLineOptions) {
+			return undefined;
+		}
+		if (!ViewGpuContext.canRender(this._lastViewLineOptions, this._lastViewportData, lineNumber)) {
+			return undefined;
+		}
+
+		const lineData = this._lastViewportData.getViewLineRenderingData(lineNumber);
+		const lineRange = this._visibleRangesForLineRange(lineNumber, 1, lineData.maxColumn);
+		const lastRange = lineRange?.ranges.at(-1);
+		if (lastRange) {
+			return lastRange.width;
+		}
+
+		return undefined;
+	}
+
+	getPositionAtCoordinate(lineNumber: number, mouseContentHorizontalOffset: number): Position | undefined {
+		if (!this._lastViewportData || !this._lastViewLineOptions) {
+			return undefined;
+		}
+		if (!ViewGpuContext.canRender(this._lastViewLineOptions, this._lastViewportData, lineNumber)) {
+			return undefined;
+		}
+		const lineData = this._lastViewportData.getViewLineRenderingData(lineNumber);
+		const content = lineData.content;
+		let visualColumn = Math.ceil(mouseContentHorizontalOffset / this._lastViewLineOptions.spaceWidth);
+		let contentColumn = 0;
+		while (visualColumn > 0) {
+			if (visualColumn - (content[contentColumn] === '\t' ? lineData.tabSize : 1) < 0) {
+				break;
+			}
+			visualColumn -= content[contentColumn] === '\t' ? lineData.tabSize : 1;
+			contentColumn++;
+		}
+		return new Position(lineNumber, contentColumn);
 	}
 }

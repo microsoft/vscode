@@ -368,7 +368,12 @@ export class View extends ViewEventHandler {
 
 			getLineWidth: (lineNumber: number) => {
 				this._flushAccumulatedAndRenderNow();
-				// TODO: Defer to viewLinesGpu?
+				if (this._viewLinesGpu) {
+					const result = this._viewLinesGpu.getLineWidth(lineNumber);
+					if (result !== undefined) {
+						return result;
+					}
+				}
 				return this._viewLines.getLineWidth(lineNumber);
 			}
 		};

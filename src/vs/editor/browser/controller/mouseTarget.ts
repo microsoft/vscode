@@ -577,11 +577,6 @@ export class MouseTargetFactory {
 			result = result || request.fulfillUnknown();
 		}
 
-		// TODO: Need to know about canvas here
-		if (ctx.viewLinesGpu) {
-			// ...
-		}
-
 		result = result || MouseTargetFactory._hitTestContentWidget(ctx, resolvedRequest);
 		result = result || MouseTargetFactory._hitTestOverlayWidget(ctx, resolvedRequest);
 		result = result || MouseTargetFactory._hitTestMinimap(ctx, resolvedRequest);
@@ -733,11 +728,6 @@ export class MouseTargetFactory {
 			return null;
 		}
 
-		// TODO: Need to know about canvas here
-		if (ctx.viewLinesGpu) {
-			console.log('hit gpu');
-		}
-
 		if (ctx.isInTopPadding(request.mouseVerticalOffset)) {
 			return request.fulfillContentEmpty(new Position(1, 1), EMPTY_CONTENT_AFTER_LINES);
 		}
@@ -766,6 +756,33 @@ export class MouseTargetFactory {
 				const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
 				const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber));
 				return request.fulfillContentEmpty(pos, detail);
+			}
+		} else {
+			if (ctx.viewLinesGpu) {
+				const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
+				if (ctx.viewModel.getLineLength(lineNumber) === 0) {
+					const lineWidth = ctx.getLineWidth(lineNumber);
+					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
+					return request.fulfillContentEmpty(new Position(lineNumber, 1), detail);
+				}
+
+				const lineWidth = ctx.getLineWidth(lineNumber);
+				if (request.mouseContentHorizontalOffset >= lineWidth) {
+					// TODO: This is wrong for RTL
+					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
+					const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber));
+					return request.fulfillContentEmpty(pos, detail);
+				}
+
+				const position = ctx.viewLinesGpu.getPositionAtCoordinate(lineNumber, request.mouseContentHorizontalOffset);
+				if (position) {
+					// TODO: Are these values right?
+					const detail: IMouseTargetContentTextData = {
+						injectedText: null,
+						mightBeForeignElement: false
+					};
+					return request.fulfillContentText(position, EditorRange.fromPositions(position, position), detail);
+				}
 			}
 		}
 
