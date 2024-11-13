@@ -836,18 +836,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				widget.style.position = 'relative';
 				store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverContent, { trapFocus: true }));
-
-				// store.add(this.hoverService.setupDelayedHover(widget, () => ({
-				// 	content: new MarkdownString(`\`\`\`${attachment.language}\n${attachment.code}\n\`\`\``),
-				// 	appearance: {
-				// 		showPointer: true,
-				// 		compact: true,
-				// 	},
-				// 	// persistence: {
-				// 	// 	hideOnHover: false,
-				// 	// }
-				// })));
-
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
