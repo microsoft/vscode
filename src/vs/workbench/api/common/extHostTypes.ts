@@ -2108,36 +2108,7 @@ export class TerminalProfile implements vscode.TerminalProfile {
 	}
 }
 
-export interface SimpleTerminalCompletion {
-	/**
-	 * The completion's label which appears on the left beside the icon.
-	 */
-	label: string;
-	/**
-	 * The completion's icon to show on the left of the suggest widget.
-	 */
-	icon?: ThemeIcon;
-	/**
-	 * The completion's detail which appears on the right of the list.
-	 */
-	detail?: string;
-	/**
-	 * Whether the completion is a file. Files with the same score will be sorted against each other
-	 * first by extension length and then certain extensions will get a boost based on the OS.
-	 */
-	isFile?: boolean;
-	/**
-	 * Whether the completion is a directory.
-	 */
-	isDirectory?: boolean;
-	/**
-	 * Whether the completion is a keyword.
-	 */
-	isKeyword?: boolean;
-}
-
-
-export class TerminalCompletionItem {
+export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 	label: string;
 	icon?: ThemeIcon | undefined;
 	detail?: string | undefined;
