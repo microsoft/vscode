@@ -138,8 +138,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!this._shellType) {
 			return;
 		}
-		if (!this._hasActivatedExtensions) {
+
+		const enableExtensionCompletions = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enableExtensionCompletions;
+		if (enableExtensionCompletions && !this._hasActivatedExtensions) {
 			await this._extensionService.activateByEvent('onTerminalCompletionsRequested');
+			this._hasActivatedExtensions = true;
 		}
 
 		this._requestedCompletionsIndex = this._promptInputModel.cursorIndex;

@@ -111,7 +111,8 @@ suite('Terminal Contrib Suggest Recordings', () => {
 					builtinCompletions: {
 						pwshCode: true,
 						pwshGit: true
-					}
+					},
+					enableExtensionCompletions: false
 				} satisfies ITerminalSuggestConfiguration
 			}
 		};

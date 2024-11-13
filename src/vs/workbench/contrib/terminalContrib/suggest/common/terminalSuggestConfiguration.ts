@@ -14,6 +14,7 @@ export const enum TerminalSuggestSettingId {
 	SuggestOnTriggerCharacters = 'terminal.integrated.suggest.suggestOnTriggerCharacters',
 	RunOnEnter = 'terminal.integrated.suggest.runOnEnter',
 	BuiltinCompletions = 'terminal.integrated.suggest.builtinCompletions',
+	EnableExtensionCompletions = 'terminal.integrated.suggest.enableExtensionCompletions',
 }
 
 export const terminalSuggestConfigSection = 'terminal.integrated.suggest';
@@ -27,6 +28,7 @@ export interface ITerminalSuggestConfiguration {
 		'pwshCode': boolean;
 		'pwshGit': boolean;
 	};
+	enableExtensionCompletions: boolean;
 }
 
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
@@ -79,5 +81,12 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 			pwshCode: true,
 			pwshGit: true,
 		}
+	},
+	[TerminalSuggestSettingId.EnableExtensionCompletions]: {
+		restricted: true,
+		markdownDescription: localize('suggest.enableExtensionCompletions', "Controls whether extension completions are enabled."),
+		type: 'boolean',
+		default: true,
+		tags: ['experimental'],
 	},
 };
