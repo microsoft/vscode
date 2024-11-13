@@ -26,7 +26,6 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../
 import { ResourceSet } from '../../../../base/common/map.js';
 import { basename, dirname } from '../../../../base/common/path.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
-import type { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
@@ -34,7 +33,7 @@ import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/c
 import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IDimension } from '../../../../editor/common/core/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
-import { Range } from '../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
@@ -53,7 +52,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import type { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { registerAndCreateHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -64,14 +63,15 @@ import { WorkbenchList } from '../../../../platform/list/browser/listService.js'
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService, type OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { FolderThemeIcon, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
-import { ResourceLabels } from '../../../browser/labels.js';
+import { IFileLabelOptions, ResourceLabels } from '../../../browser/labels.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
+import { revealInsideBarCommand } from '../../files/browser/fileActions.contribution.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
@@ -267,6 +267,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ILanguageService private readonly languageService: ILanguageService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 
@@ -722,6 +723,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		};
 		this._register(this._inputEditor.onDidChangeCursorPosition(e => onDidChangeCursorPosition()));
 		onDidChangeCursorPosition();
+
+		this._register(this.themeService.onDidFileIconThemeChange(() => {
+			this.renderAttachedContext();
+		}));
 	}
 
 	private async renderAttachedContext() {
@@ -753,27 +758,32 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			let ariaLabel: string | undefined;
 
-			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
+			const resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
 			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
-			if (file && attachment.isFile) {
-				const fileBasename = basename(file.path);
-				const fileDirname = dirname(file.path);
+			if (resource && (attachment.isFile || attachment.isDirectory)) {
+				const fileBasename = basename(resource.path);
+				const fileDirname = dirname(resource.path);
 				const friendlyName = `${fileBasename} ${fileDirname}`;
 
 				ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
 
-				label.setFile(file, {
+				const fileOptions: IFileLabelOptions = { hidePath: true };
+				label.setFile(resource, attachment.isFile ? {
+					...fileOptions,
 					fileKind: FileKind.FILE,
-					hidePath: true,
 					range,
+				} : {
+					...fileOptions,
+					fileKind: FileKind.FOLDER,
+					icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
 				});
 
 				const scopedContextKeyService = store.add(this.contextKeyService.createScoped(widget));
 				const resourceContextKey = store.add(new ResourceContextKey(scopedContextKeyService, this.fileService, this.languageService, this.modelService));
-				resourceContextKey.set(file);
+				resourceContextKey.set(resource);
 
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate, {
-					contextMenuArg: file,
+					contextMenuArg: resource,
 					contextKeyService: scopedContextKeyService,
 					contextMenuId: MenuId.ChatInputResourceAttachmentContext,
 				});
@@ -781,7 +791,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				// Drag and drop
 				widget.draggable = true;
 				this._register(dom.addDisposableListener(widget, 'dragstart', e => {
-					this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [file], e));
+					this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [resource], e));
 					e.dataTransfer?.setDragImage(widget, 0, 0);
 				}));
 
@@ -834,36 +844,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return;
 			}
 
-			if (file) {
+			if (resource) {
 				widget.style.cursor = 'pointer';
 				store.add(dom.addDisposableListener(widget, dom.EventType.CLICK, (e: MouseEvent) => {
 					dom.EventHelper.stop(e, true);
-					const options: Mutable<OpenInternalOptions> = {
-						fromUserGesture: true
-					};
-					if (range) {
-						const textEditorOptions: ITextEditorOptions = {
-							selection: range
-						};
-						options.editorOptions = textEditorOptions;
+					if (attachment.isDirectory) {
+						this.openResource(resource, true);
+					} else {
+						this.openResource(resource, false, range);
 					}
-					this.openerService.open(file, options);
 				}));
 
 				store.add(dom.addDisposableListener(widget, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 					const event = new StandardKeyboardEvent(e);
 					if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 						dom.EventHelper.stop(e, true);
-						const options: Mutable<OpenInternalOptions> = {
-							fromUserGesture: true
-						};
-						if (range) {
-							const textEditorOptions: ITextEditorOptions = {
-								selection: range
-							};
-							options.editorOptions = textEditorOptions;
+						if (attachment.isDirectory) {
+							this.openResource(resource, true);
+						} else {
+							this.openResource(resource, false, range);
 						}
-						this.openerService.open(file, options);
 					}
 				}));
 			}
@@ -875,6 +875,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (oldHeight !== container.offsetHeight) {
 			this._onDidChangeHeight.fire();
 		}
+	}
+
+	private openResource(resource: URI, isDirectory: true): void;
+	private openResource(resource: URI, isDirectory: false, range: IRange | undefined): void;
+	private openResource(resource: URI, isDirectory?: boolean, range?: IRange): void {
+		if (isDirectory) {
+			// Reveal Directory in explorer
+			this.commandService.executeCommand(revealInsideBarCommand.id, resource);
+			return;
+		}
+
+		// Open file in editor
+		const openTextEditorOptions: ITextEditorOptions | undefined = range ? { selection: range } : undefined;
+		const options: OpenInternalOptions = {
+			fromUserGesture: true,
+			editorOptions: openTextEditorOptions,
+		};
+		this.openerService.open(resource, options);
 	}
 
 	private attachButtonAndDisposables(widget: HTMLElement, index: number, attachment: IChatRequestVariableEntry, hoverDelegate: IHoverDelegate, contextMenuOpts?: { contextMenuId: MenuId; contextKeyService: IContextKeyService; contextMenuArg: unknown }) {
