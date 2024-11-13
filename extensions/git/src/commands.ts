@@ -1559,6 +1559,9 @@ export class CommandCenter {
 			return;
 		}
 
+		console.log(changes);
+		console.log(textEditor.diffInformation);
+
 		const modifiedDocument = textEditor.document;
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
 		const selectedChanges = changes

@@ -1909,6 +1909,12 @@ export enum TextEditorSelectionChangeKind {
 	Command = 3
 }
 
+export enum TextEditorDiffKind {
+	Addition = 1,
+	Deletion = 2,
+	Modification = 3
+}
+
 export enum TextDocumentChangeReason {
 	Undo = 1,
 	Redo = 2,

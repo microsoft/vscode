@@ -1817,6 +1817,18 @@ export interface ITextEditorAddData {
 export interface ITextEditorPositionData {
 	[id: string]: EditorGroupColumn;
 }
+
+export interface ITextEditorDiffInformation {
+	readonly original: UriComponents | undefined;
+	readonly modified: UriComponents | undefined;
+	readonly diff: readonly [
+		number /* originalStartLineNumber */,
+		number /* originalEndLineNumber */,
+		number /* modifiedStartLineNumber */,
+		number /* modifiedEndLineNumber */
+	][];
+}
+
 export interface IEditorPropertiesChangeData {
 	options: IResolvedTextEditorConfiguration | null;
 	selections: ISelectionChangeEvent | null;
@@ -1830,6 +1842,7 @@ export interface ISelectionChangeEvent {
 export interface ExtHostEditorsShape {
 	$acceptEditorPropertiesChanged(id: string, props: IEditorPropertiesChangeData): void;
 	$acceptEditorPositionData(data: ITextEditorPositionData): void;
+	$acceptEditorDiffInformation(id: string, diffInformation: ITextEditorDiffInformation): void;
 }
 
 export interface IDocumentsAndEditorsDelta {
