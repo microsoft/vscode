@@ -30,6 +30,7 @@ import type { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/
 import { ITerminalCompletionProvider, ITerminalCompletionService } from './terminalCompletionService.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -72,6 +73,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	isPasting: boolean = false;
 
+	private _hasActivatedExtensions: boolean = false;
+
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
 	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
@@ -87,6 +90,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		super();
 
@@ -130,6 +134,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!this._shellType) {
 			return;
 		}
+		if (!this._hasActivatedExtensions) {
+			await this._extensionService.activateByEvent('onTerminalCompletionsRequested');
+		}
+
 		this._requestedCompletionsIndex = this._promptInputModel.cursorIndex;
 		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._promptInputModel.cursorIndex, this._shellType, providers);
 		if (!providedCompletions?.length || token.isCancellationRequested) {
