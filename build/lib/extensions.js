@@ -6,6 +6,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.fromMarketplace = fromMarketplace;
 exports.fromGithub = fromGithub;
+exports.packageLocalNonNativeExtensionsStream = packageLocalNonNativeExtensionsStream;
 exports.packageLocalNativeExtensionsStream = packageLocalNativeExtensionsStream;
 exports.packageLocalExtensionsStream = packageLocalExtensionsStream;
 exports.packageMarketplaceExtensionsStream = packageMarketplaceExtensionsStream;
@@ -293,13 +294,25 @@ function isWebExtension(manifest) {
     }
     return true;
 }
-function packageLocalNativeExtensionsStream() {
-    return doPackageLocalExtensionsStream(false, false, nativeExtensions);
+function packageLocalNonNativeExtensionsStream(forWeb, disableMangle) {
+    return doPackageLocalExtensionsStream(forWeb, disableMangle, false);
+}
+function packageLocalNativeExtensionsStream(forWeb, disableMangle) {
+    return doPackageLocalExtensionsStream(forWeb, disableMangle, true);
 }
 function packageLocalExtensionsStream(forWeb, disableMangle) {
-    return doPackageLocalExtensionsStream(forWeb, disableMangle);
+    return es.merge([
+        packageLocalNonNativeExtensionsStream(forWeb, disableMangle),
+        packageLocalNativeExtensionsStream(forWeb, disableMangle)
+    ]);
 }
-function doPackageLocalExtensionsStream(forWeb, disableMangle, extensionFilter) {
+/**
+ * @param forWeb build the extensions that have web targets
+ * @param disableMangle disable the mangler
+ * @param native build the extensions that are marked as having native dependencies
+ */
+function doPackageLocalExtensionsStream(forWeb, disableMangle, native) {
+    const nativeExtensionsSet = new Set(nativeExtensions);
     const localExtensionsDescriptions = (glob.sync('extensions/*/package.json')
         .map(manifestPath => {
         const absoluteManifestPath = path.join(root, manifestPath);
@@ -307,7 +320,7 @@ function doPackageLocalExtensionsStream(forWeb, disableMangle, extensionFilter) 
         const extensionName = path.basename(extensionPath);
         return { name: extensionName, path: extensionPath, manifestPath: absoluteManifestPath };
     })
-        .filter(({ name }) => extensionFilter ? extensionFilter.indexOf(name) >= 0 : true)
+        .filter(({ name }) => native ? nativeExtensionsSet.has(name) : !nativeExtensionsSet.has(name))
         .filter(({ name }) => excludedExtensions.indexOf(name) === -1)
         .filter(({ name }) => builtInExtensions.every(b => b.name !== name))
         .filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true)));
