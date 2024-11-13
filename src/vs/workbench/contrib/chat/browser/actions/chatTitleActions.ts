@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
@@ -33,7 +34,6 @@ import { IChatRequestModel } from '../../common/chatModel.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatTreeItem, EDITS_VIEW_ID, IChatWidgetService } from '../chat.js';
-import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
@@ -426,16 +426,6 @@ export function registerChatTitleActions() {
 				return;
 			}
 
-			const editingSession = chatEditingService.currentEditingSessionObs.get();
-			if (!editingSession) {
-				return;
-			}
-
-			const targetModel = chatService.getSession(editingSession.chatSessionId);
-			if (!targetModel) {
-				return;
-			}
-
 			const [sourceWidget] = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel);
 			if (!sourceWidget || !sourceWidget.viewModel) {
 				return;
@@ -464,31 +454,48 @@ export function registerChatTitleActions() {
 						description: request.response?.response.toString()
 					});
 				}
-				const result = await quickPickService.pick(picks, { canPickMany: true });
+				const result = await quickPickService.pick(picks, {
+					placeHolder: localize('chat.startEditing.pickRequest', "Select requests that you want to use for editing"),
+					canPickMany: true
+				});
 				if (!result) {
 					return;
 				}
 				sourceRequests = picks.map(pick => pick.request);
 			}
 
-			const targetWidget = (await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane).widget;
+			await viewsService.openView(EDITS_VIEW_ID);
+
+			let editingSession = chatEditingService.currentEditingSessionObs.get();
+			if (!editingSession) {
+				await Event.toPromise(chatEditingService.onDidCreateEditingSession);
+				editingSession = chatEditingService.currentEditingSessionObs.get();
+				return;
+			}
+
+			if (!editingSession) {
+				return;
+			}
+
 			const state = editingSession.state.get();
 			if (state === ChatEditingSessionState.Disposed) {
 				return;
 			}
 
+			// adopt request items and collect new working set entries
 			const workingSetAdditions = new ResourceSet();
-
 			for (const request of sourceRequests) {
 				await chatService.adoptRequest(editingSession.chatSessionId, request);
 				this._collectWorkingSetAdditions(request, workingSetAdditions);
 			}
-
-
-			// ADD them all
 			workingSetAdditions.forEach(editingSession.addFileToWorkingSet, editingSession);
-			targetWidget.acceptInput(`@${editAgent.id}`, {});
 
+			// make request
+			await chatService.sendRequest(editingSession.chatSessionId, '', {
+				agentId: editAgent.id,
+				acceptedConfirmationData: [{ _type: 'toEditTransfer', transferedTurnResults: sourceRequests.map(v => v.response?.result) }], // TODO@jrieken HACKY
+				confirmation: typeof this.desc.title === 'string' ? this.desc.title : this.desc.title.value
+			});
 		}
 
 		private _collectWorkingSetAdditions(request: IChatRequestModel, bucket: ResourceSet) {
