@@ -11,7 +11,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
-import type { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewScrollChangedEvent } from '../../../common/viewEvents.js';
+import type { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorationsChangedEvent, ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewScrollChangedEvent } from '../../../common/viewEvents.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { TextureAtlasPage } from '../../gpu/atlas/textureAtlasPage.js';
@@ -375,6 +375,10 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	// clear it for that frame, so all parts must be rendered every time.
 
 	override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
+		return true;
+	}
+
+	override onDecorationsChanged(e: ViewDecorationsChangedEvent): boolean {
 		return true;
 	}
 
