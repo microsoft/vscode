@@ -60,6 +60,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 	private _scrollOffsetBindBuffer: GPUBuffer;
 	private _scrollOffsetValueBuffer: Float32Array;
+	private _scrollInitialized: boolean = false;
 
 	private readonly _queuedBufferUpdates: [ViewLinesDeletedEvent[], ViewLinesDeletedEvent[]] = [[], []];
 
@@ -112,10 +113,10 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		return true;
 	}
 
-	public override onScrollChanged(e: ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e?: ViewScrollChangedEvent): boolean {
 		const dpr = getActiveWindow().devicePixelRatio;
-		this._scrollOffsetValueBuffer[0] = e.scrollLeft * dpr;
-		this._scrollOffsetValueBuffer[1] = e.scrollTop * dpr;
+		this._scrollOffsetValueBuffer[0] = (e?.scrollLeft ?? this._context.viewLayout.getCurrentScrollLeft()) * dpr;
+		this._scrollOffsetValueBuffer[1] = (e?.scrollTop ?? this._context.viewLayout.getCurrentScrollTop()) * dpr;
 		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer);
 		return true;
 	}
@@ -157,6 +158,11 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		let tokens: IViewLineTokens;
 
 		const dpr = getActiveWindow().devicePixelRatio;
+
+		if (!this._scrollInitialized) {
+			this.onScrollChanged();
+			this._scrollInitialized = true;
+		}
 
 		// Update cell data
 		const cellBuffer = new Float32Array(this._cellValueBuffers[this._activeDoubleBufferIndex]);
