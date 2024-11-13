@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
-
 'use strict';
 
+const path = require('path');
 const withDefaults = require('../shared.webpack.config');
+const webpack = require('webpack');
 
 module.exports = withDefaults({
 	context: __dirname,
@@ -20,5 +21,17 @@ module.exports = withDefaults({
 	resolve: {
 		mainFields: ['module', 'main'],
 		extensions: ['.ts', '.js'] // support ts-files and js-files
-	}
+	},
+	plugins: [
+		// Handle dynamic imports from the autocomplete directory
+		new webpack.ContextReplacementPlugin(
+			// The (\\|\/) piece accounts for path separators in *nix and Windows
+			/\.\/autocomplete$/,
+			path.resolve(__dirname, 'autocomplete'),
+			{
+				// Include only .js files
+				'./': /\.js$/
+			}
+		)
+	]
 });
