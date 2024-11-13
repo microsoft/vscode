@@ -8,15 +8,14 @@ import * as es from 'event-stream';
 import * as Vinyl from 'vinyl';
 import * as vfs from 'vinyl-fs';
 import * as util from '../lib/util';
-import { isAMD } from '../lib/amd';
 // @ts-ignore
 import * as deps from '../lib/dependencies';
-import { ClientSecretCredential } from '@azure/identity';
+import { ClientAssertionCredential } from '@azure/identity';
 const azure = require('gulp-azure-storage');
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = process.env['BUILD_SOURCEVERSION'];
-const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
+const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
 
 // optionally allow to pass in explicit base/maps to upload
 const [, , base, maps] = process.argv;
@@ -30,9 +29,6 @@ function src(base: string, maps = `${base}/**/*.map`) {
 }
 
 function main(): Promise<void> {
-	if (isAMD()) {
-		return Promise.resolve(); // in AMD we run into some issues, but we want to unblock the build for recovery
-	}
 	const sources: any[] = [];
 
 	// vscode client maps (default)

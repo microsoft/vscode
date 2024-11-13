@@ -33,7 +33,7 @@ suite('ChatModel', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
-		instantiationService.stub(IChatAgentService, instantiationService.createInstance(ChatAgentService));
+		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
 	});
 
 	test('Waits for initialization', async () => {
@@ -197,7 +197,6 @@ suite('normalizeSerializableChatData', () => {
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 			sessionId: 'session1',
-			welcomeMessage: []
 		};
 
 		const newData = normalizeSerializableChatData(v1Data);
@@ -220,7 +219,6 @@ suite('normalizeSerializableChatData', () => {
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 			sessionId: 'session1',
-			welcomeMessage: [],
 			computedTitle: 'computed title'
 		};
 
@@ -244,7 +242,6 @@ suite('normalizeSerializableChatData', () => {
 			requests: [],
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
-			welcomeMessage: []
 		};
 
 		const newData = normalizeSerializableChatData(v1Data);
@@ -269,7 +266,6 @@ suite('normalizeSerializableChatData', () => {
 			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 			sessionId: 'session1',
-			welcomeMessage: [],
 			customTitle: 'computed title'
 		};
 

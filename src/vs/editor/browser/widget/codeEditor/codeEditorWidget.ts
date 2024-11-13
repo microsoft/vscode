@@ -197,6 +197,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onEndUpdate: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onEndUpdate: Event<void> = this._onEndUpdate.event;
 
+	private readonly _onBeforeExecuteEdit = this._register(new Emitter<{ source: string | undefined }>());
+	public readonly onBeforeExecuteEdit = this._onBeforeExecuteEdit.event;
+
 	//#endregion
 
 	public get isSimpleWidget(): boolean {
@@ -584,8 +587,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, maxCol, includeViewZones);
 	}
 
-	public setHiddenAreas(ranges: IRange[], source?: unknown): void {
-		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)), source);
+	public setHiddenAreas(ranges: IRange[], source?: unknown, forceUpdate?: boolean): void {
+		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)), source, forceUpdate);
 	}
 
 	public getVisibleColumnFromPosition(rawPosition: IPosition): number {
@@ -1231,6 +1234,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		} else {
 			cursorStateComputer = endCursorState;
 		}
+
+		this._onBeforeExecuteEdit.fire({ source: source ?? undefined });
 
 		this._modelData.viewModel.executeEdits(source, edits, cursorStateComputer);
 		return true;

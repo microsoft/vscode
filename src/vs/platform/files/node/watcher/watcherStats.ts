@@ -60,7 +60,7 @@ export function computeStats(
 	fillNonRecursiveWatcherStats(nonRecursiveWatcheLines, nonRecursiveWatcher);
 	lines.push(...alignTextColumns(nonRecursiveWatcheLines));
 
-	return allRecursiveRequests.some(r => r.useNext) ? `\n\n[File Watcher NEXT] request stats:\n\n${lines.join('\n')}\n\n` : `\n\n[File Watcher CLASSIC] request stats:\n\n${lines.join('\n')}\n\n`;
+	return `\n\n[File Watcher] request stats:\n\n${lines.join('\n')}\n\n`;
 }
 
 function alignTextColumns(lines: string[]) {
@@ -185,7 +185,7 @@ function fillRequestStats(lines: string[], request: IUniversalWatchRequest, watc
 }
 
 function requestDetailsToString(request: IUniversalWatchRequest): string {
-	return `excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, filter: ${requestFilterToString(request.filter)}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'}${isRecursiveWatchRequest(request) ? `, useNext: ${request.useNext}` : ''}`;
+	return `excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, filter: ${requestFilterToString(request.filter)}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'}`;
 }
 
 function fillRecursiveWatcherStats(lines: string[], recursiveWatcher: ParcelWatcher): void {

@@ -125,7 +125,7 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 		};
 		let builder = Server::try_bind(&addr).map_err(CodeError::CouldNotListenOnInterface)?;
 
-		let mut listening = format!("Web UI available at http://{}", addr);
+		let mut listening = format!("Web UI available at http://{addr}");
 		if let Some(base) = args.server_base_path {
 			if !base.starts_with('/') {
 				listening.push('/');
@@ -133,7 +133,7 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 			listening.push_str(&base);
 		}
 		if let Some(ct) = args.connection_token {
-			listening.push_str(&format!("?tkn={}", ct));
+			listening.push_str(&format!("?tkn={ct}"));
 		}
 		ctx.log.result(listening);
 
@@ -223,12 +223,9 @@ fn append_secret_headers(
 	let headers = res.headers_mut();
 	headers.append(
 		hyper::header::SET_COOKIE,
-		format!(
-			"{}={}{}; SameSite=Strict; Path=/",
-			PATH_COOKIE_NAME, base_path, SECRET_KEY_MINT_PATH,
-		)
-		.parse()
-		.unwrap(),
+		format!("{PATH_COOKIE_NAME}={base_path}{SECRET_KEY_MINT_PATH}; SameSite=Strict; Path=/",)
+			.parse()
+			.unwrap(),
 	);
 	headers.append(
 		hyper::header::SET_COOKIE,
@@ -445,14 +442,14 @@ mod response {
 	pub fn connection_err(err: hyper::Error) -> Response<Body> {
 		Response::builder()
 			.status(503)
-			.body(Body::from(format!("Error connecting to server: {:?}", err)))
+			.body(Body::from(format!("Error connecting to server: {err:?}")))
 			.unwrap()
 	}
 
 	pub fn code_err(err: CodeError) -> Response<Body> {
 		Response::builder()
 			.status(500)
-			.body(Body::from(format!("Error serving request: {}", err)))
+			.body(Body::from(format!("Error serving request: {err}")))
 			.unwrap()
 	}
 

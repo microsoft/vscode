@@ -174,7 +174,7 @@ export class ExtensionsListView extends ViewPane {
 		super.renderHeader(container);
 
 		if (!this.options.hideBadge) {
-			this.badge = new CountBadge(append(container, $('.count-badge-wrapper')), {}, defaultCountBadgeStyles);
+			this.badge = this._register(new CountBadge(append(container, $('.count-badge-wrapper')), {}, defaultCountBadgeStyles));
 		}
 	}
 
@@ -553,7 +553,6 @@ export class ExtensionsListView extends ViewPane {
 			};
 
 			const incompatible: IExtension[] = [];
-			const missingDeps: IExtension[] = [];
 			const deprecated: IExtension[] = [];
 			const outdated: IExtension[] = [];
 			const actionRequired: IExtension[] = [];
@@ -563,13 +562,10 @@ export class ExtensionsListView extends ViewPane {
 				if (e.enablementState === EnablementState.DisabledByInvalidExtension) {
 					incompatible.push(e);
 				}
-				else if (e.enablementState === EnablementState.DisabledByExtensionDependency) {
-					missingDeps.push(e);
-				}
 				else if (e.deprecationInfo) {
 					deprecated.push(e);
 				}
-				else if (e.outdated) {
+				else if (e.outdated && this.extensionEnablementService.isEnabledEnablementState(e.enablementState)) {
 					outdated.push(e);
 				}
 				else if (e.runtimeState) {
@@ -582,7 +578,6 @@ export class ExtensionsListView extends ViewPane {
 
 			result = [
 				...incompatible.sort(defaultSort),
-				...missingDeps.sort(defaultSort),
 				...deprecated.sort(defaultSort),
 				...outdated.sort(defaultSort),
 				...actionRequired.sort(defaultSort),

@@ -15,7 +15,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { ITerminalChildProcess, ITerminalProfile } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, ITerminalChildProcess, ITerminalProfile } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService } from '../../browser/terminal.js';
@@ -53,12 +53,6 @@ class MockTerminalProfileResolverService extends TestTerminalProfileResolverServ
 }
 
 const terminalShellTypeContextKey = {
-	set: () => { },
-	reset: () => { },
-	get: () => undefined
-};
-
-const terminalInRunCommandPicker = {
 	set: () => { },
 	reset: () => { },
 	get: () => undefined
@@ -150,7 +144,7 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
 			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
 			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
-			terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, terminalInRunCommandPicker, {}));
+			terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
 			// //Wait for the teminalInstance._xtermReadyPromise to resolve
 			await new Promise(resolve => setTimeout(resolve, 100));
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
@@ -266,13 +260,14 @@ suite('Workbench - TerminalInstance', () => {
 		let instantiationService: TestInstantiationService;
 		let capabilities: TerminalCapabilityStore;
 
-		function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {
+		function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {
 			const capabilities = store.add(new TerminalCapabilityStore());
 			if (!isWindows) {
 				capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
 			}
 			return {
 				shellLaunchConfig: {},
+				shellType: GeneralShellType.PowerShell,
 				cwd: 'cwd',
 				initialCwd: undefined,
 				processName: '',

@@ -8,7 +8,7 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuRegistry, MenuId, registerAction2, Action2, IMenuItem, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApi } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService, extensionsConfigurationNodeBase } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
@@ -74,7 +74,6 @@ import { ExtensionStorageService } from '../../../../platform/extensionManagemen
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { CONTEXT_KEYBINDINGS_EDITOR } from '../../preferences/common/preferences.js';
-import { DeprecatedExtensionsChecker } from './deprecatedExtensionsChecker.js';
 import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IConfigurationMigrationRegistry, Extensions as ConfigurationMigrationExtensions } from '../../../common/configuration.js';
@@ -260,6 +259,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 				included: isNative && !isLinux
+			},
+			[UseUnpkgResourceApi]: {
+				type: 'boolean',
+				description: localize('extensions.gallery.useUnpkgResourceApi', "When enabled, extensions to update are fetched from Unpkg service."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+				tags: ['onExp', 'usesOnlineServices']
 			}
 		}
 	});
@@ -1823,7 +1829,6 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, Life
 workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(DeprecatedExtensionsChecker, LifecyclePhase.Eventually);
 if (isWeb) {
 	workbenchRegistry.registerWorkbenchContribution(ExtensionStorageCleaner, LifecyclePhase.Eventually);
 }
