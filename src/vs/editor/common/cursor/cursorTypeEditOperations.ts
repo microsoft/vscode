@@ -6,7 +6,7 @@
 import { CharCode } from '../../../base/common/charCode.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import * as strings from '../../../base/common/strings.js';
-import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection, ReplaceOvertypeCommand, OvertypePasteCommand, ReplaceOvertypeCommandWithOffsetCursorState } from '../commands/replaceCommand.js';
+import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection, ReplaceOvertypeCommand, OvertypePasteCommand } from '../commands/replaceCommand.js';
 import { ShiftCommand } from '../commands/shiftCommand.js';
 import { SurroundSelectionCommand } from '../commands/surroundSelectionCommand.js';
 import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from '../cursorCommon.js';
@@ -484,12 +484,12 @@ export class InterceptorElectricCharOperation {
 
 export class SimpleCharacterTypeOperation {
 
-	public static getEdits(prevEditOperationType: EditOperationType, selections: Selection[], ch: string): EditOperationResult {
+	public static getEdits(prevEditOperationType: EditOperationType, selections: Selection[], ch: string, isDoingComposition: boolean): EditOperationResult {
 		// A simple character type
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const inputMode = InputMode.getInputMode();
-			const ChosenReplaceCommand = inputMode === 'overtype' ? ReplaceOvertypeCommand : ReplaceCommand;
+			const ChosenReplaceCommand = inputMode === 'overtype' && !isDoingComposition ? ReplaceOvertypeCommand : ReplaceCommand;
 			commands[i] = new ChosenReplaceCommand(selections[i], ch);
 		}
 
@@ -741,11 +741,7 @@ export class CompositionOperation {
 		const startColumn = Math.max(1, pos.column - replacePrevCharCnt);
 		const endColumn = Math.min(model.getLineMaxColumn(pos.lineNumber), pos.column + replaceNextCharCnt);
 		const range = new Range(pos.lineNumber, startColumn, pos.lineNumber, endColumn);
-
-		const inputMode = InputMode.getInputMode();
-		const shouldOvertypeOnPaste = config.overtypeOnPaste && inputMode === 'overtype';
-		const ChosenReplaceCommand = shouldOvertypeOnPaste ? ReplaceOvertypeCommandWithOffsetCursorState : ReplaceCommandWithOffsetCursorState;
-		return new ChosenReplaceCommand(range, text, 0, positionDelta);
+		return new ReplaceCommandWithOffsetCursorState(range, text, 0, positionDelta);
 	}
 }
 

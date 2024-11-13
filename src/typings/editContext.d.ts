@@ -52,8 +52,8 @@ interface EditContextEventHandlersEventMap {
 	textupdate: TextUpdateEvent;
 	textformatupdate: TextFormatUpdateEvent;
 	characterboundsupdate: CharacterBoundsUpdateEvent;
-	compositionstart: Event;
-	compositionend: Event;
+	compositionstart: CompositionEvent;
+	compositionend: CompositionEvent;
 }
 
 type EventHandler<TEvent extends Event = Event> = (event: TEvent) => void;

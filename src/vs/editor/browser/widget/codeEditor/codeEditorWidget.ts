@@ -1060,9 +1060,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				case editorCommon.Handler.CompositionStart:
 					this._startComposition();
 					return;
-				case editorCommon.Handler.CompositionEnd:
-					this._endComposition(source);
+				case editorCommon.Handler.CompositionEnd: {
+					const args = <Partial<editorCommon.CompositionPayload>>payload;
+					this._endComposition(source, args.compositionRange);
 					return;
+				}
 				case editorCommon.Handler.Type: {
 					const args = <Partial<editorCommon.TypePayload>>payload;
 					this._type(source, args.text || '');
@@ -1120,11 +1122,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._onDidCompositionStart.fire();
 	}
 
-	private _endComposition(source: string | null | undefined): void {
+	private _endComposition(source: string | null | undefined, compositionRange: Range | undefined): void {
 		if (!this._modelData) {
 			return;
 		}
-		this._modelData.viewModel.endComposition(source);
+		this._modelData.viewModel.endComposition(source, compositionRange);
 		this._onDidCompositionEnd.fire();
 	}
 
@@ -1814,8 +1816,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				startComposition: () => {
 					this._startComposition();
 				},
-				endComposition: () => {
-					this._endComposition('keyboard');
+				endComposition: (compositionRange: Range | undefined) => {
+					this._endComposition('keyboard', compositionRange);
 				},
 				cut: () => {
 					this._cut('keyboard');
@@ -1845,8 +1847,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				startComposition: () => {
 					this._commandService.executeCommand(editorCommon.Handler.CompositionStart, {});
 				},
-				endComposition: () => {
-					this._commandService.executeCommand(editorCommon.Handler.CompositionEnd, {});
+				endComposition: (compositionRange: Range | undefined) => {
+					this._commandService.executeCommand(editorCommon.Handler.CompositionEnd, { compositionRange });
 				},
 				cut: () => {
 					this._commandService.executeCommand(editorCommon.Handler.Cut, {});

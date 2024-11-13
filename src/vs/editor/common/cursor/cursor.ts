@@ -538,14 +538,14 @@ export class CursorsController extends Disposable {
 		this._compositionState = new CompositionState(this._model, this.getSelections());
 	}
 
-	public endComposition(eventsCollector: ViewModelEventsCollector, source?: string | null | undefined): void {
+	public endComposition(eventsCollector: ViewModelEventsCollector, source?: string | null | undefined, compositionRange?: Range | undefined): void {
 		const compositionOutcome = this._compositionState ? this._compositionState.deduceOutcome(this._model, this.getSelections()) : null;
 		this._compositionState = null;
 
 		this._executeEdit(() => {
 			if (source === 'keyboard') {
 				// composition finishes, let's check if we need to auto complete if necessary.
-				this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, compositionOutcome, this.getSelections(), this.getAutoClosedCharacters()));
+				this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, compositionOutcome, this.getSelections(), this.getAutoClosedCharacters(), compositionRange));
 			}
 		}, eventsCollector, source);
 	}

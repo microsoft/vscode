@@ -1054,8 +1054,8 @@ export class ViewModel extends Disposable implements IViewModel {
 	public startComposition(): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.startComposition(eventsCollector));
 	}
-	public endComposition(source?: string | null | undefined): void {
-		this._executeCursorEdit(eventsCollector => this._cursor.endComposition(eventsCollector, source));
+	public endComposition(source?: string | null | undefined, compositionRange?: Range | undefined): void {
+		this._executeCursorEdit(eventsCollector => this._cursor.endComposition(eventsCollector, source, compositionRange));
 	}
 	public type(text: string, source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.type(eventsCollector, text, source));

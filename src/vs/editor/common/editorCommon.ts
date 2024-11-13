@@ -765,6 +765,14 @@ export interface TypePayload {
 /**
  * @internal
  */
+export interface CompositionPayload {
+	compositionRange: Range;
+}
+
+
+/**
+ * @internal
+ */
 export interface ReplacePreviousCharPayload {
 	text: string;
 	replaceCharCnt: number;

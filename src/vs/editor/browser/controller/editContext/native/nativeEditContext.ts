@@ -118,19 +118,23 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
 			this._emitTypeEvent(viewController, e);
 		}));
+		let compositionStartPosition: Position | undefined;
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			viewController.compositionStart();
 			// Emits ViewCompositionStartEvent which can be depended on by ViewEventHandlers
 			this._context.viewModel.onCompositionStart();
+			compositionStartPosition = this._context.viewModel.getPrimaryCursorState().modelState.position;
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', (e) => {
 			// Utlimately fires compositionEnd() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
-			viewController.compositionEnd();
+			const compositionRange = compositionStartPosition ? Range.fromPositions(compositionStartPosition, this._context.viewModel.getPrimaryCursorState().modelState.position) : undefined;
+			viewController.compositionEnd(compositionRange);
 			// Emits ViewCompositionEndEvent which can be depended on by ViewEventHandlers
 			this._context.viewModel.onCompositionEnd();
+			compositionStartPosition = undefined;
 		}));
 		this._register(addDisposableListener(this.textArea.domNode, 'paste', (e) => {
 			e.preventDefault();
