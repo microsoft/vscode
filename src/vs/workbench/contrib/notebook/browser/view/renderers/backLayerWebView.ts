@@ -251,7 +251,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				outputScrolling: this.options.outputScrolling,
 				outputWordWrap: this.options.outputWordWrap,
 				linkifyFilePaths: this.options.outputLinkifyFilePaths,
-				minimalError: this.options.minimalError
+				minimalError: false //TODO: drop this option from renderer pipeline
 			}
 		});
 	}
@@ -292,7 +292,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			outputScrolling: this.options.outputScrolling,
 			outputWordWrap: this.options.outputWordWrap,
 			linkifyFilePaths: this.options.outputLinkifyFilePaths,
-			minimalError: this.options.minimalError
+			minimalError: false
 		};
 		const preloadScript = preloadsScriptStr(
 			{

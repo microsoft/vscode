@@ -5,12 +5,13 @@
 
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { NotebookSetting } from '../../../common/notebookCommon.js';
-import { ICellExecutionStateChangedEvent } from '../../../common/notebookExecutionStateService.js';
+import { ICellExecutionError, ICellExecutionStateChangedEvent } from '../../../common/notebookExecutionStateService.js';
 import { EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, INotebookEditor } from '../../notebookBrowser.js';
 import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
 import { CellContentPart } from '../cellPart.js';
@@ -20,6 +21,9 @@ const $ = DOM.$;
 export class CollapsedCellOutput extends CellContentPart {
 
 	private errorContainer: HTMLElement;
+	private errorLabel: HTMLElement;
+	private errorMessage: HTMLElement;
+	private collapsedForError = false;
 
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
@@ -40,36 +44,60 @@ export class CollapsedCellOutput extends CellContentPart {
 			cellOutputCollapseContainer.title = localize('cellExpandOutputButtonLabel', "Expand Cell Output (${0})", keybinding.getLabel());
 		}
 
+		this.errorContainer = DOM.append(cellOutputCollapseContainer, $('.minimal-error-container'));
+		this.errorLabel = DOM.append(this.errorContainer, $('span.cell-error-label', {
+			style: 'font-weight: bold; color: var(--vscode-editorError-foreground);'
+		}));
+		this.errorMessage = DOM.append(this.errorContainer, $('span.error-message'));
+
+		this.errorContainer.style.display = 'none';
+
 		DOM.hide(cellOutputCollapseContainer);
 
 		this._register(DOM.addDisposableListener(expandIcon, DOM.EventType.CLICK, () => this.expand()));
 		this._register(DOM.addDisposableListener(cellOutputCollapseContainer, DOM.EventType.DBLCLICK, () => this.expand()));
 
-		this.errorContainer = DOM.append(cellOutputCollapseContainer, $('.minimal-error-container'));
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(NotebookSetting.minimalErrorRendering)) { this.updateError(); }
 		}));
 	}
 
-	private updateError() {
+	private updateError(error?: ICellExecutionError) {
 		if (this.currentCell instanceof CodeCellViewModel) {
-			const error = this.currentCell.excecutionError.get();
+			error = error ?? this.currentCell.excecutionError.get();
 			if (error && this.configurationService.getValue(NotebookSetting.minimalErrorRendering)) {
-				const message = DOM.append(this.errorContainer, $('div.error-message'));
-				message.textContent = error.message;
+				this.errorContainer.style.display = 'block';
+				const split = error.message.split(':');
+				this.errorLabel.textContent = split[0] + ': ';
+				this.errorMessage.textContent = split[1];
 			} else {
-				this.errorContainer.innerHTML = '';
+				this.errorContainer.style.display = 'none';
+				this.errorLabel.textContent = '';
+				this.errorMessage.textContent = '';
 			}
 		}
 	}
 
 	override didRenderCell(element: ICellViewModel): void {
-		this.updateError();
+		if (this.currentCell instanceof CodeCellViewModel) {
+			autorun((reader) => this.updateError(
+				reader.readObservable((this.currentCell as CodeCellViewModel).excecutionError)));
+		}
 	}
 
 	override updateForExecutionState(element: ICellViewModel, e: ICellExecutionStateChangedEvent): void {
-		this.updateError();
+		if (e.changed === undefined && this.configurationService.getValue(NotebookSetting.minimalErrorRendering)) {
+			this.updateError();
+
+			if (!element.isOutputCollapsed) {
+				element.isOutputCollapsed = true;
+				this.collapsedForError = true;
+			}
+		} else if (this.collapsedForError) {
+			element.isOutputCollapsed = false;
+			this.collapsedForError = false;
+		}
 	}
 
 	private expand() {

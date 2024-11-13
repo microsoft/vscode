@@ -8,7 +8,7 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID } from './cellDiagnosticsActions.js';
+import { FIX_CELL_ERROR_COMMAND_ID, OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID } from './cellDiagnosticsActions.js';
 import { NotebookStatusBarController } from '../cellStatusBar/executionStatusBarItemController.js';
 import { INotebookEditor, INotebookEditorContribution, INotebookViewModel } from '../../notebookBrowser.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
@@ -43,27 +43,32 @@ class DiagnosticCellStatusBarItem extends Disposable {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
-		this._register(autorun((reader) => this.updateSparkleItem(reader.readObservable(cell.excecutionError))));
+		this._register(autorun((reader) => this.updateQuickActions(reader.readObservable(cell.excecutionError))));
 
 	}
 
-	private async updateSparkleItem(error: ICellExecutionError | undefined) {
-		let item: INotebookCellStatusBarItem | undefined;
+	private async updateQuickActions(error: ICellExecutionError | undefined) {
+		let items: INotebookCellStatusBarItem[] = [];
 
 		if (error?.location) {
 			const keybinding = this.keybindingService.lookupKeybinding(OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID)?.getLabel();
 			const tooltip = localize('notebook.cell.status.diagnostic', "Quick Actions {0}", `(${keybinding})`);
 
-			item = {
-				text: `$(sparkle)`,
+			items = [{
+				text: `$(sparkle) fix`,
+				tooltip,
+				alignment: CellStatusbarAlignment.Left,
+				command: FIX_CELL_ERROR_COMMAND_ID,
+				priority: Number.MAX_SAFE_INTEGER - 1
+			}, {
+				text: `$(sparkle) explain`,
 				tooltip,
 				alignment: CellStatusbarAlignment.Left,
 				command: OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID,
 				priority: Number.MAX_SAFE_INTEGER - 1
-			};
+			}];
 		}
 
-		const items = item ? [item] : [];
 		this._currentItemIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this.cell.handle, items }]);
 	}
 

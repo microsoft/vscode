@@ -222,12 +222,15 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	layoutChange(state: CodeCellLayoutChangeEvent, source?: string) {
+		const getCollapsedHeight = () =>
+			notebookLayoutConfiguration.outputMinimalError && this.excecutionError.get() ? 28 + 28 : 28;
+
 		// recompute
 		this._ensureOutputsTop();
 		const notebookLayoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
 		const bottomToolbarDimensions = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
 		const outputShowMoreContainerHeight = state.outputShowMoreContainerHeight ? state.outputShowMoreContainerHeight : this._layoutInfo.outputShowMoreContainerHeight;
-		const outputTotalHeight = Math.max(this._outputMinHeight, this.isOutputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalSum());
+		const outputTotalHeight = Math.max(this._outputMinHeight, this.isOutputCollapsed ? getCollapsedHeight() : this._outputsTop!.getTotalSum());
 		const commentHeight = state.commentHeight ? this._commentHeight : this._layoutInfo.commentHeight;
 
 		const originalLayout = this.layoutInfo;
