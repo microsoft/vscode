@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isEqual } from '../../../../base/common/resources.js';
-import { AsyncReferenceCollection, Disposable, DisposableStore, dispose, IReference, ReferenceCollection, toDisposable } from '../../../../base/common/lifecycle.js';
+import { AsyncReferenceCollection, Disposable, DisposableStore, dispose, IDisposable, IReference, ReferenceCollection, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, autorunWithStore, derived, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { IChatEditingService, WorkingSetEntryState, IModifiedFileEntry, ChatEditingSessionState } from '../../chat/common/chatEditingService.js';
 import { INotebookService } from '../common/notebookService.js';
@@ -79,7 +79,8 @@ export class NotebookChatEditorControllerContrib extends Disposable implements I
 
 
 class NotebookChatEditorController extends Disposable {
-	private readonly deletedCellOverlayer: NotebookDeletedCellOverlayer;
+	private readonly deletedCellDecorator: NotebookDeletedCellDecorator;
+	private readonly insertedCellDecorator: NotebookInsertedCellDecorator;
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
@@ -87,7 +88,8 @@ class NotebookChatEditorController extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
-		this.deletedCellOverlayer = this._register(instantiationService.createInstance(NotebookDeletedCellOverlayer, notebookEditor));
+		this.deletedCellDecorator = this._register(instantiationService.createInstance(NotebookDeletedCellDecorator, notebookEditor));
+		this.insertedCellDecorator = this._register(instantiationService.createInstance(NotebookInsertedCellDecorator, notebookEditor));
 		const notebookModel = observableFromEvent(this.notebookEditor.onDidChangeModel, e => e);
 		const entryObs = observableValue<IModifiedFileEntry | undefined>('fileentry', undefined);
 		const notebookDiff = observableValue<{ cellDiff: CellDiffInfo[]; modelVersion: number } | undefined>('cellDiffInfo', undefined);
@@ -131,20 +133,22 @@ class NotebookChatEditorController extends Disposable {
 				if (e) {
 					notebookDiff.set(undefined, undefined);
 					disposeDecorators();
-					this.deletedCellOverlayer.clear();
+					this.deletedCellDecorator.clear();
+					this.insertedCellDecorator.clear();
 				}
 			}));
 			store.add(notebookSynchronizer.onDidAccept(() => {
 				notebookDiff.set(undefined, undefined);
 				disposeDecorators();
-				this.deletedCellOverlayer.clear();
+				this.deletedCellDecorator.clear();
+				this.insertedCellDecorator.clear();
 			}));
 			const result = this._register(await this.originalModelRefFactory.getOrCreate(entry, model.viewType));
 			originalModel.set(result.object, undefined);
 		}));
 
 		const onDidChangeVisibleRanges = observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges);
-		const decorators = new Map<NotebookCellTextModel, NotebookCellDiffDecorator>();
+		const decorators = new Map<NotebookCellTextModel, { editor: ICodeEditor } & IDisposable>();
 		const disposeDecorators = () => {
 			dispose(Array.from(decorators.values()));
 			decorators.clear();
@@ -161,9 +165,9 @@ class NotebookChatEditorController extends Disposable {
 			}
 
 			diffInfo.cellDiff.forEach((diff) => {
-				if (diff.type === 'modified' || diff.type === 'insert') {
+				if (diff.type === 'modified') {
 					const modifiedCell = modified.cells[diff.modifiedCellIndex];
-					const originalCellValue = diff.type === 'modified' ? original.cells[diff.originalCellIndex].getValue() : undefined;
+					const originalCellValue = original.cells[diff.originalCellIndex].getValue();
 					const editor = this.notebookEditor.codeEditors.find(([vm,]) => vm.handle === modifiedCell.handle)?.[1];
 					if (editor && decorators.get(modifiedCell)?.editor !== editor) {
 						decorators.get(modifiedCell)?.dispose();
@@ -189,10 +193,12 @@ class NotebookChatEditorController extends Disposable {
 			}
 			if (!diffInfo) {
 				// User reverted or accepted the changes, hence original === modified.
-				this.deletedCellOverlayer.clear();
+				this.deletedCellDecorator.clear();
+				this.insertedCellDecorator.clear();
 				return;
 			}
-			this.deletedCellOverlayer.createNecessaryOverlays(diffInfo.cellDiff, original);
+			this.insertedCellDecorator.apply(diffInfo.cellDiff);
+			this.deletedCellDecorator.apply(diffInfo.cellDiff, original);
 		}));
 	}
 }
@@ -457,6 +463,35 @@ class NotebookCellDiffDecorator extends DisposableStore {
 	}
 }
 
+class NotebookInsertedCellDecorator extends Disposable {
+	private readonly decorators = this._register(new DisposableStore());
+	constructor(
+		private readonly notebookEditor: INotebookEditor,
+	) {
+		super();
+
+	}
+	public apply(diffInfo: CellDiffInfo[]) {
+		const model = this.notebookEditor.textModel;
+		if (!model) {
+			return;
+		}
+		const cells = diffInfo.filter(diff => diff.type === 'insert').map((diff) => model.cells[diff.modifiedCellIndex]);
+		const ids = this.notebookEditor.deltaCellDecorations([], cells.map(cell => ({
+			handle: cell.handle,
+			options: { className: 'nb-insertHighlight', outputClassName: 'nb-insertHighlight' }
+		})));
+		this.clear();
+		this.decorators.add(toDisposable(() => {
+			if (!this.notebookEditor.isDisposed) {
+				this.notebookEditor.deltaCellDecorations(ids, []);
+			}
+		}));
+	}
+	public clear() {
+		this.decorators.clear();
+	}
+}
 
 class NotebookModelSynchronizer extends Disposable {
 	private readonly throttledUpdateNotebookModel = new ThrottledDelayer(200);
@@ -587,11 +622,11 @@ class NotebookModelSynchronizer extends Disposable {
 		if (!this.snapshot) {
 			return false;
 		}
-		await this.updateNotebook(this.snapshot.bytes, this.snapshot.dirty);
+		await this.updateNotebook(this.snapshot.bytes, !this.snapshot.dirty);
 		return true;
 	}
 
-	private async updateNotebook(bytes: VSBuffer, dirty: boolean) {
+	private async updateNotebook(bytes: VSBuffer, save: boolean) {
 		if (!this.notebookEditor.textModel) {
 			return;
 		}
@@ -602,7 +637,7 @@ class NotebookModelSynchronizer extends Disposable {
 			const data = await serializer.dataToNotebook(bytes);
 			this.notebookEditor.textModel.reset(data.cells, data.metadata, serializer.options);
 
-			if (!dirty) {
+			if (save) {
 				// save the file after discarding so that the dirty indicator goes away
 				// and so that an intermediate saved state gets reverted
 				// await this.notebookEditor.textModel.save({ reason: SaveReason.EXPLICIT });
@@ -763,7 +798,7 @@ class NotebookModelSynchronizer extends Disposable {
 
 const ttPolicy = createTrustedTypesPolicy('notebookChatEditController', { createHTML: value => value });
 
-class NotebookDeletedCellOverlayer extends Disposable {
+class NotebookDeletedCellDecorator extends Disposable {
 	private readonly zoneRemover = this._register(new DisposableStore());
 	private readonly createdViewZones = new Map<number, string>();
 	constructor(
@@ -774,7 +809,7 @@ class NotebookDeletedCellOverlayer extends Disposable {
 	}
 
 
-	public createNecessaryOverlays(diffInfo: CellDiffInfo[], original: NotebookTextModel): void {
+	public apply(diffInfo: CellDiffInfo[], original: NotebookTextModel): void {
 		this.clear();
 
 		let currentIndex = 0;
@@ -816,7 +851,7 @@ class NotebookDeletedCellOverlayer extends Disposable {
 		this._notebookEditor.changeViewZones(accessor => {
 			const notebookViewZone = {
 				afterModelPosition: index,
-				heightInPx: totalHeight,
+				heightInPx: totalHeight + 4,
 				domNode: rootContainer
 			};
 
@@ -944,7 +979,7 @@ class NotebookDeletedCellWidget extends Disposable {
 
 		const lineCount = splitLines(code).length;
 		const height = (lineCount * (fontInfo.lineHeight || DefaultLineHeight)) + 12 + 12; // We have 12px top and bottom in generated code HTML;
-		const totalHeight = height + 16;
+		const totalHeight = height + 16 + 16;
 
 		return totalHeight;
 	}
