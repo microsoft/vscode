@@ -107,15 +107,18 @@ vscode.window.registerTerminalCompletionProvider({
 		if (!availableCommands) {
 			return;
 		}
+
 		const specs = await getCompletionSpecs(availableCommands);
 		if (!specs) {
 			return;
 		}
+
 		// TODO: Leverage shellType when available https://github.com/microsoft/vscode/issues/230165
 		const shellPath = 'shellPath' in terminal.creationOptions ? terminal.creationOptions.shellPath : vscode.env.shell;
 		if (!shellPath) {
 			return;
 		}
+
 		const builtinCommands = getBuiltinCommands(shellPath);
 		builtinCommands?.forEach(command => availableCommands.add(command));
 
