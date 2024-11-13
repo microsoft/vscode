@@ -280,12 +280,15 @@ export class View extends ViewEventHandler {
 			return;
 		}
 		this._experimentalEditContextEnabled = experimentalEditContextEnabled;
+		const isEditContextFocused = this._editContext.isFocused();
+		const indexOfEditContext = this._viewParts.indexOf(this._editContext);
 		this._editContext.dispose();
 		this._editContext = this._instantiateEditContext(experimentalEditContextEnabled);
-		// Replace the view parts with the new edit context
-		const indexOfEditContextHandler = this._viewParts.indexOf(this._editContext);
-		if (indexOfEditContextHandler !== -1) {
-			this._viewParts.splice(indexOfEditContextHandler, 1, this._editContext);
+		if (isEditContextFocused) {
+			this._editContext.focus();
+		}
+		if (indexOfEditContext !== -1) {
+			this._viewParts.splice(indexOfEditContext, 1, this._editContext);
 		}
 	}
 
@@ -326,6 +329,7 @@ export class View extends ViewEventHandler {
 			viewDomNode: this.domNode.domNode,
 			linesContentDomNode: this._linesContent.domNode,
 			viewLinesDomNode: this._viewLines.getDomNode().domNode,
+			viewLinesGpu: this._viewLinesGpu,
 
 			focusTextArea: () => {
 				this.focus();
@@ -356,11 +360,18 @@ export class View extends ViewEventHandler {
 
 			visibleRangeForPosition: (lineNumber: number, column: number) => {
 				this._flushAccumulatedAndRenderNow();
-				return this._viewLines.visibleRangeForPosition(new Position(lineNumber, column));
+				const position = new Position(lineNumber, column);
+				return this._viewLines.visibleRangeForPosition(position) ?? this._viewLinesGpu?.visibleRangeForPosition(position) ?? null;
 			},
 
 			getLineWidth: (lineNumber: number) => {
 				this._flushAccumulatedAndRenderNow();
+				if (this._viewLinesGpu) {
+					const result = this._viewLinesGpu.getLineWidth(lineNumber);
+					if (result !== undefined) {
+						return result;
+					}
+				}
 				return this._viewLines.getLineWidth(lineNumber);
 			}
 		};

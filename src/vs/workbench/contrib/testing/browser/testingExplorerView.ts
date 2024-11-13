@@ -30,7 +30,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../nls.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { MenuEntryActionViewItem, createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuEntryActionViewItem, createActionViewItem, getActionBarActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -374,7 +374,6 @@ export class TestingExplorerView extends ViewPane {
 			}
 		}
 
-		const menuActions: IAction[] = [];
 		const contextKeys: [string, unknown][] = [];
 		// allow extension author to define context for when to show the test menu actions for run or debug menus
 		if (group === TestRunProfileBitset.Run) {
@@ -390,7 +389,7 @@ export class TestingExplorerView extends ViewPane {
 		const menu = this.menuService.getMenuActions(MenuId.TestProfilesContext, key);
 
 		// fill if there are any actions
-		createAndFillInContextMenuActions(menu, menuActions);
+		const menuActions = getFlatContextMenuActions(menu);
 
 		const postActions: IAction[] = [];
 		if (profileActions.length > 1) {
@@ -728,7 +727,6 @@ class TestingExplorerViewModel extends Disposable {
 				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
 				filter: this.filter,
 				findWidgetEnabled: false,
-				openOnSingleClick: false,
 			}) as TestingObjectTree<FuzzyScore>;
 
 
@@ -772,11 +770,34 @@ class TestingExplorerViewModel extends Disposable {
 			filterState.text.onDidChange,
 			filterState.fuzzy.onDidChange,
 			testService.excluded.onTestExclusionsChanged,
-		)(this.tree.refilter, this.tree));
+		)(() => {
+			if (!filterState.text.value) {
+				return this.tree.refilter();
+			}
+
+			const items = this.filter.lastIncludedTests = new Set();
+			this.tree.refilter();
+			this.filter.lastIncludedTests = undefined;
+
+			for (const test of items) {
+				this.tree.expandTo(test);
+			}
+		}));
 
 		this._register(this.tree.onDidOpen(e => {
-			if (e.element instanceof TestItemTreeElement && !e.element.children.size && e.element.test.item.uri) {
-				commandService.executeCommand('vscode.revealTest', e.element.test.item.extId);
+			if (!(e.element instanceof TestItemTreeElement)) {
+				return;
+			}
+
+			filterState.didSelectTestInExplorer(e.element.test.item.extId);
+
+			if (!e.element.children.size && e.element.test.item.uri) {
+				if (!this.tryPeekError(e.element)) {
+					commandService.executeCommand('vscode.revealTest', e.element.test.item.extId, {
+						openToSide: e.sideBySide,
+						preserveFocus: true,
+					});
+				}
 			}
 		}));
 
@@ -802,20 +823,6 @@ class TestingExplorerViewModel extends Disposable {
 		this._register(onDidChangeVisibility(visible => {
 			if (visible) {
 				filterState.focusInput();
-			}
-		}));
-
-		this._register(this.tree.onDidChangeSelection(evt => {
-			if (dom.isMouseEvent(evt.browserEvent) && (evt.browserEvent.altKey || evt.browserEvent.shiftKey)) {
-				return; // don't focus when alt-clicking to multi select
-			}
-
-			const selected = evt.elements[0];
-			if (selected && evt.browserEvent && selected instanceof TestItemTreeElement) {
-				filterState.didSelectTestInExplorer(selected.test.item.extId);
-				if (selected.children.size === 0 && selected.test.expand === TestItemExpandState.NotExpandable) {
-					this.tryPeekError(selected);
-				}
 			}
 		}));
 
@@ -1125,6 +1132,8 @@ const hasNodeInOrParentOfUri = (collection: IMainThreadTestCollection, ident: IU
 class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 	private documentUris: URI[] = [];
 
+	public lastIncludedTests?: Set<TestExplorerTreeElement>;
+
 	constructor(
 		private readonly collection: IMainThreadTestCollection,
 		@ITestExplorerFilterState private readonly state: ITestExplorerFilterState,
@@ -1152,6 +1161,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 			case FilterResult.Exclude:
 				return TreeVisibility.Hidden;
 			case FilterResult.Include:
+				this.lastIncludedTests?.add(element);
 				return TreeVisibility.Visible;
 			default:
 				return TreeVisibility.Recurse;
@@ -1597,13 +1607,9 @@ const getActionableElementActions = (
 		shouldForwardArgs: true,
 	});
 
-	const primary: IAction[] = [];
-	const secondary: IAction[] = [];
-	const result = { primary, secondary };
-	createAndFillInActionBarActions(menu, result, 'inline');
+	const actions = getActionBarActions(menu, 'inline');
 
-	return { actions: result, contextOverlay };
-
+	return { actions, contextOverlay };
 };
 
 registerThemingParticipant((theme, collector) => {

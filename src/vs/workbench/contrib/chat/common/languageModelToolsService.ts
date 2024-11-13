@@ -22,7 +22,7 @@ export interface IToolData {
 	displayName: string;
 	userDescription?: string;
 	modelDescription: string;
-	parametersSchema?: IJSONSchema;
+	inputSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
 }
 
@@ -62,7 +62,7 @@ export interface IToolConfirmationMessages {
 }
 
 export interface IPreparedToolInvocation {
-	invocationMessage?: string;
+	invocationMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 }
 

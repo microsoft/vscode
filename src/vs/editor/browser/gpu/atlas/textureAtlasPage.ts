@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThreeKeyMap } from '../../../../base/common/map.js';
 import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
@@ -46,22 +45,18 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		pageSize: number,
 		allocatorType: AllocatorType,
 		@ILogService private readonly _logService: ILogService,
-		@IThemeService private readonly _themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 	) {
 		super();
 
 		this._canvas = new OffscreenCanvas(pageSize, pageSize);
+		this._colorMap = themeService.getColorTheme().tokenColorMap;
 
 		switch (allocatorType) {
 			case 'shelf': this._allocator = new TextureAtlasShelfAllocator(this._canvas, textureIndex); break;
 			case 'slab': this._allocator = new TextureAtlasSlabAllocator(this._canvas, textureIndex); break;
 			default: this._allocator = allocatorType(this._canvas, textureIndex); break;
 		}
-
-		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => {
-			// TODO: Clear entire atlas on theme change
-			this._colorMap = this._themeService.getColorTheme().tokenColorMap;
-		}));
 
 		// Reduce impact of a memory leak if this object is not released
 		this._register(toDisposable(() => {
@@ -88,6 +83,8 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 
 		// Ensure the glyph was allocated
 		if (glyph === undefined) {
+			// TODO: undefined here can mean the glyph was too large for a slab on the page, this
+			// can lead to big problems if we don't handle it properly https://github.com/microsoft/vscode/issues/232984
 			return undefined;
 		}
 

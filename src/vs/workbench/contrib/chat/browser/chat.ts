@@ -92,6 +92,7 @@ export interface IChatCodeBlockInfo {
 	readonly codeBlockIndex: number;
 	readonly element: ChatTreeItem;
 	readonly uri: URI | undefined;
+	readonly uriPromise: Promise<URI | undefined>;
 	codemapperUri: URI | undefined;
 	readonly isStreaming: boolean;
 	focus(): void;
@@ -183,6 +184,7 @@ export interface IChatWidget {
 	getFocus(): ChatTreeItem | undefined;
 	setInput(query?: string): void;
 	getInput(): string;
+	refreshParsedInput(): void;
 	logInputHistory(): void;
 	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
 	acceptInputWithPrefix(prefix: string): void;

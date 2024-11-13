@@ -29,11 +29,12 @@ import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.
 import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
 import { ISearchService } from '../../../../services/search/common/search.js';
 import { ChatAgentLocation, IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { SubmitAction } from '../actions/chatExecuteActions.js';
+import { ChatEditingSessionSubmitAction, ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
 import { ChatDynamicVariableModel, SelectAndInsertFileAction } from './chatDynamicVariables.js';
@@ -60,6 +61,11 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				if (!isEmptyUpToCompletionWord(model, range)) {
+					// No text allowed before the completion
+					return;
+				}
+
 				const parsedRequest = widget.parsedInput.parts;
 				const usedAgent = parsedRequest.find(p => p instanceof ChatRequestAgentPart);
 				if (usedAgent) {
@@ -79,10 +85,10 @@ class SlashCommandCompletions extends Disposable {
 							label: withSlash,
 							insertText: c.executeImmediately ? '' : `${withSlash} `,
 							detail: c.detail,
-							range: new Range(1, 1, 1, 1),
+							range,
 							sortText: c.sortText ?? 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-							command: c.executeImmediately ? { id: SubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
+							command: c.executeImmediately ? { id: widget.location === ChatAgentLocation.EditingSession ? ChatEditingSessionSubmitAction.ID : ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
 						};
 					})
 				};
@@ -90,7 +96,7 @@ class SlashCommandCompletions extends Disposable {
 		}));
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'globalSlashCommandsAt',
-			triggerCharacters: ['@'],
+			triggerCharacters: [chatAgentLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
@@ -100,6 +106,11 @@ class SlashCommandCompletions extends Disposable {
 				const range = computeCompletionRanges(model, position, /@\w*/g);
 				if (!range) {
 					return null;
+				}
+
+				if (!isEmptyUpToCompletionWord(model, range)) {
+					// No text allowed before the completion
+					return;
 				}
 
 				const slashCommands = this.chatSlashCommandService.getCommands(widget.location);
@@ -114,11 +125,11 @@ class SlashCommandCompletions extends Disposable {
 							label: withSlash,
 							insertText: c.executeImmediately ? '' : `${withSlash} `,
 							detail: c.detail,
-							range: new Range(1, 1, 1, 1),
+							range,
 							filterText: `${chatAgentLeader}${c.command}`,
 							sortText: c.sortText ?? 'z'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-							command: c.executeImmediately ? { id: SubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
+							command: c.executeImmediately ? { id: widget.location === ChatAgentLocation.EditingSession ? ChatEditingSessionSubmitAction.ID : ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
 						};
 					})
 				};
@@ -205,6 +216,11 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
+				if (!isEmptyUpToCompletionWord(model, range)) {
+					// No text allowed before the completion
+					return;
+				}
+
 				const agents = this.chatAgentService.getAgents()
 					.filter(a => a.locations.includes(widget.location));
 
@@ -231,7 +247,7 @@ class AgentCompletions extends Disposable {
 							detail,
 							filterText: `${chatAgentLeader}${agent.name}`,
 							insertText: `${agentLabel} `,
-							range: new Range(1, 1, 1, 1),
+							range,
 							kind: CompletionItemKind.Text,
 							sortText: `${chatAgentLeader}${agent.name}`,
 							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
@@ -251,7 +267,7 @@ class AgentCompletions extends Disposable {
 								filterText: getFilterText(agent, c.name),
 								commitCharacters: [' '],
 								insertText: label + ' ',
-								range: new Range(1, 1, 1, 1),
+								range,
 								kind: CompletionItemKind.Text, // The icons are disabled here anyway
 								sortText: `x${chatAgentLeader}${agent.name}${c.name}`,
 								command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
@@ -286,6 +302,11 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
+				if (!isEmptyUpToCompletionWord(model, range)) {
+					// No text allowed before the completion
+					return;
+				}
+
 				const agents = this.chatAgentService.getAgents()
 					.filter(a => a.locations.includes(widget.location));
 
@@ -300,7 +321,7 @@ class AgentCompletions extends Disposable {
 							commitCharacters: [' '],
 							insertText: `${agentLabel} ${withSlash} `,
 							detail: `(${agentLabel}) ${c.description ?? ''}`,
-							range: new Range(1, 1, 1, 1),
+							range,
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
 							sortText,
 							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
@@ -333,11 +354,21 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
+				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
+				if (!range) {
+					return;
+				}
+
+				if (!isEmptyUpToCompletionWord(model, range)) {
+					// No text allowed before the completion
+					return;
+				}
+
 				const label = localize('installLabel', "Install Chat Extensions...");
 				const item: CompletionItem = {
 					label,
 					insertText: '',
-					range: new Range(1, 1, 1, 1),
+					range,
 					kind: CompletionItemKind.Text, // The icons are disabled here anyway
 					command: { id: 'workbench.extensions.search', title: '', arguments: ['@tag:chat-participant'] },
 					filterText: chatAgentLeader + label,
@@ -407,6 +438,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -544,6 +576,16 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 		}
 
+		// RELATED FILES
+		if (widget.location === ChatAgentLocation.EditingSession && widget.viewModel && this._chatEditingService.currentEditingSessionObs.get()?.chatSessionId === widget.viewModel?.sessionId) {
+			for (const relatedFile of (await this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), token) ?? [])) {
+				if (seen.has(relatedFile.uri)) {
+					continue;
+				}
+				result.suggestions.push(makeFileCompletionItem(relatedFile.uri));
+			}
+		}
+
 		// mark results as incomplete because further typing might yield
 		// in more search results
 		result.incomplete = true;
@@ -557,7 +599,13 @@ class BuiltinDynamicCompletions extends Disposable {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BuiltinDynamicCompletions, LifecyclePhase.Eventually);
 
-export function computeCompletionRanges(model: ITextModel, position: Position, reg: RegExp, onlyOnWordStart = false): { insert: Range; replace: Range; varWord: IWordAtPosition | null } | undefined {
+export interface IChatCompletionRangeResult {
+	insert: Range;
+	replace: Range;
+	varWord: IWordAtPosition | null;
+}
+
+export function computeCompletionRanges(model: ITextModel, position: Position, reg: RegExp, onlyOnWordStart = false): IChatCompletionRangeResult | undefined {
 	const varWord = getWordAtText(position.column, reg, model.getLineContent(position.lineNumber), 0);
 	if (!varWord && model.getWordUntilPosition(position).word) {
 		// inside a "normal" word
@@ -589,6 +637,11 @@ export function computeCompletionRanges(model: ITextModel, position: Position, r
 	}
 
 	return { insert, replace, varWord };
+}
+
+function isEmptyUpToCompletionWord(model: ITextModel, rangeResult: IChatCompletionRangeResult): boolean {
+	const startToCompletionWordStart = new Range(1, 1, rangeResult.replace.startLineNumber, rangeResult.replace.startColumn);
+	return !!model.getValueInRange(startToCompletionWordStart).match(/^\s*$/);
 }
 
 class VariableCompletions extends Disposable {

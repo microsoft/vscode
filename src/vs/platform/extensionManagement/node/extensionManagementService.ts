@@ -33,6 +33,7 @@ import {
 	IProductVersion,
 	EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT,
 	ExtensionSignatureVerificationCode,
+	computeSize,
 } from '../common/extensionManagement.js';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from '../common/extensionManagementUtil.js';
 import { IExtensionsProfileScannerService, IScannedProfileExtension } from '../common/extensionsProfileScannerService.js';
@@ -331,6 +332,16 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 				},
 				false,
 				token);
+
+			if (verificationStatus !== ExtensionSignatureVerificationCode.Success && this.environmentService.isBuilt) {
+				try {
+					await this.extensionsDownloader.delete(location);
+				} catch (e) {
+					/* Ignore */
+					this.logService.warn(`Error while deleting the downloaded file`, location.toString(), getErrorMessage(e));
+				}
+			}
+
 			return { local, verificationStatus };
 		} catch (error) {
 			try {
@@ -351,6 +362,13 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		const { location, verificationStatus } = await this.extensionsDownloader.download(extension, operation, verifySignature, clientTargetPlatform);
 
 		if (verificationStatus !== ExtensionSignatureVerificationCode.Success && verifySignature && this.environmentService.isBuilt && !isLinux) {
+			try {
+				await this.extensionsDownloader.delete(location);
+			} catch (e) {
+				/* Ignore */
+				this.logService.warn(`Error while deleting the downloaded file`, location.toString(), getErrorMessage(e));
+			}
+
 			if (!extension.isSigned) {
 				throw new ExtensionManagementError(nls.localize('not signed', "Extension is not signed."), ExtensionManagementErrorCode.PackageNotSigned);
 			}
@@ -563,6 +581,7 @@ export class ExtensionsScanner extends Disposable {
 	async cleanUp(): Promise<void> {
 		await this.removeTemporarilyDeletedFolders();
 		await this.removeUninstalledExtensions();
+		await this.initializeMetadata();
 	}
 
 	async scanExtensions(type: ExtensionType | null, profileLocation: URI, productVersion: IProductVersion): Promise<ILocalExtension[]> {
@@ -647,6 +666,13 @@ export class ExtensionsScanner extends Disposable {
 				this.logService.info(`Extracted extension to ${extensionLocation}:`, extensionKey.id);
 			} catch (e) {
 				throw fromExtractError(e);
+			}
+
+			try {
+				metadata.size = await computeSize(tempLocation, this.fileService);
+			} catch (error) {
+				// Log & ignore
+				this.logService.warn(`Error while getting the size of the extracted extension : ${tempLocation.fsPath}`, getErrorMessage(error));
 			}
 
 			try {
@@ -875,8 +901,20 @@ export class ExtensionsScanner extends Disposable {
 			updated: !!extension.metadata?.updated,
 			pinned: !!extension.metadata?.pinned,
 			isWorkspaceScoped: false,
-			source: extension.metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'vsix')
+			source: extension.metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'vsix'),
+			size: extension.metadata?.size ?? 0,
 		};
+	}
+
+	private async initializeMetadata(): Promise<void> {
+		const extensions = await this.extensionsScannerService.scanUserExtensions({ includeInvalid: true });
+		await Promise.all(extensions.map(async extension => {
+			// set size if not set before
+			if (!extension.metadata?.size && extension.metadata?.source !== 'resource') {
+				const size = await computeSize(extension.location, this.fileService);
+				await this.extensionsScannerService.updateMetadata(extension.location, { size });
+			}
+		}));
 	}
 
 	private async removeUninstalledExtensions(): Promise<void> {

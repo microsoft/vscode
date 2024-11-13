@@ -10,9 +10,12 @@
 	user-select: text;
 	-webkit-user-select: text;
 	box-sizing: border-box;
-	animation: fadein 100ms linear;
 	line-height: 1.5em;
 	white-space: var(--vscode-hover-whiteSpace, normal);
+}
+
+.monaco-hover.fade-in {
+	animation: fadein 100ms linear;
 }
 
 .monaco-hover.hidden {
@@ -128,6 +131,9 @@
 .monaco-hover .hover-row.status-bar .actions .action-container {
 	margin-right: 16px;
 	cursor: pointer;
+	overflow: hidden;
+	text-wrap: nowrap;
+	text-overflow: ellipsis;
 }
 
 .monaco-hover .hover-row.status-bar .actions .action-container .action .icon {

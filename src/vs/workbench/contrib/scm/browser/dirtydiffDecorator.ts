@@ -36,7 +36,7 @@ import { IActionBarOptions } from '../../../../base/browser/ui/actionbar/actionb
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ScrollType, IEditorContribution, IDiffEditorModel, IEditorModel, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { OverviewRulerLane, ITextModel, IModelDecorationOptions, MinimapPosition, shouldSynchronizeModel } from '../../../../editor/common/model.js';
 import { equals, sortedDiff } from '../../../../base/common/arrays.js';
@@ -354,12 +354,11 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._disposables.add(previous);
 		this._disposables.add(next);
 
-		const actions: IAction[] = [];
 		if (this.menu) {
 			this.menu.dispose();
 		}
 		this.menu = this.menuService.createMenu(MenuId.SCMChangeContext, this.contextKeyService);
-		createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions);
+		const actions = getFlatActionBarActions(this.menu.getActions({ shouldForwardArgs: true }));
 		this._actionbarWidget.clear();
 		this._actionbarWidget.push(actions.reverse(), { label: false, icon: true });
 		this._actionbarWidget.push([next, previous], { label: false, icon: true });
@@ -483,8 +482,7 @@ export class ShowPreviousChangeAction extends EditorAction {
 	constructor(private readonly outerEditor?: ICodeEditor) {
 		super({
 			id: 'editor.action.dirtydiff.previous',
-			label: nls.localize('show previous change', "Show Previous Change"),
-			alias: 'Show Previous Change',
+			label: nls.localize2('show previous change', "Show Previous Change"),
 			precondition: TextCompareEditorActiveContext.toNegated(),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F3, weight: KeybindingWeight.EditorContrib }
 		});
@@ -517,8 +515,7 @@ export class ShowNextChangeAction extends EditorAction {
 	constructor(private readonly outerEditor?: ICodeEditor) {
 		super({
 			id: 'editor.action.dirtydiff.next',
-			label: nls.localize('show next change', "Show Next Change"),
-			alias: 'Show Next Change',
+			label: nls.localize2('show next change', "Show Next Change"),
 			precondition: TextCompareEditorActiveContext.toNegated(),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F3, weight: KeybindingWeight.EditorContrib }
 		});
@@ -570,8 +567,7 @@ export class GotoPreviousChangeAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'workbench.action.editor.previousChange',
-			label: nls.localize('move to previous change', "Go to Previous Change"),
-			alias: 'Go to Previous Change',
+			label: nls.localize2('move to previous change', "Go to Previous Change"),
 			precondition: TextCompareEditorActiveContext.toNegated(),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F5, weight: KeybindingWeight.EditorContrib }
 		});
@@ -612,8 +608,7 @@ export class GotoNextChangeAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'workbench.action.editor.nextChange',
-			label: nls.localize('move to next change', "Go to Next Change"),
-			alias: 'Go to Next Change',
+			label: nls.localize2('move to next change', "Go to Next Change"),
 			precondition: TextCompareEditorActiveContext.toNegated(),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F5, weight: KeybindingWeight.EditorContrib }
 		});
