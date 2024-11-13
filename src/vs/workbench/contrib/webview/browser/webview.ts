@@ -358,7 +358,14 @@ export class WebviewOriginStore {
 			return existing;
 		}
 
-		const newOrigin = generateUuid();
+		// MEMBRANE: run all of our webviews under the same origin (an arbitrarily chosen uuid)
+		let newOrigin;
+		if (additionalKey === 'membrane.membrane') {
+			newOrigin = '21c97241-117d-474d-bf38-a2e8d63a227b';
+		} else {
+			newOrigin = generateUuid();
+		}
+
 		this._state[key] = newOrigin;
 		this._memento.saveMemento();
 		return newOrigin;
