@@ -303,7 +303,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	private _key(editor: ICodeEditor, uri: URI): string {
 		const item = this._keyComputers.get(uri.scheme);
 		return item
-			? item.getComparisonKey(editor, uri)
+			? item.getComparisonKey(editor, uri) || `${editor.getId()}@${uri.toString()}`
 			: `${editor.getId()}@${uri.toString()}`;
 
 	}

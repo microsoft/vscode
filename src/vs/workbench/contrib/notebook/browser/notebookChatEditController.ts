@@ -41,6 +41,11 @@ import { INotebookLoggingService } from '../common/notebookLoggingService.js';
 import { TextEdit } from '../../../../editor/common/core/textEdit.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { DetailedLineRangeMapping, RangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
+import { tokenizeToString } from '../../../../editor/common/languages/textToHtmlTokenizer.js';
+import * as DOM from '../../../../base/browser/dom.js';
+import { createTrustedTypesPolicy } from '../../../../base/browser/trustedTypes.js';
+import { splitLines } from '../../../../base/common/strings.js';
+import { DefaultLineHeight } from './diff/diffElementViewModel.js';
 
 
 export const INotebookOriginalModelReferenceFactory = createDecorator<INotebookOriginalModelReferenceFactory>('INotebookOriginalModelReferenceFactory');
@@ -70,6 +75,7 @@ export class NotebookChatEditorControllerContrib extends Disposable implements I
 
 
 class NotebookChatEditorController extends Disposable {
+	private readonly deletedCellOverlayer: NotebookDeletedCellOverlayer;
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
@@ -77,7 +83,7 @@ class NotebookChatEditorController extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
-
+		this.deletedCellOverlayer = this._register(instantiationService.createInstance(NotebookDeletedCellOverlayer, notebookEditor));
 		const notebookModel = observableFromEvent(this.notebookEditor.onDidChangeModel, e => e);
 		const entryObs = observableValue<IModifiedFileEntry | undefined>('fileentry', undefined);
 		const notebookDiff = observableValue<{ cellDiff: CellDiffInfo[]; modelVersion: number } | undefined>('cellDiffInfo', undefined);
@@ -132,9 +138,16 @@ class NotebookChatEditorController extends Disposable {
 			const modified = notebookModel.read(r);
 			const original = originalModel.read(r);
 			onDidChangeVisibleRanges.read(r);
-			if (!entry || !modified || !original || !diffInfo || diffInfo.modelVersion !== modified.versionId) {
+
+			if (!entry || !modified || !original || (diffInfo && diffInfo.modelVersion !== modified.versionId)) {
 				return;
 			}
+			if (!diffInfo) {
+				// User reverted the changes, hence original === modified.
+				this.deletedCellOverlayer.clear();
+				return;
+			}
+
 			diffInfo.cellDiff.forEach((diff) => {
 				if (diff.type === 'modified' || diff.type === 'insert') {
 					const modifiedCell = modified.cells[diff.modifiedCellIndex];
@@ -153,6 +166,21 @@ class NotebookChatEditorController extends Disposable {
 					}
 				}
 			});
+		}));
+		this._register(autorun(r => {
+			const entry = entryObs.read(r);
+			const diffInfo = notebookDiff.read(r);
+			const modified = notebookModel.read(r);
+			const original = originalModel.read(r);
+			if (!entry || !modified || !original || (diffInfo && diffInfo.modelVersion !== modified.versionId)) {
+				return;
+			}
+			if (!diffInfo) {
+				// User reverted the changes, hence original === modified.
+				this.deletedCellOverlayer.clear();
+				return;
+			}
+			this.deletedCellOverlayer.createNecessaryOverlays(diffInfo.cellDiff, original);
 		}));
 	}
 }
@@ -481,7 +509,6 @@ class NotebookModelSynchronizer extends Disposable {
 		if (edits.length) {
 			original.applyEdits(edits, true, undefined, () => undefined, undefined, false);
 			edits.length = 0;
-			// Fix indexes.
 		}
 
 		// Next insert.
@@ -575,6 +602,84 @@ class NotebookModelSynchronizer extends Disposable {
 	}
 }
 
+const ttPolicy = createTrustedTypesPolicy('notebookChatEditController', { createHTML: value => value });
+
+class NotebookDeletedCellOverlayer extends Disposable {
+	private readonly zoneRemover = this._register(new DisposableStore());
+	private readonly createdViewZones = new Map<number, string>();
+	constructor(
+		private readonly _notebookEditor: INotebookEditor,
+		@ILanguageService private readonly languageService: ILanguageService,
+	) {
+		super();
+	}
+
+
+	public createNecessaryOverlays(diffInfo: CellDiffInfo[], original: NotebookTextModel): void {
+		this.clear();
+
+		let currentIndex = 0;
+		const deletedCellsToRender: { cells: NotebookCellTextModel[]; index: number } = { cells: [], index: 0 };
+		diffInfo.forEach(diff => {
+			if (diff.type === 'delete') {
+				const deletedCell = original.cells[diff.originalCellIndex];
+				if (deletedCell) {
+					deletedCellsToRender.cells.push(deletedCell);
+					deletedCellsToRender.index = currentIndex;
+				}
+			} else {
+				if (deletedCellsToRender.cells.length) {
+					this._createWidget(deletedCellsToRender.index + 1, deletedCellsToRender.cells);
+					deletedCellsToRender.cells.length = 0;
+				}
+				currentIndex = diff.modifiedCellIndex;
+			}
+		});
+		if (deletedCellsToRender.cells.length) {
+			this._createWidget(deletedCellsToRender.index + 1, deletedCellsToRender.cells);
+		}
+	}
+
+	public clear() {
+		this.zoneRemover.clear();
+	}
+
+
+	private _createWidget(index: number, cells: NotebookCellTextModel[]) {
+		this._createWidgetImpl(index, cells);
+	}
+	private async _createWidgetImpl(index: number, cells: NotebookCellTextModel[]) {
+		const rootContainer = document.createElement('div');
+		const widgets = cells.map(cell => new NotebookDeletedCellWidget(this._notebookEditor, cell.getValue(), cell.language, rootContainer, this.languageService));
+		const heights = await Promise.all(widgets.map(w => w.render()));
+		const totalHeight = heights.reduce<number>((prev, curr) => prev + curr, 0);
+
+		this._notebookEditor.changeViewZones(accessor => {
+			const notebookViewZone = {
+				afterModelPosition: index,
+				heightInPx: totalHeight,
+				domNode: rootContainer
+			};
+
+			const id = accessor.addZone(notebookViewZone);
+			accessor.layoutZone(id);
+			this.createdViewZones.set(index, id);
+			this.zoneRemover.add(toDisposable(() => {
+				if (this.createdViewZones.get(index) === id) {
+					this.createdViewZones.delete(index);
+				}
+				if (!this._notebookEditor.isDisposed) {
+					this._notebookEditor.changeViewZones(accessor => {
+						accessor.removeZone(id);
+						dispose(widgets);
+					});
+				}
+			}));
+		});
+	}
+
+}
+
 
 export class OriginalNotebookModelReferenceCollection extends ReferenceCollection<Promise<NotebookTextModel>> {
 	private readonly modelsToDispose = new Set<string>();
@@ -617,6 +722,74 @@ export class OriginalNotebookModelReferenceCollection extends ReferenceCollectio
 	}
 }
 
+class NotebookDeletedCellWidget extends Disposable {
+	private readonly container: HTMLElement;
+	constructor(
+		private readonly _notebookEditor: INotebookEditor,
+		// private readonly _index: number,
+		private readonly code: string,
+		private readonly language: string,
+		container: HTMLElement,
+		@ILanguageService private readonly languageService: ILanguageService,
+	) {
+		super();
+		this.container = DOM.append(container, document.createElement('div'));
+		this._register(toDisposable(() => {
+			container.removeChild(this.container);
+		}));
+	}
+
+	public async render() {
+		const code = this.code;
+		const languageId = this.language;
+		const codeHtml = await tokenizeToString(this.languageService, code, languageId);
+
+		// const colorMap = this.getDefaultColorMap();
+		const fontInfo = this._notebookEditor.getBaseCellEditorOptions(languageId).value;
+		const fontFamilyVar = '--notebook-editor-font-family';
+		const fontSizeVar = '--notebook-editor-font-size';
+		const fontWeightVar = '--notebook-editor-font-weight';
+		// If we have any editors, then use left layout of one of those.
+		const editor = this._notebookEditor.codeEditors.map(c => c[1]).find(c => c);
+		const layoutInfo = editor?.getOptions().get(EditorOption.layoutInfo);
+
+		const style = ``
+			+ `font-family: var(${fontFamilyVar});`
+			+ `font-weight: var(${fontWeightVar});`
+			+ `font-size: var(${fontSizeVar});`
+			+ fontInfo.lineHeight ? `line-height: ${fontInfo.lineHeight}px;` : ''
+				+ layoutInfo?.contentLeft ? `margin-left: ${layoutInfo}px;` : ''
+		+ `white-space: pre;`;
+
+
+
+		const rootContainer = this.container;
+		rootContainer.classList.add('code-cell-row');
+		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
+		const focusIndicatorLeft = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
+		const cellContainer = DOM.append(container, DOM.$('.cell.code'));
+		DOM.append(focusIndicatorLeft, DOM.$('div.execution-count-label'));
+		const editorPart = DOM.append(cellContainer, DOM.$('.cell-editor-part'));
+		let editorContainer = DOM.append(editorPart, DOM.$('.cell-editor-container'));
+		editorContainer = DOM.append(editorContainer, DOM.$('.code', { style }));
+		if (fontInfo.fontFamily) {
+			editorContainer.style.setProperty(fontFamilyVar, fontInfo.fontFamily);
+		}
+		if (fontInfo.fontSize) {
+			editorContainer.style.setProperty(fontSizeVar, `${fontInfo.fontSize}px`);
+		}
+		if (fontInfo.fontWeight) {
+			editorContainer.style.setProperty(fontWeightVar, fontInfo.fontWeight);
+		}
+		editorContainer.innerHTML = (ttPolicy?.createHTML(codeHtml) || codeHtml) as string;
+
+		const lineCount = splitLines(code).length;
+		const height = (lineCount * (fontInfo.lineHeight || DefaultLineHeight)) + 12 + 12; // We have 12px top and bottom in generated code HTML;
+		const totalHeight = height + 16;
+
+		return totalHeight;
+	}
+}
 
 export class NotebookOriginalModelReferenceFactory implements INotebookOriginalModelReferenceFactory {
 	readonly _serviceBrand: undefined;
