@@ -22,9 +22,8 @@ export interface IToolData {
 	displayName: string;
 	userDescription?: string;
 	modelDescription: string;
-	parametersSchema?: IJSONSchema;
+	inputSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
-	supportedContentTypes: string[];
 }
 
 export interface IToolInvocation {
@@ -33,15 +32,28 @@ export interface IToolInvocation {
 	parameters: Object;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
-	requestedContentTypes: string[];
 }
 
 export interface IToolInvocationContext {
 	sessionId: string;
 }
 
+export function isToolInvocationContext(obj: any): obj is IToolInvocationContext {
+	return typeof obj === 'object' && typeof obj.sessionId === 'string';
+}
+
 export interface IToolResult {
-	[contentType: string]: any;
+	content: (IToolResultPromptTsxPart | IToolResultTextPart)[];
+}
+
+export interface IToolResultPromptTsxPart {
+	kind: 'promptTsx';
+	value: unknown;
+}
+
+export interface IToolResultTextPart {
+	kind: 'text';
+	value: string;
 }
 
 export interface IToolConfirmationMessages {

@@ -67,6 +67,7 @@ export function getSyncAreaLabel(source: SyncResource): string {
 }
 
 export const enum AccountStatus {
+	Uninitialized = 'uninitialized',
 	Unavailable = 'unavailable',
 	Available = 'available',
 }

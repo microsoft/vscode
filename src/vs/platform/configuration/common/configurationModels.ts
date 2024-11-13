@@ -296,7 +296,6 @@ export class ConfigurationModel implements IConfigurationModel {
 }
 
 export interface ConfigurationParseOptions {
-	skipUnregistered?: boolean;
 	scopes?: ConfigurationScope[];
 	skipRestricted?: boolean;
 	include?: string[];
@@ -429,10 +428,14 @@ export class ConfigurationModelParser {
 				restricted.push(...result.restricted);
 			} else {
 				const propertySchema = configurationProperties[key];
+				const scope = propertySchema ? typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW : undefined;
 				if (propertySchema?.restricted) {
 					restricted.push(key);
 				}
-				if (this.shouldInclude(key, propertySchema, options)) {
+				if (!options.exclude?.includes(key) /* Check exclude */
+					&& (options.include?.includes(key) /* Check include */
+						|| ((scope === undefined || options.scopes === undefined || options.scopes.includes(scope)) /* Check scopes */
+							&& !(options.skipRestricted && propertySchema?.restricted)))) /* Check restricted */ {
 					raw[key] = properties[key];
 				} else {
 					hasExcludedProperties = true;
@@ -440,31 +443,6 @@ export class ConfigurationModelParser {
 			}
 		}
 		return { raw, restricted, hasExcludedProperties };
-	}
-
-	private shouldInclude(key: string, propertySchema: IConfigurationPropertySchema | undefined, options: ConfigurationParseOptions): boolean {
-		if (options.exclude?.includes(key)) {
-			return false;
-		}
-
-		if (options.include?.includes(key)) {
-			return true;
-		}
-
-		if (options.skipRestricted && propertySchema?.restricted) {
-			return false;
-		}
-
-		if (options.skipUnregistered && !propertySchema) {
-			return false;
-		}
-
-		const scope = propertySchema ? typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW : undefined;
-		if (scope === undefined || options.scopes === undefined) {
-			return true;
-		}
-
-		return options.scopes.includes(scope);
 	}
 
 	private toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {

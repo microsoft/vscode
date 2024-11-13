@@ -30,11 +30,12 @@ import { CursorChangeReason } from '../../../../common/cursorEvents.js';
 import { ILanguageFeatureDebounceService } from '../../../../common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { InlineCompletionsHintsWidget, InlineSuggestionHintsContentWidget } from '../hintsWidget/inlineCompletionsHintsWidget.js';
+import { TextModelChangeRecorder } from '../model/changeRecorder.js';
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import { SuggestWidgetAdaptor } from '../model/suggestWidgetAdaptor.js';
 import { convertItemsToStableObservables, ObservableContextKeyService } from '../utils.js';
 import { GhostTextView } from '../view/ghostText/ghostTextView.js';
-import { InlineEditsViewAndDiffProducer } from '../view/inlineEdits/inlineEditsView.js';
+import { InlineEditsViewAndDiffProducer } from '../view/inlineEdits/inlineEditsViewAndDiffProducer.js';
 import { inlineSuggestCommitId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 
@@ -91,9 +92,10 @@ export class InlineCompletionsController extends Disposable {
 		return cursorPos.column <= indentMaxColumn;
 	});
 
-	private readonly _shouldHideInlineEdit = derived(this, reader => {
-		return this._cursorIsInIndentation.read(reader);
-	});
+	private readonly optionPreview = this._editorObs.getOption(EditorOption.suggest).map(v => v.preview);
+	private readonly optionPreviewMode = this._editorObs.getOption(EditorOption.suggest).map(v => v.previewMode);
+	private readonly optionMode = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.mode);
+	private readonly optionInlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.experimental?.enabled);
 
 	public readonly model = derivedDisposable<InlineCompletionsModel | undefined>(this, reader => {
 		if (this._editorObs.isReadonly.read(reader)) { return undefined; }
@@ -107,11 +109,12 @@ export class InlineCompletionsController extends Disposable {
 			this._editorObs.versionId,
 			this._positions,
 			this._debounceValue,
-			observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.suggest).preview),
-			observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.suggest).previewMode),
-			observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).mode),
+			this.optionPreview,
+			this.optionPreviewMode,
+			this.optionMode,
 			this._enabled,
-			this._shouldHideInlineEdit,
+			this.optionInlineEditsEnabled,
+			this.editor,
 		);
 		return model;
 	}).recomputeInitiallyAndOnChange(this._store);
@@ -142,7 +145,7 @@ export class InlineCompletionsController extends Disposable {
 	private readonly _everHadInlineEdit = derivedObservableWithCache<boolean>(this, (reader, last) => last || !!this._inlineEdit.read(reader));
 	protected readonly _inlineEditWidget = derivedDisposable(reader => {
 		if (!this._everHadInlineEdit.read(reader)) { return undefined; }
-		return this._instantiationService.createInstance(InlineEditsViewAndDiffProducer.hot.read(reader), this.editor, this._inlineEdit);
+		return this._instantiationService.createInstance(InlineEditsViewAndDiffProducer.hot.read(reader), this.editor, this._inlineEdit, this.model);
 	})
 		.recomputeInitiallyAndOnChange(this._store);
 
@@ -221,7 +224,7 @@ export class InlineCompletionsController extends Disposable {
 
 			transaction(tx => {
 				/** @description InlineCompletionsController.onDidBlurEditorWidget */
-				this.model.get()?.stop(tx);
+				this.model.get()?.stop('automatic', tx);
 			});
 		}));
 
@@ -297,6 +300,10 @@ export class InlineCompletionsController extends Disposable {
 			const s = m?.state?.read(reader);
 			return s?.kind === 'inlineEdit' && s.cursorAtInlineEdit;
 		})));
+		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.tabShouldAcceptInlineEdit, this.model.map((m, r) => !!m?.tabShouldAcceptInlineEdit.read(r))));
+		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.tabShouldJumpToInlineEdit, this.model.map((m, r) => !!m?.tabShouldJumpToInlineEdit.read(r))));
+
+		this._register(this._instantiationService.createInstance(TextModelChangeRecorder, this.editor));
 	}
 
 	public playAccessibilitySignal(tx: ITransaction) {
@@ -325,22 +332,14 @@ export class InlineCompletionsController extends Disposable {
 		return this._ghostTextWidgets.get()[0]?.get().ownsViewZone(viewZoneId) ?? false;
 	}
 
-	public hide() {
+	public reject() {
 		transaction(tx => {
-			this.model.get()?.stop(tx);
+			this.model.get()?.stop('explicitCancel', tx);
 		});
 	}
 
 	public jump(): void {
 		const m = this.model.get();
-		const s = m?.inlineEditState.get();
-		if (!s) { return; }
-
-		transaction(tx => {
-			m!.dontRefetchSignal.trigger(tx);
-			this.editor.setPosition(s.inlineEdit.range.getStartPosition(), 'inlineCompletions.jump');
-			this.editor.revealLine(s.inlineEdit.range.startLineNumber);
-			this.editor.focus();
-		});
+		m?.jump();
 	}
 }

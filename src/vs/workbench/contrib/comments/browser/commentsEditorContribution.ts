@@ -421,11 +421,32 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.EditorContrib,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: ctxCommentEditorFocused,
+	when: ContextKeyExpr.or(ctxCommentEditorFocused, CommentContextKeys.commentFocused),
 	handler: (accessor, args) => {
 		const activeCodeEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		if (activeCodeEditor instanceof SimpleCommentEditor) {
 			activeCodeEditor.getParentThread().collapse();
+		} else if (activeCodeEditor) {
+			const controller = CommentController.get(activeCodeEditor);
+			if (!controller) {
+				return;
+			}
+			const notificationService = accessor.get(INotificationService);
+			const commentService = accessor.get(ICommentService);
+			let error = false;
+			try {
+				const activeComment = commentService.lastActiveCommentcontroller?.activeComment;
+				if (!activeComment) {
+					error = true;
+				} else {
+					controller.collapseAndFocusRange(activeComment.thread.threadId);
+				}
+			} catch (e) {
+				error = true;
+			}
+			if (error) {
+				notificationService.error(nls.localize('comments.focusCommand.error', "The cursor must be on a line with a comment to focus the comment"));
+			}
 		}
 	}
 });

@@ -4,6 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getAccessToken = getAccessToken;
 const fs = require("fs");
 const path = require("path");
 const stream_1 = require("stream");
@@ -40,6 +41,32 @@ class Temp {
             }
         }
     }
+}
+/**
+ * Gets an access token converted from a WIF/OIDC id token.
+ * We need this since this build job takes a while to run and while id tokens live for 10 minutes only, access tokens live for 24 hours.
+ * Source: https://goodworkaround.com/2021/12/21/another-deep-dive-into-azure-ad-workload-identity-federation-using-github-actions/
+ */
+async function getAccessToken(endpoint, tenantId, clientId, idToken) {
+    const body = new URLSearchParams({
+        scope: `${endpoint}.default`,
+        client_id: clientId,
+        grant_type: 'client_credentials',
+        client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+        client_assertion: encodeURIComponent(idToken)
+    });
+    const response = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: body.toString()
+    });
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const aadToken = await response.json();
+    return aadToken.access_token;
 }
 function isCreateProvisionedFilesErrorResponse(response) {
     return response?.ErrorDetails?.Code !== undefined;
@@ -473,7 +500,7 @@ function getRealType(type) {
             return type;
     }
 }
-async function processArtifact(artifact, artifactFilePath) {
+async function processArtifact(artifact, artifactFilePath, cosmosDBAccessToken) {
     const log = (...args) => console.log(`[${artifact.name}]`, ...args);
     const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
     if (!match) {
@@ -494,8 +521,7 @@ async function processArtifact(artifact, artifactFilePath) {
     log('Creating asset...', JSON.stringify(asset, undefined, 2));
     await (0, retry_1.retry)(async (attempt) => {
         log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
-        const aadCredentials = new identity_1.ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
-        const client = new cosmos_1.CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), aadCredentials });
+        const client = new cosmos_1.CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), tokenProvider: () => Promise.resolve(`type=aad&ver=1.0&sig=${cosmosDBAccessToken}`) });
         const scripts = client.database('builds').container(quality).scripts;
         await scripts.storedProcedure('createAsset').execute('', [commit, asset, true]);
     });
@@ -509,8 +535,8 @@ async function processArtifact(artifact, artifactFilePath) {
 // the CDN and finally update the build in Cosmos DB.
 async function main() {
     if (!node_worker_threads_1.isMainThread) {
-        const { artifact, artifactFilePath } = node_worker_threads_1.workerData;
-        await processArtifact(artifact, artifactFilePath);
+        const { artifact, artifactFilePath, cosmosDBAccessToken } = node_worker_threads_1.workerData;
+        await processArtifact(artifact, artifactFilePath, cosmosDBAccessToken);
         return;
     }
     const done = new State();
@@ -539,6 +565,7 @@ async function main() {
     }
     let resultPromise = Promise.resolve([]);
     const operations = [];
+    const cosmosDBAccessToken = await getAccessToken(e('AZURE_DOCUMENTDB_ENDPOINT'), e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_ID_TOKEN'));
     while (true) {
         const [timeline, artifacts] = await Promise.all([(0, retry_1.retry)(() => getPipelineTimeline()), (0, retry_1.retry)(() => getPipelineArtifacts())]);
         const stagesCompleted = new Set(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
@@ -575,7 +602,7 @@ async function main() {
             const artifactFilePath = artifactFilePaths.filter(p => !/_manifest/.test(p))[0];
             processing.add(artifact.name);
             const promise = new Promise((resolve, reject) => {
-                const worker = new node_worker_threads_1.Worker(__filename, { workerData: { artifact, artifactFilePath } });
+                const worker = new node_worker_threads_1.Worker(__filename, { workerData: { artifact, artifactFilePath, cosmosDBAccessToken } });
                 worker.on('error', reject);
                 worker.on('exit', code => {
                     if (code === 0) {

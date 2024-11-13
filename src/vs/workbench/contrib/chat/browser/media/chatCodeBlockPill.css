@@ -12,6 +12,7 @@
 	text-decoration: none;
 	font-size: 11px;
 	padding: 0 3px;
+	cursor: pointer;
 }
 
 .chat-codeblock-pill-widget .icon-label {
@@ -42,4 +43,10 @@
 	background-position: center;
 	background-repeat: no-repeat;
 	flex-shrink: 0;
+}
+
+span.label-detail {
+	padding-left: 4px;
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
 }

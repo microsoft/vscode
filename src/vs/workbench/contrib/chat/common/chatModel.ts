@@ -49,6 +49,7 @@ export interface IBaseChatRequestVariableEntry {
 export interface IChatRequestImplicitVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
 	readonly kind: 'implicit';
 	readonly value: URI | Location | undefined;
+	readonly isSelection: boolean;
 	enabled: boolean;
 }
 
@@ -81,9 +82,10 @@ export interface IChatRequestModel {
 	readonly confirmation?: string;
 	readonly locationData?: IChatLocationData;
 	readonly attachedContext?: IChatRequestVariableEntry[];
+	readonly workingSet?: URI[];
 	readonly isCompleteAddedRequest: boolean;
 	readonly response?: IChatResponseModel;
-	isDisabled: boolean;
+	isHidden: boolean;
 }
 
 export interface IChatTextEditGroupState {
@@ -96,6 +98,7 @@ export interface IChatTextEditGroup {
 	edits: TextEdit[][];
 	state?: IChatTextEditGroupState;
 	kind: 'textEditGroup';
+	done: boolean | undefined;
 }
 
 /**
@@ -157,7 +160,7 @@ export interface IChatResponseModel {
 	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
-	isDisabled: boolean;
+	readonly isHidden: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
 	readonly isStale: boolean;
@@ -175,13 +178,13 @@ export class ChatRequestModel implements IChatRequestModel {
 
 	public response: ChatResponseModel | undefined;
 
-	public isDisabled: boolean = false;
-
 	public readonly id: string;
 
 	public get session() {
 		return this._session;
 	}
+
+	public isHidden: boolean = false;
 
 	public get username(): string {
 		return this.session.requesterUsername;
@@ -215,6 +218,10 @@ export class ChatRequestModel implements IChatRequestModel {
 		return this._attachedContext;
 	}
 
+	public get workingSet(): URI[] | undefined {
+		return this._workingSet;
+	}
+
 	constructor(
 		private _session: ChatModel,
 		public readonly message: IParsedChatRequest,
@@ -223,6 +230,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		private _confirmation?: string,
 		private _locationData?: IChatLocationData,
 		private _attachedContext?: IChatRequestVariableEntry[],
+		private _workingSet?: URI[],
 		public readonly isCompleteAddedRequest = false,
 	) {
 		this.id = 'request_' + ChatRequestModel.nextId++;
@@ -299,25 +307,26 @@ export class Response extends Disposable implements IResponse {
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit') {
-			if (progress.edits.length > 0) {
-				// merge text edits for the same file no matter when they come in
-				let found = false;
-				for (let i = 0; !found && i < this._responseParts.length; i++) {
-					const candidate = this._responseParts[i];
-					if (candidate.kind === 'textEditGroup' && isEqual(candidate.uri, progress.uri)) {
-						candidate.edits.push(progress.edits);
-						found = true;
-					}
+			// merge text edits for the same file no matter when they come in
+			let found = false;
+			for (let i = 0; !found && i < this._responseParts.length; i++) {
+				const candidate = this._responseParts[i];
+				if (candidate.kind === 'textEditGroup' && isEqual(candidate.uri, progress.uri)) {
+					candidate.edits.push(progress.edits);
+					candidate.done = progress.done;
+					found = true;
 				}
-				if (!found) {
-					this._responseParts.push({
-						kind: 'textEditGroup',
-						uri: progress.uri,
-						edits: [progress.edits]
-					});
-				}
-				this._updateRepr(quiet);
 			}
+			if (!found) {
+				this._responseParts.push({
+					kind: 'textEditGroup',
+					uri: progress.uri,
+					edits: [progress.edits],
+					done: progress.done
+				});
+			}
+			this._updateRepr(quiet);
+
 		} else if (progress.kind === 'progressTask') {
 			// Add a new resolving part
 			const responsePosition = this._responseParts.push(progress) - 1;
@@ -409,12 +418,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._session;
 	}
 
-	public get isDisabled() {
-		return this._isDisabled;
+	public get isHidden() {
+		return this._isHidden;
 	}
 
 	public get isComplete(): boolean {
 		return this._isComplete;
+	}
+
+	public set isHidden(hidden: boolean) {
+		this._isHidden = hidden;
+		this._onDidChange.fire();
 	}
 
 	public get isCanceled(): boolean {
@@ -472,7 +486,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	private readonly _contentReferences: IChatContentReference[] = [];
 	public get contentReferences(): ReadonlyArray<IChatContentReference> {
-		return this._contentReferences;
+		return Array.from(this._contentReferences);
 	}
 
 	private readonly _codeCitations: IChatCodeCitation[] = [];
@@ -502,8 +516,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		private _voteDownReason?: ChatAgentVoteDownReason,
 		private _result?: IChatAgentResult,
 		followups?: ReadonlyArray<IChatFollowup>,
-		private _isDisabled: boolean = false,
 		public readonly isCompleteAddedRequest = false,
+		private _isHidden: boolean = false
 	) {
 		super();
 
@@ -513,16 +527,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._followups = followups ? [...followups] : undefined;
 		this._response = this._register(new Response(_response));
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire()));
-		this._register(this._session.onDidChange((e) => {
-			if (e.kind === 'setCheckpoint') {
-				const isDisabled = e.disabledResponseIds.has(this.id);
-				const didChange = this._isDisabled !== isDisabled;
-				this._isDisabled = isDisabled;
-				if (didChange) {
-					this._onDidChange.fire();
-				}
-			}
-		}));
 		this.id = 'response_' + ChatResponseModel.nextId++;
 	}
 
@@ -554,7 +558,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	setAgent(agent: IChatAgentData, slashCommand?: IChatAgentCommand) {
 		this._agent = agent;
 		this._slashCommand = slashCommand;
-		this._agentOrSlashCommandDetected = true;
+		this._agentOrSlashCommandDetected = !agent.isDefault;
 		this._onDidChange.fire();
 	}
 
@@ -622,9 +626,8 @@ export interface IChatModel {
 	readonly sampleQuestions: IChatFollowup[] | undefined;
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
-	readonly checkpoint: IChatRequestModel | undefined;
-	setCheckpoint(requestId: string | undefined): void;
-	getRequests(includeDisabledRequests?: boolean): IChatRequestModel[];
+	disableRequests(requestIds: ReadonlyArray<string>): void;
+	getRequests(): IChatRequestModel[];
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
 }
@@ -770,7 +773,7 @@ export type IChatChangeEvent =
 	| IChatAddResponseEvent
 	| IChatSetAgentEvent
 	| IChatMoveEvent
-	| IChatSetCheckpointEvent
+	| IChatSetHiddenEvent
 	;
 
 export interface IChatAddRequestEvent {
@@ -812,10 +815,9 @@ export interface IChatRemoveRequestEvent {
 	reason: ChatRequestRemovalReason;
 }
 
-export interface IChatSetCheckpointEvent {
-	kind: 'setCheckpoint';
-	disabledRequestIds: Set<string>;
-	disabledResponseIds: Set<string>;
+export interface IChatSetHiddenEvent {
+	kind: 'setHidden';
+	hiddenRequestIds: Set<string>;
 }
 
 export interface IChatMoveEvent {
@@ -991,7 +993,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					const result = 'responseErrorDetails' in raw ?
 						// eslint-disable-next-line local/code-no-dangerous-type-assertions
 						{ errorDetails: raw.responseErrorDetails } as IChatAgentResult : raw.result;
-					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, raw.slashCommand, request.id, true, raw.isCanceled, raw.vote, raw.voteDownReason, result, raw.followups, request.isDisabled);
+					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, raw.slashCommand, request.id, true, raw.isCanceled, raw.vote, raw.voteDownReason, result, raw.followups);
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 						request.response.applyReference(revive(raw.usedContext));
 					}
@@ -1080,19 +1082,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._isInitializedDeferred.p;
 	}
 
-	getRequests(includeDisabledRequests = true): ChatRequestModel[] {
-		if (includeDisabledRequests) {
-			return this._requests;
-		}
-
-		const requests: ChatRequestModel[] = [];
-		for (const request of this._requests) {
-			if (request.isDisabled) {
-				break;
-			}
-			requests.push(request);
-		}
-		return requests;
+	getRequests(): ChatRequestModel[] {
+		return this._requests;
 	}
 
 	private _checkpoint: ChatRequestModel | undefined = undefined;
@@ -1100,50 +1091,23 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._checkpoint;
 	}
 
-	setCheckpoint(requestId: string | undefined) {
-		let checkpoint: ChatRequestModel | undefined;
-		let checkpointIndex = -1;
-		if (requestId !== undefined) {
-			this._requests.forEach((request, index) => {
-				if (request.id === requestId) {
-					checkpointIndex = index;
-					checkpoint = request;
-				}
-			});
-
-			if (!checkpoint) {
-				return; // Invalid request ID
+	disableRequests(requestIds: ReadonlyArray<string>) {
+		this._requests.forEach((request) => {
+			const isHidden = requestIds.includes(request.id);
+			request.isHidden = isHidden;
+			if (request.response) {
+				request.response.isHidden = isHidden;
 			}
-		}
+		});
 
-		const disabledRequestIds = new Set<string>();
-		const disabledResponseIds = new Set<string>();
-		for (let i = this._requests.length - 1; i >= 0; i -= 1) {
-			const request = this._requests[i];
-			if (this._checkpoint && !checkpoint) {
-				// The user removed the checkpoint
-				request.isDisabled = false;
-			} else if (checkpoint && i > checkpointIndex) {
-				request.isDisabled = true;
-				disabledRequestIds.add(request.id);
-				if (request.response) {
-					disabledResponseIds.add(request.response.id);
-				}
-			} else if (checkpoint && i <= checkpointIndex) {
-				request.isDisabled = false;
-			}
-		}
-
-		this._checkpoint = checkpoint;
 		this._onDidChange.fire({
-			kind: 'setCheckpoint',
-			disabledRequestIds,
-			disabledResponseIds
+			kind: 'setHidden',
+			hiddenRequestIds: new Set(requestIds),
 		});
 	}
 
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean): ChatRequestModel {
-		const request = new ChatRequestModel(this, message, variableData, attempt, confirmation, locationData, attachments, isCompleteAddedRequest);
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], workingSet?: URI[], isCompleteAddedRequest?: boolean): ChatRequestModel {
+		const request = new ChatRequestModel(this, message, variableData, attempt, confirmation, locationData, attachments, workingSet, isCompleteAddedRequest);
 		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id, undefined, undefined, undefined, undefined, undefined, undefined, undefined, isCompleteAddedRequest);
 
 		this._requests.push(request);

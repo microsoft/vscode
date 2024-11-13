@@ -179,7 +179,7 @@ suite('Terminal history', () => {
 				});
 				test('current OS', async () => {
 					filePath = '/home/user/.bash_history';
-					deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchBashHistory))!), expectedCommands);
+					deepStrictEqual((await instantiationService.invokeFunction(fetchBashHistory))!.commands, expectedCommands);
 				});
 			});
 		}
@@ -205,11 +205,11 @@ suite('Terminal history', () => {
 			});
 			test('macOS', async () => {
 				remoteEnvironment = { os: OperatingSystem.Macintosh };
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchBashHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchBashHistory))!.commands, expectedCommands);
 			});
 			test('Linux', async () => {
 				remoteEnvironment = { os: OperatingSystem.Linux };
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchBashHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchBashHistory))!.commands, expectedCommands);
 			});
 		});
 	});
@@ -271,7 +271,7 @@ suite('Terminal history', () => {
 				});
 				test('current OS', async () => {
 					filePath = '/home/user/.zsh_history';
-					deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchZshHistory))!), expectedCommands);
+					deepStrictEqual((await instantiationService.invokeFunction(fetchZshHistory))!.commands, expectedCommands);
 				});
 			});
 		}
@@ -297,11 +297,11 @@ suite('Terminal history', () => {
 			});
 			test('macOS', async () => {
 				remoteEnvironment = { os: OperatingSystem.Macintosh };
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchZshHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchZshHistory))!.commands, expectedCommands);
 			});
 			test('Linux', async () => {
 				remoteEnvironment = { os: OperatingSystem.Linux };
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchZshHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchZshHistory))!.commands, expectedCommands);
 			});
 		});
 	});
@@ -377,7 +377,7 @@ suite('Terminal history', () => {
 				} else {
 					filePath = join(env['HOME']!, '.local/share/powershell/PSReadline/ConsoleHost_history.txt');
 				}
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchPwshHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchPwshHistory))!.commands, expectedCommands);
 			});
 		});
 		suite('remote', () => {
@@ -403,19 +403,19 @@ suite('Terminal history', () => {
 				remoteEnvironment = { os: OperatingSystem.Windows };
 				env['APPDATA'] = 'C:\\AppData';
 				filePath = 'C:\\AppData\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt';
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchPwshHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchPwshHistory))!.commands, expectedCommands);
 			});
 			test('macOS', async () => {
 				remoteEnvironment = { os: OperatingSystem.Macintosh };
 				env['HOME'] = '/home/user';
 				filePath = '/home/user/.local/share/powershell/PSReadline/ConsoleHost_history.txt';
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchPwshHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchPwshHistory))!.commands, expectedCommands);
 			});
 			test('Linux', async () => {
 				remoteEnvironment = { os: OperatingSystem.Linux };
 				env['HOME'] = '/home/user';
 				filePath = '/home/user/.local/share/powershell/PSReadline/ConsoleHost_history.txt';
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchPwshHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchPwshHistory))!.commands, expectedCommands);
 			});
 		});
 	});
@@ -476,7 +476,7 @@ suite('Terminal history', () => {
 				});
 				test('current OS', async () => {
 					filePath = '/home/user/.local/share/fish/fish_history';
-					deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchFishHistory))!), expectedCommands);
+					deepStrictEqual((await instantiationService.invokeFunction(fetchFishHistory))!.commands, expectedCommands);
 				});
 			});
 
@@ -498,7 +498,7 @@ suite('Terminal history', () => {
 				});
 				test('current OS', async () => {
 					filePath = '/home/user/data-home/fish/fish_history';
-					deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchFishHistory))!), expectedCommands);
+					deepStrictEqual((await instantiationService.invokeFunction(fetchFishHistory))!.commands, expectedCommands);
 				});
 			});
 		}
@@ -524,11 +524,11 @@ suite('Terminal history', () => {
 			});
 			test('macOS', async () => {
 				remoteEnvironment = { os: OperatingSystem.Macintosh };
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchFishHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchFishHistory))!.commands, expectedCommands);
 			});
 			test('Linux', async () => {
 				remoteEnvironment = { os: OperatingSystem.Linux };
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchFishHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchFishHistory))!.commands, expectedCommands);
 			});
 		});
 
@@ -554,11 +554,11 @@ suite('Terminal history', () => {
 			});
 			test('macOS', async () => {
 				remoteEnvironment = { os: OperatingSystem.Macintosh };
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchFishHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchFishHistory))!.commands, expectedCommands);
 			});
 			test('Linux', async () => {
 				remoteEnvironment = { os: OperatingSystem.Linux };
-				deepStrictEqual(Array.from((await instantiationService.invokeFunction(fetchFishHistory))!), expectedCommands);
+				deepStrictEqual((await instantiationService.invokeFunction(fetchFishHistory))!.commands, expectedCommands);
 			});
 		});
 

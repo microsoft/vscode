@@ -145,6 +145,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 			quickSuggestions: false,
 			accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
 			fontFamily: configurationService.getValue('editor.fontFamily'),
+			fontSize: configurationService.getValue('editor.fontSize'),
 		};
 	}
 }
