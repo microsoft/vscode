@@ -143,7 +143,7 @@ variables:
   - name: PRSS_PROVISION_TENANT_ID
     value: 72f988bf-86f1-41af-91ab-2d7cd011db47
   - name: AZURE_DOCUMENTDB_ENDPOINT
-    value: https://vscode.documents.azure.com:443/
+    value: https://vscode.documents.azure.com/
   - name: VSCODE_MIXIN_REPO
     value: microsoft/vscode-distro
   - name: skipComponentGovernanceDetection
@@ -174,15 +174,7 @@ extends:
     sdl:
       tsa:
         enabled: true
-        config:
-          codebaseName: 'devdiv_$(Build.Repository.Name)'
-          serviceTreeID: '79c048b2-322f-4ed5-a1ea-252a1250e4b3'
-          instanceUrl: 'https://devdiv.visualstudio.com/defaultcollection'
-          projectName: 'DevDiv'
-          areaPath: "DevDiv\\VS Code (compliance tracking only)\\Visual Studio Code Client"
-          notificationAliases: ['monacotools@microsoft.com']
-          validateToolOutput: None
-          allTools: true
+        configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
       codeql:
         runSourceLanguagesInSourceAnalysis: true
         compiled:
@@ -193,7 +185,7 @@ extends:
       eslint:
         enabled: true
         enableExclusions: true
-        exclusionsFilePath: $(Build.SourcesDirectory)/.eslintignore
+        exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
       sourceAnalysisPool: 1es-windows-2022-x64
       createAdoIssuesForJustificationsForDisablement: false
     containers:
@@ -328,8 +320,6 @@ extends:
             os: windows
           jobs:
             - job: WindowsSDL
-              variables:
-                - group: 'API Scan'
               steps:
                 - template: build/azure-pipelines/win32/sdl-scan-win32.yml@self
                   parameters:

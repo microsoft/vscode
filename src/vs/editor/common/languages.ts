@@ -93,6 +93,7 @@ export interface ITreeSitterTokenizationSupport {
 	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): Parser.QueryCapture[];
 	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[];
 	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
+	tokenizeEncodedInstrumented(lineNumber: number, textModel: model.ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined;
 }
 
 /**
@@ -705,6 +706,9 @@ export interface InlineCompletionContext {
 	 * @internal
 	*/
 	readonly userPrompt?: string | undefined;
+
+	readonly includeInlineEdits: boolean;
+	readonly includeInlineCompletions: boolean;
 }
 
 export class SelectedSuggestionInfo {
@@ -798,9 +802,11 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
 
 	/**
-	 * Will be called when an item is partially accepted.
+	 * Will be called when an item is partially accepted. TODO: also handle full acceptance here!
 	 */
 	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
+
+	handleRejection?(completions: T, item: T['items'][number]): void;
 
 	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
@@ -2001,11 +2007,16 @@ export interface Comment {
 }
 
 export interface PendingCommentThread {
-	body: string;
 	range: IRange | undefined;
 	uri: URI;
 	uniqueOwner: string;
 	isReply: boolean;
+	comment: PendingComment;
+}
+
+export interface PendingComment {
+	body: string;
+	cursor: IPosition;
 }
 
 /**
@@ -2267,6 +2278,7 @@ export interface DocumentDropEditsSession {
 export interface DocumentDropEditProvider {
 	readonly id?: string;
 	readonly dropMimeTypes?: readonly string[];
+	readonly providedDropEditKinds?: readonly HierarchicalKind[];
 
 	provideDocumentDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentDropEditsSession>;
 	resolveDocumentDropEdit?(edit: DocumentDropEdit, token: CancellationToken): Promise<DocumentDropEdit>;
@@ -2333,6 +2345,7 @@ export interface IInlineEdit {
 	range: IRange;
 	accepted?: Command;
 	rejected?: Command;
+	commands?: Command[];
 }
 
 export interface IInlineEditContext {

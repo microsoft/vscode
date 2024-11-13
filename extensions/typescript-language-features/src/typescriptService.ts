@@ -77,6 +77,7 @@ interface StandardTsServerRequests {
 	'getMoveToRefactoringFileSuggestions': [Proto.GetMoveToRefactoringFileSuggestionsRequestArgs, Proto.GetMoveToRefactoringFileSuggestions];
 	'linkedEditingRange': [Proto.FileLocationRequestArgs, Proto.LinkedEditingRangeResponse];
 	'mapCode': [Proto.MapCodeRequestArgs, Proto.MapCodeResponse];
+	'copilotRelated': [Proto.FileRequestArgs, Proto.CopilotRelatedResponse];
 	'getPasteEdits': [Proto.GetPasteEditsRequestArgs, Proto.GetPasteEditsResponse];
 	'preparePasteEdits': [Proto.PreparePasteEditsRequestArgs, Proto.PreparePasteEditsResponse];
 }

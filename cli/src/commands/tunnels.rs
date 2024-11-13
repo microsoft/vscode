@@ -213,7 +213,7 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 				match socket {
 					Ok((read, write)) => servers.push(serve_stream(read, write, params.clone())),
 					Err(e) => {
-						error!(params.log, &format!("Error accepting connection: {}", e));
+						error!(params.log, &format!("Error accepting connection: {e}"));
 						return Ok(1);
 					}
 				}
@@ -279,7 +279,7 @@ pub async fn service(
 					],
 				)
 				.await?;
-			ctx.log.result(format!("Service successfully installed! You can use `{} tunnel service log` to monitor it, and `{} tunnel service uninstall` to remove it.", APPLICATION_NAME, APPLICATION_NAME));
+			ctx.log.result(format!("Service successfully installed! You can use `{APPLICATION_NAME} tunnel service log` to monitor it, and `{APPLICATION_NAME} tunnel service uninstall` to remove it."));
 		}
 		TunnelServiceSubCommands::Uninstall => {
 			manager.unregister().await?;

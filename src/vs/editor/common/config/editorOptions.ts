@@ -435,7 +435,6 @@ export interface IEditorOptions {
 	 */
 	suggest?: ISuggestOptions;
 	inlineSuggest?: IInlineSuggestOptions;
-	experimentalInlineEdit?: IInlineEditOptions;
 	/**
 	 * Smart select options.
 	 */
@@ -2828,7 +2827,6 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 			{
 				'editor.lightbulb.enabled': {
 					type: 'string',
-					tags: ['experimental'],
 					enum: [ShowLightbulbIconMode.Off, ShowLightbulbIconMode.OnCode, ShowLightbulbIconMode.On],
 					default: defaults.enabled,
 					enumDescriptions: [
@@ -2891,8 +2889,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 				'editor.stickyScroll.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('editor.stickyScroll.enabled', "Shows the nested current scopes during the scroll at the top of the editor."),
-					tags: ['experimental']
+					description: nls.localize('editor.stickyScroll.enabled', "Shows the nested current scopes during the scroll at the top of the editor.")
 				},
 				'editor.stickyScroll.maxLineCount': {
 					type: 'number',
@@ -4151,12 +4148,24 @@ export interface IInlineSuggestOptions {
 	 * Font family for inline suggestions.
 	 */
 	fontFamily?: string | 'default';
+
+	edits?: {
+		experimental?: {
+			enabled?: boolean;
+			useMixedLinesDiff?: 'never' | 'whenPossible' | 'afterJumpWhenPossible';
+			useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
+		};
+	};
 }
+
+type RequiredRecursive<T> = {
+	[P in keyof T]-?: T[P] extends object | undefined ? RequiredRecursive<T[P]> : T[P];
+};
 
 /**
  * @internal
  */
-export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptions>>;
+export type InternalInlineSuggestOptions = Readonly<RequiredRecursive<IInlineSuggestOptions>>;
 
 /**
  * Configuration options for inline suggestions
@@ -4171,6 +4180,13 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			keepOnBlur: false,
 			fontFamily: 'default',
 			syntaxHighlightingEnabled: false,
+			edits: {
+				experimental: {
+					enabled: true,
+					useMixedLinesDiff: 'never',
+					useInterleavedLinesDiff: 'never',
+				},
+			},
 		};
 
 		super(
@@ -4207,6 +4223,23 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.fontFamily,
 					description: nls.localize('inlineSuggest.fontFamily', "Controls the font family of the inline suggestions.")
 				},
+				'editor.inlineSuggest.edits.experimental.enabled': {
+					type: 'boolean',
+					default: defaults.edits.experimental.enabled,
+					description: nls.localize('inlineSuggest.edits.experimental.enabled', "Controls whether to enable experimental edits in inline suggestions.")
+				},
+				'editor.inlineSuggest.edits.experimental.useMixedLinesDiff': {
+					type: 'string',
+					default: defaults.edits.experimental.useMixedLinesDiff,
+					description: nls.localize('inlineSuggest.edits.experimental.useMixedLinesDiff', "Controls whether to enable experimental edits in inline suggestions."),
+					enum: ['never', 'whenPossible'],
+				},
+				'editor.inlineSuggest.edits.experimental.useInterleavedLinesDiff': {
+					type: 'string',
+					default: defaults.edits.experimental.useInterleavedLinesDiff,
+					description: nls.localize('inlineSuggest.edits.experimental.useInterleavedLinesDiff', "Controls whether to enable experimental interleaved lines diff in inline suggestions."),
+					enum: ['never', 'always', 'afterJump'],
+				},
 			}
 		);
 	}
@@ -4224,86 +4257,18 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
 			syntaxHighlightingEnabled: boolean(input.syntaxHighlightingEnabled, this.defaultValue.syntaxHighlightingEnabled),
+			edits: {
+				experimental: {
+					enabled: boolean(input.edits?.experimental?.enabled, this.defaultValue.edits.experimental.enabled),
+					useMixedLinesDiff: stringSet(input.edits?.experimental?.useMixedLinesDiff, this.defaultValue.edits.experimental.useMixedLinesDiff, ['never', 'whenPossible', 'afterJumpWhenPossible']),
+					useInterleavedLinesDiff: stringSet(input.edits?.experimental?.useInterleavedLinesDiff, this.defaultValue.edits.experimental.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
+				},
+			},
 		};
 	}
 }
 
 //#endregion
-
-//#region inlineEdit
-
-export interface IInlineEditOptions {
-	/**
-	 * Enable or disable the rendering of automatic inline edit.
-	*/
-	enabled?: boolean;
-	showToolbar?: 'always' | 'onHover' | 'never';
-	/**
-	 * Font family for inline suggestions.
-	 */
-	fontFamily?: string | 'default';
-
-	/**
-	 * Does not clear active inline suggestions when the editor loses focus.
-	 */
-	keepOnBlur?: boolean;
-}
-
-/**
- * @internal
- */
-export type InternalInlineEditOptions = Readonly<Required<IInlineEditOptions>>;
-
-class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInlineEditOptions, InternalInlineEditOptions> {
-	constructor() {
-		const defaults: InternalInlineEditOptions = {
-			enabled: false,
-			showToolbar: 'onHover',
-			fontFamily: 'default',
-			keepOnBlur: false,
-		};
-
-		super(
-			EditorOption.inlineEdit, 'experimentalInlineEdit', defaults,
-			{
-				'editor.experimentalInlineEdit.enabled': {
-					type: 'boolean',
-					default: defaults.enabled,
-					description: nls.localize('inlineEdit.enabled', "Controls whether to show inline edits in the editor.")
-				},
-				'editor.experimentalInlineEdit.showToolbar': {
-					type: 'string',
-					default: defaults.showToolbar,
-					enum: ['always', 'onHover', 'never'],
-					enumDescriptions: [
-						nls.localize('inlineEdit.showToolbar.always', "Show the inline edit toolbar whenever an inline suggestion is shown."),
-						nls.localize('inlineEdit.showToolbar.onHover', "Show the inline edit toolbar when hovering over an inline suggestion."),
-						nls.localize('inlineEdit.showToolbar.never', "Never show the inline edit toolbar."),
-					],
-					description: nls.localize('inlineEdit.showToolbar', "Controls when to show the inline edit toolbar."),
-				},
-				'editor.experimentalInlineEdit.fontFamily': {
-					type: 'string',
-					default: defaults.fontFamily,
-					description: nls.localize('inlineEdit.fontFamily', "Controls the font family of the inline edit.")
-				},
-			}
-		);
-	}
-
-	public validate(_input: any): InternalInlineEditOptions {
-		if (!_input || typeof _input !== 'object') {
-			return this.defaultValue;
-		}
-		const input = _input as IInlineEditOptions;
-		return {
-			enabled: boolean(input.enabled, this.defaultValue.enabled),
-			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover', 'never']),
-			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
-			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
-		};
-	}
-}
 
 //#region bracketPairColorization
 
@@ -5424,7 +5389,6 @@ export const enum EditorOption {
 	hover,
 	inDiffEditor,
 	inlineSuggest,
-	inlineEdit,
 	letterSpacing,
 	lightbulb,
 	lineDecorationsWidth,
@@ -5984,7 +5948,7 @@ export const EditorOptions = {
 		250, 0, 2000,
 		{
 			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
-			tags: ['experimental']
+			tags: ['preview']
 		}
 	)),
 	overviewRulerBorder: register(new EditorBooleanOption(
@@ -6161,7 +6125,6 @@ export const EditorOptions = {
 	)),
 	suggest: register(new EditorSuggest()),
 	inlineSuggest: register(new InlineEditorSuggest()),
-	inlineEdit: register(new InlineEditorEdit()),
 	inlineCompletionsAccessibilityVerbose: register(new EditorBooleanOption(EditorOption.inlineCompletionsAccessibilityVerbose, 'inlineCompletionsAccessibilityVerbose', false,
 		{ description: nls.localize('inlineCompletionsAccessibilityVerbose', "Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.") })),
 	suggestFontSize: register(new EditorIntOption(
@@ -6314,7 +6277,7 @@ export const EditorOptions = {
 	// Leave these at the end (because they have dependencies!)
 	editorClassName: register(new EditorClassName()),
 	defaultColorDecorators: register(new EditorBooleanOption(
-		EditorOption.defaultColorDecorators, 'defaultColorDecorators', false,
+		EditorOption.defaultColorDecorators, 'defaultColorDecorators', true,
 		{ markdownDescription: nls.localize('defaultColorDecorators', "Controls whether inline color decorations should be shown using the default document color provider") }
 	)),
 	pixelRatio: register(new EditorPixelRatio()),

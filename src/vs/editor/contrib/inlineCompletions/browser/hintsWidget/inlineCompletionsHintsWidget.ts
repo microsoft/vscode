@@ -15,7 +15,7 @@ import { IObservable, autorun, autorunWithStore, derived, derivedObservableWithC
 import { OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
-import { MenuEntryActionViewItem, createAndFillInActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuEntryActionViewItem, getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -320,6 +320,7 @@ export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 	private readonly menu = this._store.add(this.menuService.createMenu(this.menuId, this.contextKeyService, { emitEventsForSubmenuChanges: true }));
 	private additionalActions: IAction[] = [];
 	private prependedPrimaryActions: IAction[] = [];
+	private additionalPrimaryActions: IAction[] = [];
 
 	constructor(
 		container: HTMLElement,
@@ -339,17 +340,14 @@ export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 	}
 
 	private updateToolbar(): void {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		createAndFillInActionBarActions(
-			this.menu,
-			this.options2?.menuOptions,
-			{ primary, secondary },
+		const { primary, secondary } = getActionBarActions(
+			this.menu.getActions(this.options2?.menuOptions),
 			this.options2?.toolbarOptions?.primaryGroup, this.options2?.toolbarOptions?.shouldInlineSubmenu, this.options2?.toolbarOptions?.useSeparatorsInPrimaryActions
 		);
 
 		secondary.push(...this.additionalActions);
 		primary.unshift(...this.prependedPrimaryActions);
+		primary.push(...this.additionalPrimaryActions);
 		this.setActions(primary, secondary);
 	}
 
@@ -359,6 +357,15 @@ export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 		}
 
 		this.prependedPrimaryActions = actions;
+		this.updateToolbar();
+	}
+
+	setAdditionalPrimaryActions(actions: IAction[]): void {
+		if (equals(this.additionalPrimaryActions, actions, (a, b) => a === b)) {
+			return;
+		}
+
+		this.additionalPrimaryActions = actions;
 		this.updateToolbar();
 	}
 

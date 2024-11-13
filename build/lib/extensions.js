@@ -158,10 +158,12 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle) {
                     // source map handling:
                     // * rewrite sourceMappingURL
                     // * save to disk so that upload-task picks this up
-                    const contents = data.contents.toString('utf8');
-                    data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
-                        return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
-                    }), 'utf8');
+                    if (path.extname(data.basename) === '.js') {
+                        const contents = data.contents.toString('utf8');
+                        data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
+                            return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
+                        }), 'utf8');
+                    }
                     this.emit('data', data);
                 }));
             });
@@ -246,6 +248,7 @@ function fromGithub({ name, version, repo, sha256, metadata }) {
 const excludedExtensions = [
     'vscode-api-tests',
     'vscode-colorize-tests',
+    'vscode-colorize-perf-tests',
     'vscode-test-resolver',
     'ms-vscode.node-debug',
     'ms-vscode.node-debug2',

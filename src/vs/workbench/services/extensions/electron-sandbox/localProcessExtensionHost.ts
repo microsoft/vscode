@@ -511,7 +511,8 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._environmentService.extHostLogsPath,
 			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart),
-			uiKind: UIKind.Desktop
+			uiKind: UIKind.Desktop,
+			handle: this._environmentService.window.handle
 		};
 	}
 
