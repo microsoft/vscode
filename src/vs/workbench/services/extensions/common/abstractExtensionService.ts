@@ -1058,12 +1058,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		const messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
 		const availableExtensions = this._registry.getAllExtensionDescriptions();
-		const extensionPoints = onlyResolverExtensionPoints
-			? ExtensionsRegistry.getExtensionPoints().filter(extensionPoint => extensionPoint.canHandleResolver)
-			: ExtensionsRegistry.getExtensionPoints();
+		const extensionPoints = ExtensionsRegistry.getExtensionPoints();
 		perf.mark(onlyResolverExtensionPoints ? 'code/willHandleResolverExtensionPoints' : 'code/willHandleExtensionPoints');
 		for (const extensionPoint of extensionPoints) {
-			if (affectedExtensionPoints[extensionPoint.name]) {
+			if (affectedExtensionPoints[extensionPoint.name] && (!onlyResolverExtensionPoints || extensionPoint.canHandleResolver)) {
 				perf.mark(`code/willHandleExtensionPoint/${extensionPoint.name}`);
 				AbstractExtensionService._handleExtensionPoint(extensionPoint, availableExtensions, messageHandler);
 				perf.mark(`code/didHandleExtensionPoint/${extensionPoint.name}`);
