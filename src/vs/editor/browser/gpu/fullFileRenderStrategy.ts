@@ -5,11 +5,11 @@
 
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import { CursorColumns } from '../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
-import type { ViewLinesDeletedEvent } from '../../common/viewEvents.js';
+import { ViewEventHandler } from '../../common/viewEventHandler.js';
+import type { ViewLinesDeletedEvent, ViewScrollChangedEvent } from '../../common/viewEvents.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewLineRenderingData } from '../../common/viewModel.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
@@ -38,7 +38,7 @@ const enum CellBufferInfo {
 	TextureIndex = 5,
 }
 
-export class FullFileRenderStrategy extends Disposable implements IGpuRenderStrategy {
+export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRenderStrategy {
 
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
@@ -57,8 +57,9 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 	private _visibleObjectCount: number = 0;
 	private _finalRenderedLine: number = 0;
 
-	private _scrollOffsetBindBuffer!: GPUBuffer;
-	private _scrollOffsetValueBuffers!: [Float32Array, Float32Array];
+	private _scrollOffsetBindBuffer: GPUBuffer;
+	private _scrollOffsetValueBuffer: Float32Array;
+	private _scrollInitialized: boolean = false;
 
 	private readonly _queuedBufferUpdates: [ViewLinesDeletedEvent[], ViewLinesDeletedEvent[]] = [[], []];
 
@@ -75,6 +76,8 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 		private readonly _device: GPUDevice,
 	) {
 		super();
+
+		this._context.addEventHandler(this);
 
 		// TODO: Detect when lines have been tokenized and clear _upToDateLines
 		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
@@ -99,11 +102,25 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 			size: scrollOffsetBufferSize * Float32Array.BYTES_PER_ELEMENT,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		})).object;
-		this._scrollOffsetValueBuffers = [
-			new Float32Array(scrollOffsetBufferSize),
-			new Float32Array(scrollOffsetBufferSize),
-		];
+		this._scrollOffsetValueBuffer = new Float32Array(scrollOffsetBufferSize);
 	}
+
+	// #region Event handlers
+
+	public override onLinesDeleted(e: ViewLinesDeletedEvent): boolean {
+		this._queueBufferUpdate(e);
+		return true;
+	}
+
+	public override onScrollChanged(e?: ViewScrollChangedEvent): boolean {
+		const dpr = getActiveWindow().devicePixelRatio;
+		this._scrollOffsetValueBuffer[0] = (e?.scrollLeft ?? this._context.viewLayout.getCurrentScrollLeft()) * dpr;
+		this._scrollOffsetValueBuffer[1] = (e?.scrollTop ?? this._context.viewLayout.getCurrentScrollTop()) * dpr;
+		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer);
+		return true;
+	}
+
+	// #endregion
 
 	reset() {
 		for (const bufferIndex of [0, 1]) {
@@ -141,11 +158,10 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 
 		const dpr = getActiveWindow().devicePixelRatio;
 
-		// Update scroll offset
-		const scrollOffsetBuffer = this._scrollOffsetValueBuffers[this._activeDoubleBufferIndex];
-		scrollOffsetBuffer[0] = this._context.viewLayout.getCurrentScrollLeft() * dpr;
-		scrollOffsetBuffer[1] = this._context.viewLayout.getCurrentScrollTop() * dpr;
-		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, scrollOffsetBuffer);
+		if (!this._scrollInitialized) {
+			this.onScrollChanged();
+			this._scrollInitialized = true;
+		}
 
 		// Update cell data
 		const cellBuffer = new Float32Array(this._cellValueBuffers[this._activeDoubleBufferIndex]);
@@ -293,9 +309,5 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 	private _queueBufferUpdate(e: ViewLinesDeletedEvent) {
 		this._queuedBufferUpdates[0].push(e);
 		this._queuedBufferUpdates[1].push(e);
-	}
-
-	onLinesDeleted(e: ViewLinesDeletedEvent): void {
-		this._queueBufferUpdate(e);
 	}
 }
