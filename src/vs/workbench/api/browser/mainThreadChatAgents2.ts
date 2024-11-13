@@ -352,7 +352,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	$registerRelatedFilesProvider(handle: number): void {
 		this._chatRelatedFilesProviders.set(handle, this._chatEditingService.registerRelatedFilesProvider(handle, {
 			provideRelatedFiles: async (request, token) => {
-				return (await this._proxy.$provideRelatedFiles(handle, request, token))?.map((v) => URI.from(v));
+				return (await this._proxy.$provideRelatedFiles(handle, request, token))?.map((v) => ({ uri: URI.from(v.uri), description: v.description })) ?? [];
 			}
 		}));
 	}

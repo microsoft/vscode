@@ -678,6 +678,10 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		return this._focusTracker;
 	}
 
+	public get isVisible(): boolean {
+		return this._isVisible;
+	}
+
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
 		this._updateButtons();
 		this._updateMatchesCount();
