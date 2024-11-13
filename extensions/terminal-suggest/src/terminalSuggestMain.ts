@@ -3,32 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
+import * as os from 'os';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { execSync } from 'child_process';
-import { Arg, FigSpec, Option, Subcommand, Suggestion } from './types';
-const builtinCommands: string[] | undefined = getBuiltinCommands();
+import { ExecOptionsWithStringEncoding, execSync } from 'child_process';
+import { FigSpec, Option, Subcommand, Suggestion } from './types';
 
-// TODO: use shell type to determine which builtin commands to use
-function getBuiltinCommands(): string[] | undefined {
+function getBuiltinCommands(shell: string): string[] | undefined {
 	try {
-		// bash
-		const bashOutput = execSync('compgen -b', { encoding: 'utf-8' });
-		const bashResult = bashOutput.split('\n').filter(cmd => cmd);
-		if (bashResult.length) {
-			return bashResult;
-		}
-		// zsh
-		const zshOutput = execSync('printf "%s\n" ${(k)builtins}', { encoding: 'utf-8' });
-		const zshResult = zshOutput.split('\n').filter(cmd => cmd);
-		if (zshResult.length) {
-			return zshResult;
-		}
-		// fish
-		const fishOutput = execSync('functions -n', { encoding: 'utf-8' });
-		const fishResult = fishOutput.split(', ').filter(cmd => cmd);
-		if (fishResult.length) {
-			return fishResult;
+		const shellType = path.basename(shell);
+		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell };
+		switch (shellType) {
+			case 'bash': {
+				const bashOutput = execSync('compgen -b', options);
+				const bashResult = bashOutput.split('\n').filter(cmd => cmd);
+				if (bashResult.length) {
+					return bashResult;
+				}
+				break;
+			}
+			case 'zsh': {
+				const zshOutput = execSync('printf "%s\\n" ${(k)builtins}', options);
+				const zshResult = zshOutput.split('\n').filter(cmd => cmd);
+				if (zshResult.length) {
+					return zshResult;
+				}
+			}
+			case 'fish': {
+				// TODO: ghost text in the command line prevents
+				// completions from working ATM for fish
+				const fishOutput = execSync('functions -n', options);
+				const fishResult = fishOutput.split(', ').filter(cmd => cmd);
+				if (fishResult.length) {
+					return fishResult;
+				}
+				break;
+			}
 		}
 		// native pwsh completions are builtin to vscode
 		return;
@@ -54,17 +64,15 @@ async function findFiles(dir: string, ext: string): Promise<string[]> {
 }
 
 
-async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
+async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[] | undefined> {
 	const completionSpecs: FigSpec[] = [];
-	// TODO: try to use typescript instead?
 	try {
-		// Use a relative path to the autocomplete/src folder
 		const dirPath = path.resolve(__dirname, 'autocomplete');
 		const files = await findFiles(dirPath, '.js');
 
 		const filtered = files.filter(file => commands.has(path.basename(file).replace('.js', '')));
 		if (filtered.length === 0) {
-			return completionSpecs;
+			return;
 		}
 
 		for (const file of filtered) {
@@ -87,99 +95,51 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 	return completionSpecs;
 }
 
-(vscode as any).window.registerTerminalCompletionProvider({
+vscode.window.registerTerminalCompletionProvider({
 	id: 'terminal-suggest',
 	async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { commandLine: string; cursorPosition: number }, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | undefined> {
-		// Early cancellation check
 		if (token.isCancellationRequested) {
 			return;
 		}
 
-		// TODO: Leverage shellType when available https://github.com/microsoft/vscode/issues/230165
-		//       terminal.state.shellType
-
-		// TODO: cache
+		// TODO: Cache available commands
 		const availableCommands = await getCommandsInPath();
+		if (!availableCommands) {
+			return;
+		}
 		const specs = await getCompletionSpecs(availableCommands);
+		if (!specs) {
+			return;
+		}
+		// TODO: Leverage shellType when available https://github.com/microsoft/vscode/issues/230165
+		const shellPath = 'shellPath' in terminal.creationOptions ? terminal.creationOptions.shellPath : vscode.env.shell;
+		if (!shellPath) {
+			return;
+		}
+		const builtinCommands = getBuiltinCommands(shellPath);
 		builtinCommands?.forEach(command => availableCommands.add(command));
 
 		const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
+		if (prefix === undefined) {
+			return;
+		}
 
 		const result: vscode.TerminalCompletionItem[] = [];
+
 		for (const spec of specs) {
-			const name = getLabel(spec);
-			if (!name || !availableCommands.has(name)) {
+			const commandName = getLabel(spec);
+			if (!commandName || !availableCommands.has(commandName)) {
 				continue;
 			}
-			if (spec.args && name === 'cd') {
-				const escapedName = escapeRegExp(name);
-				if (terminalContext.commandLine.match(new RegExp(`${escapedName}\\s+$`))) {
-					console.log('command has args', spec.args, terminalContext.commandLine.match(new RegExp(`${escapedName}\\s+`)));
-				}
-			}
 
-			if (spec.args && terminalContext.commandLine.match(new RegExp(`${escapeRegExp(name)}\\s+$`))) {
-				const fileArgument = shouldShowFile(spec.args) && !onlyShowFolders(spec.args);
-				const folderArgument = onlyShowFolders(spec.args);
-				console.log('command has fileArgument, folderArgument', fileArgument, folderArgument);
-				if (fileArgument || folderArgument) {
-					// TODO: return special items
-					console.log('pushing');
-					result.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, ' ', fileArgument ? 'file' : 'folder', fileArgument ? 'File argument' : 'Folder argument'));
-				}
-				if (spec.args.suggestions) {
-					for (const suggestion of spec.args.suggestions) {
-						const suggestionName = getLabel(suggestion);
-						if (suggestionName) {
-							result.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, ' ', suggestionName, suggestion.description, terminalContext.cursorPosition));
-						}
-					}
-				}
-			}
-
-			if (!prefix) {
-				continue;
-			}
-			if (name.startsWith(prefix)) {
-				result.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, name, spec.description));
-			}
-			// TODO:
-			// deal with args on FigSpec, esp if non optional.
-			// args.template = "filepaths", should return our special kind of terminal completion
-			if (spec.options) {
-				for (const option of spec.options) {
-					const optionName = getLabel(option);
-					if (optionName && optionName.startsWith(prefix)) {
-						result.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, optionName, option.description));
-					}
-				}
-			}
-
-			if (spec.subcommands) {
-				for (const subcommand of spec.subcommands) {
-					const subCommandName = getLabel(subcommand);
-					if (subCommandName && (name + ' ' + subCommandName).startsWith(prefix)) {
-						result.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, name + ' ' + subCommandName, subcommand.description));
-					}
-				}
-			}
-			if (spec.args) {
-				if (spec.args.suggestions) {
-					for (const suggestion of spec.args.suggestions) {
-						const suggestionName = getLabel(suggestion);
-						if (suggestionName && suggestionName.startsWith(prefix)) {
-							result.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, suggestionName, `Suggestion for ${name}: ${suggestion.description}`));
-						}
-					}
-				}
+			if (commandName.startsWith(prefix)) {
+				result.push(createCompletionItem(terminalContext.cursorPosition, prefix, commandName, spec.description));
 			}
 		}
 
-		console.log('extension completion count: ' + result.length);
-		// Return the completion results or undefined if no results
 		return result.length ? result : undefined;
 	}
-}, [' ']);
+});
 
 function getLabel(spec: FigSpec | Option | Subcommand | Suggestion): string | undefined {
 	if (typeof spec.name === 'string') {
@@ -191,54 +151,24 @@ function getLabel(spec: FigSpec | Option | Subcommand | Suggestion): string | un
 	return spec.name[0];
 }
 
-function createCompletionItem(commandLine: string, cursorPosition: number, prefix: string, label: string, description?: string, replacementIndex?: number): vscode.TerminalCompletionItem {
+function createCompletionItem(cursorPosition: number, prefix: string, label: string, description?: string): vscode.TerminalCompletionItem {
 	return {
 		label,
 		isFile: false,
 		isDirectory: false,
 		detail: description ?? '',
-		replacementIndex: replacementIndex ?? cursorPosition - prefix.length,
+		replacementIndex: cursorPosition - prefix.length,
 		replacementLength: label.length - prefix.length,
 	};
 }
 
-function shouldShowFile(arg?: Arg): boolean {
-	return arg?.template === 'filepaths';
-}
-
-function onlyShowFolders(arg?: Arg): boolean {
-	console.log(isFilepathsGenerator(arg?.generators));
-	return isFilepathsGenerator(arg?.generators);
-}
-function isFilepathsGenerator(generator: any) {
-	if (!generator || typeof generator !== 'object') {
-		return false;
+async function getCommandsInPath(): Promise<Set<string> | undefined> {
+	const paths = os.platform() === 'win32' ? process.env.PATH?.split(';') : process.env.PATH?.split(':');
+	if (!paths) {
+		return;
 	}
-	// HACK because the generator object is not at all what I expect
-	// per logging below
-	return !!Object.keys(generator).find(key => key === 'getQueryTerm');
-	// console.log('Generator:', generator);
-	// console.log('Type of generator:', typeof generator);
 
-	// if (generator && typeof generator === 'object') {
-	// 	console.log('Keys in generator:', Object.keys(generator));
-	// 	Object.keys(generator).forEach(key => {
-	// 		console.log(`Key: ${key}, Type: ${typeof generator[key]}`);
-	// 	});
-	// 	console.log('showFolders:', generator?.showFolders);
-	// }
-	// return (
-	// 	generator &&
-	// 	typeof generator === 'object' &&
-	// 	'showFolders' in generator &&
-	// 	generator.showFolders === 'only'
-	// );
-}
-async function getCommandsInPath(): Promise<Set<string>> {
-	// todo: use semicolon for windows
-	const paths = process.env.PATH?.split(':') || [];
 	const executables = new Set<string>();
-
 	for (const path of paths) {
 		try {
 			const dirExists = await fs.stat(path).then(stat => stat.isDirectory()).catch(() => false);
@@ -270,10 +200,9 @@ function getPrefix(commandLine: string, cursorPosition: number): string | undefi
 
 	// Find the last word boundary before the cursor
 	const match = beforeCursor.match(/\b\w+$/);
+	console.log('match', match, 'before cursor', beforeCursor);
 
 	// Return the match if found, otherwise undefined
 	return match ? match[0] : undefined;
 }
-function escapeRegExp(str: string) {
-	return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+
