@@ -19,7 +19,7 @@ import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { IBaseChatRequestVariableEntry, IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { ChatReference } from './chatDynamicVariable.js';
+import { ChatbotPromptReference } from '../chatbotPromptReference.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
@@ -130,7 +130,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	private _onDidChangeValue = this._register(new Emitter<void>());
 	readonly onDidChangeValue = this._onDidChangeValue.event;
 
-	private chatReference?: ChatReference;
+	private chatReference?: ChatbotPromptReference;
 
 	constructor(
 		private readonly fileService: IFileService,
@@ -206,11 +206,19 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	 * TODO: @legomushroom
 	 */
 	public get childReferences(): ReadonlyArray<URI> {
-		if (!this.chatReference?.childReferences) {
+		if (!this.chatReference) {
 			return [];
 		}
 
-		return this.chatReference.childReferences;
+		return this.chatReference
+			// get an array of all references
+			.flatten()
+			// remove self from the list
+			.slice(1)
+			// keep only ones that exist on disk
+			.filter((ref) => ref.isFileExists)
+			// convert to URIs
+			.map((child) => child.uri);
 	}
 
 	setValue(
@@ -223,11 +231,19 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 			this.removeChatReference();
 		}
 
+		// if a `URI` is provided but no chat reference exists, create it
 		if (value && !this.chatReference) {
-			this.chatReference = this._register(new ChatReference(value, this.fileService));
+			this.chatReference = this._register(new ChatbotPromptReference(
+				value,
+				this.fileService,
+			));
 
+			// start resolving the chat references immediately
+			this.chatReference.resolve();
+
+			// subscribe to updates of the chat reference
 			this._register(
-				this.chatReference.onReferencesUpdated(
+				this.chatReference.onUpdate(
 					this._onDidChangeValue.fire.bind(this._onDidChangeValue),
 				),
 			);

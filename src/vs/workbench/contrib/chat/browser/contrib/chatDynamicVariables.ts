@@ -96,7 +96,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 	public addReference(ref: IDynamicVariable): void {
 		const variable = this._register(new ChatDynamicVariable(ref, this.fileService));
-		this._register(variable.onReferencesUpdated(() => {
+		this._register(variable.onUpdate(() => {
 			this.updateDecorations();
 			this.widget.refreshParsedInput();
 		}));

@@ -5,12 +5,12 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { ChatbotPromptReference } from '../../browser/chatVariables.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { ChatbotPromptReference } from '../../browser/chatbotPromptReference.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 
 interface IFsNode {
