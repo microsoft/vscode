@@ -38,9 +38,6 @@ import { NotebookCellTextModel } from '../common/model/notebookCellTextModel.js'
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
 import { INotebookLoggingService } from '../common/notebookLoggingService.js';
-import { TextEdit } from '../../../../editor/common/core/textEdit.js';
-import { Position } from '../../../../editor/common/core/position.js';
-import { DetailedLineRangeMapping, RangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { tokenizeToString } from '../../../../editor/common/languages/textToHtmlTokenizer.js';
 import * as DOM from '../../../../base/browser/dom.js';
 import { createTrustedTypesPolicy } from '../../../../base/browser/trustedTypes.js';
@@ -211,7 +208,7 @@ class NotebookCellDiffDecorator extends DisposableStore {
 
 	constructor(
 		public readonly editor: ICodeEditor,
-		private readonly originalCellValue: string | undefined,
+		private readonly originalCellValue: string,
 		private readonly cellKind: CellKind,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IModelService private readonly modelService: IModelService,
@@ -297,22 +294,10 @@ class NotebookCellDiffDecorator extends DisposableStore {
 			return;
 		}
 
-		if ((originalModel && !diff) || model !== this.editor.getModel() || this.editor.getModel()?.getVersionId() !== version) {
-			this._clearRendering();
-		}
-
-		if (diff && originalModel) {
+		if (diff && originalModel && model === this.editor.getModel() && this.editor.getModel()?.getVersionId() === version) {
 			this._updateWithDiff(originalModel, diff);
 		} else {
-			const edit = TextEdit.insert(new Position(0, 0), model.getValue());
-			const rangeMapping = RangeMapping.fromEdit(edit);
-			const insertDiff: IDocumentDiff = {
-				identical: false,
-				moves: [],
-				quitEarly: false,
-				changes: [DetailedLineRangeMapping.fromRangeMappings(rangeMapping)],
-			};
-			this._updateWithDiff(undefined, insertDiff);
+			this._clearRendering();
 		}
 	}
 
@@ -330,9 +315,6 @@ class NotebookCellDiffDecorator extends DisposableStore {
 	private getOrCreateOriginalModel() {
 		if (this._originalModel) {
 			return this._originalModel;
-		}
-		if (!this.originalCellValue) {
-			return;
 		}
 		const model = this.editor.getModel();
 		if (!model) {
