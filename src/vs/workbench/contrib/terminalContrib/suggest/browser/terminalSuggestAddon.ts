@@ -96,9 +96,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				if (this._promptInputModel !== commandDetection.promptInputModel) {
 					this._promptInputModel = commandDetection.promptInputModel;
 					this._promptInputModelSubscriptions.value = combinedDisposable(
-						this._promptInputModel.onDidChangeInput(e => {
-							this._sync(e);
-						}),
+						this._promptInputModel.onDidChangeInput(e => this._sync(e)),
 						this._promptInputModel.onDidFinishInput(() => this.hideSuggestWidget()),
 					);
 				}
@@ -199,7 +197,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._screen = screen;
 	}
 
-	async requestCompletions(providers?: ITerminalCompletionProvider[]): Promise<void> {
+	async requestCompletions(triggeredProviders?: ITerminalCompletionProvider[]): Promise<void> {
 		if (!this._promptInputModel) {
 			return;
 		}
@@ -208,7 +206,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		await this._handleCompletionProviders(this._terminal, providers);
+		await this._handleCompletionProviders(this._terminal, triggeredProviders);
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
@@ -217,7 +215,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			// If input has been added
 			let sent = false;
 
-			// #region Includes shell-specific configuration - provider declares this as a property?
 			// Quick suggestions
 			if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 				if (config.quickSuggestions) {
@@ -266,7 +263,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					}
 				}
 			}
-			// #endregion
 		}
 
 		this._mostRecentPromptInputState = promptInputState;

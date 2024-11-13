@@ -87,8 +87,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		};
 
 		if (triggeredProviders) {
-			// trigger characters were pressed, only get completions from those providers
-			console.log('triggered providers', triggeredProviders.map(p => p.id));
 			await collectCompletions(triggeredProviders);
 		} else {
 			const allProviders = [...this._providers.values()].flatMap(providerMap => [...providerMap.values()]);

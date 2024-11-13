@@ -2115,20 +2115,16 @@ export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 	isFile?: boolean | undefined;
 	isDirectory?: boolean | undefined;
 	isKeyword?: boolean | undefined;
-	fileArgument?: boolean | undefined;
-	folderArgument?: boolean | undefined;
 	replacementIndex: number;
 	replacementLength: number;
 
-	constructor(label: string, icon?: ThemeIcon, detail?: string, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, fileArgument?: boolean, folderArgument?: boolean, replacementIndex?: number, replacementLength?: number) {
+	constructor(label: string, icon?: ThemeIcon, detail?: string, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, replacementIndex?: number, replacementLength?: number) {
 		this.label = label;
 		this.icon = icon;
 		this.detail = detail;
 		this.isFile = isFile;
 		this.isDirectory = isDirectory;
 		this.isKeyword = isKeyword;
-		this.fileArgument = fileArgument;
-		this.folderArgument = folderArgument;
 		this.replacementIndex = replacementIndex ?? 0;
 		this.replacementLength = replacementLength ?? 0;
 	}

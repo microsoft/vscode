@@ -776,11 +776,12 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		if (token.isCancellationRequested || !this.activeTerminal) {
 			return;
 		}
+
 		const provider = this._completionProviders.get(id);
 		if (!provider) {
 			return;
 		}
-		// todo
+
 		const completions = await provider.provideTerminalCompletions(this.activeTerminal, options, token);
 		if (completions === null || completions === undefined) {
 			return;
