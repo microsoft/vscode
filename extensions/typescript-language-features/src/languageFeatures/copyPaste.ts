@@ -42,7 +42,7 @@ const enabledSettingId = 'updateImportsOnPaste.enabled';
 
 class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 
-	static readonly kind = vscode.DocumentDropOrPasteEditKind.Empty.append('text', 'jsts', 'pasteWithImports');
+	static readonly kind = vscode.DocumentDropOrPasteEditKind.Empty.append('text', 'updateImports', 'jsts');
 	static readonly metadataMimeType = 'application/vnd.code.jsts.metadata';
 
 	constructor(
@@ -148,7 +148,7 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 
 	private isEnabled(document: vscode.TextDocument) {
 		const config = vscode.workspace.getConfiguration(this._modeId, document.uri);
-		return config.get(enabledSettingId, false);
+		return config.get(enabledSettingId, true);
 	}
 }
 

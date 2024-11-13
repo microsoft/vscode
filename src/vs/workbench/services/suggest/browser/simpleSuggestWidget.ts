@@ -359,9 +359,9 @@ export class SimpleSuggestWidget extends Disposable {
 		this._layout(this._persistedSize.restore());
 		// this._ctxSuggestWidgetVisible.set(true);
 
+		this._onDidShow.fire(this);
 		this._showTimeout.cancelAndSet(() => {
 			this.element.domNode.classList.add('visible');
-			this._onDidShow.fire(this);
 		}, 100);
 	}
 

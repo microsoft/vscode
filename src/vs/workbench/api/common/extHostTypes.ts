@@ -4345,7 +4345,8 @@ export class ChatCompletionItem implements vscode.ChatCompletionItem {
 
 export enum ChatEditingSessionActionOutcome {
 	Accepted = 1,
-	Rejected = 2
+	Rejected = 2,
+	Saved = 3
 }
 
 //#endregion
@@ -4511,12 +4512,18 @@ export class ChatResponseMovePart {
 	}
 }
 
-export class ChatResponseTextEditPart {
+export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart {
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
-	constructor(uri: vscode.Uri, edits: vscode.TextEdit | vscode.TextEdit[]) {
+	isDone?: boolean;
+	constructor(uri: vscode.Uri, editsOrDone: vscode.TextEdit | vscode.TextEdit[] | true) {
 		this.uri = uri;
-		this.edits = Array.isArray(edits) ? edits : [edits];
+		if (editsOrDone === true) {
+			this.isDone = true;
+			this.edits = [];
+		} else {
+			this.edits = Array.isArray(editsOrDone) ? editsOrDone : [editsOrDone];
+		}
 	}
 }
 

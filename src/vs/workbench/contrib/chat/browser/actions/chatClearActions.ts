@@ -138,21 +138,21 @@ export function registerNewChatActions() {
 				if (undecidedEdits.length) {
 					const { result } = await dialogService.prompt({
 						title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
-						message: localize('chat.startEditing.confirmation.pending.message', "Starting a new editing session will end your current session. Do you want to discard pending edits to {0} files?", undecidedEdits.length),
+						message: localize('chat.startEditing.confirmation.pending.message.2', "Starting a new editing session will end your current session. Do you want to accept pending edits to {0} files?", undecidedEdits.length),
 						type: 'info',
 						cancelButton: true,
 						buttons: [
 							{
-								label: localize('chat.startEditing.confirmation.discardEdits', "Discard & Continue"),
+								label: localize('chat.startEditing.confirmation.acceptEdits', "Accept & Continue"),
 								run: async () => {
-									await currentEditingSession.reject();
+									await currentEditingSession.accept();
 									return true;
 								}
 							},
 							{
-								label: localize('chat.startEditing.confirmation.acceptEdits', "Accept & Continue"),
+								label: localize('chat.startEditing.confirmation.discardEdits', "Discard & Continue"),
 								run: async () => {
-									await currentEditingSession.accept();
+									await currentEditingSession.reject();
 									return true;
 								}
 							}
@@ -320,7 +320,12 @@ export function registerNewChatActions() {
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHAT_VIEW_ID), ChatContextKeys.editingParticipantRegistered),
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHAT_VIEW_ID), ChatContextKeys.editingParticipantRegistered,
+						ContextKeyExpr.equals(`view.${EDITS_VIEW_ID}.visible`, false),
+						ContextKeyExpr.or(
+							ContextKeyExpr.and(ContextKeyExpr.equals(`workbench.panel.chat.defaultViewContainerLocation`, true), ContextKeyExpr.equals(`workbench.panel.chatEditing.defaultViewContainerLocation`, false)),
+							ContextKeyExpr.and(ContextKeyExpr.equals(`workbench.panel.chat.defaultViewContainerLocation`, false), ContextKeyExpr.equals(`workbench.panel.chatEditing.defaultViewContainerLocation`, true)),
+						)),
 					group: 'navigation',
 					order: 1
 				}, {

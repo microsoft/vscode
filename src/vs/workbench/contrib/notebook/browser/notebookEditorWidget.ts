@@ -17,6 +17,7 @@ import './media/notebookCellOutput.css';
 import './media/notebookEditorStickyScroll.css';
 import './media/notebookKernelActionViewItem.css';
 import './media/notebookOutline.css';
+import './media/notebookChatEditController.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { IMouseWheelEvent, StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
@@ -77,7 +78,6 @@ import { NotebookTextModel } from '../common/model/notebookTextModel.js';
 import { CellEditType, CellKind, INotebookFindOptions, NotebookFindScopeType, RENDERER_NOT_AVAILABLE, SelectionStateType } from '../common/notebookCommon.js';
 import { NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED } from '../common/notebookContextKeys.js';
 import { INotebookExecutionService } from '../common/notebookExecutionService.js';
-import { INotebookExecutionStateService } from '../common/notebookExecutionStateService.js';
 import { INotebookKernelService } from '../common/notebookKernelService.js';
 import { NotebookOptions, OutputInnerContainerTopPadding } from './notebookOptions.js';
 import { cellRangesToIndexes, ICellRange } from '../common/notebookRange.js';
@@ -96,7 +96,6 @@ import { Schemas } from '../../../../base/common/network.js';
 import { DropIntoEditorController } from '../../../../editor/contrib/dropOrPasteInto/browser/dropIntoEditorController.js';
 import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
 import { NotebookStickyScroll } from './viewParts/notebookEditorStickyScroll.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
 import { PreventDefaultContextMenuItemsContextKeyName } from '../../webview/browser/webview.contribution.js';
 import { NotebookAccessibilityProvider } from './notebookAccessibilityProvider.js';
@@ -314,10 +313,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotebookExecutionService private readonly notebookExecutionService: INotebookExecutionService,
-		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService,
 		@IEditorProgressService private editorProgressService: IEditorProgressService,
 		@INotebookLoggingService private readonly logService: INotebookLoggingService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -816,6 +813,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .code-cell-row div.cell.code { margin-left: ${getCellEditorContainerLeftMargin}px; }`);
+		// Chat Edit, deleted Cell Overlay
+		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .view-zones .code-cell-row div.cell.code { margin-left: ${getCellEditorContainerLeftMargin}px; }`);
+		// Chat Edit, deleted Cell Overlay
+		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .view-zones .code-cell-row div.cell { margin-right: ${cellRightMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row div.cell { margin-right: ${cellRightMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .cell-inner-container { padding-top: ${cellTopMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row > .cell-inner-container { padding-bottom: ${markdownCellBottomMargin}px; padding-top: ${markdownCellTopMargin}px; }`);
@@ -931,7 +932,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._listDelegate = this.instantiationService.createInstance(NotebookCellListDelegate, DOM.getWindow(this.getDomNode()));
 		this._register(this._listDelegate);
 
-		const accessibilityProvider = new NotebookAccessibilityProvider(this.notebookExecutionStateService, () => this.viewModel, this.keybindingService, this.configurationService, this.isReplHistory);
+		const accessibilityProvider = this.instantiationService.createInstance(NotebookAccessibilityProvider, () => this.viewModel, this.isReplHistory);
 		this._register(accessibilityProvider);
 
 		this._list = this.instantiationService.createInstance(

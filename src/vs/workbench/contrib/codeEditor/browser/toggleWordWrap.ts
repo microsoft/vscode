@@ -56,8 +56,7 @@ class ToggleWordWrapAction extends EditorAction {
 	constructor() {
 		super({
 			id: TOGGLE_WORD_WRAP_ID,
-			label: nls.localize('toggle.wordwrap', "View: Toggle Word Wrap"),
-			alias: 'View: Toggle Word Wrap',
+			label: nls.localize2('toggle.wordwrap', "View: Toggle Word Wrap"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,

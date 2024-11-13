@@ -10,7 +10,7 @@ steps:
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
@@ -113,7 +113,7 @@ steps:
   - task: AzureCLI@2
     displayName: Fetch secrets from Azure
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       scriptType: pscore
       scriptLocation: inlineScript
       addSpnToEnvironment: true
@@ -148,18 +148,6 @@ steps:
       AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
         node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.internal.js.map
     displayName: Upload sourcemaps (Web Internal)
-
-    # upload only the workbench.web.main.js source maps because
-    # we just compiled these bits in the previous step and the
-    # general task to upload source maps has already been run
-  - script: |
-      set -e
-      AZURE_STORAGE_ACCOUNT="ticino" \
-      AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
-      AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
-      AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
-        node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.js.map
-    displayName: Upload sourcemaps (Deprecated)
 
   - script: |
       set -e

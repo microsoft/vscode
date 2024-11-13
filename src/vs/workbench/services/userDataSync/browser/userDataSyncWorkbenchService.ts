@@ -186,13 +186,13 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			}
 		}
 
-		await this.update('initialize');
-
+		const initPromise = this.update('initialize');
 		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => {
 			if (this.updateAuthenticationProviders()) {
-				this.update('declared authentication providers changed');
+				initPromise.finally(() => this.update('declared authentication providers changed'));
 			}
 		}));
+		await initPromise;
 
 		this._register(Event.filter(
 			Event.any(

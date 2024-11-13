@@ -556,8 +556,11 @@ export function renderStringAsPlaintext(string: IMarkdownString | string) {
 }
 
 /**
- * Strips all markdown from `markdown`. For example `# Header` would be output as `Header`.
- * provide @param withCodeBlocks to retain code blocks
+ * Strips all markdown from `markdown`
+ *
+ * For example `# Header` would be output as `Header`.
+ *
+ * @param withCodeBlocks Include the ``` of code blocks as well
  */
 export function renderMarkdownAsPlaintext(markdown: IMarkdownString, withCodeBlocks?: boolean) {
 	// values that are too long will freeze the UI
@@ -567,7 +570,10 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString, withCodeBlo
 	}
 
 	const html = marked.parse(value, { async: false, renderer: withCodeBlocks ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value });
-	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString().replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
+	return sanitizeRenderedMarkdown({ isTrusted: false }, html)
+		.toString()
+		.replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m)
+		.trim();
 }
 
 const unescapeInfo = new Map<string, string>([
@@ -583,7 +589,7 @@ function createRenderer(): marked.Renderer {
 	const renderer = new marked.Renderer();
 
 	renderer.code = ({ text }: marked.Tokens.Code): string => {
-		return text;
+		return escape(text);
 	};
 	renderer.blockquote = ({ text }: marked.Tokens.Blockquote): string => {
 		return text + '\n';
@@ -622,7 +628,7 @@ function createRenderer(): marked.Renderer {
 		return text;
 	};
 	renderer.codespan = ({ text }: marked.Tokens.Codespan): string => {
-		return text;
+		return escape(text);
 	};
 	renderer.br = (_: marked.Tokens.Br): string => {
 		return '\n';
@@ -641,11 +647,12 @@ function createRenderer(): marked.Renderer {
 	};
 	return renderer;
 }
-const plainTextRenderer = new Lazy<marked.Renderer>((withCodeBlocks?: boolean) => createRenderer());
+const plainTextRenderer = new Lazy<marked.Renderer>(createRenderer);
+
 const plainTextWithCodeBlocksRenderer = new Lazy<marked.Renderer>(() => {
 	const renderer = createRenderer();
 	renderer.code = ({ text }: marked.Tokens.Code): string => {
-		return `\n\`\`\`\n${text}\n\`\`\`\n`;
+		return `\n\`\`\`\n${escape(text)}\n\`\`\`\n`;
 	};
 	return renderer;
 });
