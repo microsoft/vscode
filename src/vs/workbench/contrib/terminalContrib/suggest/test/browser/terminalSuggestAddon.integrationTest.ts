@@ -26,6 +26,9 @@ import { ITerminalCompletionService, TerminalCompletionService } from '../../bro
 import { GeneralShellType } from '../../../../../../platform/terminal/common/terminal.js';
 import { testRawPwshCompletions } from './testRawPwshCompletions.js';
 
+import { events as windows11_pwsh_filename_arg_change_case } from './recordings/windows11_pwsh_filename_arg_change_case.js';
+import { events as windows11_pwsh_filename_arg_same_case } from './recordings/windows11_pwsh_filename_arg_same_case.js';
+import { events as windows11_pwsh_filename_change_case } from './recordings/windows11_pwsh_filename_change_case.js';
 import { events as windows11_pwsh_filename_change_case_and_forward_slash } from './recordings/windows11_pwsh_filename_change_case_and_forward_slash.js';
 import { events as windows11_pwsh_filename_same_case } from './recordings/windows11_pwsh_filename_same_case.js';
 import { events as windows11_pwsh_filename_same_case_change_forward_slash } from './recordings/windows11_pwsh_filename_same_case_change_forward_slash.js';
@@ -49,7 +52,10 @@ import { events as windows11_pwsh_writehost_multiline_nav_up } from './recording
 // - Turn off builtinCompletions to simplify the recording
 // - Capitalization matters in the recorded events
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
+	{ name: 'windows11_pwsh_filename_arg_change_case', events: windows11_pwsh_filename_arg_change_case as any as RecordedSessionEvent[] },
+	{ name: 'windows11_pwsh_filename_arg_same_case', events: windows11_pwsh_filename_arg_same_case as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_filename_change_case_and_forward_slash', events: windows11_pwsh_filename_change_case_and_forward_slash as any as RecordedSessionEvent[] },
+	{ name: 'windows11_pwsh_filename_change_case', events: windows11_pwsh_filename_change_case as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_filename_same_case_change_forward_slash', events: windows11_pwsh_filename_same_case_change_forward_slash as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_filename_same_case', events: windows11_pwsh_filename_same_case as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_getcontent_delete_ghost', events: windows11_pwsh_getcontent_delete_ghost as any as RecordedSessionEvent[] },
@@ -132,10 +138,12 @@ suite('Terminal Contrib Suggest Recordings', () => {
 		xterm.open(testContainer);
 		suggestAddon.setContainerWithOverflow(testContainer);
 		suggestAddon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
+
 		xterm.loadAddon(shellIntegrationAddon);
 		xterm.loadAddon(pwshCompletionProvider);
 		store.add(pwshCompletionProvider);
 		xterm.loadAddon(suggestAddon);
+
 		xterm.focus();
 	});
 
