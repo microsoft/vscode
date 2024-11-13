@@ -9,7 +9,6 @@ import { IEditorMouseEvent, IPartialEditorMouseEvent } from '../editorBrowser.js
 import { ViewUserInputEvents } from './viewUserInputEvents.js';
 import { Position } from '../../common/core/position.js';
 import { Selection } from '../../common/core/selection.js';
-import { Range } from '../../common/core/range.js';
 import { IEditorConfiguration } from '../../common/config/editorConfiguration.js';
 import { IViewModel } from '../../common/viewModel.js';
 import { IMouseWheelEvent } from '../../../base/browser/mouseEvent.js';
@@ -42,7 +41,7 @@ export interface ICommandDelegate {
 	type(text: string): void;
 	compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void;
 	startComposition(): void;
-	endComposition(compositionRange: Range | undefined): void;
+	endComposition(): void;
 	cut(): void;
 }
 
@@ -81,8 +80,8 @@ export class ViewController {
 		this.commandDelegate.startComposition();
 	}
 
-	public compositionEnd(compositionRange: Range | undefined): void {
-		this.commandDelegate.endComposition(compositionRange);
+	public compositionEnd(): void {
+		this.commandDelegate.endComposition();
 	}
 
 	public cut(): void {

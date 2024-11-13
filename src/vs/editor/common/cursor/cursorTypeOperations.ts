@@ -74,7 +74,7 @@ export class TypeOperations {
 	/**
 	 * This is very similar with typing, but the character is already in the text buffer!
 	 */
-	public static compositionEndWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, compositions: CompositionOutcome[] | null, selections: Selection[], autoClosedCharacters: Range[], compositionRange?: Range | undefined): EditOperationResult | null {
+	public static compositionEndWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, compositions: CompositionOutcome[] | null, selections: Selection[], autoClosedCharacters: Range[]): EditOperationResult | null {
 		if (!compositions) {
 			// could not deduce what the composition did
 			return null;
@@ -92,7 +92,7 @@ export class TypeOperations {
 
 		if (!insertedText || insertedText.length !== 1) {
 			// we're only interested in the case where a single character was inserted
-			return this._overtypeEdits(compositionRange) ?? null;
+			return this._getOvertypeEdits(compositions) ?? null;
 		}
 
 		const ch = insertedText;
@@ -160,12 +160,12 @@ export class TypeOperations {
 		if (autoClosingOpenCharEdits !== undefined) {
 			return autoClosingOpenCharEdits;
 		}
-
-		return this._overtypeEdits(compositionRange) ?? null;
+		return this._getOvertypeEdits(compositions) ?? null;
 	}
 
-	private static _overtypeEdits(compositionRange: Range | undefined): EditOperationResult | undefined {
-		if (!compositionRange) {
+	private static _getOvertypeEdits(compositions: CompositionOutcome[] | null): EditOperationResult | undefined {
+		console.log('compositions', compositions);
+		if (!compositions) {
 			return undefined;
 		}
 		const inputMode = InputMode.getInputMode();
@@ -173,7 +173,7 @@ export class TypeOperations {
 		if (!isOvertypeMode) {
 			return undefined;
 		}
-		const commands = [new ReplaceOvertypeCommandInComposition(compositionRange)];
+		const commands = compositions.map(composition => new ReplaceOvertypeCommandInComposition(composition.insertedTextRange));
 		return new EditOperationResult(EditOperationType.TypingOther, commands, {
 			shouldPushStackElementBefore: true,
 			shouldPushStackElementAfter: false
@@ -228,5 +228,6 @@ export class CompositionOutcome {
 		public readonly insertedText: string,
 		public readonly insertedSelectionStart: number,
 		public readonly insertedSelectionEnd: number,
+		public readonly insertedTextRange: Range,
 	) { }
 }

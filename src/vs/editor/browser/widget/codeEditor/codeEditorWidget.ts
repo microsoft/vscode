@@ -1060,11 +1060,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				case editorCommon.Handler.CompositionStart:
 					this._startComposition();
 					return;
-				case editorCommon.Handler.CompositionEnd: {
-					const args = <Partial<editorCommon.CompositionPayload>>payload;
-					this._endComposition(source, args.compositionRange);
+				case editorCommon.Handler.CompositionEnd:
+					this._endComposition(source);
 					return;
-				}
 				case editorCommon.Handler.Type: {
 					const args = <Partial<editorCommon.TypePayload>>payload;
 					this._type(source, args.text || '');
@@ -1122,11 +1120,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._onDidCompositionStart.fire();
 	}
 
-	private _endComposition(source: string | null | undefined, compositionRange: Range | undefined): void {
+	private _endComposition(source: string | null | undefined): void {
 		if (!this._modelData) {
 			return;
 		}
-		this._modelData.viewModel.endComposition(source, compositionRange);
+		this._modelData.viewModel.endComposition(source);
 		this._onDidCompositionEnd.fire();
 	}
 
@@ -1816,8 +1814,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				startComposition: () => {
 					this._startComposition();
 				},
-				endComposition: (compositionRange: Range | undefined) => {
-					this._endComposition('keyboard', compositionRange);
+				endComposition: () => {
+					this._endComposition('keyboard');
 				},
 				cut: () => {
 					this._cut('keyboard');
@@ -1847,8 +1845,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				startComposition: () => {
 					this._commandService.executeCommand(editorCommon.Handler.CompositionStart, {});
 				},
-				endComposition: (compositionRange: Range | undefined) => {
-					this._commandService.executeCommand(editorCommon.Handler.CompositionEnd, { compositionRange });
+				endComposition: () => {
+					this._commandService.executeCommand(editorCommon.Handler.CompositionEnd, {});
 				},
 				cut: () => {
 					this._commandService.executeCommand(editorCommon.Handler.Cut, {});
