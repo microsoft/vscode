@@ -211,6 +211,11 @@ async function getCommandsInPath(): Promise<Set<string> | undefined> {
 }
 
 function getPrefix(commandLine: string, cursorPosition: number): string | undefined {
+	// Return an empty string if the command line is empty after trimming
+	if (commandLine.trim() === '') {
+		return '';
+	}
+
 	// Check if cursor is not at the end and there's non-whitespace after the cursor
 	if (cursorPosition < commandLine.length && /\S/.test(commandLine[cursorPosition])) {
 		return undefined;
