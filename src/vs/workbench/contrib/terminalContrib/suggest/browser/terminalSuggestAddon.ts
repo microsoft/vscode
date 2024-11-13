@@ -208,6 +208,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this.isPasting) {
 			return;
 		}
+		if (this._cancellationTokenSource) {
+			this._cancellationTokenSource.cancel();
+			this._cancellationTokenSource.dispose();
+		}
 		this._cancellationTokenSource = new CancellationTokenSource();
 		const token = this._cancellationTokenSource.token;
 		await this._handleCompletionProviders(this._terminal, token);
