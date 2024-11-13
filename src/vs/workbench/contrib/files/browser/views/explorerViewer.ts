@@ -328,9 +328,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 				this.startHighlightSession();
 			}
 
-			await this.doHighlightFind(pattern, toggles.matchType, token);
-
-			return {};
+			return await this.doHighlightFind(pattern, toggles.matchType, token);
 		}
 
 		if (this.highlightSessionStartState) {
@@ -475,7 +473,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		this.highlightSessionStartState = { rootsWithProviders: new Set(roots) };
 	}
 
-	async doHighlightFind(pattern: string, matchType: TreeFindMatchType, token: CancellationToken): Promise<void> {
+	async doHighlightFind(pattern: string, matchType: TreeFindMatchType, token: CancellationToken): Promise<IAsyncFindResultMetadata> {
 		if (!this.highlightSessionStartState) {
 			throw new Error('ExplorerFindProvider: no highlight session state');
 		}
@@ -484,13 +482,16 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		const searchResults = await this.getSearchResults(pattern, roots, matchType, token);
 
 		if (token.isCancellationRequested) {
-			return;
+			return {};
 		}
 
 		this.clearHighlights();
 		for (const { explorerRoot, files, directories } of searchResults) {
 			this.addWorkspaceHighlightResults(explorerRoot, files.concat(directories));
 		}
+
+		const hitMaxResults = searchResults.some(({ hitMaxResults }) => hitMaxResults);
+		return { warningMessage: hitMaxResults ? localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.") : undefined };
 	}
 
 	private addWorkspaceHighlightResults(root: ExplorerItem, resources: URI[]): void {
@@ -908,8 +909,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 			// If there is a fuzzy score, we need to adjust the offset of the score
 			// to align with the last stat of the compressed label
-			let fuzzyScore = node.filterData as FuzzyScore;
-			if (fuzzyScore.length > 2) {
+			let fuzzyScore = node.filterData as FuzzyScore | undefined;
+			if (fuzzyScore && fuzzyScore.length > 2) {
 				const filterDataOffset = labels.join('/').length - labels[labels.length - 1].length;
 				fuzzyScore = [fuzzyScore[0], fuzzyScore[1] + filterDataOffset, ...fuzzyScore.slice(2)];
 			}
