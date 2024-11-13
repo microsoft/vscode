@@ -332,6 +332,16 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 				},
 				false,
 				token);
+
+			if (verificationStatus !== ExtensionSignatureVerificationCode.Success && this.environmentService.isBuilt) {
+				try {
+					await this.extensionsDownloader.delete(location);
+				} catch (e) {
+					/* Ignore */
+					this.logService.warn(`Error while deleting the downloaded file`, location.toString(), getErrorMessage(e));
+				}
+			}
+
 			return { local, verificationStatus };
 		} catch (error) {
 			try {
@@ -352,6 +362,13 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		const { location, verificationStatus } = await this.extensionsDownloader.download(extension, operation, verifySignature, clientTargetPlatform);
 
 		if (verificationStatus !== ExtensionSignatureVerificationCode.Success && verifySignature && this.environmentService.isBuilt && !isLinux) {
+			try {
+				await this.extensionsDownloader.delete(location);
+			} catch (e) {
+				/* Ignore */
+				this.logService.warn(`Error while deleting the downloaded file`, location.toString(), getErrorMessage(e));
+			}
+
 			if (!extension.isSigned) {
 				throw new ExtensionManagementError(nls.localize('not signed', "Extension is not signed."), ExtensionManagementErrorCode.PackageNotSigned);
 			}
