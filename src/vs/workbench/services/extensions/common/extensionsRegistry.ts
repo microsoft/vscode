@@ -97,7 +97,7 @@ export class ExtensionPointUserDelta<T> {
 		const added = current.filter(user => !previousSet.has(user.description.identifier));
 		const removed = previous.filter(user => !currentSet.has(user.description.identifier));
 
-		return added.length || removed.length ? new ExtensionPointUserDelta<T>(added, removed) : null;
+		return new ExtensionPointUserDelta<T>(added, removed);
 	}
 
 	constructor(
