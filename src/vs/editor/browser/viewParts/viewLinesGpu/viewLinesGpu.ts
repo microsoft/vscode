@@ -11,7 +11,6 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
-import type { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewScrollChangedEvent } from '../../../common/viewEvents.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { TextureAtlasPage } from '../../gpu/atlas/textureAtlasPage.js';
@@ -23,7 +22,7 @@ import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import { FloatHorizontalRange, HorizontalPosition, HorizontalRange, IViewLines, LineVisibleRanges, RenderingContext, RestrictedRenderingContext, VisibleRanges } from '../../view/renderingContext.js';
 import { ViewPart } from '../../view/viewPart.js';
 import { ViewLineOptions } from '../viewLines/viewLineOptions.js';
-
+import type * as viewEvents from '../../../common/viewEvents.js';
 
 const enum GlyphStorageBufferInfo {
 	FloatsPerEntry = 2 + 2 + 2,
@@ -373,25 +372,24 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	// Since ViewLinesGpu currently coordinates rendering to the canvas, it must listen to all
 	// changed events that any GPU part listens to. This is because any drawing to the canvas will
 	// clear it for that frame, so all parts must be rendered every time.
+	//
+	// Additionally, since this is intrinsically linked to ViewLines, it must also listen to events
+	// from that side. Luckily rendering is cheap, it's only when uploaded data changes does it
+	// start to cost.
 
-	override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
-		return true;
-	}
+	override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean { return true; }
+	override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean { return true; }
+	override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean { return true; }
+	override onFlushed(e: viewEvents.ViewFlushedEvent): boolean { return true; }
+	override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean { return true; }
+	override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean { return true; }
+	override onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean { return true; }
+	override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean { return true; }
+	override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean { return true; }
+	override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean { return true; }
 
-	override onLinesChanged(e: ViewLinesChangedEvent): boolean {
-		return true;
-	}
-
-	override onLinesDeleted(e: ViewLinesDeletedEvent): boolean {
+	override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		this._renderStrategy.onLinesDeleted(e);
-		return true;
-	}
-
-	override onScrollChanged(e: ViewScrollChangedEvent): boolean {
-		return true;
-	}
-
-	override onCursorStateChanged(e: ViewCursorStateChangedEvent): boolean {
 		return true;
 	}
 
