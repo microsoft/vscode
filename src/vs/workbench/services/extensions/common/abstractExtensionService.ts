@@ -503,7 +503,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 		}
 
-		const allExtensions: IExtensionDescription[] = remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions);
+		const allExtensions = remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions);
 
 		if (registeredResolverExtensions.length) {
 			// Remove extensions that are registered as resolvers but are not in the final resolved set
@@ -521,7 +521,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				message: nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', '))
 			});
 		}
-		this._doHandleExtensionPoints(allExtensions, false);
+
+		this._doHandleExtensionPoints(this._registry.getAllExtensionDescriptions(), false);
 	}
 
 	private async _handleExtensionTests(): Promise<void> {
