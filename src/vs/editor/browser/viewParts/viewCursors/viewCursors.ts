@@ -24,6 +24,10 @@ import { CursorChangeReason } from '../../../common/cursorEvents.js';
 import { WindowIntervalTimer, getWindow } from '../../../../base/browser/dom.js';
 import { InputMode } from '../../../../base/common/inputMode.js';
 
+export interface IViewCursorsHelper {
+	renderNow(): void;
+}
+
 /**
  * View cursors is a view part responsible for rendering the primary cursor and
  * any secondary cursors that are currently active.
@@ -53,14 +57,15 @@ export class ViewCursors extends ViewPart {
 	private readonly _primaryCursor: ViewCursor;
 	private readonly _secondaryCursors: ViewCursor[];
 	private _renderData: IViewCursorRenderData[];
+	private _viewHelper: IViewCursorsHelper;
 
-	constructor(context: ViewContext) {
+	constructor(context: ViewContext, viewHelper: IViewCursorsHelper) {
 		super(context);
 
 		const options = this._context.configuration.options;
+		this._viewHelper = viewHelper;
 		this._readOnly = options.get(EditorOption.readOnly);
 		this._cursorBlinking = options.get(EditorOption.cursorBlinking);
-		this._setCursorStyle();
 		this._cursorSmoothCaretAnimation = options.get(EditorOption.cursorSmoothCaretAnimation);
 		this._experimentalEditContextEnabled = options.get(EditorOption.experimentalEditContextEnabled);
 		this._selectionIsEmpty = true;
@@ -86,7 +91,7 @@ export class ViewCursors extends ViewPart {
 
 		this._editorHasFocus = false;
 		this._updateBlinking();
-
+		this._setCursorStyle();
 		this._register(InputMode.onDidChangeInputMode(() => {
 			this._setCursorStyle();
 		}));
@@ -350,6 +355,8 @@ export class ViewCursors extends ViewPart {
 		const options = this._context.configuration.options;
 		const inputMode = InputMode.getInputMode();
 		this._cursorStyle = inputMode === 'overtype' ? options.get(EditorOption.overtypeCursorStyle) : options.get(EditorOption.cursorStyle);
+		this.forceShouldRender();
+		this._viewHelper.renderNow();
 	}
 
 	private _show(): void {
