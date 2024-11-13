@@ -122,12 +122,8 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 		let chars = '';
 		let y = 0;
 		let x = 0;
-		let screenAbsoluteX = 0;
-		let screenAbsoluteY = 0;
-		let zeroToOneX = 0;
-		let zeroToOneY = 0;
-		let wgslX = 0;
-		let wgslY = 0;
+		let absoluteOffsetX = 0;
+		let absoluteOffsetY = 0;
 		let xOffset = 0;
 		let glyph: Readonly<ITextureAtlasPageGlyph>;
 		let cellIndex = 0;
@@ -200,29 +196,6 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 			content = lineData.content;
 			xOffset = 0;
 
-			// See ViewLine#renderLine
-			// const renderLineInput = new RenderLineInput(
-			// 	options.useMonospaceOptimizations,
-			// 	options.canUseHalfwidthRightwardsArrow,
-			// 	lineData.content,
-			// 	lineData.continuesWithWrappedLine,
-			// 	lineData.isBasicASCII,
-			// 	lineData.containsRTL,
-			// 	lineData.minColumn - 1,
-			// 	lineData.tokens,
-			// 	actualInlineDecorations,
-			// 	lineData.tabSize,
-			// 	lineData.startVisibleColumn,
-			// 	options.spaceWidth,
-			// 	options.middotWidth,
-			// 	options.wsmiddotWidth,
-			// 	options.stopRenderingLineAfter,
-			// 	options.renderWhitespace,
-			// 	options.renderControlCharacters,
-			// 	options.fontLigatures !== EditorFontLigatures.OFF,
-			// 	selectionsOnLine
-			// );
-
 			tokens = lineData.tokens;
 			tokenStartIndex = lineData.minColumn - 1;
 			tokenEndIndex = 0;
@@ -255,8 +228,8 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer, chars, tokenMetadata);
 
 					// TODO: Support non-standard character widths
-					screenAbsoluteX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);
-					screenAbsoluteY = (
+					absoluteOffsetX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);
+					absoluteOffsetY = (
 						Math.ceil((
 							// Top of line including line height
 							viewportData.relativeVerticalOffset[y - viewportData.startLineNumber] +
@@ -264,14 +237,10 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 							Math.floor((viewportData.lineHeight - this._context.configuration.options.get(EditorOption.fontSize)) / 2)
 						) * dpr)
 					);
-					zeroToOneX = screenAbsoluteX / this._viewGpuContext.canvas.domNode.width;
-					zeroToOneY = screenAbsoluteY / this._viewGpuContext.canvas.domNode.height;
-					wgslX = zeroToOneX * 2 - 1;
-					wgslY = zeroToOneY * 2 - 1;
 
 					cellIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + x) * Constants.IndicesPerCell;
-					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = wgslX;
-					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = -wgslY;
+					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = absoluteOffsetX;
+					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = absoluteOffsetY;
 					cellBuffer[cellIndex + CellBufferInfo.GlyphIndex] = glyph.glyphIndex;
 					cellBuffer[cellIndex + CellBufferInfo.TextureIndex] = glyph.pageIndex;
 				}
