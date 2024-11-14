@@ -11,6 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { FileReference } from '../../../../common/codecs/chatbotPromptCodec/tokens/fileReference.js';
 import { ChatbotPromptCodec } from '../../../../common/codecs/chatbotPromptCodec/chatbotPromptCodec.js';
 
+// TODO: @legomushroom - refactor using common test helper?
 suite('ChatbotPromptCodec', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 

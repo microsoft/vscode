@@ -25,6 +25,7 @@ import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
 import { IChatRequestVariableValue, IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
 import { ChatDynamicVariable } from './chatDynamicVariable.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
@@ -50,6 +51,11 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			e.changes.forEach(c => {
 				// Don't mutate entries in _variables, since they will be returned from the getter
 				this._variables = coalesce(this._variables.map((ref) => {
+					// TODO: @legomushroom - `&& Range.equalsRange(c.range, ref.range)`
+					if (c.text === `#file:${ref.filenameWithReferences}`) {
+						return ref;
+					}
+
 					const intersection = Range.intersectRanges(ref.range, c.range);
 					if (intersection && !intersection.isEmpty()) {
 						// The reference text was changed, it's broken.
@@ -67,6 +73,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 					if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
 						const delta = c.text.length - c.rangeLength;
+						// TODO: @legomushroom - see variables mutation comment above
 						ref.range = {
 							startLineNumber: ref.range.startLineNumber,
 							startColumn: ref.range.startColumn + delta,
@@ -81,7 +88,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 				}));
 			});
 
-			this.updateDecorations();
+			this.updateVariableDecorations();
 		}));
 	}
 
@@ -91,26 +98,67 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		}
 
 		this._variables = s;
-		this.updateDecorations();
+		this.updateVariableDecorations();
 	}
 
 	public addReference(ref: IDynamicVariable): void {
 		const variable = this._register(new ChatDynamicVariable(ref, this.fileService));
-		this._register(variable.onUpdate(() => {
-			this.updateDecorations();
-			this.widget.refreshParsedInput();
-		}));
 
 		this._variables.push(variable);
-		this.updateDecorations();
+		this.updateVariableDecorations();
 		this.widget.refreshParsedInput();
+
+		// subscibe to variable changes
+		this._register(variable.onUpdate(() => {
+			this.updateVariableTexts();
+			this.updateVariableDecorations();
+			this.widget.refreshParsedInput();
+		}));
+		// make sure the variable is updated on filesystem changes
+		variable.addFilesystemListeners();
+		// start resolving the file references
+		variable.resolve();
 	}
 
-	private updateDecorations(): void {
-		this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map((r): IDecorationOptions => ({
-			range: r.range,
-			hoverMessage: this.getHoverForReference(r)
-		})));
+	/**
+	 * TODO: @legomushroom
+	 */
+	private updateVariableTexts(): void {
+		for (const variable of this._variables) {
+			const text = `#file:${variable.filenameWithReferences}`;
+			const range = variable.range;
+
+			const success = this.widget.inputEditor.executeEdits(
+				'chatUpdateFileReference',
+				[EditOperation.replaceMove(new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn), text)],
+			);
+
+			// TODO: @legomushroom - handle the error case
+			if (success) {
+				const newRange = new Range(
+					range.startLineNumber,
+					range.startColumn,
+					range.endLineNumber,
+					range.startColumn + text.length,
+				);
+
+				variable.range = newRange;
+			}
+		}
+	}
+
+	private updateVariableDecorations(): void {
+		this.widget.inputEditor.setDecorationsByType(
+			'chat',
+			dynamicVariableDecorationType,
+			this._variables.map((variable): IDecorationOptions => {
+
+				return {
+					range: variable.range,
+					hoverMessage: this.getHoverForReference(variable),
+				};
+			}),
+		);
 	}
 
 	private getHoverForReference(ref: IDynamicVariable): IMarkdownString | undefined {
@@ -218,8 +266,13 @@ export class SelectAndInsertFileAction extends Action2 {
 			id: 'vscode.file',
 			isFile: true,
 			prefix: 'file',
-			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-			data: resource
+			range: {
+				startLineNumber: range.startLineNumber,
+				startColumn: range.startColumn,
+				endLineNumber: range.endLineNumber,
+				endColumn: range.startColumn + text.length,
+			},
+			data: resource,
 		});
 	}
 }

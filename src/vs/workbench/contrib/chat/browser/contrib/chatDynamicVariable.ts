@@ -6,6 +6,7 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { PromptFileReference } from '../promptFileReference.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { assertDefined } from '../../../../../base/common/assertDefined.js';
@@ -50,37 +51,54 @@ export class ChatDynamicVariable extends PromptFileReference implements IDynamic
 		super(parseUri(reference.data), fileService);
 	}
 
+	/**
+	 * TODO: @legomushroom
+	 */
+	public get filenameWithReferences(): string {
+		const fileName = basename(this.uri);
+
+		const childReferences = this.flatten()
+			.slice(1)
+			.filter(child => child.resolveFailed === false);
+
+		const suffix = childReferences.length
+			? ` (+${childReferences.length} more)`
+			: '';
+
+		return `${fileName}${suffix}`;
+	}
+
 	// TODO: @legomushroom - is it possible to use a `Proxy` instead of all
 	// 						 the getters and make TS happy at the same time?
-	get id() {
+	public get id() {
 		return this.reference.id;
 	}
 
-	get range() {
+	public get range() {
 		return this.reference.range;
 	}
 
-	set range(range: IRange) {
+	public set range(range: IRange) {
 		this.reference.range = range;
 	}
 
-	get data(): URI {
+	public get data(): URI {
 		return this.uri;
 	}
 
-	get prefix() {
+	public get prefix() {
 		return this.reference.prefix;
 	}
 
-	get isFile() {
+	public get isFile() {
 		return this.reference.isFile;
 	}
 
-	get fullName() {
+	public get fullName() {
 		return this.reference.fullName;
 	}
 
-	get modelDescription() {
+	public get modelDescription() {
 		return this.reference.modelDescription;
 	}
 }

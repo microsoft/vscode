@@ -13,7 +13,8 @@ import { FileChangesEvent, FileChangeType, IFileService, IFileStreamContent } fr
 
 /**
  * TODO: @legomushroom
- *  - improve LineDecoder to also emit `newline` tokens
+ *  - add logic to handle prompt `variables`
+ *  - remove the `workset` logic
  *  - handle recursive child references
  *  - use cancellation tokens
  *  - add tracing/telemetry
@@ -78,7 +79,7 @@ export class PromptFileReference extends Disposable {
 	/**
 	 * Child references of the current one.
 	 */
-	private readonly children: PromptFileReference[] = [];
+	protected readonly children: PromptFileReference[] = [];
 
 	private readonly _onUpdate = this._register(new Emitter<void>());
 	/**
@@ -190,9 +191,13 @@ export class PromptFileReference extends Disposable {
 	/**
 	 * Resolve the current file reference on the disk and
 	 * all nested file references that may exist in the file.
+	 *
+	 * @param waitForChildren Whether need to block until all child references resolved.
 	 */
 	// TODO: @legomushroom - add cancellation token
-	public async resolve(): Promise<this> {
+	public async resolve(
+		waitForChildren: boolean = false,
+	): Promise<this> {
 		// remove current error condition from the previous resolve attempt, if any
 		delete this._errorCondition;
 
@@ -202,15 +207,17 @@ export class PromptFileReference extends Disposable {
 		// try to get stream for the contents of the file, it may
 		// fail to multiple reasons, e.g. file doesn't exist, etc.
 		const fileStream = await this.getFileStream();
+		this._resolveAttempted = true;
 
 		// failed to open the file, nothing to resolve
 		if (fileStream === null) {
+			this._onUpdate.fire();
+
 			return this;
 		}
 
 		// get all file references in the file contents
 		const references = await this.codec.decode(fileStream.value).consume();
-		this._resolveAttempted = true;
 
 		// recursively resolve all references and add to the `children` array
 		//
@@ -218,6 +225,7 @@ export class PromptFileReference extends Disposable {
 		//		 explicitly in the `dispose` override method of this class. This is done to prevent
 		//       the disposables store to be littered with already-disposed child instances due to
 		// 		 the fact that the `resolve` method can be called multiple times on target file changes
+		const childPromises = [];
 		for (const reference of references) {
 			const child = new PromptFileReference(
 				URI.joinPath(this.parentFolder, reference.path), // TODO: unit test the absolute paths
@@ -232,7 +240,11 @@ export class PromptFileReference extends Disposable {
 			this.children.push(child);
 
 			// start resolving the child immediately in the background
-			child.resolve();
+			childPromises.push(child.resolve());
+		}
+
+		if (waitForChildren) {
+			await Promise.all(childPromises);
 		}
 
 		this._onUpdate.fire();

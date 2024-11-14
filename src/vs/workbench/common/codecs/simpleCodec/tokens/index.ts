@@ -10,6 +10,5 @@
 import { Tab } from './tab.js';
 import { Word } from './word.js';
 import { Space } from './space.js';
-import { NewLine } from '../../linesCodec/tokens/newLine.js';
 
-export { Word, Space, Tab, NewLine };
+export { Word, Space, Tab };

@@ -628,6 +628,9 @@ export class ChatService extends Disposable implements IChatService {
 							message = promptTextResult.message;
 						}
 
+						// TODO: @legomushroom - push nested references here
+						// request.attachedContext?.push();
+
 						return {
 							sessionId,
 							requestId: request.id,

@@ -4,33 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseDecoder } from '../baseDecoder.js';
-// import { Line } from '../linesCodec/tokens/line.js';
-import { TLinesDecoderToken } from '../linesCodec/linesDecoder.js';
-import { Word, Space, Tab, NewLine } from '../simpleCodec/tokens/index.js';
+import { NewLine } from '../linesCodec/tokens/index.js';
+import { TLineTokens } from '../linesCodec/linesDecoder.js';
+import { Word, Space, Tab, } from '../simpleCodec/tokens/index.js';
 
 /**
  * A token type that this decoder can handle.
  */
 export type TSimpleToken = Word | Space | Tab | NewLine;
 
-// // Characters that stop a word sequence.
-// // Note! the `\n` is excluded because this decoder based on lines
-// // 	     hence can't ever receive a line that contains a `newline`.
-// // TODO: @legomushroom - check these too \n, '\r', '\v', '\f'
-// // TODO: @legomushroom - use character conststants
-// const STOP_CHARACTERS = [' ', '\t'];
+// Note! the `\n` is excluded because this decoder based on lines
+// Characters that stop a word sequence.
+// 	     hence can't ever receive a line that contains a `newline`.
+// TODO: @legomushroom - check these too \n, '\r', '\v', '\f'
+// TODO: @legomushroom - use character consts
+const STOP_CHARACTERS = [' ', '\t'];
 
 /**
  * A decoder that can decode a stream of `Line`s into
  * a stream of `Word`, `Space`, `Tab`, `NewLine` tokens, etc.
  */
-export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLinesDecoderToken> {
-	// // Reference to a previously received line. This is used
-	// // to emit a `NewLine` token when a new line is received.
-	// private previousLine?: Line;
-
+export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineTokens> {
 	constructor(
-		stream: BaseDecoder<TLinesDecoderToken, unknown>,
+		stream: BaseDecoder<TLineTokens>,
 	) {
 		super(stream);
 	}
@@ -39,57 +35,52 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLinesDecoderToken>
 	public override start(): this {
 		super.start();
 
-		(this.stream as BaseDecoder<TLinesDecoderToken, unknown>).start(); // TODO: @legomushroom - fix this
+		(this.stream as BaseDecoder<TLineTokens>).start(); // TODO: @legomushroom - fix this
 
 		return this;
 	}
 
-	protected override onStreamData(_: TSimpleToken): void {
-		// TODO: @legomushroom - fix this
-		// // // if not a first line received, emit a `NewLine` token
-		// // // as if it appeared at the end of the previous line
-		// // if (this.previousLine) {
-		// // 	const newLine = NewLine.newOnLine(
-		// // 		this.previousLine,
-		// // 		this.previousLine.range.endColumn,
-		// // 	);
-		// // 	this._onData.fire(newLine);
-		// // }
-		// // this.previousLine = line;
+	protected override onStreamData(token: TLineTokens): void {
+		// re-emit new lines
+		if (token instanceof NewLine) {
+			this._onData.fire(token);
 
-		// // // loop through the text separating it into `Word` and `Space` tokens
-		// // let i = 0;
-		// // while (i < line.text.length) {
-		// // 	// index is 0-based, but column numbers are 1-based
-		// // 	const columnNumber = i + 1;
+			return;
+		}
 
-		// // 	// if a space character, emit a `Space` token and continue
-		// // 	if (line.text[i] === ' ') { // TODO: @legomushroom - use const instead of `space`
-		// // 		this._onData.fire(Space.newOnLine(line, columnNumber));
+		// loop through the text separating it into `Word` and `Space` tokens
+		let i = 0;
+		while (i < token.text.length) {
+			// index is 0-based, but column numbers are 1-based
+			const columnNumber = i + 1;
 
-		// // 		i++;
-		// // 		continue;
-		// // 	}
+			// if a space character, emit a `Space` token and continue
+			if (token.text[i] === ' ') { // TODO: @legomushroom - use const instead of `space`
+				this._onData.fire(Space.newOnLine(token, columnNumber));
 
-		// // 	// if a tab character, emit a `Tab` token and continue
-		// // 	if (line.text[i] === '\t') { // TODO: @legomushroom - use const instead of `\t`
-		// // 		this._onData.fire(Tab.newOnLine(line, columnNumber));
+				i++;
+				continue;
+			}
 
-		// // 		i++;
-		// // 		continue;
-		// // 	}
+			// if a tab character, emit a `Tab` token and continue
+			if (token.text[i] === '\t') { // TODO: @legomushroom - use const instead of `\t`
+				this._onData.fire(Tab.newOnLine(token, columnNumber));
 
-		// // 	// if a non-space character, parse out the whole word and
-		// // 	// emit it, then continue from the last word character position
-		// // 	let word = '';
-		// // 	while (i < line.text.length && !(STOP_CHARACTERS.includes(line.text[i]))) {
-		// // 		word += line.text[i];
-		// // 		i++;
-		// // 	}
+				i++;
+				continue;
+			}
 
-		// // 	this._onData.fire(
-		// // 		Word.newOnLine(word, line, columnNumber),
-		// // 	);
-		// }
+			// if a non-space character, parse out the whole word and
+			// emit it, then continue from the last word character position
+			let word = '';
+			while (i < token.text.length && !(STOP_CHARACTERS.includes(token.text[i]))) {
+				word += token.text[i];
+				i++;
+			}
+
+			this._onData.fire(
+				Word.newOnLine(word, token, columnNumber),
+			);
+		}
 	}
 }

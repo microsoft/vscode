@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../base/common/buffer.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { ReadableStream } from '../../../base/common/stream.js';
@@ -17,7 +16,7 @@ import { TStreamListenerNames } from './types/TStreamListenerEventNames.js';
  */
 // TODO: @legomushroom - when a decoder is disposed, we need to emit/throw errors
 // 						 if the object still being used by someone
-export abstract class BaseDecoder<T extends NonNullable<unknown>, K = VSBuffer> extends Disposable implements ReadableStream<T> {
+export abstract class BaseDecoder<T extends NonNullable<unknown>, K = unknown> extends Disposable implements ReadableStream<T> {
 	protected ended = false;
 
 	protected readonly _onData = this._register(new Emitter<T>());

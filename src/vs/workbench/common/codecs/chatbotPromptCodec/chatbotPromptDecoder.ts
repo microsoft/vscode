@@ -16,7 +16,7 @@ export type TChatbotPromptToken = FileReference;
  */
 export class ChatbotPromptDecoder extends BaseDecoder<TChatbotPromptToken, TSimpleToken> {
 	constructor(
-		stream: BaseDecoder<TSimpleToken, unknown>,
+		stream: BaseDecoder<TSimpleToken>,
 	) {
 		super(stream);
 	}
@@ -24,7 +24,7 @@ export class ChatbotPromptDecoder extends BaseDecoder<TChatbotPromptToken, TSimp
 	public override start(): this {
 		super.start();
 
-		(this.stream as BaseDecoder<TSimpleToken, unknown>).start(); // TODO: @legomushroom - fix this
+		(this.stream as BaseDecoder<TSimpleToken>).start(); // TODO: @legomushroom - fix this
 
 		return this;
 	}
