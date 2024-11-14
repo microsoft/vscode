@@ -170,6 +170,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			if (outputLayoutChange) {
 				this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
 			}
+			if (!this._outputCollection.length) {
+				this.excecutionError.set(undefined, undefined);
+			}
 			dispose(removedOutputs);
 		}));
 
@@ -200,9 +203,14 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	updateExecutionState(e: ICellExecutionStateChangedEvent) {
 		if (e.changed) {
+			this.excecutionError.set(undefined, undefined);
 			this._onDidStartExecution.fire(e);
 		} else {
 			this._onDidStopExecution.fire(e);
+			if (this.internalMetadata.lastRunSuccess === false && this.internalMetadata.error) {
+				const metadata = this.internalMetadata;
+				this.excecutionError.set(metadata.error, undefined);
+			}
 		}
 	}
 
