@@ -26,7 +26,7 @@ import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/e
 import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../extensionManagement/common/extensionManagement.js';
 import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from './webWorkerExtensionHost.js';
 import { FetchFileSystemProvider } from './webWorkerFileSystemProvider.js';
-import { AbstractExtensionService, IExtensionHostFactory, ResolvedExtensions, checkEnabledAndProposedAPI, isResolverExtension } from '../common/abstractExtensionService.js';
+import { AbstractExtensionService, IExtensionHostFactory, LocalExtensions, RemoteExtensions, ResolvedExtensions, ResolverExtensions, checkEnabledAndProposedAPI, isResolverExtension } from '../common/abstractExtensionService.js';
 import { ExtensionDescriptionRegistrySnapshot } from '../common/extensionDescriptionRegistry.js';
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from '../common/extensionHostKind.js';
 import { IExtensionManifestPropertiesService } from '../common/extensionManifestPropertiesService.js';
@@ -41,6 +41,7 @@ import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IRemoteExplorerService } from '../../remote/common/remoteExplorerService.js';
 import { IUserDataInitializationService } from '../../userData/browser/userDataInit.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { AsyncIterableEmitter, AsyncIterableObject } from '../../../../base/common/async.js';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -80,6 +81,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			logService
 		);
 		super(
+			{ hasLocalProcess: false, allowRemoteExtensionsInLocalWebWorker: true },
 			extensionsProposedApi,
 			extensionHostFactory,
 			new BrowserExtensionHostKindPicker(logService),
@@ -137,18 +139,25 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		return this._scanWebExtensionsPromise;
 	}
 
-	protected async _resolveExtensionsDefault() {
+	private async _resolveExtensionsDefault(emitter: AsyncIterableEmitter<ResolvedExtensions>) {
 		const [localExtensions, remoteExtensions] = await Promise.all([
 			this._scanWebExtensions(),
 			this._remoteExtensionsScannerService.scanExtensions()
 		]);
 
-		return new ResolvedExtensions(localExtensions, remoteExtensions, /*hasLocalProcess*/false, /*allowRemoteExtensionsInLocalWebWorker*/true);
+		if (remoteExtensions.length) {
+			emitter.emitOne(new RemoteExtensions(remoteExtensions));
+		}
+		emitter.emitOne(new LocalExtensions(localExtensions));
 	}
 
-	protected async _resolveExtensions(handleResolverExtensions: (resolverExtensions: IExtensionDescription[]) => void): Promise<ResolvedExtensions> {
+	protected _resolveExtensions(): AsyncIterable<ResolvedExtensions> {
+		return new AsyncIterableObject(emitter => this._doResolveExtensions(emitter));
+	}
+
+	private async _doResolveExtensions(emitter: AsyncIterableEmitter<ResolvedExtensions>): Promise<void> {
 		if (!this._browserEnvironmentService.expectsResolverExtension) {
-			return this._resolveExtensionsDefault();
+			return this._resolveExtensionsDefault(emitter);
 		}
 
 		const remoteAuthority = this._environmentService.remoteAuthority!;
@@ -160,7 +169,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		const localExtensions = await this._scanWebExtensions();
 		const resolverExtensions = localExtensions.filter(extension => isResolverExtension(extension));
-		handleResolverExtensions(resolverExtensions);
+		if (resolverExtensions.length) {
+			emitter.emitOne(new ResolverExtensions(resolverExtensions));
+		}
 
 		let resolverResult: ResolverResult;
 		try {
@@ -172,7 +183,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
 
 			// Proceed with the local extension host
-			return this._resolveExtensionsDefault();
+			return this._resolveExtensionsDefault(emitter);
 		}
 
 		// set the resolved authority
@@ -190,7 +201,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			connection.onReconnecting(() => this._resolveAuthorityAgain());
 		}
 
-		return this._resolveExtensionsDefault();
+		return this._resolveExtensionsDefault(emitter);
 	}
 
 	protected async _onExtensionHostExit(code: number): Promise<void> {
