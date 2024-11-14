@@ -8,7 +8,7 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuRegistry, MenuId, registerAction2, Action2, IMenuItem, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApi } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApi, InstallOperation } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService, extensionsConfigurationNodeBase } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
@@ -77,6 +77,7 @@ import { CONTEXT_KEYBINDINGS_EDITOR } from '../../preferences/common/preferences
 import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IConfigurationMigrationRegistry, Extensions as ConfigurationMigrationExtensions } from '../../../common/configuration.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -491,7 +492,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -499,6 +500,10 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IProductService private readonly productService: IProductService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		const hasGalleryContext = CONTEXT_HAS_GALLERY.bindTo(contextKeyService);
@@ -1580,6 +1585,53 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 1
 			},
 			run: async (accessor: ServicesAccessor, id: string) => accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: `@ext:${id}` })
+		});
+
+		const downloadVSIX = async (extensionId: string, preRelease: boolean) => {
+			const result = await this.fileDialogService.showOpenDialog({
+				title: localize('download title', "Select folder to download the VSIX"),
+				canSelectFiles: false,
+				canSelectFolders: true,
+				canSelectMany: false,
+				openLabel: localize('download', "Download"),
+			});
+
+			if (!result?.[0]) {
+				return;
+			}
+
+			const [galleryExtension] = await this.extensionGalleryService.getExtensions([{ id: extensionId, preRelease: true }], { compatible: true }, CancellationToken.None);
+			if (!galleryExtension) {
+				throw new Error(localize('not found', "Extension '{0}' not found.", extensionId));
+			}
+			await this.extensionGalleryService.download(galleryExtension, this.uriIdentityService.extUri.joinPath(result[0], `${galleryExtension.identifier.id}-${galleryExtension.version}.vsix`), InstallOperation.None);
+			this.notificationService.info(localize('download.completed', "Successfully downloaded the VSIX"));
+		};
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.download',
+			title: localize('download VSIX', "Download VSIX"),
+			menu: {
+				id: MenuId.ExtensionContext,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension')),
+				order: this.productService.quality === 'stable' ? 0 : 1
+			},
+			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				downloadVSIX(extensionId, false);
+			}
+		});
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.downloadPreRelease',
+			title: localize('download pre-release', "Download Pre-Release VSIX"),
+			menu: {
+				id: MenuId.ExtensionContext,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.has('extensionHasPreReleaseVersion')),
+				order: this.productService.quality === 'stable' ? 1 : 0
+			},
+			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				downloadVSIX(extensionId, true);
+			}
 		});
 
 		this.registerExtensionAction({
