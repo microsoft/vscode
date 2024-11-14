@@ -4,11 +4,27 @@
 		"outDir": "./out",
 		"types": [
 			"node"
-		]
+		],
+		"target": "es2020",
+		"module": "esnext",
+		"moduleResolution": "node",
+		"allowJs": true,
+		"strict": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"skipLibCheck": true,
+		"resolveJsonModule": true,
+		"noEmit": true,
+		"baseUrl": "./",
+		"paths": {
+			"*": [
+				"src/*"
+			]
+		}
 	},
 	"include": [
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
-		"../../src/vscode-dts/vscode.proposed.terminalCompletionProvider.d.ts",
+		"../../src/vscode-dts/vscode.proposed.terminalCompletionProvider.d.ts"
 	]
 }

@@ -74,7 +74,6 @@ async function findFiles(dir: string, ext: string): Promise<string[]> {
 	return results;
 }
 
-
 async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[] | undefined> {
 	if (cachedCompletionSpecs) {
 		return cachedCompletionSpecs;
