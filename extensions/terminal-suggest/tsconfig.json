@@ -14,8 +14,8 @@
 		"forceConsistentCasingInFileNames": true,
 		"skipLibCheck": true,
 		"resolveJsonModule": true,
-		"noEmit": true,
 		"baseUrl": "./",
+		"noEmit": false,
 		"paths": {
 			"*": [
 				"src/*"
