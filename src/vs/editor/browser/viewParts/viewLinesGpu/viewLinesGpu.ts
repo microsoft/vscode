@@ -382,10 +382,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	// from that side. Luckily rendering is cheap, it's only when uploaded data changes does it
 	// start to cost.
 
-	override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		this._contentLeftObs.set(this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft, undefined);
-		return true;
-	}
 	override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean { return true; }
 	override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean { return true; }
 	override onFlushed(e: viewEvents.ViewFlushedEvent): boolean { return true; }
@@ -396,6 +392,10 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean { return true; }
 	override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean { return true; }
 
+	override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		this._contentLeftObs.set(this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft, undefined);
+		return true;
+	}
 	override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		this._renderStrategy.onLinesDeleted(e);
 		return true;
