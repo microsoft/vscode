@@ -7,8 +7,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { FIX_CELL_ERROR_COMMAND_ID, OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID } from './cellDiagnosticsActions.js';
+import { EXPLAIN_CELL_ERROR_COMMAND_ID, FIX_CELL_ERROR_COMMAND_ID } from './cellDiagnosticsActions.js';
 import { NotebookStatusBarController } from '../cellStatusBar/executionStatusBarItemController.js';
 import { INotebookEditor, INotebookEditorContribution, INotebookViewModel } from '../../notebookBrowser.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
@@ -39,8 +38,7 @@ class DiagnosticCellStatusBarItem extends Disposable {
 
 	constructor(
 		private readonly _notebookViewModel: INotebookViewModel,
-		private readonly cell: CodeCellViewModel,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		private readonly cell: CodeCellViewModel
 	) {
 		super();
 		this._register(autorun((reader) => this.updateQuickActions(reader.readObservable(cell.excecutionError))));
@@ -51,20 +49,17 @@ class DiagnosticCellStatusBarItem extends Disposable {
 		let items: INotebookCellStatusBarItem[] = [];
 
 		if (error?.location) {
-			const keybinding = this.keybindingService.lookupKeybinding(OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID)?.getLabel();
-			const tooltip = localize('notebook.cell.status.diagnostic', "Quick Actions {0}", `(${keybinding})`);
-
 			items = [{
 				text: `$(sparkle) fix`,
-				tooltip,
+				tooltip: localize('notebook.cell.status.fix', 'Fix With Inline Chat'),
 				alignment: CellStatusbarAlignment.Left,
 				command: FIX_CELL_ERROR_COMMAND_ID,
 				priority: Number.MAX_SAFE_INTEGER - 1
 			}, {
 				text: `$(sparkle) explain`,
-				tooltip,
+				tooltip: localize('notebook.cell.status.explain', 'Explain With Chat'),
 				alignment: CellStatusbarAlignment.Left,
-				command: OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID,
+				command: EXPLAIN_CELL_ERROR_COMMAND_ID,
 				priority: Number.MAX_SAFE_INTEGER - 1
 			}];
 		}

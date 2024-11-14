@@ -16,9 +16,12 @@ import { INotebookCellActionContext, NotebookCellAction, findTargetCellEditor } 
 import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
 import { NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS } from '../../../common/notebookContextKeys.js';
 import { InlineChatController } from '../../../../inlineChat/browser/inlineChatController.js';
+import { showChatView } from '../../../../chat/browser/chat.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 
 export const OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID = 'notebook.cell.openFailureActions';
 export const FIX_CELL_ERROR_COMMAND_ID = 'notebook.cell.chat.fixError';
+export const EXPLAIN_CELL_ERROR_COMMAND_ID = 'notebook.cell.chat.explainError';
 
 registerAction2(class extends NotebookCellAction {
 	constructor() {
@@ -83,10 +86,35 @@ registerAction2(class extends NotebookCellAction {
 				const editor = findTargetCellEditor(context, context.cell);
 				if (editor) {
 					const controller = InlineChatController.get(editor);
+					const message = error.name ? `${error.name}: ${error.message}` : error.message;
 					if (controller) {
-						await controller.run({ message: '/fix', initialRange: location, autoSend: true });
+						await controller.run({ message: '/fix ' + message, initialRange: location, autoSend: true });
 					}
 				}
+			}
+		}
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super({
+			id: EXPLAIN_CELL_ERROR_COMMAND_ID,
+			title: localize2('notebookActions.chatExplainCellError', "Explain Cell Error"),
+			precondition: ContextKeyExpr.and(NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS, NOTEBOOK_CELL_EDITOR_FOCUSED.toNegated()),
+			f1: true
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		if (context.cell instanceof CodeCellViewModel) {
+			const error = context.cell.excecutionError.get();
+			if (error?.message) {
+				const viewsService = accessor.get(IViewsService);
+				const chatWidget = await showChatView(viewsService);
+				const message = error.name ? `${error.name}: ${error.message}` : error.message;
+				// TODO: can we add special prompt instructions? e.g. use "%pip install"
+				chatWidget?.acceptInput('@workspace /explain ' + message,);
 			}
 		}
 	}

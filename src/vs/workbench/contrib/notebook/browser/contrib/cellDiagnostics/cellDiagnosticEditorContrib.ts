@@ -66,8 +66,6 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 		}
 	}
 
-
-
 	private handleChangeExecutionState(changes: (ICellExecutionStateChangedEvent | IExecutionStateChangedEvent)[]) {
 		if (!this.enabled) {
 			return;
