@@ -16,6 +16,10 @@ import { ClientSecretCredential } from '@azure/identity';
 import * as cp from 'child_process';
 import * as os from 'os';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
+import { AccessToken, GetTokenOptions, TokenCredential } from '@azure/core-auth';
+import { ConfidentialClientApplication } from '@azure/msal-node';
+import { BlobClient, BlobServiceClient, ContainerClient } from '@azure/storage-blob';
+import * as jws from 'jws';
 
 function e(name: string): string {
 	const result = process.env[name];
@@ -47,34 +51,26 @@ class Temp {
 	}
 }
 
-/**
- * Gets an access token converted from a WIF/OIDC id token.
- * We need this since this build job takes a while to run and while id tokens live for 10 minutes only, access tokens live for 24 hours.
- * Source: https://goodworkaround.com/2021/12/21/another-deep-dive-into-azure-ad-workload-identity-federation-using-github-actions/
- */
-export async function getAccessToken(endpoint: string, tenantId: string, clientId: string, idToken: string): Promise<string> {
-	const body = new URLSearchParams({
-		scope: `${endpoint}.default`,
-		client_id: clientId,
-		grant_type: 'client_credentials',
-		client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-		client_assertion: encodeURIComponent(idToken)
+export async function getAccessToken(endpoint: string, tenantId: string, clientId: string, idToken: string): Promise<AccessToken> {
+	const app = new ConfidentialClientApplication({
+		auth: {
+			clientId,
+			authority: `https://login.microsoftonline.com/${tenantId}`,
+			clientAssertion: idToken
+		}
 	});
 
-	const response = await fetch(`https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/x-www-form-urlencoded'
-		},
-		body: body.toString()
-	});
+	const result = await app.acquireTokenByClientCredential({ scopes: [`${endpoint}.default`] });
 
-	if (!response.ok) {
-		throw new Error(`HTTP error! status: ${response.status}`);
+	if (!result) {
+		throw new Error('Failed to get access token');
 	}
 
-	const aadToken = await response.json();
-	return aadToken.access_token;
+	return {
+		token: result.accessToken,
+		expiresOnTimestamp: result.expiresOn!.getTime(),
+		refreshAfterTimestamp: result.refreshOn?.getTime()
+	};
 }
 
 interface RequestOptions {
@@ -666,7 +662,7 @@ function getRealType(type: string) {
 	}
 }
 
-async function processArtifact(artifact: Artifact, artifactFilePath: string, cosmosDBAccessToken: string): Promise<void> {
+async function processArtifact(artifact: Artifact, artifactFilePath: string, cosmosDBAccessToken: AccessToken): Promise<void> {
 	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
 	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
 
@@ -704,7 +700,7 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string, cos
 
 	await retry(async (attempt) => {
 		log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
-		const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT')!, tokenProvider: () => Promise.resolve(`type=aad&ver=1.0&sig=${cosmosDBAccessToken}`) });
+		const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT')!, tokenProvider: () => Promise.resolve(`type=aad&ver=1.0&sig=${cosmosDBAccessToken.token}`) });
 		const scripts = client.database('builds').container(quality).scripts;
 		await scripts.storedProcedure('createAsset').execute('', [commit, asset, true]);
 	});
