@@ -6,7 +6,7 @@
 			"node"
 		],
 		"target": "es2020",
-		"module": "esnext",
+		"module": "CommonJS",
 		"moduleResolution": "node10",
 		"strict": true,
 		"esModuleInterop": true,

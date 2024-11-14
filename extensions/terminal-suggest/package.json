@@ -7,7 +7,7 @@
   "private": true,
   "license": "MIT",
   "engines": {
-    "vscode": "0.10.x"
+    "vscode": "^1.95.0"
   },
   "icon": "images/npm_icon.png",
   "categories": [
