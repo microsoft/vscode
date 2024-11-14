@@ -689,3 +689,12 @@ function createContinueProcessingPredicate(maximumRuntime: number): () => boolea
 		return Date.now() - startTime < maximumRuntime;
 	};
 }
+
+export function isEqualChange(change1: IChange, change2: IChange): boolean {
+	return (
+		change1.originalStartLineNumber === change2.originalStartLineNumber
+		&& change1.originalEndLineNumber === change2.originalEndLineNumber
+		&& change1.modifiedStartLineNumber === change2.modifiedStartLineNumber
+		&& change1.modifiedEndLineNumber === change2.modifiedEndLineNumber
+	);
+}

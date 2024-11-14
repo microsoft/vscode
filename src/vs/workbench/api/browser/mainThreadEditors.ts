@@ -23,14 +23,16 @@ import { IEditorGroupsService } from '../../services/editor/common/editorGroupsS
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IWorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
-import { IChange } from '../../../editor/common/diff/legacyLinesDiffComputer.js';
+import { IChange, isEqualChange } from '../../../editor/common/diff/legacyLinesDiffComputer.js';
 import { IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { IEditorControl } from '../../common/editor.js';
 import { getCodeEditor, ICodeEditor } from '../../../editor/browser/editorBrowser.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { DirtyDiffContribution } from '../../contrib/scm/browser/dirtydiffDecorator.js';
 import { IDirtyDiffModelService } from '../../contrib/scm/browser/diff.js';
-import { autorun, autorunWithStore, constObservable, observableFromEvent } from '../../../base/common/observable.js';
+import { autorun, autorunWithStore, constObservable, observableFromEvent, observableFromEventOpts } from '../../../base/common/observable.js';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
+import { equals } from '../../../base/common/arrays.js';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -56,7 +58,8 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IDirtyDiffModelService private readonly _dirtyDiffModelService: IDirtyDiffModelService
+		@IDirtyDiffModelService private readonly _dirtyDiffModelService: IDirtyDiffModelService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
 	) {
 		this._instanceId = String(++MainThreadTextEditors.INSTANCE_COUNT);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
@@ -109,15 +112,23 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 				const dirtyDiffModel = uri ? this._dirtyDiffModelService.getOrCreateModel(uri) : undefined;
 
 				if (dirtyDiffModel) {
-					const scmQuickDiffChangesObs = observableFromEvent(dirtyDiffModel.onDidChange, e => {
-						const scmQuickDiff = dirtyDiffModel.quickDiffs.find(diff => diff.isSCM === true);
-						return {
-							originalResource: scmQuickDiff?.originalResource,
-							changes: e?.changes
-								.filter(change => change.label === scmQuickDiff?.label)
-								.map(change => change.change) ?? []
-						};
-					});
+					const scmQuickDiffChangesObs = observableFromEventOpts<
+						{ originalResource: URI | undefined; changes: IChange[] },
+						{ changes: { change: IChange; label: string; uri: URI }[] }>(
+							{
+								owner: this,
+								equalsFn: (a, b) => this._uriIdentityService.extUri.isEqual(a.originalResource, b.originalResource) && equals<IChange>(a.changes, b.changes, isEqualChange),
+							},
+							dirtyDiffModel.onDidChange,
+							e => {
+								const scmQuickDiff = dirtyDiffModel.quickDiffs.find(diff => diff.isSCM === true);
+								return {
+									originalResource: scmQuickDiff?.originalResource,
+									changes: e?.changes
+										.filter(change => change.label === scmQuickDiff?.label)
+										.map(change => change.change) ?? []
+								};
+							});
 
 					store.add(autorun(reader => {
 						const scmQuickDiffChanges = scmQuickDiffChangesObs.read(reader);
@@ -137,6 +148,12 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 								]);
 
 							this._proxy.$acceptEditorDiffInformation(id, {
+								original: scmQuickDiffChanges.originalResource,
+								modified: uri,
+								diff
+							});
+
+							console.log('$acceptEditorDiffInformation: ', {
 								original: scmQuickDiffChanges.originalResource,
 								modified: uri,
 								diff
