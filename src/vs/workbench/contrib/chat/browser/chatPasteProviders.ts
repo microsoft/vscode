@@ -19,6 +19,7 @@ import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { Mimes } from '../../../../base/common/mime.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export class PasteImageProvider implements DocumentPasteEditProvider {
 
@@ -92,12 +93,8 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		const customEdit = {
 			resource: model.uri,
 			variable: imageContext,
-			undo: () => {
-				widget.attachmentModel.delete(imageContext.id);
-			},
-			redo: () => {
-				widget.attachmentModel.addContext(imageContext);
-			}
+			undo: () => { widget.attachmentModel.delete(imageContext.id); },
+			redo: () => { widget.attachmentModel.addContext(imageContext); }
 		};
 
 		return {
@@ -184,7 +181,6 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 	readonly id = PasteTextProvider.id;
 	readonly kind = PasteTextProvider.kind;
 
-	readonly dropMimeTypes = [Mimes.text];
 	readonly pasteMimeTypes = [Mimes.text, 'vscode-editor-data', 'additional-editor-data'];
 
 	constructor(
@@ -197,24 +193,23 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 			return;
 		}
 		const text = dataTransfer.get(Mimes.text);
-		const rawmetadata = dataTransfer.get('vscode-editor-data');
-		const additionalMetaData = dataTransfer.get('additional-editor-data');
+		const editorData = dataTransfer.get('vscode-editor-data');
+		const additionalEditorData = dataTransfer.get('additional-editor-data');
 
-		if (!rawmetadata || !text || !additionalMetaData) {
+		if (!editorData || !text || !additionalEditorData) {
 			return;
 		}
 
 		const textdata = await text.asString();
-		const metadata = JSON.parse(await rawmetadata.asString());
-		const additionalData = JSON.parse(await additionalMetaData.asString());
-		const fileName = additionalData.uri.split('/').pop() || 'unknown file';
+		const metadata = JSON.parse(await editorData.asString());
+		const additionalData = JSON.parse(await additionalEditorData.asString());
 
 		const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 		if (!widget) {
 			return;
 		}
 
-		const copiedContext = await getCopiedContext(textdata, fileName, metadata.mode, additionalData.ranges);
+		const copiedContext = await getCopiedContext(textdata, additionalData.uri, metadata.mode, additionalData.ranges);
 
 		if (token.isCancellationRequested || !copiedContext) {
 			return;
@@ -228,12 +223,8 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		const customEdit = {
 			resource: model.uri,
 			variable: copiedContext,
-			undo: () => {
-				widget.attachmentModel.delete(copiedContext.id);
-			},
-			redo: () => {
-				widget.attachmentModel.addContext(copiedContext);
-			}
+			undo: () => { widget.attachmentModel.delete(copiedContext.id); },
+			redo: () => { widget.attachmentModel.addContext(copiedContext); }
 		};
 
 		return {
@@ -248,7 +239,8 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 	}
 }
 
-async function getCopiedContext(data: string, fileName: string, language: string, ranges: IRange): Promise<IChatRequestVariableEntry | undefined> {
+async function getCopiedContext(data: string, file: string, language: string, ranges: IRange): Promise<IChatRequestVariableEntry | undefined> {
+	const fileName = file.split('/').pop() || 'unknown file';
 	const start = ranges.startLineNumber;
 	const end = ranges.endLineNumber;
 	const resultText = `Copied Selection of Code: \n\n\n From the file: ${fileName} From lines ${start} to ${end} \n \`\`\`${data}\`\`\``;
@@ -263,6 +255,10 @@ async function getCopiedContext(data: string, fileName: string, language: string
 		isFile: false,
 		code: data,
 		language: language,
+		references: [{
+			reference: URI.file(file),
+			kind: 'reference'
+		}]
 	};
 }
 
