@@ -6455,6 +6455,14 @@ suite('Undo stops', () => {
 
 suite('Overtype Mode', () => {
 
+	setup(() => {
+		InputMode.setInputMode('overtype');
+	});
+
+	teardown(() => {
+		InputMode.setInputMode('insert');
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('simple type', () => {
@@ -6470,7 +6478,6 @@ suite('Overtype Mode', () => {
 		);
 
 		withTestCodeEditor(model, {}, (editor, viewModel) => {
-			InputMode.setInputMode('overtype');
 			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
 			viewModel.type('a', 'keyboard');
 			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
@@ -6502,7 +6509,6 @@ suite('Overtype Mode', () => {
 		);
 
 		withTestCodeEditor(model, {}, (editor, viewModel) => {
-			InputMode.setInputMode('overtype');
 			viewModel.setSelections('test', [new Selection(1, 5, 2, 3)]);
 			viewModel.type('cc', 'keyboard');
 			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
@@ -6526,7 +6532,6 @@ suite('Overtype Mode', () => {
 		);
 
 		withTestCodeEditor(model, {}, (editor, viewModel) => {
-			InputMode.setInputMode('overtype');
 			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
 			viewModel.paste('cc', false);
 			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
@@ -6558,7 +6563,6 @@ suite('Overtype Mode', () => {
 		);
 
 		withTestCodeEditor(model, {}, (editor, viewModel) => {
-			InputMode.setInputMode('overtype');
 			viewModel.setSelections('test', [new Selection(1, 5, 2, 3)]);
 			viewModel.paste('cc', false);
 			assert.strictEqual(model.getValue(EndOfLinePreference.LF), [
@@ -6582,7 +6586,6 @@ suite('Overtype Mode', () => {
 		);
 
 		withTestCodeEditor(model, {}, (editor, viewModel) => {
-			InputMode.setInputMode('overtype');
 			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
 			viewModel.paste([
 				'aaaaaaa',
@@ -6611,7 +6614,6 @@ suite('Overtype Mode', () => {
 		);
 
 		withTestCodeEditor(model, {}, (editor, viewModel) => {
-			InputMode.setInputMode('overtype');
 			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
 			viewModel.startComposition();
 			viewModel.compositionType('セ', 0, 0, 0, 'keyboard');
