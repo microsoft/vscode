@@ -272,9 +272,9 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 
 		return new Promise((resolve) => {
 			const completionPromise = this._getCompletionsPromise();
-			token.onCancellationRequested(() => {
+			this._register(token.onCancellationRequested(() => {
 				this._resolveCompletions(undefined);
-			});
+			}));
 			completionPromise.then(result => {
 				if (token.isCancellationRequested) {
 					resolve(undefined);
