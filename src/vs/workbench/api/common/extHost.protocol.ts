@@ -1819,6 +1819,7 @@ export interface ITextEditorPositionData {
 }
 
 export interface ITextEditorDiffInformation {
+	readonly documentVersion: number;
 	readonly original: UriComponents | undefined;
 	readonly modified: UriComponents | undefined;
 	readonly diff: readonly [
