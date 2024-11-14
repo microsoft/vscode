@@ -229,7 +229,7 @@ export class PromptFileReference extends Disposable {
 		for (const reference of references) {
 			const child = new PromptFileReference(
 				URI.joinPath(this.parentFolder, reference.path), // TODO: unit test the absolute paths
-				this.fileService
+				this.fileService,
 			);
 
 			// subscribe to child updates
@@ -269,8 +269,8 @@ export class PromptFileReference extends Disposable {
 	/**
 	 * Flatten the current file reference tree into a single array.
 	 */
-	public flatten(): PromptFileReference[] {
-		const result: PromptFileReference[] = [];
+	public flatten(): readonly PromptFileReference[] {
+		const result = [];
 
 		// then add self to the result
 		result.push(this);
@@ -281,6 +281,17 @@ export class PromptFileReference extends Disposable {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Get list of all valid child references.
+	 */
+	public getValidChildReferences(): readonly PromptFileReference[] {
+		return this.flatten()
+			// skip the root reference itself (this variable)
+			.slice(1)
+			// filter out unresolved references
+			.filter(reference => reference.resolveFailed === false);
 	}
 
 	public override dispose() {

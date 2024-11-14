@@ -15,7 +15,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { extUri, isEqual } from '../../../../base/common/resources.js';
+import { basename, extUri, isEqual } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -51,6 +51,7 @@ import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatInputPart, IChatInputStyles } from './chatInputPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
+import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
@@ -1065,6 +1066,29 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				};
 				this.telemetryService.publicLog2<ChatEditingWorkingSetEvent, ChatEditingWorkingSetClassification>('chatEditing/workingSetSize', { originalSize: this.inputPart.attemptedWorkingSetEntriesCount, actualSize: uniqueWorkingSetEntries.size });
 				currentEditingSession?.remove(WorkingSetEntryRemovalReason.User, ...unconfirmedSuggestions);
+			}
+
+			// factor in nested references of dynamic variables into the implicit attached context
+			const variableModel = this.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID);
+			if (variableModel) {
+				for (const variable of variableModel.variables) {
+					if (!(variable.isFile && URI.isUri(variable.data))) {
+						continue;
+					}
+
+					for (const childRefrence of variable.getValidChildReferences()) {
+						attachedContext.unshift({
+							id: variable.id,
+							name: basename(childRefrence.uri), // TODO: @legomushroom - is this correct?
+							value: childRefrence.uri,
+							kind: 'implicit',
+							isSelection: false,
+							enabled: true,
+							isFile: true,
+							isDynamic: true,
+						});
+					}
+				}
 			}
 
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {
