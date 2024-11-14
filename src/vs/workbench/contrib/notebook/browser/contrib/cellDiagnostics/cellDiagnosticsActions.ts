@@ -15,8 +15,10 @@ import { KeybindingWeight } from '../../../../../../platform/keybinding/common/k
 import { INotebookCellActionContext, NotebookCellAction, findTargetCellEditor } from '../../controller/coreActions.js';
 import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
 import { NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS } from '../../../common/notebookContextKeys.js';
+import { InlineChatController } from '../../../../inlineChat/browser/inlineChatController.js';
 
 export const OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID = 'notebook.cell.openFailureActions';
+export const FIX_CELL_ERROR_COMMAND_ID = 'notebook.cell.chat.fixError';
 
 registerAction2(class extends NotebookCellAction {
 	constructor() {
@@ -51,6 +53,39 @@ registerAction2(class extends NotebookCellAction {
 						localize('cellCommands.quickFix.noneMessage', "No code actions available"),
 						CodeActionTriggerSource.Default,
 						{ include: CodeActionKind.QuickFix });
+				}
+			}
+		}
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super({
+			id: FIX_CELL_ERROR_COMMAND_ID,
+			title: localize2('notebookActions.chatFixCellError', "Fix Cell Error"),
+			precondition: ContextKeyExpr.and(NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS, NOTEBOOK_CELL_EDITOR_FOCUSED.toNegated()),
+			f1: true
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		if (context.cell instanceof CodeCellViewModel) {
+			const error = context.cell.excecutionError.get();
+			if (error?.location) {
+				const location = Range.lift({
+					startLineNumber: error.location.startLineNumber + 1,
+					startColumn: error.location.startColumn + 1,
+					endLineNumber: error.location.endLineNumber + 1,
+					endColumn: error.location.endColumn + 1
+				});
+				context.notebookEditor.setCellEditorSelection(context.cell, Range.lift(location));
+				const editor = findTargetCellEditor(context, context.cell);
+				if (editor) {
+					const controller = InlineChatController.get(editor);
+					if (controller) {
+						await controller.run({ message: '/fix', initialRange: location, autoSend: true });
+					}
 				}
 			}
 		}

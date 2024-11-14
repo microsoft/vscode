@@ -108,7 +108,8 @@ suite('notebookCellDiagnostics', () => {
 			disposables.add(instantiationService.createInstance(CellDiagnostics, editor));
 
 			cell.model.internalMetadata.error = {
-				message: 'error',
+				name: 'error',
+				message: 'something bad happened',
 				stack: 'line 1 : print(x)',
 				uri: cell.uri,
 				location: { startColumn: 1, endColumn: 5, startLineNumber: 1, endLineNumber: 1 }
@@ -116,7 +117,7 @@ suite('notebookCellDiagnostics', () => {
 			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell.handle);
 
 			await waitForState(cell.excecutionError, error => !!error);
-			assert.strictEqual(cell?.excecutionError.get()?.message, 'error');
+			assert.strictEqual(cell?.excecutionError.get()?.message, 'something bad happened');
 			assert.equal(markerService.markers.get(cell.uri)?.length, 1);
 		}, instantiationService);
 	});
@@ -132,13 +133,15 @@ suite('notebookCellDiagnostics', () => {
 			disposables.add(instantiationService.createInstance(CellDiagnostics, editor));
 
 			cell.model.internalMetadata.error = {
-				message: 'error',
+				name: 'error',
+				message: 'something bad happened',
 				stack: 'line 1 : print(x)',
 				uri: cell.uri,
 				location: { startColumn: 1, endColumn: 5, startLineNumber: 1, endLineNumber: 1 }
 			};
 			cell2.model.internalMetadata.error = {
-				message: 'another error',
+				name: 'error',
+				message: 'another bad thing happened',
 				stack: 'line 1 : print(y)',
 				uri: cell.uri,
 				location: { startColumn: 1, endColumn: 5, startLineNumber: 1, endLineNumber: 1 }
@@ -156,7 +159,7 @@ suite('notebookCellDiagnostics', () => {
 			await waitForState(cell.excecutionError, error => error === undefined);
 
 			assert.strictEqual(cell?.excecutionError.get(), undefined);
-			assert.strictEqual(cell2?.excecutionError.get()?.message, 'another error', 'cell that was not executed should still have an error');
+			assert.strictEqual(cell2?.excecutionError.get()?.message, 'another bad thing happened', 'cell that was not executed should still have an error');
 			assert.equal(markerService.markers.get(cell.uri)?.length, 0);
 			assert.equal(markerService.markers.get(cell2.uri)?.length, 1);
 		}, instantiationService);
