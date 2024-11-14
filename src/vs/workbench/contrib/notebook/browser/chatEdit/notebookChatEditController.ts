@@ -5,18 +5,19 @@
 
 import { isEqual } from '../../../../../base/common/resources.js';
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { IChatEditingService, WorkingSetEntryState, IModifiedFileEntry } from '../../../chat/common/chatEditingService.js';
+import { autorun, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { IChatEditingService, WorkingSetEntryState } from '../../../chat/common/chatEditingService.js';
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
 import { INotebookEditor, INotebookEditorContribution } from '../notebookBrowser.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { CellDiffInfo } from '../diff/notebookDiffViewModel.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { NotebookDeletedCellDecorator, NotebookInsertedCellDecorator, NotebookCellDiffDecorator } from './notebookCellDecorators.js';
 import { INotebookModelSynchronizerFactory } from './notebookSynronizer.js';
 import { INotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
+import { debouncedObservable2 } from '../../../../../base/common/observableInternal/utils.js';
+import { CellDiffInfo } from '../diff/notebookDiffViewModel.js';
 
 
 export class NotebookChatEditorControllerContrib extends Disposable implements INotebookEditorContribution {
@@ -51,16 +52,25 @@ class NotebookChatEditorController extends Disposable {
 		this.deletedCellDecorator = this._register(instantiationService.createInstance(NotebookDeletedCellDecorator, notebookEditor));
 		this.insertedCellDecorator = this._register(instantiationService.createInstance(NotebookInsertedCellDecorator, notebookEditor));
 		const notebookModel = observableFromEvent(this.notebookEditor.onDidChangeModel, e => e);
-		const entryObs = observableValue<IModifiedFileEntry | undefined>('fileentry', undefined);
-		const notebookDiff = observableValue<{ cellDiff: CellDiffInfo[]; modelVersion: number } | undefined>('cellDiffInfo', undefined);
 		const originalModel = observableValue<NotebookTextModel | undefined>('originalModel', undefined);
 		const viewModelAttached = observableFromEvent(this.notebookEditor.onDidAttachViewModel, () => !!this.notebookEditor.getViewModel());
+		const onDidChangeVisibleRanges = debouncedObservable2(observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges), 100);
+		const decorators = new Map<NotebookCellTextModel, { editor: ICodeEditor } & IDisposable>();
+
 		let updatedCellDecoratorsOnceBefore = false;
 		let updatedDeletedInsertedDecoratorsOnceBefore = false;
-		this._register(toDisposable(() => {
-			disposeDecorators();
-		}));
-		this._register(autorun(r => {
+
+
+		const clearDecorators = () => {
+			dispose(Array.from(decorators.values()));
+			decorators.clear();
+			this.deletedCellDecorator.clear();
+			this.insertedCellDecorator.clear();
+		};
+
+		this._register(toDisposable(() => clearDecorators()));
+
+		const entryObs = derived((r) => {
 			const session = this._chatEditingService.currentEditingSessionObs.read(r);
 			const model = notebookModel.read(r);
 			if (!model || !session) {
@@ -69,56 +79,50 @@ class NotebookChatEditorController extends Disposable {
 			const entry = session.entries.read(r).find(e => isEqual(e.modifiedURI, model.uri));
 
 			if (!entry || entry.state.read(r) !== WorkingSetEntryState.Modified) {
-				disposeDecorators();
+				clearDecorators();
 				return;
 			}
-			// If we have a new entry for the file, then clear old decorators.
-			// User could be cycling through different edit sessions (Undo Last Edit / Redo Last Edit).
-			if (entryObs.read(r) && entryObs.read(r) !== entry) {
-				disposeDecorators();
-			}
-			entryObs.set(entry, undefined);
-		}));
+			return entry;
+		}).recomputeInitiallyAndOnChange(this._store);
 
-		this._register(autorunWithStore(async (r, store) => {
+
+		const snapshotCreated = observableValue<boolean>('snapshotCreated', false);
+		const diffInfoObs = derivedWithStore(this, (r, store) => {
 			const entry = entryObs.read(r);
 			const model = notebookModel.read(r);
 			if (!entry || !model) {
-				return;
+				return observableValue<{
+					cellDiff: CellDiffInfo[];
+					modelVersion: number;
+				} | undefined>('DefaultDiffIno', undefined);
 			}
 			const notebookSynchronizer = store.add(this.synchronizerFactory.getOrCreate(model, entry));
-			notebookDiff.set(notebookSynchronizer.object.currentDiffInfo, undefined);
-			await notebookSynchronizer.object.createSnapshot();
-			store.add(notebookSynchronizer.object.onDidChangeDiffInfo(e => {
-				notebookDiff.set(e, undefined);
-			}));
-			store.add(notebookSynchronizer.object.onDidRevert(e => {
-				if (e) {
-					notebookDiff.set(undefined, undefined);
-					disposeDecorators();
-					this.deletedCellDecorator.clear();
-					this.insertedCellDecorator.clear();
-				}
-			}));
-			store.add(notebookSynchronizer.object.onDidAccept(() => {
-				notebookDiff.set(undefined, undefined);
-				disposeDecorators();
-				this.deletedCellDecorator.clear();
-				this.insertedCellDecorator.clear();
-			}));
-			const result = this._register(await this.originalModelRefFactory.getOrCreate(entry, model.viewType));
-			originalModel.set(result.object, undefined);
+
+			// Initialize the observables.
+			notebookSynchronizer.object.createSnapshot().finally(() => snapshotCreated.set(true, undefined));
+			this.originalModelRefFactory.getOrCreate(entry, model.viewType).then(ref => originalModel.set(this._register(ref).object, undefined));
+
+			return notebookSynchronizer.object.diffInfo;
+		}).recomputeInitiallyAndOnChange(this._store).flatten();
+
+
+		this._register(autorun(r => {
+			// If we have a new entry for the file, then clear old decorators.
+			// User could be cycling through different edit sessions (Undo Last Edit / Redo Last Edit).
+			entryObs.read(r);
+			clearDecorators();
 		}));
 
-		const onDidChangeVisibleRanges = observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges);
-		const decorators = new Map<NotebookCellTextModel, { editor: ICodeEditor } & IDisposable>();
-		const disposeDecorators = () => {
-			dispose(Array.from(decorators.values()));
-			decorators.clear();
-		};
+		this._register(autorun(r => {
+			// If there's no diff info, then we either accepted or rejected everything.
+			if (!diffInfoObs.read(r)) {
+				clearDecorators();
+			}
+		}));
+
 		this._register(autorun(r => {
 			const entry = entryObs.read(r);
-			const diffInfo = notebookDiff.read(r);
+			const diffInfo = diffInfoObs.read(r);
 			const modified = notebookModel.read(r);
 			const original = originalModel.read(r);
 			onDidChangeVisibleRanges.read(r);
@@ -150,9 +154,10 @@ class NotebookChatEditorController extends Disposable {
 				}
 			});
 		}));
+
 		this._register(autorun(r => {
 			const entry = entryObs.read(r);
-			const diffInfo = notebookDiff.read(r);
+			const diffInfo = diffInfoObs.read(r);
 			const modified = notebookModel.read(r);
 			const original = originalModel.read(r);
 			const vmAttached = viewModelAttached.read(r);
@@ -162,15 +167,10 @@ class NotebookChatEditorController extends Disposable {
 			if (diffInfo && updatedDeletedInsertedDecoratorsOnceBefore && (diffInfo.modelVersion !== modified.versionId)) {
 				return;
 			}
-			if (!diffInfo) {
-				// User reverted or accepted the changes, hence original === modified.
-				this.deletedCellDecorator.clear();
-				this.insertedCellDecorator.clear();
-				return;
-			}
 			updatedDeletedInsertedDecoratorsOnceBefore = true;
 			this.insertedCellDecorator.apply(diffInfo.cellDiff);
 			this.deletedCellDecorator.apply(diffInfo.cellDiff, original);
 		}));
 	}
+
 }

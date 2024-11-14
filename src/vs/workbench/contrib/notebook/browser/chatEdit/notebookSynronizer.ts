@@ -16,7 +16,6 @@ import { INotebookEditorWorkerService } from '../../common/services/notebookWork
 import { ChatEditingModifiedFileEntry } from '../../../chat/browser/chatEditing/chatEditingModifiedFileEntry.js';
 import { CellEditType, ICellDto2, ICellReplaceEdit, NotebookData, NotebookSetting } from '../../common/notebookCommon.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { Emitter } from '../../../../../base/common/event.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { INotebookLoggingService } from '../../common/notebookLoggingService.js';
@@ -26,6 +25,7 @@ import { SaveReason } from '../../../../common/editor.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 
 
 export const INotebookModelSynchronizerFactory = createDecorator<INotebookModelSynchronizerFactory>('INotebookModelSynchronizerFactory');
@@ -62,20 +62,10 @@ export class NotebookModelSynchronizerFactory implements INotebookModelSynchroni
 
 export class NotebookModelSynchronizer extends Disposable {
 	private readonly throttledUpdateNotebookModel = new ThrottledDelayer(200);
-	private _currentDiff?: { cellDiff: CellDiffInfo[]; modelVersion: number };
-	public get currentDiffInfo(): { cellDiff: CellDiffInfo[]; modelVersion: number } | undefined {
-		return this._currentDiff;
+	private _diffInfo = observableValue<{ cellDiff: CellDiffInfo[]; modelVersion: number } | undefined>('diffInfo', undefined);
+	public get diffInfo(): IObservable<{ cellDiff: CellDiffInfo[]; modelVersion: number } | undefined> {
+		return this._diffInfo;
 	}
-	private set currentDiffInfo(value: { cellDiff: CellDiffInfo[]; modelVersion: number }) {
-		this._currentDiff = value;
-		this._onDidChangeDiffInfo.fire(value);
-	}
-	private readonly _onDidChangeDiffInfo = this._register(new Emitter<{ cellDiff: CellDiffInfo[]; modelVersion: number }>);
-	public readonly onDidChangeDiffInfo = this._onDidChangeDiffInfo.event;
-	private readonly _onDidRevert = this._register(new Emitter<boolean>());
-	public readonly onDidRevert = this._onDidRevert.event;
-	private readonly _onDidAccept = this._register(new Emitter<void>());
-	public readonly onDidAccept = this._onDidAccept.event;
 	private snapshot?: { bytes: VSBuffer; dirty: boolean };
 	private isEditFromUs: boolean = false;
 	constructor(
@@ -96,11 +86,11 @@ export class NotebookModelSynchronizer extends Disposable {
 				if (e.action.outcome === 'accepted') {
 					await this.accept();
 					await this.createSnapshot();
-					this._onDidAccept.fire();
+					this._diffInfo.set(undefined, undefined);
 				}
 				else if (e.action.outcome === 'rejected') {
 					if (await this.revert()) {
-						this._onDidRevert.fire(true);
+						this._diffInfo.set(undefined, undefined);
 					}
 				}
 			}
@@ -116,7 +106,7 @@ export class NotebookModelSynchronizer extends Disposable {
 			cancellationTokenStore.clear();
 			if (!modifiedModel.isDisposed() && !entry.originalModel.isDisposed() && modifiedModel.getValue() === entry.originalModel.getValue()) {
 				if (await this.revert()) {
-					this._onDidRevert.fire(true);
+					this._diffInfo.set(undefined, undefined);
 				}
 				return;
 			}
@@ -322,8 +312,7 @@ export class NotebookModelSynchronizer extends Disposable {
 			if (edits.length) {
 				currentModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
 			}
-			this._onDidRevert.fire(false);
-			this.currentDiffInfo = { cellDiff: cellDiffInfo, modelVersion: currentModel.versionId };
+			this._diffInfo.set({ cellDiff: cellDiffInfo, modelVersion: currentModel.versionId }, undefined);
 		}
 		finally {
 			this.isEditFromUs = false;
