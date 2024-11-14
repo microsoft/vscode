@@ -532,7 +532,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 		}
 
-		const result = this._registry.deltaExtensions(lock, allExtensions, []);
+		const result = this._registry.deltaExtensions(lock, toAdd, []);
 		if (result.removedDueToLooping.length > 0) {
 			this._notificationService.notify({
 				severity: Severity.Error,
