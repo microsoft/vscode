@@ -7,20 +7,10 @@
 		],
 		"target": "es2020",
 		"module": "esnext",
-		"moduleResolution": "node",
-		"allowJs": true,
+		"moduleResolution": "node10",
 		"strict": true,
 		"esModuleInterop": true,
-		"forceConsistentCasingInFileNames": true,
 		"skipLibCheck": true,
-		"resolveJsonModule": true,
-		"baseUrl": "./",
-		"noEmit": false,
-		"paths": {
-			"*": [
-				"src/*"
-			]
-		}
 	},
 	"include": [
 		"src/**/*",
