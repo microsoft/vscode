@@ -11,10 +11,8 @@ import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
 import { INotebookEditor } from '../notebookBrowser.js';
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { CellDiffInfo } from '../diff/notebookDiffViewModel.js';
-import { CellKind, CellUri } from '../../common/notebookCommon.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { CellKind } from '../../common/notebookCommon.js';
 import { ICodeEditor, IViewZone } from '../../../../../editor/browser/editorBrowser.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
@@ -33,6 +31,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { splitLines } from '../../../../../base/common/strings.js';
 import { DefaultLineHeight } from '../diff/diffElementViewModel.js';
+import { INotebookOriginalCellModelFactory } from './notebookOriginalCellModelFactory.js';
 
 
 export class NotebookCellDiffDecorator extends DisposableStore {
@@ -45,9 +44,8 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 		private readonly originalCellValue: string,
 		private readonly cellKind: CellKind,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@IModelService private readonly modelService: IModelService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
-		@ILanguageService private readonly _languageService: ILanguageService,
+		@INotebookOriginalCellModelFactory private readonly originalCellModelFactory: INotebookOriginalCellModelFactory,
 
 	) {
 		super();
@@ -147,20 +145,14 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 
 	private _originalModel?: ITextModel;
 	private getOrCreateOriginalModel() {
-		if (this._originalModel) {
-			return this._originalModel;
+		if (!this._originalModel) {
+			const model = this.editor.getModel();
+			if (!model) {
+				return;
+			}
+			this._originalModel = this.add(this.originalCellModelFactory.getOrCreate(model.uri, this.originalCellValue, model.getLanguageId(), this.cellKind)).object;
 		}
-		const model = this.editor.getModel();
-		if (!model) {
-			return;
-		}
-		const cellUri = model.uri;
-		const languageId = model.getLanguageId();
-
-		const scheme = `${CellUri.scheme}-chat-edit`;
-		const originalCellUri = URI.from({ scheme, fragment: cellUri.fragment, path: cellUri.path });
-		const languageSelection = this._languageService.getLanguageIdByLanguageName(languageId) ? this._languageService.createById(languageId) : this.cellKind === CellKind.Markup ? this._languageService.createById('markdown') : null;
-		return this._originalModel = this.add(this.modelService.createModel(this.originalCellValue, languageSelection, originalCellUri));
+		return this._originalModel;
 	}
 	private async computeDiff() {
 		const model = this.editor.getModel();

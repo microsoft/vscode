@@ -134,6 +134,7 @@ import { NotebookChatEditorControllerContrib } from './chatEdit/notebookChatEdit
 import { registerNotebookContribution } from './notebookEditorExtensions.js';
 import { INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory } from './chatEdit/notebookOriginalModelRefFactory.js';
 import { INotebookModelSynchronizerFactory, NotebookModelSynchronizerFactory } from './chatEdit/notebookSynronizer.js';
+import { INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory } from './chatEdit/notebookOriginalCellModelFactory.js';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -883,6 +884,7 @@ registerSingleton(INotebookOutlineEntryFactory, NotebookOutlineEntryFactory, Ins
 registerNotebookContribution(NotebookChatEditorControllerContrib.ID, NotebookChatEditorControllerContrib);
 registerSingleton(INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory, InstantiationType.Delayed);
 registerSingleton(INotebookModelSynchronizerFactory, NotebookModelSynchronizerFactory, InstantiationType.Delayed);
+registerSingleton(INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory, InstantiationType.Delayed);
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {

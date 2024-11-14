@@ -25,6 +25,7 @@ import { INotebookEditorModelResolverService } from '../../common/notebookEditor
 import { SaveReason } from '../../../../common/editor.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
 
 
 export const INotebookModelSynchronizerFactory = createDecorator<INotebookModelSynchronizerFactory>('INotebookModelSynchronizerFactory');
@@ -86,6 +87,7 @@ export class NotebookModelSynchronizer extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
 		@INotebookEditorModelResolverService private readonly notebookModelResolverService: INotebookEditorModelResolverService,
+		@INotebookOriginalModelReferenceFactory private readonly originalModelRefFactory: INotebookOriginalModelReferenceFactory,
 	) {
 		super();
 
@@ -218,20 +220,31 @@ export class NotebookModelSynchronizer extends Disposable {
 		return info.serializer;
 	}
 
+	private _originalModel?: Promise<NotebookTextModel>;
+	private async getOriginalModel(): Promise<NotebookTextModel> {
+		if (!this._originalModel) {
+			this._originalModel = this.originalModelRefFactory.getOrCreate(this.entry, this.model.viewType).then(ref => this._register(ref).object);
+		}
+		return this._originalModel;
+	}
 	private async updateNotebookModel(entry: IModifiedFileEntry, token: CancellationToken) {
 		const modifiedModelVersion = (entry as ChatEditingModifiedFileEntry).modifiedModel.getVersionId();
-		const original = this.model;
-		const originalModelVersion = original?.versionId ?? 0;
-		const model = await this.getModifiedModelForDiff(entry, token);
-		if (!model || token.isCancellationRequested || !original) {
+		const currentModel = this.model;
+		const modelVersion = currentModel?.versionId ?? 0;
+		const modelWithChatEdits = await this.getModifiedModelForDiff(entry, token);
+		if (!modelWithChatEdits || token.isCancellationRequested || !currentModel) {
 			return;
 		}
-		const cellDiffInfo = (await this.computeDiff(original, model, token))?.cellDiffInfo;
+		const originalModel = await this.getOriginalModel();
+		// This is the total diff from the original model to the model with chat edits.
+		const cellDiffInfo = (await this.computeDiff(originalModel, modelWithChatEdits, token))?.cellDiffInfo;
+		// This is the diff from the current model to the model with chat edits.
+		const cellDiffInfoToApplyEdits = (await this.computeDiff(currentModel, modelWithChatEdits, token))?.cellDiffInfo;
 		const currentVersion = (entry as ChatEditingModifiedFileEntry).modifiedModel.getVersionId();
-		if (!cellDiffInfo || token.isCancellationRequested || currentVersion !== modifiedModelVersion || originalModelVersion !== original.versionId) {
+		if (!cellDiffInfo || !cellDiffInfoToApplyEdits || token.isCancellationRequested || currentVersion !== modifiedModelVersion || modelVersion !== currentModel.versionId) {
 			return;
 		}
-		if (cellDiffInfo.every(d => d.type === 'unchanged')) {
+		if (cellDiffInfoToApplyEdits.every(d => d.type === 'unchanged')) {
 			return;
 		}
 
@@ -243,7 +256,7 @@ export class NotebookModelSynchronizer extends Disposable {
 
 			// First Delete.
 			const deletedIndexes: number[] = [];
-			cellDiffInfo.reverse().forEach(diff => {
+			cellDiffInfoToApplyEdits.reverse().forEach(diff => {
 				if (diff.type === 'delete') {
 					deletedIndexes.push(diff.originalCellIndex);
 					edits.push({
@@ -255,19 +268,19 @@ export class NotebookModelSynchronizer extends Disposable {
 				}
 			});
 			if (edits.length) {
-				original.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+				currentModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
 				edits.length = 0;
 			}
 
 			// Next insert.
-			cellDiffInfo.reverse().forEach(diff => {
+			cellDiffInfoToApplyEdits.reverse().forEach(diff => {
 				if (diff.type === 'modified' || diff.type === 'unchanged') {
 					mappings.set(diff.modifiedCellIndex, diff.originalCellIndex);
 				}
 				if (diff.type === 'insert') {
 					const originalIndex = mappings.get(diff.modifiedCellIndex - 1) ?? 0;
 					mappings.set(diff.modifiedCellIndex, originalIndex);
-					const cell = model.cells[diff.modifiedCellIndex];
+					const cell = modelWithChatEdits.cells[diff.modifiedCellIndex];
 					const newCell: ICellDto2 =
 					{
 						source: cell.getValue(),
@@ -288,17 +301,17 @@ export class NotebookModelSynchronizer extends Disposable {
 				}
 			});
 			if (edits.length) {
-				original.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+				currentModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
 				edits.length = 0;
 			}
 
 			// Finally update
-			cellDiffInfo.forEach(diff => {
+			cellDiffInfoToApplyEdits.forEach(diff => {
 				if (diff.type === 'modified') {
-					const cell = original.cells[diff.originalCellIndex];
+					const cell = currentModel.cells[diff.originalCellIndex];
 					const textModel = cell.textModel;
 					if (textModel) {
-						const newText = model.cells[diff.modifiedCellIndex].getValue();
+						const newText = modelWithChatEdits.cells[diff.modifiedCellIndex].getValue();
 						textModel.pushEditOperations(null, [
 							EditOperation.replace(textModel.getFullModelRange(), newText)
 						], () => null);
@@ -307,10 +320,10 @@ export class NotebookModelSynchronizer extends Disposable {
 			});
 
 			if (edits.length) {
-				original.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+				currentModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
 			}
 			this._onDidRevert.fire(false);
-			this.currentDiffInfo = { cellDiff: cellDiffInfo, modelVersion: original.versionId };
+			this.currentDiffInfo = { cellDiff: cellDiffInfo, modelVersion: currentModel.versionId };
 		}
 		finally {
 			this.isEditFromUs = false;

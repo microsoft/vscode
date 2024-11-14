@@ -54,6 +54,7 @@ class NotebookChatEditorController extends Disposable {
 		const entryObs = observableValue<IModifiedFileEntry | undefined>('fileentry', undefined);
 		const notebookDiff = observableValue<{ cellDiff: CellDiffInfo[]; modelVersion: number } | undefined>('cellDiffInfo', undefined);
 		const originalModel = observableValue<NotebookTextModel | undefined>('originalModel', undefined);
+		const viewModelAttached = observableFromEvent(this.notebookEditor.onDidAttachViewModel, () => !!this.notebookEditor.getViewModel());
 		let updatedCellDecoratorsOnceBefore = false;
 		let updatedDeletedInsertedDecoratorsOnceBefore = false;
 		this._register(toDisposable(() => {
@@ -154,7 +155,8 @@ class NotebookChatEditorController extends Disposable {
 			const diffInfo = notebookDiff.read(r);
 			const modified = notebookModel.read(r);
 			const original = originalModel.read(r);
-			if (!entry || !modified || !original || !diffInfo) {
+			const vmAttached = viewModelAttached.read(r);
+			if (!vmAttached || !entry || !modified || !original || !diffInfo) {
 				return;
 			}
 			if (diffInfo && updatedDeletedInsertedDecoratorsOnceBefore && (diffInfo.modelVersion !== modified.versionId)) {
