@@ -524,6 +524,20 @@ class BuiltinDynamicCompletions extends Disposable {
 		const seen = new ResourceSet();
 		const len = result.suggestions.length;
 
+		// RELATED FILES
+		if (widget.location === ChatAgentLocation.EditingSession && widget.viewModel && this._chatEditingService.currentEditingSessionObs.get()?.chatSessionId === widget.viewModel?.sessionId) {
+			const relatedFiles = (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), token), 1000)) ?? [];
+			for (const relatedFileGroup of relatedFiles) {
+				for (const relatedFile of relatedFileGroup.files) {
+					if (seen.has(relatedFile.uri)) {
+						continue;
+					}
+					seen.add(relatedFile.uri);
+					result.suggestions.push(makeFileCompletionItem(relatedFile.uri, relatedFile.description));
+				}
+			}
+		}
+
 		// HISTORY
 		// always take the last N items
 		for (const item of this.historyService.getHistory()) {
@@ -579,17 +593,6 @@ class BuiltinDynamicCompletions extends Disposable {
 					continue;
 				}
 				result.suggestions.push(makeFileCompletionItem(match.resource));
-			}
-		}
-
-		// RELATED FILES
-		if (widget.location === ChatAgentLocation.EditingSession && widget.viewModel && this._chatEditingService.currentEditingSessionObs.get()?.chatSessionId === widget.viewModel?.sessionId) {
-			for (const relatedFile of (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), token), 2000)) ?? []) {
-				if (seen.has(relatedFile.uri)) {
-					continue;
-				}
-				seen.add(relatedFile.uri);
-				result.suggestions.push(makeFileCompletionItem(relatedFile.uri, relatedFile.description));
 			}
 		}
 

@@ -8,6 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isElectron } from '../../../../../base/common/platform.js';
+import { dirname } from '../../../../../base/common/resources.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -63,7 +64,7 @@ export function registerChatContextActions() {
 /**
  * We fill the quickpick with these types, and enable some quick access providers
  */
-type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem | IImageQuickPickItem | IVariableQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem | IScreenShotQuickPickItem;
+type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem | IImageQuickPickItem | IVariableQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem | IScreenShotQuickPickItem | IRelatedFilesQuickPickItem;
 
 /**
  * These are the types that we can get out of the quick pick
@@ -108,6 +109,19 @@ function isScreenshotQuickPickItem(obj: unknown): obj is IScreenShotQuickPickIte
 	return (
 		typeof obj === 'object'
 		&& (obj as IScreenShotQuickPickItem).kind === 'screenshot');
+}
+
+function isRelatedFileQuickPickItem(obj: unknown): obj is IRelatedFilesQuickPickItem {
+	return (
+		typeof obj === 'object'
+		&& (obj as IRelatedFilesQuickPickItem).kind === 'related-files'
+	);
+}
+
+interface IRelatedFilesQuickPickItem extends IQuickPickItem {
+	kind: 'related-files';
+	id: string;
+	label: string;
 }
 
 interface IImageQuickPickItem extends IQuickPickItem {
@@ -384,7 +398,7 @@ export class AttachContextAction extends Action2 {
 			`:${item.range.startLineNumber}`);
 	}
 
-	private async _attachContext(widget: IChatWidget, commandService: ICommandService, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, hostService: IHostService, isInBackground?: boolean, ...picks: IChatContextQuickPickItem[]) {
+	private async _attachContext(widget: IChatWidget, quickInputService: IQuickInputService, commandService: ICommandService, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, hostService: IHostService, isInBackground?: boolean, ...picks: IChatContextQuickPickItem[]) {
 		const toAttach: IChatRequestVariableEntry[] = [];
 		for (const pick of picks) {
 			if (isISymbolQuickPickItem(pick) && pick.symbol) {
@@ -461,6 +475,38 @@ export class AttachContextAction extends Action2 {
 							isDynamic: true
 						});
 					}
+				}
+			} else if (isRelatedFileQuickPickItem(pick)) {
+				// Get all provider results and show them in a second tier picker
+				const chatSessionId = widget.viewModel?.sessionId;
+				if (!chatSessionId || !chatEditingService) {
+					continue;
+				}
+				const relatedFiles = await chatEditingService.getRelatedFiles(chatSessionId, widget.getInput(), CancellationToken.None);
+				if (!relatedFiles) {
+					continue;
+				}
+				const attachments = widget.attachmentModel.getAttachmentIDs();
+				const itemsPromise = chatEditingService.getRelatedFiles(chatSessionId, widget.getInput(), CancellationToken.None)
+					.then((files) => (files ?? []).reduce<((IQuickPickItem & { value: URI }) | IQuickPickSeparator)[]>((acc, cur) => {
+						acc.push({ type: 'separator', label: cur.group });
+						const workingSet = chatEditingService.currentEditingSessionObs.get()?.workingSet;
+						for (const file of cur.files) {
+							acc.push({
+								type: 'item',
+								label: labelService.getUriBasenameLabel(file.uri),
+								description: labelService.getUriLabel(dirname(file.uri), { relative: true }),
+								detail: file.description,
+								value: file.uri,
+								disabled: workingSet?.has(file.uri) || attachments.has(this._getFileContextId({ resource: file.uri })),
+								picked: true
+							});
+						}
+						return acc;
+					}, []));
+				const selectedFiles = await quickInputService.pick(itemsPromise, { placeHolder: localize('relatedFiles', 'Add related files to your working set based on your editing prompt'), canPickMany: true });
+				for (const file of selectedFiles ?? []) {
+					chatEditingService?.currentEditingSessionObs.get()?.addFileToWorkingSet(file.value);
 				}
 			} else if (isScreenshotQuickPickItem(pick)) {
 				const blob = await hostService.getScreenshot();
@@ -654,6 +700,14 @@ export class AttachContextAction extends Action2 {
 				});
 			}
 		} else if (context.showFilesOnly) {
+			if (chatEditingService?.hasRelatedFilesProviders() && (widget.getInput() || chatEditingService.currentEditingSessionObs.get()?.workingSet.size)) {
+				quickPickItems.push({
+					kind: 'related-files',
+					id: 'related-files',
+					label: localize('chatContext.relatedFiles', 'Related Files'),
+					iconClass: ThemeIcon.asClassName(Codicon.sparkle),
+				});
+			}
 			if (editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput).length > 0) {
 				quickPickItems.push({
 					kind: 'open-editors',
@@ -698,7 +752,7 @@ export class AttachContextAction extends Action2 {
 					if (!clipboardService) {
 						return;
 					}
-					this._attachContext(widget, commandService, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, isBackgroundAccept, item);
+					this._attachContext(widget, quickInputService, commandService, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, isBackgroundAccept, item);
 					if (isQuickChat(widget)) {
 						quickChatService.open();
 					}
