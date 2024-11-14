@@ -111,7 +111,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 
 		return {
 			edits: [{
-				insertText: '', title: 'Empty Edit', kind: new HierarchicalKind('text.plain'), handledMimeType: Mimes.text,
+				insertText: '', title: 'Empty Edit', kind: new HierarchicalKind(Mimes.text), handledMimeType: Mimes.text,
 				additionalEdit: {
 					edits: [customEdit],
 				}
@@ -165,7 +165,7 @@ export function isImage(array: Uint8Array): boolean {
 
 export class CopyTextProvider implements DocumentPasteEditProvider {
 
-	public readonly kind = new HierarchicalKind('text.plain');
+	public readonly kind = new HierarchicalKind('chat.attach.text');
 	public readonly copyMimeTypes = ['application/vnd.code.additional-editor-data'];
 
 	async prepareDocumentPaste(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer> {
@@ -181,7 +181,7 @@ export class CopyTextProvider implements DocumentPasteEditProvider {
 
 export class PasteTextProvider implements DocumentPasteEditProvider {
 
-	public readonly kind = new HierarchicalKind('text.plain');
+	public readonly kind = new HierarchicalKind('chat.attach.text');
 	public readonly pasteMimeTypes = ['application/vnd.code.additional-editor-data'];
 
 	constructor(
@@ -242,7 +242,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 
 		return {
 			edits: [{
-				insertText: '', title: 'Empty Edit', kind: new HierarchicalKind('text.plain'), handledMimeType: Mimes.text,
+				insertText: '', title: 'Empty Edit', kind: new HierarchicalKind(Mimes.text), handledMimeType: Mimes.text,
 				additionalEdit: {
 					edits: [customEdit],
 				}
