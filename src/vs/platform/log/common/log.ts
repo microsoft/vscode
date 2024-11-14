@@ -281,7 +281,7 @@ export abstract class AbstractMessageLogger extends AbstractLogger implements IL
 	}
 
 	protected override checkLogLevel(level: LogLevel): boolean {
-		return this.logAlways || super.canLog(level);
+		return this.logAlways || super.checkLogLevel(level);
 	}
 
 	trace(message: string, ...args: any[]): void {
