@@ -101,4 +101,13 @@ export class ChatDynamicVariable extends PromptFileReference implements IDynamic
 	public get modelDescription() {
 		return this.reference.modelDescription;
 	}
+
+	/**
+	 * Get child file references list, if any.
+	 */
+	// TODO: @legomushroom - reuse the logic of the `ChatImplicitContext` here?
+	public get validFileReferenceUris(): readonly URI[] {
+		return super.getValidChildReferences()
+			.map(child => child.uri);
+	}
 }

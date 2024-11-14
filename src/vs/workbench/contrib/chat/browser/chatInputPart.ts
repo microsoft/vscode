@@ -154,8 +154,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			// if the implicit context is a file, it can have nested
 			// file references that should be included in the context
-			if (this._implicitContext.childReferences) {
-				const childReferences = this._implicitContext.childReferences
+			if (this._implicitContext.validFileReferenceUris) {
+				const childReferences = this._implicitContext.validFileReferenceUris
 					.map((uri): IBaseChatRequestVariableEntry => {
 						return {
 							name: basename(uri.path),

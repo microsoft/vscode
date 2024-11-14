@@ -151,7 +151,7 @@ export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 
 	// TODO: @legomushroom
 	public get childReferences(): ReadonlyArray<URI> | undefined {
-		return this.variable.childReferences;
+		return this.variable.validFileReferenceUris;
 	}
 
 	// TODO: @legomushroom

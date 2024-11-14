@@ -118,8 +118,9 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 	 * If file is a prompt that references other files,
 	 * include number of references in the label.
 	 */
+	// TODO: @legomushroom - can we use `PromptFileReference` logic here isntead?
 	private getReferencesSuffix(): string {
-		const referencesCount = this.attachment.childReferences.length;
+		const referencesCount = this.attachment.validFileReferenceUris.length;
 
 		return referencesCount
 			? ` (+${referencesCount} more)`
@@ -135,7 +136,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const result = [this.labelService.getUriLabel(file, { relative: true })];
 
 		// if file is a prompt that references other files, add them to the label
-		for (const child of this.attachment.childReferences) {
+		for (const child of this.attachment.validFileReferenceUris) {
 			result.push(this.labelService.getUriLabel(child, { relative: true }));
 		}
 

@@ -64,7 +64,7 @@ export interface IDynamicVariable {
 	isFile?: boolean;
 	data: IChatRequestVariableValue;
 	// TODO: @legomushroom
-	childReferences?: ReadonlyArray<URI>;
+	validFileReferenceUris?: readonly URI[];
 	// TODO: @legomushroom
 	resolveReferencesReady?: Promise<readonly URI[]>;
 }

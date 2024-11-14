@@ -205,22 +205,13 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	/**
 	 * Get child file references list, if any.
 	 */
-	public get childReferences(): ReadonlyArray<URI> {
+	public get validFileReferenceUris(): readonly URI[] {
 		if (!this.chatReference) {
 			return [];
 		}
 
-		return this.chatReference
-			// get an array of all references
-			.flatten()
-			// remove self from the list
-			.slice(1)
-			// keep only ones that resolved successfully
-			.filter((ref) => {
-				return ref.resolveFailed === false;
-			})
-			// convert to URIs
-			.map((child) => child.uri);
+		return this.chatReference.getValidChildReferences()
+			.map(child => child.uri);
 	}
 
 	/**

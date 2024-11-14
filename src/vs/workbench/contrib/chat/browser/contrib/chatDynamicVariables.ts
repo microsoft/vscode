@@ -152,7 +152,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			'chat',
 			dynamicVariableDecorationType,
 			this._variables.map((variable): IDecorationOptions => {
-
 				return {
 					range: variable.range,
 					hoverMessage: this.getHoverForReference(variable),
@@ -161,13 +160,27 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		);
 	}
 
-	private getHoverForReference(ref: IDynamicVariable): IMarkdownString | undefined {
-		const value = ref.data;
-		if (URI.isUri(value)) {
-			return new MarkdownString(this.labelService.getUriLabel(value, { relative: true }));
-		} else {
-			return undefined;
+	// TODO: @legomushroom - reuse the logic from `ImplicitContextAttachmentWidget.getUriLabel()`?
+	private getHoverForReference(variable: IDynamicVariable): IMarkdownString | IMarkdownString[] {
+		const result: IMarkdownString[] = [];
+		const { data } = variable;
+
+		if (!URI.isUri(data)) {
+			return result;
 		}
+
+		result.push(new MarkdownString(
+			`${this.labelService.getUriLabel(data, { relative: true })}`,
+		));
+
+		// if reference has nested child file references, include them in the label
+		for (const childUri of variable.validFileReferenceUris ?? []) {
+			result.push(new MarkdownString(
+				`  • ${this.labelService.getUriLabel(childUri, { relative: true })}`,
+			));
+		}
+
+		return result;
 	}
 }
 
