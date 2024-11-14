@@ -367,6 +367,8 @@ interface IRendererContext<T extends IVisibleLine> {
 class ViewLayerRenderer<T extends IVisibleLine> {
 
 	private static _ttPolicy = createTrustedTypesPolicy('editorViewLayer', { createHTML: value => value });
+	private readonly maxLogsIndex = 10;
+	private currentIndex = 0;
 
 	constructor(
 		private readonly _domNode: HTMLElement,
@@ -392,6 +394,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				ctx.lines[x - startLineNumber] = this._lineFactory.createLine();
 			}
 			this._finishRendering(ctx, true, deltaTop);
+			this.currentIndex++;
 			return ctx;
 		}
 
@@ -447,26 +450,32 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 		this._finishRendering(ctx, false, deltaTop);
 
+		this.currentIndex++;
 		return ctx;
 	}
 
 	private _renderUntouchedLines(ctx: IRendererContext<T>, startIndex: number, endIndex: number, deltaTop: number[], deltaLN: number): void {
-		console.log('_renderUntouchedLines');
-		console.log('startIndex ', startIndex);
-		console.log('endIndex ', endIndex);
-		console.log('deltaTop ', deltaTop);
-		console.log('deltaLN ', deltaLN);
+		if (this.currentIndex < this.maxLogsIndex) {
+			console.log('_renderUntouchedLines');
+			console.log('startIndex ', startIndex);
+			console.log('endIndex ', endIndex);
+			console.log('deltaTop ', deltaTop);
+			console.log('deltaLN ', deltaLN);
+		}
 		const rendLineNumberStart = ctx.rendLineNumberStart;
 		const lines = ctx.lines;
 
 		for (let i = startIndex; i <= endIndex; i++) {
-			console.log('i ', i);
+
 			const lineNumber = rendLineNumberStart + i;
-			console.log('lineNumber ', lineNumber);
 			const deltaIndex = lineNumber - deltaLN;
-			console.log('deltaIndex ', deltaIndex);
 			const lineHeight = deltaTop[deltaIndex + 1] - deltaTop[deltaIndex];
-			console.log('lineHeight ', lineHeight);
+			if (this.currentIndex < this.maxLogsIndex) {
+				console.log('i ', i);
+				console.log('lineNumber ', lineNumber);
+				console.log('deltaIndex ', deltaIndex);
+				console.log('lineHeight ', lineHeight);
+			}
 			lines[i].layoutLine(lineNumber, deltaTop[deltaIndex], lineHeight);
 		}
 	}
@@ -550,7 +559,10 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	private static readonly _sb = new StringBuilder(100000);
 
 	private _finishRendering(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, deltaTop: number[]): void {
-		console.log('_finishRendering');
+		if (this.currentIndex < this.maxLogsIndex) {
+			console.log('_finishRendering');
+		}
+
 		const sb = ViewLayerRenderer._sb;
 		const linesLength = ctx.linesLength;
 		const lines = ctx.lines;
@@ -571,10 +583,12 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				console.log('i : ', i);
-				console.log('deltaTop : ', deltaTop);
 				const lineHeight = deltaTop[i + 1] - deltaTop[i];
-				console.log('lineHeight : ', lineHeight);
+				if (this.currentIndex < this.maxLogsIndex) {
+					console.log('i : ', i);
+					console.log('deltaTop : ', deltaTop);
+					console.log('lineHeight : ', lineHeight);
+				}
 				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], lineHeight, this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
@@ -605,10 +619,12 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				console.log('i : ', i);
-				console.log('deltaTop : ', deltaTop);
 				const lineHeight = deltaTop[i + 1] - deltaTop[i];
-				console.log('lineHeight : ', lineHeight);
+				if (this.currentIndex < this.maxLogsIndex) {
+					console.log('i : ', i);
+					console.log('deltaTop : ', deltaTop);
+					console.log('lineHeight : ', lineHeight);
+				}
 				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], lineHeight, this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering

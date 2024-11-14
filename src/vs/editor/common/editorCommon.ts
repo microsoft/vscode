@@ -634,6 +634,7 @@ export interface IThemeDecorationRenderOptions {
 	fontStyle?: string;
 	fontWeight?: string;
 	fontSize?: string;
+	lineHeight?: number;
 	textDecoration?: string;
 	cursor?: string;
 	color?: string | ThemeColor;
@@ -677,6 +678,7 @@ export interface IContentDecorationRenderOptions {
 	fontStyle?: string;
 	fontWeight?: string;
 	fontSize?: string;
+	lineHeight?: number;
 	fontFamily?: string;
 	textDecoration?: string;
 	color?: string | ThemeColor;
@@ -695,7 +697,6 @@ export interface IContentDecorationRenderOptions {
  */
 export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions {
 	isWholeLine?: boolean;
-	lineHeight?: number | undefined;
 	rangeBehavior?: TrackedRangeStickiness;
 	overviewRulerLane?: OverviewRulerLane;
 

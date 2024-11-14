@@ -181,6 +181,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private static readonly LARGE_FILE_LINE_COUNT_THRESHOLD = 300 * 1000; // 300K lines
 	private static readonly LARGE_FILE_HEAP_OPERATION_THRESHOLD = 256 * 1024 * 1024; // 256M characters, usually ~> 512MB memory usage
 
+	private readonly maxLogsIndex = 10;
+	private currentIndex = 0;
+
 	public static DEFAULT_CREATION_OPTIONS: model.ITextModelCreationOptions = {
 		isForSimpleWidget: false,
 		tabSize: EDITOR_MODEL_DEFAULTS.tabSize,
@@ -1478,9 +1481,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 
 				const { inlineClassNames, lineInjectedTexts: injectedTextInEditedRange } = lineMetaFromDecorations(decorationsWithInjectedTextInEditedRange);
-				console.log('_doApplyEdits');
-				console.log('inlineClassNames = ', inlineClassNames);
-				console.log('injectedTextInEditedRange : ', injectedTextInEditedRange);
+				if (this.currentIndex < this.maxLogsIndex) {
+					console.log('_doApplyEdits');
+					console.log('inlineClassNames = ', inlineClassNames);
+					console.log('injectedTextInEditedRange : ', injectedTextInEditedRange);
+				}
 				const injectedTextInEditedRangeQueue = new ArrayQueue(injectedTextInEditedRange);
 				const inlineClassNamesInEditedRangeQueue = new ArrayQueue(inlineClassNames);
 
@@ -1492,9 +1497,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					const decorationsInCurrentLine = injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber === currentEditLineNumber);
 					inlineClassNamesInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber > currentEditLineNumber);
 					const inlineClassNamesInCurrentLine = inlineClassNamesInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber === currentEditLineNumber);
-					console.log('decorationsInCurrentLine : ', decorationsInCurrentLine);
-					console.log('inlineClassNamesInCurrentLine : ', inlineClassNamesInCurrentLine);
-
+					if (this.currentIndex < this.maxLogsIndex) {
+						console.log('decorationsInCurrentLine : ', decorationsInCurrentLine);
+						console.log('inlineClassNamesInCurrentLine : ', inlineClassNamesInCurrentLine);
+					}
 					rawContentChanges.push(
 						new ModelRawLineChanged(
 							editLineNumber,
@@ -1520,7 +1526,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					const injectedTexts: (LineInjectedText[] | null)[] = [];
 					const newLines: string[] = [];
 					const allInlineClassNames: (InlineClassName[] | null)[] = [];
-					console.log('cnt : ', cnt);
+					if (this.currentIndex < this.maxLogsIndex) {
+						console.log('cnt : ', cnt);
+					}
 					for (let i = 0; i < cnt; i++) {
 						const lineNumber = fromLineNumber + i;
 						newLines[i] = this.getLineContent(lineNumber);
@@ -1529,8 +1537,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 						injectedTexts[i] = injectedTextInEditedRangeQueue.takeWhile(r => r.lineNumber === lineNumber);
 						inlineClassNamesInEditedRangeQueue.takeWhile(r => r.lineNumber < lineNumber);
 						allInlineClassNames[i] = inlineClassNamesInEditedRangeQueue.takeWhile(r => r.lineNumber === lineNumber);
-						console.log('injectedTexts[i] : ', injectedTexts[i]);
-						console.log('allInlineClassNames[i] : ', allInlineClassNames[i]);
+						if (this.currentIndex < this.maxLogsIndex) {
+							console.log('injectedTexts[i] : ', injectedTexts[i]);
+							console.log('allInlineClassNames[i] : ', allInlineClassNames[i]);
+						}
 					}
 
 					rawContentChanges.push(
@@ -1599,9 +1609,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const affectedLines = Array.from(affectedInjectedTextLines);
 		const lineChangeEvents = affectedLines.map(lineNumber => {
 			const { inlineClassNames, lineInjectedTexts } = this._getLineWrappingMetaInLine(lineNumber);
-			console.log('lineInjectedTexts : ', lineInjectedTexts);
-			console.log('inlineClassNames : ', inlineClassNames);
-
+			if (this.currentIndex < this.maxLogsIndex) {
+				console.log('lineInjectedTexts : ', lineInjectedTexts);
+				console.log('inlineClassNames : ', inlineClassNames);
+			}
 			return new ModelRawLineChanged(
 				lineNumber,
 				this.getLineContent(lineNumber),
@@ -1791,13 +1802,15 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		const resultPrior = this._decorationsTree.getInjectedTextInInterval(this, startOffset, endOffset, 0);
 		const linesInjectedTextPrior = LineInjectedText.fromDecorations(resultPrior).filter(t => t.lineNumber === lineNumber);
-		console.log('resultPrior : ', resultPrior);
-		console.log('linesInjectedTextPrior : ', linesInjectedTextPrior);
-
 		const result = this._decorationsTree.getTextDecorationsInInterval(this, startOffset, endOffset, 0);
-		console.log('result : ', result);
 		const linesInjectedText = lineMetaFromDecorations(result);
-		console.log('linesInjectedText : ', linesInjectedText);
+
+		if (this.currentIndex < this.maxLogsIndex) {
+			console.log('resultPrior : ', resultPrior);
+			console.log('linesInjectedTextPrior : ', linesInjectedTextPrior);
+			console.log('result : ', result);
+			console.log('linesInjectedText : ', linesInjectedText);
+		}
 		return linesInjectedText;
 	}
 
@@ -1812,19 +1825,25 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	public getAllTextDecorations(ownerId: number = 0): model.IModelDecoration[] {
-		console.log('getAllTextDecorations');
-		console.log('ownerId : ', ownerId);
+		if (this.currentIndex < this.maxLogsIndex) {
+			console.log('getAllTextDecorations');
+			console.log('ownerId : ', ownerId);
+		}
+		this.currentIndex++;
 		return this._decorationsTree.getAllTextDecorations(this, ownerId);
 	}
 
 	public getTextDecorationsInRange(filterRange: Range, filterOwnerId: number): model.IModelDecoration[] {
-		console.log('getTextDecorationsInRange');
-		console.log('filterRange : ', filterRange);
-		console.log('filterOwnerId : ', filterOwnerId);
 		const startOffset = this._buffer.getOffsetAt(filterRange.startLineNumber, filterRange.startColumn);
-		console.log('startOffset : ', startOffset);
 		const endOffset = this._buffer.getOffsetAt(filterRange.endLineNumber, filterRange.endColumn);
-		console.log('endOffset : ', endOffset);
+
+		if (this.currentIndex < this.maxLogsIndex) {
+			console.log('getTextDecorationsInRange');
+			console.log('filterRange : ', filterRange);
+			console.log('filterOwnerId : ', filterOwnerId);
+			console.log('startOffset : ', startOffset);
+			console.log('endOffset : ', endOffset);
+		}
 		return this._decorationsTree.getTextDecorationsInInterval(this, startOffset, endOffset, filterOwnerId);
 	}
 
@@ -1934,11 +1953,15 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 							const nodeRange = this._decorationsTree.getNodeRange(this, node);
 							this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.startLineNumber);
 						}
-						console.log('node.options.inlineClassNameAffectsLetterSpacing : ', node.options.inlineClassNameAffectsLetterSpacing);
+						if (this.currentIndex < this.maxLogsIndex) {
+							console.log('node.options.inlineClassNameAffectsLetterSpacing : ', node.options.inlineClassNameAffectsLetterSpacing);
+						}
 						if (node.options.inlineClassNameAffectsLetterSpacing) {
 							const nodeRange = this._decorationsTree.getNodeRange(this, node);
 							for (let lineNumber = nodeRange.startLineNumber; lineNumber <= nodeRange.endLineNumber; lineNumber++) {
-								console.log('lineNumber : ', lineNumber);
+								if (this.currentIndex < this.maxLogsIndex) {
+									console.log('lineNumber : ', lineNumber);
+								}
 								this._onDidChangeDecorations.recordLineAffectedByInjectedText(lineNumber);
 							}
 						}
@@ -1977,10 +2000,14 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					if (node.options.before) {
 						this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.startLineNumber);
 					}
-					console.log('node.options.inlineClassNameAffectsLetterSpacing : ', node.options.inlineClassNameAffectsLetterSpacing);
+					if (this.currentIndex < this.maxLogsIndex) {
+						console.log('node.options.inlineClassNameAffectsLetterSpacing : ', node.options.inlineClassNameAffectsLetterSpacing);
+					}
 					if (node.options.inlineClassNameAffectsLetterSpacing) {
 						for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
-							console.log('lineNumber : ', lineNumber);
+							if (this.currentIndex < this.maxLogsIndex) {
+								console.log('lineNumber : ', lineNumber);
+							}
 							this._onDidChangeDecorations.recordLineAffectedByInjectedText(lineNumber);
 						}
 					}
@@ -2106,6 +2133,9 @@ class DecorationsTrees {
 	 */
 	private readonly _injectedTextDecorationsTree: IntervalTree;
 
+	private readonly maxLogsIndex = 20;
+	private currentIndex = 0;
+
 	constructor() {
 		this._decorationsTree0 = new IntervalTree();
 		this._decorationsTree1 = new IntervalTree();
@@ -2145,10 +2175,12 @@ class DecorationsTrees {
 	}
 
 	public getDecoratedTextInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): model.IModelDecoration[] {
-		console.log('getDecoratedTextInInterval');
-		console.log('start : ', start);
-		console.log('end : ', end);
-		console.log('filterOwnerId : ', filterOwnerId);
+		if (this.currentIndex < this.maxLogsIndex) {
+			console.log('getDecoratedTextInInterval');
+			console.log('start : ', start);
+			console.log('end : ', end);
+			console.log('filterOwnerId : ', filterOwnerId);
+		}
 		const versionId = host.getVersionId();
 		const result = this._injectedTextDecorationsTree.intervalSearch(start, end, filterOwnerId, false, versionId, false).concat(this._decorationsTree0.intervalSearch(start, end, filterOwnerId, false, versionId, false));
 		return this._ensureNodesHaveRanges(host, result).filter((i) => i.options.showIfCollapsed || !i.range.isEmpty());
@@ -2161,18 +2193,23 @@ class DecorationsTrees {
 	}
 
 	public getAllTextDecorations(host: IDecorationsTreesHost, filterOwnerId: number): model.IModelDecoration[] {
-		console.log('getAllTextDecorations');
-		console.log('filterOwnerId : ', filterOwnerId);
+		if (this.currentIndex < this.maxLogsIndex) {
+			console.log('getAllTextDecorations');
+			console.log('filterOwnerId : ', filterOwnerId);
+		}
+		this.currentIndex++;
 		const versionId = host.getVersionId();
 		const result = this._injectedTextDecorationsTree.search(filterOwnerId, false, versionId, false).concat(this._decorationsTree0.search(filterOwnerId, true, versionId, false));
 		return this._ensureNodesHaveRanges(host, result);
 	}
 
 	public getTextDecorationsInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): model.IModelDecoration[] {
-		console.log('getTextDecorationsInInterval');
-		console.log('start : ', start);
-		console.log('end : ', end);
-		console.log('filterOwnerId : ', filterOwnerId);
+		if (this.currentIndex < this.maxLogsIndex) {
+			console.log('getTextDecorationsInInterval');
+			console.log('start : ', start);
+			console.log('end : ', end);
+			console.log('filterOwnerId : ', filterOwnerId);
+		}
 		const versionId = host.getVersionId();
 		let result = this._decorationsTree0.intervalSearch(start, end, filterOwnerId, true, versionId, false);
 		result = result.concat(this._injectedTextDecorationsTree.intervalSearch(start, end, filterOwnerId, true, versionId, false));

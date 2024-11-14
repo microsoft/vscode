@@ -83,6 +83,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private projectedModelLineLineCounts!: ConstantTimePrefixSumComputer;
 
 	private hiddenAreasDecorationIds!: string[];
+	private readonly maxLogsIndex = 10;
+	private currentIndex = 0;
 
 	constructor(
 		editorId: number,
@@ -124,7 +126,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	private _constructLines(resetHiddenAreas: boolean, previousLineBreaks: ((ModelLineProjectionData | null)[]) | null): void {
-		console.log('_constructLines');
+
 		this.modelLineProjections = [];
 
 		if (resetHiddenAreas) {
@@ -133,20 +135,25 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 		const linesContent = this.model.getLinesContent();
 		const injectedTextDecorations = this.model.getAllTextDecorations(this._editorId);
-		console.log('injectedTextDecorations : ', injectedTextDecorations);
 		const lineCount = linesContent.length;
 		const lineBreaksComputer = this.createLineBreaksComputer();
 
 		const { inlineClassNames, lineInjectedTexts } = lineMetaFromDecorations(injectedTextDecorations);
-		console.log('inlineClassNames : ', inlineClassNames);
-		console.log('lineInjectedTexts : ', lineInjectedTexts);
+		if (this.currentIndex < this.maxLogsIndex) {
+			console.log('_constructLines');
+			console.log('injectedTextDecorations : ', injectedTextDecorations);
+			console.log('inlineClassNames : ', inlineClassNames);
+			console.log('lineInjectedTexts : ', lineInjectedTexts);
+		}
 		const injectedTextQueue = new arrays.ArrayQueue(lineInjectedTexts);
 		const inlineClassNameQueue = new arrays.ArrayQueue(inlineClassNames);
 		for (let i = 0; i < lineCount; i++) {
 			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === i + 1);
 			const inlineClassName = inlineClassNameQueue.takeWhile(t => t.lineNumber === i + 1);
-			console.log('lineInjectedText : ', lineInjectedText);
-			console.log('inlineClassName : ', inlineClassName);
+			if (this.currentIndex < this.maxLogsIndex) {
+				console.log('lineInjectedText : ', lineInjectedText);
+				console.log('inlineClassName : ', inlineClassName);
+			}
 			lineBreaksComputer.addRequest(
 				linesContent[i],
 				lineInjectedText,
@@ -154,6 +161,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				previousLineBreaks ? previousLineBreaks[i] : null
 			);
 		}
+		this.currentIndex++;
 		const linesBreaks = lineBreaksComputer.finalize();
 
 		const values: number[] = [];

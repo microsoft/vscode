@@ -60,6 +60,8 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly _cursor: CursorsController;
 	private readonly _decorations: ViewModelDecorations;
 	public readonly glyphLanes: IGlyphMarginLanesModel;
+	private readonly maxLogsIndex = 10;
+	private currentIndex = 0;
 
 	constructor(
 		editorId: number,
@@ -300,9 +302,11 @@ export class ViewModel extends Disposable implements IViewModel {
 								if (injectedText) {
 									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 								}
-								console.log('change : ', change);
 								let inlineClassNames = change.inlineClassNames[lineIdx];
-								console.log('inlineClassNames : ', inlineClassNames);
+								if (this.currentIndex < this.maxLogsIndex) {
+									console.log('change : ', change);
+									console.log('inlineClassNames : ', inlineClassNames);
+								}
 								if (inlineClassNames) {
 									inlineClassNames = inlineClassNames.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 								}
@@ -316,8 +320,10 @@ export class ViewModel extends Disposable implements IViewModel {
 								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 							}
 							let inlineClassNames: textModelEvents.InlineClassName[] | null = null;
-							console.log('change : ', change);
-							console.log('change.inlineClassNames : ', change.inlineClassNames);
+							if (this.currentIndex < this.maxLogsIndex) {
+								console.log('change : ', change);
+								console.log('change.inlineClassNames : ', change.inlineClassNames);
+							}
 							if (change.inlineClassNames) {
 								inlineClassNames = change.inlineClassNames.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 							}
@@ -326,6 +332,7 @@ export class ViewModel extends Disposable implements IViewModel {
 						}
 					}
 				}
+				this.currentIndex++;
 				const lineBreaks = lineBreaksComputer.finalize();
 				const lineBreakQueue = new ArrayQueue(lineBreaks);
 
