@@ -277,6 +277,10 @@ export function fromGithub({ name, version, repo, sha256, metadata }: IExtension
 		.pipe(packageJsonFilter.restore);
 }
 
+/**
+ * All extensions that are known to have some native component and thus must be built on the
+ * platform that is being built.
+ */
 const nativeExtensions = [
 	'microsoft-authentication',
 ];
@@ -338,18 +342,39 @@ function isWebExtension(manifest: IExtensionManifest): boolean {
 	return true;
 }
 
-export function packageLocalNonNativeExtensionsStream(forWeb: boolean, disableMangle: boolean): Stream {
+/**
+ * Package local extensions that are known to not have native dependencies. Mutually exclusive to {@link packageNativeLocalExtensionsStream}.
+ * @param forWeb build the extensions that have web targets
+ * @param disableMangle disable the mangler
+ * @returns a stream
+ */
+export function packageNonNativeLocalExtensionsStream(forWeb: boolean, disableMangle: boolean): Stream {
 	return doPackageLocalExtensionsStream(forWeb, disableMangle, false);
 }
 
-export function packageLocalNativeExtensionsStream(forWeb: boolean, disableMangle: boolean): Stream {
+/**
+ * Package local extensions that are known to have native dependencies. Mutually exclusive to {@link packageNonNativeLocalExtensionsStream}.
+ * @note it's possible that the extension does not have native dependencies for the current platform, especially if building for the web,
+ * but we simplify the logic here by having a flat list of extensions (See {@link nativeExtensions}) that are known to have native
+ * dependencies on some platform and thus should be packaged on the platform that they are building for.
+ * @param forWeb build the extensions that have web targets
+ * @param disableMangle disable the mangler
+ * @returns a stream
+ */
+export function packageNativeLocalExtensionsStream(forWeb: boolean, disableMangle: boolean): Stream {
 	return doPackageLocalExtensionsStream(forWeb, disableMangle, true);
 }
 
-export function packageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean): Stream {
+/**
+ * Package all the local extensions... both those that are known to have native dependencies and those that are not.
+ * @param forWeb build the extensions that have web targets
+ * @param disableMangle disable the mangler
+ * @returns a stream
+ */
+export function packageAllLocalExtensionsStream(forWeb: boolean, disableMangle: boolean): Stream {
 	return es.merge([
-		packageLocalNonNativeExtensionsStream(forWeb, disableMangle),
-		packageLocalNativeExtensionsStream(forWeb, disableMangle)
+		packageNonNativeLocalExtensionsStream(forWeb, disableMangle),
+		packageNativeLocalExtensionsStream(forWeb, disableMangle)
 	]);
 }
 

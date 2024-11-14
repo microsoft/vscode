@@ -247,7 +247,7 @@ const bundleMarketplaceExtensionsBuildTask = task.define('bundle-marketplace-ext
  */
 const compileNonNativeExtensionsBuildTask = task.define('compile-non-native-extensions-build', task.series(
 	bundleMarketplaceExtensionsBuildTask,
-	task.define('bundle-non-native-extensions-build', () => ext.packageLocalNonNativeExtensionsStream().pipe(gulp.dest('.build')))
+	task.define('bundle-non-native-extensions-build', () => ext.packageNonNativeLocalExtensionsStream().pipe(gulp.dest('.build')))
 ));
 gulp.task(compileNonNativeExtensionsBuildTask);
 exports.compileNonNativeExtensionsBuildTask = compileNonNativeExtensionsBuildTask;
@@ -256,7 +256,7 @@ exports.compileNonNativeExtensionsBuildTask = compileNonNativeExtensionsBuildTas
  * Compiles the native extensions for the build
  * @note this does not clean the directory ahead of it. See {@link cleanExtensionsBuildTask} for that.
  */
-const compileNativeExtensionsBuildTask = task.define('compile-native-extensions-build', () => ext.packageLocalNativeExtensionsStream().pipe(gulp.dest('.build')));
+const compileNativeExtensionsBuildTask = task.define('compile-native-extensions-build', () => ext.packageNativeLocalExtensionsStream().pipe(gulp.dest('.build')));
 gulp.task(compileNativeExtensionsBuildTask);
 exports.compileNativeExtensionsBuildTask = compileNativeExtensionsBuildTask;
 
@@ -264,13 +264,13 @@ exports.compileNativeExtensionsBuildTask = compileNativeExtensionsBuildTask;
  * Compiles the extensions for the build.
  * This is essentially a helper task that combines {@link cleanExtensionsBuildTask}, {@link compileNonNativeExtensionsBuildTask} and {@link compileNativeExtensionsBuildTask}
  */
-const compileExtensionsBuildTask = task.define('compile-extensions-build', task.series(
+const compileAllExtensionsBuildTask = task.define('compile-extensions-build', task.series(
 	cleanExtensionsBuildTask,
 	bundleMarketplaceExtensionsBuildTask,
-	task.define('bundle-extensions-build', () => ext.packageLocalExtensionsStream(false, false).pipe(gulp.dest('.build'))),
+	task.define('bundle-extensions-build', () => ext.packageAllLocalExtensionsStream(false, false).pipe(gulp.dest('.build'))),
 ));
-gulp.task(compileExtensionsBuildTask);
-exports.compileExtensionsBuildTask = compileExtensionsBuildTask;
+gulp.task(compileAllExtensionsBuildTask);
+exports.compileAllExtensionsBuildTask = compileAllExtensionsBuildTask;
 
 // This task is run in the compilation stage of the CI pipeline. We only compile the non-native extensions since those can be fully built regardless of platform.
 // This defers the native extensions to the platform specific stage of the CI pipeline.
@@ -279,7 +279,7 @@ gulp.task(task.define('extensions-ci', task.series(compileNonNativeExtensionsBui
 const compileExtensionsBuildPullRequestTask = task.define('compile-extensions-build-pr', task.series(
 	cleanExtensionsBuildTask,
 	bundleMarketplaceExtensionsBuildTask,
-	task.define('bundle-extensions-build-pr', () => ext.packageLocalExtensionsStream(false, true).pipe(gulp.dest('.build'))),
+	task.define('bundle-extensions-build-pr', () => ext.packageAllLocalExtensionsStream(false, true).pipe(gulp.dest('.build'))),
 ));
 gulp.task(compileExtensionsBuildPullRequestTask);
 
