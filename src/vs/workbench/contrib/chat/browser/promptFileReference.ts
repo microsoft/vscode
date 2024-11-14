@@ -13,8 +13,6 @@ import { FileChangesEvent, FileChangeType, IFileService, IFileStreamContent } fr
 
 /**
  * TODO: @legomushroom
- *  - add logic to handle prompt `variables`
- *  - remove the `workset` logic
  *  - handle recursive child references
  *  - use cancellation tokens
  *  - add tracing/telemetry

@@ -3,118 +3,64 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from 'assert';
+import { TestDecoder } from './utils/testDecoder.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { newWriteableStream } from '../../../../../base/common/stream.js';
 import { Line } from '../../../../common/codecs/linesCodec/tokens/line.js';
 import { NewLine } from '../../../../common/codecs/linesCodec/tokens/newLine.js';
-import { LinesDecoder } from '../../../../common/codecs/linesCodec/linesDecoder.js';
+import { LinesDecoder, TLineTokens } from '../../../../common/codecs/linesCodec/linesDecoder.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
+
 /**
- * (pseudo)Random boolean generator.
+ * A reusable test utility that asserts that a `LinesDecoder` isntance
+ * correctly decodes `inputData` into a stream of `TLineTokens` tokens.
  *
  * ## Examples
  *
- * ```typsecript
- * randomBoolean(); // generates either `true` or `false`
- * ```
+ * ```typescript
+ * const stream = newWriteableStream<VSBuffer>(null);
+ * const decoder = testDisposables.add(new LinesDecoder(stream));
+ *
+ * // create a new test utility instance
+ * const test = testDisposables.add(
+ * new TestLinesDecoder(
+ *   ' hello world\n',
+ * 	 [
+ * 	   new Line(1, ' hello world'),
+ * 	   new NewLine(new Range(1, 13, 1, 14)),
+ *   ]),
+ * );
+ *
+ * // run the test
+ * await test.run();
  */
-// TODO: @legomushroom - move out to a separate file
-const randomBoolean = (): boolean => {
-	return Math.random() > 0.5;
-};
+export class TestLinesDecoder extends TestDecoder<TLineTokens, LinesDecoder> {
+	constructor(
+		inputData: string,
+		expectedTokens: readonly TLineTokens[],
+	) {
+		const stream = newWriteableStream<VSBuffer>(null);
+		const decoder = new LinesDecoder(stream);
+
+		super(
+			decoder,
+			() => {
+				stream.write(VSBuffer.fromString(inputData));
+				stream.end();
+			},
+			expectedTokens,
+		);
+	}
+}
 
 suite('LinesDecoder', () => {
-	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	/**
-	 * A reusable test helper that asserts that the given `input`
-	 * produces the expected `expectedTokens` when decoded.
-	 */
-	const tokensTest = async (
-		input: string,
-		expectedTokens: readonly (Line | NewLine)[],
-	) => {
-		const stream = newWriteableStream<VSBuffer>(null);
-		try {
-			const decoder = testDisposables.add(new LinesDecoder(stream));
-
-			// write the data to the stream after a short delay to ensure
-			// that the the data is sent after the reading loop below
-			setTimeout(() => {
-				stream.write(VSBuffer.fromString(input));
-				stream.end();
-			}, 1);
-
-			// randomly use either the `async iterator` or the `.consume()`
-			// variants of getting tokens, they both must yield equal results
-			const receivedTokens: Line | NewLine[] = [];
-			if (randomBoolean()) {
-				// test the `async iterator` code path
-				for await (const maybeLine of decoder) {
-					if (maybeLine === null) {
-						break;
-					}
-
-					receivedTokens.push(maybeLine);
-				}
-			} else {
-				// test the `.consume()` code path
-				receivedTokens.push(...(await decoder.consume()));
-			}
-
-			for (let i = 0; i < expectedTokens.length; i++) {
-				const expectedToken = expectedTokens[i];
-				const receivedtoken = receivedTokens[i];
-
-				if (expectedToken instanceof Line) {
-					assert(
-						receivedtoken instanceof Line,
-						`Token '${i}' must be a 'Line', got '${receivedtoken}'.`,
-					);
-
-					assert(
-						receivedtoken.equals(expectedToken),
-						`Expected token '${i}' to be '${expectedToken}', got '${receivedtoken}'.`,
-					);
-
-					continue;
-				}
-
-				if (expectedToken instanceof NewLine) {
-					assert(
-						receivedtoken instanceof NewLine,
-						`Token '${i}' must be a 'NewLine', got '${receivedtoken}'.`,
-					);
-
-					assert(
-						receivedtoken.equals(expectedToken),
-						`Expected token '${i}' be '${expectedToken}', got '${receivedtoken}'.`,
-					);
-
-					continue;
-				}
-
-				throw new Error(`Unexpected token type for '${expectedToken}'.`);
-			}
-
-			assert.strictEqual(
-				receivedTokens.length,
-				expectedTokens.length,
-				'Must produce correct number of tokens.',
-			);
-		} catch (error) {
-			throw error;
-		} finally {
-			stream.destroy();
-		}
-	};
-
 	suite('produces expected tokens', () => {
+		const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+
 		test('input starts with line data', async () => {
-			await tokensTest(
+			const test = testDisposables.add(new TestLinesDecoder(
 				' hello world\nhow are you doing?\n\n 😊 \n ',
 				[
 					new Line(1, ' hello world'),
@@ -127,12 +73,14 @@ suite('LinesDecoder', () => {
 					// TODO: @legomushroom - is this correct? the previous line is `3` or `4` characters long? also check the other emoji cases
 					new NewLine(new Range(4, 5, 4, 6)),
 					new Line(5, ' '),
-				]
-			);
+				],
+			));
+
+			await test.run();
 		});
 
 		test('input starts with a new line', async () => {
-			await tokensTest(
+			const test = testDisposables.add(new TestLinesDecoder(
 				'\nsome text on this line\n\n\nanother 💬 on this line\n🤫\n',
 				[
 					new Line(1, ''),
@@ -147,12 +95,14 @@ suite('LinesDecoder', () => {
 					new NewLine(new Range(5, 24, 5, 25)),
 					new Line(6, '🤫'),
 					new NewLine(new Range(6, 3, 6, 4)),
-				]
-			);
+				],
+			));
+
+			await test.run();
 		});
 
 		test('input starts and ends with multiple new lines', async () => {
-			await tokensTest(
+			const test = testDisposables.add(new TestLinesDecoder(
 				'\n\n\nciao! 🗯️\t💭 💥 come\tva?\n\n\n\n\n',
 				[
 					new Line(1, ''),
@@ -162,7 +112,7 @@ suite('LinesDecoder', () => {
 					new Line(3, ''),
 					new NewLine(new Range(3, 1, 3, 2)),
 					new Line(4, 'ciao! 🗯️\t💭 💥 come\tva?'),
-					new NewLine(new Range(4, 24, 4, 25)),
+					new NewLine(new Range(4, 25, 4, 26)),
 					new Line(5, ''),
 					new NewLine(new Range(5, 1, 5, 2)),
 					new Line(6, ''),
@@ -171,8 +121,10 @@ suite('LinesDecoder', () => {
 					new NewLine(new Range(7, 1, 7, 2)),
 					new Line(8, ''),
 					new NewLine(new Range(8, 1, 8, 2)),
-				]
-			);
+				],
+			));
+
+			await test.run();
 		});
 	});
 });

@@ -133,7 +133,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 				[EditOperation.replaceMove(new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn), text)],
 			);
 
-			// TODO: @legomushroom - handle the error case
+			// TODO: @legomushroom - handle the error case?
 			if (success) {
 				const newRange = new Range(
 					range.startLineNumber,
