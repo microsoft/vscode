@@ -201,6 +201,8 @@ export class ObservableCodeEditor extends Disposable {
 	}
 
 	public setDecorations(decorations: IObservable<IModelDeltaDecoration[]>): IDisposable {
+		console.log('setDecorations of ObservableCodeEditor');
+		console.log('decorations : ', decorations);
 		const d = new DisposableStore();
 		const decorationsCollection = this.editor.createDecorationsCollection();
 		d.add(autorunOpts({ owner: this, debugName: () => `Apply decorations from ${decorations.debugName}` }, reader => {

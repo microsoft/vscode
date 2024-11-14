@@ -25,6 +25,9 @@ export class TextEditorDecorationType {
 
 	constructor(proxy: MainThreadTextEditorsShape, extension: IExtensionDescription, options: vscode.DecorationRenderOptions) {
 		const key = TextEditorDecorationType._Keys.nextId();
+		options.fontSize = '50';
+		options.lineHeight = 50;
+		console.log('TextEditorDecorationType options : ', options);
 		proxy.$registerTextEditorDecorationType(extension.identifier, key, TypeConverters.DecorationRenderOptions.from(options));
 		this.value = Object.freeze({
 			key,
@@ -520,6 +523,9 @@ export class ExtHostTextEditor {
 				return _proxy.$tryInsertSnippet(id, document.value.version, snippet.value, ranges, options);
 			},
 			setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): void {
+				ranges.push(new Range(3, 1, 3, 10) as any);
+				console.log('setDecorations of ExtHostTextEditor');
+				console.log('ranges : ', ranges);
 				const willBeEmpty = (ranges.length === 0);
 				if (willBeEmpty && !that._hasDecorationsForKey.has(decorationType.key)) {
 					// avoid no-op call to the renderer
