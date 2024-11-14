@@ -20,7 +20,7 @@ steps:
     inputs:
       azureSubscription: vscode-esrp
       KeyVaultName: vscode-esrp
-      SecretsFilter: "esrp-auth,esrp-sign,esrp-aad-username,esrp-aad-password"
+      SecretsFilter: esrp-auth,esrp-sign
 
   # allow-any-unicode-next-line
   - pwsh: Write-Host "##vso[build.addbuildtag]🚀"
@@ -64,24 +64,6 @@ steps:
       AZURE_ID_TOKEN: "$(AZURE_ID_TOKEN)"
     displayName: Create build if it hasn't been created before
 
-  - pwsh: |
-      $ErrorActionPreference = "Stop"
-      $CertCollection = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
-      $AuthCertBytes = [System.Convert]::FromBase64String("$(esrp-auth)")
-      $CertCollection.Import($AuthCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
-      $RequestSigningCertIndex = $CertCollection.Count
-      $RequestSigningCertBytes = [System.Convert]::FromBase64String("$(esrp-sign)")
-      $CertCollection.Import($RequestSigningCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
-      $CertStore = New-Object System.Security.Cryptography.X509Certificates.X509Store("My","LocalMachine")
-      $CertStore.Open("ReadWrite")
-      $CertStore.AddRange($CertCollection)
-      $CertStore.Close()
-      $AuthCertSubjectName = $CertCollection[0].Subject
-      $RequestSigningCertSubjectName = $CertCollection[$RequestSigningCertIndex].Subject
-      Write-Host "##vso[task.setvariable variable=RELEASE_AUTH_CERT_SUBJECT_NAME]$AuthCertSubjectName"
-      Write-Host "##vso[task.setvariable variable=RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME]$RequestSigningCertSubjectName"
-    displayName: Import certificates
-
   - pwsh: node build/azure-pipelines/common/publish.js
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -91,11 +73,8 @@ steps:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       RELEASE_TENANT_ID: "$(PRSS_RELEASE_TENANT_ID)"
       RELEASE_CLIENT_ID: "$(PRSS_RELEASE_CLIENT_ID)"
-      RELEASE_AUTH_CERT_SUBJECT_NAME: "$(RELEASE_AUTH_CERT_SUBJECT_NAME)"
-      RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME: "$(RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME)"
-      PROVISION_TENANT_ID: "$(PRSS_PROVISION_TENANT_ID)"
-      PROVISION_AAD_USERNAME: "$(esrp-aad-username)"
-      PROVISION_AAD_PASSWORD: "$(esrp-aad-password)"
+      RELEASE_AUTH_CERT: "$(esrp-auth)"
+      RELEASE_REQUEST_SIGNING_CERT: "$(esrp-sign)"
     displayName: Process artifacts
     retryCountOnTaskFailure: 3
 
