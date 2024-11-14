@@ -192,7 +192,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 
 export class ActiveGroupEditorsByMostRecentlyUsedQuickAccess extends BaseEditorQuickAccessProvider {
 
-	static PREFIX = 'edt active ';
+	static PREFIX = 'edit active ';
 
 	constructor(
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
