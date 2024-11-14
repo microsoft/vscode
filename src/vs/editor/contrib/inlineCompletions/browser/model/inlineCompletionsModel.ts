@@ -208,26 +208,32 @@ export class InlineCompletionsModel extends Disposable {
 		const c = this._source.inlineCompletions.read(reader);
 		if (!c) { return undefined; }
 		const cursorPosition = this._primaryPosition.read(reader);
-		let inlineEditCompletion: InlineCompletionWithUpdatedRange | undefined = undefined;
-		const filteredCompletions: InlineCompletionWithUpdatedRange[] = [];
+		let inlineEdit: InlineCompletionWithUpdatedRange | undefined = undefined;
+		const visibleCompletions: InlineCompletionWithUpdatedRange[] = [];
 		for (const completion of c.inlineCompletions) {
 			if (!completion.inlineCompletion.sourceInlineCompletion.isInlineEdit) {
 				if (completion.isVisible(this.textModel, cursorPosition, reader)) {
-					filteredCompletions.push(completion);
+					visibleCompletions.push(completion);
 				}
-			} else if (filteredCompletions.length === 0 && completion.inlineCompletion.sourceInlineCompletion.isInlineEdit) {
-				inlineEditCompletion = completion;
+			} else {
+				inlineEdit = completion;
 			}
 		}
+
+		if (visibleCompletions.length !== 0) {
+			// Don't show the inline edit if there is a visible completion
+			inlineEdit = undefined;
+		}
+
 		return {
-			items: filteredCompletions,
-			inlineEditCompletion,
+			inlineCompletions: visibleCompletions,
+			inlineEdit,
 		};
 	});
 
 	private readonly _filteredInlineCompletionItems = derivedOpts({ owner: this, equalsFn: itemsEquals() }, reader => {
 		const c = this._inlineCompletionItems.read(reader);
-		return c?.items ?? [];
+		return c?.inlineCompletions ?? [];
 	});
 
 	public readonly selectedInlineCompletionIndex = derived<number>(this, (reader) => {
@@ -295,8 +301,8 @@ export class InlineCompletionsModel extends Disposable {
 		const model = this.textModel;
 
 		const item = this._inlineCompletionItems.read(reader);
-		if (item?.inlineEditCompletion) {
-			let edit = item.inlineEditCompletion.toSingleTextEdit(reader);
+		if (item?.inlineEdit) {
+			let edit = item.inlineEdit.toSingleTextEdit(reader);
 			edit = singleTextRemoveCommonPrefix(edit, model);
 
 			const cursorPos = this._primaryPosition.read(reader);
@@ -304,13 +310,13 @@ export class InlineCompletionsModel extends Disposable {
 
 			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this._primaryPosition.read(reader).lineNumber);
 			const disableCollapsing = true;
-			const currentItemIsCollapsed = !disableCollapsing && (cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEditCompletion.semanticId);
+			const currentItemIsCollapsed = !disableCollapsing && (cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEdit.semanticId);
 
-			const commands = item.inlineEditCompletion.inlineCompletion.source.inlineCompletions.commands;
+			const commands = item.inlineEdit.inlineCompletion.source.inlineCompletions.commands;
 			const renderExplicitly = this._jumpedTo.read(reader);
 			const inlineEdit = new InlineEdit(edit, currentItemIsCollapsed, renderExplicitly, commands ?? []);
 
-			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: item.inlineEditCompletion, edits: [edit], cursorAtInlineEdit };
+			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: item.inlineEdit, edits: [edit], cursorAtInlineEdit };
 		}
 
 		this._jumpedTo.set(false, undefined);

@@ -178,7 +178,8 @@ class UndoHunkAction extends EditorAction2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace
 			},
 			menu: {
-				id: MenuId.ChatEditingEditorHunk
+				id: MenuId.ChatEditingEditorHunk,
+				order: 1
 			}
 		});
 	}
@@ -188,10 +189,31 @@ class UndoHunkAction extends EditorAction2 {
 	}
 }
 
+class OpenDiffFromHunkAction extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'chatEditor.action.diffHunk',
+			title: localize2('diff', 'Open Diff'),
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			icon: Codicon.diffSingle,
+			menu: {
+				id: MenuId.ChatEditingEditorHunk,
+				order: 10
+			}
+		});
+	}
+
+	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+		ChatEditorController.get(editor)?.openDiff(args[0]);
+	}
+}
+
 export function registerChatEditorActions() {
 	registerAction2(class NextAction extends NavigateAction { constructor() { super(true); } });
 	registerAction2(class PrevAction extends NavigateAction { constructor() { super(false); } });
 	registerAction2(class AcceptAction extends AcceptDiscardAction { constructor() { super(true); } });
 	registerAction2(class RejectAction extends AcceptDiscardAction { constructor() { super(false); } });
 	registerAction2(UndoHunkAction);
+	registerAction2(OpenDiffFromHunkAction);
 }

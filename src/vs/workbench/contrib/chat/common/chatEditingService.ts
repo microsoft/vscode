@@ -42,7 +42,9 @@ export interface IChatEditingService {
 	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
 	restoreSnapshot(requestId: string | undefined): Promise<void>;
 
+	hasRelatedFilesProviders(): boolean;
 	registerRelatedFilesProvider(handle: number, provider: IChatRelatedFilesProvider): IDisposable;
+	getRelatedFiles(chatSessionId: string, prompt: string, token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined>;
 }
 
 export interface IChatRequestDraft {
@@ -50,8 +52,18 @@ export interface IChatRequestDraft {
 	readonly files: readonly URI[];
 }
 
+export interface IChatRelatedFileProviderMetadata {
+	readonly description: string;
+}
+
+export interface IChatRelatedFile {
+	readonly uri: URI;
+	readonly description: string;
+}
+
 export interface IChatRelatedFilesProvider {
-	provideRelatedFiles(chatRequest: IChatRequestDraft, token: CancellationToken): Promise<URI[] | undefined>;
+	readonly description: string;
+	provideRelatedFiles(chatRequest: IChatRequestDraft, token: CancellationToken): Promise<IChatRelatedFile[] | undefined>;
 }
 
 export interface IChatEditingSession {

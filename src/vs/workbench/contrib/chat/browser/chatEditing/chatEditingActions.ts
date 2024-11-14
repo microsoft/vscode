@@ -268,10 +268,28 @@ export class ChatEditingDiscardAllAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const chatEditingService = accessor.get(IChatEditingService);
+		const dialogService = accessor.get(IDialogService);
 		const currentEditingSession = chatEditingService.currentEditingSession;
 		if (!currentEditingSession) {
 			return;
 		}
+
+		// Ask for confirmation if there are any edits
+		const entries = currentEditingSession.entries.get();
+		if (entries.length > 0) {
+			const confirmation = await dialogService.confirm({
+				title: localize('chat.editing.discardAll.confirmation.title', "Discard all edits?"),
+				message: entries.length === 1
+					? localize('chat.editing.discardAll.confirmation.oneFile', "This will undo changes made by {0} in {1}. Do you want to proceed?", 'Copilot Edits', basename(entries[0].modifiedURI))
+					: localize('chat.editing.discardAll.confirmation.manyFiles', "This will undo changes made by {0} in {1} files. Do you want to proceed?", 'Copilot Edits', entries.length),
+				primaryButton: localize('chat.editing.discardAll.confirmation.primaryButton', "Yes"),
+				type: 'info'
+			});
+			if (!confirmation.confirmed) {
+				return;
+			}
+		}
+
 		await currentEditingSession.reject();
 	}
 }

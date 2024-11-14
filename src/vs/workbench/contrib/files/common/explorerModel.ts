@@ -191,8 +191,8 @@ export class ExplorerItem {
 	getId(): string {
 		let id = this.root.resource.toString() + '::' + this.resource.toString();
 
-		if (this.markedAsFindResult) {
-			id += '::findResult';
+		if (this.isMarkedAsFiltered()) {
+			id += '::findFilterResult';
 		}
 
 		return id;
@@ -502,13 +502,13 @@ export class ExplorerItem {
 
 	// Find
 	private markedAsFindResult = false;
-	isMarkedAsFound(): boolean {
+	isMarkedAsFiltered(): boolean {
 		return this.markedAsFindResult;
 	}
 
-	markItemAndParents(): void {
+	markItemAndParentsAsFiltered(): void {
 		this.markedAsFindResult = true;
-		this.parent?.markItemAndParents();
+		this.parent?.markItemAndParentsAsFiltered();
 	}
 
 	unmarkItemAndChildren(): void {
