@@ -211,7 +211,6 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		this._logger.debug(`[_setupRefresh] [${this._clientId}] [${this._authority}] [${scopes.join(' ')}] [${account.username}] timeToRefresh: ${timeToRefresh}`);
 		this._refreshDelayer.trigger(
 			key,
-			// This may need the redirectUri when we switch to the broker
 			() => this.acquireTokenSilent({ account, scopes, redirectUri: 'https://vscode.dev/redirect', forceRefresh: true }),
 			timeToRefresh > 0 ? timeToRefresh : 0
 		);
