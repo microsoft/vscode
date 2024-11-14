@@ -815,7 +815,8 @@ function getRealType(type: string) {
 async function processArtifact(
 	artifact: Artifact,
 	filePath: string,
-	cosmosDBAccessToken: AccessToken
+	cosmosDBAccessToken: AccessToken,
+	blobServiceAccessToken: AccessToken
 ) {
 	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
 
@@ -835,8 +836,7 @@ async function processArtifact(
 	const [hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]); // CodeQL [SM04514] Using SHA1 only for legacy reasons, we are actually only respecting SHA256
 
 	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
-	const blobServiceUrl = `https://${e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')}.blob.core.windows.net/`;
-	const blobServiceClient = new BlobServiceClient(blobServiceUrl, { getToken: () => getAccessToken(blobServiceUrl, process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_ID_TOKEN']!) });
+	const blobServiceClient = new BlobServiceClient(`https://${e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')}.blob.core.windows.net/`, { getToken: async () => blobServiceAccessToken });
 	const containerClient = blobServiceClient.getContainerClient('staging');
 
 	const releaseService = await ESRPReleaseService.create(
@@ -879,8 +879,8 @@ async function processArtifact(
 // the CDN and finally update the build in Cosmos DB.
 async function main() {
 	if (!isMainThread) {
-		const { artifact, artifactFilePath, cosmosDBAccessToken } = workerData;
-		await processArtifact(artifact, artifactFilePath, cosmosDBAccessToken);
+		const { artifact, artifactFilePath, cosmosDBAccessToken, blobServiceAccessToken } = workerData;
+		await processArtifact(artifact, artifactFilePath, cosmosDBAccessToken, blobServiceAccessToken);
 		return;
 	}
 
@@ -902,6 +902,7 @@ async function main() {
 	let resultPromise = Promise.resolve<PromiseSettledResult<void>[]>([]);
 	const operations: { name: string; operation: Promise<void> }[] = [];
 	const cosmosDBAccessToken = await getAccessToken(e('AZURE_DOCUMENTDB_ENDPOINT')!, e('AZURE_TENANT_ID')!, e('AZURE_CLIENT_ID')!, e('AZURE_ID_TOKEN')!);
+	const blobServiceAccessToken = await getAccessToken(`https://${e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')}.blob.core.windows.net/`, process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_ID_TOKEN']!);
 
 	while (true) {
 		const [timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
@@ -943,7 +944,7 @@ async function main() {
 
 			processing.add(artifact.name);
 			const promise = new Promise<void>((resolve, reject) => {
-				const worker = new Worker(__filename, { workerData: { artifact, artifactFilePath, cosmosDBAccessToken } });
+				const worker = new Worker(__filename, { workerData: { artifact, artifactFilePath, cosmosDBAccessToken, blobServiceAccessToken } });
 				worker.on('error', reject);
 				worker.on('exit', code => {
 					if (code === 0) {
