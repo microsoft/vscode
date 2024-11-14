@@ -34,9 +34,11 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, inlineClassName: InlineClassName[] | null, previousLineBreakData: ModelLineProjectionData | null) => {
 				requests.push(lineText);
 				injectedTexts.push(injectedText);
+				console.log('inlineClassName : ', inlineClassName);
 				inlineClassNames.push(inlineClassName);
 			},
 			finalize: () => {
+				console.log('inlineClassNames : ', inlineClassNames);
 				return createLineBreaks(assertIsDefined(this.targetWindow.deref()), requests, fontInfo, tabSize, wrappingColumn, wrappingIndent, wordBreak, injectedTexts, inlineClassNames);
 			}
 		};
@@ -81,8 +83,10 @@ function createLineBreaks(targetWindow: Window, requests: string[], fontInfo: Fo
 	const wrappedTextIndentLengths: number[] = [];
 	const renderLineContents: string[] = [];
 	const allVisibleColumns: number[][] = [];
-
 	for (let i = 0; i < requests.length; i++) {
+		// why?
+		console.log('requests[i] : ', requests[i]);
+		console.log('LineInjectedText.applyInjectedText(requests[i], injectedTextsPerLine[i]) : ', LineInjectedText.applyInjectedText(requests[i], injectedTextsPerLine[i]));
 		const lineContent = requests[i];
 
 		let firstNonWhitespaceIndex = 0;
@@ -120,7 +124,7 @@ function createLineBreaks(targetWindow: Window, requests: string[], fontInfo: Fo
 		}
 
 		const renderLineContent = lineContent.substr(firstNonWhitespaceIndex);
-		allVisibleColumns[i] = renderLine(renderLineContent, wrappedTextIndentLength, tabSize, width, sb, additionalIndentLength, injectedTextsPerLine[i], inlineClassNamesPerLine[i]);
+		allVisibleColumns[i] = renderLine(renderLineContent, wrappedTextIndentLength, tabSize, width, sb, additionalIndentLength, inlineClassNamesPerLine[i]);
 		firstNonWhitespaceIndices[i] = firstNonWhitespaceIndex;
 		wrappedTextIndentLengths[i] = wrappedTextIndentLength;
 		renderLineContents[i] = renderLineContent;
@@ -192,7 +196,8 @@ const enum Constants {
 	SPAN_MODULO_LIMIT = 16384
 }
 
-function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number, lineInjectedText: LineInjectedText[] | null, inlineClassNames: InlineClassName[] | null): number[] {
+function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number, inlineClassNames: InlineClassName[] | null): number[] {
+
 	if (wrappingIndentLength !== 0) {
 		const hangingOffset = String(wrappingIndentLength);
 		sb.appendString('<div style="text-indent: -');
@@ -215,6 +220,8 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 	const visibleColumns: number[] = [];
 	let nextCharCode = (0 < len ? lineContent.charCodeAt(0) : CharCode.Null);
 
+	console.log('lineContent : ', lineContent);
+	console.log('inlineClassNames : ', inlineClassNames);
 	const classNames = new Array<string>(len).fill('');
 	if (inlineClassNames) {
 		const inlineClassNamesLength = inlineClassNames.length;
@@ -223,12 +230,14 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 			const className = inlineClassName.className;
 			const charStart = inlineClassName.startColumn - 1;
 			const charEnd = Math.min(inlineClassName.endColumn - 1, len);
-
+			console.log('charStart : ', charStart);
+			console.log('charEnd : ', charEnd);
 			for (let charIndex = charStart; charIndex < charEnd; charIndex++) {
 				classNames[charIndex] = classNames[charIndex] += ' ' + className;
 			}
 		}
 	}
+	console.log('classNames : ', classNames);
 
 	// Forxe the text to be aligned vertically. We use the middle alignment to
 	// calculate whether or not a line is wrapped.
@@ -322,25 +331,26 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 
 	sb.appendString('</div>');
 
+	console.log('sb.build() : ', sb.build());
 	return visibleColumns;
 }
 
 function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: string): number[] | null {
+	console.log('lineContent : ', lineContent);
 	if (lineContent.length <= 1) {
 		return null;
 	}
 
 	const breakOffsets: number[] = [];
-	let lineOffset = 0;
-	let previousMiddle: number | undefined;
-
 	try {
+		console.log('lineDomNode : ', lineDomNode);
 		for (const wrapper of lineDomNode.children) {
+			console.log('wrapper : ', wrapper);
 			for (const child of wrapper.children) {
 				const textNode = child.firstChild;
 				const length = textNode?.textContent?.length;
 				if (length) {
-					discoverBreaks(textNode, 0, length);
+					discoverBreaks(range, textNode, undefined, 0, length, 0, breakOffsets);
 				}
 			}
 		}
@@ -355,36 +365,44 @@ function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: 
 
 	breakOffsets.push(lineContent.length);
 	return breakOffsets;
+}
 
-	function discoverBreaks(node: ChildNode, low: number, high: number) {
-		if (low === high) {
-			return;
+function discoverBreaks(range: Range, node: ChildNode, previousMiddle: number | undefined, low: number, high: number, lineOffset: number, result: number[]) {
+	if (low === high) {
+		return;
+	}
+
+	range.setStart(node, low);
+	range.setEnd(node, high);
+
+	console.log('discoverBreaks');
+	console.log('high : ', high);
+	console.log('low : ', low);
+	const chunkSize = high - low;
+	console.log('chunkSize : ', chunkSize);
+	const rects = range.getClientRects();
+	if (rects.length === 0) {
+		lineOffset += chunkSize;
+		console.log('lineOffset : ', lineOffset);
+	} else if (rects.length === 1) {
+		const rect = rects[0];
+		const middle = (rect.top + rect.bottom) / 2;
+		console.log('middle : ', middle);
+
+		if (previousMiddle !== undefined && Math.abs(previousMiddle - middle) > 0.5) {
+			result.push(lineOffset);
 		}
 
-		range.setStart(node, low);
-		range.setEnd(node, high);
-
-		const chunkSize = high - low;
-		const rects = range.getClientRects();
-		if (rects.length === 0) {
-			lineOffset += chunkSize;
-		} else if (rects.length === 1) {
-			const rect = rects[0];
-			const middle = (rect.top + rect.bottom) / 2;
-
-			if (previousMiddle !== undefined && Math.abs(previousMiddle - middle) > 0.5) {
-				breakOffsets.push(lineOffset);
-			}
-
-			previousMiddle = middle;
-			lineOffset += chunkSize;
-		} else {
-			let middle = low + ((chunkSize / 2) | 0);
-			if (node.textContent!.charCodeAt(middle) === CharCode.Space) {
-				middle += 1;
-			}
-			discoverBreaks(node, low, middle);
-			discoverBreaks(node, middle, high);
+		previousMiddle = middle;
+		lineOffset += chunkSize;
+		console.log('lineOffset : ', lineOffset);
+	} else {
+		let middle = low + ((chunkSize / 2) | 0);
+		console.log('middle : ', middle);
+		if (node.textContent!.charCodeAt(middle) === CharCode.Space) {
+			middle += 1;
 		}
+		discoverBreaks(range, node, previousMiddle, low, middle, lineOffset, result);
+		discoverBreaks(range, node, previousMiddle, middle, high, lineOffset, result);
 	}
 }

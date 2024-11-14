@@ -518,6 +518,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 		const options = providerArgs.options;
 		this.isWholeLine = Boolean(options.isWholeLine);
+		console.log('options.lineHeight : ', options.lineHeight);
 		this.lineHeight = options.lineHeight;
 		this.stickiness = options.rangeBehavior;
 

@@ -1743,7 +1743,7 @@ declare namespace monaco.editor {
 		 */
 		glyphMargin?: IModelDecorationGlyphMarginOptions | null;
 		/**
-		 * If set, the decoration will override the line height of the lines it spans. This can only increase the line height, not decrease it.
+		 * If set, the decoration will override the line height of the lines it spans.
 		 */
 		lineHeight?: number | undefined;
 		/**
@@ -1820,6 +1820,9 @@ declare namespace monaco.editor {
 		 * Defaults to {@link InjectedTextCursorStops.Both}.
 		*/
 		readonly cursorStops?: InjectedTextCursorStops | null;
+		/**
+		 * Line height of the injected text
+		 */
 		readonly lineHeight?: number;
 	}
 
@@ -2978,6 +2981,7 @@ declare namespace monaco.editor {
 		readonly trimAutoWhitespace: boolean;
 	}
 
+	// should not define functions in this d.ts
 	export function lineMetaFromDecorations(decorations: IModelDecoration[]): {
 		inlineClassNames: any;
 		lineInjectedTexts: any;

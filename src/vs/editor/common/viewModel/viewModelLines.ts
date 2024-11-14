@@ -110,6 +110,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 		this._constructLines(/*resetHiddenAreas*/true, null);
 	}
+
 	getTextDecorationsInRange(range: Range, ownerId?: number): IModelDecoration[] {
 		throw new Error('Method not implemented.');
 	}
@@ -123,6 +124,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	}
 
 	private _constructLines(resetHiddenAreas: boolean, previousLineBreaks: ((ModelLineProjectionData | null)[]) | null): void {
+		console.log('_constructLines');
 		this.modelLineProjections = [];
 
 		if (resetHiddenAreas) {
@@ -131,15 +133,20 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 		const linesContent = this.model.getLinesContent();
 		const injectedTextDecorations = this.model.getAllTextDecorations(this._editorId);
+		console.log('injectedTextDecorations : ', injectedTextDecorations);
 		const lineCount = linesContent.length;
 		const lineBreaksComputer = this.createLineBreaksComputer();
 
 		const { inlineClassNames, lineInjectedTexts } = lineMetaFromDecorations(injectedTextDecorations);
+		console.log('inlineClassNames : ', inlineClassNames);
+		console.log('lineInjectedTexts : ', lineInjectedTexts);
 		const injectedTextQueue = new arrays.ArrayQueue(lineInjectedTexts);
 		const inlineClassNameQueue = new arrays.ArrayQueue(inlineClassNames);
 		for (let i = 0; i < lineCount; i++) {
 			const lineInjectedText = injectedTextQueue.takeWhile(t => t.lineNumber === i + 1);
 			const inlineClassName = inlineClassNameQueue.takeWhile(t => t.lineNumber === i + 1);
+			console.log('lineInjectedText : ', lineInjectedText);
+			console.log('inlineClassName : ', inlineClassName);
 			lineBreaksComputer.addRequest(
 				linesContent[i],
 				lineInjectedText,

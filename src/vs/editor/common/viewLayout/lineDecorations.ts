@@ -77,6 +77,8 @@ export class LineDecoration {
 				continue;
 			}
 
+			console.log('filter of LineDecoration');
+			console.log('d.lineHeight : ', d.lineHeight);
 			if (range.isEmpty() && (d.type === InlineDecorationType.Regular || d.type === InlineDecorationType.RegularAffectingLetterSpacing) && !d.lineHeight) {
 				// Ignore empty range decorations
 				continue;

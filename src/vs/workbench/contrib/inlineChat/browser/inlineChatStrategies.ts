@@ -438,6 +438,7 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _hunkDisplayData = new Map<HunkInformation, HunkDisplayData>();
 
 	override async renderChanges() {
+		console.log('renderChanges');
 
 		this._progressiveEditingDecorations.clear();
 
@@ -450,7 +451,7 @@ export class LiveStrategy extends EditModeStrategy {
 				const keysNow = new Set(this._hunkDisplayData.keys());
 				widgetData = undefined;
 				const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-
+				console.log('lineHeight ', lineHeight);
 				for (const hunkData of this._session.hunkData.getInfo()) {
 
 					keysNow.delete(hunkData);

@@ -127,41 +127,52 @@ export class ViewModelDecorations implements IDisposable {
 	 * Index 0 is not an actual line number. It always contains the original line height.
 	 */
 	public getDecorationsLineHeightMap(): Uint8ClampedArray {
+		console.log('getDecorationsLineHeightMap');
 		if (!this._decorationsHeightMapCache) {
 			const lineCount = this._linesCollection.getViewLineCount();
+			console.log('lineCount ', lineCount);
 			const lineHeights = new Uint8ClampedArray(lineCount + 1).fill(this._lineHeight);
+			console.log('lineHeights : ', lineHeights);
 			const viewRange = new Range(1, this._linesCollection.getViewLineMinColumn(0), lineCount, this._linesCollection.getViewLineMaxColumn(lineCount));
+			console.log('viewRange : ', viewRange);
 			const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, true, false, false);
+			console.log('modelDecorations : ', modelDecorations);
 			const modelDecorationsLength = modelDecorations.length;
+			console.log('modelDecorationsLength : ', modelDecorationsLength);
 
 			for (let decorationIndex = 0; decorationIndex < modelDecorationsLength; decorationIndex++) {
+				console.log('decorationIndex : ', decorationIndex);
 				const decoration = modelDecorations[decorationIndex];
+				console.log('decoration : ', decoration);
 				const decorationLineHeight = decoration.options.lineHeight;
+				console.log('decorationLineHeight : ', decorationLineHeight);
 
 				if (!decorationLineHeight) {
 					continue;
 				}
 
 				const range = this._linesCollection.convertModelRangeToViewRange(decoration.range);
+				console.log('range : ', range);
 				for (let rangeLine = range.startLineNumber; rangeLine <= range.endLineNumber; rangeLine++) {
+					console.log('rangeLine : ', rangeLine);
 					lineHeights[rangeLine] = Math.max(lineHeights[rangeLine], decorationLineHeight);
+					console.log('lineHeights[rangeLine] : ', lineHeights[rangeLine]);
 				}
 			}
-
 			this._decorationsHeightMapCache = lineHeights;
 		}
-
 		return this._decorationsHeightMapCache;
 	}
 
 	public getDecorationsOffset(lineNumber: number = this._linesCollection.getViewLineCount()): number {
+		console.log('getDecorationsOffset');
 		const lineHeights = this.getDecorationsLineHeightMap();
+		console.log('lineHeights : ', lineHeights);
 		let offset = 0;
-
 		for (let i = 1; i < lineNumber; i++) {
 			offset += lineHeights[i];
 		}
-
+		console.log('offset : ', offset);
 		return offset;
 	}
 
@@ -190,6 +201,7 @@ export class ViewModelDecorations implements IDisposable {
 
 			decorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;
 
+			console.log('decorationOptions.lineHeight : ', decorationOptions.lineHeight);
 			if (decorationOptions.inlineClassName) {
 				const inlineDecoration = new InlineDecoration(
 					viewRange,

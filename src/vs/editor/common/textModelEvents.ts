@@ -152,26 +152,45 @@ export class InlineClassName {
 		public readonly startColumn: number,
 		public readonly endColumn: number,
 		public readonly className: string
-	) { }
+	) {
+		console.log('InlineClassName');
+		console.log('ownerId : ', ownerId);
+		console.log('lineNumber : ', lineNumber);
+		console.log('startColumn : ', startColumn);
+		console.log('endColumn : ', endColumn);
+		console.log('className : ', className);
+	}
 }
 
 function compareLineInjectedTexts(a: LineInjectedText, b: LineInjectedText): number {
+	console.log('compareLineInjectedTexts');
+	console.log('a : ', a);
+	console.log('b : ', b);
 	if (a.lineNumber === b.lineNumber) {
 		if (a.column === b.column) {
+			console.log('a.order - b.order : ', a.order - b.order);
 			return a.order - b.order;
 		}
+		console.log('a.column - b.column : ', a.column - b.column);
 		return a.column - b.column;
 	}
+	console.log('a.lineNumber - b.lineNumber : ', a.lineNumber - b.lineNumber);
 	return a.lineNumber - b.lineNumber;
 }
 
 function compareInlineClassNames(a: InlineClassName, b: InlineClassName): number {
+	console.log('compareInlineClassNames');
+	console.log('a : ', a);
+	console.log('b : ', b);
 	if (a.lineNumber === b.lineNumber) {
 		if (a.startColumn === b.startColumn) {
+			console.log('a.endColumn - b.endColumn : ', a.endColumn - b.endColumn);
 			return a.endColumn - b.endColumn;
 		}
+		console.log('a.startColumn - b.startColumn : ', a.startColumn - b.startColumn);
 		return a.startColumn - b.startColumn;
 	}
+	console.log('a.lineNumber - b.lineNumber : ', a.lineNumber - b.lineNumber);
 	return a.lineNumber - b.lineNumber;
 }
 
@@ -195,6 +214,41 @@ export class LineInjectedText {
 		return result;
 	}
 
+	// TODO can remove
+	public static fromDecorations(decorations: IModelDecoration[]): LineInjectedText[] {
+		const result: LineInjectedText[] = [];
+		for (const decoration of decorations) {
+			if (decoration.options.before && decoration.options.before.content.length > 0) {
+				result.push(new LineInjectedText(
+					decoration.ownerId,
+					decoration.range.startLineNumber,
+					decoration.range.startColumn,
+					decoration.options.before,
+					0,
+				));
+			}
+			if (decoration.options.after && decoration.options.after.content.length > 0) {
+				result.push(new LineInjectedText(
+					decoration.ownerId,
+					decoration.range.endLineNumber,
+					decoration.range.endColumn,
+					decoration.options.after,
+					1,
+				));
+			}
+		}
+		result.sort((a, b) => {
+			if (a.lineNumber === b.lineNumber) {
+				if (a.column === b.column) {
+					return a.order - b.order;
+				}
+				return a.column - b.column;
+			}
+			return a.lineNumber - b.lineNumber;
+		});
+		return result;
+	}
+
 	constructor(
 		public readonly ownerId: number,
 		public readonly lineNumber: number,
@@ -209,12 +263,20 @@ export class LineInjectedText {
 }
 
 export function lineMetaFromDecorations(decorations: IModelDecoration[]) {
+	console.log('lineMetaFromDecorations');
+	console.log('decorations : ', decorations);
+
 	const length = decorations.length;
 	const inlineClassNames: InlineClassName[] = [];
 	const lineInjectedTexts: LineInjectedText[] = [];
 
 	for (let decorationIndex = 0; decorationIndex < length; decorationIndex++) {
+		console.log('decorations[decorationIndex] : ', decorations[decorationIndex]);
+
 		const { options, ownerId, range } = decorations[decorationIndex];
+		console.log('options : ', options);
+		console.log('ownerId : ', ownerId);
+		console.log('range : ', range);
 
 		if (options.before && options.before.content.length > 0) {
 			lineInjectedTexts.push(new LineInjectedText(
@@ -238,6 +300,7 @@ export function lineMetaFromDecorations(decorations: IModelDecoration[]) {
 
 		if (options.inlineClassName && options.inlineClassNameAffectsLetterSpacing) {
 			for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
+				console.log('lineNumber : ', lineNumber);
 				inlineClassNames.push(new InlineClassName(
 					ownerId,
 					lineNumber,
@@ -276,6 +339,11 @@ export class ModelRawLineChanged {
 	public readonly inlineClassNames: InlineClassName[] | null;
 
 	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null, inlineClassNames: InlineClassName[] | null) {
+		console.log('ModelRawLineChanged');
+		console.log('lineNumber : ', lineNumber);
+		console.log('detail : ', detail);
+		console.log('injectedText : ', injectedText);
+		console.log('inlineClassNames : ', inlineClassNames);
 		this.lineNumber = lineNumber;
 		this.detail = detail;
 		this.injectedText = injectedText;
@@ -329,6 +397,12 @@ export class ModelRawLinesInserted {
 	public readonly inlineClassNames: (InlineClassName[] | null)[];
 
 	constructor(fromLineNumber: number, toLineNumber: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[], inlineClassNames: (InlineClassName[] | null)[]) {
+		console.log('ModelRawLinesInserted');
+		console.log('fromLineNumber : ', fromLineNumber);
+		console.log('toLineNumber : ', toLineNumber);
+		console.log('detail : ', detail);
+		console.log('injectedTexts : ', injectedTexts);
+		console.log('inlineClassNames : ', inlineClassNames);
 		this.injectedTexts = injectedTexts;
 		this.inlineClassNames = inlineClassNames;
 		this.fromLineNumber = fromLineNumber;

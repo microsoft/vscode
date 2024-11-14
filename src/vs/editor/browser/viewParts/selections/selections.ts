@@ -282,6 +282,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 			const lineIndex = lineNumber - visibleStartLineNumber;
 
 			const bottom = hasMultipleSelections ? (lineNumber === firstLineNumber ? -1 : 0) : 0;
+			console.log('bottom ', bottom);
 
 			let innerCornerOutput = '';
 			let restOfSelectionOutput = '';

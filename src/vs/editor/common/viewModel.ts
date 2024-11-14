@@ -398,6 +398,11 @@ export class InlineDecoration {
 		public readonly type: InlineDecorationType,
 		public readonly lineHeight?: number | undefined
 	) {
+		console.log('InlineDecoration');
+		console.log('range : ', range);
+		console.log('inlineClassName : ', inlineClassName);
+		console.log('type : ', type);
+		console.log('lineHeight : ', lineHeight);
 	}
 }
 
@@ -409,6 +414,12 @@ export class SingleLineInlineDecoration {
 		public readonly inlineClassNameAffectsLetterSpacing: boolean,
 		public readonly lineHeight: number | undefined
 	) {
+		console.log('SingleLineInlineDecoration');
+		console.log('startOffset : ', startOffset);
+		console.log('endOffset : ', endOffset);
+		console.log('inlineClassName : ', inlineClassName);
+		console.log('inlineClassNameAffectsLetterSpacing : ', inlineClassNameAffectsLetterSpacing);
+		console.log('lineHeight : ', lineHeight);
 	}
 
 	toInlineDecoration(lineNumber: number): InlineDecoration {

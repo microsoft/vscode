@@ -300,7 +300,9 @@ export class ViewModel extends Disposable implements IViewModel {
 								if (injectedText) {
 									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 								}
+								console.log('change : ', change);
 								let inlineClassNames = change.inlineClassNames[lineIdx];
+								console.log('inlineClassNames : ', inlineClassNames);
 								if (inlineClassNames) {
 									inlineClassNames = inlineClassNames.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 								}
@@ -313,8 +315,9 @@ export class ViewModel extends Disposable implements IViewModel {
 							if (change.injectedText) {
 								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 							}
-
 							let inlineClassNames: textModelEvents.InlineClassName[] | null = null;
+							console.log('change : ', change);
+							console.log('change.inlineClassNames : ', change.inlineClassNames);
 							if (change.inlineClassNames) {
 								inlineClassNames = change.inlineClassNames.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 							}
