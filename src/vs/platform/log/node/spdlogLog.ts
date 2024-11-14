@@ -110,14 +110,10 @@ export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
 	}
 
 	override flush(): void {
-		if (this._store.isDisposed) {
-			return;
-		}
-
 		if (this._logger) {
-			this._logger.flush();
+			this.flushLogger();
 		} else {
-			this._loggerCreationPromise.then(() => this.flush());
+			this._loggerCreationPromise.then(() => this.flushLogger());
 		}
 	}
 
@@ -128,6 +124,12 @@ export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
 			this._loggerCreationPromise.then(() => this.disposeLogger());
 		}
 		super.dispose();
+	}
+
+	private flushLogger(): void {
+		if (this._logger) {
+			this._logger.flush();
+		}
 	}
 
 	private disposeLogger(): void {
