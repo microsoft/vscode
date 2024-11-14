@@ -496,7 +496,6 @@ export class AttachContextAction extends Action2 {
 								type: 'item',
 								label: labelService.getUriBasenameLabel(file.uri),
 								description: labelService.getUriLabel(dirname(file.uri), { relative: true }),
-								detail: file.description,
 								value: file.uri,
 								disabled: workingSet?.has(file.uri) || attachments.has(this._getFileContextId({ resource: file.uri })),
 								picked: true
