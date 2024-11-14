@@ -120,6 +120,11 @@ export interface IModelOptionsChangedEvent {
 	readonly indentSize: boolean;
 	readonly insertSpaces: boolean;
 	readonly trimAutoWhitespace: boolean;
+
+	/**
+	 * @internal
+	 */
+	readonly isForSimpleWidget: boolean;
 }
 
 /**
