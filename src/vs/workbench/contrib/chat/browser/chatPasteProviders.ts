@@ -102,7 +102,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			redo: () => {
 				widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget) {
-					throw new Error('No widget found for undo');
+					throw new Error('No widget found for redo');
 				}
 				widget.attachmentModel.addContext(imageContext);
 			},
