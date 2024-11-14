@@ -256,7 +256,7 @@ async function getCopiedContext(data: string, file: string, language: string, ra
 		code: data,
 		language: language,
 		references: [{
-			reference: URI.file(file),
+			reference: URI.parse(file),
 			kind: 'reference'
 		}]
 	};
