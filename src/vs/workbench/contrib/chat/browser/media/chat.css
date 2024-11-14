@@ -882,6 +882,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-right: 4px;
 	padding-left: 2px;
 	height: calc(100% + 4px);
+	outline-offset: -4px;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
@@ -971,6 +972,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label::before {
 	padding: 0 2px 0 0;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label.predefined-file-icon::before {
+	padding: 0 0 0 2px;
 }
 
 .interactive-session .interactive-item-container.interactive-request .chat-attached-context .chat-attached-context-attachment {

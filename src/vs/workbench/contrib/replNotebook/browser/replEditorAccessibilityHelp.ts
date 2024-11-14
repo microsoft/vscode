@@ -34,13 +34,12 @@ function getAccessibilityHelpText(): string {
 	return [
 		localize('replEditor.overview', 'You are in a REPL Editor which contains in input box to evaluate expressions and a list of previously executed expressions and their output.'),
 		localize('replEditor.execute', 'The Execute command{0} will evaluate the expression in the input box.', '<keybinding:repl.execute>'),
-		localize('replEditor.readLastExecution', 'The Read Last Execution Output command{0} will read the output of the last executed item.', '<keybinding:repl.readLastExecutionOutput>'),
 		localize('replEditor.configReadExecution', 'The setting `accessibility.replEditor.readLastExecutionOutput` controls if output will be automatically read when execution completes.'),
-		localize('replEditor.focusHistory', 'The Focus History command{0} will move focus to the list of previously executed items.', '<keybinding:interactive.history.focus>'),
+		localize('replEditor.autoFocusRepl', 'The setting `accessibility.replEditor.autoFocusReplExecution` controls if focus will automatically move to the REPL after executing code.'),
+		localize('replEditor.focusLastItemAdded', 'The Focus Last executed command{0} will move focus to the last executed item in the REPL history.', '<keybinding:repl.focusLastItemExecuted>'),
 		localize('replEditor.accessibilityView', 'Run the Open Accessbility View command{0} while navigating the history for an accessible view of the item\'s output.', '<keybinding:editor.action.accessibleView>'),
-		localize('replEditor.focusLastItemAdded', 'The Focus Last executed command{0} will move focus to the last executed item without needing to first focus on the editor.', '<keybinding:repl.focusLastItemExecuted>'),
-		localize('replEditor.focusReplInput', 'The Focus Input Editor command{0} will move focus to the REPL input box.', '<keybinding:interactive.input.focus>'),
-		localize('replEditor.cellNavigation', 'The up and down arrows will also move focus between previously executed items.'),
+		localize('replEditor.cellNavigation', 'The up and down arrows will also move focus between previously executed items while focused on the REPL history.'),
+		localize('replEditor.focusReplInput', 'The Focus Input Editor command{0} will move focus to the REPL input box.', '<keybinding:repl.input.focus>'),
 		localize('replEditor.focusInOutput', 'The Focus Output command{0} will set focus on the output when focused on a previously executed item.', '<keybinding:notebook.cell.focusInOutput>'),
 	].join('\n');
 }

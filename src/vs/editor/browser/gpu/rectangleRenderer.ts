@@ -8,7 +8,7 @@ import { Event } from '../../../base/common/event.js';
 import { IReference, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import { ViewEventHandler } from '../../common/viewEventHandler.js';
-import type { ViewScrollChangedEvent } from '../../common/viewEvents.js';
+import type { ViewCursorStateChangedEvent, ViewScrollChangedEvent } from '../../common/viewEvents.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
 import { GPULifecycle } from './gpuDisposable.js';
@@ -42,7 +42,6 @@ export class RectangleRenderer extends ViewEventHandler {
 	private _scrollOffsetValueBuffer!: Float32Array;
 
 	private _initialized: boolean = false;
-	private _scrollChanged: boolean = true;
 
 	private readonly _shapeCollection: IObjectCollectionBuffer<RectangleRendererEntrySpec> = this._register(createObjectCollectionBuffer([
 		{ name: 'x' },
@@ -242,28 +241,32 @@ export class RectangleRenderer extends ViewEventHandler {
 		return this._shapeCollection.createEntry({ x, y, width, height, red, green, blue, alpha });
 	}
 
-	// --- begin event handlers
+	// #region Event handlers
 
 	public override onScrollChanged(e: ViewScrollChangedEvent): boolean {
-		this._scrollChanged = true;
-		return super.onScrollChanged(e);
+		return true;
 	}
 
-	// --- end event handlers
-
-	private _update() {
-		const shapes = this._shapeCollection;
-		if (shapes.dirtyTracker.isDirty) {
-			this._device.queue.writeBuffer(this._shapeBindBuffer.value!.object, 0, shapes.buffer, shapes.dirtyTracker.dataOffset, shapes.dirtyTracker.dirtySize! * shapes.view.BYTES_PER_ELEMENT);
-			shapes.dirtyTracker.clear();
-		}
-
-		// Update scroll offset
-		if (this._scrollChanged) {
+	public override onCursorStateChanged(e: ViewCursorStateChangedEvent): boolean {
+		if (this._device) {
 			const dpr = getActiveWindow().devicePixelRatio;
 			this._scrollOffsetValueBuffer[0] = this._context.viewLayout.getCurrentScrollLeft() * dpr;
 			this._scrollOffsetValueBuffer[1] = this._context.viewLayout.getCurrentScrollTop() * dpr;
 			this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer);
+		}
+		return true;
+	}
+
+	// #endregion
+
+	private _update() {
+		if (!this._device) {
+			return;
+		}
+		const shapes = this._shapeCollection;
+		if (shapes.dirtyTracker.isDirty) {
+			this._device.queue.writeBuffer(this._shapeBindBuffer.value!.object, 0, shapes.buffer, shapes.dirtyTracker.dataOffset, shapes.dirtyTracker.dirtySize! * shapes.view.BYTES_PER_ELEMENT);
+			shapes.dirtyTracker.clear();
 		}
 	}
 

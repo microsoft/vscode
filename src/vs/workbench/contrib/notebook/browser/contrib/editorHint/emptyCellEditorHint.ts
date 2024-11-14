@@ -64,11 +64,6 @@ export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribu
 	}
 
 	protected override _shouldRenderHint(): boolean {
-		const shouldRenderHint = super._shouldRenderHint();
-		if (!shouldRenderHint) {
-			return false;
-		}
-
 		const model = this.editor.getModel();
 		if (!model) {
 			return false;
@@ -81,6 +76,11 @@ export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribu
 
 		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
 		if (!activeEditor) {
+			return false;
+		}
+
+		const shouldRenderHint = super._shouldRenderHint();
+		if (!shouldRenderHint) {
 			return false;
 		}
 
