@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, delta } from '../../../../../base/common/arrays.js';
-import { AsyncIterableSource, raceTimeout } from '../../../../../base/common/async.js';
+import { coalesce, compareBy, delta } from '../../../../../base/common/arrays.js';
+import { AsyncIterableSource } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
@@ -387,6 +387,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return editors;
 	}
 
+	hasRelatedFilesProviders(): boolean {
+		return this._chatRelatedFilesProviders.size > 0;
+	}
+
 	registerRelatedFilesProvider(handle: number, provider: IChatRelatedFilesProvider): IDisposable {
 		this._chatRelatedFilesProviders.set(handle, provider);
 		return toDisposable(() => {
@@ -394,7 +398,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		});
 	}
 
-	async getRelatedFiles(chatSessionId: string, prompt: string, token: CancellationToken): Promise<readonly IChatRelatedFile[] | undefined> {
+	async getRelatedFiles(chatSessionId: string, prompt: string, token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined> {
 		const currentSession = this._currentSessionObs.get();
 		if (!currentSession || chatSessionId !== currentSession.chatSessionId) {
 			return undefined;
@@ -404,18 +408,17 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		const providers = Array.from(this._chatRelatedFilesProviders.values());
 		const result = await Promise.all(providers.map(async provider => {
 			try {
-				return await raceTimeout(provider.provideRelatedFiles({ prompt, files: currentWorkingSet }, token), 2000);
+				const relatedFiles = await provider.provideRelatedFiles({ prompt, files: currentWorkingSet }, token);
+				if (relatedFiles?.length) {
+					return { group: provider.description, files: relatedFiles };
+				}
+				return undefined;
 			} catch (e) {
 				return undefined;
 			}
 		}));
 
-		return result.reduce<IChatRelatedFile[]>((acc, cur) => {
-			if (cur) {
-				acc.push(...cur);
-			}
-			return acc;
-		}, []);
+		return coalesce(result);
 	}
 }
 

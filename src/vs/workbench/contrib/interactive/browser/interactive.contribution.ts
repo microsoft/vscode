@@ -752,13 +752,8 @@ registerAction2(class extends Action2 {
 			category: interactiveWindowCategory,
 			menu: {
 				id: MenuId.CommandPalette,
-				when: InteractiveWindowOpen,
+				when: InteractiveWindowOpen
 			},
-			keybinding: {
-				when: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED),
-				weight: KeybindingWeight.WorkbenchContrib + 5,
-				primary: KeyMod.CtrlCmd | KeyCode.DownArrow
-			}
 		});
 	}
 
