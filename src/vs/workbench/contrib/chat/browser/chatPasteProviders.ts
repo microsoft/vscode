@@ -17,15 +17,14 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
-import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { URI } from '../../../../base/common/uri.js';
 
 export class PasteImageProvider implements DocumentPasteEditProvider {
 
-	public readonly kind = new HierarchicalKind('image');
-
+	public readonly kind = new HierarchicalKind('chat.attach.image');
 	public readonly pasteMimeTypes = ['image/*'];
+
 	constructor(
 		private readonly chatWidgetService: IChatWidgetService,
 		private readonly extensionService: IExtensionService,
@@ -65,7 +64,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+		let widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 		if (!widget) {
 			return;
 		}
@@ -93,13 +92,26 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		const customEdit = {
 			resource: model.uri,
 			variable: imageContext,
-			undo: () => { widget.attachmentModel.delete(imageContext.id); },
-			redo: () => { widget.attachmentModel.addContext(imageContext); }
+			undo: () => {
+				widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (!widget) {
+					throw new Error('No widget found for undo');
+				}
+				widget.attachmentModel.delete(imageContext.id);
+			},
+			redo: () => {
+				widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (!widget) {
+					throw new Error('No widget found for undo');
+				}
+				widget.attachmentModel.addContext(imageContext);
+			},
+			metadata: { needsConfirmation: false, label: imageContext.name }
 		};
 
 		return {
 			edits: [{
-				insertText: '', title: 'Empty Edit', kind: new HierarchicalKind(''), handledMimeType: Mimes.text,
+				insertText: '', title: 'Empty Edit', kind: new HierarchicalKind('text.plain'), handledMimeType: Mimes.text,
 				additionalEdit: {
 					edits: [customEdit],
 				}
@@ -122,7 +134,6 @@ async function getImageAttachContext(data: Uint8Array, mimeType: string, token: 
 		isImage: true,
 		icon: Codicon.fileMedia,
 		isDynamic: true,
-		isFile: false,
 		mimeType
 	};
 }
@@ -154,13 +165,8 @@ export function isImage(array: Uint8Array): boolean {
 
 export class CopyTextProvider implements DocumentPasteEditProvider {
 
-	static readonly id = 'text';
-	static readonly kind = new HierarchicalKind('text.plain');
-
-	readonly id = PasteTextProvider.id;
-	readonly kind = PasteTextProvider.kind;
-
-	readonly copyMimeTypes = [Mimes.text, 'vscode-editor-data'];
+	public readonly kind = new HierarchicalKind('text.plain');
+	public readonly copyMimeTypes = ['application/vnd.code.additional-editor-data'];
 
 	async prepareDocumentPaste(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer> {
 		if (model.uri.scheme === ChatInputPart.INPUT_SCHEME) {
@@ -168,25 +174,19 @@ export class CopyTextProvider implements DocumentPasteEditProvider {
 		}
 		const customDataTransfer = new VSDataTransfer();
 		const rangesString = JSON.stringify({ ranges: ranges[0], uri: model.uri.toString() });
-		customDataTransfer.append('additional-editor-data', createStringDataTransferItem(rangesString));
+		customDataTransfer.append('application/vnd.code.additional-editor-data', createStringDataTransferItem(rangesString));
 		return customDataTransfer;
 	}
 }
 
 export class PasteTextProvider implements DocumentPasteEditProvider {
 
-	static readonly id = 'text';
-	static readonly kind = new HierarchicalKind('text.plain');
-
-	readonly id = PasteTextProvider.id;
-	readonly kind = PasteTextProvider.kind;
-
-	readonly pasteMimeTypes = [Mimes.text, 'vscode-editor-data', 'additional-editor-data'];
+	public readonly kind = new HierarchicalKind('text.plain');
+	public readonly pasteMimeTypes = ['application/vnd.code.additional-editor-data'];
 
 	constructor(
 		private readonly chatWidgetService: IChatWidgetService
 	) { }
-
 
 	async provideDocumentPasteEdits(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
 		if (model.uri.scheme !== ChatInputPart.INPUT_SCHEME) {
@@ -194,7 +194,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		}
 		const text = dataTransfer.get(Mimes.text);
 		const editorData = dataTransfer.get('vscode-editor-data');
-		const additionalEditorData = dataTransfer.get('additional-editor-data');
+		const additionalEditorData = dataTransfer.get('application/vnd.code.additional-editor-data');
 
 		if (!editorData || !text || !additionalEditorData) {
 			return;
@@ -204,7 +204,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		const metadata = JSON.parse(await editorData.asString());
 		const additionalData = JSON.parse(await additionalEditorData.asString());
 
-		const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+		let widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 		if (!widget) {
 			return;
 		}
@@ -223,13 +223,26 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		const customEdit = {
 			resource: model.uri,
 			variable: copiedContext,
-			undo: () => { widget.attachmentModel.delete(copiedContext.id); },
-			redo: () => { widget.attachmentModel.addContext(copiedContext); }
+			undo: () => {
+				widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (!widget) {
+					throw new Error('No widget found for undo');
+				}
+				widget.attachmentModel.delete(copiedContext.id);
+			},
+			redo: () => {
+				widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (!widget) {
+					throw new Error('No widget found for redo');
+				}
+				widget.attachmentModel.addContext(copiedContext);
+			},
+			metadata: { needsConfirmation: false, label: copiedContext.name }
 		};
 
 		return {
 			edits: [{
-				insertText: '', title: 'Empty Edit', kind: new HierarchicalKind(''), handledMimeType: Mimes.text,
+				insertText: '', title: 'Empty Edit', kind: new HierarchicalKind('text.plain'), handledMimeType: Mimes.text,
 				additionalEdit: {
 					edits: [customEdit],
 				}
@@ -239,22 +252,23 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 	}
 }
 
-async function getCopiedContext(data: string, file: string, language: string, ranges: IRange): Promise<IChatRequestVariableEntry | undefined> {
+async function getCopiedContext(code: string, file: string, language: string, ranges: IRange): Promise<IChatRequestVariableEntry | undefined> {
 	const fileName = file.split('/').pop() || 'unknown file';
 	const start = ranges.startLineNumber;
 	const end = ranges.endLineNumber;
-	const resultText = `Copied Selection of Code: \n\n\n From the file: ${fileName} From lines ${start} to ${end} \n \`\`\`${data}\`\`\``;
+	const resultText = `Copied Selection of Code: \n\n\n From the file: ${fileName} From lines ${start} to ${end} \n \`\`\`${code}\`\`\``;
+	const pastedLines = start === end ? localize('pastedAttachment.oneLine', '1 line') : localize('pastedAttachment.multipleLines', '{0} lines', end + 1 - start);
 	return {
+		kind: 'paste',
 		value: resultText,
 		id: `${fileName}${start}${end}${ranges.startColumn}${ranges.endColumn}`,
-		name: start === end ? localize('pastedAttachment.oneLine', '1 line') : localize('pastedAttachment.multipleLines', '{0} lines', end + 1 - start),
-		fullName: fileName,
-		isImage: false,
+		name: `${fileName} ${pastedLines}`,
 		icon: Codicon.code,
 		isDynamic: true,
-		isFile: false,
-		code: data,
-		language: language,
+		pastedLines,
+		language,
+		fileName,
+		code,
 		references: [{
 			reference: URI.parse(file),
 			kind: 'reference'
@@ -266,8 +280,7 @@ export class ChatPasteProvidersFeature extends Disposable {
 	constructor(
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
-		@IExtensionService extensionService: IExtensionService,
-		@IUndoRedoService undoRedoService: IUndoRedoService
+		@IExtensionService extensionService: IExtensionService
 	) {
 		super();
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService)));

@@ -34,8 +34,6 @@ export interface IBaseChatRequestVariableEntry {
 	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
 	mimeType?: string;
-	code?: string;
-	language?: string;
 
 	// TODO these represent different kinds, should be extracted to new interfaces with kind tags
 	kind?: unknown;
@@ -55,10 +53,22 @@ export interface IChatRequestImplicitVariableEntry extends Omit<IBaseChatRequest
 	enabled: boolean;
 }
 
-export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IBaseChatRequestVariableEntry;
+export interface IChatRequestPasteVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+	readonly kind: 'paste';
+	code: string;
+	language: string;
+	fileName: string;
+	pastedLines: string;
+}
+
+export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | IBaseChatRequestVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
+}
+
+export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
+	return obj.kind === 'paste';
 }
 
 export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVariableEntry {

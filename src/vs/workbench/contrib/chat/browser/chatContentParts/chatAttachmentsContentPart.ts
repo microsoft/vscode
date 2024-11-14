@@ -17,7 +17,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
-import { IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestVariableEntry, isPasteVariableEntry } from '../../common/chatModel.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService.js';
 
 export class ChatAttachmentsContentPart extends Disposable {
@@ -113,7 +113,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 				if (!this.attachedContextDisposables.isDisposed) {
 					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement));
 				}
-			} else if (attachment.code) {
+			} else if (isPasteVariableEntry(attachment)) {
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
 				const hoverContent: IManagedHoverTooltipMarkdownString = {
@@ -124,8 +124,8 @@ export class ChatAttachmentsContentPart extends Disposable {
 				};
 
 				const classNames = ['file-icon', `${attachment.language}-lang-file-icon`];
-				label.setLabel(attachment.fullName ?? attachment.name, undefined, { extraClasses: classNames });
-				widget.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.name}`));
+				label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
+				widget.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.pastedLines}`));
 
 				widget.style.position = 'relative';
 
