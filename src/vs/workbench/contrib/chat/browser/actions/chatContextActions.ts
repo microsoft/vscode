@@ -504,7 +504,7 @@ export class AttachContextAction extends Action2 {
 						}
 						return acc;
 					}, []));
-				const selectedFiles = await quickInputService.pick(itemsPromise, { placeHolder: localize('relatedFiles', 'Add related files to your working set based on your editing prompt'), canPickMany: true });
+				const selectedFiles = await quickInputService.pick(itemsPromise, { placeHolder: localize('relatedFiles', 'Add related files to your working set'), canPickMany: true });
 				for (const file of selectedFiles ?? []) {
 					chatEditingService?.currentEditingSessionObs.get()?.addFileToWorkingSet(file.value);
 				}
