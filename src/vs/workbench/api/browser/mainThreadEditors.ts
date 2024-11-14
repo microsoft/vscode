@@ -30,6 +30,7 @@ import { getCodeEditor, ICodeEditor } from '../../../editor/browser/editorBrowse
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { DirtyDiffContribution } from '../../contrib/scm/browser/dirtydiffDecorator.js';
 import { IDirtyDiffModelService } from '../../contrib/scm/browser/diff.js';
+import { autorun, autorunWithStore, constObservable, observableFromEvent } from '../../../base/common/observable.js';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -92,33 +93,58 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		const codeEditor = textEditor.getCodeEditor();
 		const codeEditorTextModel = codeEditor?.getModel();
 
-		if (codeEditorTextModel) {
-			const dirtyDiffModel = this._dirtyDiffModelService.getOrCreateModel(codeEditorTextModel);
+		if (codeEditor && codeEditorTextModel) {
+			// Check if the TextModel belongs to a diff editor
+			const diffEditors = this._codeEditorService.listDiffEditors();
+			const [diffEditor] = diffEditors.filter(d =>
+				d.getOriginalEditor().getId() === codeEditor.getId() ||
+				d.getModifiedEditor().getId() === codeEditor.getId());
 
-			if (dirtyDiffModel) {
-				toDispose.push(dirtyDiffModel.onDidChange(e => {
-					const scmQuickDiff = dirtyDiffModel.quickDiffs.find(diff => diff.isSCM === true);
-					const scmQuickDiffChanges = e.changes.filter(change => change.label === scmQuickDiff?.label);
+			const uriObs = !diffEditor ?
+				constObservable(codeEditorTextModel.uri) :
+				observableFromEvent(this, diffEditor.onDidChangeModel, () => diffEditor.getModel()?.modified.uri);
 
-					const diff: [
-						number /* originalStartLineNumber */,
-						number /* originalEndLineNumber */,
-						number /* modifiedStartLineNumber */,
-						number /* modifiedEndLineNumber */
-					][] = scmQuickDiffChanges.map(change => [
-						change.change.originalStartLineNumber,
-						change.change.originalEndLineNumber,
-						change.change.modifiedStartLineNumber,
-						change.change.modifiedEndLineNumber
-					]);
+			toDispose.push(autorunWithStore((reader, store) => {
+				const uri = uriObs.read(reader);
+				const dirtyDiffModel = uri ? this._dirtyDiffModelService.getOrCreateModel(uri) : undefined;
 
-					this._proxy.$acceptEditorDiffInformation(id, {
-						original: scmQuickDiff?.originalResource,
-						modified: codeEditorTextModel.uri,
-						diff
+				if (dirtyDiffModel) {
+					const scmQuickDiffChangesObs = observableFromEvent(dirtyDiffModel.onDidChange, e => {
+						const scmQuickDiff = dirtyDiffModel.quickDiffs.find(diff => diff.isSCM === true);
+						return {
+							originalResource: scmQuickDiff?.originalResource,
+							changes: e?.changes
+								.filter(change => change.label === scmQuickDiff?.label)
+								.map(change => change.change) ?? []
+						};
 					});
-				}));
-			}
+
+					store.add(autorun(reader => {
+						const scmQuickDiffChanges = scmQuickDiffChangesObs.read(reader);
+
+						if (scmQuickDiffChanges.originalResource) {
+							const diff: [
+								number /* originalStartLineNumber */,
+								number /* originalEndLineNumber */,
+								number /* modifiedStartLineNumber */,
+								number /* modifiedEndLineNumber */
+							][] = scmQuickDiffChanges.changes
+								.map(change => [
+									change.originalStartLineNumber,
+									change.originalEndLineNumber,
+									change.modifiedStartLineNumber,
+									change.modifiedEndLineNumber
+								]);
+
+							this._proxy.$acceptEditorDiffInformation(id, {
+								original: scmQuickDiffChanges.originalResource,
+								modified: uri,
+								diff
+							});
+						}
+					}));
+				}
+			}));
 		}
 
 		this._textEditorsListenersMap[id] = toDispose;

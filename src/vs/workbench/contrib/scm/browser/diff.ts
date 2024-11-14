@@ -13,13 +13,13 @@ import { autorun, observableFromEvent } from '../../../../base/common/observable
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ITextModel } from '../../../../editor/common/model.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export const IDirtyDiffModelService = createDecorator<IDirtyDiffModelService>('IDirtyDiffModelService');
 
 export interface IDirtyDiffModelService {
 	_serviceBrand: undefined;
-	getOrCreateModel(textModel: ITextModel): DirtyDiffModel | undefined;
+	getOrCreateModel(uri: URI): DirtyDiffModel | undefined;
 }
 
 export class DirtyDiffModelService extends Disposable implements IDirtyDiffModelService {
@@ -58,16 +58,16 @@ export class DirtyDiffModelService extends Disposable implements IDirtyDiffModel
 		}));
 	}
 
-	getOrCreateModel(textModel: ITextModel): DirtyDiffModel | undefined {
-		let model = this._models.get(textModel.uri);
+	getOrCreateModel(uri: URI): DirtyDiffModel | undefined {
+		let model = this._models.get(uri);
 		if (!model) {
-			const textFileModel = this.textFileService.files.get(textModel.uri);
+			const textFileModel = this.textFileService.files.get(uri);
 			if (!textFileModel?.isResolved()) {
 				return undefined;
 			}
 
 			model = this.instantiationService.createInstance(DirtyDiffModel, textFileModel);
-			this._models.set(textModel.uri, model);
+			this._models.set(uri, model);
 		}
 
 		return model;
