@@ -91,7 +91,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[] | un
 
 		for (const file of filtered) {
 			try {
-				const module = await import(file);
+				const module = await import(`${file}`);
 				if (module.default && 'name' in module.default) {
 					completionSpecs.push(module.default);
 				} else {
