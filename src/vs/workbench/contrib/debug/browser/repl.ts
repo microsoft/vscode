@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import * as domStylesheetsJs from 'vs/base/browser/domStylesheets.js';
+import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';

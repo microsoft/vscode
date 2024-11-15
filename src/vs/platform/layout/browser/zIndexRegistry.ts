@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { clearNode } from '../../../base/browser/dom.js';
-import { createCSSRule } from 'vs/base/browser/domStylesheets.js';
-import { createStyleSheet } from 'vs/base/browser/domStylesheets.js';
+import { createCSSRule, createStyleSheet } from '../../../base/browser/domStylesheets.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 
 export enum ZIndex {

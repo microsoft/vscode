@@ -43,7 +43,7 @@ import { equals, sortedDiff } from '../../../../base/common/arrays.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { ISplice } from '../../../../base/common/sequence.js';
 import * as dom from '../../../../base/browser/dom.js';
-import * as domStylesheetsJs from 'vs/base/browser/domStylesheets.js';
+import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { EncodingMode, ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from '../../../services/textfile/common/textfiles.js';
 import { gotoNextLocation, gotoPreviousLocation } from '../../../../platform/theme/common/iconRegistry.js';
 import { Codicon } from '../../../../base/common/codicons.js';

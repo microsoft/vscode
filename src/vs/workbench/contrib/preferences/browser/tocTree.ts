@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
-import * as domStylesheetsJs from 'vs/base/browser/domStylesheets.js';
+import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { DefaultStyleController, IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';

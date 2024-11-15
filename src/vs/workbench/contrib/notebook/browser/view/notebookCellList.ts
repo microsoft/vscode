@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import * as domStylesheetsJs from 'vs/base/browser/domStylesheets.js';
+import * as domStylesheetsJs from '../../../../../base/browser/domStylesheets.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IListRenderer, IListVirtualDelegate, ListError } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles, IStyleController } from '../../../../../base/browser/ui/list/listWidget.js';

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, h, isInShadowDOM, reset } from '../../../../../base/browser/dom.js';
-import { createStyleSheet } from 'vs/base/browser/domStylesheets.js';
+import { createStyleSheet } from '../../../../../base/browser/domStylesheets.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
