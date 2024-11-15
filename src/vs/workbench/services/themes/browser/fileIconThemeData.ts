@@ -13,9 +13,9 @@ import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { mainWindow } from '../../../../base/browser/window.js';
 import { fontCharacterRegex, fontColorRegex, fontSizeRegex } from '../common/productIconThemeSchema.js';
 import * as css from '../../../../base/browser/cssValue.js';
+import { fileIconSelectorEscape } from '../../../../editor/common/services/getIconClasses.js';
 
 export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
@@ -257,12 +257,12 @@ export class FileIconThemeLoader {
 			}
 
 			if (associations) {
-				let qualifier = css.selector(`.show-file-icons`);
+				let qualifier = css.inline`.show-file-icons`;
 				if (baseThemeClassName) {
 					qualifier = css.inline`${baseThemeClassName} ${qualifier}`;
 				}
 
-				const expanded = css.selector('.monaco-tl-twistie.collapsible:not(.collapsed) + .monaco-tl-contents');
+				const expanded = css.inline`.monaco-tl-twistie.collapsible:not(.collapsed) + .monaco-tl-contents`;
 
 				if (associations.folder) {
 					addSelector(css.inline`${qualifier} .folder-icon::before`, associations.folder);
@@ -352,7 +352,7 @@ export class FileIconThemeLoader {
 							for (let i = 0; i < segments.length; i++) {
 								selectors.push(css.inline`.${classSelectorPart(segments.slice(i).join('.'))}-ext-file-icon`);
 							}
-							selectors.push(css.selector('.ext-file-icon')); // extra segment to increase file-ext score
+							selectors.push(css.inline`.ext-file-icon`); // extra segment to increase file-ext score
 						}
 						addSelector(css.inline`${qualifier} ${selectors.join('')}.file-icon::before`, fileExtensions[key]);
 						result.hasFileIcons = true;
@@ -365,13 +365,13 @@ export class FileIconThemeLoader {
 						const selectors = new css.Builder();
 						const fileName = handleParentFolder(key.toLowerCase(), selectors);
 						selectors.push(css.inline`.${classSelectorPart(fileName)}-name-file-icon`);
-						selectors.push(css.selector('.name-file-icon')); // extra segment to increase file-name score
+						selectors.push(css.inline`.name-file-icon`); // extra segment to increase file-name score
 						const segments = fileName.split('.');
 						if (segments.length) {
 							for (let i = 1; i < segments.length; i++) {
 								selectors.push(css.inline`.${classSelectorPart(segments.slice(i).join('.'))}-ext-file-icon`);
 							}
-							selectors.push(css.selector('.ext-file-icon')); // extra segment to increase file-ext score
+							selectors.push(css.inline`.ext-file-icon`); // extra segment to increase file-ext score
 						}
 						addSelector(css.inline`${qualifier} ${selectors.join('')}.file-icon::before`, fileNames[key]);
 						result.hasFileIcons = true;
@@ -381,9 +381,9 @@ export class FileIconThemeLoader {
 			}
 		}
 		collectSelectors(iconThemeDocument);
-		collectSelectors(iconThemeDocument.light, css.selector('.vs'));
-		collectSelectors(iconThemeDocument.highContrast, css.selector('.hc-black'));
-		collectSelectors(iconThemeDocument.highContrast, css.selector('.hc-light'));
+		collectSelectors(iconThemeDocument.light, css.inline`.vs`);
+		collectSelectors(iconThemeDocument.highContrast, css.inline`.hc-black`);
+		collectSelectors(iconThemeDocument.highContrast, css.inline`.hc-light`);
 
 		if (!result.hasFileIcons && !result.hasFolderIcons) {
 			return result;
@@ -400,14 +400,14 @@ export class FileIconThemeLoader {
 			fonts.forEach(font => {
 				const fontSrcs = new css.Builder();
 				fontSrcs.push(...font.src.map(l => css.inline`${css.asCSSUrl(resolvePath(l.path))} format(${css.stringValue(l.format)})`));
-				cssRules.push(css.inline`@font-face { src: ${fontSrcs.join(', ')}; font-family: ${css.stringValue(font.id)}; font-weight: ${css.value(font.weight)}; font-style: ${css.value(font.style)}; font-display: block; }`);
+				cssRules.push(css.inline`@font-face { src: ${fontSrcs.join(', ')}; font-family: ${css.stringValue(font.id)}; font-weight: ${css.identValue(font.weight)}; font-style: ${css.identValue(font.style)}; font-display: block; }`);
 
 				const fontSize = this.tryNormalizeFontSize(font.size);
 				if (fontSize !== undefined && fontSize !== defaultFontSize) {
 					fontSizes.set(font.id, fontSize);
 				}
 			});
-			cssRules.push(css.inline`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: ${css.stringValue(fonts[0].id)}; font-size: ${css.value(defaultFontSize)}; }`);
+			cssRules.push(css.inline`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: ${css.stringValue(fonts[0].id)}; font-size: ${css.identValue(defaultFontSize)}; }`);
 		}
 
 		// Use emQuads to prevent the icon from collapsing to zero height for image icons
@@ -422,14 +422,14 @@ export class FileIconThemeLoader {
 				} else if (definition.fontCharacter || definition.fontColor) {
 					const body = new css.Builder();
 					if (definition.fontColor && definition.fontColor.match(fontColorRegex)) {
-						body.push(css.inline`color: ${css.value(definition.fontColor)};`);
+						body.push(css.inline`color: ${css.hexColorValue(definition.fontColor)};`);
 					}
-					if (definition.fontCharacter && definition.fontColor.match(fontCharacterRegex)) {
+					if (definition.fontCharacter && definition.fontCharacter.match(fontCharacterRegex)) {
 						body.push(css.inline`content: ${css.stringValue(definition.fontCharacter)};`);
 					}
 					const fontSize = definition.fontSize ?? (definition.fontId ? fontSizes.get(definition.fontId) : undefined);
 					if (fontSize && fontSize.match(fontSizeRegex)) {
-						body.push(css.inline`font-size: ${css.value(fontSize)};`);
+						body.push(css.inline`font-size: ${css.sizeValue(fontSize)};`);
 					}
 					if (definition.fontId) {
 						body.push(css.inline`font-family: ${css.stringValue(definition.fontId)};`);
@@ -493,6 +493,6 @@ function handleParentFolder(key: string, selectors: css.Builder): string {
 }
 
 function classSelectorPart(str: string): css.CssFragment {
-	str = str.replace(/[\s]/g, '/'); // HTML class names can not contain certain whitespace characters (https://dom.spec.whatwg.org/#interface-domtokenlist), use / instead, which doesn't exist in file names.
+	str = fileIconSelectorEscape(str);
 	return css.className(str);
 }
