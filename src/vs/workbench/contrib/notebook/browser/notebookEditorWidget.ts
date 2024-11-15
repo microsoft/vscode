@@ -18,6 +18,7 @@ import './media/notebookEditorStickyScroll.css';
 import './media/notebookKernelActionViewItem.css';
 import './media/notebookOutline.css';
 import './media/notebookChatEditController.css';
+import './media/notebookChatEditorOverlay.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { IMouseWheelEvent, StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
