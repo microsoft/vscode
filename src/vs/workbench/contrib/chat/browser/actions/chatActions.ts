@@ -459,17 +459,11 @@ export function registerChatActions() {
 				id: LearnMoreChatAction.ID,
 				title: LearnMoreChatAction.TITLE,
 				category: CHAT_CATEGORY,
-				menu: [{
-					id: MenuId.ChatCommandCenter,
-					group: 'a_open',
-					order: 2,
-					when: ChatContextKeys.panelParticipantRegistered.negate()
-				}, {
+				menu: {
 					id: MenuId.ChatCommandCenter,
 					group: 'z_learn',
-					order: 1,
-					when: ChatContextKeys.panelParticipantRegistered
-				}]
+					order: 1
+				}
 			});
 		}
 

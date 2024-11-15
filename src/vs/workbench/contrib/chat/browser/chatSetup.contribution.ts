@@ -36,6 +36,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IChatViewsWelcomeContributionRegistry, ChatViewsWelcomeExtensions } from './viewsWelcome/chatViewsWelcome.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -76,20 +77,21 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 	private static readonly CHAT_EXTENSION_INSTALLED_KEY = 'chat.extensionInstalled';
 
-	private readonly chatSetupSignedInContextKey = ChatContextKeys.ChatSetup.signedIn.bindTo(this.contextService);
-	private readonly chatSetupEntitledContextKey = ChatContextKeys.ChatSetup.entitled.bindTo(this.contextService);
+	private readonly chatSetupSignedInContextKey = ChatContextKeys.ChatSetup.signedIn.bindTo(this.contextKeyService);
+	private readonly chatSetupEntitledContextKey = ChatContextKeys.ChatSetup.entitled.bindTo(this.contextKeyService);
 
 	private resolvedEntitlement: boolean | undefined = undefined;
 
 	constructor(
-		@IContextKeyService private readonly contextService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IProductService private readonly productService: IProductService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IRequestService private readonly requestService: IRequestService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -115,6 +117,37 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 	private registerChatWelcome(): void {
 
+		// Action to hide setup
+		const chatSetupTrigger = this.instantiationService.createInstance(ChatSetupTrigger);
+		const disableChatSetupActionId = 'workbench.action.chat.disableSetup';
+
+		registerAction2(class extends Action2 {
+
+			constructor() {
+				super({
+					id: disableChatSetupActionId,
+					title: localize2('hideChatSetup', "Hide Chat Setup"),
+					f1: false
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const viewsDescriptorService = accessor.get(IViewDescriptorService);
+				const layoutService = accessor.get(IWorkbenchLayoutService);
+
+				const location = viewsDescriptorService.getViewLocationById(CHAT_VIEW_ID);
+
+				chatSetupTrigger.update(false);
+
+				if (location === ViewContainerLocation.AuxiliaryBar) {
+					const activeContainers = viewsDescriptorService.getViewContainersByLocation(location).filter(container => viewsDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
+					if (activeContainers.length === 0) {
+						layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
+					}
+				}
+			}
+		});
+
 		// Setup: Triggered (signed-out)
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
 			title: defaultChat.welcomeTitle,
@@ -127,7 +160,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				ChatContextKeys.panelParticipantRegistered.negate()
 			)!,
 			icon: defaultChat.icon,
-			content: new MarkdownString(`[${localize('signInAndSetup', "Sign in to use {0}", defaultChat.name)}](command:${ChatSetupSignInAndInstallChatAction.ID})\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`, { isTrusted: true }),
+			content: new MarkdownString(`${localize('setupContent', "{0} is your AI pair programmer that helps you write code faster and smarter.", defaultChat.name)}\n\n[${localize('signInAndSetup', "Sign in to use {0}", defaultChat.name)}](command:${ChatSetupSignInAndInstallChatAction.ID})\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl}) | [${localize('hideSetup', "Hide")}](command:${disableChatSetupActionId})`, { isTrusted: true }),
 		});
 
 		// Setup: Triggered (signed-in)
@@ -142,7 +175,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				ChatContextKeys.panelParticipantRegistered.negate()
 			)!,
 			icon: defaultChat.icon,
-			content: new MarkdownString(`[${localize('setup', "Install {0}", defaultChat.name)}](command:${ChatSetupInstallAction.ID})\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`, { isTrusted: true }),
+			content: new MarkdownString(`${localize('setupContent', "{0} is your AI pair programmer that helps you write code faster and smarter.", defaultChat.name)}\n\n[${localize('setup', "Install {0}", defaultChat.name)}](command:${ChatSetupInstallAction.ID})\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl}) | [${localize('hideSetup', "Hide")}](command:${disableChatSetupActionId})`, { isTrusted: true }),
 		});
 
 		// Setup: Signing-in
@@ -300,11 +333,39 @@ class ChatSetupTriggerAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const contextKeyService = accessor.get(IContextKeyService);
 		const viewsService = accessor.get(IViewsService);
+		const instantiationService = accessor.get(IInstantiationService);
 
-		ChatContextKeys.ChatSetup.triggering.bindTo(contextKeyService).set(true);
+		instantiationService.createInstance(ChatSetupTrigger).update(true);
+
 		showChatView(viewsService);
+	}
+}
+
+class ChatSetupTrigger {
+
+	private static readonly CHAT_SETUP_TRIGGERD = 'chat.setupTriggered';
+
+	private readonly chatSetupTriggeringContext = ChatContextKeys.ChatSetup.triggering.bindTo(this.contextKeyService);
+
+	constructor(
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IStorageService private readonly storageService: IStorageService
+	) {
+		if (this.storageService.getBoolean(ChatSetupTrigger.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE)) {
+			this.update(true);
+		}
+	}
+
+	update(enabled: boolean): void {
+		if (enabled) {
+			this.storageService.store(ChatSetupTrigger.CHAT_SETUP_TRIGGERD, enabled, StorageScope.PROFILE, StorageTarget.MACHINE);
+			this.storageService.remove('chat.welcomeMessageContent.panel', StorageScope.APPLICATION); // fixes flicker issues with cached welcome from previous install
+		} else {
+			this.storageService.remove(ChatSetupTrigger.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE);
+		}
+
+		this.chatSetupTriggeringContext.set(enabled);
 	}
 }
 
@@ -321,7 +382,7 @@ class ChatSetupInstallAction extends Action2 {
 			menu: {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_open',
-				order: 1,
+				order: 0,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.panelParticipantRegistered.negate(),
 					ContextKeyExpr.or(
@@ -385,7 +446,7 @@ class ChatSetupSignInAndInstallChatAction extends Action2 {
 			menu: {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_open',
-				order: 1,
+				order: 0,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.panelParticipantRegistered.negate(),
 					ChatContextKeys.ChatSetup.entitled.negate(),
