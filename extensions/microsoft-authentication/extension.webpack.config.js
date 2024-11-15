@@ -25,6 +25,11 @@ module.exports = withDefaults({
 		// gracefully.
 		'./msal-node-runtime': 'commonjs ./msal-node-runtime'
 	},
+	resolve: {
+		alias: {
+			'keytar': path.resolve(__dirname, 'packageMocks', 'keytar', 'index.js')
+		}
+	},
 	plugins: [
 		...withDefaults.nodePlugins(__dirname),
 		new CopyWebpackPlugin({
