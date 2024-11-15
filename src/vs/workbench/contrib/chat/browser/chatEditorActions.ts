@@ -18,8 +18,6 @@ import { hasUndecidedChatEditingResourceContextKey, IChatEditingService } from '
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
-import { ctxNotebookHasEditorModification } from '../../notebook/browser/chatEdit/notebookChatEditController.js';
 
 abstract class NavigateAction extends Action2 {
 
@@ -38,7 +36,7 @@ abstract class NavigateAction extends Action2 {
 					? KeyMod.Alt | KeyCode.F5
 					: KeyMod.Alt | KeyMod.Shift | KeyCode.F5,
 				weight: KeybindingWeight.EditorContrib,
-				when: ContextKeyExpr.and(ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification), EditorContextKeys.focus),
+				when: ContextKeyExpr.and(ctxHasEditorModification, EditorContextKeys.focus),
 			},
 			f1: true,
 			menu: {
@@ -122,7 +120,7 @@ abstract class AcceptDiscardAction extends Action2 {
 				? localize2('accept2', 'Accept')
 				: localize2('discard2', 'Discard'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification)),
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ctxHasEditorModification),
 			icon: accept
 				? Codicon.check
 				: Codicon.discard,
@@ -146,32 +144,20 @@ abstract class AcceptDiscardAction extends Action2 {
 		const chatEditingService = accessor.get(IChatEditingService);
 		const editorService = accessor.get(IEditorService);
 
-		const getUri = () => {
-			const notebookEditor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-			if (notebookEditor) {
-				return notebookEditor.textModel?.uri;
-			}
-			const editor = editorService.activeTextEditorControl;
-			if (!isCodeEditor(editor) || !editor.hasModel()) {
-				return;
-			}
-			return editor.getModel().uri;
-		};
-
-		const uri = getUri();
-		if (!uri) {
+		const editor = editorService.activeTextEditorControl;
+		if (!isCodeEditor(editor) || !editor.hasModel()) {
 			return;
 		}
 
-		const session = chatEditingService.getEditingSession(uri);
+		const session = chatEditingService.getEditingSession(editor.getModel().uri);
 		if (!session) {
 			return;
 		}
 
 		if (this.accept) {
-			session.accept(uri);
+			session.accept(editor.getModel().uri);
 		} else {
-			session.reject(uri);
+			session.reject(editor.getModel().uri);
 		}
 	}
 }
