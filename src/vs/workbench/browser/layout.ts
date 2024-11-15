@@ -463,9 +463,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.mainContainer.classList.add(LayoutClasses.FULLSCREEN);
 		} else {
 			this.mainContainer.classList.remove(LayoutClasses.FULLSCREEN);
-
-			const zenModeExitInfo = this.stateModel.getRuntimeValue(LayoutStateKeys.ZEN_MODE_EXIT_INFO);
-			if (zenModeExitInfo.transitionedToFullScreen && this.isZenModeActive()) {
+			if (this.isZenModeActive()) {
 				this.toggleZenMode();
 			}
 		}
