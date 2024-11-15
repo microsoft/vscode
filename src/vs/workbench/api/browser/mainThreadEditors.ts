@@ -13,7 +13,7 @@ import { ISelection } from '../../../editor/common/core/selection.js';
 import { IDecorationOptions, IDecorationRenderOptions } from '../../../editor/common/editorCommon.js';
 import { ISingleEditOperation } from '../../../editor/common/core/editOperation.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
-import { ITextEditorOptions, IResourceEditorInput, EditorActivation, EditorResolution, ITextEditorDiffInformation, isTextEditorDiffInformationEqual } from '../../../platform/editor/common/editor.js';
+import { ITextEditorOptions, IResourceEditorInput, EditorActivation, EditorResolution, ITextEditorDiffInformation, isTextEditorDiffInformationEqual, ITextEditorDiff } from '../../../platform/editor/common/editor.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { MainThreadTextEditor } from './mainThreadEditor.js';
 import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, TextEditorRevealType } from '../common/extHost.protocol.js';
@@ -95,10 +95,6 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		const diffInformationObs = this._getTextEditorDiffInformation(textEditor);
 		toDispose.push(autorun(reader => {
 			const diffInformation = diffInformationObs.read(reader);
-			if (!diffInformation) {
-				return;
-			}
-
 			this._proxy.$acceptEditorDiffInformation(id, diffInformation);
 			console.log('$acceptEditorDiffInformation: ', diffInformation);
 		}));
@@ -134,9 +130,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	private _getTextEditorDiffInformation(textEditor: MainThreadTextEditor): IObservable<ITextEditorDiffInformation | undefined> {
 		const codeEditor = textEditor.getCodeEditor();
-		const codeEditorTextModel = codeEditor?.getModel();
-
-		if (!codeEditor || !codeEditorTextModel) {
+		if (!codeEditor) {
 			return constObservable(undefined);
 		}
 
@@ -146,20 +140,18 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			d.getOriginalEditor().getId() === codeEditor.getId() ||
 			d.getModifiedEditor().getId() === codeEditor.getId());
 
-		const uriObs = !diffEditor ?
-			constObservable(codeEditorTextModel.uri) :
-			observableFromEvent(this, diffEditor.onDidChangeModel, () => diffEditor.getModel()?.modified.uri);
+		const codeEditorTextModelObs = !diffEditor ?
+			observableFromEvent(this, codeEditor.onDidChangeModel, () => codeEditor.getModel()) :
+			observableFromEvent(this, diffEditor.onDidChangeModel, () => diffEditor.getModel()?.modified);
 
 		const dirtyDiffModelObs = derived(reader => {
-			const uri = uriObs.read(reader);
-			return uri ? this._dirtyDiffModelService.getOrCreateModel(uri) : undefined;
+			const codeEditorTextModel = codeEditorTextModelObs.read(reader);
+			return codeEditorTextModel ? this._dirtyDiffModelService.getOrCreateModel(codeEditorTextModel.uri) : undefined;
 		});
 
 		const scmQuickDiffChangesObs = derived(reader => {
-			const modifiedUri = uriObs.read(reader);
 			const dirtyDiffModel = dirtyDiffModelObs.read(reader);
-
-			if (!modifiedUri || !dirtyDiffModel) {
+			if (!dirtyDiffModel) {
 				return constObservable(undefined);
 			}
 
@@ -182,17 +174,13 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			owner: this,
 			equalsFn: (diff1, diff2) => isTextEditorDiffInformationEqual(this._uriIdentityService, diff1, diff2)
 		}, reader => {
+			const codeEditorTextModel = codeEditorTextModelObs.read(reader);
 			const scmQuickDiffChanges = scmQuickDiffChangesObs.read(reader).read(reader);
-			if (!scmQuickDiffChanges) {
+			if (!codeEditorTextModel || !scmQuickDiffChanges) {
 				return undefined;
 			}
 
-			const diff: [
-				number /* originalStartLineNumber */,
-				number /* originalEndLineNumber */,
-				number /* modifiedStartLineNumber */,
-				number /* modifiedEndLineNumber */
-			][] = scmQuickDiffChanges.changes
+			const diff: ITextEditorDiff[] = scmQuickDiffChanges.changes
 				.map(change => [
 					change.originalStartLineNumber,
 					change.originalEndLineNumber,
@@ -203,7 +191,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			return {
 				documentVersion: codeEditorTextModel.getVersionId(),
 				original: scmQuickDiffChanges.originalResource,
-				modified: uriObs.get()!,
+				modified: codeEditorTextModel.uri,
 				diff
 			};
 		});

@@ -604,7 +604,7 @@ export class ExtHostTextEditor {
 		this._selections = selections;
 	}
 
-	_acceptDiffInformation(diffInformation: vscode.TextEditorDiffInformation): void {
+	_acceptDiffInformation(diffInformation: vscode.TextEditorDiffInformation | undefined): void {
 		ok(!this._disposed);
 		this._diffInformation = diffInformation;
 	}

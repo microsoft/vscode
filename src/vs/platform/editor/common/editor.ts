@@ -379,16 +379,18 @@ export interface ITextEditorOptions extends IEditorOptions {
 	selectionSource?: TextEditorSelectionSource | string;
 }
 
+export type ITextEditorDiff = [
+	originalStartLineNumber: number,
+	originalEndLineNumber: number,
+	modifiedStartLineNumber: number,
+	modifiedEndLineNumber: number
+];
+
 export interface ITextEditorDiffInformation {
 	readonly documentVersion: number;
 	readonly original: URI | undefined;
 	readonly modified: URI | undefined;
-	readonly diff: readonly [
-		number /* originalStartLineNumber */,
-		number /* originalEndLineNumber */,
-		number /* modifiedStartLineNumber */,
-		number /* modifiedEndLineNumber */
-	][];
+	readonly diff: readonly ITextEditorDiff[];
 }
 
 export function isTextEditorDiffInformationEqual(

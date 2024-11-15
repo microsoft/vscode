@@ -160,32 +160,50 @@ export class ExtHostEditors extends Disposable implements ExtHostEditorsShape {
 		}
 	}
 
-	$acceptEditorDiffInformation(id: string, diffInformation: ITextEditorDiffInformation): void {
+	$acceptEditorDiffInformation(id: string, diffInformation: ITextEditorDiffInformation | undefined): void {
 		const textEditor = this._extHostDocumentsAndEditors.getEditor(id);
 		if (!textEditor) {
 			throw new Error('unknown text editor');
 		}
 
+		if (!diffInformation) {
+			textEditor._acceptDiffInformation(undefined);
+			this._onDidChangeTextEditorDiffInformation.fire({
+				textEditor: textEditor.value,
+				diffInformation: undefined
+			});
+			return;
+		}
+
 		const original = URI.revive(diffInformation.original);
 		const modified = URI.revive(diffInformation.modified);
 
-		const diff = diffInformation.diff.map(d => {
-			const kind = d[1] /* originalEndLineNumber */ === 0 ? TextEditorDiffKind.Addition :
-				d[3] /* modifiedEndLineNumber */ === 0 ? TextEditorDiffKind.Deletion : TextEditorDiffKind.Modification;
+		const diff = diffInformation.diff.map(diff => {
+			const [originalStartLineNumber, originalEndLineNumber, modifiedStartLineNumber, modifiedEndLineNumber] = diff;
+
+			const kind = originalEndLineNumber === 0 ? TextEditorDiffKind.Addition :
+				modifiedEndLineNumber === 0 ? TextEditorDiffKind.Deletion : TextEditorDiffKind.Modification;
 
 			return {
-				originalStartLineNumber: d[0],
-				originalEndLineNumber: d[1],
-				modifiedStartLineNumber: d[2],
-				modifiedEndLineNumber: d[3],
+				originalStartLineNumber,
+				originalEndLineNumber,
+				modifiedStartLineNumber,
+				modifiedEndLineNumber,
 				kind
 			} satisfies vscode.TextEditorDiff;
 		});
 
-		textEditor._acceptDiffInformation({ documentVersion: diffInformation.documentVersion, original, modified, diff });
+		const result = Object.freeze({
+			documentVersion: diffInformation.documentVersion,
+			original,
+			modified,
+			diff
+		});
+
+		textEditor._acceptDiffInformation(result);
 		this._onDidChangeTextEditorDiffInformation.fire({
 			textEditor: textEditor.value,
-			diffInformation: { documentVersion: diffInformation.documentVersion, original, modified, diff }
+			diffInformation: result
 		});
 	}
 
