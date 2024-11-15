@@ -13,6 +13,9 @@ import { isReplEditorControl } from '../../replNotebook/browser/replEditor.js';
 import { IS_COMPOSITE_NOTEBOOK, NOTEBOOK_CELL_LIST_FOCUSED } from '../common/notebookContextKeys.js';
 import { getAllOutputsText } from './viewModel/cellOutputTextHelper.js';
 
+/**
+ * The REPL input is already accessible, so we can show a view for the most recent execution output.
+ */
 export class ReplEditorAccessibleView implements IAccessibleViewImplentation {
 	readonly priority = 100;
 	readonly name = 'replEditorInput';
