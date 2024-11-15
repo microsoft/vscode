@@ -5,10 +5,10 @@
 
 import { BaseDecoder } from '../baseDecoder.js';
 import { NewLine } from '../linesCodec/tokens/index.js';
-import { LinesDecoder, TLineToken } from '../linesCodec/linesDecoder.js';
-import { Word, Space, Tab, } from '../simpleCodec/tokens/index.js';
-import { ReadableStream } from '../../../../base/common/stream.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { ReadableStream } from '../../../../base/common/stream.js';
+import { Word, Space, Tab, } from '../simpleCodec/tokens/index.js';
+import { LinesDecoder, TLineToken } from '../linesCodec/linesDecoder.js';
 
 /**
  * A token type that this decoder can handle.
@@ -18,13 +18,11 @@ export type TSimpleToken = Word | Space | Tab | NewLine;
 // Note! the `\n` is excluded because this decoder based on lines
 // Characters that stop a word sequence.
 // 	     hence can't ever receive a line that contains a `newline`.
-// TODO: @legomushroom - check these too \n, '\r', '\v', '\f'
-// TODO: @legomushroom - use character consts
-const STOP_CHARACTERS = [' ', '\t'];
+const STOP_CHARACTERS = [Space.symbol, Tab.symbol];
 
 /**
- * A decoder that can decode a stream of `Line`s into
- * a stream of `Word`, `Space`, `Tab`, `NewLine` tokens, etc.
+ * A decoder that can decode a stream of `Line`s into a stream
+ * of simple token, - `Word`, `Space`, `Tab`, `NewLine`, etc.
  */
 export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineToken> {
 	constructor(
@@ -48,7 +46,7 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineToken> {
 			const columnNumber = i + 1;
 
 			// if a space character, emit a `Space` token and continue
-			if (token.text[i] === ' ') { // TODO: @legomushroom - use const instead of `space`
+			if (token.text[i] === Space.symbol) {
 				this._onData.fire(Space.newOnLine(token, columnNumber));
 
 				i++;
@@ -56,7 +54,7 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineToken> {
 			}
 
 			// if a tab character, emit a `Tab` token and continue
-			if (token.text[i] === '\t') { // TODO: @legomushroom - use const instead of `\t`
+			if (token.text[i] === Tab.symbol) {
 				this._onData.fire(Tab.newOnLine(token, columnNumber));
 
 				i++;

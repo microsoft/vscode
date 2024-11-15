@@ -9,22 +9,27 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 
 /**
- * A token that represent a single `space` with a `range`.
- * The `range` reflects the position of the space in the original data.
+ * A token that represent a `space` with a `range`. The `range`
+ * value reflects the position of the token in the original data.
  */
 export class Space extends RangedToken {
-	// TODO: @legomushroom
+	/**
+	 * The underlying symbol of the `Space` token.
+	 */
+	public static readonly symbol: string = ' ';
+
+	/**
+	 * Create new `Space` token with range inside
+	 * the given `Line` at the given `column number`.
+	 */
 	public static newOnLine(
-		// TODO: @legomushroom
 		line: Line,
-		// TODO: @legomushroom
 		atColumnNumber: number,
 	): Space {
 		const { range } = line;
 
 		const startPosition = new Position(range.startLineNumber, atColumnNumber);
-		// the space token length is 1, hence `+ 1`
-		const endPosition = new Position(range.startLineNumber, atColumnNumber + 1);
+		const endPosition = new Position(range.startLineNumber, atColumnNumber + this.symbol.length);
 
 		return new Space(Range.fromPositions(
 			startPosition,
@@ -33,16 +38,16 @@ export class Space extends RangedToken {
 	}
 
 	/**
-	 * Return a string representation of the token.
-	 */
-	public override toString(): string {
-		return `space${this.range}`;
-	}
-
-	/**
 	 * Check if this token is equal to another one.
 	 */
 	public equals(other: Space): boolean {
 		return super.sameRange(other.range);
+	}
+
+	/**
+	 * Returns a string representation of the token.
+	 */
+	public override toString(): string {
+		return `space${this.range}`;
 	}
 }

@@ -12,15 +12,6 @@ import { ChatbotPromptCodec } from '../../../common/codecs/chatbotPromptCodec/ch
 import { FileChangesEvent, FileChangeType, IFileService, IFileStreamContent } from '../../../../platform/files/common/files.js';
 
 /**
- * TODO: @legomushroom
- *  - handle recursive child references
- *  - use cancellation tokens
- *  - add tracing/telemetry
- *  - add unit tests
- *  - add more docs
- */
-
-/**
  * Error conditions that may happen during the file reference resolution.
  */
 export type TErrorCondition = FileOpenFailed | RecursiveReference;
@@ -226,7 +217,7 @@ export class PromptFileReference extends Disposable {
 		const childPromises = [];
 		for (const reference of references) {
 			const child = new PromptFileReference(
-				URI.joinPath(this.parentFolder, reference.path), // TODO: unit test the absolute paths
+				URI.joinPath(this.parentFolder, reference.path),
 				this.fileService,
 			);
 
@@ -290,6 +281,24 @@ export class PromptFileReference extends Disposable {
 			.slice(1)
 			// filter out unresolved references
 			.filter(reference => reference.resolveFailed === false);
+	}
+
+	/**
+	 * Check if the current reference is equal to a given one.
+	 */
+	public equals(other: PromptFileReference): boolean {
+		if (!this.sameUri(other.uri)) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Returns a string representation of this reference.
+	 */
+	public override toString() {
+		return `#file:${this.uri.path}`;
 	}
 
 	public override dispose() {

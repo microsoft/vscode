@@ -27,44 +27,21 @@ interface IChatData {
 	resolver: IChatVariableResolver;
 }
 
-/*
- * TODO: @legomushroom
+/**
+ * Helper to run provided `jobs` in parallel and return the `successful`
+ * results in the same order as the original jobs.
  */
-const runJobsAndGetSuccesses = async (jobs: Promise<IChatRequestVariableEntry | null>[]): Promise<IChatRequestVariableEntry[]> => {
+const getJobResults = async (
+	jobs: Promise<IChatRequestVariableEntry | null>[],
+): Promise<IChatRequestVariableEntry[]> => {
 	return (await Promise.allSettled(jobs))
-		// filter out `failed` and `empty` ones
+		// filter out `failed` and `empty` results
 		.filter((result) => {
 			return result.status !== 'rejected' && result.value !== null;
 		})
-		// map to the promise value
+		// extract the result value
 		.map((result) => {
-			// must always be true because of the filter logic above
-			assert(
-				result.status === 'fulfilled',
-				`Failed to resolve variables: unexpected promise result status "${result.status}".`,
-			);
-			assert(
-				result.value !== null,
-				`Failed to resolve variables: promise result must not be null.`,
-			);
-
-			return result.value;
-		});
-};
-
-
-/*
- * TODO: @legomushroom
- */
-const runJobsAndGetSuccesses2 = async (jobs: Promise<IChatRequestVariableEntry[] | null>[]): Promise<IChatRequestVariableEntry[]> => {
-	return (await Promise.allSettled(jobs))
-		// filter out `failed` and `empty` ones
-		.filter((result) => {
-			return result.status !== 'rejected' && result.value !== null;
-		})
-		// map to the promise value
-		.flatMap((result) => {
-			// must always be true because of the filter logic above
+			// assertions below must always be true because of the filter logic above
 			assert(
 				result.status === 'fulfilled',
 				`Failed to resolve variables: unexpected promise result status "${result.status}".`,
@@ -96,7 +73,7 @@ export class ChatVariablesService implements IChatVariablesService {
 		progress: (part: IChatVariableResolverProgress) => void,
 		token: CancellationToken,
 	): Promise<IChatRequestVariableData> {
-		const resolvedVariableJobs: Promise<IChatRequestVariableEntry[] | null>[] = prompt.parts
+		const resolvedVariableJobs: Promise<IChatRequestVariableEntry | null>[] = prompt.parts
 			.map(async (part) => {
 				if (part instanceof ChatRequestVariablePart) {
 					const data = this._resolver.get(part.variableName.toLowerCase());
@@ -117,7 +94,7 @@ export class ChatVariablesService implements IChatVariablesService {
 								return null;
 							}
 
-							return [{
+							return {
 								id: data.data.id,
 								modelDescription: data.data.modelDescription,
 								name: part.variableName,
@@ -126,7 +103,7 @@ export class ChatVariablesService implements IChatVariablesService {
 								references,
 								fullName: data.data.fullName,
 								icon: data.data.icon,
-							}];
+							};
 						} catch (error) {
 							onUnexpectedExternalError(error);
 
@@ -136,42 +113,19 @@ export class ChatVariablesService implements IChatVariablesService {
 				}
 
 				if (part instanceof ChatRequestDynamicVariablePart) {
-					// // TODO: @legomushroom - move the file extension to a constant
-					// if (part.isFile && part.referenceText.endsWith('.copilot-prompt')) {
-					// 	const fileReference = part.toFileReference();
-					// 	const promptReference = new ChatbotPromptReference(fileReference, this.fileService);
-
-					// 	const resolved = (await promptReference.resolve())
-					// 		.flatten();
-
-					// 	return resolved.map(entry => {
-					// 		return {
-					// 			id: part.id, // TODO: @legomushroom - what is the correct `id` here?
-					// 			name: entry.text, // TODO: @legomushroom - what is the correct `name` here?
-					// 			range: entry.range, // TODO: @legomushroom - is the range correct?
-					// 			value: entry.uri,
-					// 			fullName: entry.text, // TODO: @legomushroom - what is the correct `full name` here?
-					// 			icon: part.icon,
-					// 			isFile: true,
-					// 		};
-					// 	});
-					// }
-
-					return [
-						{
-							id: part.id,
-							name: part.referenceText,
-							range: part.range,
-							value: part.data,
-							fullName: part.fullName,
-							icon: part.icon,
-							isFile: part.isFile,
-						},
-					];
+					return {
+						id: part.id,
+						name: part.referenceText,
+						range: part.range,
+						value: part.data,
+						fullName: part.fullName,
+						icon: part.icon,
+						isFile: part.isFile,
+					};
 				}
 
 				if (part instanceof ChatRequestToolPart) {
-					return [{
+					return {
 						id: part.toolId,
 						name: part.toolName,
 						range: part.range,
@@ -179,7 +133,7 @@ export class ChatVariablesService implements IChatVariablesService {
 						isTool: true,
 						icon: ThemeIcon.isThemeIcon(part.icon) ? part.icon : undefined,
 						fullName: part.displayName,
-					}];
+					};
 				}
 
 				return null;
@@ -228,14 +182,18 @@ export class ChatVariablesService implements IChatVariablesService {
 				return null;
 			});
 
-		// run all jobs in parallel
-		const [resolvedVariables, resolvedAttachedContext] = await Promise.all([
-			runJobsAndGetSuccesses2(resolvedVariableJobs),
-			runJobsAndGetSuccesses(resolvedAttachedContextJobs),
-		]);
+		// run all jobs in paralle and get results in the original order
+		// Note! the `getJobResults` call supposed to never fail, therefore
+		// 		 it's ok to `Promise.all` here
+		const [resolvedVariables, resolvedAttachedContext] = await Promise.all(
+			[
+				getJobResults(resolvedVariableJobs),
+				getJobResults(resolvedAttachedContextJobs),
+			],
+		);
 
-		// "reverse" resolved variables making the high index to go
-		// first so that an upcoming replacement is simple
+		// "reverse" resolved variables making the high index
+		// to go first so that an replacement logic is simple
 		resolvedVariables
 			.sort((left, right) => {
 				assertDefined(

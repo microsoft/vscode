@@ -36,7 +36,6 @@ export class FileOpenFailed extends ResolveError {
  * #file:a.md
  * ```
  */
-// TODO: @legomushroom - put this to good use
 export class RecursiveReference extends ResolveError {
 	constructor(
 		public readonly uri: URI,

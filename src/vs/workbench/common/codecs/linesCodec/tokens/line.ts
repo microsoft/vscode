@@ -51,7 +51,7 @@ export class Line extends RangedToken {
 	}
 
 	/**
-	 * Return a string representation of the token.
+	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
 		return `line("${this.text}")${this.range}`;

@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Line } from '../../linesCodec/tokens/line.js';
 import { RangedToken } from '../../rangedToken.js';
+import { Line } from '../../linesCodec/tokens/line.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 
 /**
  * A token that represent a word - a set of continuous
- * characters without `spaces` or `new lines`.
+ * characters without stop characters, like a `space`,
+ * a `tab`, or a `new line`.
  */
 export class Word extends RangedToken {
 	constructor(
@@ -27,23 +28,23 @@ export class Word extends RangedToken {
 		super(range);
 	}
 
-	// TODO: @legomushroom
+	/**
+	 * Create new `Word` token with the given `text` and the range
+	 * inside the given `Line` at the specified `column number`.
+	 */
 	public static newOnLine(
-		// string value of the word,
-		value: string,
-		// TODO: @legomushroom
+		text: string,
 		line: Line,
-		// TODO: @legomushroom
 		atColumnNumber: number,
 	): Word {
 		const { range } = line;
 
 		const startPosition = new Position(range.startLineNumber, atColumnNumber);
-		const endPosition = new Position(range.startLineNumber, atColumnNumber + value.length);
+		const endPosition = new Position(range.startLineNumber, atColumnNumber + text.length);
 
 		return new Word(
 			Range.fromPositions(startPosition, endPosition),
-			value,
+			text,
 		);
 	}
 
@@ -59,7 +60,7 @@ export class Word extends RangedToken {
 	}
 
 	/**
-	 * Return a string representation of the token.
+	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {
 		return `word("${this.text.slice(0, 8)}")${this.range}`;

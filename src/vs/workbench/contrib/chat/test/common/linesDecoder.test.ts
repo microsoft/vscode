@@ -66,7 +66,6 @@ suite('LinesDecoder', () => {
 					new Line(3, ''),
 					new NewLine(new Range(3, 1, 3, 2)),
 					new Line(4, ' 😊 '),
-					// TODO: @legomushroom - is this correct? the previous line is `3` or `4` characters long? also check the other emoji cases
 					new NewLine(new Range(4, 5, 4, 6)),
 					new Line(5, ' '),
 				],

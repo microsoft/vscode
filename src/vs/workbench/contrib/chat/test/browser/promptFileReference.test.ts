@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -13,26 +14,37 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 
-interface IFsNode {
+/**
+ * Represents a file system node.
+ */
+interface IFilesystemNode {
 	name: string;
 }
 
-interface IFile extends IFsNode {
+/**
+ * Represents a file node.
+ */
+interface IFile extends IFilesystemNode {
 	contents: string;
 }
 
-interface IFolder extends IFsNode {
+/**
+ * Represents a folder node.
+ */
+interface IFolder extends IFilesystemNode {
 	children: (IFolder | IFile)[];
 }
 
-// create provided folder structure with all its nested children
+/**
+ * Create the provided filesystem folder structure.
+ */
 const createFolder = async (
 	fileService: IFileService,
 	folder: IFolder,
-	rootFolder?: URI,
+	parentFolder?: URI,
 ): Promise<void> => {
-	const folderUri = rootFolder
-		? URI.joinPath(rootFolder, folder.name)
+	const folderUri = parentFolder
+		? URI.joinPath(parentFolder, folder.name)
 		: URI.file(folder.name);
 
 	if (await fileService.exists(folderUri)) {
@@ -48,24 +60,23 @@ const createFolder = async (
 			continue;
 		}
 
-		// create child folder
+		// recursively create child filesystem structure
 		await createFolder(fileService, child, childUri);
 	}
 };
 
+// TODO: @legomushroom - unit test the absolute paths
+
 suite('ChatbotPromptReference', function () {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	// TODO: @legomushroom - finish the test
 	test('resolves nested file references', async function () {
-		// const fileService = testDisposables.add(new TestFileService());
-		// Set up filesystem
+		// set up mocked filesystem
 		const fileService = testDisposables.add(new FileService(new NullLogService()));
 		const fileSystemProvider = testDisposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(Schemas.file, fileSystemProvider);
+		testDisposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 
 		const filesStructure: IFolder = {
-			// TODO: @legomushroom - generate a random name?
 			name: 'resolves-nested-file-references',
 			children: [
 				{
@@ -98,29 +109,53 @@ suite('ChatbotPromptReference', function () {
 			],
 		};
 
+		const rootFolder = URI.file(`/${filesStructure.name}`);
+
 		// create the files structure on the disk
 		await createFolder(
 			fileService,
 			filesStructure,
 		);
 
-		// const expectedTree = [
-		// 	new ChatbotPromptReference(
-		// 		new FileReference(
-		// 			new Range(2, 15, 2, 15 + 23),
-		// 			'#file:folder1/file3.txt',
-		// 			URI.joinPath(rootFolder, 'test-name/folder1/file3.txt'),
-		// 		),
-		// 		fileService,
-		// 	)),
-		// ];
+		const expectedReferences = [
+			testDisposables.add(new PromptFileReference(
+				URI.joinPath(rootFolder, './file2.txt'),
+				fileService,
+			)),
+			testDisposables.add(new PromptFileReference(
+				URI.joinPath(rootFolder, './folder1/file3.txt'),
+				fileService,
+			)),
+		];
 
-		const reference = new PromptFileReference(
+		const rootReference = testDisposables.add(new PromptFileReference(
 			URI.file(`/${filesStructure.name}/file2.txt`),
 			fileService,
-		);
+		));
 
-		const resolved = await reference.resolve();
-		console.log('resolved', resolved);
+		const resolvedReferences = (await rootReference.resolve(true))
+			.flatten();
+
+		for (let i = 0; i < expectedReferences.length; i++) {
+			const expectedReference = expectedReferences[i];
+			const resolvedReference = resolvedReferences[i];
+
+			assert(
+				resolvedReference.equals(expectedReference),
+				[
+					`Expected ${i}th resolved reference to be ${expectedReference}`,
+					`got ${resolvedReference}.`,
+				].join(', ')
+			);
+		}
+
+		assert.strictEqual(
+			resolvedReferences.length,
+			expectedReferences.length,
+			[
+				`Expected to resolve ${expectedReferences.length} references`,
+				`got ${resolvedReferences.length}.`,
+			].join(', ')
+		);
 	});
 });

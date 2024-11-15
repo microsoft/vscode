@@ -9,22 +9,28 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 
 /**
- * A token that represent a single `space` with a `range`.
- * The `range` reflects the position of the space in the original data.
+ * A token that represent a `tab` with a `range`. The `range`
+ * value reflects the position of the token in the original data.
  */
 export class Tab extends RangedToken {
-	// TODO: @legomushroom
+	/**
+	 * The underlying symbol of the `Tab` token.
+	 */
+	public static readonly symbol: string = '\t';
+
+	/**
+	 * Create new `Tab` token with range inside
+	 * the given `Line` at the given `column number`.
+	 */
 	public static newOnLine(
-		// TODO: @legomushroom
 		line: Line,
-		// TODO: @legomushroom
 		atColumnNumber: number,
 	): Tab {
 		const { range } = line;
 
 		const startPosition = new Position(range.startLineNumber, atColumnNumber);
 		// the tab token length is 1, hence `+ 1`
-		const endPosition = new Position(range.startLineNumber, atColumnNumber + 1);
+		const endPosition = new Position(range.startLineNumber, atColumnNumber + this.symbol.length);
 
 		return new Tab(Range.fromPositions(
 			startPosition,
@@ -33,16 +39,16 @@ export class Tab extends RangedToken {
 	}
 
 	/**
-	 * Return a string representation of the token.
-	 */
-	public override toString(): string {
-		return `tab${this.range}`;
-	}
-
-	/**
 	 * Check if this token is equal to another one.
 	 */
 	public equals(other: Tab): boolean {
 		return super.sameRange(other.range);
+	}
+
+	/**
+	 * Returns a string representation of the token.
+	 */
+	public override toString(): string {
+		return `tab${this.range}`;
 	}
 }
