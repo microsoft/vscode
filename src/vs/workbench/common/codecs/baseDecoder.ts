@@ -16,7 +16,7 @@ import { TStreamListenerNames } from './types/TStreamListenerEventNames.js';
  */
 // TODO: @legomushroom - when a decoder is disposed, we need to emit/throw errors
 // 						 if the object still being used by someone
-export abstract class BaseDecoder<T extends NonNullable<unknown>, K = unknown> extends Disposable implements ReadableStream<T> {
+export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonNullable<unknown> = NonNullable<unknown>> extends Disposable implements ReadableStream<T> {
 	protected ended = false;
 
 	protected readonly _onData = this._register(new Emitter<T>());
@@ -42,6 +42,12 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K = unknown> e
 		this.stream.on('data', this.tryOnStreamData);
 		this.stream.on('error', this.onStreamError);
 		this.stream.on('end', this.onStreamEnd);
+
+		// if a decoder provided as a stream, call its `start`
+		// method to ensure that the decoders can be composed
+		if (this.stream instanceof BaseDecoder) {
+			this.stream.start();
+		}
 
 		return this;
 	}
@@ -203,28 +209,8 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K = unknown> e
 		this._onError.fire(error);
 	}
 
-	// /**
-	//  * TODO: @legomushroom
-	//  */
-	// public next(): Promise<T | null> {
-	// 	if (this.ended) {
-	// 		return Promise.resolve(null);
-	// 	}
-
-	// 	return new Promise<T | null>((resolve) => {
-	// 		const callback = (maybeData?: T) => {
-	// 			resolve(maybeData ?? null);
-	// 			this.removeListener('data', callback);
-	// 			this.removeListener('end', callback);
-	// 		};
-
-	// 		this.on('data', callback);
-	// 		this.on('end', callback);
-	// 	});
-	// }
-
 	/**
-	 * TODO: @legomushroom
+	 * Async iterator interface for the decoder.
 	 */
 	[Symbol.asyncIterator](): AsyncIterator<T | null> {
 		const asyncDecoder = this._register(new AsyncDecoder(this));
@@ -253,7 +239,7 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K = unknown> e
 /**
  * TODO: @legomushroom
  */
-class AsyncDecoder<T extends NonNullable<unknown>, K> extends Disposable {
+class AsyncDecoder<T extends NonNullable<unknown>, K extends NonNullable<unknown> = NonNullable<unknown>> extends Disposable {
 	// TODO: @legomushroom
 	private readonly messages: T[] = [];
 	// TODO: @legomushroom

@@ -8,7 +8,6 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { newWriteableStream } from '../../../../../base/common/stream.js';
 import { NewLine } from '../../../../common/codecs/linesCodec/tokens/newLine.js';
-import { LinesDecoder } from '../../../../common/codecs/linesCodec/linesDecoder.js';
 import { Word, Space, Tab } from '../../../../common/codecs/simpleCodec/tokens/index.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SimpleDecoder, TSimpleToken } from '../../../../common/codecs/simpleCodec/simpleDecoder.js';
@@ -42,9 +41,7 @@ export class TestSimpleDecoder extends TestDecoder<TSimpleToken, SimpleDecoder> 
 		expectedTokens: readonly TSimpleToken[],
 	) {
 		const stream = newWriteableStream<VSBuffer>(null);
-		const decoder = new SimpleDecoder(
-			new LinesDecoder(stream),
-		);
+		const decoder = new SimpleDecoder(stream);
 
 		super(
 			decoder,

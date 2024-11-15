@@ -7,8 +7,6 @@ import { TestDecoder } from './utils/testDecoder.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { newWriteableStream } from '../../../../../base/common/stream.js';
-import { LinesDecoder } from '../../../../common/codecs/linesCodec/linesDecoder.js';
-import { SimpleDecoder } from '../../../../common/codecs/simpleCodec/simpleDecoder.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileReference } from '../../../../common/codecs/chatbotPromptCodec/tokens/fileReference.js';
 import { ChatbotPromptDecoder, TChatbotPromptToken } from '../../../../common/codecs/chatbotPromptCodec/chatbotPromptDecoder.js';
@@ -23,13 +21,12 @@ import { ChatbotPromptDecoder, TChatbotPromptToken } from '../../../../common/co
  * // create a new test utility instance
  * const test = testDisposables.add(
  * new TestChatbotPromptDecoder(
- *   ' hello world\n',
+ *   ' hello #file:./some-file.md world\n',
  * 	 [
- * 	   new Space(new Range(1, 1, 1, 2)),
- * 	   new Word(new Range(1, 2, 1, 7), 'hello'),
- * 	   new Space(new Range(1, 7, 1, 8)),
- * 	   new Word(new Range(1, 8, 1, 13), 'world'),
- * 	   new NewLine(new Range(1, 13, 1, 14)),
+ * 	   new FileReference(
+ * 	     new Range(1, 8, 1, 28),
+ * 	     './some-file.md',
+ * 	   ),
  *   ]),
  * );
  *
@@ -42,11 +39,7 @@ export class TestChatbotPromptDecoder extends TestDecoder<TChatbotPromptToken, C
 		expectedTokens: readonly TChatbotPromptToken[],
 	) {
 		const stream = newWriteableStream<VSBuffer>(null);
-		const decoder = new ChatbotPromptDecoder(
-			new SimpleDecoder(
-				new LinesDecoder(stream),
-			),
-		);
+		const decoder = new ChatbotPromptDecoder(stream);
 
 		super(
 			decoder,

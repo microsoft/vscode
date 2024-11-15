@@ -18,7 +18,7 @@ export type TLineToken = Line | NewLine;
  * The `decoder` part of the `LinesCodec` and is able to transform
  * data from a binary stream into a stream of text lines(`Line`).
  */
-export class LinesDecoder extends BaseDecoder<TLineToken> {
+export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 	// Remaining received string data yet to be processed.
 	private buffer: string = '';
 

@@ -6,7 +6,9 @@
 import { BaseDecoder } from '../baseDecoder.js';
 import { Word } from '../simpleCodec/tokens/index.js';
 import { FileReference } from './tokens/fileReference.js';
-import { TSimpleToken } from '../simpleCodec/simpleDecoder.js';
+import { SimpleDecoder, TSimpleToken } from '../simpleCodec/simpleDecoder.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { ReadableStream } from '../../../../base/common/stream.js';
 
 // Tokens handled by the `ChatbotPromptDecoder` decoder.
 export type TChatbotPromptToken = FileReference;
@@ -15,18 +17,11 @@ export type TChatbotPromptToken = FileReference;
  * TODO: @legomushroom
  */
 export class ChatbotPromptDecoder extends BaseDecoder<TChatbotPromptToken, TSimpleToken> {
+
 	constructor(
-		stream: BaseDecoder<TSimpleToken>,
+		stream: ReadableStream<VSBuffer>,
 	) {
-		super(stream);
-	}
-
-	public override start(): this {
-		super.start();
-
-		(this.stream as BaseDecoder<TSimpleToken>).start(); // TODO: @legomushroom - fix this
-
-		return this;
+		super(new SimpleDecoder(stream));
 	}
 
 	protected override onStreamData(simpleToken: TSimpleToken): void {

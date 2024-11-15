@@ -5,8 +5,10 @@
 
 import { BaseDecoder } from '../baseDecoder.js';
 import { NewLine } from '../linesCodec/tokens/index.js';
-import { TLineToken } from '../linesCodec/linesDecoder.js';
+import { LinesDecoder, TLineToken } from '../linesCodec/linesDecoder.js';
 import { Word, Space, Tab, } from '../simpleCodec/tokens/index.js';
+import { ReadableStream } from '../../../../base/common/stream.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 /**
  * A token type that this decoder can handle.
@@ -26,18 +28,9 @@ const STOP_CHARACTERS = [' ', '\t'];
  */
 export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineToken> {
 	constructor(
-		stream: BaseDecoder<TLineToken>,
+		stream: ReadableStream<VSBuffer>,
 	) {
-		super(stream);
-	}
-
-
-	public override start(): this {
-		super.start();
-
-		(this.stream as BaseDecoder<TLineToken>).start(); // TODO: @legomushroom - fix this
-
-		return this;
+		super(new LinesDecoder(stream));
 	}
 
 	protected override onStreamData(token: TLineToken): void {
