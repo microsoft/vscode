@@ -40,8 +40,7 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 		const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
 		if (currentEditingSession) {
 			const workingSetEntries = currentEditingSession.entries.get();
-			const sent = workingSetEntries.find(entry => entry.state.get() === WorkingSetEntryState.Sent || entry.state.get() === WorkingSetEntryState.Modified || entry.state.get() === WorkingSetEntryState.Accepted || entry.state.get() === WorkingSetEntryState.Rejected);
-			if (sent) {
+			if (workingSetEntries.length > 0) {
 				// Do this only for the initial working set state
 				return;
 			}
@@ -58,7 +57,7 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 					}
 
 					const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
-					if (!currentEditingSession || currentEditingSession.chatSessionId !== widget.viewModel?.sessionId) {
+					if (!currentEditingSession || currentEditingSession.chatSessionId !== widget.viewModel?.sessionId || currentEditingSession.entries.get()) {
 						return; // Might have disposed while we were calculating
 					}
 
