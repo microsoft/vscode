@@ -314,7 +314,7 @@ export class InlineCompletionsModel extends Disposable {
 
 			const commands = item.inlineEdit.inlineCompletion.source.inlineCompletions.commands;
 			const renderExplicitly = this._jumpedTo.read(reader);
-			const inlineEdit = new InlineEdit(edit, currentItemIsCollapsed, renderExplicitly, commands ?? []);
+			const inlineEdit = new InlineEdit(edit, currentItemIsCollapsed, renderExplicitly, commands ?? [], item.inlineEdit.inlineCompletion);
 
 			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: item.inlineEdit, edits: [edit], cursorAtInlineEdit };
 		}
@@ -680,6 +680,17 @@ export class InlineCompletionsModel extends Disposable {
 			this._editor.revealLine(s.inlineEdit.range.startLineNumber);
 			this._editor.focus();
 		});
+	}
+
+	public async handleInlineCompletionShown(inlineCompletion: InlineCompletionItem): Promise<void> {
+		if (!inlineCompletion.shownCommand) {
+			return;
+		}
+		if (inlineCompletion.didShow) {
+			return;
+		}
+		inlineCompletion.markAsShown();
+		await this._commandService.executeCommand(inlineCompletion.shownCommand.id, ...(inlineCompletion.shownCommand.arguments || []));
 	}
 }
 
