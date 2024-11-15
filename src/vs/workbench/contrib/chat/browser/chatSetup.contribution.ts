@@ -320,7 +320,7 @@ class ChatSetupInstallAction extends Action2 {
 			category: CHAT_CATEGORY,
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'a_atfirst',
+				group: 'a_open',
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.panelParticipantRegistered.negate(),
@@ -384,7 +384,7 @@ class ChatSetupSignInAndInstallChatAction extends Action2 {
 			category: CHAT_CATEGORY,
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'a_atfirst',
+				group: 'a_open',
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.panelParticipantRegistered.negate(),
