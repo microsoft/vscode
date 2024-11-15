@@ -7,10 +7,9 @@ import * as os from 'os';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ExecOptionsWithStringEncoding, execSync } from 'child_process';
-import { FigSpec, Option, Subcommand, Suggestion } from './types';
+import completionSpec from './completions/code-insiders';
 
 let cachedAvailableCommands: Set<string> | undefined;
-let cachedCompletionSpecs: FigSpec[] | undefined;
 let cachedBuiltinCommands: Map<string, string[]> | undefined;
 
 function getBuiltinCommands(shell: string): string[] | undefined {
@@ -60,55 +59,6 @@ function getBuiltinCommands(shell: string): string[] | undefined {
 	}
 }
 
-async function findFiles(dir: string, ext: string): Promise<string[]> {
-	let results: string[] = [];
-	const list = await fs.readdir(dir, { withFileTypes: true });
-	for (const file of list) {
-		const filePath = path.resolve(dir, file.name);
-		if (file.isDirectory()) {
-			results = results.concat(await findFiles(filePath, ext));
-		} else if (file.isFile() && file.name.endsWith(ext)) {
-			results.push(filePath);
-		}
-	}
-	return results;
-}
-
-async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[] | undefined> {
-	if (cachedCompletionSpecs) {
-		return cachedCompletionSpecs;
-	}
-	const completionSpecs: FigSpec[] = [];
-	try {
-		const dirPath = path.resolve(__dirname, 'autocomplete');
-		const files = await findFiles(dirPath, '.js');
-
-		const filtered = files.filter(file => commands.has(path.basename(file).replace('.js', '')));
-		if (filtered.length === 0) {
-			return;
-		}
-
-		for (const file of filtered) {
-			try {
-				const module = await import(`${file}`);
-				if (module.default && 'name' in module.default) {
-					completionSpecs.push(module.default);
-				} else {
-					console.warn(`No default export found in ${file} ${JSON.stringify(module)}`);
-				}
-			} catch (e) {
-				console.warn('Error importing completion spec:', file);
-				continue;
-			}
-		}
-
-	} catch (error) {
-		console.warn(`Error importing completion specs: ${error.message}`);
-	}
-	cachedCompletionSpecs = completionSpecs;
-	return completionSpecs;
-}
-
 vscode.window.registerTerminalCompletionProvider({
 	id: 'terminal-suggest',
 	async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { commandLine: string; cursorPosition: number }, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | undefined> {
@@ -118,11 +68,6 @@ vscode.window.registerTerminalCompletionProvider({
 
 		const availableCommands = await getCommandsInPath();
 		if (!availableCommands) {
-			return;
-		}
-
-		const specs = await getCompletionSpecs(availableCommands);
-		if (!specs) {
 			return;
 		}
 
@@ -141,17 +86,29 @@ vscode.window.registerTerminalCompletionProvider({
 		}
 
 		const result: vscode.TerminalCompletionItem[] = [];
+		if (!('options' in completionSpec) || !completionSpec.options) {
+			return;
+		}
 
-		for (const spec of specs) {
-			const commandName = getLabel(spec);
-			if (!commandName || !availableCommands.has(commandName)) {
+		for (const spec of completionSpec.options) {
+			const label = getLabel(spec);
+			if (!label) {
 				continue;
 			}
-
-			if (commandName.startsWith(prefix)) {
-				result.push(createCompletionItem(terminalContext.cursorPosition, prefix, commandName, spec.description));
+			if (label.startsWith(prefix)) {
+				result.push(createCompletionItem(terminalContext.cursorPosition, prefix, label, spec.description));
 			}
 		}
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		for (const command of availableCommands) {
+			if (command.startsWith(prefix)) {
+				result.push(createCompletionItem(terminalContext.cursorPosition, prefix, command));
+			}
+		}
+
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
@@ -159,7 +116,7 @@ vscode.window.registerTerminalCompletionProvider({
 	}
 });
 
-function getLabel(spec: FigSpec | Option | Subcommand | Suggestion): string | undefined {
+function getLabel(spec: Fig.Spec): string | undefined {
 	if (typeof spec.name === 'string') {
 		return spec.name;
 	}
@@ -226,7 +183,7 @@ function getPrefix(commandLine: string, cursorPosition: number): string | undefi
 	const beforeCursor = commandLine.slice(0, cursorPosition);
 
 	// Find the last word boundary before the cursor
-	const match = beforeCursor.match(/\b\w+$/);
+	const match = beforeCursor.match(/[\w-]+$/);
 
 	// Return the match if found, otherwise undefined
 	return match ? match[0] : undefined;
