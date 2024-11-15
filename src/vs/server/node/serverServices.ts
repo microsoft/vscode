@@ -276,7 +276,7 @@ class ServerLogger extends AbstractLogger {
 	}
 
 	trace(message: string, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Trace)) {
+		if (this.canLog(LogLevel.Trace)) {
 			if (this.useColors) {
 				console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
 			} else {
@@ -286,7 +286,7 @@ class ServerLogger extends AbstractLogger {
 	}
 
 	debug(message: string, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Debug)) {
+		if (this.canLog(LogLevel.Debug)) {
 			if (this.useColors) {
 				console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
 			} else {
@@ -296,7 +296,7 @@ class ServerLogger extends AbstractLogger {
 	}
 
 	info(message: string, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Info)) {
+		if (this.canLog(LogLevel.Info)) {
 			if (this.useColors) {
 				console.log(`\x1b[90m[${now()}]\x1b[0m`, message, ...args);
 			} else {
@@ -306,7 +306,7 @@ class ServerLogger extends AbstractLogger {
 	}
 
 	warn(message: string | Error, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Warning)) {
+		if (this.canLog(LogLevel.Warning)) {
 			if (this.useColors) {
 				console.warn(`\x1b[93m[${now()}]\x1b[0m`, message, ...args);
 			} else {
@@ -316,7 +316,7 @@ class ServerLogger extends AbstractLogger {
 	}
 
 	error(message: string, ...args: any[]): void {
-		if (this.checkLogLevel(LogLevel.Error)) {
+		if (this.canLog(LogLevel.Error)) {
 			if (this.useColors) {
 				console.error(`\x1b[91m[${now()}]\x1b[0m`, message, ...args);
 			} else {

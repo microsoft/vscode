@@ -30,7 +30,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatEditingSessionState, ChatEditKind, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, IChatEditingSession, WorkingSetDisplayMetadata, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatEditingMultiDiffSourceResolver } from './chatEditingService.js';
@@ -59,14 +59,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 	private readonly _sequencer = new Sequencer();
 
-	private _workingSet = new ResourceMap<WorkingSetEntryState>();
+	private _workingSet = new ResourceMap<WorkingSetDisplayMetadata>();
 	get workingSet() {
 		this._assertNotDisposed();
 
 		// Return here a reunion between the AI modified entries and the user built working set
-		const result = new ResourceMap<WorkingSetEntryState>(this._workingSet);
+		const result = new ResourceMap<WorkingSetDisplayMetadata>(this._workingSet);
 		for (const entry of this._entriesObs.get()) {
-			result.set(entry.modifiedURI, entry.state.get());
+			result.set(entry.modifiedURI, { state: entry.state.get() });
 		}
 
 		return result;
@@ -101,7 +101,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return linearHistory.slice(linearHistoryIndex).map(s => s.requestId).filter((r): r is string => !!r);
 	});
 
-	private readonly _onDidChange = new Emitter<void>();
+	private readonly _onDidChange = new Emitter<ChatEditingSessionChangeType>();
 	get onDidChange() {
 		this._assertNotDisposed();
 		return this._onDidChange.event;
@@ -155,7 +155,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			entries.forEach(entry => {
 				entry.state.read(reader);
 			});
-			this._onDidChange.fire();
+			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 		}));
 	}
 
@@ -164,7 +164,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		const existingTransientEntries = new ResourceSet();
 		for (const file of this._workingSet.keys()) {
-			if (this._workingSet.get(file) === WorkingSetEntryState.Transient) {
+			if (this._workingSet.get(file)?.state === WorkingSetEntryState.Transient) {
 				existingTransientEntries.add(file);
 			}
 		}
@@ -199,12 +199,12 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 
 		for (const entry of activeEditors) {
-			this._workingSet.set(entry, WorkingSetEntryState.Transient);
+			this._workingSet.set(entry, { state: WorkingSetEntryState.Transient, description: localize('chatEditing.transient', "Open Editor") });
 			didChange = true;
 		}
 
 		if (didChange) {
-			this._onDidChange.fire();
+			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 		}
 	}
 
@@ -213,7 +213,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		if (requestId) {
 			this._snapshots.set(requestId, snapshot);
 			for (const workingSetItem of this._workingSet.keys()) {
-				this._workingSet.set(workingSetItem, WorkingSetEntryState.Sent);
+				this._workingSet.set(workingSetItem, { state: WorkingSetEntryState.Sent });
 			}
 			const linearHistory = this._linearHistory.get();
 			const linearHistoryIndex = this._linearHistoryIndex.get();
@@ -229,7 +229,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private _createSnapshot(requestId: string | undefined): IChatEditingSessionSnapshot {
-		const workingSet = new ResourceMap<WorkingSetEntryState>();
+		const workingSet = new ResourceMap<WorkingSetDisplayMetadata>();
 		for (const [file, state] of this._workingSet) {
 			workingSet.set(file, state);
 		}
@@ -329,7 +329,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				continue;
 			}
 			didRemoveUris = this._workingSet.delete(uri) || didRemoveUris;
-			if (state === WorkingSetEntryState.Transient) {
+			if (state.state === WorkingSetEntryState.Transient || state.state === WorkingSetEntryState.Suggested) {
 				this._removedTransientEntries.add(uri);
 			}
 		}
@@ -338,7 +338,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			return; // noop
 		}
 
-		this._onDidChange.fire();
+		this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 	}
 
 	private _assertNotDisposed(): void {
@@ -361,7 +361,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 		}
 
-		this._onDidChange.fire();
+		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
 	}
 
 	async reject(...uris: URI[]): Promise<void> {
@@ -378,7 +378,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 		}
 
-		this._onDidChange.fire();
+		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
 	}
 
 	async show(): Promise<void> {
@@ -468,11 +468,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._sequencer.queue(() => this._resolve());
 	}
 
-	addFileToWorkingSet(resource: URI) {
+	addFileToWorkingSet(resource: URI, description?: string, proposedState?: WorkingSetEntryState.Suggested): void {
 		const state = this._workingSet.get(resource);
-		if (state === undefined || state === WorkingSetEntryState.Transient) {
-			this._workingSet.set(resource, WorkingSetEntryState.Attached);
-			this._onDidChange.fire();
+		if (!state && proposedState === WorkingSetEntryState.Suggested) {
+			this._workingSet.set(resource, { description, state: WorkingSetEntryState.Suggested });
+			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
+		} else if (state === undefined || state.state === WorkingSetEntryState.Transient) {
+			this._workingSet.set(resource, { description, state: WorkingSetEntryState.Attached });
+			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 		}
 	}
 
@@ -551,7 +554,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 			this._state.set(ChatEditingSessionState.Idle, tx);
 		});
-		this._onDidChange.fire();
+		this._onDidChange.fire(ChatEditingSessionChangeType.Other);
 	}
 
 	private async _getOrCreateModifiedFileEntry(resource: URI, responseModel: IModifiedEntryTelemetryInfo): Promise<ChatEditingModifiedFileEntry> {
@@ -576,11 +579,11 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			this._entriesObs.set(newEntries, undefined);
 			this._workingSet.delete(entry.modifiedURI);
 			entry.dispose();
-			this._onDidChange.fire();
+			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 		}));
 		const entriesArr = [...this._entriesObs.get(), entry];
 		this._entriesObs.set(entriesArr, undefined);
-		this._onDidChange.fire();
+		this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 
 		return entry;
 	}
@@ -614,6 +617,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 export interface IChatEditingSessionSnapshot {
 	requestId: string | undefined;
-	workingSet: ResourceMap<WorkingSetEntryState>;
+	workingSet: ResourceMap<WorkingSetDisplayMetadata>;
 	entries: ResourceMap<ISnapshotEntry>;
 }

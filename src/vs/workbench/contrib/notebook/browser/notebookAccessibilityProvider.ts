@@ -39,6 +39,9 @@ export class NotebookAccessibilityProvider extends Disposable implements IListAc
 			(last: executionUpdate[] | undefined, e: ICellExecutionStateChangedEvent | IExecutionStateChangedEvent) => this.mergeEvents(last, e),
 			100
 		)((updates: executionUpdate[]) => {
+			if (!updates.length) {
+				return;
+			}
 			const viewModel = this.viewModel();
 			if (viewModel) {
 				for (const update of updates) {
@@ -52,7 +55,7 @@ export class NotebookAccessibilityProvider extends Disposable implements IListAc
 				if (this.shouldReadCellOutputs(lastUpdate.state)) {
 					const cell = viewModel.getCellByHandle(lastUpdate.cellHandle);
 					if (cell && cell.outputsViewModels.length) {
-						const text = getAllOutputsText(viewModel.notebookDocument, cell);
+						const text = getAllOutputsText(viewModel.notebookDocument, cell, true);
 						alert(text);
 					}
 				}

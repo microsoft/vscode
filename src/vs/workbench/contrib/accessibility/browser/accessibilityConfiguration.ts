@@ -708,6 +708,12 @@ const configuration: IConfigurationNode = {
 			'type': 'boolean',
 			'description': localize('accessibility.replEditor.readLastExecutedOutput', "Controls whether the output from an execution in the native REPL will be announced."),
 			'default': true,
+		},
+		'accessibility.replEditor.autoFocusReplExecution': {
+			type: 'string',
+			enum: ['none', 'input', 'lastExecution'],
+			default: 'lastExecution',
+			description: localize('replEditor.autoFocusAppendedCell', "Control whether focus should automatically be sent to the REPL when code is executed."),
 		}
 	}
 };
