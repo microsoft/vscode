@@ -38,4 +38,11 @@ export class Space extends RangedToken {
 	public override toString(): string {
 		return `space${this.range}`;
 	}
+
+	/**
+	 * Check if this token is equal to another one.
+	 */
+	public equals(other: Space): boolean {
+		return super.sameRange(other.range);
+	}
 }

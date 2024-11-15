@@ -9,20 +9,16 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { newWriteableStream } from '../../../../../base/common/stream.js';
 import { Line } from '../../../../common/codecs/linesCodec/tokens/line.js';
 import { NewLine } from '../../../../common/codecs/linesCodec/tokens/newLine.js';
-import { LinesDecoder, TLineTokens } from '../../../../common/codecs/linesCodec/linesDecoder.js';
+import { LinesDecoder, TLineToken } from '../../../../common/codecs/linesCodec/linesDecoder.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-
 
 /**
  * A reusable test utility that asserts that a `LinesDecoder` isntance
- * correctly decodes `inputData` into a stream of `TLineTokens` tokens.
+ * correctly decodes `inputData` into a stream of `TLineToken` tokens.
  *
  * ## Examples
  *
  * ```typescript
- * const stream = newWriteableStream<VSBuffer>(null);
- * const decoder = testDisposables.add(new LinesDecoder(stream));
- *
  * // create a new test utility instance
  * const test = testDisposables.add(
  * new TestLinesDecoder(
@@ -36,10 +32,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
  * // run the test
  * await test.run();
  */
-export class TestLinesDecoder extends TestDecoder<TLineTokens, LinesDecoder> {
+export class TestLinesDecoder extends TestDecoder<TLineToken, LinesDecoder> {
 	constructor(
 		inputData: string,
-		expectedTokens: readonly TLineTokens[],
+		expectedTokens: readonly TLineToken[],
 	) {
 		const stream = newWriteableStream<VSBuffer>(null);
 		const decoder = new LinesDecoder(stream);

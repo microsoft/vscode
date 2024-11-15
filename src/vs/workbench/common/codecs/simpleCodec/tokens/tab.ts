@@ -38,4 +38,11 @@ export class Tab extends RangedToken {
 	public override toString(): string {
 		return `tab${this.range}`;
 	}
+
+	/**
+	 * Check if this token is equal to another one.
+	 */
+	public equals(other: Tab): boolean {
+		return super.sameRange(other.range);
+	}
 }

@@ -7,8 +7,9 @@ import assert from 'assert';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { RangedToken } from '../../../../../common/codecs/rangedToken.js';
 import { BaseDecoder } from '../../../../../common/codecs/baseDecoder.js';
-import { Line } from '../../../../../common/codecs/linesCodec/tokens/line.js';
-import { NewLine } from '../../../../../common/codecs/linesCodec/tokens/newLine.js';
+import { Line, NewLine } from '../../../../../common/codecs/linesCodec/tokens/index.js';
+import { Space, Tab, Word } from '../../../../../common/codecs/simpleCodec/tokens/index.js';
+import { FileReference } from '../../../../../common/codecs/chatbotPromptCodec/tokens/fileReference.js';
 
 /**
  * (pseudo)Random boolean generator.
@@ -19,7 +20,6 @@ import { NewLine } from '../../../../../common/codecs/linesCodec/tokens/newLine.
  * randomBoolean(); // generates either `true` or `false`
  * ```
  */
-// TODO: @legomushroom - move out to a separate file?
 const randomBoolean = (): boolean => {
 	return Math.random() > 0.5;
 };
@@ -108,6 +108,62 @@ export class TestDecoder<T extends RangedToken, D extends BaseDecoder<T>> extend
 				assert(
 					receivedtoken instanceof NewLine,
 					`Token '${i}' must be a 'NewLine', got '${receivedtoken}'.`,
+				);
+
+				assert(
+					receivedtoken.equals(expectedToken),
+					`Expected token '${i}' be '${expectedToken}', got '${receivedtoken}'.`,
+				);
+
+				continue;
+			}
+
+			if (expectedToken instanceof Space) {
+				assert(
+					receivedtoken instanceof Space,
+					`Token '${i}' must be a 'Space', got '${receivedtoken}'.`,
+				);
+
+				assert(
+					receivedtoken.equals(expectedToken),
+					`Expected token '${i}' be '${expectedToken}', got '${receivedtoken}'.`,
+				);
+
+				continue;
+			}
+
+			if (expectedToken instanceof Word) {
+				assert(
+					receivedtoken instanceof Word,
+					`Token '${i}' must be a 'Word', got '${receivedtoken}'.`,
+				);
+
+				assert(
+					receivedtoken.equals(expectedToken),
+					`Expected token '${i}' be '${expectedToken}', got '${receivedtoken}'.`,
+				);
+
+				continue;
+			}
+
+			if (expectedToken instanceof Tab) {
+				assert(
+					receivedtoken instanceof Tab,
+					`Token '${i}' must be a 'Tab ', got '${receivedtoken}'.`,
+				);
+
+				assert(
+					receivedtoken.equals(expectedToken),
+					`Expected token '${i}' be '${expectedToken}', got '${receivedtoken}'.`,
+				);
+
+				continue;
+			}
+
+			if (expectedToken instanceof FileReference) {
+				assert(
+					receivedtoken instanceof FileReference,
+					`Token '${i}' must be a 'FileReference ', got '${receivedtoken}'.`,
 				);
 
 				assert(

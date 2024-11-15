@@ -5,7 +5,7 @@
 
 import { BaseDecoder } from '../baseDecoder.js';
 import { NewLine } from '../linesCodec/tokens/index.js';
-import { TLineTokens } from '../linesCodec/linesDecoder.js';
+import { TLineToken } from '../linesCodec/linesDecoder.js';
 import { Word, Space, Tab, } from '../simpleCodec/tokens/index.js';
 
 /**
@@ -24,9 +24,9 @@ const STOP_CHARACTERS = [' ', '\t'];
  * A decoder that can decode a stream of `Line`s into
  * a stream of `Word`, `Space`, `Tab`, `NewLine` tokens, etc.
  */
-export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineTokens> {
+export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineToken> {
 	constructor(
-		stream: BaseDecoder<TLineTokens>,
+		stream: BaseDecoder<TLineToken>,
 	) {
 		super(stream);
 	}
@@ -35,12 +35,12 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineTokens> {
 	public override start(): this {
 		super.start();
 
-		(this.stream as BaseDecoder<TLineTokens>).start(); // TODO: @legomushroom - fix this
+		(this.stream as BaseDecoder<TLineToken>).start(); // TODO: @legomushroom - fix this
 
 		return this;
 	}
 
-	protected override onStreamData(token: TLineTokens): void {
+	protected override onStreamData(token: TLineToken): void {
 		// re-emit new lines
 		if (token instanceof NewLine) {
 			this._onData.fire(token);
