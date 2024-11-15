@@ -489,7 +489,7 @@ function getRealType(type) {
             return type;
     }
 }
-async function processArtifact(artifact, filePath, cosmosDBAccessToken) {
+async function processArtifact(artifact, filePath, cosmosDBAccessToken, blobServiceAccessToken) {
     const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
     if (!match) {
         throw new Error(`Invalid artifact name: ${artifact.name}`);
@@ -505,8 +505,7 @@ async function processArtifact(artifact, filePath, cosmosDBAccessToken) {
     const stream = fs.createReadStream(filePath);
     const [hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]); // CodeQL [SM04514] Using SHA1 only for legacy reasons, we are actually only respecting SHA256
     const log = (...args) => console.log(`[${artifact.name}]`, ...args);
-    const blobServiceUrl = `https://${e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')}.blob.core.windows.net/`;
-    const blobServiceClient = new storage_blob_1.BlobServiceClient(blobServiceUrl, { getToken: () => getAccessToken(blobServiceUrl, process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_ID_TOKEN']) });
+    const blobServiceClient = new storage_blob_1.BlobServiceClient(`https://${e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')}.blob.core.windows.net/`, { getToken: async () => blobServiceAccessToken });
     const containerClient = blobServiceClient.getContainerClient('staging');
     const releaseService = await ESRPReleaseService.create(log, e('RELEASE_TENANT_ID'), e('RELEASE_CLIENT_ID'), e('RELEASE_AUTH_CERT'), e('RELEASE_REQUEST_SIGNING_CERT'), containerClient);
     const friendlyFileName = `${quality}/${version}/${path.basename(filePath)}`;
@@ -536,8 +535,8 @@ async function processArtifact(artifact, filePath, cosmosDBAccessToken) {
 // the CDN and finally update the build in Cosmos DB.
 async function main() {
     if (!node_worker_threads_1.isMainThread) {
-        const { artifact, artifactFilePath, cosmosDBAccessToken } = node_worker_threads_1.workerData;
-        await processArtifact(artifact, artifactFilePath, cosmosDBAccessToken);
+        const { artifact, artifactFilePath, cosmosDBAccessToken, blobServiceAccessToken } = node_worker_threads_1.workerData;
+        await processArtifact(artifact, artifactFilePath, cosmosDBAccessToken, blobServiceAccessToken);
         return;
     }
     const done = new State();
@@ -567,6 +566,9 @@ async function main() {
     let resultPromise = Promise.resolve([]);
     const operations = [];
     const cosmosDBAccessToken = await getAccessToken(e('AZURE_DOCUMENTDB_ENDPOINT'), e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_ID_TOKEN'));
+    console.log('Cosmos DB access token:', cosmosDBAccessToken);
+    const blobServiceAccessToken = await getAccessToken(`https://${e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')}.blob.core.windows.net/`, process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_ID_TOKEN']);
+    console.log('Blob service access token:', blobServiceAccessToken);
     while (true) {
         const [timeline, artifacts] = await Promise.all([(0, retry_1.retry)(() => getPipelineTimeline()), (0, retry_1.retry)(() => getPipelineArtifacts())]);
         const stagesCompleted = new Set(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
@@ -603,7 +605,7 @@ async function main() {
             const artifactFilePath = artifactFilePaths.filter(p => !/_manifest/.test(p))[0];
             processing.add(artifact.name);
             const promise = new Promise((resolve, reject) => {
-                const worker = new node_worker_threads_1.Worker(__filename, { workerData: { artifact, artifactFilePath, cosmosDBAccessToken } });
+                const worker = new node_worker_threads_1.Worker(__filename, { workerData: { artifact, artifactFilePath, cosmosDBAccessToken, blobServiceAccessToken } });
                 worker.on('error', reject);
                 worker.on('exit', code => {
                     if (code === 0) {
