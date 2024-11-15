@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../base/browser/domStylesheets.js';
 import { addMatchMediaChangeListener } from '../../../base/browser/browser.js';
 import { Color } from '../../../base/common/color.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -275,7 +276,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 
 	private _registerRegularEditorContainer(): IDisposable {
 		if (!this._globalStyleElement) {
-			this._globalStyleElement = dom.createStyleSheet(undefined, style => {
+			this._globalStyleElement = domStylesheetsJs.createStyleSheet(undefined, style => {
 				style.className = 'monaco-colors';
 				style.textContent = this._allCSS;
 			});
@@ -285,7 +286,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 	}
 
 	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
-		const styleElement = dom.createStyleSheet(domNode, style => {
+		const styleElement = domStylesheetsJs.createStyleSheet(domNode, style => {
 			style.className = 'monaco-colors';
 			style.textContent = this._allCSS;
 		});

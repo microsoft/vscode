@@ -355,8 +355,8 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 						}
 					},
 					{
-						width: page.usedArea.right - page.usedArea.left,
-						height: page.usedArea.bottom - page.usedArea.top
+						width: page.usedArea.right - page.usedArea.left + 1,
+						height: page.usedArea.bottom - page.usedArea.top + 1
 					},
 				);
 			}

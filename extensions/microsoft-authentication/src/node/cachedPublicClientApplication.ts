@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PublicClientApplication, AccountInfo, Configuration, SilentFlowRequest, AuthenticationResult, InteractiveRequest, LogLevel } from '@azure/msal-node';
+import { NativeBrokerPlugin } from '@azure/msal-node-extensions';
 import { Disposable, Memento, SecretStorage, LogOutputChannel, window, ProgressLocation, l10n, EventEmitter } from 'vscode';
 import { Delayer, raceCancellationAndTimeoutError } from '../common/async';
 import { SecretStorageCachePlugin } from '../common/cachePlugin';
 import { MsalLoggerOptions } from '../common/loggerOptions';
 import { ICachedPublicClientApplication } from '../common/publicClientCache';
+import { ScopedAccountAccess } from '../common/accountAccess';
 
 export class CachedPublicClientApplication implements ICachedPublicClientApplication {
 	private _pca: PublicClientApplication;
@@ -24,19 +26,24 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		// Include the prefix as a differentiator to other secrets
 		`pca:${JSON.stringify({ clientId: this._clientId, authority: this._authority })}`
 	);
+	private readonly _accountAccess = new ScopedAccountAccess(this._secretStorage, this._cloudName, this._clientId, this._authority);
 	private readonly _config: Configuration = {
 		auth: { clientId: this._clientId, authority: this._authority },
 		system: {
 			loggerOptions: {
 				correlationId: `${this._clientId}] [${this._authority}`,
 				loggerCallback: (level, message, containsPii) => this._loggerOptions.loggerCallback(level, message, containsPii),
-				logLevel: LogLevel.Trace
+				logLevel: LogLevel.Info
 			}
+		},
+		broker: {
+			nativeBrokerPlugin: new NativeBrokerPlugin()
 		},
 		cache: {
 			cachePlugin: this._secretStorageCachePlugin
 		}
 	};
+	private readonly _isBrokerAvailable = this._config.broker?.nativeBrokerPlugin?.isBrokerAvailable ?? false;
 
 	/**
 	 * We keep track of the last time an account was removed so we can recreate the PCA if we detect that an account was removed.
@@ -59,6 +66,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	constructor(
 		private readonly _clientId: string,
 		private readonly _authority: string,
+		private readonly _cloudName: string,
 		private readonly _globalMemento: Memento,
 		private readonly _secretStorage: SecretStorage,
 		private readonly _logger: LogOutputChannel
@@ -76,8 +84,11 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	get clientId(): string { return this._clientId; }
 	get authority(): string { return this._authority; }
 
-	initialize(): Promise<void> {
-		return this._update();
+	async initialize(): Promise<void> {
+		if (this._isBrokerAvailable) {
+			await this._accountAccess.initialize();
+		}
+		await this._update();
 	}
 
 	dispose(): void {
@@ -88,7 +99,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] starting...`);
 		const result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(request));
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got result`);
-		if (result.account && !result.fromCache) {
+		if (result.account && !result.fromCache && this._verifyIfUsingBroker(result)) {
 			this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] firing event due to change`);
 			this._setupRefresh(result);
 			this._onDidAccountsChangeEmitter.fire({ added: [], changed: [result.account], deleted: [] });
@@ -111,16 +122,46 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			)
 		);
 		this._setupRefresh(result);
+		if (this._isBrokerAvailable) {
+			await this._accountAccess.setAllowedAccess(result.account!, true);
+		}
 		return result;
 	}
 
 	removeAccount(account: AccountInfo): Promise<void> {
 		this._globalMemento.update(`lastRemoval:${this._clientId}:${this._authority}`, new Date());
+		if (this._isBrokerAvailable) {
+			return this._accountAccess.setAllowedAccess(account, false);
+		}
 		return this._pca.getTokenCache().removeAccount(account);
 	}
 
 	private _registerOnSecretStorageChanged() {
+		if (this._isBrokerAvailable) {
+			return this._accountAccess.onDidAccountAccessChange(() => this._update());
+		}
 		return this._secretStorageCachePlugin.onDidChange(() => this._update());
+	}
+
+	private _lastSeen = new Map<string, number>();
+	private _verifyIfUsingBroker(result: AuthenticationResult): boolean {
+		// If we're not brokering, we don't need to verify the date
+		// the cache check will be sufficient
+		if (!result.fromNativeBroker) {
+			return true;
+		}
+		const key = result.account!.homeAccountId;
+		const lastSeen = this._lastSeen.get(key);
+		const lastTimeAuthed = result.account!.idTokenClaims!.iat!;
+		if (!lastSeen) {
+			this._lastSeen.set(key, lastTimeAuthed);
+			return true;
+		}
+		if (lastSeen === lastTimeAuthed) {
+			return false;
+		}
+		this._lastSeen.set(key, lastTimeAuthed);
+		return true;
 	}
 
 	private async _update() {
@@ -134,7 +175,10 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			this._lastCreated = new Date();
 		}
 
-		const after = await this._pca.getAllAccounts();
+		let after = await this._pca.getAllAccounts();
+		if (this._isBrokerAvailable) {
+			after = after.filter(a => this._accountAccess.isAllowedAccess(a));
+		}
 		this._accounts = after;
 		this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication update after: ${after.length}`);
 
@@ -167,8 +211,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		this._logger.debug(`[_setupRefresh] [${this._clientId}] [${this._authority}] [${scopes.join(' ')}] [${account.username}] timeToRefresh: ${timeToRefresh}`);
 		this._refreshDelayer.trigger(
 			key,
-			// This may need the redirectUri when we switch to the broker
-			() => this.acquireTokenSilent({ account, scopes, redirectUri: undefined, forceRefresh: true }),
+			() => this.acquireTokenSilent({ account, scopes, redirectUri: 'https://vscode.dev/redirect', forceRefresh: true }),
 			timeToRefresh > 0 ? timeToRefresh : 0
 		);
 	}

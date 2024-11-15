@@ -712,7 +712,7 @@ const configuration: IConfigurationNode = {
 		'accessibility.replEditor.autoFocusReplExecution': {
 			type: 'string',
 			enum: ['none', 'input', 'lastExecution'],
-			default: 'lastExecution',
+			default: 'input',
 			description: localize('replEditor.autoFocusAppendedCell', "Control whether focus should automatically be sent to the REPL when code is executed."),
 		}
 	}
