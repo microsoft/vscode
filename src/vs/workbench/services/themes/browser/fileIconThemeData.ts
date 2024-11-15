@@ -507,7 +507,7 @@ export class FileIconThemeLoader {
 	}
 }
 
-function pushGlobSelectors(name: string, selectors: string[], kind: string): void {
+function pushGlobSelectors(name: string, selectors: css.Builder, kind: string): void {
 	const extname = paths.extname(name);
 	const basename = paths.basename(name, extname);
 	selectors.push(css.inline`${classSelectorPart(getGlobSelector(basename, kind, 'basename'))}`);
