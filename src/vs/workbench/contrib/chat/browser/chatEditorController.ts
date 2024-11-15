@@ -508,7 +508,7 @@ class DiffHunkWidget implements IOverlayWidget {
 					};
 				} else {
 					return {
-						isSecondary: true,
+						isSecondary: false,
 						showIcon: true,
 						showLabel: false
 					};
