@@ -538,7 +538,7 @@ function handleParentFolder(key: string, selectors: css.Builder, kind: string): 
 	const lastIndexOfSlash = key.lastIndexOf('/');
 	if (lastIndexOfSlash >= 0) {
 		const parentFolder = key.substring(0, lastIndexOfSlash);
-		selectors.push(css.inline`.${classSelectorPart(parentFolder)}-dirname-${kind}-icon`);
+		selectors.push(css.inline`.${classSelectorPart(parentFolder)}-dirname-${classSelectorPart(kind)}-icon`);
 		return key.substring(lastIndexOfSlash + 1);
 	}
 	return key;
