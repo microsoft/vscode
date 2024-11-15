@@ -211,9 +211,9 @@ suite('Files - ExplorerView', () => {
 		assert.strictEqual(find(root, 'bba.txt') !== undefined, false);
 		assert.strictEqual(find(root, 'bbb.txt') !== undefined, false);
 
-		assert.strictEqual(find(root, 'abb.txt')?.isMarkedAsFound(), false);
-		assert.strictEqual(find(root, 'a')?.isMarkedAsFound(), false);
-		assert.strictEqual(find(root, 'ab')?.isMarkedAsFound(), false);
+		assert.strictEqual(find(root, 'abb.txt')?.isMarkedAsFiltered(), false);
+		assert.strictEqual(find(root, 'a')?.isMarkedAsFiltered(), false);
+		assert.strictEqual(find(root, 'ab')?.isMarkedAsFiltered(), false);
 
 		await findProvider.find('bb', { matchType: TreeFindMatchType.Contiguous, findMode: TreeFindMode.Filter }, new CancellationTokenSource().token);
 
@@ -221,18 +221,18 @@ suite('Files - ExplorerView', () => {
 		assert.strictEqual(find(root, 'bba.txt') !== undefined, true);
 		assert.strictEqual(find(root, 'bbb.txt') !== undefined, true);
 
-		assert.strictEqual(find(root, 'abb.txt')?.isMarkedAsFound(), true);
-		assert.strictEqual(find(root, 'bba.txt')?.isMarkedAsFound(), true);
-		assert.strictEqual(find(root, 'bbb.txt')?.isMarkedAsFound(), true);
+		assert.strictEqual(find(root, 'abb.txt')?.isMarkedAsFiltered(), true);
+		assert.strictEqual(find(root, 'bba.txt')?.isMarkedAsFiltered(), true);
+		assert.strictEqual(find(root, 'bbb.txt')?.isMarkedAsFiltered(), true);
 
-		assert.strictEqual(find(root, 'a')?.isMarkedAsFound(), true);
-		assert.strictEqual(find(root, 'ab')?.isMarkedAsFound(), true);
-		assert.strictEqual(find(root, 'b')?.isMarkedAsFound(), true);
-		assert.strictEqual(find(root, 'bb')?.isMarkedAsFound(), true);
+		assert.strictEqual(find(root, 'a')?.isMarkedAsFiltered(), true);
+		assert.strictEqual(find(root, 'ab')?.isMarkedAsFiltered(), true);
+		assert.strictEqual(find(root, 'b')?.isMarkedAsFiltered(), true);
+		assert.strictEqual(find(root, 'bb')?.isMarkedAsFiltered(), true);
 
-		assert.strictEqual(find(root, 'aa')?.isMarkedAsFound(), false);
-		assert.strictEqual(find(root, 'ba')?.isMarkedAsFound(), false);
-		assert.strictEqual(find(root, 'aba.txt')?.isMarkedAsFound(), false);
+		assert.strictEqual(find(root, 'aa')?.isMarkedAsFiltered(), false);
+		assert.strictEqual(find(root, 'ba')?.isMarkedAsFiltered(), false);
+		assert.strictEqual(find(root, 'aba.txt')?.isMarkedAsFiltered(), false);
 
 		await findProvider.endSession();
 
@@ -242,10 +242,10 @@ suite('Files - ExplorerView', () => {
 		assert.strictEqual(find(root, 'bba.txt') !== undefined, false);
 		assert.strictEqual(find(root, 'bbb.txt') !== undefined, false);
 
-		assert.strictEqual(find(root, 'a')?.isMarkedAsFound(), false);
-		assert.strictEqual(find(root, 'ab')?.isMarkedAsFound(), false);
-		assert.strictEqual(find(root, 'b')?.isMarkedAsFound(), false);
-		assert.strictEqual(find(root, 'bb')?.isMarkedAsFound(), false);
+		assert.strictEqual(find(root, 'a')?.isMarkedAsFiltered(), false);
+		assert.strictEqual(find(root, 'ab')?.isMarkedAsFiltered(), false);
+		assert.strictEqual(find(root, 'b')?.isMarkedAsFiltered(), false);
+		assert.strictEqual(find(root, 'bb')?.isMarkedAsFiltered(), false);
 
 		disposables.dispose();
 	});

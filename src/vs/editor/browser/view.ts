@@ -329,6 +329,7 @@ export class View extends ViewEventHandler {
 			viewDomNode: this.domNode.domNode,
 			linesContentDomNode: this._linesContent.domNode,
 			viewLinesDomNode: this._viewLines.getDomNode().domNode,
+			viewLinesGpu: this._viewLinesGpu,
 
 			focusTextArea: () => {
 				this.focus();
@@ -359,11 +360,18 @@ export class View extends ViewEventHandler {
 
 			visibleRangeForPosition: (lineNumber: number, column: number) => {
 				this._flushAccumulatedAndRenderNow();
-				return this._viewLines.visibleRangeForPosition(new Position(lineNumber, column));
+				const position = new Position(lineNumber, column);
+				return this._viewLines.visibleRangeForPosition(position) ?? this._viewLinesGpu?.visibleRangeForPosition(position) ?? null;
 			},
 
 			getLineWidth: (lineNumber: number) => {
 				this._flushAccumulatedAndRenderNow();
+				if (this._viewLinesGpu) {
+					const result = this._viewLinesGpu.getLineWidth(lineNumber);
+					if (result !== undefined) {
+						return result;
+					}
+				}
 				return this._viewLines.getLineWidth(lineNumber);
 			}
 		};

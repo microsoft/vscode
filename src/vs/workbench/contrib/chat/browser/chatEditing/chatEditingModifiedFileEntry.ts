@@ -9,7 +9,6 @@ import { Disposable, IReference, toDisposable } from '../../../../../base/common
 import { IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
@@ -125,7 +124,6 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@ILanguageService languageService: ILanguageService,
-		@IBulkEditService public readonly bulkEditService: IBulkEditService,
 		@IChatService private readonly _chatService: IChatService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
@@ -266,15 +264,9 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			const didResetToOriginalContent = this.doc.getValue() === this.originalContent;
 			const currentState = this._stateObs.get();
 			switch (currentState) {
-				case WorkingSetEntryState.Accepted:
 				case WorkingSetEntryState.Modified:
 					if (didResetToOriginalContent) {
 						this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
-						break;
-					}
-				case WorkingSetEntryState.Rejected:
-					if (event.isUndoing && !didResetToOriginalContent) {
-						this._stateObs.set(WorkingSetEntryState.Modified, undefined);
 						break;
 					}
 			}

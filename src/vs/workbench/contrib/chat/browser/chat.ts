@@ -37,11 +37,10 @@ export interface IChatWidgetService {
 
 	readonly onDidAddWidget: Event<IChatWidget>;
 
-	getAllWidgets(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
 
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
-	getWidgetByLocation(location: ChatAgentLocation): IChatWidget[];
+	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
 }
 
 export async function showChatView(viewsService: IViewsService): Promise<IChatWidget | undefined> {

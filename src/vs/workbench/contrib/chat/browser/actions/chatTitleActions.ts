@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -19,6 +19,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ResourceNotebookCellEdit } from '../../../bulkEdit/browser/bulkCellEdits.js';
@@ -28,12 +29,11 @@ import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/co
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, IChatEditingService, isChatEditingActionContext, WorkingSetEntryState } from '../../common/chatEditingService.js';
-import { IParsedChatRequest } from '../../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatProgress, IChatService } from '../../common/chatService.js';
+import { applyingChatEditsFailedContextKey, ChatEditingSessionState, IChatEditingService, isChatEditingActionContext } from '../../common/chatEditingService.js';
+import { IChatRequestModel } from '../../common/chatModel.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatTreeItem, EDITS_VIEW_ID, IChatWidgetService } from '../chat.js';
-import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
@@ -401,150 +401,116 @@ export function registerChatTitleActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.goToEditingSession,
-				precondition: ContextKeyExpr.and(ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession)),
+				precondition: ContextKeyExpr.and(ChatContextKeys.editingParticipantRegistered, ChatContextKeys.requestInProgress.toNegated(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
 				menu: {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 4,
-					when: ContextKeyExpr.false()
-					// when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession))
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.isResponse, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel))
 				}
 			});
 		}
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
-			if (!accessor.get(IChatAgentService).getDefaultAgent(ChatAgentLocation.EditingSession)) {
-				return;
-			}
 
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const chatService = accessor.get(IChatService);
+			const chatAgentService = accessor.get(IChatAgentService);
 			const viewsService = accessor.get(IViewsService);
-			const dialogService = accessor.get(IDialogService);
+			// const dialogService = accessor.get(IDialogService);
 			const chatEditingService = accessor.get(IChatEditingService);
+			const quickPickService = accessor.get(IQuickInputService);
 
-			let item: ChatTreeItem | undefined = args[0];
-			if (!isResponseVM(item)) {
-				const widget = chatWidgetService.lastFocusedWidget;
-				item = widget?.getFocus();
-			}
-
-			if (!item) {
+			const editAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession);
+			if (!editAgent) {
 				return;
 			}
 
-			const chatModel = chatService.getSession(item.sessionId);
-			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession) {
+			const [sourceWidget] = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel);
+			if (!sourceWidget || !sourceWidget.viewModel) {
 				return;
 			}
 
-			const requestId = isRequestVM(item) ? item.id :
-				isResponseVM(item) ? item.requestId : undefined;
-			const request = chatModel?.getRequests().find(candidate => candidate.id === requestId);
+			const sourceModel = sourceWidget.viewModel.model;
+			let sourceRequests = sourceModel.getRequests().slice();
 
-			if (request) {
-				const currentEditingSession = chatEditingService.currentEditingSessionObs.get();
-				const currentEdits = currentEditingSession?.entries.get();
-				const currentEditCount = currentEdits?.length;
-
-				if (currentEditingSession && currentEditCount) {
-
-					const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === WorkingSetEntryState.Modified);
-					if (undecidedEdits.length) {
-						const { result } = await dialogService.prompt({
-							title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
-							message: localize('chat.startEditing.confirmation.pending.message.2', "Starting a new editing session will end your current session. Do you want to accept pending edits to {0} files?", undecidedEdits.length),
-							type: 'info',
-							buttons: [
-								{
-									label: localize('chat.startEditing.confirmation.acceptEdits', "Accept & Continue"),
-									run: async () => {
-										await currentEditingSession.accept();
-										return true;
-									}
-								},
-								{
-									label: localize('chat.startEditing.confirmation.discardEdits', "Discard & Continue"),
-									run: async () => {
-										await currentEditingSession.reject();
-										return true;
-									}
-								}
-							],
-						});
-
-						if (!result) {
-							return;
-						}
-					} else {
-						const result = await dialogService.confirm({
-							title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
-							message: currentEditCount
-								? localize('chat.startEditing.confirmation.message.one', "Starting a new editing session will end your current editing session containing {0} file. Do you wish to proceed?", currentEditCount)
-								: localize('chat.startEditing.confirmation.message.many', "Starting a new editing session will end your current editing session containing {0} files. Do you wish to proceed?", currentEditCount),
-							type: 'info',
-							primaryButton: localize('chat.startEditing.confirmation.primaryButton', "Yes")
-						});
-
-						if (!result.confirmed) {
-							return;
-						}
-					}
-
-					await currentEditingSession?.stop();
-					const existingEditingChatWidget = chatWidgetService.getWidgetBySessionId(currentEditingSession.chatSessionId);
-					existingEditingChatWidget?.clear();
-					existingEditingChatWidget?.attachmentModel.clear();
+			// when a response is passed (clicked on) ignore all item after it
+			const [first] = args;
+			if (isResponseVM(first)) {
+				const idx = sourceRequests.findIndex(candidate => candidate.id === first.requestId);
+				if (idx >= 0) {
+					sourceRequests.length = idx + 1;
 				}
+			}
 
-				const { widget } = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
-				if (widget.viewModel) {
-					const workingSetInputs = new ResourceSet();
-					const message: IChatProgress[] = [];
-					for (const item of request.response?.response.value ?? []) {
-						if (item.kind === 'inlineReference') {
-							workingSetInputs.add(isLocation(item.inlineReference) ? item.inlineReference.uri : URI.isUri(item.inlineReference) ? item.inlineReference : item.inlineReference.location.uri);
-						}
-
-						if (item.kind === 'textEditGroup') {
-							for (const group of item.edits) {
-								message.push({
-									kind: 'textEdit',
-									edits: group,
-									uri: item.uri
-								});
-							}
-						} else {
-							message.push(item);
-						}
-					}
-
-					chatService.addCompleteRequest(widget.viewModel.sessionId,
-						request.message as IParsedChatRequest,
-						request.variableData,
-						request.attempt,
-						{
-							message,
-							result: request.response?.result,
-							followups: request.response?.followups
-						});
-
-					if (workingSetInputs.size) {
-						for (const reference of workingSetInputs) {
-							chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(reference);
-						}
-					} else {
-						for (const { reference } of request.response?.contentReferences ?? []) {
-							if (URI.isUri(reference) && [Schemas.file, Schemas.vscodeRemote].includes(reference.scheme)) {
-								chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(reference);
-							}
-						}
-					}
+			// when having multiple turns, let the user pick
+			if (sourceRequests.length > 1) {
+				const picks: (IQuickPickItem & { request: IChatRequestModel })[] = [];
+				for (const request of sourceRequests) {
+					picks.push({
+						picked: true,
+						request: request,
+						label: request.message.text,
+						description: request.response?.response.toString()
+					});
 				}
-				widget.focusInput();
+				const result = await quickPickService.pick(picks, {
+					placeHolder: localize('chat.startEditing.pickRequest', "Select requests that you want to use for editing"),
+					canPickMany: true
+				});
+				if (!result) {
+					return;
+				}
+				sourceRequests = picks.map(pick => pick.request);
+			}
 
+			await viewsService.openView(EDITS_VIEW_ID);
+
+			let editingSession = chatEditingService.currentEditingSessionObs.get();
+			if (!editingSession) {
+				await Event.toPromise(chatEditingService.onDidCreateEditingSession);
+				editingSession = chatEditingService.currentEditingSessionObs.get();
+				return;
+			}
+
+			if (!editingSession) {
+				return;
+			}
+
+			const state = editingSession.state.get();
+			if (state === ChatEditingSessionState.Disposed) {
+				return;
+			}
+
+			// adopt request items and collect new working set entries
+			const workingSetAdditions = new ResourceSet();
+			for (const request of sourceRequests) {
+				await chatService.adoptRequest(editingSession.chatSessionId, request);
+				this._collectWorkingSetAdditions(request, workingSetAdditions);
+			}
+			workingSetAdditions.forEach(uri => editingSession.addFileToWorkingSet(uri));
+
+			// make request
+			await chatService.sendRequest(editingSession.chatSessionId, '', {
+				agentId: editAgent.id,
+				acceptedConfirmationData: [{ _type: 'toEditTransfer', transferedTurnResults: sourceRequests.map(v => v.response?.result) }], // TODO@jrieken HACKY
+				confirmation: typeof this.desc.title === 'string' ? this.desc.title : this.desc.title.value
+			});
+		}
+
+		private _collectWorkingSetAdditions(request: IChatRequestModel, bucket: ResourceSet) {
+			for (const item of request.response?.response.value ?? []) {
+				if (item.kind === 'inlineReference') {
+					bucket.add(isLocation(item.inlineReference)
+						? item.inlineReference.uri
+						: URI.isUri(item.inlineReference)
+							? item.inlineReference
+							: item.inlineReference.location.uri
+					);
+				}
 			}
 		}
+
 	});
 }
 
