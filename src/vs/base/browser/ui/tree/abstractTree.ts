@@ -840,6 +840,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this.toggles = toggleContributions.map(contribution => this._register(new TreeFindToggle(contribution, styles.toggleStyles, toggleHoverDelegate)));
 		this.onDidToggleChange = Event.any(...this.toggles.map(toggle => Event.map(toggle.onChange, () => ({ id: toggle.id, isChecked: toggle.checked }))));
 
+		const history = options?.history || [];
 		this.findInput = this._register(new FindInput(this.elements.findInput, contextViewProvider, {
 			label: localize('type to search', "Type to search"),
 			placeholder,
@@ -847,7 +848,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 			showCommonFindToggles: false,
 			inputBoxStyles: styles.inputBoxStyles,
 			toggleStyles: styles.toggleStyles,
-			history: options?.history
+			history: new Set(history)
 		}));
 
 		this.actionbar = this._register(new ActionBar(this.elements.actionbar));
