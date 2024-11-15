@@ -237,6 +237,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		const observerDisposables = new DisposableStore();
 
 		let editsSource: AsyncIterableSource<IChatTextEditGroup> | undefined;
+		let editsPromise: Promise<void> | undefined;
 		const editsSeen = new ResourceMap<{ seen: number }>();
 		const editedFilesExist = new ResourceMap<Promise<boolean>>();
 
@@ -254,7 +255,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		};
 
 
-		const handleResponseParts = (responseModel: IChatResponseModel) => {
+		const handleResponseParts = async (responseModel: IChatResponseModel) => {
 			for (const part of responseModel.response.value) {
 				if (part.kind === 'codeblockUri' || part.kind === 'textEditGroup') {
 					// ensure editor is open asap
@@ -283,7 +284,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'textEditGroup', done: part.kind === 'textEditGroup' && part.done });
 
 					if (first) {
-						this._continueEditingSession(async (builder, token) => {
+
+						await editsPromise;
+
+						editsPromise = this._continueEditingSession(async (builder, token) => {
 							for await (const item of editsSource!.asyncIterable) {
 								if (token.isCancellationRequested) {
 									break;
@@ -294,23 +298,25 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 									builder.textEdits(item.uri, group, isLastGroup && (item.done ?? false), responseModel);
 								}
 							}
-						}, { silent: true });
+						}, { silent: true }).finally(() => {
+							editsPromise = undefined;
+						});
 					}
 				}
 			}
 		};
 
-		observerDisposables.add(chatModel.onDidChange(e => {
+		observerDisposables.add(chatModel.onDidChange(async e => {
 			if (e.kind === 'addRequest') {
 				this._applyingChatEditsFailedContextKey.set(false);
 				const responseModel = e.request.response;
 				if (responseModel) {
 					if (responseModel.isComplete) {
-						handleResponseParts(responseModel);
+						await handleResponseParts(responseModel);
 						onResponseComplete(responseModel);
 					} else {
-						const disposable = responseModel.onDidChange(() => {
-							handleResponseParts(responseModel);
+						const disposable = responseModel.onDidChange(async () => {
+							await handleResponseParts(responseModel);
 							if (responseModel.isComplete) {
 								onResponseComplete(responseModel);
 								disposable.dispose();

@@ -515,9 +515,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		for (const h of context.history) {
 			const ehResult = typeConvert.ChatAgentResult.to(h.result);
-			const result: vscode.ChatResult = agentId === h.request.agentId ?
-				ehResult :
-				{ ...ehResult, metadata: undefined };
+			// get full result when agent is the same or agent is from the same extension
+			const result: vscode.ChatResult = agentId === h.request.agentId || ExtensionIdentifier.equals(this.getChatAgentById(agentId)?.extension.identifier, this.getChatAgentById(h.request.agentId)?.extension.identifier)
+				? ehResult
+				: { ...ehResult, metadata: undefined };
 
 			// REQUEST turn
 			const varsWithoutTools = h.request.variables.variables
@@ -535,6 +536,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		return res;
+	}
+
+	private getChatAgentById(id: string) {
+		return Iterable.find(this._agents.values(), a => a.id === id);
 	}
 
 	$releaseSession(sessionId: string): void {
