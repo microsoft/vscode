@@ -27,10 +27,26 @@ export function asCssValueWithDefault(cssPropertyValue: string | undefined, dflt
 	return dflt;
 }
 
-export function value(value: string): CssFragment {
+export function sizeValue(value: string): CssFragment {
+	const out = value.replaceAll(/[^\w.%+-]/gi, '');
+	if (out !== value) {
+		console.warn(`CSS size ${value} modified to ${out} to be safe for CSS`);
+	}
+	return asFragment(out);
+}
+
+export function hexColorValue(value: string): CssFragment {
+	const out = value.replaceAll(/[^[0-9a-fA-F#]]/gi, '');
+	if (out !== value) {
+		console.warn(`CSS hex color ${value} modified to ${out} to be safe for CSS`);
+	}
+	return asFragment(out);
+}
+
+export function identValue(value: string): CssFragment {
 	const out = value.replaceAll(/[^_\-a-z0-9]/gi, '');
 	if (out !== value) {
-		console.warn(`CSS value ${value} modified to ${out} to be safe for CSS`);
+		console.warn(`CSS ident value ${value} modified to ${out} to be safe for CSS`);
 	}
 	return asFragment(out);
 }
