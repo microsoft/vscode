@@ -16,7 +16,6 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
@@ -785,23 +784,13 @@ export class ChatService extends Disposable implements IChatService {
 
 	private getHistoryEntriesFromModel(requests: IChatRequestModel[], sessionId: string, location: ChatAgentLocation, forAgentId: string): IChatAgentHistoryEntry[] {
 		const history: IChatAgentHistoryEntry[] = [];
-
-
-		const defaultAgentId = this.chatAgentService.getDefaultAgent(location)?.id;
-
-		const forAgentExtension = this.chatAgentService.getAgent(forAgentId);
-
 		for (const request of requests) {
 			if (!request.response) {
 				continue;
 			}
 
-			const responseAgentExtension = request.response.agent ? this.chatAgentService.getAgent(request.response.agent.id) : undefined;
-
-			if (forAgentId !== defaultAgentId
-				&& forAgentId !== request.response.agent?.id
-				&& !ExtensionIdentifier.equals(forAgentExtension?.extensionId, responseAgentExtension?.extensionId)
-			) {
+			const defaultAgentId = this.chatAgentService.getDefaultAgent(location)?.id;
+			if (forAgentId !== request.response.agent?.id && forAgentId !== defaultAgentId) {
 				// An agent only gets to see requests that were sent to this agent.
 				// The default agent (the undefined case) gets to see all of them.
 				continue;
