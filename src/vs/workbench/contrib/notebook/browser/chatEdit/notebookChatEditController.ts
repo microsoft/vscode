@@ -18,7 +18,11 @@ import { INotebookModelSynchronizerFactory } from './notebookSynronizer.js';
 import { INotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
 import { debouncedObservable2 } from '../../../../../base/common/observableInternal/utils.js';
 import { CellDiffInfo } from '../diff/notebookDiffViewModel.js';
+import { NotebookChatActionsOverlayController } from './notebookChatActionsOverlay.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { localize } from '../../../../../nls.js';
 
+export const ctxNotebookHasEditorModification = new RawContextKey<boolean>('chat.hasNotebookEditorModifications', undefined, localize('chat.hasNotebookEditorModifications', "The current Notebook editor contains chat modifications"));
 
 export class NotebookChatEditorControllerContrib extends Disposable implements INotebookEditorContribution {
 
@@ -41,14 +45,18 @@ export class NotebookChatEditorControllerContrib extends Disposable implements I
 class NotebookChatEditorController extends Disposable {
 	private readonly deletedCellDecorator: NotebookDeletedCellDecorator;
 	private readonly insertedCellDecorator: NotebookInsertedCellDecorator;
+	private readonly _ctxHasEditorModification: IContextKey<boolean>;
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@INotebookOriginalModelReferenceFactory private readonly originalModelRefFactory: INotebookOriginalModelReferenceFactory,
 		@INotebookModelSynchronizerFactory private readonly synchronizerFactory: INotebookModelSynchronizerFactory,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+		this._ctxHasEditorModification = ctxNotebookHasEditorModification.bindTo(contextKeyService);
+		this._register(instantiationService.createInstance(NotebookChatActionsOverlayController, notebookEditor));
 		this.deletedCellDecorator = this._register(instantiationService.createInstance(NotebookDeletedCellDecorator, notebookEditor));
 		this.insertedCellDecorator = this._register(instantiationService.createInstance(NotebookInsertedCellDecorator, notebookEditor));
 		const notebookModel = observableFromEvent(this.notebookEditor.onDidChangeModel, e => e);
@@ -115,8 +123,12 @@ class NotebookChatEditorController extends Disposable {
 
 		this._register(autorun(r => {
 			// If there's no diff info, then we either accepted or rejected everything.
-			if (!diffInfoObs.read(r)) {
+			const diffs = diffInfoObs.read(r);
+			if (!diffs || !diffs.cellDiff.length) {
 				clearDecorators();
+				this._ctxHasEditorModification.reset();
+			} else {
+				this._ctxHasEditorModification.set(true);
 			}
 		}));
 
