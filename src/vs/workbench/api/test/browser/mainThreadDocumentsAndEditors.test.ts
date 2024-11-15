@@ -10,7 +10,7 @@ import { TestConfigurationService } from '../../../../platform/configuration/tes
 import { ModelService } from '../../../../editor/common/services/modelService.js';
 import { TestCodeEditorService } from '../../../../editor/test/browser/editorTestServices.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from '../../common/extHost.protocol.js';
+import { IDocumentsAndEditorsDelta } from '../../common/extHost.protocol.js';
 import { createTestCodeEditor, ITestCodeEditor } from '../../../../editor/test/browser/testCodeEditor.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestPathService } from '../../../test/browser/workbenchTestServices.js';
@@ -37,6 +37,7 @@ import { ILanguageConfigurationService } from '../../../../editor/common/languag
 import { TestLanguageConfigurationService } from '../../../../editor/test/common/modes/testLanguageConfigurationService.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { IDirtyDiffModelService } from '../../../contrib/scm/browser/diff.js';
+import { ITextEditorDiffInformation } from '../../../../platform/editor/common/editor.js';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -95,8 +96,9 @@ suite('MainThreadDocumentsAndEditors', () => {
 		};
 
 		new MainThreadDocumentsAndEditors(
-			SingleProxyRPCProtocol(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
-				override $acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta) { deltas.push(delta); }
+			SingleProxyRPCProtocol({
+				$acceptDocumentsAndEditorsDelta: (delta: IDocumentsAndEditorsDelta) => { deltas.push(delta); },
+				$acceptEditorDiffInformation: (id: string, diffInformation: ITextEditorDiffInformation | undefined) => { }
 			}),
 			modelService,
 			textFileService,
