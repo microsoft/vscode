@@ -4061,6 +4061,10 @@ declare namespace monaco.editor {
 		 * Controls whether the search result and diff result automatically restarts from the beginning (or the end) when no further matches can be found
 		 */
 		loop?: boolean;
+		/**
+		 * Controls how the find widget search history should be stored
+		 */
+		findSearchHistory?: 'never' | 'workspace';
 	}
 
 	export type GoToLocationValues = 'peek' | 'gotoAndPeek' | 'goto';

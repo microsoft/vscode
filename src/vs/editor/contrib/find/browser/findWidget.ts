@@ -46,7 +46,8 @@ import { Selection } from '../../../common/core/selection.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IPersistentSearchHistory, FindWidgetSearchHistory } from './findWidgetSearchHistory.js';
+import { FindWidgetSearchHistory } from './findWidgetSearchHistory.js';
+import { IHistory } from '../../../../base/common/history.js';
 
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
 const findExpandedIcon = registerIcon('find-expanded', Codicon.chevronDown, nls.localize('findExpandedIcon', 'Icon to indicate that the editor find widget is expanded.'));
@@ -132,7 +133,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private readonly _contextKeyService: IContextKeyService;
 	private readonly _storageService: IStorageService;
 	private readonly _notificationService: INotificationService;
-	private _findWidgetSearchHistory: IPersistentSearchHistory;
+	private _findWidgetSearchHistory: IHistory<string>;
 
 	private _domNode!: HTMLElement;
 	private _cachedHeight: number | null = null;
@@ -942,7 +943,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		const flexibleHeight = true;
 		const flexibleWidth = true;
 		// Find input
-		const history = this._findWidgetSearchHistory.load();
+		const findSearchHistoryConfig = this._codeEditor.getOption(EditorOption.find).findSearchHistory;
 		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewProvider, {
 			width: FIND_INPUT_AREA_WIDTH,
 			label: NLS_FIND_INPUT_LABEL,
@@ -969,17 +970,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService),
 			inputBoxStyles: defaultInputBoxStyles,
 			toggleStyles: defaultToggleStyles,
-			history,
-			persistentStorage: {
-				save: <T>(value: T) => {
-					if (typeof value === 'string') {
-						this._findWidgetSearchHistory.save(value);
-					}
-				},
-				reduceToLimit: (limit) => {
-					this._findWidgetSearchHistory.reduceToLimit(limit);
-				},
-			}
+			history: findSearchHistoryConfig === 'workspace' ? this._findWidgetSearchHistory : new Set([]),
 		}, this._contextKeyService));
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);

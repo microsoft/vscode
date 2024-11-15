@@ -3,29 +3,52 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IHistory } from '../../../../base/common/history.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-export interface IPersistentSearchHistory {
-	load(): string[];
-	save(history: string): void;
-	reduceToLimit(limit: number): void;
-}
-
-export interface ISearchValue {
-	timeStamp: number;
-	searchString: string;
-}
-
-export class FindWidgetSearchHistory implements IPersistentSearchHistory {
+export class FindWidgetSearchHistory implements IHistory<string> {
 	public static readonly FIND_HISTORY_KEY = 'workbench.find.history';
-	private inMemoryValues: ISearchValue[] = [];
+	private inMemoryValues: Set<string> = new Set();
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
-	) { }
+	) {
+		this.load();
+	}
+
+	delete(t: string): boolean {
+		const result = this.inMemoryValues.delete(t);
+		this.save();
+		return result;
+	}
+
+	add(t: string): this {
+		this.inMemoryValues.add(t);
+		this.save();
+		return this;
+	}
+
+	has(t: string): boolean {
+		return this.inMemoryValues.has(t);
+	}
+
+	clear(): void {
+		this.inMemoryValues.clear();
+		this.save();
+	}
+
+	forEach(callbackfn: (value: string, value2: string, set: Set<string>) => void, thisArg?: any): void {
+		// fetch latest from storage
+		this.load();
+		return this.inMemoryValues.forEach(callbackfn);
+	}
+	replace?(t: string[]): void {
+		this.inMemoryValues = new Set(t);
+		this.save();
+	}
 
 	load() {
-		let result: ISearchValue[] | undefined;
+		let result: [] | undefined;
 		const raw = this.storageService.get(
 			FindWidgetSearchHistory.FIND_HISTORY_KEY,
 			StorageScope.WORKSPACE
@@ -39,67 +62,21 @@ export class FindWidgetSearchHistory implements IPersistentSearchHistory {
 			}
 		}
 
-		this.inMemoryValues = result || [];
-		return this.inMemoryValues.sort((a, b) => a.timeStamp - b.timeStamp).map(a => a.searchString);
+		this.inMemoryValues = new Set(result || []);
 	}
 
-	save(value: string): void {
-		const raw = this.storageService.get(
-			FindWidgetSearchHistory.FIND_HISTORY_KEY,
-			StorageScope.WORKSPACE
-		);
-		const newValue = {
-			searchString: value,
-			timeStamp: Date.now(),
-		};
-
-		if (!raw) {
+	// Run saves async
+	save(): Promise<void> {
+		const elements: string[] = [];
+		this.inMemoryValues.forEach(e => elements.push(e));
+		return new Promise<void>(resolve => {
 			this.storageService.store(
 				FindWidgetSearchHistory.FIND_HISTORY_KEY,
-				JSON.stringify([newValue]),
+				JSON.stringify(elements),
 				StorageScope.WORKSPACE,
 				StorageTarget.USER,
 			);
-		} else {
-			try {
-				const array: ISearchValue[] = JSON.parse(raw);
-				array.push({
-					searchString: value,
-					timeStamp: Date.now(),
-				});
-				this.storageService.store(
-					FindWidgetSearchHistory.FIND_HISTORY_KEY,
-					JSON.stringify(array),
-					StorageScope.WORKSPACE,
-					StorageTarget.USER
-				);
-			} catch (e) {
-				// Invalid data
-			}
-		}
-	}
-
-	reduceToLimit(limit: number) {
-		const raw = this.storageService.get(
-			FindWidgetSearchHistory.FIND_HISTORY_KEY,
-			StorageScope.WORKSPACE
-		);
-
-		if (!raw) {
-			return;
-		}
-
-		try {
-			let array: ISearchValue[] = JSON.parse(raw);
-			array = array.slice(array.length - limit);
-			this.storageService.store(
-				FindWidgetSearchHistory.FIND_HISTORY_KEY,
-				JSON.stringify(array),
-				StorageScope.WORKSPACE,
-				StorageTarget.USER
-			);
-		} catch (e) {
-			// Invalid data
-		}
+			resolve();
+		});
 	}
 }
