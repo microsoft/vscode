@@ -193,7 +193,6 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		}
 	}
 
-	//
 	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions {
 		const provider = this._decorationOptionProviders.get(decorationTypeKey);
 		if (!provider) {
@@ -408,7 +407,6 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 		this._afterContentRules = new DecorationCSSRules(ModelDecorationCSSRuleType.AfterContentClassName, providerArgs, themeService);
 	}
 
-	//
 	public getOptions(codeEditorService: AbstractCodeEditorService, writable: boolean): IModelDecorationOptions {
 		const options = codeEditorService.resolveDecorationOptions(this._parentTypeKey, true);
 		if (this._beforeContentRules) {

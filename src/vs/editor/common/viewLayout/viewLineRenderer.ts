@@ -372,15 +372,6 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder): Rende
 					sb.appendString(`<span class="`);
 					sb.appendString(lineDecoration.className);
 					sb.appendString(`"></span>`);
-					// sb.appendString(`<span class="`);
-					// sb.appendString(lineDecoration.className); // maybe add line height, font size here
-					// sb.appendString(`"`);
-					// if (lineDecoration.fontSize) {
-					// 	sb.appendString(`style="font-size:`);
-					// 	sb.appendString(lineDecoration.fontSize.toString()); // maybe add line height, font size here
-					// 	sb.appendString(`px"`);
-					// }
-					// sb.appendString(`></span>`);
 
 					if (lineDecoration.type === InlineDecorationType.Before) {
 						containsForeignElements |= ForeignElementType.Before;
@@ -1180,7 +1171,6 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 	}
 
 	sb.appendString('</span>');
-
 	console.log('sb.build : ', sb.build());
 
 	return new RenderLineOutput(characterMapping, containsRTL, containsForeignElements);

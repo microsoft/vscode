@@ -1472,7 +1472,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				const firstEditLineNumber = currentEditStartLineNumber;
 				const lastInsertedLineNumber = currentEditStartLineNumber + insertingLinesCnt;
 
-				const decorationsWithInjectedTextInEditedRange = this._decorationsTree.getInjectedTextInInterval( // getDecoratedTextInInterval(
+				const decorationsWithInjectedTextInEditedRange = this._decorationsTree.getInjectedTextInInterval(
 					this,
 					this.getOffsetAt(new Position(firstEditLineNumber, 1)),
 					this.getOffsetAt(new Position(lastInsertedLineNumber, this.getLineMaxColumn(lastInsertedLineNumber))),
