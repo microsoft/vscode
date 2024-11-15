@@ -177,6 +177,12 @@ async function addRefAndCreateResult(
 		completions.addRef();
 		lists.push(completions);
 		for (const item of completions.inlineCompletions.items) {
+			if (!context.includeInlineEdits && item.isInlineEdit) {
+				continue;
+			}
+			if (!context.includeInlineCompletions && !item.isInlineEdit) {
+				continue;
+			}
 			const inlineCompletionItem = InlineCompletionItem.from(
 				item,
 				completions,
@@ -184,9 +190,11 @@ async function addRefAndCreateResult(
 				model,
 				languageConfigurationService
 			);
+
 			itemsByHash.set(inlineCompletionItem.hash(), inlineCompletionItem);
 
-			if (context.triggerKind === InlineCompletionTriggerKind.Automatic) {
+			// Stop after first visible inline completion
+			if (!item.isInlineEdit && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
 				const minifiedEdit = inlineCompletionItem.toSingleTextEdit().removeCommonPrefix(new TextModelText(model));
 				if (!minifiedEdit.isEmpty) {
 					shouldStop = true;

@@ -523,8 +523,7 @@ export class FindController extends CommonFindController implements IFindControl
 
 export const StartFindAction = registerMultiEditorAction(new MultiEditorAction({
 	id: FIND_IDS.StartFindAction,
-	label: nls.localize('startFindAction', "Find"),
-	alias: 'Find',
+	label: nls.localize2('startFindAction', "Find"),
 	precondition: ContextKeyExpr.or(EditorContextKeys.focus, ContextKeyExpr.has('editorIsOpen')),
 	kbOpts: {
 		kbExpr: null,
@@ -579,8 +578,7 @@ export class StartFindWithArgsAction extends EditorAction {
 	constructor() {
 		super({
 			id: FIND_IDS.StartFindWithArgs,
-			label: nls.localize('startFindWithArgsAction', "Find With Arguments"),
-			alias: 'Find With Arguments',
+			label: nls.localize2('startFindWithArgsAction', "Find With Arguments"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,
@@ -629,8 +627,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 	constructor() {
 		super({
 			id: FIND_IDS.StartFindWithSelection,
-			label: nls.localize('startFindWithSelectionAction', "Find With Selection"),
-			alias: 'Find With Selection',
+			label: nls.localize2('startFindWithSelectionAction', "Find With Selection"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,
@@ -687,8 +684,7 @@ export class NextMatchFindAction extends MatchFindAction {
 	constructor() {
 		super({
 			id: FIND_IDS.NextMatchFindAction,
-			label: nls.localize('findNextMatchAction', "Find Next"),
-			alias: 'Find Next',
+			label: nls.localize2('findNextMatchAction', "Find Next"),
 			precondition: undefined,
 			kbOpts: [{
 				kbExpr: EditorContextKeys.focus,
@@ -720,8 +716,7 @@ export class PreviousMatchFindAction extends MatchFindAction {
 	constructor() {
 		super({
 			id: FIND_IDS.PreviousMatchFindAction,
-			label: nls.localize('findPreviousMatchAction', "Find Previous"),
-			alias: 'Find Previous',
+			label: nls.localize2('findPreviousMatchAction', "Find Previous"),
 			precondition: undefined,
 			kbOpts: [{
 				kbExpr: EditorContextKeys.focus,
@@ -748,8 +743,7 @@ export class MoveToMatchFindAction extends EditorAction {
 	constructor() {
 		super({
 			id: FIND_IDS.GoToMatchFindAction,
-			label: nls.localize('findMatchAction.goToMatch', "Go to Match..."),
-			alias: 'Go to Match...',
+			label: nls.localize2('findMatchAction.goToMatch', "Go to Match..."),
 			precondition: CONTEXT_FIND_WIDGET_VISIBLE
 		});
 	}
@@ -894,8 +888,7 @@ export class NextSelectionMatchFindAction extends SelectionMatchFindAction {
 	constructor() {
 		super({
 			id: FIND_IDS.NextSelectionMatchFindAction,
-			label: nls.localize('nextSelectionMatchFindAction', "Find Next Selection"),
-			alias: 'Find Next Selection',
+			label: nls.localize2('nextSelectionMatchFindAction', "Find Next Selection"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -915,8 +908,7 @@ export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
 	constructor() {
 		super({
 			id: FIND_IDS.PreviousSelectionMatchFindAction,
-			label: nls.localize('previousSelectionMatchFindAction', "Find Previous Selection"),
-			alias: 'Find Previous Selection',
+			label: nls.localize2('previousSelectionMatchFindAction', "Find Previous Selection"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -933,8 +925,7 @@ export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
 
 export const StartFindReplaceAction = registerMultiEditorAction(new MultiEditorAction({
 	id: FIND_IDS.StartFindReplaceAction,
-	label: nls.localize('startReplace', "Replace"),
-	alias: 'Replace',
+	label: nls.localize2('startReplace', "Replace"),
 	precondition: ContextKeyExpr.or(EditorContextKeys.focus, ContextKeyExpr.has('editorIsOpen')),
 	kbOpts: {
 		kbExpr: null,

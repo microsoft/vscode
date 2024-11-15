@@ -5,7 +5,7 @@
 
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -24,8 +24,7 @@ class DebugEditorGpuRendererAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.debugEditorGpuRenderer',
-			label: localize('gpuDebug.label', "Developer: Debug Editor GPU Renderer"),
-			alias: 'Developer: Debug Editor GPU Renderer',
+			label: localize2('gpuDebug.label', "Developer: Debug Editor GPU Renderer"),
 			// TODO: Why doesn't `ContextKeyExpr.equals('config:editor.experimentalGpuAcceleration', 'on')` work?
 			precondition: ContextKeyExpr.true(),
 		});

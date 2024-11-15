@@ -22,6 +22,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
 import { Lazy } from '../../../../base/common/lazy.js';
+import { IViewsService } from '../common/viewsService.js';
 
 interface IViewsCustomizations {
 	viewContainerLocations: IStringDictionary<ViewContainerLocation>;
@@ -505,7 +506,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		const container = this.viewContainersRegistry.registerViewContainer({
 			id,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, { mergeViewWithContainerWhenSingleView: true }]),
-			title: { value: id, original: id }, // we don't want to see this so using id
+			title: { value: localize('user', "User View Container"), original: 'User View Container' }, // having a placeholder title - this should not be shown anywhere
 			icon: location === ViewContainerLocation.Sidebar ? defaultViewIcon : undefined,
 			storageId: getViewContainerStorageId(id),
 			hideIfEmpty: true
@@ -851,6 +852,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 					title: localize2('resetViewLocation', "Reset Location"),
 					menu: [{
 						id: MenuId.ViewContainerTitleContext,
+						group: '1_viewActions',
 						when: ContextKeyExpr.or(
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals('viewContainer', viewContainer.id),
@@ -860,8 +862,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 					}],
 				});
 			}
-			run(): void {
+			run(accessor: ServicesAccessor) {
 				that.moveViewContainerToLocation(viewContainer, that.getDefaultViewContainerLocation(viewContainer), undefined, this.desc.id);
+				accessor.get(IViewsService).openViewContainer(viewContainer.id, true);
 			}
 		});
 	}
