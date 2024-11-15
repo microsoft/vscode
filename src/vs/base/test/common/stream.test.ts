@@ -128,7 +128,7 @@ suite('Stream', () => {
 		assert.strictEqual(data, true);
 
 		data = false;
-		stream.removeListener('data', dataListener);
+		stream.removeEventListener('data', dataListener);
 
 		stream.write('World');
 		assert.strictEqual(data, false);
@@ -137,7 +137,7 @@ suite('Stream', () => {
 		assert.strictEqual(error, true);
 
 		error = false;
-		stream.removeListener('error', errorListener);
+		stream.removeEventListener('error', errorListener);
 
 		// always leave at least one error listener to streams to avoid unexpected errors during test running
 		stream.on('error', () => { });
@@ -460,7 +460,7 @@ suite('Stream', () => {
 		let listener1Called = false;
 		let listener2Called = false;
 
-		const listener1 = () => { stream.removeListener('end', listener1); listener1Called = true; };
+		const listener1 = () => { stream.removeEventListener('end', listener1); listener1Called = true; };
 		const listener2 = () => { listener2Called = true; };
 		stream.on('end', listener1);
 		stream.on('end', listener2);

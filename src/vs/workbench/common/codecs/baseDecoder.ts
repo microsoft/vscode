@@ -3,29 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assert } from '../../../base/common/assert.js';
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { ReadableStream } from '../../../base/common/stream.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { TStreamListenerNames } from './types/TStreamListenerEventNames.js';
-
-// TODO: @legomushroom - add the `eof` tokens?
 
 /**
  * Base decoder class that can be used to decode a stream of data of one type into another.
  * Aimed to be a part of a "codec" implementation and not to be used directly.
  */
-// TODO: @legomushroom - when a decoder is disposed, we need to emit/throw errors
-// 						 if the object still being used by someone
 export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonNullable<unknown> = NonNullable<unknown>> extends Disposable implements ReadableStream<T> {
+	/**
+	 * Flag that indicates if the decoder stream has ended.
+	 */
 	protected ended = false;
 
 	protected readonly _onData = this._register(new Emitter<T>());
 	protected readonly _onError = this._register(new Emitter<Error>());
 	protected readonly _onEnd = this._register(new Emitter<void>());
 
+	/**
+	 * A store of currently registered event listeners.
+	 */
 	private readonly _listeners: Map<TStreamListenerNames, Map<Function, IDisposable>> = new Map();
 
 	constructor(
+		/**
+		 * The input stream to decode.
+		 */
 		protected readonly stream: ReadableStream<K>,
 	) {
 		super();
@@ -36,15 +42,29 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 	}
 
 	/**
+	 * This method is called when a new incomming data
+	 * is received from the input stream.
+	 */
+	protected abstract onStreamData(data: K): void;
+
+	/**
 	 * Start receiveing data from the stream.
+	 *
+	 * Throws! if the decoder stream has already ended.
 	 */
 	public start(): this {
+		assert(
+			!this.ended,
+			'Cannot start stream that has already ended.',
+		);
+
 		this.stream.on('data', this.tryOnStreamData);
 		this.stream.on('error', this.onStreamError);
 		this.stream.on('end', this.onStreamEnd);
 
-		// if a decoder provided as a stream, call its `start`
-		// method to ensure that the decoders can be composed
+		// this allows to compose decoders together, - if a decoder
+		// instance is passed as a readble stream to this decoder,
+		// then we need to call `start` on it too
 		if (this.stream instanceof BaseDecoder) {
 			this.stream.start();
 		}
@@ -65,28 +85,26 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 	 */
 	private tryOnStreamData(data: K): void {
 		try {
-			console.log(this);
 			this.onStreamData(data);
 		} catch (error) {
-			// TODO: @legomushroom - should we end the stream on the first error?
 			this.onStreamError(error);
 		}
 	}
 
-	on(event: 'data', callback: (data: T) => void): void;
-	on(event: 'error', callback: (err: Error) => void): void;
-	on(event: 'end', callback: () => void): void;
-	on(event: TStreamListenerNames, callback: unknown): void {
+	public on(event: 'data', callback: (data: T) => void): void;
+	public on(event: 'error', callback: (err: Error) => void): void;
+	public on(event: 'end', callback: () => void): void;
+	public on(event: TStreamListenerNames, callback: unknown): void {
 		if (event === 'data') {
-			return this.addDataListener(callback as (data: T) => void);
+			return this.onData(callback as (data: T) => void);
 		}
 
 		if (event === 'error') {
-			return this.addErrorListener(callback as (error: Error) => void);
+			return this.onError(callback as (error: Error) => void);
 		}
 
 		if (event === 'end') {
-			return this.addEndListener(callback as () => void);
+			return this.onEnd(callback as () => void);
 		}
 
 		throw new Error(`Invalid event name: ${event}`);
@@ -94,8 +112,15 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 
 	/**
 	 * Add listener for the `data` event.
+	 *
+	 * Throws! if the decoder stream has already ended.
 	 */
-	public addDataListener(callback: (data: T) => void): void {
+	public onData(callback: (data: T) => void): void {
+		assert(
+			!this.ended,
+			'Cannot subscribe to the `data` event because the decoder stream has already ended.',
+		);
+
 		let currentListeners = this._listeners.get('data');
 
 		if (!currentListeners) {
@@ -108,8 +133,15 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 
 	/**
 	 * Add listener for the `error` event.
+	 *
+	 * Throws! if the decoder stream has already ended.
 	 */
-	public addErrorListener(callback: (error: Error) => void): void {
+	public onError(callback: (error: Error) => void): void {
+		assert(
+			!this.ended,
+			'Cannot subscribe to the `error` event because the decoder stream has already ended.',
+		);
+
 		let currentListeners = this._listeners.get('error');
 
 		if (!currentListeners) {
@@ -122,8 +154,15 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 
 	/**
 	 * Add listener for the `end` event.
+	 *
+	 * Throws! if the decoder stream has already ended.
 	 */
-	public addEndListener(callback: () => void): void {
+	public onEnd(callback: () => void): void {
+		assert(
+			!this.ended,
+			'Cannot subscribe to the `end` event because the decoder stream has already ended.',
+		);
+
 		let currentListeners = this._listeners.get('end');
 
 		if (!currentListeners) {
@@ -139,9 +178,9 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 	 */
 	public removeAllListeners(): void {
 		// remove listeners set up by this class
-		this.stream.removeListener('data', this.tryOnStreamData);
-		this.stream.removeListener('error', this.onStreamError);
-		this.stream.removeListener('end', this.onStreamEnd);
+		this.stream.removeEventListener('data', this.tryOnStreamData);
+		this.stream.removeEventListener('error', this.onStreamError);
+		this.stream.removeEventListener('end', this.onStreamEnd);
 
 		// remove listeners set up by external consumers
 		for (const [name, listeners] of this._listeners.entries()) {
@@ -153,19 +192,46 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 		}
 	}
 
-	pause(): void {
+	/**
+	 * Pauses the stream.
+	 */
+	public pause(): void {
 		this.stream.pause();
 	}
 
-	resume(): void {
+	/**
+	 * Resumes the stream if it has been paused.
+	 *
+	 * Throws! if the decoder stream has already ended.
+	 */
+	public resume(): void {
+		assert(
+			!this.ended,
+			'Cannot resume the stream because it has already ended.',
+		);
+
 		this.stream.resume();
 	}
 
-	destroy(): void {
+	/**
+	 * Destroys(disposes) the stream.
+	 */
+	public destroy(): void {
 		this.dispose();
 	}
 
-	removeListener(event: string, callback: Function): void {
+	/**
+	 * Removes a priorly-registered event listener for a specified event.
+	 *
+	 * Note!
+	 *  - the callback function must be the same as the one that was used when
+	 * 	  registering the event listener as it is used as an identifier to
+	 *    remove the listener
+	 *  - this method is idempotent and results in no-op if the listener is
+	 *    not found, therefore passing incorrect `callback` function may
+	 *    result in silent unexpected behaviour
+	 */
+	public removeEventListener(event: string, callback: Function): void {
 		for (const [nameName, listeners] of this._listeners.entries()) {
 			if (nameName !== event) {
 				continue;
@@ -182,46 +248,39 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 		}
 	}
 
-	public override dispose(): void {
-		this.stream.destroy();
-		this.removeAllListeners();
-		super.dispose();
-	}
-
 	/**
-	 * TODO: @legomushroom
-	 */
-	protected abstract onStreamData(data: K): void;
-
-	/**
-	 * TODO: @legomushroom
+	 * This method is called when the input stream ends.
 	 */
 	protected onStreamEnd(): void {
+		if (this.ended) {
+			return;
+		}
+
 		this.ended = true;
 		this._onEnd.fire();
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * This method is called when the input stream emits an error.
+	 * We re-emit the error here by default, but subclasses can
+	 * override this method to handle the error differently.
 	 */
 	protected onStreamError(error: Error): void {
-		// TODO: @legomushroom - define specific error types
 		this._onError.fire(error);
 	}
 
 	/**
-	 * Async iterator interface for the decoder.
+	 * Consume all messages from the stream, blocking
+	 * until the stream finishes.
+	 *
+	 * Throws! if the decoder stream has already ended.
 	 */
-	[Symbol.asyncIterator](): AsyncIterator<T | null> {
-		const asyncDecoder = this._register(new AsyncDecoder(this));
+	public async consumeAll(): Promise<T[]> {
+		assert(
+			!this.ended,
+			'Cannot consume all messages of the stream that has already ended.',
+		);
 
-		return asyncDecoder[Symbol.asyncIterator]();
-	}
-
-	/**
-	 * TODO: @legomushroom
-	 */
-	public async consume(): Promise<T[]> {
 		const messages = [];
 
 		for await (const maybeMessage of this) {
@@ -234,15 +293,45 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 
 		return messages;
 	}
+
+	/**
+	 * Async iterator interface for the decoder.
+	 *
+	 * Throws! if the decoder stream has already ended.
+	 */
+	[Symbol.asyncIterator](): AsyncIterator<T | null> {
+		assert(
+			!this.ended,
+			'Cannot iterate on messages of the stream that has already ended.',
+		);
+
+		const asyncDecoder = this._register(new AsyncDecoder(this));
+
+		return asyncDecoder[Symbol.asyncIterator]();
+	}
+
+	public override dispose(): void {
+		this.onStreamEnd();
+
+		this.stream.destroy();
+		this.removeAllListeners();
+		super.dispose();
+	}
 }
 
 /**
- * TODO: @legomushroom
+ * Asynchronous interator wrapper for a decoder.
  */
 class AsyncDecoder<T extends NonNullable<unknown>, K extends NonNullable<unknown> = NonNullable<unknown>> extends Disposable {
-	// TODO: @legomushroom
+	// Buffer of messages that have been decoded but not yet consumed.
 	private readonly messages: T[] = [];
-	// TODO: @legomushroom
+
+	/**
+	 * A transient promise that is resolved when a new event
+	 * is received. Used in the situation when there is no new
+	 * data avaialble and decoder stream did not finish yet,
+	 * hence we need to wait until new event is received.
+	 */
 	private resolveOnNewEvent?: (value: void) => void;
 
 	constructor(
@@ -252,15 +341,15 @@ class AsyncDecoder<T extends NonNullable<unknown>, K extends NonNullable<unknown
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Async iterator implementation.
 	 */
 	async *[Symbol.asyncIterator](): AsyncIterator<T | null> {
 		const callback = (data?: T) => {
 			if (data !== undefined) {
 				this.messages.push(data);
 			} else {
-				this.decoder.removeListener('data', callback);
-				this.decoder.removeListener('end', callback);
+				this.decoder.removeEventListener('data', callback);
+				this.decoder.removeEventListener('end', callback);
 			}
 
 			if (this.resolveOnNewEvent) {

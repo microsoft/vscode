@@ -54,7 +54,7 @@ suite('ChatbotPromptCodec', () => {
 		}, 1);
 
 		// get all tokens in one go
-		const tokens = await codec.decode(stream).consume();
+		const tokens = await codec.decode(stream).consumeAll();
 
 
 		// validate the tokens that we received

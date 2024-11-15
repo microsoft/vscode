@@ -83,7 +83,7 @@ export class TestDecoder<T extends RangedToken, D extends BaseDecoder<T>> extend
 			}
 		} else {
 			// test the `.consume()` code path
-			receivedTokens.push(...(await this.decoder.consume()));
+			receivedTokens.push(...(await this.decoder.consumeAll()));
 		}
 
 		for (let i = 0; i < this.expectedTokens.length; i++) {

@@ -64,7 +64,7 @@ export interface ReadableStream<T> extends ReadableStreamEvents<T> {
 	/**
 	 * Allows to remove a listener that was previously added.
 	 */
-	removeListener(event: string, callback: Function): void;
+	removeEventListener(event: string, callback: Function): void;
 }
 
 /**
@@ -372,7 +372,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 		}
 	}
 
-	removeListener(event: string, callback: Function): void {
+	removeEventListener(event: string, callback: Function): void {
 		if (this.state.destroyed) {
 			return;
 		}
@@ -652,16 +652,16 @@ export function peekStream<T>(stream: ReadableStream<T>, maxChunks: number): Pro
 			return resolve({ stream, buffer, ended: true });
 		};
 
-		streamListeners.add(toDisposable(() => stream.removeListener('error', errorListener)));
+		streamListeners.add(toDisposable(() => stream.removeEventListener('error', errorListener)));
 		stream.on('error', errorListener);
 
-		streamListeners.add(toDisposable(() => stream.removeListener('end', endListener)));
+		streamListeners.add(toDisposable(() => stream.removeEventListener('end', endListener)));
 		stream.on('end', endListener);
 
 		// Important: leave the `data` listener last because
 		// this can turn the stream into flowing mode and we
 		// want `error` events to be received as well.
-		streamListeners.add(toDisposable(() => stream.removeListener('data', dataListener)));
+		streamListeners.add(toDisposable(() => stream.removeEventListener('data', dataListener)));
 		stream.on('data', dataListener);
 	});
 }

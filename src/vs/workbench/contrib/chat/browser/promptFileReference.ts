@@ -215,7 +215,7 @@ export class PromptFileReference extends Disposable {
 		}
 
 		// get all file references in the file contents
-		const references = await this.codec.decode(fileStream.value).consume();
+		const references = await this.codec.decode(fileStream.value).consumeAll();
 
 		// recursively resolve all references and add to the `children` array
 		//
