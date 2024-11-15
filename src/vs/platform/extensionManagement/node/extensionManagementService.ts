@@ -409,7 +409,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 				pinned: options.installGivenVersion ? true : !!options.pinned,
 				source: 'vsix',
 			},
-			options.keepExisting ?? true,
+			isBoolean(options.keepExisting) ? !options.keepExisting : true,
 			token);
 		return { local };
 	}
