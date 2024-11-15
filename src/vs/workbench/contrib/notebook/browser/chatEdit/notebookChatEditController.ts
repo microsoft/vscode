@@ -56,7 +56,6 @@ class NotebookChatEditorController extends Disposable {
 	) {
 		super();
 		this._ctxHasEditorModification = ctxNotebookHasEditorModification.bindTo(contextKeyService);
-		this._register(instantiationService.createInstance(NotebookChatActionsOverlayController, notebookEditor));
 		this.deletedCellDecorator = this._register(instantiationService.createInstance(NotebookDeletedCellDecorator, notebookEditor));
 		this.insertedCellDecorator = this._register(instantiationService.createInstance(NotebookInsertedCellDecorator, notebookEditor));
 		const notebookModel = observableFromEvent(this.notebookEditor.onDidChangeModel, e => e);
@@ -95,7 +94,7 @@ class NotebookChatEditorController extends Disposable {
 
 
 		const snapshotCreated = observableValue<boolean>('snapshotCreated', false);
-		const diffInfoObs = derivedWithStore(this, (r, store) => {
+		const notebookDiffInfo = derivedWithStore(this, (r, store) => {
 			const entry = entryObs.read(r);
 			const model = notebookModel.read(r);
 			if (!entry || !model) {
@@ -113,6 +112,8 @@ class NotebookChatEditorController extends Disposable {
 			return notebookSynchronizer.object.diffInfo;
 		}).recomputeInitiallyAndOnChange(this._store).flatten();
 
+		const notebookCellDiffInfo = notebookDiffInfo.map(d => d?.cellDiff);
+		this._register(instantiationService.createInstance(NotebookChatActionsOverlayController, notebookEditor, notebookCellDiffInfo));
 
 		this._register(autorun(r => {
 			// If we have a new entry for the file, then clear old decorators.
@@ -123,7 +124,7 @@ class NotebookChatEditorController extends Disposable {
 
 		this._register(autorun(r => {
 			// If there's no diff info, then we either accepted or rejected everything.
-			const diffs = diffInfoObs.read(r);
+			const diffs = notebookDiffInfo.read(r);
 			if (!diffs || !diffs.cellDiff.length) {
 				clearDecorators();
 				this._ctxHasEditorModification.reset();
@@ -134,7 +135,7 @@ class NotebookChatEditorController extends Disposable {
 
 		this._register(autorun(r => {
 			const entry = entryObs.read(r);
-			const diffInfo = diffInfoObs.read(r);
+			const diffInfo = notebookDiffInfo.read(r);
 			const modified = notebookModel.read(r);
 			const original = originalModel.read(r);
 			onDidChangeVisibleRanges.read(r);
@@ -169,7 +170,7 @@ class NotebookChatEditorController extends Disposable {
 
 		this._register(autorun(r => {
 			const entry = entryObs.read(r);
-			const diffInfo = diffInfoObs.read(r);
+			const diffInfo = notebookDiffInfo.read(r);
 			const modified = notebookModel.read(r);
 			const original = originalModel.read(r);
 			const vmAttached = viewModelAttached.read(r);

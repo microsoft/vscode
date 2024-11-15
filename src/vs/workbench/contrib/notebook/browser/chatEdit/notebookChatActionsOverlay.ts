@@ -14,12 +14,14 @@ import { $ } from '../../../../../base/browser/dom.js';
 import { IChatEditingService, IModifiedFileEntry } from '../../../chat/common/chatEditingService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { autorunWithStore, observableFromEvent } from '../../../../../base/common/observable.js';
+import { autorunWithStore, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { CellDiffInfo } from '../diff/notebookDiffViewModel.js';
 
 export class NotebookChatActionsOverlayController extends Disposable {
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
+		cellDiffInfo: IObservable<CellDiffInfo[] | undefined, unknown>,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -40,7 +42,7 @@ export class NotebookChatActionsOverlayController extends Disposable {
 				const entry = entries[idx];
 				const nextEntry = entries[(idx + 1) % entries.length];
 				const previousEntry = entries[(idx - 1 + entries.length) % entries.length];
-				store.add(instantiationService.createInstance(NotebookChatActionsOverlay, notebookEditor, entry, nextEntry, previousEntry));
+				store.add(instantiationService.createInstance(NotebookChatActionsOverlay, notebookEditor, entry, cellDiffInfo, nextEntry, previousEntry));
 			}
 		}));
 	}
@@ -51,6 +53,7 @@ export class NotebookChatActionsOverlay extends Disposable {
 	constructor(
 		notebookEditor: INotebookEditor,
 		entry: IModifiedFileEntry,
+		cellDiffInfo: IObservable<CellDiffInfo[] | undefined, unknown>,
 		nextEntry: IModifiedFileEntry,
 		previousEntry: IModifiedFileEntry,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -123,7 +126,8 @@ export class NotebookChatActionsOverlay extends Disposable {
 						}
 						override set actionRunner(_: IActionRunner) {
 							const next = action.id === 'chatEditor.action.navigateNext' ? nextEntry : previousEntry;
-							super.actionRunner = new NextPreviousChangeActionRunner(entry, next, _editorService);
+							const direction = action.id === 'chatEditor.action.navigateNext' ? 'next' : 'previous';
+							super.actionRunner = new NextPreviousChangeActionRunner(notebookEditor, cellDiffInfo, entry, next, direction, _editorService);
 						}
 						override get actionRunner(): IActionRunner {
 							return super.actionRunner;
@@ -142,11 +146,64 @@ export class NotebookChatActionsOverlay extends Disposable {
 }
 
 class NextPreviousChangeActionRunner extends ActionRunner {
-	constructor(private readonly entry: IModifiedFileEntry, private readonly next: IModifiedFileEntry, private readonly _editorService: IEditorService) {
+	constructor(
+		private readonly notebookEditor: INotebookEditor,
+		private readonly cellDiffInfo: IObservable<CellDiffInfo[] | undefined, unknown>,
+		private readonly entry: IModifiedFileEntry,
+		private readonly next: IModifiedFileEntry,
+		private readonly direction: 'next' | 'previous',
+		private readonly _editorService: IEditorService
+	) {
 		super();
 	}
-	protected override async runAction(action: IAction, context?: unknown): Promise<void> {
-		if (this.entry === this.next) {
+	protected override async runAction(_action: IAction, _context?: unknown): Promise<void> {
+		const viewModel = this.notebookEditor.getViewModel();
+		const activeCell = this.notebookEditor.activeCellAndCodeEditor;
+		const cellDiff = this.cellDiffInfo.read(undefined);
+		if (!viewModel || !activeCell || !cellDiff || !cellDiff.length) {
+			return this.goToNextEntry();
+		}
+
+		const activeCellIndex = viewModel.viewCells.findIndex(c => c.handle === activeCell[0].handle);
+		if (typeof activeCellIndex !== 'number') {
+			return this.goToNextEntry();
+		}
+
+		let index = this.getNextCellDiff(activeCellIndex, cellDiff);
+		if (typeof index === 'number') {
+			return this.notebookEditor.focusNotebookCell(viewModel.viewCells[index], 'container');
+		}
+
+		if (this.canGoToNextEntry()) {
+			return this.goToNextEntry();
+		}
+
+		// Cycle through edits in current notebook.
+		index = this.getNextCellDiff(this.direction === 'next' ? -1 : viewModel.viewCells.length + 1, cellDiff);
+		if (typeof index === 'number') {
+			return this.notebookEditor.focusNotebookCell(viewModel.viewCells[index], 'container');
+		}
+	}
+
+	private getNextCellDiff(currentCellIndex: number, cellDiffInfo: CellDiffInfo[]) {
+		if (this.direction === 'next') {
+			return cellDiffInfo
+				.filter(d => (d.type === 'insert' || d.type === 'modified') && d.modifiedCellIndex > currentCellIndex)
+				.map(d => d.type === 'insert' || d.type === 'modified' ? d.modifiedCellIndex : undefined)?.[0];
+		} else {
+			return cellDiffInfo
+				.filter(d => (d.type === 'insert' || d.type === 'modified') && d.modifiedCellIndex < currentCellIndex)
+				.reverse()
+				.map(d => d.type === 'insert' || d.type === 'modified' ? d.modifiedCellIndex : undefined)?.[0];
+		}
+	}
+
+	private canGoToNextEntry() {
+		return this.entry !== this.next;
+	}
+
+	private async goToNextEntry() {
+		if (!this.canGoToNextEntry()) {
 			return;
 		}
 		// For now just go to next/previous file.
@@ -160,5 +217,4 @@ class NextPreviousChangeActionRunner extends ActionRunner {
 			}
 		}, ACTIVE_GROUP);
 	}
-
 }
