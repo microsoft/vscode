@@ -331,8 +331,8 @@ export function registerNewChatActions() {
 				}, {
 					id: MenuId.ChatCommandCenter,
 					when: ChatContextKeys.editingParticipantRegistered,
-					group: 'a_chatEdit',
-					order: 1
+					group: 'a_open',
+					order: 2
 				}, {
 					id: MenuId.ChatEditingEditorContent,
 					group: 'navigate',

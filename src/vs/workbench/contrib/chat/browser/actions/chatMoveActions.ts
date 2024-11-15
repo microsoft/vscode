@@ -36,7 +36,8 @@ export function registerMoveActions() {
 				menu: {
 					id: MenuId.ViewTitle,
 					when: ContextKeyExpr.equals('view', CHAT_VIEW_ID),
-					order: 0
+					order: 0,
+					group: '1_open'
 				},
 			});
 		}
@@ -58,7 +59,8 @@ export function registerMoveActions() {
 				menu: {
 					id: MenuId.ViewTitle,
 					when: ContextKeyExpr.equals('view', CHAT_VIEW_ID),
-					order: 0
+					order: 0,
+					group: '1_open'
 				},
 			});
 		}
