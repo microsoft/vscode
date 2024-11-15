@@ -625,7 +625,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('layoutcontrol.type.toggles', "Shows several buttons for toggling the visibility of the panels and side bar."),
 					localize('layoutcontrol.type.both', "Shows both the dropdown and toggle buttons."),
 				],
-				'default': 'both',
+				'default': 'toggles',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
 			},
 			'workbench.tips.enabled': {
