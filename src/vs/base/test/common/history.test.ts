@@ -163,7 +163,7 @@ suite('History Navigator', () => {
 	});
 
 	test('clear', () => {
-		const testObject = new HistoryNavigator(new Set<['a', 'b', 'c']>);
+		const testObject = new HistoryNavigator(new Set(['a', 'b', 'c']));
 		assert.strictEqual(testObject.previous(), 'c');
 		testObject.clear();
 		assert.strictEqual(testObject.current(), null);
