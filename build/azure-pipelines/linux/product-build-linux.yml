@@ -349,17 +349,17 @@ steps:
       inputs:
         version: 6.x
 
-  - task: EsrpCodeSigning@5
-    inputs:
-      UseMSIAuthentication: true
-      ConnectedServiceName: vscode-esrp
-      AppRegistrationClientId: $(ESRP_CLIENT_ID)
-      AppRegistrationTenantId: $(ESRP_TENANT_ID)
-      AuthAKVName: vscode-esrp
-      AuthSignCertName: esrp-sign
-      FolderPath: .
-      Pattern: noop
-    displayName: 'Install ESRP Tooling'
+    - task: EsrpCodeSigning@5
+      inputs:
+        UseMSIAuthentication: true
+        ConnectedServiceName: vscode-esrp
+        AppRegistrationClientId: $(ESRP_CLIENT_ID)
+        AppRegistrationTenantId: $(ESRP_TENANT_ID)
+        AuthAKVName: vscode-esrp
+        AuthSignCertName: esrp-sign
+        FolderPath: .
+        Pattern: noop
+      displayName: 'Install ESRP Tooling'
 
     - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-pgp .build/linux/deb '*.deb'
       displayName: Codesign deb
