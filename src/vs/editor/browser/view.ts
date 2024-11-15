@@ -62,6 +62,7 @@ import { IVisibleRangeProvider, TextAreaEditContext } from './controller/editCon
 import { NativeEditContext } from './controller/editContext/native/nativeEditContext.js';
 import { RulersGpu } from './viewParts/rulersGpu/rulersGpu.js';
 import { EditContext } from './controller/editContext/native/editContextFactory.js';
+import { GpuMarkOverlay } from './viewParts/gpuMark/gpuMark.js';
 
 
 export interface IContentWidgetData {
@@ -194,6 +195,9 @@ export class View extends ViewEventHandler {
 		marginViewOverlays.addDynamicOverlay(new MarginViewLineDecorationsOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new LinesDecorationsOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new LineNumbersOverlay(this._context));
+		if (this._viewGpuContext) {
+			marginViewOverlays.addDynamicOverlay(new GpuMarkOverlay(this._context));
+		}
 
 		// Glyph margin widgets
 		this._glyphMarginWidgets = new GlyphMarginWidgets(this._context);
