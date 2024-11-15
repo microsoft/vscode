@@ -61,11 +61,9 @@ const createFolder = async (
 		}
 
 		// recursively create child filesystem structure
-		await createFolder(fileService, child, childUri);
+		await createFolder(fileService, child, folderUri);
 	}
 };
-
-// TODO: @legomushroom - unit test the absolute paths
 
 suite('ChatbotPromptReference', function () {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -85,27 +83,39 @@ suite('ChatbotPromptReference', function () {
 				},
 				{
 					name: 'file2.txt',
-					contents: '## Files\n\t- this file #file:folder1/file3.txt',
-					// contents: '## Files\n\t- this file #file:folder1/file3.txt \n\t- also this #file:./folder1/folder2/file3.txt please!\n ',
+					contents: '## Files\n\t- this file #file:folder1/file3.txt \n\t- also this #file:./folder1/some-other-folder/file4.txt please!\n ',
 				},
-				// {
-				// 	name: 'folder1',
-				// 	children: [
-				// 		{
-				// 			name: 'file3.txt',
-				// 			contents: 'file3.txt contents',
-				// 		},
-				// 		{
-				// 			name: 'folder2',
-				// 			children: [
-				// 				{
-				// 					name: 'file4.txt',
-				// 					contents: 'file4.txt contents',
-				// 				},
-				// 			],
-				// 		},
-				// 	],
-				// },
+				{
+					name: 'folder1',
+					children: [
+						{
+							name: 'file3.txt',
+							contents: '\n\n\t- some seemingly random #file:/resolves-nested-file-references/folder1/some-other-folder/yetAnotherFolder🤭/another-file.md contents\n some more\t content',
+						},
+						{
+							name: 'some-other-folder',
+							children: [
+								{
+									name: 'file4.txt',
+									contents: 'file4.txt contents',
+								},
+								{
+									name: 'yetAnotherFolder🤭',
+									children: [
+										{
+											name: 'another-file.md',
+											contents: 'another-file.md contents',
+										},
+										{
+											name: 'one_more_file_just_in_case.md',
+											contents: 'one_more_file_just_in_case.md contents',
+										},
+									],
+								},
+							],
+						},
+					],
+				},
 			],
 		};
 
@@ -126,15 +136,34 @@ suite('ChatbotPromptReference', function () {
 				URI.joinPath(rootFolder, './folder1/file3.txt'),
 				fileService,
 			)),
+			testDisposables.add(new PromptFileReference(
+				URI.joinPath(rootFolder, './folder1/some-other-folder/yetAnotherFolder🤭/another-file.md'),
+				fileService,
+			)),
+			testDisposables.add(new PromptFileReference(
+				URI.joinPath(rootFolder, './folder1/some-other-folder/file4.txt'),
+				fileService,
+			)),
 		];
 
+		// start for the root file reference
 		const rootReference = testDisposables.add(new PromptFileReference(
 			URI.file(`/${filesStructure.name}/file2.txt`),
 			fileService,
 		));
 
+		// resolve the root file reference including all nested references
 		const resolvedReferences = (await rootReference.resolve(true))
 			.flatten();
+
+		assert.strictEqual(
+			resolvedReferences.length,
+			expectedReferences.length,
+			[
+				`Expected to resolve ${expectedReferences.length} references`,
+				`got ${resolvedReferences.length}.`,
+			].join(', ')
+		);
 
 		for (let i = 0; i < expectedReferences.length; i++) {
 			const expectedReference = expectedReferences[i];
@@ -148,14 +177,5 @@ suite('ChatbotPromptReference', function () {
 				].join(', ')
 			);
 		}
-
-		assert.strictEqual(
-			resolvedReferences.length,
-			expectedReferences.length,
-			[
-				`Expected to resolve ${expectedReferences.length} references`,
-				`got ${resolvedReferences.length}.`,
-			].join(', ')
-		);
 	});
 });

@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { extUri } from '../../../../base/common/resources.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { FileOpenFailed, RecursiveReference } from './promptFileReferenceErrors.js';
@@ -216,8 +217,10 @@ export class PromptFileReference extends Disposable {
 		// 		 the fact that the `resolve` method can be called multiple times on target file changes
 		const childPromises = [];
 		for (const reference of references) {
+			const childUri = extUri.resolvePath(this.parentFolder, reference.path);
+
 			const child = new PromptFileReference(
-				URI.joinPath(this.parentFolder, reference.path),
+				childUri,
 				this.fileService,
 			);
 
@@ -229,9 +232,10 @@ export class PromptFileReference extends Disposable {
 			this.children.push(child);
 
 			// start resolving the child immediately in the background
-			childPromises.push(child.resolve());
+			childPromises.push(child.resolve(waitForChildren));
 		}
 
+		// if should wait for all children to resolve, block here
 		if (waitForChildren) {
 			await Promise.all(childPromises);
 		}
