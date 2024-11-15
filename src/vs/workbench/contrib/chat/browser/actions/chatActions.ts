@@ -99,7 +99,7 @@ class OpenChatGlobalAction extends Action2 {
 			},
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'a_chat',
+				group: 'a_open',
 				order: 1
 			}
 		});
@@ -459,17 +459,11 @@ export function registerChatActions() {
 				id: LearnMoreChatAction.ID,
 				title: LearnMoreChatAction.TITLE,
 				category: CHAT_CATEGORY,
-				menu: [{
+				menu: {
 					id: MenuId.ChatCommandCenter,
-					group: 'a_atfirst',
-					order: 2,
-					when: ChatContextKeys.panelParticipantRegistered.negate()
-				}, {
-					id: MenuId.ChatCommandCenter,
-					group: 'z_atlast',
-					order: 1,
-					when: ChatContextKeys.panelParticipantRegistered
-				}]
+					group: 'z_learn',
+					order: 1
+				}
 			});
 		}
 
@@ -519,7 +513,7 @@ registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
 		super(
 			'chat.commandCenter.enabled',
 			localize('toggle.chatControl', 'Chat Controls'),
-			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
+			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 4, false,
 			ContextKeyExpr.and(
 				ContextKeyExpr.has('config.window.commandCenter'),
 				ContextKeyExpr.or(
@@ -536,15 +530,12 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 
 	static readonly ID = 'chat.commandCenterRendering';
 
-	private readonly _store = new DisposableStore();
-	private _dropdown: DropdownWithPrimaryActionViewItem | undefined;
-
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatAgentService agentService: IChatAgentService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
+		actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
@@ -563,14 +554,8 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 				icon: defaultChat.icon,
 			}, undefined, undefined, undefined, undefined);
 
-			this._dropdown = instantiationService.createInstance(DropdownWithPrimaryActionViewItem, primaryAction, dropdownAction, action.actions, '', { ...options, skipTelemetry: true });
-
-			return this._dropdown;
-		}, agentService.onDidChangeAgents));
-	}
-
-	dispose() {
-		this._store.dispose();
+			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, primaryAction, dropdownAction, action.actions, '', { ...options, skipTelemetry: true });
+		}, agentService.onDidChangeAgents);
 	}
 }
 

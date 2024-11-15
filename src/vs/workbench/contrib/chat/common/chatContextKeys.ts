@@ -50,6 +50,4 @@ export namespace ChatContextKeys {
 		signingIn: new RawContextKey<boolean>('chatSetupSigningIn', false, { type: 'boolean', description: localize('chatSetupSigningIn', "True when chat setup is waiting for signing in.") })
 	};
 	export const setupRunning = ContextKeyExpr.or(ChatSetup.triggering, ChatSetup.signingIn, ChatSetup.installing);
-
-	export const shouldShowMovedViewWelcome = new RawContextKey<boolean>('chatShouldShowMovedViewWelcome', false, { type: 'boolean', description: localize('chatShouldShowMovedViewWelcome', "True when the user should be shown the moved view welcome view.") });
 }

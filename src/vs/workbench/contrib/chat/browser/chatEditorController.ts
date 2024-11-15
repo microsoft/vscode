@@ -27,11 +27,11 @@ import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGu
 import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { Event } from '../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
 
@@ -492,31 +492,17 @@ class DiffHunkWidget implements IOverlayWidget {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'chat-diff-change-content-widget';
 
-		const btns = instaService.createInstance(MenuWorkbenchButtonBar, this._domNode, MenuId.ChatEditingEditorHunk, {
+		const toolbar = instaService.createInstance(MenuWorkbenchToolBar, this._domNode, MenuId.ChatEditingEditorHunk, {
 			telemetrySource: 'chatEditingEditorHunk',
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true, },
 			menuOptions: {
 				renderShortTitle: true,
 				arg: this,
 			},
-			buttonConfigProvider: (action) => {
-				if (action.id === 'chatEditor.action.undoHunk') { // TODO@jrieken don't hardcode id
-					return {
-						isSecondary: false,
-						showIcon: true,
-						showLabel: true
-					};
-				} else {
-					return {
-						isSecondary: true,
-						showIcon: true,
-						showLabel: false
-					};
-				}
-			}
 		});
 
-		this._store.add(btns);
+		this._store.add(toolbar);
 		this._editor.addOverlayWidget(this);
 	}
 

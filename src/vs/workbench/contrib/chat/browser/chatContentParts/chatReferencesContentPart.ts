@@ -48,6 +48,7 @@ const $ = dom.$;
 
 export interface IChatReferenceListItem extends IChatContentReference {
 	title?: string;
+	description?: string;
 	state?: WorkingSetEntryState;
 }
 
@@ -382,12 +383,12 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
 				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString() });
 			} else {
-				if (data.state === WorkingSetEntryState.Transient) {
+				if (data.state === WorkingSetEntryState.Transient || data.state === WorkingSetEntryState.Suggested) {
 					templateData.label.setResource(
 						{
 							resource: uri,
 							name: basenameOrAuthority(uri),
-							description: localize('chat.openEditor', 'Open Editor'),
+							description: data.description ?? localize('chat.openEditor', 'Open Editor'),
 							range: 'range' in reference ? reference.range : undefined,
 						}, { icon, title: data.options?.status?.description ?? data.title });
 				} else {
