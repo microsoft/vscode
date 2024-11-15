@@ -336,7 +336,7 @@ export function registerNewChatActions() {
 				}, {
 					id: MenuId.ChatEditingEditorContent,
 					group: 'navigate',
-					order: 1,
+					order: 4,
 				}],
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,

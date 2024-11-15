@@ -49,3 +49,11 @@
 	color: var(--vscode-button-foreground);
 	opacity: 0.7;
 }
+
+
+
+.chat-editor-overlay-widget .action-item.label-item > .action-label,
+.chat-editor-overlay-widget .action-item.label-item > .action-label:hover {
+	color: var(--vscode-button-foreground);
+	opacity: 1;
+}
