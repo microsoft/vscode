@@ -4,7 +4,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getAccessToken = getAccessToken;
 const fs = require("fs");
 const path = require("path");
 const stream_1 = require("stream");
@@ -25,24 +24,6 @@ function e(name) {
         throw new Error(`Missing env: ${name}`);
     }
     return result;
-}
-async function getAccessToken(endpoint, tenantId, clientId, idToken) {
-    const app = new msal_node_1.ConfidentialClientApplication({
-        auth: {
-            clientId,
-            authority: `https://login.microsoftonline.com/${tenantId}`,
-            clientAssertion: idToken
-        }
-    });
-    const result = await app.acquireTokenByClientCredential({ scopes: [`${endpoint}.default`] });
-    if (!result) {
-        throw new Error('Failed to get access token');
-    }
-    return {
-        token: result.accessToken,
-        expiresOnTimestamp: result.expiresOn.getTime(),
-        refreshAfterTimestamp: result.refreshOn?.getTime()
-    };
 }
 function hashStream(hashName, stream) {
     return new Promise((c, e) => {
@@ -150,6 +131,7 @@ class ESRPReleaseService {
             this.log(`Successfully submitted release ${submitReleaseResult.operationId}. Polling for completion...`);
             // Poll every 5 seconds, wait 60 minutes max -> poll 60/5*60=720 times
             for (let i = 0; i < 720; i++) {
+                await new Promise(c => setTimeout(c, 5000));
                 const releaseStatus = await this.getReleaseStatus(submitReleaseResult.operationId);
                 if (releaseStatus.status === 'pass') {
                     break;
@@ -157,7 +139,6 @@ class ESRPReleaseService {
                 else if (releaseStatus.status !== 'inprogress') {
                     throw new Error(`Failed to submit release: ${JSON.stringify(releaseStatus)}`);
                 }
-                await new Promise(c => setTimeout(c, 5000));
             }
             const releaseDetails = await this.getReleaseDetails(submitReleaseResult.operationId);
             if (releaseDetails.status !== 'pass') {
@@ -489,12 +470,13 @@ function getRealType(type) {
             return type;
     }
 }
-async function processArtifact(artifact, filePath, cosmosDBAccessToken, blobServiceAccessToken) {
+async function processArtifact(artifact, filePath) {
     const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
     if (!match) {
         throw new Error(`Invalid artifact name: ${artifact.name}`);
     }
     // getPlatform needs the unprocessedType
+    const { cosmosDBAccessToken, blobServiceAccessToken } = JSON.parse(e('PUBLISH_AUTH_TOKENS'));
     const quality = e('VSCODE_QUALITY');
     const version = e('BUILD_SOURCEVERSION');
     const { product, os, arch, unprocessedType } = match.groups;
@@ -535,8 +517,8 @@ async function processArtifact(artifact, filePath, cosmosDBAccessToken, blobServ
 // the CDN and finally update the build in Cosmos DB.
 async function main() {
     if (!node_worker_threads_1.isMainThread) {
-        const { artifact, artifactFilePath, cosmosDBAccessToken, blobServiceAccessToken } = node_worker_threads_1.workerData;
-        await processArtifact(artifact, artifactFilePath, cosmosDBAccessToken, blobServiceAccessToken);
+        const { artifact, artifactFilePath } = node_worker_threads_1.workerData;
+        await processArtifact(artifact, artifactFilePath);
         return;
     }
     const done = new State();
@@ -565,8 +547,6 @@ async function main() {
     }
     let resultPromise = Promise.resolve([]);
     const operations = [];
-    const cosmosDBAccessToken = await getAccessToken(e('AZURE_DOCUMENTDB_ENDPOINT'), e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_ID_TOKEN'));
-    const blobServiceAccessToken = await getAccessToken(`https://${e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')}.blob.core.windows.net/`, process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_ID_TOKEN']);
     while (true) {
         const [timeline, artifacts] = await Promise.all([(0, retry_1.retry)(() => getPipelineTimeline()), (0, retry_1.retry)(() => getPipelineArtifacts())]);
         const stagesCompleted = new Set(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
@@ -603,7 +583,7 @@ async function main() {
             const artifactFilePath = artifactFilePaths.filter(p => !/_manifest/.test(p))[0];
             processing.add(artifact.name);
             const promise = new Promise((resolve, reject) => {
-                const worker = new node_worker_threads_1.Worker(__filename, { workerData: { artifact, artifactFilePath, cosmosDBAccessToken, blobServiceAccessToken } });
+                const worker = new node_worker_threads_1.Worker(__filename, { workerData: { artifact, artifactFilePath } });
                 worker.on('error', reject);
                 worker.on('exit', code => {
                     if (code === 0) {

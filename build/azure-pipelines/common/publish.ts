@@ -15,7 +15,6 @@ import { CosmosClient } from '@azure/cosmos';
 import * as cp from 'child_process';
 import * as os from 'os';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
-import { AccessToken } from '@azure/core-auth';
 import { ConfidentialClientApplication } from '@azure/msal-node';
 import { BlobClient, BlobServiceClient, ContainerClient } from '@azure/storage-blob';
 import * as jws from 'jws';
@@ -28,28 +27,6 @@ function e(name: string): string {
 	}
 
 	return result;
-}
-
-export async function getAccessToken(endpoint: string, tenantId: string, clientId: string, idToken: string): Promise<AccessToken> {
-	const app = new ConfidentialClientApplication({
-		auth: {
-			clientId,
-			authority: `https://login.microsoftonline.com/${tenantId}`,
-			clientAssertion: idToken
-		}
-	});
-
-	const result = await app.acquireTokenByClientCredential({ scopes: [`${endpoint}.default`] });
-
-	if (!result) {
-		throw new Error('Failed to get access token');
-	}
-
-	return {
-		token: result.accessToken,
-		expiresOnTimestamp: result.expiresOn!.getTime(),
-		refreshAfterTimestamp: result.refreshOn?.getTime()
-	};
 }
 
 function hashStream(hashName: string, stream: Readable): Promise<Buffer> {
@@ -394,6 +371,7 @@ class ESRPReleaseService {
 
 			// Poll every 5 seconds, wait 60 minutes max -> poll 60/5*60=720 times
 			for (let i = 0; i < 720; i++) {
+				await new Promise(c => setTimeout(c, 5000));
 				const releaseStatus = await this.getReleaseStatus(submitReleaseResult.operationId);
 
 				if (releaseStatus.status === 'pass') {
@@ -401,8 +379,6 @@ class ESRPReleaseService {
 				} else if (releaseStatus.status !== 'inprogress') {
 					throw new Error(`Failed to submit release: ${JSON.stringify(releaseStatus)}`);
 				}
-
-				await new Promise(c => setTimeout(c, 5000));
 			}
 
 			const releaseDetails = await this.getReleaseDetails(submitReleaseResult.operationId);
@@ -814,9 +790,7 @@ function getRealType(type: string) {
 
 async function processArtifact(
 	artifact: Artifact,
-	filePath: string,
-	cosmosDBAccessToken: AccessToken,
-	blobServiceAccessToken: AccessToken
+	filePath: string
 ) {
 	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
 
@@ -825,6 +799,7 @@ async function processArtifact(
 	}
 
 	// getPlatform needs the unprocessedType
+	const { cosmosDBAccessToken, blobServiceAccessToken } = JSON.parse(e('PUBLISH_AUTH_TOKENS'));
 	const quality = e('VSCODE_QUALITY');
 	const version = e('BUILD_SOURCEVERSION');
 	const { product, os, arch, unprocessedType } = match.groups!;
@@ -879,8 +854,8 @@ async function processArtifact(
 // the CDN and finally update the build in Cosmos DB.
 async function main() {
 	if (!isMainThread) {
-		const { artifact, artifactFilePath, cosmosDBAccessToken, blobServiceAccessToken } = workerData;
-		await processArtifact(artifact, artifactFilePath, cosmosDBAccessToken, blobServiceAccessToken);
+		const { artifact, artifactFilePath } = workerData;
+		await processArtifact(artifact, artifactFilePath);
 		return;
 	}
 
@@ -901,8 +876,6 @@ async function main() {
 
 	let resultPromise = Promise.resolve<PromiseSettledResult<void>[]>([]);
 	const operations: { name: string; operation: Promise<void> }[] = [];
-	const cosmosDBAccessToken = await getAccessToken(e('AZURE_DOCUMENTDB_ENDPOINT')!, e('AZURE_TENANT_ID')!, e('AZURE_CLIENT_ID')!, e('AZURE_ID_TOKEN')!);
-	const blobServiceAccessToken = await getAccessToken(`https://${e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')}.blob.core.windows.net/`, process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_ID_TOKEN']!);
 
 	while (true) {
 		const [timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
@@ -944,7 +917,7 @@ async function main() {
 
 			processing.add(artifact.name);
 			const promise = new Promise<void>((resolve, reject) => {
-				const worker = new Worker(__filename, { workerData: { artifact, artifactFilePath, cosmosDBAccessToken, blobServiceAccessToken } });
+				const worker = new Worker(__filename, { workerData: { artifact, artifactFilePath } });
 				worker.on('error', reject);
 				worker.on('exit', code => {
 					if (code === 0) {
