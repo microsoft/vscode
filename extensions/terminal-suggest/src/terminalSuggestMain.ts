@@ -81,26 +81,54 @@ vscode.window.registerTerminalCompletionProvider({
 		builtinCommands?.forEach(command => availableCommands.add(command));
 
 		const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
-		if (prefix === undefined) {
-			return;
-		}
 
 		const result: vscode.TerminalCompletionItem[] = [];
 		if (!('options' in completionSpec) || !completionSpec.options) {
 			return;
 		}
 
-		for (const spec of completionSpec.options) {
-			const label = getLabel(spec);
-			if (!label) {
+		for (const option of completionSpec.options) {
+			const optionLabel = getLabel(option);
+			if (!optionLabel) {
 				continue;
 			}
-			if (label.startsWith(prefix)) {
-				result.push(createCompletionItem(terminalContext.cursorPosition, prefix, label, spec.description));
+			if (optionLabel.startsWith(prefix)) {
+				result.push(createCompletionItem(terminalContext.cursorPosition, prefix, optionLabel, option.description));
 			}
-		}
-		if (token.isCancellationRequested) {
-			return undefined;
+			if (option.args !== undefined) {
+				const args = Array.isArray(option.args) ? option.args : [option.args];
+				for (const arg of args) {
+					if (!arg) {
+						continue;
+					}
+
+					if (arg.template) {
+						// TODO: return file/folder completion items
+						if (arg.template === 'filepaths') {
+							// if (label.startsWith(prefix+\s*)) {
+							// result.push(FilePathCompletionItem)
+							// }
+						} else if (arg.template === 'folders') {
+							// if (label.startsWith(prefix+\s*)) {
+							// result.push(FolderPathCompletionItem)
+							// }
+						}
+						continue;
+					}
+
+					const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition);
+					const expectedText = `${optionLabel} `;
+
+					if (arg.suggestions?.length && precedingText.endsWith(expectedText)) {
+						for (const suggestion of arg.suggestions) {
+							const suggestionLabel = getLabel(suggestion);
+							if (suggestionLabel) {
+								result.push(createCompletionItem(terminalContext.cursorPosition, optionLabel + ' ', suggestionLabel, arg.name, terminalContext.cursorPosition));
+							}
+						}
+					}
+				}
+			}
 		}
 
 		for (const command of availableCommands) {
@@ -116,7 +144,10 @@ vscode.window.registerTerminalCompletionProvider({
 	}
 });
 
-function getLabel(spec: Fig.Spec): string | undefined {
+function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string | undefined {
+	if (typeof spec === 'string') {
+		return spec;
+	}
 	if (typeof spec.name === 'string') {
 		return spec.name;
 	}
@@ -126,13 +157,13 @@ function getLabel(spec: Fig.Spec): string | undefined {
 	return spec.name[0];
 }
 
-function createCompletionItem(cursorPosition: number, prefix: string, label: string, description?: string): vscode.TerminalCompletionItem {
+function createCompletionItem(cursorPosition: number, prefix: string, label: string, description?: string, replacementIndex?: number): vscode.TerminalCompletionItem {
 	return {
 		label,
 		isFile: false,
 		isDirectory: false,
 		detail: description ?? '',
-		replacementIndex: prefix === '' ? 0 : cursorPosition - prefix.length,
+		replacementIndex: replacementIndex !== undefined ? replacementIndex : prefix === '' ? 0 : cursorPosition - prefix.length,
 		replacementLength: label.length - prefix.length,
 	};
 }
@@ -168,7 +199,7 @@ async function getCommandsInPath(): Promise<Set<string> | undefined> {
 	return executables;
 }
 
-function getPrefix(commandLine: string, cursorPosition: number): string | undefined {
+function getPrefix(commandLine: string, cursorPosition: number): string {
 	// Return an empty string if the command line is empty after trimming
 	if (commandLine.trim() === '') {
 		return '';
@@ -176,7 +207,7 @@ function getPrefix(commandLine: string, cursorPosition: number): string | undefi
 
 	// Check if cursor is not at the end and there's non-whitespace after the cursor
 	if (cursorPosition < commandLine.length && /\S/.test(commandLine[cursorPosition])) {
-		return undefined;
+		return '';
 	}
 
 	// Extract the part of the line up to the cursor position
@@ -186,6 +217,6 @@ function getPrefix(commandLine: string, cursorPosition: number): string | undefi
 	const match = beforeCursor.match(/[\w-]+$/);
 
 	// Return the match if found, otherwise undefined
-	return match ? match[0] : undefined;
+	return match ? match[0] : '';
 }
 
