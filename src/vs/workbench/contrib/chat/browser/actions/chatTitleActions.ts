@@ -19,6 +19,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -413,6 +414,7 @@ export function registerChatTitleActions() {
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 
+			const logService = accessor.get(ILogService);
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const chatService = accessor.get(IChatService);
 			const chatAgentService = accessor.get(IChatAgentService);
@@ -423,11 +425,13 @@ export function registerChatTitleActions() {
 
 			const editAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession);
 			if (!editAgent) {
+				logService.trace('[CHAT_MOVE] No edit agent found');
 				return;
 			}
 
-			const [sourceWidget] = chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel);
+			const sourceWidget = chatWidgetService.lastFocusedWidget;
 			if (!sourceWidget || !sourceWidget.viewModel) {
+				logService.trace('[CHAT_MOVE] NO source model');
 				return;
 			}
 
@@ -462,6 +466,10 @@ export function registerChatTitleActions() {
 					return;
 				}
 				sourceRequests = picks.map(pick => pick.request);
+			}
+
+			if (sourceRequests.length === 0) {
+				logService.trace('[CHAT_MOVE] NO requests to move');
 			}
 
 			await viewsService.openView(EDITS_VIEW_ID);
