@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-diff-change-content-widget {
-	display: none;
+	opacity: 0;
+	transition: opacity 0.2s ease-in-out;
+	display: flex;
 }
 
 .chat-diff-change-content-widget.hover {
-	display: inherit;
+	opacity: 1;
 }
 
 .chat-diff-change-content-widget .monaco-text-button {

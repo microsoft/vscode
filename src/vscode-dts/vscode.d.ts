@@ -19966,7 +19966,7 @@ declare module 'vscode' {
 		/**
 		 * A customized progress message to show while the tool runs.
 		 */
-		invocationMessage?: string;
+		invocationMessage?: string | MarkdownString;
 
 		/**
 		 * The presence of this property indicates that the user should be asked to confirm before running the tool. The user

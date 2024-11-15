@@ -42,6 +42,7 @@ export interface IBaseChatRequestVariableEntry {
 	 */
 	isDynamic?: boolean;
 	isFile?: boolean;
+	isDirectory?: boolean;
 	isTool?: boolean;
 	isImage?: boolean;
 }
@@ -558,7 +559,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	setAgent(agent: IChatAgentData, slashCommand?: IChatAgentCommand) {
 		this._agent = agent;
 		this._slashCommand = slashCommand;
-		this._agentOrSlashCommandDetected = true;
+		this._agentOrSlashCommandDetected = !agent.isDefault;
 		this._onDidChange.fire();
 	}
 

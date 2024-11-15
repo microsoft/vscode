@@ -5,25 +5,24 @@
 
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
-import type { Position } from '../../../common/core/position.js';
-import type { Range } from '../../../common/core/range.js';
-import type { ViewLinesChangedEvent, ViewScrollChangedEvent } from '../../../common/viewEvents.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { TextureAtlasPage } from '../../gpu/atlas/textureAtlasPage.js';
 import { FullFileRenderStrategy } from '../../gpu/fullFileRenderStrategy.js';
 import { BindingId, type IGpuRenderStrategy } from '../../gpu/gpu.js';
 import { GPULifecycle } from '../../gpu/gpuDisposable.js';
-import { observeDevicePixelDimensions, quadVertices } from '../../gpu/gpuUtils.js';
+import { quadVertices } from '../../gpu/gpuUtils.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
-import { FloatHorizontalRange, HorizontalPosition, IViewLines, LineVisibleRanges, RenderingContext, RestrictedRenderingContext, VisibleRanges } from '../../view/renderingContext.js';
+import { FloatHorizontalRange, HorizontalPosition, HorizontalRange, IViewLines, LineVisibleRanges, RenderingContext, RestrictedRenderingContext, VisibleRanges } from '../../view/renderingContext.js';
 import { ViewPart } from '../../view/viewPart.js';
 import { ViewLineOptions } from '../viewLines/viewLineOptions.js';
-
+import type * as viewEvents from '../../../common/viewEvents.js';
 
 const enum GlyphStorageBufferInfo {
 	FloatsPerEntry = 2 + 2 + 2,
@@ -60,6 +59,8 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 	private _renderStrategy!: IGpuRenderStrategy;
 
+	private _contentLeftObs = observableValue('contentLeft', 0);
+
 	constructor(
 		context: ViewContext,
 		private readonly _viewGpuContext: ViewGpuContext,
@@ -70,9 +71,18 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		this.canvas = this._viewGpuContext.canvas.domNode;
 
+		// Re-render the following frame after canvas device pixel dimensions change, provided a
+		// new render does not occur.
 		this._register(autorun(reader => {
-			/*const dims = */this._viewGpuContext.canvasDevicePixelDimensions.read(reader);
-			// TODO: Request render, should this just call renderText with the last viewportData
+			this._viewGpuContext.canvasDevicePixelDimensions.read(reader);
+			const lastViewportData = this._lastViewportData;
+			if (lastViewportData) {
+				setTimeout(() => {
+					if (lastViewportData === this._lastViewportData) {
+						this.renderText(lastViewportData);
+					}
+				});
+			}
 		}));
 
 		this.initWebgpu();
@@ -145,8 +155,11 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 				size: Info.BytesPerEntry,
 				usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 			}, () => updateBufferValues())).object;
-			this._register(observeDevicePixelDimensions(this.canvas, getActiveWindow(), (w, h) => {
-				this._device.queue.writeBuffer(layoutInfoUniformBuffer, 0, updateBufferValues(w, h));
+			this._register(runOnChange(this._viewGpuContext.canvasDevicePixelDimensions, ({ width, height }) => {
+				this._device.queue.writeBuffer(layoutInfoUniformBuffer, 0, updateBufferValues(width, height));
+			}));
+			this._register(runOnChange(this._contentLeftObs, () => {
+				this._device.queue.writeBuffer(layoutInfoUniformBuffer, 0, updateBufferValues());
 			}));
 		}
 
@@ -174,7 +187,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		// #region Storage buffers
 
-		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._device, this.canvas, atlas));
+		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._viewGpuContext, this._device));
 
 		this._glyphStorageBuffer[0] = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco glyph storage buffer [0]',
@@ -351,12 +364,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		}
 	}
 
-	public static canRender(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): boolean {
-		const d = viewportData.getViewLineRenderingData(lineNumber);
-		// TODO
-		return d.content.indexOf('e') !== -1;
-	}
-
 	public prepareRender(ctx: RenderingContext): void {
 		throw new BugIndicatingError('Should not be called');
 	}
@@ -365,15 +372,36 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		throw new BugIndicatingError('Should not be called');
 	}
 
-	override onLinesChanged(e: ViewLinesChangedEvent): boolean {
+	// #region Event handlers
+
+	// Since ViewLinesGpu currently coordinates rendering to the canvas, it must listen to all
+	// changed events that any GPU part listens to. This is because any drawing to the canvas will
+	// clear it for that frame, so all parts must be rendered every time.
+	//
+	// Additionally, since this is intrinsically linked to ViewLines, it must also listen to events
+	// from that side. Luckily rendering is cheap, it's only when uploaded data changes does it
+	// start to cost.
+
+	override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean { return true; }
+	override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean { return true; }
+	override onFlushed(e: viewEvents.ViewFlushedEvent): boolean { return true; }
+	override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean { return true; }
+	override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean { return true; }
+	override onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean { return true; }
+	override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean { return true; }
+	override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean { return true; }
+	override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean { return true; }
+
+	override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		this._contentLeftObs.set(this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft, undefined);
+		return true;
+	}
+	override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		this._renderStrategy.onLinesDeleted(e);
 		return true;
 	}
 
-	override onScrollChanged(e: ViewScrollChangedEvent): boolean {
-		return true;
-	}
-
-	// subscribe to more events
+	// #endregion
 
 	public renderText(viewportData: ViewportData): void {
 		if (this._initialized) {
@@ -403,7 +431,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		pass.setBindGroup(0, this._bindGroup);
 
 		if (this._renderStrategy?.draw) {
-			// TODO: Don't draw lines if ViewLinesGpu.canRender is false
 			this._renderStrategy.draw(pass, viewportData);
 		} else {
 			pass.draw(quadVertices.length / 2, visibleObjectCount);
@@ -419,8 +446,65 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		this._lastViewLineOptions = options;
 	}
 
-	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
-		return null;
+	linesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
+		if (!this._lastViewportData) {
+			return null;
+		}
+		const originalEndLineNumber = _range.endLineNumber;
+		const range = Range.intersectRanges(_range, this._lastViewportData.visibleRange);
+		if (!range) {
+			return null;
+		}
+
+		const rendStartLineNumber = this._lastViewportData.startLineNumber;
+		const rendEndLineNumber = this._lastViewportData.endLineNumber;
+
+		const viewportData = this._lastViewportData;
+		const viewLineOptions = this._lastViewLineOptions;
+
+		if (!viewportData || !viewLineOptions) {
+			return null;
+		}
+
+		const visibleRanges: LineVisibleRanges[] = [];
+
+		let nextLineModelLineNumber: number = 0;
+		if (includeNewLines) {
+			nextLineModelLineNumber = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
+		}
+
+		for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
+
+			if (lineNumber < rendStartLineNumber || lineNumber > rendEndLineNumber) {
+				continue;
+			}
+			const startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
+			const continuesInNextLine = lineNumber !== range.endLineNumber;
+			const endColumn = continuesInNextLine ? this._context.viewModel.getLineMaxColumn(lineNumber) : range.endColumn;
+
+			const visibleRangesForLine = this._visibleRangesForLineRange(lineNumber, startColumn, endColumn);
+
+			if (!visibleRangesForLine) {
+				continue;
+			}
+
+			if (includeNewLines && lineNumber < originalEndLineNumber) {
+				const currentLineModelLineNumber = nextLineModelLineNumber;
+				nextLineModelLineNumber = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber + 1, 1)).lineNumber;
+
+				if (currentLineModelLineNumber !== nextLineModelLineNumber) {
+					visibleRangesForLine.ranges[visibleRangesForLine.ranges.length - 1].width += viewLineOptions.spaceWidth;
+				}
+			}
+
+			visibleRanges.push(new LineVisibleRanges(visibleRangesForLine.outsideRenderedLine, lineNumber, HorizontalRange.from(visibleRangesForLine.ranges), continuesInNextLine));
+		}
+
+		if (visibleRanges.length === 0) {
+			return null;
+		}
+
+		return visibleRanges;
 	}
 
 	private _visibleRangesForLineRange(lineNumber: number, startColumn: number, endColumn: number): VisibleRanges | null {
@@ -437,10 +521,22 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			return null;
 		}
 
+		// Resolve tab widths for this line
+		const lineData = viewportData.getViewLineRenderingData(lineNumber);
+		const content = lineData.content;
+		let resolvedStartColumnLeft = 0;
+		for (let x = 0; x < startColumn - 1; x++) {
+			resolvedStartColumnLeft += content[x] === '\t' ? lineData.tabSize : 1;
+		}
+		let resolvedRangeWidth = 0;
+		for (let x = startColumn - 1; x < endColumn - 1; x++) {
+			resolvedRangeWidth += content[x] === '\t' ? lineData.tabSize : 1;
+		}
+
 		// Visible horizontal range in _scaled_ pixels
 		const result = new VisibleRanges(false, [new FloatHorizontalRange(
-			(startColumn - 1) * viewLineOptions.spaceWidth,
-			(endColumn - startColumn - 1) * viewLineOptions.spaceWidth)
+			resolvedStartColumnLeft * viewLineOptions.spaceWidth,
+			resolvedRangeWidth * viewLineOptions.spaceWidth)
 		]);
 
 		return result;
@@ -452,5 +548,44 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			return null;
 		}
 		return new HorizontalPosition(visibleRanges.outsideRenderedLine, visibleRanges.ranges[0].left);
+	}
+
+	getLineWidth(lineNumber: number): number | undefined {
+		if (!this._lastViewportData || !this._lastViewLineOptions) {
+			return undefined;
+		}
+		if (!ViewGpuContext.canRender(this._lastViewLineOptions, this._lastViewportData, lineNumber)) {
+			return undefined;
+		}
+
+		const lineData = this._lastViewportData.getViewLineRenderingData(lineNumber);
+		const lineRange = this._visibleRangesForLineRange(lineNumber, 1, lineData.maxColumn);
+		const lastRange = lineRange?.ranges.at(-1);
+		if (lastRange) {
+			return lastRange.width;
+		}
+
+		return undefined;
+	}
+
+	getPositionAtCoordinate(lineNumber: number, mouseContentHorizontalOffset: number): Position | undefined {
+		if (!this._lastViewportData || !this._lastViewLineOptions) {
+			return undefined;
+		}
+		if (!ViewGpuContext.canRender(this._lastViewLineOptions, this._lastViewportData, lineNumber)) {
+			return undefined;
+		}
+		const lineData = this._lastViewportData.getViewLineRenderingData(lineNumber);
+		const content = lineData.content;
+		let visualColumn = Math.ceil(mouseContentHorizontalOffset / this._lastViewLineOptions.spaceWidth);
+		let contentColumn = 0;
+		while (visualColumn > 0) {
+			if (visualColumn - (content[contentColumn] === '\t' ? lineData.tabSize : 1) < 0) {
+				break;
+			}
+			visualColumn -= content[contentColumn] === '\t' ? lineData.tabSize : 1;
+			contentColumn++;
+		}
+		return new Position(lineNumber, contentColumn);
 	}
 }

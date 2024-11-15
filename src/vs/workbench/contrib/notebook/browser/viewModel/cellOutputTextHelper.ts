@@ -15,7 +15,7 @@ interface Error {
 	stack?: string;
 }
 
-export function getAllOutputsText(notebook: NotebookTextModel, viewCell: ICellViewModel): string {
+export function getAllOutputsText(notebook: NotebookTextModel, viewCell: ICellViewModel, shortErrors: boolean = false): string {
 	const outputText: string[] = [];
 	for (let i = 0; i < viewCell.outputsViewModels.length; i++) {
 		const outputViewModel = viewCell.outputsViewModels[i];
@@ -40,7 +40,7 @@ export function getAllOutputsText(notebook: NotebookTextModel, viewCell: ICellVi
 				i += count - 1;
 			}
 		} else {
-			text = getOutputText(mimeType, buffer);
+			text = getOutputText(mimeType, buffer, shortErrors);
 		}
 
 		outputText.push(text);
@@ -55,7 +55,7 @@ export function getAllOutputsText(notebook: NotebookTextModel, viewCell: ICellVi
 		outputContent = outputText[0] ?? '';
 	}
 
-	return outputContent.trim();
+	return outputContent;
 }
 
 export function getOutputStreamText(output: ICellOutputViewModel): { text: string; count: number } {
@@ -75,12 +75,12 @@ export function getOutputStreamText(output: ICellOutputViewModel): { text: strin
 		count++;
 	}
 
-	return { text, count };
+	return { text: text.trim(), count };
 }
 
 const decoder = new TextDecoder();
 
-export function getOutputText(mimeType: string, buffer: IOutputItemDto) {
+export function getOutputText(mimeType: string, buffer: IOutputItemDto, shortError: boolean = false): string {
 	let text = `${mimeType}`; // default in case we can't get the text value for some reason.
 
 	const charLimit = 100000;
@@ -92,17 +92,17 @@ export function getOutputText(mimeType: string, buffer: IOutputItemDto) {
 		text = text.replace(/\\u001b\[[0-9;]*m/gi, '');
 		try {
 			const error = JSON.parse(text) as Error;
-			if (error.stack) {
-				text = error.stack;
-			} else {
+			if (!error.stack || shortError) {
 				text = `${error.name}: ${error.message}`;
+			} else {
+				text = error.stack;
 			}
 		} catch {
 			// just use raw text
 		}
 	}
 
-	return text;
+	return text.trim();
 }
 
 export async function copyCellOutput(mimeType: string | undefined, outputViewModel: ICellOutputViewModel, clipboardService: IClipboardService, logService: ILogService) {

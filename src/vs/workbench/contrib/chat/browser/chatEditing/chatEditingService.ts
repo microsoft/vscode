@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, delta } from '../../../../../base/common/arrays.js';
+import { coalesce, compareBy, delta } from '../../../../../base/common/arrays.js';
 import { AsyncIterableSource } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -34,7 +34,7 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsContextKey, applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsContextKey, applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingSession } from './chatEditingSession.js';
@@ -387,11 +387,45 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return editors;
 	}
 
+	hasRelatedFilesProviders(): boolean {
+		return this._chatRelatedFilesProviders.size > 0;
+	}
+
 	registerRelatedFilesProvider(handle: number, provider: IChatRelatedFilesProvider): IDisposable {
 		this._chatRelatedFilesProviders.set(handle, provider);
 		return toDisposable(() => {
 			this._chatRelatedFilesProviders.delete(handle);
 		});
+	}
+
+	async getRelatedFiles(chatSessionId: string, prompt: string, token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined> {
+		const currentSession = this._currentSessionObs.get();
+		if (!currentSession || chatSessionId !== currentSession.chatSessionId) {
+			return undefined;
+		}
+		const userAddedWorkingSetEntries: URI[] = [];
+		for (const entry of currentSession.workingSet) {
+			// Don't incorporate suggested files into the related files request
+			// but do consider transient entries like open editors
+			if (entry[1].state !== WorkingSetEntryState.Suggested) {
+				userAddedWorkingSetEntries.push(entry[0]);
+			}
+		}
+
+		const providers = Array.from(this._chatRelatedFilesProviders.values());
+		const result = await Promise.all(providers.map(async provider => {
+			try {
+				const relatedFiles = await provider.provideRelatedFiles({ prompt, files: userAddedWorkingSetEntries }, token);
+				if (relatedFiles?.length) {
+					return { group: provider.description, files: relatedFiles };
+				}
+				return undefined;
+			} catch (e) {
+				return undefined;
+			}
+		}));
+
+		return coalesce(result);
 	}
 }
 

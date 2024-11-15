@@ -164,7 +164,7 @@ steps:
     displayName: Run ApiScan
     condition: succeeded()
     env:
-      AzureServicesAuthConnectionString: $(APIScanConnectionString)
+      AzureServicesAuthConnectionString: RunAs=App;AppId=c0940da5-8bd3-4dd3-8af1-40774b50edbd;TenantId=72f988bf-86f1-41af-91ab-2d7cd011db47;ServiceConnectionId=3e55d992-b60d-414d-9071-e4fad359c748;
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
   - task: PublishSecurityAnalysisLogs@3
