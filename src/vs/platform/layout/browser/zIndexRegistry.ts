@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { clearNode, createCSSRule, createStyleSheet } from '../../../base/browser/dom.js';
+import { clearNode } from '../../../base/browser/dom.js';
+import { createCSSRule } from 'vs/base/browser/domStylesheets.js';
+import { createStyleSheet } from 'vs/base/browser/domStylesheets.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 
 export enum ZIndex {

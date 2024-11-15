@@ -43,6 +43,7 @@ import { equals, sortedDiff } from '../../../../base/common/arrays.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { ISplice } from '../../../../base/common/sequence.js';
 import * as dom from '../../../../base/browser/dom.js';
+import * as domStylesheetsJs from 'vs/base/browser/domStylesheets.js';
 import { EncodingMode, ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from '../../../services/textfile/common/textfiles.js';
 import { gotoNextLocation, gotoPreviousLocation } from '../../../../platform/theme/common/iconRegistry.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -721,7 +722,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 	) {
 		super();
 		this.enabled = !contextKeyService.getContextKeyValue('isInDiffEditor');
-		this.stylesheet = dom.createStyleSheet(undefined, undefined, this._store);
+		this.stylesheet = domStylesheetsJs.createStyleSheet(undefined, undefined, this._store);
 
 		if (this.enabled) {
 			this.isDirtyDiffVisible = isDirtyDiffVisible.bindTo(contextKeyService);
@@ -1543,7 +1544,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super();
-		this.stylesheet = dom.createStyleSheet(undefined, undefined, this._store);
+		this.stylesheet = domStylesheetsJs.createStyleSheet(undefined, undefined, this._store);
 
 		const onDidChangeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorations'));
 		this._register(onDidChangeConfiguration(this.onDidChangeConfiguration, this));
