@@ -35,7 +35,7 @@ import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from './inl
 import { InlineEdit } from './inlineEdit.js';
 import { InlineCompletionItem } from './provideInlineCompletions.js';
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
-import { SuggestItemInfo } from './suggestWidgetAdaptor.js';
+import { SuggestItemInfo } from './suggestWidgetAdapter.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this._textModelVersionId, this._debounceValue));
