@@ -120,7 +120,7 @@ suite('chat', () => {
 		assert.deepStrictEqual(result.metadata, { key: 'value' });
 	});
 
-	test('isolated participant history', async () => {
+	test('participant history not isolated within extension', async () => {
 		const onRequest = setupParticipant();
 		const onRequest2 = setupParticipant(true);
 
@@ -132,13 +132,13 @@ suite('chat', () => {
 			commands.executeCommand('workbench.action.chat.open', { query: '@participant2 hi' });
 		}, 0);
 		const request2 = await asPromise(onRequest2);
-		assert.strictEqual(request2.context.history.length, 0);
+		assert.strictEqual(request2.context.history.length, 10);
 
 		setTimeout(() => {
 			commands.executeCommand('workbench.action.chat.open', { query: '@participant2 hi' });
 		}, 0);
 		const request3 = await asPromise(onRequest2);
-		assert.strictEqual(request3.context.history.length, 2); // request + response = 2
+		assert.strictEqual(request3.context.history.length, 12); // request + response = 2
 	});
 
 	test('title provider is called for first request', async () => {

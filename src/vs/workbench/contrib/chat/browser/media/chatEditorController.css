@@ -28,8 +28,7 @@
 
 .chat-diff-change-content-widget .monaco-action-bar .action-item .action-label.codicon {
 	width: unset;
-	padding: 0 2px;
-	z-index: 9;
+	padding: 2px;
 	font-size: 12px;
 	line-height: 14px;
 	color: var(--vscode-button-foreground);
