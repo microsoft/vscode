@@ -36,7 +36,7 @@
     "@types/workerpool": "^6.4.0",
     "@types/xml2js": "0.0.33",
     "@vscode/iconv-lite-umd": "0.7.0",
-    "@vscode/vsce": "2.20.1",
+    "@vscode/vsce": "3.2.2-1",
     "byline": "^5.0.0",
     "debug": "^4.3.2",
     "electron-osx-sign": "^0.4.16",
