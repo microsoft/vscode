@@ -227,10 +227,14 @@ steps:
         displayName: Find ESRP CLI
 
       - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(CodeSigningFolderPath) '*.dll,*.exe,*.node'
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Codesign executables and shared libraries
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
       - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows-appx $(CodeSigningFolderPath) '*.appx'
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Codesign context menu appx package
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -278,6 +282,8 @@ steps:
           $SetupPath = ".build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
           mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $SetupPath
           echo "##vso[task.setvariable variable=SYSTEM_SETUP_PATH]$SetupPath"
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Build system setup
 
       - powershell: |
@@ -287,6 +293,8 @@ steps:
           $SetupPath = ".build\win32-$(VSCODE_ARCH)\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
           mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $SetupPath
           echo "##vso[task.setvariable variable=USER_SETUP_PATH]$SetupPath"
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Build user setup
 
       - powershell: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
