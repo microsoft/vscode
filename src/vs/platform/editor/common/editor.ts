@@ -400,5 +400,7 @@ export function isTextEditorDiffInformationEqual(
 	return diff1?.documentVersion === diff2?.documentVersion &&
 		uriIdentityService.extUri.isEqual(diff1?.original, diff2?.original) &&
 		uriIdentityService.extUri.isEqual(diff1?.modified, diff2?.modified) &&
-		equals<[number, number, number, number]>(diff1?.diff, diff2?.diff, (a, b) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3]);
+		equals<ITextEditorDiff>(diff1?.diff, diff2?.diff, (a, b) => {
+			return a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3];
+		});
 }

@@ -96,7 +96,6 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		toDispose.push(autorun(reader => {
 			const diffInformation = diffInformationObs.read(reader);
 			this._proxy.$acceptEditorDiffInformation(id, diffInformation);
-			console.log('$acceptEditorDiffInformation: ', diffInformation);
 		}));
 
 		this._textEditorsListenersMap[id] = toDispose;
