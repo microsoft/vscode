@@ -403,12 +403,19 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		if (!currentSession || chatSessionId !== currentSession.chatSessionId) {
 			return undefined;
 		}
-		const currentWorkingSet = [...currentSession.workingSet.keys()];
+		const userAddedWorkingSetEntries: URI[] = [];
+		for (const entry of currentSession.workingSet) {
+			// Don't incorporate suggested files into the related files request
+			// but do consider transient entries like open editors
+			if (entry[1].state !== WorkingSetEntryState.Suggested) {
+				userAddedWorkingSetEntries.push(entry[0]);
+			}
+		}
 
 		const providers = Array.from(this._chatRelatedFilesProviders.values());
 		const result = await Promise.all(providers.map(async provider => {
 			try {
-				const relatedFiles = await provider.provideRelatedFiles({ prompt, files: currentWorkingSet }, token);
+				const relatedFiles = await provider.provideRelatedFiles({ prompt, files: userAddedWorkingSetEntries }, token);
 				if (relatedFiles?.length) {
 					return { group: provider.description, files: relatedFiles };
 				}
