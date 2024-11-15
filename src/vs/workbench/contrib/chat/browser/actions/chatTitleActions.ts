@@ -488,7 +488,7 @@ export function registerChatTitleActions() {
 				await chatService.adoptRequest(editingSession.chatSessionId, request);
 				this._collectWorkingSetAdditions(request, workingSetAdditions);
 			}
-			workingSetAdditions.forEach(editingSession.addFileToWorkingSet, editingSession);
+			workingSetAdditions.forEach(uri => editingSession.addFileToWorkingSet(uri));
 
 			// make request
 			await chatService.sendRequest(editingSession.chatSessionId, '', {
