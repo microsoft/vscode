@@ -9,7 +9,7 @@ import { EditorOption } from '../../common/config/editorOptions.js';
 import { CursorColumns } from '../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
 import { ViewEventHandler } from '../../common/viewEventHandler.js';
-import type { ViewLinesDeletedEvent, ViewScrollChangedEvent } from '../../common/viewEvents.js';
+import type { ViewConfigurationChangedEvent, ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewLinesInsertedEvent, ViewScrollChangedEvent, ViewTokensChangedEvent } from '../../common/viewEvents.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewLineRenderingData } from '../../common/viewModel.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
@@ -107,8 +107,66 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 	// #region Event handlers
 
+	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
+		this._upToDateLines[0].clear();
+		this._upToDateLines[1].clear();
+		return true;
+	}
+
+	public override onTokensChanged(e: ViewTokensChangedEvent): boolean {
+		// TODO: This currently fires for the entire viewport whenever scrolling stops
+		//       https://github.com/microsoft/vscode/issues/233942
+		for (const range of e.ranges) {
+			for (let i = range.fromLineNumber; i <= range.toLineNumber; i++) {
+				this._upToDateLines[0].delete(i);
+				this._upToDateLines[1].delete(i);
+			}
+		}
+		return true;
+	}
+
 	public override onLinesDeleted(e: ViewLinesDeletedEvent): boolean {
+		// TODO: This currently invalidates everything after the deleted line, it could shift the
+		//       line data up to retain some up to date lines
+		// TODO: This does not invalidate lines that are no longer in the file
+		for (const i of [0, 1]) {
+			const upToDateLines = this._upToDateLines[i];
+			const lines = Array.from(upToDateLines);
+			for (const upToDateLine of lines) {
+				if (upToDateLine > e.fromLineNumber) {
+					upToDateLines.delete(upToDateLine);
+				}
+			}
+		}
+
+		// Queue updates that need to happen on the active buffer, not just the cache. This is
+		// deferred since the active buffer could be locked by the GPU which would block the main
+		// thread.
 		this._queueBufferUpdate(e);
+
+		return true;
+	}
+
+	public override onLinesInserted(e: ViewLinesInsertedEvent): boolean {
+		// TODO: This currently invalidates everything after the deleted line, it could shift the
+		//       line data up to retain some up to date lines
+		for (const i of [0, 1]) {
+			const upToDateLines = this._upToDateLines[i];
+			const lines = Array.from(upToDateLines);
+			for (const upToDateLine of lines) {
+				if (upToDateLine > e.fromLineNumber) {
+					upToDateLines.delete(upToDateLine);
+				}
+			}
+		}
+		return true;
+	}
+
+	public override onLinesChanged(e: ViewLinesChangedEvent): boolean {
+		for (let i = e.fromLineNumber; i < e.fromLineNumber + e.count; i++) {
+			this._upToDateLines[0].delete(i);
+			this._upToDateLines[1].delete(i);
+		}
 		return true;
 	}
 
@@ -201,10 +259,10 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 				continue;
 			}
 
-			// TODO: Update on dirty lines; is this known by line before rendering?
-			// if (upToDateLines.has(y)) {
-			// 	continue;
-			// }
+			// Skip updating the line if it's already up to date
+			if (upToDateLines.has(y)) {
+				continue;
+			}
 			dirtyLineStart = Math.min(dirtyLineStart, y);
 			dirtyLineEnd = Math.max(dirtyLineEnd, y);
 
