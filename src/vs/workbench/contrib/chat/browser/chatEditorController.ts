@@ -185,6 +185,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			const mightContainNonBasicASCII = originalModel.mightContainNonBasicASCII();
 			const mightContainRTL = originalModel.mightContainRTL();
 			const renderOptions = RenderOptions.fromEditor(this._editor);
+			const editorLineCount = this._editor.getModel()?.getLineCount();
 
 			for (const diffEntry of diff.changes) {
 				const originalRange = diffEntry.original;
@@ -202,11 +203,20 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 						diffDeleteDecoration.className!,
 						InlineDecorationType.Regular
 					));
-					modifiedDecorations.push({
-						range: i.modifiedRange, options: chatDiffAddDecoration
-					});
+
+					// If the original range is empty, the start line number is 1 and the new range spans the entire file, don't draw an Added decoration
+					if (!(i.originalRange.isEmpty() && i.originalRange.startLineNumber === 1 && i.modifiedRange.endLineNumber === editorLineCount) && !i.modifiedRange.isEmpty()) {
+						modifiedDecorations.push({
+							range: i.modifiedRange, options: chatDiffAddDecoration
+						});
+					}
 				}
-				if (!diffEntry.modified.isEmpty) {
+
+				// Render an added decoration but don't also render a deleted decoration for newly inserted content at the start of the file
+				// Note, this is a workaround for the `LineRange.isEmpty()` in diffEntry.original being `false` for newly inserted content
+				const isCreatedContent = decorations.length === 1 && decorations[0].range.isEmpty() && diffEntry.original.startLineNumber === 1;
+
+				if (!diffEntry.modified.isEmpty && !(isCreatedContent && (diffEntry.modified.endLineNumberExclusive - 1) === editorLineCount)) {
 					modifiedDecorations.push({
 						range: diffEntry.modified.toInclusiveRange()!,
 						options: chatDiffWholeLineAddDecoration
@@ -236,7 +246,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				domNode.className = 'chat-editing-original-zone view-lines line-delete monaco-mouse-cursor-text';
 				const result = renderLines(source, renderOptions, decorations, domNode);
 
-				const isCreatedContent = decorations.length === 1 && decorations[0].range.isEmpty() && decorations[0].range.startLineNumber === 1;
 				if (!isCreatedContent) {
 					const viewZoneData: IViewZone = {
 						afterLineNumber: diffEntry.modified.startLineNumber - 1,
