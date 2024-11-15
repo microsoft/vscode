@@ -1759,6 +1759,8 @@ export interface WorkspaceEdit {
 export interface ICustomEdit {
 	readonly resource: URI;
 	readonly metadata?: WorkspaceEditMetadata;
+	undo(): Promise<void> | void;
+	redo(): Promise<void> | void;
 }
 
 export interface Rejection {

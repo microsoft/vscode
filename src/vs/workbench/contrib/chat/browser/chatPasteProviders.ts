@@ -20,6 +20,8 @@ import { IExtensionService, isProposedApiEnabled } from '../../../services/exten
 import { Mimes } from '../../../../base/common/mime.js';
 import { URI } from '../../../../base/common/uri.js';
 
+const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
+
 export class PasteImageProvider implements DocumentPasteEditProvider {
 
 	public readonly kind = new HierarchicalKind('chat.attach.image');
@@ -111,7 +113,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 
 		return {
 			edits: [{
-				insertText: '', title: 'Empty Edit', kind: new HierarchicalKind(Mimes.text), handledMimeType: Mimes.text,
+				insertText: '', title: 'Empty Edit', kind: new HierarchicalKind('chat.attach.image'), handledMimeType: mimeType,
 				additionalEdit: {
 					edits: [customEdit],
 				}
@@ -166,7 +168,7 @@ export function isImage(array: Uint8Array): boolean {
 export class CopyTextProvider implements DocumentPasteEditProvider {
 
 	public readonly kind = new HierarchicalKind('chat.attach.text');
-	public readonly copyMimeTypes = ['application/vnd.code.additional-editor-data'];
+	public readonly copyMimeTypes = [COPY_MIME_TYPES];
 
 	async prepareDocumentPaste(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer> {
 		if (model.uri.scheme === ChatInputPart.INPUT_SCHEME) {
@@ -174,7 +176,7 @@ export class CopyTextProvider implements DocumentPasteEditProvider {
 		}
 		const customDataTransfer = new VSDataTransfer();
 		const rangesString = JSON.stringify({ ranges: ranges[0], uri: model.uri.toString() });
-		customDataTransfer.append('application/vnd.code.additional-editor-data', createStringDataTransferItem(rangesString));
+		customDataTransfer.append(COPY_MIME_TYPES, createStringDataTransferItem(rangesString));
 		return customDataTransfer;
 	}
 }
@@ -182,7 +184,7 @@ export class CopyTextProvider implements DocumentPasteEditProvider {
 export class PasteTextProvider implements DocumentPasteEditProvider {
 
 	public readonly kind = new HierarchicalKind('chat.attach.text');
-	public readonly pasteMimeTypes = ['application/vnd.code.additional-editor-data'];
+	public readonly pasteMimeTypes = [COPY_MIME_TYPES];
 
 	constructor(
 		private readonly chatWidgetService: IChatWidgetService
@@ -194,7 +196,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		}
 		const text = dataTransfer.get(Mimes.text);
 		const editorData = dataTransfer.get('vscode-editor-data');
-		const additionalEditorData = dataTransfer.get('application/vnd.code.additional-editor-data');
+		const additionalEditorData = dataTransfer.get(COPY_MIME_TYPES);
 
 		if (!editorData || !text || !additionalEditorData) {
 			return;
@@ -242,7 +244,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 
 		return {
 			edits: [{
-				insertText: '', title: 'Empty Edit', kind: new HierarchicalKind(Mimes.text), handledMimeType: Mimes.text,
+				insertText: '', title: 'Empty Edit', kind: new HierarchicalKind('chat.attach.text'), handledMimeType: Mimes.text,
 				additionalEdit: {
 					edits: [customEdit],
 				}

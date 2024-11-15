@@ -10,32 +10,28 @@ import { ResourceEdit } from '../../../../editor/browser/services/bulkEditServic
 import { ICustomEdit, WorkspaceEditMetadata } from '../../../../editor/common/languages.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IUndoRedoService, UndoRedoElementType, UndoRedoGroup, UndoRedoSource } from '../../../../platform/undoRedo/common/undoRedo.js';
-import { IChatRequestVariableEntry } from '../../chat/common/chatModel.js';
-import { ChatInputPart } from '../../chat/browser/chatInputPart.js';
-import { IChatWidgetService } from '../../chat/browser/chat.js';
 
-export class ResourceAttachmentEdit extends ResourceEdit implements IAttachmentEdit {
+export class ResourceAttachmentEdit extends ResourceEdit implements ICustomEdit {
 
-	static is(candidate: any): candidate is IAttachmentEdit {
+	static is(candidate: any): candidate is ICustomEdit {
 		if (candidate instanceof ResourceAttachmentEdit) {
 			return true;
 		} else {
 			return isObject(candidate)
-				&& (Boolean((<IAttachmentEdit>candidate).undo && (<IAttachmentEdit>candidate).redo));
+				&& (Boolean((<ICustomEdit>candidate).undo && (<ICustomEdit>candidate).redo));
 		}
 	}
 
-	static lift(edit: IAttachmentEdit): ResourceAttachmentEdit {
+	static lift(edit: ICustomEdit): ResourceAttachmentEdit {
 		if (edit instanceof ResourceAttachmentEdit) {
 			return edit;
 		} else {
-			return new ResourceAttachmentEdit(edit.resource, edit.variable, edit.undo, edit.redo, edit.metadata);
+			return new ResourceAttachmentEdit(edit.resource, edit.undo, edit.redo, edit.metadata);
 		}
 	}
 
 	constructor(
 		readonly resource: URI,
-		readonly variable: IChatRequestVariableEntry,
 		readonly undo: () => Promise<void> | void,
 		readonly redo: () => Promise<void> | void,
 		metadata?: WorkspaceEditMetadata
@@ -44,33 +40,16 @@ export class ResourceAttachmentEdit extends ResourceEdit implements IAttachmentE
 	}
 }
 
-export interface IAttachmentEdit extends ICustomEdit {
-	readonly resource: URI;
-	readonly metadata?: WorkspaceEditMetadata;
-	readonly variable: IChatRequestVariableEntry;
-	undo(): Promise<void> | void;
-	redo(): Promise<void> | void;
-}
-
 export class OpaqueEdits {
 
 	constructor(
 		private readonly _undoRedoGroup: UndoRedoGroup,
-		private readonly undoRedoSource: UndoRedoSource | undefined,
+		private readonly _undoRedoSource: UndoRedoSource | undefined,
 		private readonly _progress: IProgress<void>,
 		private readonly _token: CancellationToken,
 		private readonly _edits: ResourceAttachmentEdit[],
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
-	) {
-		this._edits = this._edits.map(e => {
-			if (e.resource.scheme === ChatInputPart.INPUT_SCHEME) {
-				return new ResourceAttachmentEdit(e.resource, e.variable, e.undo, e.redo);
-			} else {
-				return e;
-			}
-		});
-	}
+	) { }
 
 	async apply(): Promise<readonly URI[]> {
 		const resources: URI[] = [];
@@ -80,8 +59,7 @@ export class OpaqueEdits {
 				break;
 			}
 
-			const widget = this._chatWidgetService.getWidgetByInputUri(edit.resource);
-			widget?.attachmentModel.addContext(edit.variable);
+			await edit.redo();
 
 			this._undoRedoService.pushElement({
 				type: UndoRedoElementType.Resource,
@@ -90,7 +68,7 @@ export class OpaqueEdits {
 				code: 'paste',
 				undo: edit.undo,
 				redo: edit.redo,
-			}, this._undoRedoGroup, this.undoRedoSource);
+			}, this._undoRedoGroup, this._undoRedoSource);
 
 			this._progress.report(undefined);
 			resources.push(edit.resource);

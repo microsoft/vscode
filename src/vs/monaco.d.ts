@@ -7960,6 +7960,8 @@ declare namespace monaco.languages {
 	export interface ICustomEdit {
 		readonly resource: Uri;
 		readonly metadata?: WorkspaceEditMetadata;
+		undo(): Promise<void> | void;
+		redo(): Promise<void> | void;
 	}
 
 	export interface Rejection {
