@@ -114,7 +114,7 @@ function getSharedStyleSheet(): HTMLStyleElement {
 	return _sharedStyleSheet;
 }
 
-export function getDynamicStyleSheetRules(style: HTMLStyleElement) {
+function getDynamicStyleSheetRules(style: HTMLStyleElement) {
 	if (style?.sheet?.rules) {
 		// Chrome, IE
 		return style.sheet.rules;
