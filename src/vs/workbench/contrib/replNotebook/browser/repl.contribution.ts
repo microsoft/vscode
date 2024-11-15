@@ -43,6 +43,7 @@ import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from '../../notebook/browser/con
 import { INotebookEditorOptions } from '../../notebook/browser/notebookBrowser.js';
 import { NotebookEditorWidget } from '../../notebook/browser/notebookEditorWidget.js';
 import * as icons from '../../notebook/browser/notebookIcons.js';
+import { ReplEditorAccessibleView } from '../../notebook/browser/replEditorAccessibleView.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CellEditType, CellKind, NotebookSetting, NotebookWorkingCopyTypeIdentifier, REPL_EDITOR_ID } from '../../notebook/common/notebookCommon.js';
 import { IS_COMPOSITE_NOTEBOOK, MOST_RECENT_REPL_EDITOR, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../notebook/common/notebookContextKeys.js';
@@ -472,6 +473,8 @@ async function executeReplInput(
 		}
 	}
 }
+
+AccessibleViewRegistry.register(new ReplEditorAccessibleView());
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.find.replInputFocus',

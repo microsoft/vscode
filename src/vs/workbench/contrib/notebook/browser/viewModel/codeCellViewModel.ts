@@ -5,14 +5,13 @@
 
 import { Emitter, Event, PauseableEmitter } from '../../../../../base/common/event.js';
 import { dispose } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import * as UUID from '../../../../../base/common/uuid.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import * as editorCommon from '../../../../../editor/common/editorCommon.js';
 import { PrefixSumComputer } from '../../../../../editor/common/model/prefixSumComputer.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { CellEditState, CellFindMatch, CellLayoutState, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, ICellOutputViewModel, ICellViewModel } from '../notebookBrowser.js';
 import { NotebookOptionsChangeEvent } from '../notebookOptions.js';
@@ -135,7 +134,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		return this._outputViewModels;
 	}
 
-	readonly excecutionError = observableValue<ICellExecutionError | undefined>('excecutionError', undefined);
+	get executionError(): IObservable<ICellExecutionError | undefined> {
+		return this._executionError;
+	}
+
+	private readonly _executionError = observableValue<ICellExecutionError | undefined>('excecutionError', undefined);
 
 	constructor(
 		viewType: string,
@@ -146,8 +149,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ITextModelService modelService: ITextModelService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService, codeEditorService);
 		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
@@ -169,6 +171,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			this._onDidRemoveOutputs.fire(removedOutputs);
 			if (outputLayoutChange) {
 				this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
+			}
+			if (!this._outputCollection.length) {
+				this._executionError.set(undefined, undefined);
 			}
 			dispose(removedOutputs);
 		}));
@@ -200,9 +205,14 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	updateExecutionState(e: ICellExecutionStateChangedEvent) {
 		if (e.changed) {
+			this._executionError.set(undefined, undefined);
 			this._onDidStartExecution.fire(e);
 		} else {
 			this._onDidStopExecution.fire(e);
+			if (this.internalMetadata.lastRunSuccess === false && this.internalMetadata.error) {
+				const metadata = this.internalMetadata;
+				this._executionError.set(metadata.error, undefined);
+			}
 		}
 	}
 

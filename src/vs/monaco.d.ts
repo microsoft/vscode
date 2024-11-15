@@ -7247,6 +7247,10 @@ declare namespace monaco.languages {
 		readonly range?: IRange;
 		readonly command?: Command;
 		/**
+		 * Is called the first time an inline completion is shown.
+		*/
+		readonly shownCommand?: Command;
+		/**
 		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
 		 * Defaults to `false`.
 		*/
@@ -8134,6 +8138,7 @@ declare namespace monaco.languages {
 		range: IRange;
 		accepted?: Command;
 		rejected?: Command;
+		shown?: Command;
 		commands?: Command[];
 	}
 

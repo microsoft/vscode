@@ -1014,7 +1014,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (!seenEntries.has(file)) {
 				entries.unshift({
 					reference: file,
-					state: state,
+					state: state.state,
+					description: state.description,
 					kind: 'reference',
 				});
 				seenEntries.add(file);

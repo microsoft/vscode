@@ -216,7 +216,7 @@ class AttachFileToChatAction extends AttachFileAction {
 			precondition: ChatContextKeys.enabled,
 			menu: [{
 				id: MenuId.ChatCommandCenter,
-				group: 'a_chat',
+				group: 'b_chat_context',
 				when: ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor'),
 				order: 10,
 			}, {
@@ -253,8 +253,8 @@ class AttachSelectionToChatAction extends Action2 {
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor')),
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'a_chat',
-				order: 11,
+				group: 'b_chat_context',
+				order: 15,
 			}
 		});
 	}
@@ -288,9 +288,9 @@ class AttachFileToEditingSessionAction extends AttachFileAction {
 			precondition: ChatContextKeys.enabled,
 			menu: [{
 				id: MenuId.ChatCommandCenter,
-				group: 'a_chat',
+				group: 'c_edits_context',
 				when: ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor'),
-				order: 11,
+				order: 10,
 			}, {
 				id: MenuId.SearchContext,
 				group: 'z_chat',
@@ -325,8 +325,8 @@ class AttachSelectionToEditingSessionAction extends Action2 {
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor')),
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'a_chat',
-				order: 12,
+				group: 'c_edits_context',
+				order: 15,
 			}
 		});
 	}
@@ -496,7 +496,6 @@ export class AttachContextAction extends Action2 {
 								type: 'item',
 								label: labelService.getUriBasenameLabel(file.uri),
 								description: labelService.getUriLabel(dirname(file.uri), { relative: true }),
-								detail: file.description,
 								value: file.uri,
 								disabled: workingSet?.has(file.uri) || attachments.has(this._getFileContextId({ resource: file.uri })),
 								picked: true

@@ -1282,16 +1282,12 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		return this._lastFocusedWidget;
 	}
 
-	getAllWidgets(location: ChatAgentLocation): ReadonlyArray<IChatWidget> {
+	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget> {
 		return this._widgets.filter(w => w.location === location);
 	}
 
 	getWidgetByInputUri(uri: URI): ChatWidget | undefined {
 		return this._widgets.find(w => isEqual(w.inputUri, uri));
-	}
-
-	getWidgetByLocation(location: ChatAgentLocation): ChatWidget[] {
-		return this._widgets.filter(w => w.location === location);
 	}
 
 	getWidgetBySessionId(sessionId: string): ChatWidget | undefined {

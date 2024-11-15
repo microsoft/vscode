@@ -45,7 +45,7 @@ export const enum LayoutSettings {
 	EDITOR_TABS_MODE = 'workbench.editor.showTabs',
 	EDITOR_ACTIONS_LOCATION = 'workbench.editor.editorActionsLocation',
 	COMMAND_CENTER = 'window.commandCenter',
-	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
+	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled'
 }
 
 export const enum ActivityBarPosition {
@@ -319,7 +319,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 }
 
 export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean): boolean {
-
 	if (!hasCustomTitlebar(configurationService)) {
 		return false;
 	}
@@ -376,6 +375,7 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 }
 
 function isTitleBarEmpty(configurationService: IConfigurationService): boolean {
+
 	// with the command center enabled, we should always show
 	if (configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
 		return false;
