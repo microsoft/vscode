@@ -570,7 +570,7 @@ export namespace DecorationRenderOptions {
 			borderSpacing: options.borderSpacing,
 			borderStyle: options.borderStyle,
 			borderWidth: options.borderWidth,
-			fontSize: '50', // options.fontSize,
+			fontSize: 50, // options.fontSize,
 			lineHeight: 50, // options.lineHeight,
 			fontStyle: options.fontStyle,
 			fontWeight: options.fontWeight,

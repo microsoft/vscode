@@ -142,64 +142,14 @@ export class ModelRawFlush {
 }
 
 /**
- * Represents an inline class name
- * @internal
- */
-export class InlineClassName {
-	constructor(
-		public readonly ownerId: number,
-		public readonly lineNumber: number,
-		public readonly startColumn: number,
-		public readonly endColumn: number,
-		public readonly className: string
-	) {
-		console.log('InlineClassName');
-		console.log('ownerId : ', ownerId);
-		console.log('lineNumber : ', lineNumber);
-		console.log('startColumn : ', startColumn);
-		console.log('endColumn : ', endColumn);
-		console.log('className : ', className);
-	}
-}
-
-function compareLineInjectedTexts(a: LineInjectedText, b: LineInjectedText): number {
-	console.log('compareLineInjectedTexts');
-	console.log('a : ', a);
-	console.log('b : ', b);
-	if (a.lineNumber === b.lineNumber) {
-		if (a.column === b.column) {
-			console.log('a.order - b.order : ', a.order - b.order);
-			return a.order - b.order;
-		}
-		console.log('a.column - b.column : ', a.column - b.column);
-		return a.column - b.column;
-	}
-	console.log('a.lineNumber - b.lineNumber : ', a.lineNumber - b.lineNumber);
-	return a.lineNumber - b.lineNumber;
-}
-
-function compareInlineClassNames(a: InlineClassName, b: InlineClassName): number {
-	console.log('compareInlineClassNames');
-	console.log('a : ', a);
-	console.log('b : ', b);
-	if (a.lineNumber === b.lineNumber) {
-		if (a.startColumn === b.startColumn) {
-			console.log('a.endColumn - b.endColumn : ', a.endColumn - b.endColumn);
-			return a.endColumn - b.endColumn;
-		}
-		console.log('a.startColumn - b.startColumn : ', a.startColumn - b.startColumn);
-		return a.startColumn - b.startColumn;
-	}
-	console.log('a.lineNumber - b.lineNumber : ', a.lineNumber - b.lineNumber);
-	return a.lineNumber - b.lineNumber;
-}
-
-/**
  * Represents text injected on a line
  * @internal
  */
 export class LineInjectedText {
 	public static applyInjectedText(lineText: string, injectedTexts: LineInjectedText[] | null): string {
+		console.log('applyInjectedText');
+		console.log('lineText : ', lineText);
+		console.log('injectedTexts : ', injectedTexts);
 		if (!injectedTexts || injectedTexts.length === 0) {
 			return lineText;
 		}
@@ -214,7 +164,6 @@ export class LineInjectedText {
 		return result;
 	}
 
-	// TODO can remove
 	public static fromDecorations(decorations: IModelDecoration[]): LineInjectedText[] {
 		const result: LineInjectedText[] = [];
 		for (const decoration of decorations) {
@@ -262,61 +211,76 @@ export class LineInjectedText {
 	}
 }
 
+// Very similar to the method fromDecorations in LineInjectedText
+/*
 export function lineMetaFromDecorations(decorations: IModelDecoration[]) {
 	console.log('lineMetaFromDecorations');
 	console.log('decorations : ', decorations);
 
-	const length = decorations.length;
 	const inlineClassNames: InlineClassName[] = [];
+	// Here the line injected texts array is the same as the result array in the fromDecorations method
 	const lineInjectedTexts: LineInjectedText[] = [];
 
-	for (let decorationIndex = 0; decorationIndex < length; decorationIndex++) {
-		console.log('decorations[decorationIndex] : ', decorations[decorationIndex]);
-
-		const { options, ownerId, range } = decorations[decorationIndex];
-		console.log('options : ', options);
-		console.log('ownerId : ', ownerId);
-		console.log('range : ', range);
-
-		if (options.before && options.before.content.length > 0) {
+	for (const decoration of decorations) {
+		console.log('decoration : ', decoration);
+		if (decoration.options.before && decoration.options.before.content.length > 0) {
 			lineInjectedTexts.push(new LineInjectedText(
-				ownerId,
-				range.startLineNumber,
-				range.startColumn,
-				options.before,
+				decoration.ownerId,
+				decoration.range.startLineNumber,
+				decoration.range.startColumn,
+				decoration.options.before,
 				0,
 			));
 		}
 
-		if (options.after && options.after.content.length > 0) {
+		if (decoration.options.after && decoration.options.after.content.length > 0) {
 			lineInjectedTexts.push(new LineInjectedText(
-				ownerId,
-				range.endLineNumber,
-				range.endColumn,
-				options.after,
+				decoration.ownerId,
+				decoration.range.endLineNumber,
+				decoration.range.endColumn,
+				decoration.options.after,
 				1,
 			));
 		}
 
-		if (options.inlineClassName && options.inlineClassNameAffectsLetterSpacing) {
-			for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
+		if (decoration.options.inlineClassName && decoration.options.inlineClassNameAffectsLetterSpacing) {
+			for (let lineNumber = decoration.range.startLineNumber; lineNumber <= decoration.range.endLineNumber; lineNumber++) {
 				console.log('lineNumber : ', lineNumber);
+				// Ah yes here we are adding the class name for all of the characters in that range. Between the start line number and the end line number, the full lines are covered by the class name.
+				// Here we return the class names for the given ranges
 				inlineClassNames.push(new InlineClassName(
-					ownerId,
+					decoration.ownerId,
 					lineNumber,
-					lineNumber === range.startLineNumber ? range.startColumn : 0,
-					lineNumber === range.endLineNumber ? range.endColumn : Infinity,
-					options.inlineClassName
+					lineNumber === decoration.range.startLineNumber ? decoration.range.startColumn : 0,
+					lineNumber === decoration.range.endLineNumber ? decoration.range.endColumn : Infinity,
+					decoration.options.inlineClassName
 				));
 			}
 		}
 	}
-
+	lineInjectedTexts.sort((a, b) => {
+		if (a.lineNumber === b.lineNumber) {
+			if (a.column === b.column) {
+				return a.order - b.order;
+			}
+			return a.column - b.column;
+		}
+		return a.lineNumber - b.lineNumber;
+	});
+	inlineClassNames.sort((a, b) => {
+		if (a.lineNumber === b.lineNumber) {
+			if (a.startColumn === b.startColumn) {
+				return a.endColumn - b.endColumn;
+			}
+			return a.startColumn - b.startColumn;
+		}
+		return a.lineNumber - b.lineNumber;
+	});
 	return {
-		inlineClassNames: inlineClassNames.sort(compareInlineClassNames),
-		lineInjectedTexts: lineInjectedTexts.sort(compareLineInjectedTexts)
+		inlineClassNames,
+		lineInjectedTexts
 	};
-}
+}*/
 
 /**
  * An event describing that a line has changed in a model.
@@ -336,18 +300,15 @@ export class ModelRawLineChanged {
 	 * The injected text on the line.
 	 */
 	public readonly injectedText: LineInjectedText[] | null;
-	public readonly inlineClassNames: InlineClassName[] | null;
 
-	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null, inlineClassNames: InlineClassName[] | null) {
+	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null) {
 		console.log('ModelRawLineChanged');
 		console.log('lineNumber : ', lineNumber);
 		console.log('detail : ', detail);
 		console.log('injectedText : ', injectedText);
-		console.log('inlineClassNames : ', inlineClassNames);
 		this.lineNumber = lineNumber;
 		this.detail = detail;
 		this.injectedText = injectedText;
-		this.inlineClassNames = inlineClassNames;
 	}
 }
 
@@ -394,17 +355,14 @@ export class ModelRawLinesInserted {
 	 * The injected texts for every inserted line.
 	 */
 	public readonly injectedTexts: (LineInjectedText[] | null)[];
-	public readonly inlineClassNames: (InlineClassName[] | null)[];
 
-	constructor(fromLineNumber: number, toLineNumber: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[], inlineClassNames: (InlineClassName[] | null)[]) {
+	constructor(fromLineNumber: number, toLineNumber: number, detail: string[], injectedTexts: (LineInjectedText[] | null)[]) {
 		console.log('ModelRawLinesInserted');
 		console.log('fromLineNumber : ', fromLineNumber);
 		console.log('toLineNumber : ', toLineNumber);
 		console.log('detail : ', detail);
 		console.log('injectedTexts : ', injectedTexts);
-		console.log('inlineClassNames : ', inlineClassNames);
 		this.injectedTexts = injectedTexts;
-		this.inlineClassNames = inlineClassNames;
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
 		this.detail = detail;

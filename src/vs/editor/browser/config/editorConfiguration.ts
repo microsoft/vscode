@@ -118,7 +118,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			memory: this._computeOptionsMemory,
 			outerWidth: partialEnv.outerWidth,
 			outerHeight: partialEnv.outerHeight - this._reservedHeight,
-			fontInfo: fontInfo,
+			fontInfo: fontInfo, //
 			extraEditorClassName: partialEnv.extraEditorClassName,
 			isDominatedByLongLines: this._isDominatedByLongLines,
 			viewLineCount: this._viewLineCount,

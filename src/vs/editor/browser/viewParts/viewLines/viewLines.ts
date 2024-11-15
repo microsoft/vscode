@@ -205,7 +205,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 		this._stickyScrollEnabled = options.get(EditorOption.stickyScroll).enabled;
 		this._maxNumberStickyLines = options.get(EditorOption.stickyScroll).maxLineCount;
 
-		applyFontInfo(this.domNode, fontInfo);
+		applyFontInfo(this.domNode, fontInfo); // applying font info, but this needs to be overridden
 
 		this._onOptionsMaybeChanged();
 

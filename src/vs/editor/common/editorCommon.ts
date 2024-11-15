@@ -633,7 +633,7 @@ export interface IThemeDecorationRenderOptions {
 
 	fontStyle?: string;
 	fontWeight?: string;
-	fontSize?: string;
+	fontSize?: number;
 	lineHeight?: number;
 	textDecoration?: string;
 	cursor?: string;

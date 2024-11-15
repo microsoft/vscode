@@ -193,6 +193,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		}
 	}
 
+	//
 	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions {
 		const provider = this._decorationOptionProviders.get(decorationTypeKey);
 		if (!provider) {
@@ -407,6 +408,7 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 		this._afterContentRules = new DecorationCSSRules(ModelDecorationCSSRuleType.AfterContentClassName, providerArgs, themeService);
 	}
 
+	//
 	public getOptions(codeEditorService: AbstractCodeEditorService, writable: boolean): IModelDecorationOptions {
 		const options = codeEditorService.resolveDecorationOptions(this._parentTypeKey, true);
 		if (this._beforeContentRules) {
@@ -458,6 +460,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public glyphMarginClassName: string | undefined;
 	public isWholeLine: boolean;
 	public lineHeight?: number;
+	public fontSize?: number;
 	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
 	public stickiness: TrackedRangeStickiness | undefined;
 	public beforeInjectedText: InjectedTextOptions | undefined;
@@ -520,6 +523,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		this.isWholeLine = Boolean(options.isWholeLine);
 		console.log('options.lineHeight : ', options.lineHeight);
 		this.lineHeight = options.lineHeight;
+		this.fontSize = options.fontSize;
 		this.stickiness = options.rangeBehavior;
 
 		const lightOverviewRulerColor = options.light && options.light.overviewRulerColor || options.overviewRulerColor;
@@ -550,6 +554,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			glyphMarginClassName: this.glyphMarginClassName,
 			isWholeLine: this.isWholeLine,
 			lineHeight: this.lineHeight,
+			fontSize: this.fontSize,
 			overviewRuler: this.overviewRuler,
 			stickiness: this.stickiness,
 			before: this.beforeInjectedText,

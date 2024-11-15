@@ -23,7 +23,9 @@ export class LinePart {
 		public readonly endIndex: number,
 		public readonly type: string,
 		public readonly metadata: number,
-		public readonly containsRTL: boolean
+		public readonly containsRTL: boolean,
+		public readonly fontSize: number | undefined,
+		public readonly lineHeight: number | undefined
 	) { }
 
 	public isWhitespace(): boolean {

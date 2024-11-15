@@ -97,6 +97,7 @@ export class ViewLine implements IVisibleLine {
 		return false;
 	}
 
+	//
 	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
 		if (this._options.useGpu && ViewGpuContext.canRender(this._options, viewportData, lineNumber)) {
 			this._renderedViewLine?.domNode?.domNode.remove();
@@ -144,7 +145,7 @@ export class ViewLine implements IVisibleLine {
 			}
 		}
 
-		const renderLineInput = new RenderLineInput(
+		const renderLineInput = new RenderLineInput( //
 			options.useMonospaceOptimizations,
 			options.canUseHalfwidthRightwardsArrow,
 			lineData.content,

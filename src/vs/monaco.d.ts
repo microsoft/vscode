@@ -1763,6 +1763,10 @@ declare namespace monaco.editor {
 		 */
 		firstLineDecorationClassName?: string | null;
 		/**
+		 * Font size
+		 */
+		fontSize?: number | undefined;
+		/**
 		 * If set, the decoration will be rendered in the margin (covering its full width) with this CSS class name.
 		 */
 		marginClassName?: string | null;
@@ -1820,7 +1824,14 @@ declare namespace monaco.editor {
 		 * Defaults to {@link InjectedTextCursorStops.Both}.
 		*/
 		readonly cursorStops?: InjectedTextCursorStops | null;
+		/**
+		 * Line height of injected text
+		 */
 		readonly lineHeight?: number;
+		/**
+		 * Font size of injected text
+		 */
+		readonly fontSize?: number;
 	}
 
 	export enum InjectedTextCursorStops {
@@ -2977,11 +2988,6 @@ declare namespace monaco.editor {
 		readonly insertSpaces: boolean;
 		readonly trimAutoWhitespace: boolean;
 	}
-
-	export function lineMetaFromDecorations(decorations: IModelDecoration[]): {
-		inlineClassNames: any;
-		lineInjectedTexts: any;
-	};
 
 	/**
 	 * Describes the reason the cursor has changed its position.

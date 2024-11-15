@@ -43,7 +43,6 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { ConflictActionsFactory, IContentWidgetAction } from '../../mergeEditor/browser/view/conflictActions.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
-import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 
 export interface IEditObserver {
 	start(): void;
@@ -438,7 +437,6 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _hunkDisplayData = new Map<HunkInformation, HunkDisplayData>();
 
 	override async renderChanges() {
-		console.log('renderChanges');
 
 		this._progressiveEditingDecorations.clear();
 
@@ -450,8 +448,7 @@ export class LiveStrategy extends EditModeStrategy {
 
 				const keysNow = new Set(this._hunkDisplayData.keys());
 				widgetData = undefined;
-				const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-				console.log('lineHeight ', lineHeight);
+
 				for (const hunkData of this._session.hunkData.getInfo()) {
 
 					keysNow.delete(hunkData);
@@ -491,7 +488,7 @@ export class LiveStrategy extends EditModeStrategy {
 						);
 						const domNode = document.createElement('div');
 						domNode.className = 'inline-chat-original-zone2';
-						const result = renderLines(source, renderOptions, [new InlineDecoration(new Range(originalRange.startLineNumber, 1, originalRange.startLineNumber, 1), '', InlineDecorationType.Regular, lineHeight)], domNode);
+						const result = renderLines(source, renderOptions, [new InlineDecoration(new Range(originalRange.startLineNumber, 1, originalRange.startLineNumber, 1), '', InlineDecorationType.Regular)], domNode);
 						const viewZoneData: IViewZone = {
 							afterLineNumber: -1,
 							heightInLines: result.heightInLines,

@@ -21,9 +21,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		]);
 
 		assert.deepStrictEqual(result, [
-			new DecorationSegment(0, 1, 'c1', 0),
-			new DecorationSegment(2, 2, 'c2 c1', 0),
-			new DecorationSegment(3, 9, 'c1', 0),
+			new DecorationSegment(0, 1, 'c1', 0, undefined, undefined),
+			new DecorationSegment(2, 2, 'c2 c1', 0, undefined, undefined),
+			new DecorationSegment(3, 9, 'c1', 0, undefined, undefined),
 		]);
 	});
 
@@ -35,8 +35,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		]);
 
 		assert.deepStrictEqual(result, [
-			new DecorationSegment(14, 18, 'mtkw', 0),
-			new DecorationSegment(19, 19, 'mtkw inline-folded', 0)
+			new DecorationSegment(14, 18, 'mtkw', 0, undefined, undefined),
+			new DecorationSegment(19, 19, 'mtkw inline-folded', 0, undefined, undefined)
 		]);
 	});
 
@@ -69,24 +69,24 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			new LineDecoration(1, 2, 'c1', InlineDecorationType.Regular),
 			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular)
 		]), [
-			new DecorationSegment(0, 0, 'c1', 0),
-			new DecorationSegment(2, 2, 'c2', 0)
+			new DecorationSegment(0, 0, 'c1', 0, undefined, undefined),
+			new DecorationSegment(2, 2, 'c2', 0, undefined, undefined)
 		]);
 
 		assert.deepStrictEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
 			new LineDecoration(1, 3, 'c1', InlineDecorationType.Regular),
 			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular)
 		]), [
-			new DecorationSegment(0, 1, 'c1', 0),
-			new DecorationSegment(2, 2, 'c2', 0)
+			new DecorationSegment(0, 1, 'c1', 0, undefined, undefined),
+			new DecorationSegment(2, 2, 'c2', 0, undefined, undefined)
 		]);
 
 		assert.deepStrictEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
 			new LineDecoration(1, 4, 'c1', InlineDecorationType.Regular),
 			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular)
 		]), [
-			new DecorationSegment(0, 1, 'c1', 0),
-			new DecorationSegment(2, 2, 'c1 c2', 0)
+			new DecorationSegment(0, 1, 'c1', 0, undefined, undefined),
+			new DecorationSegment(2, 2, 'c1 c2', 0, undefined, undefined)
 		]);
 
 		assert.deepStrictEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
@@ -94,8 +94,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			new LineDecoration(1, 4, 'c1*', InlineDecorationType.Regular),
 			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular)
 		]), [
-			new DecorationSegment(0, 1, 'c1 c1*', 0),
-			new DecorationSegment(2, 2, 'c1 c1* c2', 0)
+			new DecorationSegment(0, 1, 'c1 c1*', 0, undefined, undefined),
+			new DecorationSegment(2, 2, 'c1 c1* c2', 0, undefined, undefined)
 		]);
 
 		assert.deepStrictEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
@@ -104,8 +104,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			new LineDecoration(1, 4, 'c1**', InlineDecorationType.Regular),
 			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular)
 		]), [
-			new DecorationSegment(0, 1, 'c1 c1* c1**', 0),
-			new DecorationSegment(2, 2, 'c1 c1* c1** c2', 0)
+			new DecorationSegment(0, 1, 'c1 c1* c1**', 0, undefined, undefined),
+			new DecorationSegment(2, 2, 'c1 c1* c1** c2', 0, undefined, undefined)
 		]);
 
 		assert.deepStrictEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
@@ -115,8 +115,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular),
 			new LineDecoration(3, 4, 'c2*', InlineDecorationType.Regular)
 		]), [
-			new DecorationSegment(0, 1, 'c1 c1* c1**', 0),
-			new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*', 0)
+			new DecorationSegment(0, 1, 'c1 c1* c1**', 0, undefined, undefined),
+			new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*', 0, undefined, undefined)
 		]);
 
 		assert.deepStrictEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
@@ -126,9 +126,9 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular),
 			new LineDecoration(3, 5, 'c2*', InlineDecorationType.Regular)
 		]), [
-			new DecorationSegment(0, 1, 'c1 c1* c1**', 0),
-			new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*', 0),
-			new DecorationSegment(3, 3, 'c2*', 0)
+			new DecorationSegment(0, 1, 'c1 c1* c1**', 0, undefined, undefined),
+			new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*', 0, undefined, undefined),
+			new DecorationSegment(3, 3, 'c2*', 0, undefined, undefined)
 		]);
 	});
 });

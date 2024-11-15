@@ -60,8 +60,6 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly _cursor: CursorsController;
 	private readonly _decorations: ViewModelDecorations;
 	public readonly glyphLanes: IGlyphMarginLanesModel;
-	private readonly maxLogsIndex = 10;
-	private currentIndex = 0;
 
 	constructor(
 		editorId: number,
@@ -302,15 +300,7 @@ export class ViewModel extends Disposable implements IViewModel {
 								if (injectedText) {
 									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 								}
-								let inlineClassNames = change.inlineClassNames[lineIdx];
-								if (this.currentIndex < this.maxLogsIndex) {
-									console.log('change : ', change);
-									console.log('inlineClassNames : ', inlineClassNames);
-								}
-								if (inlineClassNames) {
-									inlineClassNames = inlineClassNames.filter(element => (!element.ownerId || element.ownerId === this._editorId));
-								}
-								lineBreaksComputer.addRequest(line, injectedText, inlineClassNames, null);
+								lineBreaksComputer.addRequest(line, injectedText, null);
 							}
 							break;
 						}
@@ -319,20 +309,11 @@ export class ViewModel extends Disposable implements IViewModel {
 							if (change.injectedText) {
 								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
 							}
-							let inlineClassNames: textModelEvents.InlineClassName[] | null = null;
-							if (this.currentIndex < this.maxLogsIndex) {
-								console.log('change : ', change);
-								console.log('change.inlineClassNames : ', change.inlineClassNames);
-							}
-							if (change.inlineClassNames) {
-								inlineClassNames = change.inlineClassNames.filter(element => (!element.ownerId || element.ownerId === this._editorId));
-							}
-							lineBreaksComputer.addRequest(change.detail, injectedText, inlineClassNames, null);
+							lineBreaksComputer.addRequest(change.detail, injectedText, null);
 							break;
 						}
 					}
 				}
-				this.currentIndex++;
 				const lineBreaks = lineBreaksComputer.finalize();
 				const lineBreakQueue = new ArrayQueue(lineBreaks);
 

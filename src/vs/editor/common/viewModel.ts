@@ -396,7 +396,8 @@ export class InlineDecoration {
 		public readonly range: Range,
 		public readonly inlineClassName: string,
 		public readonly type: InlineDecorationType,
-		public readonly lineHeight?: number | undefined
+		public readonly lineHeight?: number | undefined,
+		public readonly fontSize?: number | undefined,
 	) {
 		console.log('InlineDecoration');
 		console.log('range : ', range);
@@ -412,7 +413,8 @@ export class SingleLineInlineDecoration {
 		public readonly endOffset: number,
 		public readonly inlineClassName: string,
 		public readonly inlineClassNameAffectsLetterSpacing: boolean,
-		public readonly lineHeight: number | undefined
+		public readonly lineHeight: number | undefined,
+		public readonly fontSize: number | undefined
 	) {
 		console.log('SingleLineInlineDecoration');
 		console.log('startOffset : ', startOffset);
@@ -427,7 +429,8 @@ export class SingleLineInlineDecoration {
 			new Range(lineNumber, this.startOffset + 1, lineNumber, this.endOffset + 1),
 			this.inlineClassName,
 			this.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular,
-			this.lineHeight
+			this.lineHeight,
+			this.fontSize
 		);
 	}
 }

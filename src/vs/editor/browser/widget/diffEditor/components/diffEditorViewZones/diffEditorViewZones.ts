@@ -170,7 +170,7 @@ export class DiffEditorViewZones extends Disposable {
 							if (i > originalModel.getLineCount()) {
 								return { orig: origViewZones, mod: modViewZones };
 							}
-							deletedCodeLineBreaksComputer?.addRequest(originalModel.getLineContent(i), null, null, null);
+							deletedCodeLineBreaksComputer?.addRequest(originalModel.getLineContent(i), null, null);
 						}
 					}
 				}
@@ -213,7 +213,8 @@ export class DiffEditorViewZones extends Disposable {
 								i.originalRange.delta(-(a.diff.original.startLineNumber - 1)),
 								diffDeleteDecoration.className!,
 								InlineDecorationType.Regular,
-								diffDeleteDecoration.lineHeight
+								diffDeleteDecoration.lineHeight,
+								diffDeleteDecoration.fontSize
 							));
 						}
 						const result = renderLines(source, renderOptions, decorations, deletedCodeDomNode);

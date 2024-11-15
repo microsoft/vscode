@@ -466,13 +466,14 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		const lines = ctx.lines;
 
 		for (let i = startIndex; i <= endIndex; i++) {
-
 			const lineNumber = rendLineNumberStart + i;
 			const deltaIndex = lineNumber - deltaLN;
 			const lineHeight = deltaTop[deltaIndex + 1] - deltaTop[deltaIndex];
 			if (this.currentIndex < this.maxLogsIndex) {
 				console.log('i ', i);
+				console.log('deltaTop : ', deltaTop);
 				console.log('lineNumber ', lineNumber);
+				console.log('deltaLN : ', deltaLN);
 				console.log('deltaIndex ', deltaIndex);
 				console.log('lineHeight ', lineHeight);
 			}

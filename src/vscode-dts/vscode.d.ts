@@ -1032,7 +1032,7 @@ declare module 'vscode' {
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
-		fontSize?: string;
+		fontSize?: number;
 
 		/**
 		 * Line height

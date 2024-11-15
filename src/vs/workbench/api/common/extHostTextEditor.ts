@@ -25,7 +25,7 @@ export class TextEditorDecorationType {
 
 	constructor(proxy: MainThreadTextEditorsShape, extension: IExtensionDescription, options: vscode.DecorationRenderOptions) {
 		const key = TextEditorDecorationType._Keys.nextId();
-		options.fontSize = '50';
+		options.fontSize = 50;
 		options.lineHeight = 50;
 		console.log('TextEditorDecorationType options : ', options);
 		proxy.$registerTextEditorDecorationType(extension.identifier, key, TypeConverters.DecorationRenderOptions.from(options));
