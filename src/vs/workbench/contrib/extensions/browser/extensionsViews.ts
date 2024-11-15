@@ -806,7 +806,8 @@ export class ExtensionsListView extends ViewPane {
 			}
 		}
 
-		const preferredExtensions = this.extensionsWorkbenchService.local.filter(e => !e.isBuiltin && (e.name.toLowerCase().indexOf(options.text!) > -1 || e.displayName.toLowerCase().indexOf(options.text!) > -1 || e.description.toLowerCase().indexOf(options.text!) > -1));
+		const searchText = options.text.toLowerCase();
+		const preferredExtensions = this.extensionsWorkbenchService.local.filter(e => !e.isBuiltin && (e.name.toLowerCase().indexOf(searchText) > -1 || e.displayName.toLowerCase().indexOf(searchText) > -1 || e.description.toLowerCase().indexOf(searchText) > -1));
 		const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
 
 		let positionToUpdate = 0;
