@@ -414,7 +414,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 
 			this.emitData(fullDataBuffer);
 		} else {
-			// TODO: @legomushroom
+			// otherwise emit each buffered data instance individually
 			for (const data of this.buffer.data) {
 				this.emitData(data);
 			}

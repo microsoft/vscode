@@ -5,10 +5,6 @@
 
 import { Range } from '../../../editor/common/core/range.js';
 
-// TODO: @legomushroom - refactor the tokens to make them more consistent
-// TODO: @legomushroom - add `putOnLine` method
-// TODO: @legomushroom - add `hasValidRange` method
-
 /**
  * Base class for all tokens with a `range` that reflects
  * token's position in the original data.

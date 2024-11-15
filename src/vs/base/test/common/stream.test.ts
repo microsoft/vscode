@@ -91,6 +91,104 @@ suite('Stream', () => {
 		assert.strictEqual(chunks.length, 4);
 	});
 
+	test('stream with non-reducible messages', () => {
+		/**
+		 * A complex object that cannot be reduced to a single object.
+		 */
+		class TestMessage {
+			constructor(public value: string) { }
+		}
+
+		const stream = newWriteableStream<TestMessage>(null);
+
+		let error = false;
+		stream.on('error', e => {
+			error = true;
+		});
+
+		let end = false;
+		stream.on('end', () => {
+			end = true;
+		});
+
+		stream.write(new TestMessage('Hello'));
+
+		const chunks: TestMessage[] = [];
+		stream.on('data', data => {
+			chunks.push(data);
+		});
+
+		assert(
+			chunks[0] instanceof TestMessage,
+			'Message `0` must be an instance of `TestMessage`.',
+		);
+		assert.strictEqual(chunks[0].value, 'Hello');
+
+		stream.write(new TestMessage('World'));
+
+		assert(
+			chunks[1] instanceof TestMessage,
+			'Message `1` must be an instance of `TestMessage`.',
+		);
+		assert.strictEqual(chunks[1].value, 'World');
+
+		assert.strictEqual(error, false);
+		assert.strictEqual(end, false);
+
+		stream.pause();
+		stream.write(new TestMessage('1'));
+		stream.write(new TestMessage('2'));
+		stream.write(new TestMessage('3'));
+
+		assert.strictEqual(chunks.length, 2);
+
+		stream.resume();
+
+		assert.strictEqual(chunks.length, 5);
+
+		assert(
+			chunks[2] instanceof TestMessage,
+			'Message `2` must be an instance of `TestMessage`.',
+		);
+		assert.strictEqual(chunks[2].value, '1');
+
+		assert(
+			chunks[3] instanceof TestMessage,
+			'Message `3` must be an instance of `TestMessage`.',
+		);
+		assert.strictEqual(chunks[3].value, '2');
+
+		assert(
+			chunks[4] instanceof TestMessage,
+			'Message `4` must be an instance of `TestMessage`.',
+		);
+		assert.strictEqual(chunks[4].value, '3');
+
+		stream.error(new Error());
+		assert.strictEqual(error, true);
+
+		error = false;
+		stream.error(new Error());
+		assert.strictEqual(error, true);
+
+		stream.end(new TestMessage('Final Bit'));
+		assert.strictEqual(chunks.length, 6);
+
+		assert(
+			chunks[5] instanceof TestMessage,
+			'Message `5` must be an instance of `TestMessage`.',
+		);
+		assert.strictEqual(chunks[5].value, 'Final Bit');
+
+
+		assert.strictEqual(end, true);
+
+		stream.destroy();
+
+		stream.write(new TestMessage('Unexpected'));
+		assert.strictEqual(chunks.length, 6);
+	});
+
 	test('WriteableStream - end with empty string works', async () => {
 		const reducer = (strings: string[]) => strings.length > 0 ? strings.join() : 'error';
 		const stream = newWriteableStream<string>(reducer);

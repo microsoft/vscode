@@ -20,8 +20,8 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 	protected ended = false;
 
 	protected readonly _onData = this._register(new Emitter<T>());
-	protected readonly _onError = this._register(new Emitter<Error>());
 	protected readonly _onEnd = this._register(new Emitter<void>());
+	protected readonly _onError = this._register(new Emitter<Error>());
 
 	/**
 	 * A store of currently registered event listeners.
