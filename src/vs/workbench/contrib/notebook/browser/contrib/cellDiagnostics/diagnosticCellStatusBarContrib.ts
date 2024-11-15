@@ -41,8 +41,7 @@ class DiagnosticCellStatusBarItem extends Disposable {
 		private readonly cell: CodeCellViewModel
 	) {
 		super();
-		this._register(autorun((reader) => this.updateQuickActions(reader.readObservable(cell.excecutionError))));
-
+		this._register(autorun((reader) => this.updateQuickActions(reader.readObservable(cell.executionError))));
 	}
 
 	private async updateQuickActions(error: ICellExecutionError | undefined) {

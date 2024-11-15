@@ -116,8 +116,8 @@ suite('notebookCellDiagnostics', () => {
 			};
 			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell.handle);
 
-			await waitForState(cell.excecutionError, error => !!error);
-			assert.strictEqual(cell?.excecutionError.get()?.message, 'something bad happened');
+			await waitForState(cell.executionError, error => !!error);
+			assert.strictEqual(cell?.executionError.get()?.message, 'something bad happened');
 			assert.equal(markerService.markers.get(cell.uri)?.length, 1);
 		}, instantiationService);
 	});
@@ -149,17 +149,17 @@ suite('notebookCellDiagnostics', () => {
 			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell.handle);
 			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell2.handle);
 
-			await waitForState(cell.excecutionError, error => !!error);
-			await waitForState(cell2.excecutionError, error => !!error);
+			await waitForState(cell.executionError, error => !!error);
+			await waitForState(cell2.executionError, error => !!error);
 			cell.model.internalMetadata.error = undefined;
 
 			// on NotebookCellExecution value will make it look like its currently running
 			testExecutionService.fireExecutionChanged(editor.textModel.uri, cell.handle, {} as INotebookCellExecution);
 
-			await waitForState(cell.excecutionError, error => error === undefined);
+			await waitForState(cell.executionError, error => error === undefined);
 
-			assert.strictEqual(cell?.excecutionError.get(), undefined);
-			assert.strictEqual(cell2?.excecutionError.get()?.message, 'another bad thing happened', 'cell that was not executed should still have an error');
+			assert.strictEqual(cell?.executionError.get(), undefined);
+			assert.strictEqual(cell2?.executionError.get()?.message, 'another bad thing happened', 'cell that was not executed should still have an error');
 			assert.equal(markerService.markers.get(cell.uri)?.length, 0);
 			assert.equal(markerService.markers.get(cell2.uri)?.length, 1);
 		}, instantiationService);
