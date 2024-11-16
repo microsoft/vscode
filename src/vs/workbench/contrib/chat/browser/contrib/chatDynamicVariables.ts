@@ -73,7 +73,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 					if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
 						const delta = c.text.length - c.rangeLength;
-						// TODO: @legomushroom - see variables mutation comment above
+						// TODO: @legomushroom - see the variables mutation comment above
 						ref.range = {
 							startLineNumber: ref.range.startLineNumber,
 							startColumn: ref.range.startColumn + delta,

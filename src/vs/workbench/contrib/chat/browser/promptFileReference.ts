@@ -173,7 +173,6 @@ export class PromptFileReference extends Disposable {
 		} catch (error) {
 			this._errorCondition = new FileOpenFailed(this.uri, error);
 
-			// TODO: @legomushroom - trace the error
 			return null;
 		}
 	}
@@ -184,7 +183,6 @@ export class PromptFileReference extends Disposable {
 	 *
 	 * @param waitForChildren Whether need to block until all child references resolved.
 	 */
-	// TODO: @legomushroom - add cancellation token
 	public async resolve(
 		waitForChildren: boolean = false,
 	): Promise<this> {
@@ -256,7 +254,6 @@ export class PromptFileReference extends Disposable {
 			);
 
 			// subscribe to child updates
-			// TODO: @legomushroom - throttle the child update events
 			this._register(child.onUpdate(
 				this._onUpdate.fire.bind(this._onUpdate),
 			));
