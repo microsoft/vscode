@@ -147,7 +147,6 @@ abstract class AcceptDiscardAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 
 		let uri = getNotebookEditorFromEditorPane(editorService.activeEditorPane)?.textModel?.uri;
-
 		if (!uri) {
 			const editor = editorService.activeTextEditorControl;
 			if (!isCodeEditor(editor) || !editor.hasModel()) {
@@ -155,7 +154,6 @@ abstract class AcceptDiscardAction extends Action2 {
 			}
 			uri = editor.getModel().uri;
 		}
-
 		if (!uri) {
 			return;
 		}
