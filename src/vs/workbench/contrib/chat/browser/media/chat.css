@@ -1213,6 +1213,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 8px;
 	margin: 0 0 6px 4px;
 
+	> .codicon {
+		height: 16px;
+	}
+
 	.codicon {
 		/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
 		color: var(--vscode-icon-foreground) !important;
