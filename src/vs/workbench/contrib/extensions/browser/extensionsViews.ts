@@ -6,9 +6,9 @@
 import { localize } from '../../../../nls.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
-import { isCancellationError, getErrorMessage } from '../../../../base/common/errors.js';
+import { isCancellationError, getErrorMessage, CancellationError } from '../../../../base/common/errors.js';
 import { createErrorWithActions } from '../../../../base/common/errorMessage.js';
-import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from '../../../../base/common/paging.js';
+import { PagedModel, IPagedModel, DelayedPagedModel, IPager } from '../../../../base/common/paging.js';
 import { SortOrder, IQueryOptions as IGalleryQueryOptions, SortBy as GallerySortBy, InstallExtensionInfo, ExtensionGalleryErrorCode, ExtensionGalleryError } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IExtensionManagementServer, IExtensionManagementServerService, EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
@@ -31,10 +31,10 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { ViewPane, IViewPaneOptions, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { coalesce, distinct } from '../../../../base/common/arrays.js';
+import { coalesce, distinct, range } from '../../../../base/common/arrays.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { IAction, Action, Separator, ActionRunner } from '../../../../base/common/actions.js';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, isLanguagePackExtension } from '../../../../platform/extensions/common/extensions.js';
 import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from '../../../../base/common/async.js';
@@ -387,7 +387,7 @@ export class ExtensionsListView extends ViewPane {
 			result.push(...galleryResult);
 		}
 
-		return this.getPagedModel(result);
+		return new PagedModel(result);
 	}
 
 	private async queryLocal(query: Query, options: IQueryOptions): Promise<IQueryResult> {
@@ -773,32 +773,41 @@ export class ExtensionsListView extends ViewPane {
 
 		const text = query.value;
 
+		if (!text) {
+			options.source = 'viewlet';
+			const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
+			return new PagedModel(pager);
+		}
+
 		if (/\bext:([^\s]+)\b/g.test(text)) {
 			options.text = text;
 			options.source = 'file-extension-tags';
-			return this.extensionsWorkbenchService.queryGallery(options, token).then(pager => this.getPagedModel(pager));
+			const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
+			return new PagedModel(pager);
+		}
+
+		options.text = text.substring(0, 350);
+		options.source = 'searchText';
+
+		if (hasUserDefinedSortOrder || /\b(category|tag):([^\s]+)\b/gi.test(text) || /\bfeatured(\s+|\b|$)/gi.test(text)) {
+			const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
+			return new PagedModel(pager);
 		}
 
 		let preferredResults: string[] = [];
-		if (text) {
-			options.text = text.substring(0, 350);
-			options.source = 'searchText';
-			if (!hasUserDefinedSortOrder) {
-				const manifest = await this.extensionManagementService.getExtensionsControlManifest();
-				const search = manifest.search;
-				if (Array.isArray(search)) {
-					for (const s of search) {
-						if (s.query && s.query.toLowerCase() === text.toLowerCase() && Array.isArray(s.preferredResults)) {
-							preferredResults = s.preferredResults;
-							break;
-						}
-					}
+		const manifest = await this.extensionManagementService.getExtensionsControlManifest();
+		const search = manifest.search;
+		if (Array.isArray(search)) {
+			for (const s of search) {
+				if (s.query && s.query.toLowerCase() === text.toLowerCase() && Array.isArray(s.preferredResults)) {
+					preferredResults = s.preferredResults;
+					break;
 				}
 			}
-		} else {
-			options.source = 'viewlet';
 		}
 
+		const searchText = options.text.toLowerCase();
+		const preferredExtensions = this.extensionsWorkbenchService.local.filter(e => !e.isBuiltin && (e.name.toLowerCase().indexOf(searchText) > -1 || e.displayName.toLowerCase().indexOf(searchText) > -1 || e.description.toLowerCase().indexOf(searchText) > -1));
 		const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
 
 		let positionToUpdate = 0;
@@ -814,8 +823,8 @@ export class ExtensionsListView extends ViewPane {
 				}
 			}
 		}
-		return this.getPagedModel(pager);
 
+		return preferredExtensions.length ? new PreferredExtensionsPagedModel(preferredExtensions, pager) : new PagedModel(pager);
 	}
 
 	private sortExtensions(extensions: IExtension[], options: IQueryOptions): IExtension[] {
@@ -1142,19 +1151,6 @@ export class ExtensionsListView extends ViewPane {
 		}
 
 		this.notificationService.error(err);
-	}
-
-	private getPagedModel(arg: IPager<IExtension> | IExtension[]): IPagedModel<IExtension> {
-		if (Array.isArray(arg)) {
-			return new PagedModel(arg);
-		}
-		const pager = {
-			total: arg.total,
-			pageSize: arg.pageSize,
-			firstPage: arg.firstPage,
-			getPage: (pageIndex: number, cancellationToken: CancellationToken) => arg.getPage(pageIndex, cancellationToken)
-		};
-		return new PagedModel(pager);
 	}
 
 	override dispose(): void {
@@ -1581,4 +1577,121 @@ export function getAriaLabelForExtension(extension: IExtension | null): string {
 	const deprecated = extension?.deprecationInfo ? localize('extension.arialabel.deprecated', "Deprecated") : '';
 	const rating = extension?.rating ? localize('extension.arialabel.rating', "Rated {0} out of 5 stars by {1} users", extension.rating.toFixed(2), extension.ratingCount) : '';
 	return `${extension.displayName}, ${deprecated ? `${deprecated}, ` : ''}${extension.version}, ${publisher}, ${extension.description} ${rating ? `, ${rating}` : ''}`;
+}
+
+class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
+
+	private readonly resolved = new Map<number, IExtension>();
+	private preferredGalleryExtensions = new Set<string>();
+	private resolvedGalleryExtensionsFromQuery: IExtension[] = [];
+	private readonly pages: Array<{
+		promise: Promise<void> | null;
+		cts: CancellationTokenSource | null;
+		promiseIndexes: Set<number>;
+	}>;
+
+	public readonly length: number;
+
+	constructor(
+		private readonly preferredExtensions: IExtension[],
+		private readonly pager: IPager<IExtension>,
+	) {
+		for (let i = 0; i < this.preferredExtensions.length; i++) {
+			this.resolved.set(i, this.preferredExtensions[i]);
+		}
+
+		for (const e of preferredExtensions) {
+			if (e.gallery?.identifier.uuid) {
+				this.preferredGalleryExtensions.add(e.gallery.identifier.uuid);
+			}
+		}
+
+		// expected that all preferred gallery extensions will be part of the query results
+		this.length = (preferredExtensions.length - this.preferredGalleryExtensions.size) + this.pager.total;
+
+		const totalPages = Math.ceil(this.pager.total / this.pager.pageSize);
+		this.pages = range(totalPages).map(() => ({
+			promise: null,
+			cts: null,
+			promiseIndexes: new Set<number>(),
+		}));
+	}
+
+	isResolved(index: number): boolean {
+		return this.resolved.has(index);
+	}
+
+	get(index: number): IExtension {
+		return this.resolved.get(index)!;
+	}
+
+	async resolve(index: number, cancellationToken: CancellationToken): Promise<IExtension> {
+		if (cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+
+		if (this.isResolved(index)) {
+			return this.get(index);
+		}
+
+		const indexInPagedModel = index - this.preferredExtensions.length + this.resolvedGalleryExtensionsFromQuery.length;
+		const pageIndex = Math.floor(indexInPagedModel / this.pager.pageSize);
+		const page = this.pages[pageIndex];
+
+		if (!page.promise) {
+			page.cts = new CancellationTokenSource();
+			page.promise = this.resolvePage(pageIndex, page.cts.token)
+				.catch(e => { page.promise = null; throw e; })
+				.finally(() => page.cts = null);
+		}
+
+		const listener = cancellationToken.onCancellationRequested(() => {
+			if (!page.cts) {
+				return;
+			}
+			page.promiseIndexes.delete(index);
+			if (page.promiseIndexes.size === 0) {
+				page.cts.cancel();
+			}
+		});
+
+		page.promiseIndexes.add(index);
+
+		try {
+			await page.promise;
+		} finally {
+			listener.dispose();
+		}
+
+		return this.get(index);
+	}
+
+	private async resolvePage(pageIndex: number, cancellationToken: CancellationToken): Promise<void> {
+		const extensions = await this.pager.getPage(pageIndex, cancellationToken);
+
+		let adjustIndexOfNextPagesBy = 0;
+		const pageStartIndex = pageIndex * this.pager.pageSize;
+		for (let i = 0; i < extensions.length; i++) {
+			const e = extensions[i];
+			if (e.gallery?.identifier.uuid && this.preferredGalleryExtensions.has(e.gallery.identifier.uuid)) {
+				this.resolvedGalleryExtensionsFromQuery.push(e);
+				adjustIndexOfNextPagesBy++;
+			} else {
+				this.resolved.set(this.preferredExtensions.length - this.resolvedGalleryExtensionsFromQuery.length + pageStartIndex + i, e);
+			}
+		}
+		if (adjustIndexOfNextPagesBy) {
+			const nextPageStartIndex = (pageIndex + 1) * this.pager.pageSize;
+			const indices = [...this.resolved.keys()].sort();
+			for (const index of indices) {
+				if (index >= nextPageStartIndex) {
+					const e = this.resolved.get(index);
+					if (e) {
+						this.resolved.delete(index);
+						this.resolved.set(index - adjustIndexOfNextPagesBy, e);
+					}
+				}
+			}
+		}
+	}
 }

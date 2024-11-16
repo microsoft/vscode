@@ -5,9 +5,6 @@ steps:
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
-  - task: SFP.build-tasks.esrpclient-tools-task.EsrpClientTool@2
-    displayName: "Use EsrpClient"
-
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
@@ -81,8 +78,8 @@ steps:
       AZURE_ID_TOKEN: "$(AZURE_ID_TOKEN)"
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       PUBLISH_AUTH_TOKENS: "$(PUBLISH_AUTH_TOKENS)"
-      RELEASE_TENANT_ID: "$(PRSS_RELEASE_TENANT_ID)"
-      RELEASE_CLIENT_ID: "$(PRSS_RELEASE_CLIENT_ID)"
+      RELEASE_TENANT_ID: "$(ESRP_TENANT_ID)"
+      RELEASE_CLIENT_ID: "$(ESRP_CLIENT_ID)"
       RELEASE_AUTH_CERT: "$(esrp-auth)"
       RELEASE_REQUEST_SIGNING_CERT: "$(esrp-sign)"
     displayName: Process artifacts
