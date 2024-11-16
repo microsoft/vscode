@@ -8,7 +8,6 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
-import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -211,8 +210,6 @@ export interface IChatCodeBlockContextProviderService {
 	readonly providers: ICodeBlockActionContextProvider[];
 	registerProvider(provider: ICodeBlockActionContextProvider, id: string): IDisposable;
 }
-
-export const GeneratingPhrase = localize('generating', "Generating");
 
 export const ChatViewId = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
 
