@@ -50,6 +50,7 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 	) {
 		super();
 		this.add(this.editor.onDidChangeModel(() => this.update()));
+		this.add(this.editor.onDidChangeModelContent(() => this.update()));
 		this.add(this.editor.onDidChangeConfiguration((e) => {
 			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.lineHeight)) {
 				this.update();
@@ -105,10 +106,6 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 		if (this.isDisposed) {
 			return;
 		}
-		if (!this.editor.hasModel()) {
-			this._clearRendering();
-			return;
-		}
 		if (this.editor.getOption(EditorOption.inDiffEditor)) {
 			this._clearRendering();
 			return;
@@ -119,9 +116,19 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 			return;
 		}
 
-		const version = model.getVersionId();
 		const originalModel = this.getOrCreateOriginalModel();
-		const diff = originalModel ? await this.computeDiff() : undefined;
+		if (!originalModel) {
+			this._clearRendering();
+			return;
+		}
+		const version = model.getVersionId();
+		const diff = await this._editorWorkerService.computeDiff(
+			originalModel.uri,
+			model.uri,
+			{ computeMoves: true, ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER },
+			'advanced'
+		);
+
 		if (this.isDisposed) {
 			return;
 		}
