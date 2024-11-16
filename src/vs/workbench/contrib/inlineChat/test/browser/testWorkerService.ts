@@ -2,23 +2,23 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelService } from 'vs/editor/common/services/model';
-import { assertType } from 'vs/base/common/types';
-import { DiffAlgorithmName, IEditorWorkerService, ILineChange } from 'vs/editor/common/services/editorWorker';
-import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
-import { LineRangeMapping, DetailedLineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { TextEdit } from 'vs/editor/common/languages';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { assertType } from '../../../../../base/common/types.js';
+import { DiffAlgorithmName, IEditorWorkerService, ILineChange } from '../../../../../editor/common/services/editorWorker.js';
+import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../../../editor/common/diff/documentDiffProvider.js';
+import { BaseEditorSimpleWorker } from '../../../../../editor/common/services/editorSimpleWorker.js';
+import { LineRange } from '../../../../../editor/common/core/lineRange.js';
+import { MovedText } from '../../../../../editor/common/diff/linesDiffComputer.js';
+import { LineRangeMapping, DetailedLineRangeMapping, RangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
+import { TextEdit } from '../../../../../editor/common/languages.js';
 
 
 export class TestWorkerService extends mock<IEditorWorkerService>() {
 
-	private readonly _worker = new EditorSimpleWorker(null!, null);
+	private readonly _worker = new BaseEditorSimpleWorker();
 
 	constructor(@IModelService private readonly _modelService: IModelService) {
 		super();
@@ -36,21 +36,21 @@ export class TestWorkerService extends mock<IEditorWorkerService>() {
 		assertType(originalModel);
 		assertType(modifiedModel);
 
-		this._worker.acceptNewModel({
+		this._worker.$acceptNewModel({
 			url: originalModel.uri.toString(),
 			versionId: originalModel.getVersionId(),
 			lines: originalModel.getLinesContent(),
 			EOL: originalModel.getEOL(),
 		});
 
-		this._worker.acceptNewModel({
+		this._worker.$acceptNewModel({
 			url: modifiedModel.uri.toString(),
 			versionId: modifiedModel.getVersionId(),
 			lines: modifiedModel.getLinesContent(),
 			EOL: modifiedModel.getEOL(),
 		});
 
-		const result = await this._worker.computeDiff(originalModel.uri.toString(), modifiedModel.uri.toString(), options, algorithm);
+		const result = await this._worker.$computeDiff(originalModel.uri.toString(), modifiedModel.uri.toString(), options, algorithm);
 		if (!result) {
 			return result;
 		}

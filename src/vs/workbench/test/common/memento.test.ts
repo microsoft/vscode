@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Memento } from 'vs/workbench/common/memento';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import assert from 'assert';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { StorageScope, IStorageService, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { Memento } from '../../common/memento.js';
+import { TestStorageService } from './workbenchTestServices.js';
 
 suite('Memento', () => {
 	const disposables = new DisposableStore();

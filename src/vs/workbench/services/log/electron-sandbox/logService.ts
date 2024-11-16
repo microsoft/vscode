@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConsoleLogger, ILogger } from 'vs/platform/log/common/log';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
-import { LogService } from 'vs/platform/log/common/logService';
+import { ConsoleLogger, ILogger } from '../../../../platform/log/common/log.js';
+import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService.js';
+import { LoggerChannelClient } from '../../../../platform/log/common/logIpc.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { windowLogId } from '../common/logConstants.js';
+import { LogService } from '../../../../platform/log/common/logService.js';
 
 export class NativeLogService extends LogService {
 

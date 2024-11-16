@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+/* eslint-disable local/code-no-dangerous-type-assertions */
 
 import { LogOutputChannel } from 'vscode';
 
@@ -131,7 +132,7 @@ export type SyncOperation = BaseOperation & { kind: OperationKind.Sync };
 export type TagOperation = BaseOperation & { kind: OperationKind.Tag };
 
 export const Operation = {
-	Add: (showProgress: boolean) => ({ kind: OperationKind.Add, blocking: false, readOnly: false, remote: false, retry: false, showProgress } as AddOperation),
+	Add: (showProgress: boolean): AddOperation => ({ kind: OperationKind.Add, blocking: false, readOnly: false, remote: false, retry: false, showProgress }),
 	Apply: { kind: OperationKind.Apply, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as ApplyOperation,
 	Blame: { kind: OperationKind.Blame, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as BlameOperation,
 	Branch: { kind: OperationKind.Branch, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as BranchOperation,
@@ -141,7 +142,7 @@ export const Operation = {
 	CheckoutTracking: (refLabel: string) => ({ kind: OperationKind.CheckoutTracking, blocking: true, readOnly: false, remote: false, retry: false, showProgress: true, refLabel } as CheckoutTrackingOperation),
 	Clean: (showProgress: boolean) => ({ kind: OperationKind.Clean, blocking: false, readOnly: false, remote: false, retry: false, showProgress } as CleanOperation),
 	Commit: { kind: OperationKind.Commit, blocking: true, readOnly: false, remote: false, retry: false, showProgress: true } as CommitOperation,
-	Config: (readOnly: boolean) => ({ kind: OperationKind.Config, blocking: false, readOnly, remote: false, retry: false, showProgress: true } as ConfigOperation),
+	Config: (readOnly: boolean) => ({ kind: OperationKind.Config, blocking: false, readOnly, remote: false, retry: false, showProgress: false } as ConfigOperation),
 	DeleteBranch: { kind: OperationKind.DeleteBranch, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteBranchOperation,
 	DeleteRef: { kind: OperationKind.DeleteRef, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteRefOperation,
 	DeleteRemoteTag: { kind: OperationKind.DeleteRemoteTag, blocking: false, readOnly: false, remote: true, retry: false, showProgress: true } as DeleteRemoteTagOperation,
@@ -149,7 +150,7 @@ export const Operation = {
 	Diff: { kind: OperationKind.Diff, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as DiffOperation,
 	Fetch: (showProgress: boolean) => ({ kind: OperationKind.Fetch, blocking: false, readOnly: false, remote: true, retry: true, showProgress } as FetchOperation),
 	FindTrackingBranches: { kind: OperationKind.FindTrackingBranches, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as FindTrackingBranchesOperation,
-	GetBranch: { kind: OperationKind.GetBranch, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as GetBranchOperation,
+	GetBranch: { kind: OperationKind.GetBranch, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as GetBranchOperation,
 	GetBranches: { kind: OperationKind.GetBranches, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as GetBranchesOperation,
 	GetCommitTemplate: { kind: OperationKind.GetCommitTemplate, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as GetCommitTemplateOperation,
 	GetObjectDetails: { kind: OperationKind.GetObjectDetails, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as GetObjectDetailsOperation,
@@ -158,7 +159,7 @@ export const Operation = {
 	GetRemoteRefs: { kind: OperationKind.GetRemoteRefs, blocking: false, readOnly: true, remote: true, retry: false, showProgress: false } as GetRemoteRefsOperation,
 	HashObject: { kind: OperationKind.HashObject, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as HashObjectOperation,
 	Ignore: { kind: OperationKind.Ignore, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as IgnoreOperation,
-	Log: { kind: OperationKind.Log, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as LogOperation,
+	Log: (showProgress: boolean) => ({ kind: OperationKind.Log, blocking: false, readOnly: true, remote: false, retry: false, showProgress }) as LogOperation,
 	LogFile: { kind: OperationKind.LogFile, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as LogFileOperation,
 	Merge: { kind: OperationKind.Merge, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as MergeOperation,
 	MergeAbort: { kind: OperationKind.MergeAbort, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as MergeAbortOperation,
@@ -214,7 +215,7 @@ export class OperationManager implements IOperationManager {
 			this.operations.set(operation.kind, new Set([operation]));
 		}
 
-		this.logger.trace(`Operation start: ${operation.kind} (blocking: ${operation.blocking}, readOnly: ${operation.readOnly}; retry: ${operation.retry}; showProgress: ${operation.showProgress})`);
+		this.logger.trace(`[OperationManager][start] ${operation.kind} (blocking: ${operation.blocking}, readOnly: ${operation.readOnly}; retry: ${operation.retry}; showProgress: ${operation.showProgress})`);
 	}
 
 	end(operation: Operation): void {
@@ -226,7 +227,7 @@ export class OperationManager implements IOperationManager {
 			}
 		}
 
-		this.logger.trace(`Operation end: ${operation.kind} (blocking: ${operation.blocking}, readOnly: ${operation.readOnly}; retry: ${operation.retry}; showProgress: ${operation.showProgress})`);
+		this.logger.trace(`[OperationManager][end] ${operation.kind} (blocking: ${operation.blocking}, readOnly: ${operation.readOnly}; retry: ${operation.retry}; showProgress: ${operation.showProgress})`);
 	}
 
 	getOperations(operationKind: OperationKind): Operation[] {

@@ -19,10 +19,20 @@ lazy_static! {
 	static ref GENERIC_VERSION_RE: Regex = Regex::new(r"^([0-9]+)\.([0-9]+)$").unwrap();
 	static ref LIBSTD_CXX_VERSION_RE: BinRegex =
 		BinRegex::new(r"GLIBCXX_([0-9]+)\.([0-9]+)(?:\.([0-9]+))?").unwrap();
-	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 25);
-	static ref MIN_LEGACY_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 19);
 	static ref MIN_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 28, 0);
 	static ref MIN_LEGACY_LDD_VERSION: SimpleSemver = SimpleSemver::new(2, 17, 0);
+}
+
+#[cfg(target_arch = "arm")]
+lazy_static! {
+	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 26);
+	static ref MIN_LEGACY_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 22);
+}
+
+#[cfg(not(target_arch = "arm"))]
+lazy_static! {
+	static ref MIN_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 25);
+	static ref MIN_LEGACY_CXX_VERSION: SimpleSemver = SimpleSemver::new(3, 4, 19);
 }
 
 const NIXOS_TEST_PATH: &str = "/etc/NIXOS";
@@ -64,7 +74,8 @@ impl PreReqChecker {
 		} else {
 			println!("!!! WARNING: Skipping server pre-requisite check !!!");
 			println!("!!! Server stability is not guaranteed. Proceed at your own risk. !!!");
-			(Ok(false), Ok(false))
+			// Use the legacy server for #210029
+			(Ok(true), Ok(true))
 		};
 
 		match (&gnu_a, &gnu_b, is_nixos) {
@@ -110,7 +121,7 @@ impl PreReqChecker {
 
 		let bullets = errors
 			.iter()
-			.map(|e| format!("  - {}", e))
+			.map(|e| format!("  - {e}"))
 			.collect::<Vec<String>>()
 			.join("\n");
 
@@ -131,8 +142,7 @@ async fn check_musl_interpreter() -> Result<(), String> {
 
 	if fs::metadata(MUSL_PATH).await.is_err() {
 		return Err(format!(
-			"find {}, which is required to run the {} in musl environments",
-			MUSL_PATH, QUALITYLESS_SERVER_NAME
+			"find {MUSL_PATH}, which is required to run the {QUALITYLESS_SERVER_NAME} in musl environments"
 		));
 	}
 
@@ -220,8 +230,7 @@ async fn check_glibcxx_version() -> Result<bool, String> {
 		Some(path) => match fs::read(&path).await {
 			Ok(contents) => check_for_sufficient_glibcxx_versions(contents),
 			Err(e) => Err(format!(
-				"validate GLIBCXX version for GNU environments, but could not: {}",
-				e
+				"validate GLIBCXX version for GNU environments, but could not: {e}"
 			)),
 		},
 		None => Err("find libstdc++.so or ldconfig for GNU environments".to_owned()),

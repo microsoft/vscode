@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { extractSelection, withSelection } from 'vs/platform/opener/common/opener';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import { extractSelection, withSelection } from '../../common/opener.js';
 
 suite('extractSelection', () => {
 

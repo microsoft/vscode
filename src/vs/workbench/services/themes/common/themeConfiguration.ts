@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as types from 'vs/base/common/types';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import * as nls from '../../../../nls.js';
+import * as types from '../../../../base/common/types.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { textmateColorsSchemaId, textmateColorGroupSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
-import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
-import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
-import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ITokenColorCustomizations, IWorkbenchProductIconTheme, ISemanticTokenColorCustomizations, ThemeSettingTarget, ThemeSettingDefaults } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { isWeb } from 'vs/base/common/platform';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { textmateColorsSchemaId, textmateColorGroupSchemaId } from './colorThemeSchema.js';
+import { workbenchColorsSchemaId } from '../../../../platform/theme/common/colorRegistry.js';
+import { tokenStylingSchemaId } from '../../../../platform/theme/common/tokenClassificationRegistry.js';
+import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ITokenColorCustomizations, IWorkbenchProductIconTheme, ISemanticTokenColorCustomizations, ThemeSettingTarget, ThemeSettingDefaults } from './workbenchThemeService.js';
+import { IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { IHostColorSchemeService } from './hostColorSchemeService.js';
 
 // Configuration: Themes
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -25,7 +25,7 @@ const colorThemeSettingEnum: string[] = [];
 const colorThemeSettingEnumItemLabels: string[] = [];
 const colorThemeSettingEnumDescriptions: string[] = [];
 
-function formatSettingAsLink(str: string) {
+export function formatSettingAsLink(str: string) {
 	return `\`#${str}#\``;
 }
 
@@ -33,7 +33,7 @@ export const COLOR_THEME_CONFIGURATION_SETTINGS_TAG = 'colorThemeConfiguration';
 
 const colorThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
-	description: nls.localize({ key: 'colorTheme', comment: ['{0} will become a link to another setting.'] }, "Specifies the color theme used in the workbench if {0} is not enabled.", formatSettingAsLink(ThemeSettings.DETECT_COLOR_SCHEME)),
+	markdownDescription: nls.localize({ key: 'colorTheme', comment: ['{0} will become a link to another setting.'] }, "Specifies the color theme used in the workbench when {0} is not enabled.", formatSettingAsLink(ThemeSettings.DETECT_COLOR_SCHEME)),
 	default: isWeb ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK,
 	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
 	enum: colorThemeSettingEnum,
@@ -43,7 +43,7 @@ const colorThemeSettingSchema: IConfigurationPropertySchema = {
 };
 const preferredDarkThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string', //
-	markdownDescription: nls.localize({ key: 'preferredDarkColorTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the color theme for dark OS appearance when {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_COLOR_SCHEME)),
+	markdownDescription: nls.localize({ key: 'preferredDarkColorTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the color theme when system color mode is dark and {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_COLOR_SCHEME)),
 	default: ThemeSettingDefaults.COLOR_THEME_DARK,
 	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
 	enum: colorThemeSettingEnum,
@@ -53,7 +53,7 @@ const preferredDarkThemeSettingSchema: IConfigurationPropertySchema = {
 };
 const preferredLightThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
-	markdownDescription: nls.localize({ key: 'preferredLightColorTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the color theme for light OS appearance when {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_COLOR_SCHEME)),
+	markdownDescription: nls.localize({ key: 'preferredLightColorTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the color theme when system color mode is light and {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_COLOR_SCHEME)),
 	default: ThemeSettingDefaults.COLOR_THEME_LIGHT,
 	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
 	enum: colorThemeSettingEnum,
@@ -63,7 +63,7 @@ const preferredLightThemeSettingSchema: IConfigurationPropertySchema = {
 };
 const preferredHCDarkThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
-	markdownDescription: nls.localize({ key: 'preferredHCDarkColorTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the color theme used in high contrast dark mode when {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_HC)),
+	markdownDescription: nls.localize({ key: 'preferredHCDarkColorTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the color theme when in high contrast dark mode and {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_HC)),
 	default: ThemeSettingDefaults.COLOR_THEME_HC_DARK,
 	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
 	enum: colorThemeSettingEnum,
@@ -73,7 +73,7 @@ const preferredHCDarkThemeSettingSchema: IConfigurationPropertySchema = {
 };
 const preferredHCLightThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
-	markdownDescription: nls.localize({ key: 'preferredHCLightColorTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the color theme used in high contrast light mode when {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_HC)),
+	markdownDescription: nls.localize({ key: 'preferredHCLightColorTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the color theme when in high contrast light mode and {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_HC)),
 	default: ThemeSettingDefaults.COLOR_THEME_HC_LIGHT,
 	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
 	enum: colorThemeSettingEnum,
@@ -83,7 +83,7 @@ const preferredHCLightThemeSettingSchema: IConfigurationPropertySchema = {
 };
 const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'boolean',
-	markdownDescription: nls.localize({ key: 'detectColorScheme', comment: ['{0} and {1} will become links to other settings.'] }, 'If set, automatically switch to the preferred color theme based on the OS color mode. If the OS mode is dark, the theme specified at {0} is used, for light {1}.', formatSettingAsLink(ThemeSettings.PREFERRED_DARK_THEME), formatSettingAsLink(ThemeSettings.PREFERRED_LIGHT_THEME)),
+	markdownDescription: nls.localize({ key: 'detectColorScheme', comment: ['{0} and {1} will become links to other settings.'] }, 'If enabled, will automatically select a color theme based on the system color mode. If the system color mode is dark, {0} is used, else {1}.', formatSettingAsLink(ThemeSettings.PREFERRED_DARK_THEME), formatSettingAsLink(ThemeSettings.PREFERRED_LIGHT_THEME)),
 	default: false,
 	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
 };
@@ -317,6 +317,10 @@ export class ThemeConfiguration {
 			return this.hostColorService.dark ? ColorScheme.DARK : ColorScheme.LIGHT;
 		}
 		return undefined;
+	}
+
+	public isDetectingColorScheme(): boolean {
+		return this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME);
 	}
 
 	public getColorThemeSettingId(): ThemeSettings {

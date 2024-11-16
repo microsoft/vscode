@@ -476,10 +476,10 @@
   "scripts": {
     "watch": "gulp watch-extension:emmet",
     "compile": "gulp compile-extension:emmet",
-    "deps": "yarn add @vscode/emmet-helper"
+    "deps": "npm install @vscode/emmet-helper"
   },
   "devDependencies": {
-    "@types/node": "18.x"
+    "@types/node": "20.x"
   },
   "dependencies": {
     "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",

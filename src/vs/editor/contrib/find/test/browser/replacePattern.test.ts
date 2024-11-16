@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { buildReplaceStringWithCasePreserved } from 'vs/base/common/search';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { parseReplaceString, ReplacePattern, ReplacePiece } from 'vs/editor/contrib/find/browser/replacePattern';
+import assert from 'assert';
+import { buildReplaceStringWithCasePreserved } from '../../../../../base/common/search.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { parseReplaceString, ReplacePattern, ReplacePiece } from '../../browser/replacePattern.js';
 
 suite('Replace Pattern test', () => {
 

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { localize } from 'vs/nls';
-import { dirname, basename } from 'vs/base/common/resources';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { PerfviewContrib } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { URI } from 'vs/base/common/uri';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { localize } from '../../../../nls.js';
+import { dirname, basename } from '../../../../base/common/resources.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-sandbox/environmentService.js';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { PerfviewContrib } from '../browser/perfviewEditor.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 
 export class StartupProfiler implements IWorkbenchContribution {
 

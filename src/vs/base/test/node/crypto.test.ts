@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'vs/base/common/path';
-import { checksum } from 'vs/base/node/crypto';
-import { Promises } from 'vs/base/node/pfs';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { join } from '../../common/path.js';
+import { checksum } from '../../node/crypto.js';
+import { Promises } from '../../node/pfs.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
+import { flakySuite, getRandomTestPath } from './testUtils.js';
 
 flakySuite('Crypto', () => {
 
@@ -19,7 +20,7 @@ flakySuite('Crypto', () => {
 	setup(function () {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'crypto');
 
-		return Promises.mkdir(testDir, { recursive: true });
+		return fs.promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(function () {

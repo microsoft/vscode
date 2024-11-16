@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkProperties, IMarker, ISerializedTerminalCommand, ITerminalCommand, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalOutputMatcher, ITerminalOutputMatch } from 'vs/platform/terminal/common/terminal';
-
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
+import { IMarkProperties, IMarker, ISerializedTerminalCommand, ITerminalCommand, IXtermMarker } from '../capabilities.js';
+import { ITerminalOutputMatcher, ITerminalOutputMatch } from '../../terminal.js';
 import type { IBuffer, IBufferLine, Terminal } from '@xterm/headless';
 
 export interface ITerminalCommandProperties {

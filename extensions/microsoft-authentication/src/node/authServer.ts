@@ -110,20 +110,29 @@ export class LoopbackAuthServer implements ILoopbackServer {
 					const code = reqUrl.searchParams.get('code') ?? undefined;
 					const state = reqUrl.searchParams.get('state') ?? undefined;
 					const nonce = (reqUrl.searchParams.get('nonce') ?? '').replace(/ /g, '+');
+					const error = reqUrl.searchParams.get('error') ?? undefined;
+					if (error) {
+						res.writeHead(302, { location: `/?error=${reqUrl.searchParams.get('error_description')}` });
+						res.end();
+						deferred.reject(new Error(error));
+						break;
+					}
 					if (!code || !state || !nonce) {
 						res.writeHead(400);
 						res.end();
-						return;
+						break;
 					}
 					if (this.state !== state) {
 						res.writeHead(302, { location: `/?error=${encodeURIComponent('State does not match.')}` });
 						res.end();
-						throw new Error('State does not match.');
+						deferred.reject(new Error('State does not match.'));
+						break;
 					}
 					if (this.nonce !== nonce) {
 						res.writeHead(302, { location: `/?error=${encodeURIComponent('Nonce does not match.')}` });
 						res.end();
-						throw new Error('Nonce does not match.');
+						deferred.reject(new Error('Nonce does not match.'));
+						break;
 					}
 					deferred.resolve({ code, state });
 					res.writeHead(302, { location: '/' });
