@@ -14,6 +14,7 @@ import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/
 import { revive } from '../../../../base/common/marshalling.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { isLocation } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -58,6 +59,7 @@ type ChatProviderInvokedEvent = {
 	numCodeBlocks: number;
 	isParticipantDetected: boolean;
 	enableCommandDetection: boolean;
+	attachmentKinds: string[];
 };
 
 type ChatProviderInvokedClassification = {
@@ -74,6 +76,7 @@ type ChatProviderInvokedClassification = {
 	numCodeBlocks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of code blocks in the response.' };
 	isParticipantDetected: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the participant was automatically detected.' };
 	enableCommandDetection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether participation detection was disabled for this invocation.' };
+	attachmentKinds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The types of variables/attachments that the user included with their query.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -589,7 +592,8 @@ export class ChatService extends Disposable implements IChatService {
 					citations: request?.response?.codeCitations.length ?? 0,
 					numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length,
 					isParticipantDetected: !!detectedAgent,
-					enableCommandDetection
+					enableCommandDetection,
+					attachmentKinds: this.attachmentKindsForTelemetry(request.variableData)
 				});
 
 				model.cancelRequest(request);
@@ -716,15 +720,16 @@ export class ChatService extends Disposable implements IChatService {
 						totalTime: rawResult.timings?.totalElapsed,
 						result,
 						requestType,
-						agent: agentPart?.agent.id ?? '',
-						agentExtensionId: agentPart?.agent.extensionId.value ?? '',
+						agent: detectedAgent?.id ?? agentPart?.agent.id ?? '',
+						agentExtensionId: detectedAgent?.extensionId.value ?? agentPart?.agent.extensionId.value ?? '',
 						slashCommand: commandForTelemetry,
 						chatSessionId: model.sessionId,
 						enableCommandDetection,
 						isParticipantDetected: !!detectedAgent,
 						location,
 						citations: request.response?.codeCitations.length ?? 0,
-						numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length
+						numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length,
+						attachmentKinds: this.attachmentKindsForTelemetry(request.variableData)
 					});
 					model.setResponse(request, rawResult);
 					completeResponseCreated();
@@ -758,7 +763,8 @@ export class ChatService extends Disposable implements IChatService {
 					citations: 0,
 					numCodeBlocks: 0,
 					enableCommandDetection,
-					isParticipantDetected: !!detectedAgent
+					isParticipantDetected: !!detectedAgent,
+					attachmentKinds: this.attachmentKindsForTelemetry(request.variableData)
 				});
 				this.logService.error(`Error while handling chat request: ${toErrorMessage(err, true)}`);
 				if (request) {
@@ -780,6 +786,44 @@ export class ChatService extends Disposable implements IChatService {
 			responseCreatedPromise: responseCreated.p,
 			responseCompletePromise: rawResponsePromise,
 		};
+	}
+
+	private attachmentKindsForTelemetry(variableData: IChatRequestVariableData): string[] {
+		// TODO this shows why attachments still have to be cleaned up somewhat
+		return variableData.variables.map(v => {
+			if (v.kind === 'implicit') {
+				return 'implicit';
+			} else if (v.range) {
+				// 'range' is range within the prompt text
+				if (v.isTool) {
+					return 'toolInPrompt';
+				} else if (v.isDynamic) {
+					return 'fileInPrompt';
+				} else {
+					return 'variableInPrompt';
+				}
+			} else if (v.kind === 'command') {
+				return 'command';
+			} else if (v.kind === 'symbol') {
+				return 'symbol';
+			} else if (v.isImage) {
+				return 'image';
+			} else if (v.isDirectory) {
+				return 'directory';
+			} else if (v.isTool) {
+				return 'tool';
+			} else if (v.isDynamic) {
+				if (URI.isUri(v.value)) {
+					return 'file';
+				} else if (isLocation(v.value)) {
+					return 'location';
+				} else {
+					return 'otherAttachment';
+				}
+			} else {
+				return 'variableAttachment';
+			}
+		});
 	}
 
 	private getHistoryEntriesFromModel(requests: IChatRequestModel[], sessionId: string, location: ChatAgentLocation, forAgentId: string): IChatAgentHistoryEntry[] {

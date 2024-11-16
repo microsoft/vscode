@@ -404,6 +404,7 @@ export class AttachContextAction extends Action2 {
 			if (isISymbolQuickPickItem(pick) && pick.symbol) {
 				// Workspace symbol
 				toAttach.push({
+					kind: 'symbol',
 					id: this._getFileContextId(pick.symbol.location),
 					value: pick.symbol.location,
 					fullName: pick.label,
