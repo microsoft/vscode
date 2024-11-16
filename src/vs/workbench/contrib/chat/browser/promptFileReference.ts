@@ -104,7 +104,7 @@ export class PromptFileReference extends Disposable {
 
 	constructor(
 		private readonly _uri: URI | Location,
-		private readonly fileService: IFileService
+		private readonly fileService: IFileService,
 	) {
 		super();
 		this.onFilesChanged = this.onFilesChanged.bind(this);
@@ -188,11 +188,42 @@ export class PromptFileReference extends Disposable {
 	public async resolve(
 		waitForChildren: boolean = false,
 	): Promise<this> {
+		return await this.resolveReference(waitForChildren);
+	}
+
+	/**
+	 * Private implementation of the {@link resolve} method, that allows
+	 * to pass `seenReferences` list to the recursive calls to prevent
+	 * infinite file reference recursion.
+	 * @see {@link resolve}
+	 */
+	private async resolveReference(
+		waitForChildren: boolean = false,
+		seenReferences: string[] = [],
+	): Promise<this> {
 		// remove current error condition from the previous resolve attempt, if any
 		delete this._errorCondition;
 
-		// dispose current child references, if any
+		// dispose current child references, if any exist from a previous resolve
 		this.disposeChildren();
+
+		// to prevent infinite file recursion, we keep track of all references in
+		// the current branch of the file reference tree and check if the current
+		// file reference has been already seen before
+		if (seenReferences.includes(this.uri.path)) {
+			seenReferences.push(this.uri.path);
+
+			this._errorCondition = new RecursiveReference(this.uri, seenReferences);
+			this._resolveAttempted = true;
+			this._onUpdate.fire();
+
+			return this;
+		}
+
+		// we don't care if reading the file fails below, hence can add the path
+		// of the current reference to the `seenReferences` set immediately, -
+		// even if the file doesn't exist, we would never end up in the recursion
+		seenReferences.push(this.uri.path);
 
 		// try to get stream for the contents of the file, it may
 		// fail to multiple reasons, e.g. file doesn't exist, etc.
@@ -231,8 +262,13 @@ export class PromptFileReference extends Disposable {
 			));
 			this.children.push(child);
 
-			// start resolving the child immediately in the background
-			childPromises.push(child.resolve(waitForChildren));
+			// start resolving the child in the background, including its children
+			// Note! we have to clone the `seenReferences` list here to ensure that
+			// 		 different tree branches don't interfere with each other as we
+			//       care about the parent references when checking for recursion
+			childPromises.push(
+				child.resolveReference(waitForChildren, [...seenReferences]),
+			);
 		}
 
 		// if should wait for all children to resolve, block here

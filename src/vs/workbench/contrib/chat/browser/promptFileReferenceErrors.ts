@@ -8,17 +8,46 @@ import { URI } from '../../../../base/common/uri.js';
 /**
  * Base resolve error class used when file reference resolution fails.
  */
-abstract class ResolveError extends Error { }
+abstract class ResolveError extends Error {
+	constructor(
+		public readonly uri: URI,
+		message?: string,
+		options?: ErrorOptions,
+	) {
+		super(message, options);
+	}
+
+	/**
+	 * Check if provided object is of the same type as this error.
+	 */
+	public sameTypeAs(other: unknown): other is typeof this {
+		if (other === null || other === undefined) {
+			return false;
+		}
+
+		return other instanceof this.constructor;
+	}
+
+	/**
+	 * Check if provided object is equal to this error.
+	 */
+	public equal(other: unknown): boolean {
+		return this.sameTypeAs(other);
+	}
+}
 
 /**
  * Error that reflects the case when attempt to open target file fails.
  */
 export class FileOpenFailed extends ResolveError {
 	constructor(
-		public readonly uri: URI,
+		uri: URI,
 		public readonly originalError: unknown,
 	) {
-		super(`Failed to open file '${uri.toString()}'.`);
+		super(
+			uri,
+			`Failed to open file '${uri.toString()}': ${originalError}.`,
+		);
 	}
 }
 
@@ -38,10 +67,44 @@ export class FileOpenFailed extends ResolveError {
  */
 export class RecursiveReference extends ResolveError {
 	constructor(
-		public readonly uri: URI,
-		public readonly originalError: unknown,
+		uri: URI,
+		public readonly recursivePath: string[],
 	) {
-		// TODO: @legomushroom - add more details re the recursion
-		super(`File '${uri.toString()}' contains recursive references.`);
+		const references = recursivePath.join(' -> ');
+
+		super(
+			uri,
+			`Recursive references found: ${references}.`,
+		);
+	}
+
+	/**
+	 * Returns a string representation of the recursive path.
+	 */
+	public get recursivePathString(): string {
+		return this.recursivePath.join(' -> ');
+	}
+
+	/**
+	 * Check if provided object is of the same type as this
+	 * error, contains the same recursive path and URI.
+	 */
+	public override equal(other: unknown): other is this {
+		if (!this.sameTypeAs(other)) {
+			return false;
+		}
+
+		if (this.uri.toString() !== other.uri.toString()) {
+			return false;
+		}
+
+		return this.recursivePathString === other.recursivePathString;
+	}
+
+	/**
+	 * Returns a string representation of the error object.
+	 */
+	public override toString(): string {
+		return `"${this.message}"(${this.uri})`;
 	}
 }
