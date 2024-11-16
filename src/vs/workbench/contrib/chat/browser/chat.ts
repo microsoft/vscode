@@ -44,11 +44,11 @@ export interface IChatWidgetService {
 }
 
 export async function showChatView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
-	return (await viewsService.openView<ChatViewPane>(CHAT_VIEW_ID))?.widget;
+	return (await viewsService.openView<ChatViewPane>(ChatViewId))?.widget;
 }
 
 export async function showEditsView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
-	return (await viewsService.openView<ChatViewPane>(EDITS_VIEW_ID))?.widget;
+	return (await viewsService.openView<ChatViewPane>(EditsViewId))?.widget;
 }
 
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
@@ -214,6 +214,6 @@ export interface IChatCodeBlockContextProviderService {
 
 export const GeneratingPhrase = localize('generating', "Generating");
 
-export const CHAT_VIEW_ID = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
+export const ChatViewId = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
 
-export const EDITS_VIEW_ID = 'workbench.panel.chat.view.edits';
+export const EditsViewId = 'workbench.panel.chat.view.edits';

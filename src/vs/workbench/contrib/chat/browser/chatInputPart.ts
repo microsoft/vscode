@@ -71,7 +71,7 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/edit
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
-import { revealInsideBarCommand } from '../../files/browser/fileActions.contribution.js';
+import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
@@ -882,7 +882,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private openResource(resource: URI, isDirectory?: boolean, range?: IRange): void {
 		if (isDirectory) {
 			// Reveal Directory in explorer
-			this.commandService.executeCommand(revealInsideBarCommand.id, resource);
+			this.commandService.executeCommand(revealInSideBarCommand.id, resource);
 			return;
 		}
 
