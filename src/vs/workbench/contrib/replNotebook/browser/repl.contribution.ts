@@ -51,7 +51,7 @@ import { NotebookEditorInputOptions } from '../../notebook/common/notebookEditor
 import { INotebookEditorModelResolverService } from '../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { isReplEditorControl, ReplEditor, ReplEditorControl } from './replEditor.js';
-import { ReplEditorAccessibilityHelp } from './replEditorAccessibilityHelp.js';
+import { ReplEditorHistoryAccessibilityHelp, ReplEditorInputAccessibilityHelp } from './replEditorAccessibilityHelp.js';
 import { ReplEditorInput } from './replEditorInput.js';
 
 type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions; label?: string };
@@ -224,7 +224,8 @@ class ReplWindowWorkingCopyEditorHandler extends Disposable implements IWorkbenc
 registerWorkbenchContribution2(ReplWindowWorkingCopyEditorHandler.ID, ReplWindowWorkingCopyEditorHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ReplDocumentContribution.ID, ReplDocumentContribution, WorkbenchPhase.BlockRestore);
 
-AccessibleViewRegistry.register(new ReplEditorAccessibilityHelp());
+AccessibleViewRegistry.register(new ReplEditorInputAccessibilityHelp());
+AccessibleViewRegistry.register(new ReplEditorHistoryAccessibilityHelp());
 
 registerAction2(class extends Action2 {
 	constructor() {
