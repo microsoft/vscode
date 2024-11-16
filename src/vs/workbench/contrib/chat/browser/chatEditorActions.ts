@@ -146,19 +146,16 @@ abstract class AcceptDiscardAction extends Action2 {
 		const chatEditingService = accessor.get(IChatEditingService);
 		const editorService = accessor.get(IEditorService);
 
-		const getUri = () => {
-			const notebookEditor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-			if (notebookEditor) {
-				return notebookEditor.textModel?.uri;
-			}
+		let uri = getNotebookEditorFromEditorPane(editorService.activeEditorPane)?.textModel?.uri;
+
+		if (!uri) {
 			const editor = editorService.activeTextEditorControl;
 			if (!isCodeEditor(editor) || !editor.hasModel()) {
 				return;
 			}
-			return editor.getModel().uri;
-		};
+			uri = editor.getModel().uri;
+		}
 
-		const uri = getUri();
 		if (!uri) {
 			return;
 		}
