@@ -149,10 +149,7 @@ abstract class AcceptDiscardAction extends Action2 {
 		let uri = getNotebookEditorFromEditorPane(editorService.activeEditorPane)?.textModel?.uri;
 		if (!uri) {
 			const editor = editorService.activeTextEditorControl;
-			if (!isCodeEditor(editor) || !editor.hasModel()) {
-				return;
-			}
-			uri = editor.getModel().uri;
+			uri = isCodeEditor(editor) && editor.hasModel() ? editor.getModel().uri : undefined;
 		}
 		if (!uri) {
 			return;
