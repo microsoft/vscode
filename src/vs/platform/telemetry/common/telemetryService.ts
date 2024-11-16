@@ -177,7 +177,7 @@ function getTelemetryLevelSettingDescription(): string {
 	const telemetryTable = `
 |       | ${crashReportsHeader} | ${errorsHeader} | ${usageHeader} |
 |:------|:-------------:|:---------------:|:----------:|
-| all   |       ✓       |        ✓        |     ✓     |
+| all   |       ✓       |        ✓        |     ✓      |
 | error |       ✓       |        ✓        |     -      |
 | crash |       ✓       |        -        |     -      |
 | off   |       -       |        -        |     -      |
