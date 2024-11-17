@@ -160,7 +160,7 @@ class NotebookChatEditorController extends Disposable {
 						this._register(editor.onDidDispose(() => {
 							decorator.dispose();
 							if (decorators.get(modifiedCell) === decorator) {
-								decorators.set(modifiedCell, decorator);
+								decorators.delete(modifiedCell);
 							}
 						}));
 					}
