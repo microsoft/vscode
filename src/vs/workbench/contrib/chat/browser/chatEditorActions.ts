@@ -18,6 +18,8 @@ import { hasUndecidedChatEditingResourceContextKey, IChatEditingService } from '
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
+import { ctxNotebookHasEditorModification } from '../../notebook/browser/chatEdit/notebookChatEditController.js';
 
 abstract class NavigateAction extends Action2 {
 
@@ -36,7 +38,7 @@ abstract class NavigateAction extends Action2 {
 					? KeyMod.Alt | KeyCode.F5
 					: KeyMod.Alt | KeyMod.Shift | KeyCode.F5,
 				weight: KeybindingWeight.EditorContrib,
-				when: ContextKeyExpr.and(ctxHasEditorModification, EditorContextKeys.focus),
+				when: ContextKeyExpr.and(ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification), EditorContextKeys.focus),
 			},
 			f1: true,
 			menu: {
@@ -120,7 +122,7 @@ abstract class AcceptDiscardAction extends Action2 {
 				? localize2('accept2', 'Accept')
 				: localize2('discard2', 'Discard'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ctxHasEditorModification),
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification)),
 			icon: accept
 				? Codicon.check
 				: Codicon.discard,
@@ -144,20 +146,24 @@ abstract class AcceptDiscardAction extends Action2 {
 		const chatEditingService = accessor.get(IChatEditingService);
 		const editorService = accessor.get(IEditorService);
 
-		const editor = editorService.activeTextEditorControl;
-		if (!isCodeEditor(editor) || !editor.hasModel()) {
+		let uri = getNotebookEditorFromEditorPane(editorService.activeEditorPane)?.textModel?.uri;
+		if (!uri) {
+			const editor = editorService.activeTextEditorControl;
+			uri = isCodeEditor(editor) && editor.hasModel() ? editor.getModel().uri : undefined;
+		}
+		if (!uri) {
 			return;
 		}
 
-		const session = chatEditingService.getEditingSession(editor.getModel().uri);
+		const session = chatEditingService.getEditingSession(uri);
 		if (!session) {
 			return;
 		}
 
 		if (this.accept) {
-			session.accept(editor.getModel().uri);
+			session.accept(uri);
 		} else {
-			session.reject(editor.getModel().uri);
+			session.reject(uri);
 		}
 	}
 }
