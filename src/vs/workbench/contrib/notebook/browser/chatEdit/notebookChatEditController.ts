@@ -14,7 +14,7 @@ import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { NotebookDeletedCellDecorator, NotebookInsertedCellDecorator, NotebookCellDiffDecorator } from './notebookCellDecorators.js';
-import { INotebookModelSynchronizerFactory } from './notebookSynronizer.js';
+import { INotebookModelSynchronizerFactory } from './notebookSynchronizer.js';
 import { INotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
 import { debouncedObservable2 } from '../../../../../base/common/observableInternal/utils.js';
 import { CellDiffInfo } from '../diff/notebookDiffViewModel.js';
