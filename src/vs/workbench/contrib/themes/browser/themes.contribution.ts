@@ -574,7 +574,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-CommandsRegistry.registerCommand('workbench.action.previewColorTheme', async function (accessor: ServicesAccessor, extension: { publisher: string; name: string; version: string }, themeSettingsId?: string) {
+CommandsRegistry.registerCommand('workbench.action.previewColorTheme', async function(accessor: ServicesAccessor, extension: { publisher: string; name: string; version: string }, themeSettingsId?: string) {
 	const themeService = accessor.get(IWorkbenchThemeService);
 
 	let themes = findBuiltInThemes(await themeService.getColorThemes(), extension);
@@ -920,7 +920,7 @@ class DefaultThemeUpdatedNotificationContribution implements IWorkbenchContribut
 			];
 			await this._notificationService.prompt(
 				Severity.Info,
-				localize({ key: 'themeUpdatedNotification', comment: ['{0} is the name of the new default theme'] }, "Visual Studio Code now ships with a new default theme '{0}'. If you prefer, you can switch back to the old theme or try one of the many other color themes available.", newTheme.label),
+				localize({ key: 'themeUpdatedNotification', comment: ['{0} is the name of the new default theme'] }, "PearAI now ships with a new default theme '{0}'. If you prefer, you can switch back to the old theme or try one of the many other color themes available.", newTheme.label),
 				choices,
 				{
 					onCancel: () => this._writeTelemetry('cancel')
@@ -948,7 +948,7 @@ class DefaultThemeUpdatedNotificationContribution implements IWorkbenchContribut
 			}];
 			await this._notificationService.prompt(
 				Severity.Info,
-				localize({ key: 'newThemeNotification', comment: ['{0} is the name of the new default theme'] }, "Visual Studio Code now ships with a new default theme '{0}'. Do you want to give it a try?", theme.label),
+				localize({ key: 'newThemeNotification', comment: ['{0} is the name of the new default theme'] }, "PearAI now ships with a new default theme '{0}'. Do you want to give it a try?", theme.label),
 				choices,
 				{ onCancel: () => this._writeTelemetry('cancel') }
 			);
