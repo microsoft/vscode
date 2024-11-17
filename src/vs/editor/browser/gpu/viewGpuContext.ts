@@ -138,4 +138,28 @@ export class ViewGpuContext extends Disposable {
 		}
 		return true;
 	}
+
+	/**
+	 * Like {@link canRender} but returned detailed information about why the line cannot be rendered.
+	 */
+	public static canRenderDetailed(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): string[] {
+		const data = viewportData.getViewLineRenderingData(lineNumber);
+		const reasons: string[] = [];
+		if (data.containsRTL) {
+			reasons.push('containsRTL');
+		}
+		if (data.maxColumn > GpuRenderLimits.maxGpuCols) {
+			reasons.push('maxColumn > maxGpuCols');
+		}
+		if (data.continuesWithWrappedLine) {
+			reasons.push('continuesWithWrappedLine');
+		}
+		if (data.inlineDecorations.length > 0) {
+			reasons.push('inlineDecorations > 0');
+		}
+		if (lineNumber >= GpuRenderLimits.maxGpuLines) {
+			reasons.push('lineNumber >= maxGpuLines');
+		}
+		return reasons;
+	}
 }

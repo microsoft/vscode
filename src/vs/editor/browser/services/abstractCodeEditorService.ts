@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
+import * as domStylesheets from '../../../base/browser/domStylesheets.js';
 import * as cssJs from '../../../base/browser/cssValue.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IDisposable, DisposableStore, Disposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -128,7 +129,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	}
 
 	protected _createGlobalStyleSheet(): GlobalStyleSheet {
-		return new GlobalStyleSheet(dom.createStyleSheet());
+		return new GlobalStyleSheet(domStylesheets.createStyleSheet());
 	}
 
 	private _getOrCreateStyleSheet(editor: ICodeEditor | undefined): GlobalStyleSheet | RefCountedStyleSheet {
@@ -141,7 +142,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		}
 		const editorId = editor.getId();
 		if (!this._editorStyleSheets.has(editorId)) {
-			const refCountedStyleSheet = new RefCountedStyleSheet(this, editorId, dom.createStyleSheet(domNode));
+			const refCountedStyleSheet = new RefCountedStyleSheet(this, editorId, domStylesheets.createStyleSheet(domNode));
 			this._editorStyleSheets.set(editorId, refCountedStyleSheet);
 		}
 		return this._editorStyleSheets.get(editorId)!;
@@ -348,11 +349,11 @@ class RefCountedStyleSheet {
 	}
 
 	public insertRule(selector: string, rule: string): void {
-		dom.createCSSRule(selector, rule, this._styleSheet);
+		domStylesheets.createCSSRule(selector, rule, this._styleSheet);
 	}
 
 	public removeRulesContainingSelector(ruleName: string): void {
-		dom.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
+		domStylesheets.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
 	}
 }
 
@@ -374,11 +375,11 @@ export class GlobalStyleSheet {
 	}
 
 	public insertRule(selector: string, rule: string): void {
-		dom.createCSSRule(selector, rule, this._styleSheet);
+		domStylesheets.createCSSRule(selector, rule, this._styleSheet);
 	}
 
 	public removeRulesContainingSelector(ruleName: string): void {
-		dom.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
+		domStylesheets.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
 	}
 }
 

@@ -138,9 +138,15 @@ variables:
     value: vscodeesrp
   - name: PRSS_CDN_URL
     value: https://vscode.download.prss.microsoft.com/dbazure/download
-  - name: PRSS_RELEASE_TENANT_ID
+  - name: VSCODE_ESRP_SERVICE_CONNECTION_ID
+    value: fe07e6ce-6ffb-4df9-8d27-d129523a3f3e
+  - name: VSCODE_ESRP_TENANT_ID
     value: 975f013f-7f24-47e8-a7d3-abc4752bf346
-  - name: PRSS_RELEASE_CLIENT_ID
+  - name: VSCODE_ESRP_CLIENT_ID
+    value: 4ac7ed59-b5e9-4f66-9c30-8d1afa72d32d
+  - name: ESRP_TENANT_ID
+    value: 975f013f-7f24-47e8-a7d3-abc4752bf346
+  - name: ESRP_CLIENT_ID
     value: c24324f7-e65f-4c45-8702-ed2d4c35df99
   - name: AZURE_DOCUMENTDB_ENDPOINT
     value: https://vscode.documents.azure.com/
