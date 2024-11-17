@@ -2,12 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import * as vscode from 'vscode';
 
 import { TypeScriptRequests } from '../typescriptService';
 import TypeScriptServiceClientHost from '../typeScriptServiceClientHost';
 import { nulToken } from '../utils/cancellation';
 import { Lazy } from '../utils/lazy';
 import { Command } from './commandManager';
+
+function isCancellationToken(value: any): value is vscode.CancellationToken {
+	return value && typeof value.isCancellationRequested === 'boolean' && typeof value.onCancellationRequested === 'function';
+}
+
+interface RequestArgs {
+	readonly file?: unknown;
+	readonly token?: unknown;
+}
 
 export class TSServerRequestCommand implements Command {
 	public readonly id = 'typescript.tsserverRequest';
@@ -17,8 +27,24 @@ export class TSServerRequestCommand implements Command {
 	) { }
 
 	public async execute(command: keyof TypeScriptRequests, args?: any, config?: any): Promise<unknown> {
-		// A cancellation token cannot be passed through the command infrastructure
-		const token = nulToken;
+		let token: vscode.CancellationToken = nulToken;
+		if (args && typeof args === 'object' && !Array.isArray(args)) {
+			const requestArgs = args as RequestArgs;
+			let newArgs: any = undefined;
+			if (requestArgs.file instanceof vscode.Uri) {
+				newArgs = { ...args };
+				const client = this.lazyClientHost.value.serviceClient;
+				newArgs.file = client.toOpenTsFilePath(requestArgs.file);
+			}
+			if (isCancellationToken(requestArgs.token)) {
+				newArgs = newArgs ?? { ...args };
+				token = requestArgs.token;
+				delete newArgs.token;
+			}
+			if (newArgs !== undefined) {
+				args = newArgs;
+			}
+		}
 
 		// The list can be found in the TypeScript compiler as `const enum CommandTypes`,
 		// to avoid extensions making calls which could affect the internal tsserver state
@@ -42,4 +68,3 @@ export class TSServerRequestCommand implements Command {
 		return undefined;
 	}
 }
-
