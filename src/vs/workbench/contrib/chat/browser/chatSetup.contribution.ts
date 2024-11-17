@@ -28,7 +28,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
-import { showChatView, CHAT_VIEW_ID } from './chat.js';
+import { showChatView, ChatViewId } from './chat.js';
 import { IChatAgentService } from '../common/chatAgents.js';
 import { Event } from '../../../../base/common/event.js';
 import product from '../../../../platform/product/common/product.js';
@@ -135,7 +135,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				const viewsDescriptorService = accessor.get(IViewDescriptorService);
 				const layoutService = accessor.get(IWorkbenchLayoutService);
 
-				const location = viewsDescriptorService.getViewLocationById(CHAT_VIEW_ID);
+				const location = viewsDescriptorService.getViewLocationById(ChatViewId);
 
 				chatSetupTrigger.update(false);
 
@@ -417,7 +417,7 @@ class ChatSetupInstallAction extends Action2 {
 				enable: true,
 				isMachineScoped: false,
 				installPreReleaseVersion: productService.quality !== 'stable'
-			}, CHAT_VIEW_ID);
+			}, ChatViewId);
 
 			installResult = 'installed';
 		} catch (error) {

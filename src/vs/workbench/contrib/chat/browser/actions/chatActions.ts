@@ -35,7 +35,7 @@ import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
@@ -162,7 +162,7 @@ class ChatHistoryAction extends Action2 {
 			title: localize2('chat.history.label', "Show Chats..."),
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', CHAT_VIEW_ID),
+				when: ContextKeyExpr.equals('view', ChatViewId),
 				group: 'navigation',
 				order: 2
 			},
@@ -253,7 +253,7 @@ class ChatHistoryAction extends Action2 {
 				try {
 					const item = picker.selectedItems[0];
 					const sessionId = item.chat.sessionId;
-					const view = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
+					const view = await viewsService.openView(ChatViewId) as ChatViewPane;
 					view.loadSession(sessionId);
 				} finally {
 					picker.hide();
@@ -368,7 +368,7 @@ export function registerChatActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.clearAllHistoryEntries();
 
-			const chatView = viewsService.getViewWithId(CHAT_VIEW_ID) as ChatViewPane | undefined;
+			const chatView = viewsService.getViewWithId(ChatViewId) as ChatViewPane | undefined;
 			if (chatView) {
 				chatView.widget.clear();
 			}
@@ -558,4 +558,3 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 		}, agentService.onDidChangeAgents);
 	}
 }
-
