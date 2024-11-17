@@ -720,7 +720,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							i++;
 							partsToRender.push(nextPart);
 						} else {
-							moreContentAvailable = true;
 							break;
 						}
 					}
