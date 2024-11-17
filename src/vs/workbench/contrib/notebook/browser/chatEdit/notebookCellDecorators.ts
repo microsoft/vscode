@@ -161,23 +161,6 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 		}
 		return this._originalModel;
 	}
-	private async computeDiff() {
-		const model = this.editor.getModel();
-		if (!model) {
-			return;
-		}
-		const originalModel = this.getOrCreateOriginalModel();
-		if (!originalModel) {
-			return;
-		}
-
-		return this._editorWorkerService.computeDiff(
-			originalModel.uri,
-			model.uri,
-			{ computeMoves: true, ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER },
-			'advanced'
-		);
-	}
 
 	private _updateWithDiff(originalModel: ITextModel | undefined, diff: IDocumentDiff): void {
 		const chatDiffAddDecoration = ModelDecorationOptions.createDynamic({
