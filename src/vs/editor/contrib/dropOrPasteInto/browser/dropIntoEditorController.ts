@@ -3,11 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAction } from '../../../../base/common/actions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { CancelablePromise, createCancelablePromise, raceCancellation } from '../../../../base/common/async.js';
-import { VSDataTransfer, matchesMimeType } from '../../../../base/common/dataTransfer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { VSDataTransfer } from '../../../../base/common/dataTransfer.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { toExternalVSDataTransfer } from '../../../browser/dnd.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -21,17 +29,9 @@ import { DraggedTreeItemsIdentifier } from '../../../common/services/treeViewsDn
 import { ITreeViewsDnDService } from '../../../common/services/treeViewsDndService.js';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from '../../editorState/browser/editorState.js';
 import { InlineProgressManager } from '../../inlineProgress/browser/inlineProgress.js';
-import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { PreferredDropConfiguration } from './dropIntoEditorContribution.js';
 import { sortEditsByYieldTo } from './edit.js';
 import { PostEditWidgetManager } from './postEditWidget.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { PreferredDropConfiguration } from './dropIntoEditorContribution.js';
-import { IAction } from '../../../../base/common/actions.js';
 
 export const dropAsPreferenceConfig = 'editor.dropIntoEditor.preferences';
 
@@ -174,13 +174,11 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		};
 	}
 
-	private getInitialActiveEditIndex(model: ITextModel, edits: ReadonlyArray<DocumentDropEdit & { readonly providerId?: string }>) {
-		const preferredProviders = this._configService.getValue<PreferredDropConfiguration>(dropAsPreferenceConfig, { resource: model.uri });
+	private getInitialActiveEditIndex(model: ITextModel, edits: ReadonlyArray<DocumentDropEdit>): number {
+		const preferredProviders = this._configService.getValue<PreferredDropConfiguration[]>(dropAsPreferenceConfig, { resource: model.uri });
 		for (const config of Array.isArray(preferredProviders) ? preferredProviders : []) {
-			const desiredKind = new HierarchicalKind(config.kind);
-			const editIndex = edits.findIndex(edit =>
-				(edit.kind && desiredKind.contains(edit.kind))
-				&& (!config.mimeType || (edit.handledMimeType && matchesMimeType(config.mimeType, [edit.handledMimeType]))));
+			const desiredKind = new HierarchicalKind(config);
+			const editIndex = edits.findIndex(edit => edit.kind && desiredKind.contains(edit.kind));
 			if (editIndex >= 0) {
 				return editIndex;
 			}

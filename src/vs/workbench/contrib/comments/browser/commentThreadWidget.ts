@@ -5,6 +5,7 @@
 
 import './media/review.css';
 import * as dom from '../../../../base/browser/dom.js';
+import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -142,7 +143,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		) as unknown as CommentThreadBody<T>;
 		this._register(this._body);
 		this._setAriaLabel();
-		this._styleElement = dom.createStyleSheet(this.container);
+		this._styleElement = domStylesheets.createStyleSheet(this.container);
 
 
 		this._commentThreadContextValue = CommentContextKeys.commentThreadContext.bindTo(this._contextKeyService);

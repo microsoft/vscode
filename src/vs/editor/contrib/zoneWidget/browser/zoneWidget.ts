@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { IHorizontalSashLayoutProvider, ISashEvent, Orientation, Sash, SashState } from '../../../../base/browser/ui/sash/sash.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
 import { IdGenerator } from '../../../../base/common/idGenerator.js';
@@ -127,7 +128,7 @@ class Arrow {
 
 	dispose(): void {
 		this.hide();
-		dom.removeCSSRulesContainingSelector(this._ruleName);
+		domStylesheetsJs.removeCSSRulesContainingSelector(this._ruleName);
 	}
 
 	set color(value: string) {
@@ -145,8 +146,8 @@ class Arrow {
 	}
 
 	private _updateStyle(): void {
-		dom.removeCSSRulesContainingSelector(this._ruleName);
-		dom.createCSSRule(
+		domStylesheetsJs.removeCSSRulesContainingSelector(this._ruleName);
+		domStylesheetsJs.createCSSRule(
 			`.monaco-editor ${this._ruleName}`,
 			`border-style: solid; border-color: transparent; border-bottom-color: ${this._color}; border-width: ${this._height}px; bottom: -${this._height}px !important; margin-left: -${this._height}px; `
 		);

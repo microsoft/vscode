@@ -660,13 +660,11 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		}
 	}
 
-	private getInitialActiveEditIndex(model: ITextModel, edits: readonly DocumentPasteEdit[]) {
-		const preferredProviders = this._configService.getValue<PreferredPasteConfiguration>(pasteAsPreferenceConfig, { resource: model.uri });
+	private getInitialActiveEditIndex(model: ITextModel, edits: readonly DocumentPasteEdit[]): number {
+		const preferredProviders = this._configService.getValue<PreferredPasteConfiguration[]>(pasteAsPreferenceConfig, { resource: model.uri });
 		for (const config of Array.isArray(preferredProviders) ? preferredProviders : []) {
-			const desiredKind = new HierarchicalKind(config.kind);
-			const editIndex = edits.findIndex(edit =>
-				desiredKind.contains(edit.kind)
-				&& (!config.mimeType || (edit.handledMimeType && matchesMimeType(config.mimeType, [edit.handledMimeType]))));
+			const desiredKind = new HierarchicalKind(config);
+			const editIndex = edits.findIndex(edit => desiredKind.contains(edit.kind));
 			if (editIndex >= 0) {
 				return editIndex;
 			}

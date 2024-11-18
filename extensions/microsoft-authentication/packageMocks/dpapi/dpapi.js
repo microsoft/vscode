@@ -3,7 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 15
-
-declare module 'vscode' {
+class defaultDpapi {
+	protectData() {
+		throw new Error('Dpapi bindings unavailable');
+	}
+	unprotectData() {
+		throw new Error('Dpapi bindings unavailable');
+	}
 }
+const Dpapi = new defaultDpapi();
+export { Dpapi };

@@ -63,6 +63,7 @@ export interface IExplorerView {
 	getFocus(): ExplorerItem[];
 	focusNext(): void;
 	focusLast(): void;
+	hasPhantomElements(): boolean;
 }
 
 function getFocus(listService: IListService): unknown | undefined {

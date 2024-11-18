@@ -1655,6 +1655,10 @@ export interface IEditorFindOptions {
 	 * Controls whether the search result and diff result automatically restarts from the beginning (or the end) when no further matches can be found
 	 */
 	loop?: boolean;
+	/**
+	 * Controls how the find widget search history should be stored
+	 */
+	findSearchHistory?: 'never' | 'workspace';
 }
 
 /**
@@ -1671,7 +1675,8 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			autoFindInSelection: 'never',
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
-			loop: true
+			loop: true,
+			findSearchHistory: 'never',
 		};
 		super(
 			EditorOption.find, 'find', defaults,
@@ -1719,7 +1724,16 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 					default: defaults.loop,
 					description: nls.localize('find.loop', "Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found.")
 				},
-
+				'editor.find.findSearchHistory': {
+					type: 'string',
+					enum: ['never', 'workspace'],
+					default: defaults.findSearchHistory,
+					enumDescriptions: [
+						nls.localize('editor.find.findSearchHistory.never', 'Do not store search history from the find widget.'),
+						nls.localize('editor.find.findSearchHistory.workspace', 'Store search history across the active workspace'),
+					],
+					description: nls.localize('find.findSearchHistory', "Controls how the find widget search history should be stored")
+				}
 			}
 		);
 	}
@@ -1740,6 +1754,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
 			loop: boolean(input.loop, this.defaultValue.loop),
+			findSearchHistory: stringSet<'never' | 'workspace'>(input.findSearchHistory, this.defaultValue.findSearchHistory, ['never', 'workspace']),
 		};
 	}
 }

@@ -761,6 +761,11 @@ export interface InlineCompletion {
 	readonly command?: Command;
 
 	/**
+	 * Is called the first time an inline completion is shown.
+	*/
+	readonly shownCommand?: Command;
+
+	/**
 	 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
 	 * Defaults to `false`.
 	*/
@@ -2278,6 +2283,7 @@ export interface DocumentDropEditsSession {
 export interface DocumentDropEditProvider {
 	readonly id?: string;
 	readonly dropMimeTypes?: readonly string[];
+	readonly providedDropEditKinds?: readonly HierarchicalKind[];
 
 	provideDocumentDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentDropEditsSession>;
 	resolveDocumentDropEdit?(edit: DocumentDropEdit, token: CancellationToken): Promise<DocumentDropEdit>;
@@ -2344,6 +2350,7 @@ export interface IInlineEdit {
 	range: IRange;
 	accepted?: Command;
 	rejected?: Command;
+	shown?: Command;
 	commands?: Command[];
 }
 
