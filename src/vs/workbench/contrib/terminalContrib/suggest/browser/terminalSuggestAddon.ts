@@ -299,7 +299,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// Hide the widget if the cursor moves to the left of the initial position as the
 		// completions are no longer valid
 		// to do: get replacement length to be correct, readd this?
-		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex < this._leadingLineContent.length) {
+		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex <= this._leadingLineContent.length) {
 			this.hideSuggestWidget();
 			return;
 		}
