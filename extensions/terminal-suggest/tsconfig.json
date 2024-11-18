@@ -7,7 +7,7 @@
 		],
 		"target": "es2020",
 		"module": "CommonJS",
-		"moduleResolution": "node10",
+		"moduleResolution": "node",
 		"strict": true,
 		"esModuleInterop": true,
 		"skipLibCheck": true,
