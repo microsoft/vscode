@@ -133,7 +133,7 @@ import { getFormattedNotebookMetadataJSON } from '../common/model/notebookMetada
 import { NotebookChatEditorControllerContrib } from './chatEdit/notebookChatEditController.js';
 import { registerNotebookContribution } from './notebookEditorExtensions.js';
 import { INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory } from './chatEdit/notebookOriginalModelRefFactory.js';
-import { INotebookModelSynchronizerFactory, NotebookModelSynchronizerFactory } from './chatEdit/notebookSynronizer.js';
+import { INotebookModelSynchronizerFactory, NotebookModelSynchronizerFactory } from './chatEdit/notebookSynchronizer.js';
 import { INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory } from './chatEdit/notebookOriginalCellModelFactory.js';
 
 /*--------------------------------------------------------------------------------------------- */
