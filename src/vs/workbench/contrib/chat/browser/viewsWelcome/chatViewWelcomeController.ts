@@ -57,14 +57,15 @@ export class ChatViewWelcomeController extends Disposable {
 			return;
 		}
 
+		this.enabled = enabled;
 		this.enabledDisposables.clear();
+
 		if (!enabled) {
 			this.container.classList.toggle('chat-view-welcome-visible', false);
 			this.renderDisposables.clear();
 			return;
 		}
 
-		this.enabled = true;
 		const descriptors = chatViewsWelcomeRegistry.get();
 		if (descriptors.length) {
 			this.render(descriptors);
@@ -134,14 +135,6 @@ export class ChatViewWelcomePart extends Disposable {
 				featureIndicator.textContent = localize('preview', 'PREVIEW');
 			}
 
-			if (content.progress) {
-				const progress = dom.append(this.element, $('.chat-welcome-view-progress'));
-				progress.appendChild(renderIcon(spinningLoading));
-
-				const progressLabel = dom.append(progress, $('span'));
-				progressLabel.textContent = content.progress;
-			}
-
 			const message = dom.append(this.element, $('.chat-welcome-view-message'));
 
 			if (content.icon) {
@@ -165,6 +158,14 @@ export class ChatViewWelcomePart extends Disposable {
 			}
 
 			dom.append(message, messageResult.element);
+
+			if (content.progress) {
+				const progress = dom.append(this.element, $('.chat-welcome-view-progress'));
+				progress.appendChild(renderIcon(spinningLoading));
+
+				const progressLabel = dom.append(progress, $('span'));
+				progressLabel.textContent = content.progress;
+			}
 
 			if (content.tips) {
 				const tips = dom.append(this.element, $('.chat-welcome-view-tips'));
