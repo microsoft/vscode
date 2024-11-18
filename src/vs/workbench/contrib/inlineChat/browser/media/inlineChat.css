@@ -128,6 +128,14 @@
 	display: none;
 }
 
+.monaco-workbench .inline-chat .chat-widget .interactive-session .chat-input-toolbars {
+	max-width: 66%;
+}
+
+.monaco-workbench .inline-chat .chat-widget .interactive-session .chat-input-toolbars > .chat-execute-toolbar .chat-modelPicker-item {
+	min-width: 40px;
+	max-width: 132px;
+}
 
 /* status */
 
