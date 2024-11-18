@@ -222,7 +222,7 @@ async function getCopiedContext(code: string, file: string, language: string, ra
 	};
 }
 
-async function getCustomPaste(model: ITextModel, context: IChatRequestVariableEntry, mimeType: string, kind: HierarchicalKind, title: string, chatWidgetService: IChatWidgetService): Promise<DocumentPasteEditsSession> {
+async function getCustomPaste(model: ITextModel, context: IChatRequestVariableEntry, handledMimeType: string, kind: HierarchicalKind, title: string, chatWidgetService: IChatWidgetService): Promise<DocumentPasteEditsSession> {
 	const customEdit = {
 		resource: model.uri,
 		variable: context,
@@ -245,7 +245,7 @@ async function getCustomPaste(model: ITextModel, context: IChatRequestVariableEn
 
 	return {
 		edits: [{
-			insertText: '', title, kind, handledMimeType: mimeType,
+			insertText: '', title, kind, handledMimeType,
 			additionalEdit: {
 				edits: [customEdit],
 			}
