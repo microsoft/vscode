@@ -193,11 +193,16 @@ export class ExtHostEditors extends Disposable implements ExtHostEditorsShape {
 			} satisfies vscode.TextEditorDiff;
 		});
 
+		const that = this;
 		const result = Object.freeze({
 			documentVersion: diffInformation.documentVersion,
 			original,
 			modified,
-			diff
+			diff,
+			get isStale(): boolean {
+				const document = that._extHostDocumentsAndEditors.getDocument(modified);
+				return document?.version !== diffInformation.documentVersion;
+			}
 		});
 
 		textEditor._acceptDiffInformation(result);

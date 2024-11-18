@@ -1828,7 +1828,7 @@ export type ITextEditorDiff = [
 export interface ITextEditorDiffInformation {
 	readonly documentVersion: number;
 	readonly original: UriComponents | undefined;
-	readonly modified: UriComponents | undefined;
+	readonly modified: UriComponents;
 	readonly diff: readonly ITextEditorDiff[];
 }
 

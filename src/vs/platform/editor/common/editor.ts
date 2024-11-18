@@ -389,7 +389,7 @@ export type ITextEditorDiff = [
 export interface ITextEditorDiffInformation {
 	readonly documentVersion: number;
 	readonly original: URI | undefined;
-	readonly modified: URI | undefined;
+	readonly modified: URI;
 	readonly diff: readonly ITextEditorDiff[];
 }
 

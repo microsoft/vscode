@@ -154,18 +154,16 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 				return constObservable(undefined);
 			}
 
-			return observableFromEvent(this, dirtyDiffModel.onDidChange, e => {
+			return observableFromEvent(this, dirtyDiffModel.onDidChange, () => {
 				const scmQuickDiff = dirtyDiffModel.quickDiffs.find(diff => diff.isSCM === true);
-				if (!e || !scmQuickDiff) {
+				if (!scmQuickDiff) {
 					return undefined;
 				}
 
-				return {
-					originalResource: scmQuickDiff.originalResource,
-					changes: e.changes
-						.filter(change => change.label === scmQuickDiff.label)
-						.map(change => change.change)
-				};
+				const scmQuickDiffChanges = dirtyDiffModel.mapChanges.get(scmQuickDiff.label) ?? [];
+				const changes = scmQuickDiffChanges.map(index => dirtyDiffModel.changes[index].change);
+
+				return { originalResource: scmQuickDiff.originalResource, changes };
 			});
 		});
 
