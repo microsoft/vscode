@@ -25,6 +25,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { assertType } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ctxNotebookHasEditorModification } from '../../notebook/browser/chatEdit/notebookChatEditController.js';
 
 class ChatEditorOverlayWidget implements IOverlayWidget {
 
@@ -254,6 +255,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorContent, {
 		title: localize('label', "Navigation Status"),
 		precondition: ContextKeyExpr.false(),
 	},
+	when: ctxNotebookHasEditorModification.negate(),
 	group: 'navigate',
 	order: -1
 });
