@@ -2,7 +2,7 @@
 
 This project includes files from the following third-party projects:
 
-## [withfig/autocomplete]
+## withfig/autocomplete
 - **Source**: [[GitHub Repository URL](https://github.com/withfig/autocomplete)]
 - **License**: [MIT License]
 - **Copyright**: [2021] [Hercules Labs Inc. (Fig)]
