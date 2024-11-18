@@ -104,7 +104,7 @@ import './contrib/multicursor/notebookMulticursor.js';
 import './diff/notebookDiffActions.js';
 
 // Chat Edit Contributions
-import './chatEdit/notebookChatEditController.js';
+import './contrib/chatEdit/notebookChatEditController.js';
 
 // Services
 import { editorOptionsRegistry } from '../../../../editor/common/config/editorOptions.js';
