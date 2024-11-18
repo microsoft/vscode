@@ -143,8 +143,7 @@
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding-left: 8px;
-	padding-right: 8px;
+	padding-right: 16px;
 }
 
 .monaco-workbench .inline-chat > .status {
