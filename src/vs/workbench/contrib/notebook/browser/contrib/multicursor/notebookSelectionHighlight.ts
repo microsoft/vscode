@@ -106,7 +106,6 @@ class NotebookSelectionHighlighter extends Disposable implements INotebookEditor
 			return;
 		}
 
-		// can force textModel since we return from listener if it's undefined
 		const results = this.notebookTextModel.findMatches(
 			searchText,
 			false,
@@ -169,7 +168,6 @@ class NotebookSelectionHighlighter extends Disposable implements INotebookEditor
 		super.dispose();
 		this.anchorDisposables.dispose();
 	}
-
 }
 
 registerNotebookContribution(NotebookSelectionHighlighter.id, NotebookSelectionHighlighter);
