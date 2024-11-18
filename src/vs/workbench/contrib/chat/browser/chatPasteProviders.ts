@@ -66,7 +66,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		let widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+		const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 		if (!widget) {
 			return;
 		}
@@ -91,35 +91,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const customEdit = {
-			resource: model.uri,
-			variable: imageContext,
-			undo: () => {
-				widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget) {
-					throw new Error('No widget found for undo');
-				}
-				widget.attachmentModel.delete(imageContext.id);
-			},
-			redo: () => {
-				widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget) {
-					throw new Error('No widget found for redo');
-				}
-				widget.attachmentModel.addContext(imageContext);
-			},
-			metadata: { needsConfirmation: false, label: imageContext.name }
-		};
-
-		return {
-			edits: [{
-				insertText: '', title: 'Empty Edit', kind: new HierarchicalKind('chat.attach.image'), handledMimeType: mimeType,
-				additionalEdit: {
-					edits: [customEdit],
-				}
-			}],
-			dispose() { },
-		};
+		return getCustomPaste(model, imageContext, mimeType, new HierarchicalKind('chat.attach.image'), 'Pasted Image Attachment', this.chatWidgetService);
 	}
 }
 
@@ -206,7 +178,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		const metadata = JSON.parse(await editorData.asString());
 		const additionalData = JSON.parse(await additionalEditorData.asString());
 
-		let widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+		const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 		if (!widget) {
 			return;
 		}
@@ -222,35 +194,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const customEdit = {
-			resource: model.uri,
-			variable: copiedContext,
-			undo: () => {
-				widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget) {
-					throw new Error('No widget found for undo');
-				}
-				widget.attachmentModel.delete(copiedContext.id);
-			},
-			redo: () => {
-				widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget) {
-					throw new Error('No widget found for redo');
-				}
-				widget.attachmentModel.addContext(copiedContext);
-			},
-			metadata: { needsConfirmation: false, label: copiedContext.name }
-		};
-
-		return {
-			edits: [{
-				insertText: '', title: 'Empty Edit', kind: new HierarchicalKind('chat.attach.text'), handledMimeType: Mimes.text,
-				additionalEdit: {
-					edits: [customEdit],
-				}
-			}],
-			dispose() { },
-		};
+		return getCustomPaste(model, copiedContext, Mimes.text, new HierarchicalKind('chat.attach.text'), 'Pasted Code Attachment', this.chatWidgetService);
 	}
 }
 
@@ -275,6 +219,38 @@ async function getCopiedContext(code: string, file: string, language: string, ra
 			reference: URI.parse(file),
 			kind: 'reference'
 		}]
+	};
+}
+
+async function getCustomPaste(model: ITextModel, context: IChatRequestVariableEntry, mimeType: string, kind: HierarchicalKind, title: string, chatWidgetService: IChatWidgetService): Promise<DocumentPasteEditsSession> {
+	const customEdit = {
+		resource: model.uri,
+		variable: context,
+		undo: () => {
+			const widget = chatWidgetService.getWidgetByInputUri(model.uri);
+			if (!widget) {
+				throw new Error('No widget found for undo');
+			}
+			widget.attachmentModel.delete(context.id);
+		},
+		redo: () => {
+			const widget = chatWidgetService.getWidgetByInputUri(model.uri);
+			if (!widget) {
+				throw new Error('No widget found for redo');
+			}
+			widget.attachmentModel.addContext(context);
+		},
+		metadata: { needsConfirmation: false, label: context.name }
+	};
+
+	return {
+		edits: [{
+			insertText: '', title, kind, handledMimeType: mimeType,
+			additionalEdit: {
+				edits: [customEdit],
+			}
+		}],
+		dispose() { },
 	};
 }
 
