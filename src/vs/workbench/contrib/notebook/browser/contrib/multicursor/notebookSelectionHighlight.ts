@@ -3,24 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
-import { FindMatch, IModelDeltaDecoration, ITextModel } from '../../../../../../editor/common/model.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
-import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
-import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
 import { Selection, SelectionDirection } from '../../../../../../editor/common/core/selection.js';
 import { CursorChangeReason } from '../../../../../../editor/common/cursorEvents.js';
-import { Delayer } from '../../../../../../base/common/async.js';
-
+import { FindMatch, IModelDeltaDecoration, ITextModel } from '../../../../../../editor/common/model.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IActiveNotebookEditor, ICellViewModel, INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
+import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
 
 class NotebookSelectionHighlighter extends Disposable implements INotebookEditorContribution {
 
 	static readonly id: string = 'notebook.selectionHighlighter';
 	private isEnabled: boolean = false;
-
-	private notebookTextModel: NotebookTextModel | undefined;
 
 	private cellDecorationIds = new Map<ICellViewModel, string[]>();
 	private anchorCell: [ICellViewModel, ICodeEditor] | undefined;
@@ -28,7 +24,7 @@ class NotebookSelectionHighlighter extends Disposable implements INotebookEditor
 
 	// right now this lets us mimic the more performant cache implementation of the text editor (doesn't need to be a delayer)
 	// todo: in the future, implement caching and change to a 250ms delay upon recompute
-	private readonly runDelayer: Delayer<void> = this._register(new Delayer<void>(0));
+	// private readonly runDelayer: Delayer<void> = this._register(new Delayer<void>(0));
 
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
@@ -43,20 +39,23 @@ class NotebookSelectionHighlighter extends Disposable implements INotebookEditor
 			}
 		}));
 
-		this._register(this.notebookEditor.onDidChangeModel((textModel) => {
-			if (textModel) {
-				this.notebookTextModel = textModel;
-			}
-		}));
-
-		this._register(this.notebookEditor.onDidChangeActiveCell(() => {
-			if (!this.isEnabled || !this.notebookTextModel) {
+		this._register(this.notebookEditor.onDidChangeActiveCell(async () => {
+			if (!this.isEnabled) {
 				return;
 			}
 
 			this.anchorCell = this.notebookEditor.activeCellAndCodeEditor;
 			if (!this.anchorCell) {
 				return;
+			}
+
+			const activeCell = this.notebookEditor.getActiveCell();
+			if (!activeCell) {
+				return;
+			}
+
+			if (!activeCell.editorAttached) {
+				await Event.toPromise(activeCell.onDidChangeEditorAttachState);
 			}
 
 			this.clearNotebookSelectionDecorations();
@@ -71,19 +70,20 @@ class NotebookSelectionHighlighter extends Disposable implements INotebookEditor
 					return;
 				}
 
-				this.clearNotebookSelectionDecorations();
-				this.runDelayer.trigger(() => { this._update(); });
-
+				if (this.notebookEditor.hasModel()) {
+					this.clearNotebookSelectionDecorations();
+					this._update(this.notebookEditor);
+				}
 			}));
 
-			if (this.notebookEditor.getEditorViewState().editorFocused) {
-				this._update();
+			if (this.notebookEditor.getEditorViewState().editorFocused && this.notebookEditor.hasModel()) {
+				this._update(this.notebookEditor);
 			}
 		}));
 	}
 
-	private _update() {
-		if (!this.anchorCell || !this.isEnabled || !this.notebookTextModel) {
+	private _update(editor: IActiveNotebookEditor) {
+		if (!this.anchorCell || !this.isEnabled) {
 			return;
 		}
 
@@ -92,7 +92,7 @@ class NotebookSelectionHighlighter extends Disposable implements INotebookEditor
 
 		// get the word
 		const textModel = this.anchorCell[0].textModel;
-		if (!textModel) {
+		if (!textModel || textModel.isTooLargeForTokenization()) {
 			return;
 		}
 		const s = this.anchorCell[0].getSelections()[0];
@@ -106,7 +106,7 @@ class NotebookSelectionHighlighter extends Disposable implements INotebookEditor
 			return;
 		}
 
-		const results = this.notebookTextModel.findMatches(
+		const results = editor.textModel.findMatches(
 			searchText,
 			false,
 			true,
@@ -114,7 +114,7 @@ class NotebookSelectionHighlighter extends Disposable implements INotebookEditor
 		);
 
 		for (const res of results) {
-			const cell = this.notebookEditor.getCellByHandle(res.cell.handle);
+			const cell = editor.getCellByHandle(res.cell.handle);
 			if (!cell) {
 				continue;
 			}
