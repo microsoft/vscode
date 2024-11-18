@@ -794,35 +794,10 @@ export class ExtensionsListView extends ViewPane {
 			return new PagedModel(pager);
 		}
 
-		const manifest = await this.extensionManagementService.getExtensionsControlManifest();
-		const preferredResults: string[] = [];
-		if (Array.isArray(manifest.search)) {
-			for (const s of manifest.search) {
-				if (s.query && s.query.toLowerCase() === text.toLowerCase() && Array.isArray(s.preferredResults)) {
-					preferredResults.push(...s.preferredResults);
-					break;
-				}
-			}
-		}
-
 		const [pager, preferredExtensions] = await Promise.all([
 			this.extensionsWorkbenchService.queryGallery(options, token),
 			this.getPreferredExtensions(options.text.toLowerCase(), token).catch(() => [])
 		]);
-
-		let positionToUpdate = 0;
-		for (const preferredResult of preferredResults) {
-			for (let j = positionToUpdate; j < pager.firstPage.length; j++) {
-				if (areSameExtensions(pager.firstPage[j].identifier, { id: preferredResult })) {
-					if (positionToUpdate !== j) {
-						const preferredExtension = pager.firstPage.splice(j, 1)[0];
-						pager.firstPage.splice(positionToUpdate, 0, preferredExtension);
-						positionToUpdate++;
-					}
-					break;
-				}
-			}
-		}
 
 		return preferredExtensions.length ? new PreferredExtensionsPagedModel(preferredExtensions, pager) : new PagedModel(pager);
 	}
