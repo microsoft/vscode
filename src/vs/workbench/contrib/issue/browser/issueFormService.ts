@@ -111,8 +111,8 @@ export class IssueFormService implements IIssueFormService {
 		const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
 		for (const action of actions) {
 			try {
-				if (action.item && 'source' in action.item && action.item.source?.id === extensionId) {
-					this.extensionIdentifierSet.add(extensionId);
+				if (action.item && 'source' in action.item && action.item.source?.id.toLowerCase() === extensionId.toLowerCase()) {
+					this.extensionIdentifierSet.add(extensionId.toLowerCase());
 					await action.run();
 				}
 			} catch (error) {

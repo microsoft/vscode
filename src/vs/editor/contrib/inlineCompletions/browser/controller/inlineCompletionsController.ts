@@ -32,7 +32,7 @@ import { ILanguageFeaturesService } from '../../../../common/services/languageFe
 import { InlineCompletionsHintsWidget, InlineSuggestionHintsContentWidget } from '../hintsWidget/inlineCompletionsHintsWidget.js';
 import { TextModelChangeRecorder } from '../model/changeRecorder.js';
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
-import { SuggestWidgetAdaptor } from '../model/suggestWidgetAdaptor.js';
+import { SuggestWidgetAdaptor } from '../model/suggestWidgetAdapter.js';
 import { convertItemsToStableObservables, ObservableContextKeyService } from '../utils.js';
 import { GhostTextView } from '../view/ghostText/ghostTextView.js';
 import { InlineEditsViewAndDiffProducer } from '../view/inlineEdits/inlineEditsViewAndDiffProducer.js';

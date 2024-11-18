@@ -1450,9 +1450,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
 				return extHostChatAgents2.registerChatParticipantDetectionProvider(extension, provider);
 			},
-			registerRelatedFilesProvider(provider: vscode.ChatRelatedFilesProvider) {
+			registerRelatedFilesProvider(provider: vscode.ChatRelatedFilesProvider, metadata: vscode.ChatRelatedFilesProviderMetadata) {
 				checkProposedApiEnabled(extension, 'chatEditing');
-				return extHostChatAgents2.registerRelatedFilesProvider(extension, provider);
+				return extHostChatAgents2.registerRelatedFilesProvider(extension, provider, metadata);
 			}
 		};
 
@@ -1700,6 +1700,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookEditorRevealType: extHostTypes.NotebookEditorRevealType,
 			NotebookCellOutput: extHostTypes.NotebookCellOutput,
 			NotebookCellOutputItem: extHostTypes.NotebookCellOutputItem,
+			CellErrorStackFrame: extHostTypes.CellErrorStackFrame,
 			NotebookCellStatusBarItem: extHostTypes.NotebookCellStatusBarItem,
 			NotebookControllerAffinity: extHostTypes.NotebookControllerAffinity,
 			NotebookControllerAffinity2: extHostTypes.NotebookControllerAffinity2,

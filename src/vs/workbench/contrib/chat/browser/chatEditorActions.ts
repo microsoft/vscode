@@ -18,6 +18,8 @@ import { hasUndecidedChatEditingResourceContextKey, IChatEditingService } from '
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
+import { ctxNotebookHasEditorModification } from '../../notebook/browser/chatEdit/notebookChatEditController.js';
 
 abstract class NavigateAction extends Action2 {
 
@@ -36,7 +38,7 @@ abstract class NavigateAction extends Action2 {
 					? KeyMod.Alt | KeyCode.F5
 					: KeyMod.Alt | KeyMod.Shift | KeyCode.F5,
 				weight: KeybindingWeight.EditorContrib,
-				when: ContextKeyExpr.and(ctxHasEditorModification, EditorContextKeys.focus),
+				when: ContextKeyExpr.and(ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification), EditorContextKeys.focus),
 			},
 			f1: true,
 			menu: {
@@ -108,11 +110,9 @@ abstract class NavigateAction extends Action2 {
 
 abstract class AcceptDiscardAction extends Action2 {
 
-	constructor(readonly accept: boolean) {
+	constructor(id: string, readonly accept: boolean) {
 		super({
-			id: accept
-				? 'chatEditor.action.accept'
-				: 'chatEditor.action.reject',
+			id,
 			title: accept
 				? localize2('accept', 'Accept Chat Edit')
 				: localize2('discard', 'Discard Chat Edit'),
@@ -120,7 +120,7 @@ abstract class AcceptDiscardAction extends Action2 {
 				? localize2('accept2', 'Accept')
 				: localize2('discard2', 'Discard'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification)),
 			icon: accept
 				? Codicon.check
 				: Codicon.discard,
@@ -144,21 +144,43 @@ abstract class AcceptDiscardAction extends Action2 {
 		const chatEditingService = accessor.get(IChatEditingService);
 		const editorService = accessor.get(IEditorService);
 
-		const editor = editorService.activeTextEditorControl;
-		if (!isCodeEditor(editor) || !editor.hasModel()) {
+		let uri = getNotebookEditorFromEditorPane(editorService.activeEditorPane)?.textModel?.uri;
+		if (!uri) {
+			const editor = editorService.activeTextEditorControl;
+			uri = isCodeEditor(editor) && editor.hasModel() ? editor.getModel().uri : undefined;
+		}
+		if (!uri) {
 			return;
 		}
 
-		const session = chatEditingService.getEditingSession(editor.getModel().uri);
+		const session = chatEditingService.getEditingSession(uri);
 		if (!session) {
 			return;
 		}
 
 		if (this.accept) {
-			session.accept(editor.getModel().uri);
+			session.accept(uri);
 		} else {
-			session.reject(editor.getModel().uri);
+			session.reject(uri);
 		}
+	}
+}
+
+export class AcceptAction extends AcceptDiscardAction {
+
+	static readonly ID = 'chatEditor.action.accept';
+
+	constructor() {
+		super(AcceptAction.ID, true);
+	}
+}
+
+export class RejectAction extends AcceptDiscardAction {
+
+	static readonly ID = 'chatEditor.action.reject';
+
+	constructor() {
+		super(RejectAction.ID, false);
 	}
 }
 
@@ -178,7 +200,8 @@ class UndoHunkAction extends EditorAction2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace
 			},
 			menu: {
-				id: MenuId.ChatEditingEditorHunk
+				id: MenuId.ChatEditingEditorHunk,
+				order: 1
 			}
 		});
 	}
@@ -188,10 +211,31 @@ class UndoHunkAction extends EditorAction2 {
 	}
 }
 
+class OpenDiffFromHunkAction extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'chatEditor.action.diffHunk',
+			title: localize2('diff', 'Open Diff'),
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			icon: Codicon.diffSingle,
+			menu: {
+				id: MenuId.ChatEditingEditorHunk,
+				order: 10
+			}
+		});
+	}
+
+	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+		ChatEditorController.get(editor)?.openDiff(args[0]);
+	}
+}
+
 export function registerChatEditorActions() {
 	registerAction2(class NextAction extends NavigateAction { constructor() { super(true); } });
 	registerAction2(class PrevAction extends NavigateAction { constructor() { super(false); } });
-	registerAction2(class AcceptAction extends AcceptDiscardAction { constructor() { super(true); } });
-	registerAction2(class RejectAction extends AcceptDiscardAction { constructor() { super(false); } });
+	registerAction2(AcceptAction);
+	registerAction2(RejectAction);
 	registerAction2(UndoHunkAction);
+	registerAction2(OpenDiffFromHunkAction);
 }

@@ -28,9 +28,9 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		private readonly _globalMemento: Memento,
 		private readonly _secretStorage: SecretStorage,
 		private readonly _logger: LogOutputChannel,
-		cloudName: string
+		private readonly _cloudName: string
 	) {
-		this._pcasSecretStorage = new PublicClientApplicationsSecretStorage(_secretStorage, cloudName);
+		this._pcasSecretStorage = new PublicClientApplicationsSecretStorage(_secretStorage, _cloudName);
 		this._disposable = Disposable.from(
 			this._pcasSecretStorage,
 			this._registerSecretStorageHandler(),
@@ -111,7 +111,7 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 	}
 
 	private async _doCreatePublicClientApplication(clientId: string, authority: string, pcasKey: string) {
-		const pca = new CachedPublicClientApplication(clientId, authority, this._globalMemento, this._secretStorage, this._logger);
+		const pca = new CachedPublicClientApplication(clientId, authority, this._cloudName, this._globalMemento, this._secretStorage, this._logger);
 		this._pcas.set(pcasKey, pca);
 		const disposable = Disposable.from(
 			pca,
@@ -160,11 +160,7 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		// Handle the deleted ones
 		for (const pcaKey of this._pcas.keys()) {
 			if (!pcaKeysFromStorage.delete(pcaKey)) {
-				// This PCA has been removed in another window
-				this._pcaDisposables.get(pcaKey)?.dispose();
-				this._pcaDisposables.delete(pcaKey);
-				this._pcas.delete(pcaKey);
-				this._logger.debug(`[_handleSecretStorageChange] Disposed PCA that was deleted in another window: ${pcaKey}`);
+				this._logger.debug(`[_handleSecretStorageChange] PCA was deleted in another window: ${pcaKey}`);
 			}
 		}
 

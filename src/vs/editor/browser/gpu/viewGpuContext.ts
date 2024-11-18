@@ -20,7 +20,24 @@ import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
 import { RectangleRenderer } from './rectangleRenderer.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
 
+const enum GpuRenderLimits {
+	maxGpuLines = 3000,
+	maxGpuCols = 200,
+}
+
 export class ViewGpuContext extends Disposable {
+	/**
+	 * The temporary hard cap for lines rendered by the GPU renderer. This can be removed once more
+	 * dynamic allocation is implemented in https://github.com/microsoft/vscode/issues/227091
+	 */
+	readonly maxGpuLines = GpuRenderLimits.maxGpuLines;
+
+	/**
+	 * The temporary hard cap for line columns rendered by the GPU renderer. This can be removed
+	 * once more dynamic allocation is implemented in https://github.com/microsoft/vscode/issues/227108
+	 */
+	readonly maxGpuCols = GpuRenderLimits.maxGpuCols;
+
 	readonly canvas: FastDomNode<HTMLCanvasElement>;
 	readonly ctx: GPUCanvasContext;
 
@@ -112,12 +129,37 @@ export class ViewGpuContext extends Disposable {
 		const data = viewportData.getViewLineRenderingData(lineNumber);
 		if (
 			data.containsRTL ||
-			data.maxColumn > 200 ||
+			data.maxColumn > GpuRenderLimits.maxGpuCols ||
 			data.continuesWithWrappedLine ||
-			data.inlineDecorations.length > 0
+			data.inlineDecorations.length > 0 ||
+			lineNumber >= GpuRenderLimits.maxGpuLines
 		) {
 			return false;
 		}
 		return true;
+	}
+
+	/**
+	 * Like {@link canRender} but returned detailed information about why the line cannot be rendered.
+	 */
+	public static canRenderDetailed(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): string[] {
+		const data = viewportData.getViewLineRenderingData(lineNumber);
+		const reasons: string[] = [];
+		if (data.containsRTL) {
+			reasons.push('containsRTL');
+		}
+		if (data.maxColumn > GpuRenderLimits.maxGpuCols) {
+			reasons.push('maxColumn > maxGpuCols');
+		}
+		if (data.continuesWithWrappedLine) {
+			reasons.push('continuesWithWrappedLine');
+		}
+		if (data.inlineDecorations.length > 0) {
+			reasons.push('inlineDecorations > 0');
+		}
+		if (lineNumber >= GpuRenderLimits.maxGpuLines) {
+			reasons.push('lineNumber >= maxGpuLines');
+		}
+		return reasons;
 	}
 }

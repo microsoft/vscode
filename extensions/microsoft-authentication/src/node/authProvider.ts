@@ -156,6 +156,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		let result: AuthenticationResult | undefined;
 
 		try {
+			const windowHandle = env.handle ? Buffer.from(env.handle, 'base64') : undefined;
 			result = await cachedPca.acquireTokenInteractive({
 				openBrowser: async (url: string) => { await env.openExternal(Uri.parse(url)); },
 				scopes: scopeData.scopesToSend,
@@ -167,7 +168,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 				loginHint: options.account?.label,
 				// If we aren't logging in to a specific account, then we can use the prompt to make sure they get
 				// the option to choose a different account.
-				prompt: options.account?.label ? undefined : 'select_account'
+				prompt: options.account?.label ? undefined : 'select_account',
+				windowHandle
 			});
 		} catch (e) {
 			if (e instanceof CancellationError) {
@@ -196,12 +198,14 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			// The user wants to try the loopback client or we got an error likely due to spinning up the server
 			const loopbackClient = new UriHandlerLoopbackClient(this._uriHandler, redirectUri, this._logger);
 			try {
+				const windowHandle = env.handle ? Buffer.from(env.handle) : undefined;
 				result = await cachedPca.acquireTokenInteractive({
 					openBrowser: (url: string) => loopbackClient.openBrowser(url),
 					scopes: scopeData.scopesToSend,
 					loopbackClient,
 					loginHint: options.account?.label,
-					prompt: options.account?.label ? undefined : 'select_account'
+					prompt: options.account?.label ? undefined : 'select_account',
+					windowHandle
 				});
 			} catch (e) {
 				this._telemetryReporter.sendLoginFailedEvent();

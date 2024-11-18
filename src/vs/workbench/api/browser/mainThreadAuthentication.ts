@@ -71,6 +71,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	private readonly _proxy: ExtHostAuthenticationShape;
 
 	private readonly _registrations = this._register(new DisposableMap<string>());
+	private _sentProviderUsageEvents = new Set<string>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -314,6 +315,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	private sendProviderUsageTelemetry(extensionId: string, providerId: string): void {
+		const key = `${extensionId}|${providerId}`;
+		if (this._sentProviderUsageEvents.has(key)) {
+			return;
+		}
+		this._sentProviderUsageEvents.add(key);
 		type AuthProviderUsageClassification = {
 			owner: 'TylerLeonhardt';
 			comment: 'Used to see which extensions are using which providers';

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../base/browser/domStylesheets.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { ActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
@@ -113,7 +114,7 @@ export class QuickInputController extends Disposable {
 		container.tabIndex = -1;
 		container.style.display = 'none';
 
-		const styleSheet = dom.createStyleSheet(container);
+		const styleSheet = domStylesheetsJs.createStyleSheet(container);
 
 		const titleBar = dom.append(container, $('.quick-input-titlebar'));
 
@@ -150,11 +151,11 @@ export class QuickInputController extends Disposable {
 		const visibleCountContainer = dom.append(filterContainer, $('.quick-input-visible-count'));
 		visibleCountContainer.setAttribute('aria-live', 'polite');
 		visibleCountContainer.setAttribute('aria-atomic', 'true');
-		const visibleCount = new CountBadge(visibleCountContainer, { countFormat: localize({ key: 'quickInput.visibleCount', comment: ['This tells the user how many items are shown in a list of items to select from. The items can be anything. Currently not visible, but read by screen readers.'] }, "{0} Results") }, this.styles.countBadge);
+		const visibleCount = this._register(new CountBadge(visibleCountContainer, { countFormat: localize({ key: 'quickInput.visibleCount', comment: ['This tells the user how many items are shown in a list of items to select from. The items can be anything. Currently not visible, but read by screen readers.'] }, "{0} Results") }, this.styles.countBadge));
 
 		const countContainer = dom.append(filterContainer, $('.quick-input-count'));
 		countContainer.setAttribute('aria-live', 'polite');
-		const count = new CountBadge(countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") }, this.styles.countBadge);
+		const count = this._register(new CountBadge(countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") }, this.styles.countBadge));
 
 		const inlineActionBar = this._register(new ActionBar(headerContainer, { hoverDelegate: this.options.hoverDelegate }));
 		inlineActionBar.domNode.classList.add('quick-input-inline-action-bar');

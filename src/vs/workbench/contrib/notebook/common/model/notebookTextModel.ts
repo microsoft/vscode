@@ -1242,6 +1242,27 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		return null;
 	}
+
+	findMatches(searchString: string, isRegex: boolean, matchCase: boolean, wordSeparators: string | null): { cell: NotebookCellTextModel; matches: FindMatch[] }[] {
+		const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
+		const searchData = searchParams.parseSearchRequest();
+
+		if (!searchData) {
+			return [];
+		}
+
+		const results: { cell: NotebookCellTextModel; matches: FindMatch[] }[] = [];
+		for (const cell of this._cells) {
+			const searchRange = new Range(1, 1, cell.textBuffer.getLineCount(), cell.textBuffer.getLineMaxColumn(cell.textBuffer.getLineCount()));
+			const matches = cell.textBuffer.findMatchesLineByLine(searchRange, searchData, false, 1000);
+
+			if (matches.length > 0) {
+				results.push({ cell, matches: matches });
+			}
+		}
+
+		return results;
+	}
 	//#endregion
 }
 

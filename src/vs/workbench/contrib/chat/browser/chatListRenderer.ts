@@ -51,7 +51,7 @@ import { IChatCodeCitations, IChatReferences, IChatRendererContent, IChatRequest
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { MarkUnhelpfulActionId } from './actions/chatTitleActions.js';
-import { ChatTreeItem, GeneratingPhrase, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from './chat.js';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from './chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
 import { ChatCodeCitationContentPart } from './chatContentParts/chatCodeCitationContentPart.js';
@@ -456,7 +456,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}));
 
 		} else if (!element.isComplete) {
-			templateData.detail.textContent = GeneratingPhrase;
+			templateData.detail.textContent = localize('generating', "Generating");
 		}
 	}
 
@@ -720,7 +720,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							i++;
 							partsToRender.push(nextPart);
 						} else {
-							moreContentAvailable = true;
 							break;
 						}
 					}

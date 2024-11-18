@@ -410,7 +410,6 @@ export class CodeBlockPart extends Disposable {
 
 	private async updateEditor(data: ICodeBlockData): Promise<void> {
 		const textModel = await data.textModel;
-		console.log(textModel.id);
 		this.editor.setModel(textModel);
 		if (data.range) {
 			this.editor.setSelection(data.range);
