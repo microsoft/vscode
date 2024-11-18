@@ -1,9 +1,7 @@
-# Node npm
+# Terminal Suggestions
 
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled. The terminal completions that it contributes can be disabled with `terminal.integrated.suggest.enableExtensionCompletions`.
 
 ## Features
 
-### Terminal suggest
-
-Provides terminal suggestions for zsh and bash
+Provides terminal suggestions for zsh, bash, and fish.

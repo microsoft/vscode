@@ -1,17 +1,13 @@
-# Third-Party Notices
+THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
+For Microsoft terminal-suggest
 
-This project includes files from the following third-party projects:
+This file is based on or incorporates material from the projects listed below ("Third Party OSS"). The original copyright
+notice and the license under which Microsoft received such Third Party OSS, are set forth below. Such licenses and notice
+are provided for informational purposes only. Microsoft licenses the Third Party OSS to you under the licensing terms for
+the Microsoft product or service. Microsoft reserves all other rights not expressly granted under this agreement, whether
+by implication, estoppel or otherwise.†
 
-## withfig/autocomplete
-- **Source**: [[GitHub Repository URL](https://github.com/withfig/autocomplete)]
-- **License**: [MIT License]
-- **Copyright**: [2021] [Hercules Labs Inc. (Fig)]
-- **Description**: Completion spec files and completion types have been ported over to this project temporarily.
-
-### Attribution
-Files in the `./src/completions` folder have been copied or modified from the original project under the MIT license. The original license notice is included below:
-
-MIT License
+1. withfig/autocomplete - IDE-style autocomplete for your existing terminal & shell (https://github.com/withfig/autocomplete)
 
 Copyright (c) 2021 Hercules Labs Inc. (Fig)
 

@@ -6,10 +6,10 @@
   "version": "1.0.1",
   "private": true,
   "license": "MIT",
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.95.0"
   },
-  "icon": "images/npm_icon.png",
   "categories": [
     "Other"
   ],
