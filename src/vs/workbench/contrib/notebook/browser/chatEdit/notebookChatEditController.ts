@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isEqual } from '../../../../../base/common/resources.js';
-import { Disposable, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, dispose, IDisposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { IChatEditingService, WorkingSetEntryState } from '../../../chat/common/chatEditingService.js';
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
@@ -14,7 +14,7 @@ import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { NotebookDeletedCellDecorator, NotebookInsertedCellDecorator, NotebookCellDiffDecorator } from './notebookCellDecorators.js';
-import { INotebookModelSynchronizerFactory } from './notebookSynronizer.js';
+import { INotebookModelSynchronizerFactory, NotebookModelSynchronizer } from './notebookSynchronizer.js';
 import { INotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
 import { debouncedObservable2 } from '../../../../../base/common/observableInternal/utils.js';
 import { CellDiffInfo } from '../diff/notebookDiffViewModel.js';
@@ -77,36 +77,40 @@ class NotebookChatEditorController extends Disposable {
 
 		this._register(toDisposable(() => clearDecorators()));
 
+		let notebookSynchronizer: IReference<NotebookModelSynchronizer>;
 		const entryObs = derived((r) => {
 			const session = this._chatEditingService.currentEditingSessionObs.read(r);
 			const model = notebookModel.read(r);
 			if (!model || !session) {
 				return;
 			}
-			const entry = session.entries.read(r).find(e => isEqual(e.modifiedURI, model.uri));
-
-			if (!entry || entry.state.read(r) !== WorkingSetEntryState.Modified) {
-				clearDecorators();
-				return;
-			}
-			return entry;
+			return session.entries.read(r).find(e => isEqual(e.modifiedURI, model.uri));
 		}).recomputeInitiallyAndOnChange(this._store);
 
 
-		const snapshotCreated = observableValue<boolean>('snapshotCreated', false);
+		this._register(autorun(r => {
+			const entry = entryObs.read(r);
+			const model = notebookModel.read(r);
+			if (!entry || !model || entry.state.read(r) !== WorkingSetEntryState.Modified) {
+				clearDecorators();
+			}
+		}));
+
 		const notebookDiffInfo = derivedWithStore(this, (r, store) => {
 			const entry = entryObs.read(r);
 			const model = notebookModel.read(r);
 			if (!entry || !model) {
+				// If entry is undefined, then revert the changes to the notebook.
+				if (notebookSynchronizer && model) {
+					notebookSynchronizer.object.revert();
+				}
 				return observableValue<{
 					cellDiff: CellDiffInfo[];
 					modelVersion: number;
 				} | undefined>('DefaultDiffIno', undefined);
 			}
-			const notebookSynchronizer = store.add(this.synchronizerFactory.getOrCreate(model, entry));
 
-			// Initialize the observables.
-			notebookSynchronizer.object.createSnapshot().finally(() => snapshotCreated.set(true, undefined));
+			notebookSynchronizer = notebookSynchronizer || this._register(this.synchronizerFactory.getOrCreate(model));
 			this.originalModelRefFactory.getOrCreate(entry, model.viewType).then(ref => originalModel.set(this._register(ref).object, undefined));
 
 			return notebookSynchronizer.object.diffInfo;
@@ -160,7 +164,7 @@ class NotebookChatEditorController extends Disposable {
 						this._register(editor.onDidDispose(() => {
 							decorator.dispose();
 							if (decorators.get(modifiedCell) === decorator) {
-								decorators.set(modifiedCell, decorator);
+								decorators.delete(modifiedCell);
 							}
 						}));
 					}

@@ -723,6 +723,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeTextEditorViewColumn(listener, thisArg?, disposables?) {
 				return _asExtensionEvent(extHostEditors.onDidChangeTextEditorViewColumn)(listener, thisArg, disposables);
 			},
+			onDidChangeTextEditorDiffInformation(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'textEditorDiffInformation');
+				return _asExtensionEvent(extHostEditors.onDidChangeTextEditorDiffInformation)(listener, thisArg, disposables);
+			},
 			onDidCloseTerminal(listener, thisArg?, disposables?) {
 				return _asExtensionEvent(extHostTerminalService.onDidCloseTerminal)(listener, thisArg, disposables);
 			},
@@ -1661,6 +1665,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TextEdit: extHostTypes.TextEdit,
 			SnippetTextEdit: extHostTypes.SnippetTextEdit,
 			TextEditorCursorStyle: TextEditorCursorStyle,
+			TextEditorDiffKind: extHostTypes.TextEditorDiffKind,
 			TextEditorLineNumbersStyle: extHostTypes.TextEditorLineNumbersStyle,
 			TextEditorRevealType: extHostTypes.TextEditorRevealType,
 			TextEditorSelectionChangeKind: extHostTypes.TextEditorSelectionChangeKind,

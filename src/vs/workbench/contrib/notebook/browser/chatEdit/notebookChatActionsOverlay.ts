@@ -78,7 +78,6 @@ export class NotebookChatActionsOverlay extends Disposable {
 			menuOptions: { renderShortTitle: true },
 			actionViewItemProvider: (action, options) => {
 				const that = this;
-
 				if (action.id === 'chatEditor.action.accept' || action.id === 'chatEditor.action.reject') {
 					return new class extends ActionViewItem {
 						private readonly _reveal = this._store.add(new MutableDisposable());

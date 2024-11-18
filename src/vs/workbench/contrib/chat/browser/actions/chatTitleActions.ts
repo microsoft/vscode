@@ -34,7 +34,7 @@ import { applyingChatEditsFailedContextKey, ChatEditingSessionState, IChatEditin
 import { IChatRequestModel } from '../../common/chatModel.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
-import { ChatTreeItem, EDITS_VIEW_ID, IChatWidgetService } from '../chat.js';
+import { ChatTreeItem, EditsViewId, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
@@ -472,7 +472,7 @@ export function registerChatTitleActions() {
 				logService.trace('[CHAT_MOVE] NO requests to move');
 			}
 
-			await viewsService.openView(EDITS_VIEW_ID);
+			await viewsService.openView(EditsViewId);
 
 			let editingSession = chatEditingService.currentEditingSessionObs.get();
 			if (!editingSession) {

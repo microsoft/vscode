@@ -34,6 +34,7 @@
     "scmValidation",
     "tabInputMultiDiff",
     "tabInputTextMerge",
+    "textEditorDiffInformation",
     "timeline"
   ],
   "categories": [
@@ -567,7 +568,7 @@
         "title": "%command.pull%",
         "icon": "$(repo-pull)",
         "category": "Git",
-        "enablement": "!operationInProgress"
+        "enablement": "!operationInProgress && scmCurrentHistoryItemRefInFilter && scmCurrentHistoryItemRefHasRemote"
       },
       {
         "command": "git.push",
@@ -616,7 +617,7 @@
         "title": "%command.push%",
         "icon": "$(repo-push)",
         "category": "Git",
-        "enablement": "!operationInProgress"
+        "enablement": "!operationInProgress && scmCurrentHistoryItemRefInFilter && scmCurrentHistoryItemRefHasRemote"
       },
       {
         "command": "git.cherryPick",
@@ -1968,8 +1969,23 @@
       "scm/history/title": [
         {
           "command": "git.fetchAll",
-          "group": "navigation@999",
+          "group": "navigation@900",
           "when": "scmProvider == git"
+        },
+        {
+          "command": "git.pullRef",
+          "group": "navigation@901",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.pushRef",
+          "when": "scmProvider == git && scmCurrentHistoryItemRefHasRemote",
+          "group": "navigation@902"
+        },
+        {
+          "command": "git.publish",
+          "when": "scmProvider == git && !scmCurrentHistoryItemRefHasRemote",
+          "group": "navigation@903"
         }
       ],
       "scm/historyItem/context": [
