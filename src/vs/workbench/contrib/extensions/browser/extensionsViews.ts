@@ -36,7 +36,7 @@ import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { IAction, Action, Separator, ActionRunner } from '../../../../base/common/actions.js';
-import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, isLanguagePackExtension } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, IExtensionIdentifier, isLanguagePackExtension } from '../../../../platform/extensions/common/extensions.js';
 import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from '../../../../base/common/async.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
@@ -794,37 +794,58 @@ export class ExtensionsListView extends ViewPane {
 			return new PagedModel(pager);
 		}
 
-		let preferredResults: string[] = [];
-		const manifest = await this.extensionManagementService.getExtensionsControlManifest();
-		const search = manifest.search;
-		if (Array.isArray(search)) {
-			for (const s of search) {
-				if (s.query && s.query.toLowerCase() === text.toLowerCase() && Array.isArray(s.preferredResults)) {
-					preferredResults = s.preferredResults;
-					break;
-				}
-			}
-		}
-
-		const searchText = options.text.toLowerCase();
-		const preferredExtensions = this.extensionsWorkbenchService.local.filter(e => !e.isBuiltin && (e.name.toLowerCase().indexOf(searchText) > -1 || e.displayName.toLowerCase().indexOf(searchText) > -1 || e.description.toLowerCase().indexOf(searchText) > -1));
-		const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
-
-		let positionToUpdate = 0;
-		for (const preferredResult of preferredResults) {
-			for (let j = positionToUpdate; j < pager.firstPage.length; j++) {
-				if (areSameExtensions(pager.firstPage[j].identifier, { id: preferredResult })) {
-					if (positionToUpdate !== j) {
-						const preferredExtension = pager.firstPage.splice(j, 1)[0];
-						pager.firstPage.splice(positionToUpdate, 0, preferredExtension);
-						positionToUpdate++;
-					}
-					break;
-				}
-			}
-		}
+		const [pager, preferredExtensions] = await Promise.all([
+			this.extensionsWorkbenchService.queryGallery(options, token),
+			this.getPreferredExtensions(options.text.toLowerCase(), token).catch(() => [])
+		]);
 
 		return preferredExtensions.length ? new PreferredExtensionsPagedModel(preferredExtensions, pager) : new PagedModel(pager);
+	}
+
+	private async getPreferredExtensions(searchText: string, token: CancellationToken): Promise<IExtension[]> {
+		const preferredExtensions = this.extensionsWorkbenchService.local.filter(e => !e.isBuiltin && (e.name.toLowerCase().indexOf(searchText) > -1 || e.displayName.toLowerCase().indexOf(searchText) > -1 || e.description.toLowerCase().indexOf(searchText) > -1));
+		const preferredExtensionUUIDs = new Set<string>();
+
+		if (preferredExtensions.length) {
+			// Update gallery data for preferred extensions if they are not yet fetched
+			const extesionsToFetch: IExtensionIdentifier[] = [];
+			for (const extension of preferredExtensions) {
+				if (extension.identifier.uuid) {
+					preferredExtensionUUIDs.add(extension.identifier.uuid);
+				}
+				if (!extension.gallery && extension.identifier.uuid) {
+					extesionsToFetch.push(extension.identifier);
+				}
+			}
+			if (extesionsToFetch.length) {
+				this.extensionsWorkbenchService.getExtensions(extesionsToFetch, CancellationToken.None).catch(e => null/*ignore error*/);
+			}
+		}
+
+		const preferredResults: string[] = [];
+		try {
+			const manifest = await this.extensionManagementService.getExtensionsControlManifest();
+			if (Array.isArray(manifest.search)) {
+				for (const s of manifest.search) {
+					if (s.query && s.query.toLowerCase() === searchText && Array.isArray(s.preferredResults)) {
+						preferredResults.push(...s.preferredResults);
+						break;
+					}
+				}
+			}
+			if (preferredResults.length) {
+				const result = await this.extensionsWorkbenchService.getExtensions(preferredResults.map(id => ({ id })), token);
+				for (const extension of result) {
+					if (extension.identifier.uuid && !preferredExtensionUUIDs.has(extension.identifier.uuid)) {
+						preferredExtensions.push(extension);
+					}
+				}
+			}
+		} catch (e) {
+			this.logService.warn('Failed to get preferred results from the extensions control manifest.', e);
+		}
+
+		return preferredExtensions;
 	}
 
 	private sortExtensions(extensions: IExtension[], options: IQueryOptions): IExtension[] {
@@ -1579,7 +1600,7 @@ export function getAriaLabelForExtension(extension: IExtension | null): string {
 	return `${extension.displayName}, ${deprecated ? `${deprecated}, ` : ''}${extension.version}, ${publisher}, ${extension.description} ${rating ? `, ${rating}` : ''}`;
 }
 
-class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
+export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 
 	private readonly resolved = new Map<number, IExtension>();
 	private preferredGalleryExtensions = new Set<string>();
@@ -1601,8 +1622,8 @@ class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 		}
 
 		for (const e of preferredExtensions) {
-			if (e.gallery?.identifier.uuid) {
-				this.preferredGalleryExtensions.add(e.gallery.identifier.uuid);
+			if (e.identifier.uuid) {
+				this.preferredGalleryExtensions.add(e.identifier.uuid);
 			}
 		}
 
@@ -1610,7 +1631,8 @@ class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 		this.length = (preferredExtensions.length - this.preferredGalleryExtensions.size) + this.pager.total;
 
 		const totalPages = Math.ceil(this.pager.total / this.pager.pageSize);
-		this.pages = range(totalPages).map(() => ({
+		this.populateResolvedExtensions(0, this.pager.firstPage);
+		this.pages = range(totalPages - 1).map(() => ({
 			promise: null,
 			cts: null,
 			promiseIndexes: new Set<number>(),
@@ -1640,7 +1662,8 @@ class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 
 		if (!page.promise) {
 			page.cts = new CancellationTokenSource();
-			page.promise = this.resolvePage(pageIndex, page.cts.token)
+			page.promise = this.pager.getPage(pageIndex, page.cts.token)
+				.then(extensions => this.populateResolvedExtensions(pageIndex, extensions))
 				.catch(e => { page.promise = null; throw e; })
 				.finally(() => page.cts = null);
 		}
@@ -1666,9 +1689,7 @@ class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 		return this.get(index);
 	}
 
-	private async resolvePage(pageIndex: number, cancellationToken: CancellationToken): Promise<void> {
-		const extensions = await this.pager.getPage(pageIndex, cancellationToken);
-
+	private populateResolvedExtensions(pageIndex: number, extensions: IExtension[]): void {
 		let adjustIndexOfNextPagesBy = 0;
 		const pageStartIndex = pageIndex * this.pager.pageSize;
 		for (let i = 0; i < extensions.length; i++) {
@@ -1680,7 +1701,11 @@ class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 				this.resolved.set(this.preferredExtensions.length - this.resolvedGalleryExtensionsFromQuery.length + pageStartIndex + i, e);
 			}
 		}
-		if (adjustIndexOfNextPagesBy) {
+		// If this page has preferred gallery extensions, then adjust the index of the next pages
+		// by the number of preferred gallery extensions found in this page. Because these preferred extensions
+		// are already in the resolved list and since we did not add them now, we need to adjust the indices of the next pages.
+		// Skip first page as the preferred extensions are always in the first page
+		if (pageIndex !== 0 && adjustIndexOfNextPagesBy) {
 			const nextPageStartIndex = (pageIndex + 1) * this.pager.pageSize;
 			const indices = [...this.resolved.keys()].sort();
 			for (const index of indices) {
