@@ -1,6 +1,6 @@
 # Terminal Suggestions
 
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled. The terminal completions that it contributes can be disabled with `terminal.integrated.suggest.enableExtensionCompletions`.
+**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled. To enable the completions from this extension, set `terminal.integrated.suggest.enabled` and `terminal.integrated.suggest.enableExtensionCompletions` to `true`.
 
 ## Features
 
