@@ -29,6 +29,7 @@ import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../serv
 import type { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
 import { ITerminalCompletionService } from './terminalCompletionService.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -66,6 +67,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _lastUserData?: string;
 	static lastAcceptedCompletionTimestamp: number = 0;
+
+	private _cancellationTokenSource: CancellationTokenSource | undefined;
 
 	isPasting: boolean = false;
 
@@ -113,7 +116,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}));
 	}
 
-	private async _handleCompletionProviders(terminal?: Terminal): Promise<void> {
+	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken): Promise<void> {
 		// Nothing to handle if the terminal is not attached
 		if (!terminal?.element || !this._enableWidget || !this._promptInputModel) {
 			return;
@@ -129,7 +132,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		this._requestedCompletionsIndex = this._promptInputModel.cursorIndex;
 		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._promptInputModel.cursorIndex, this._shellType);
-		if (!providedCompletions?.length) {
+		if (!providedCompletions?.length || token.isCancellationRequested) {
 			return;
 		}
 		this._onDidReceiveCompletions.fire();
@@ -183,6 +186,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
 		const model = new SimpleCompletionModel(completions.filter(c => !!c.label).map(c => new SimpleCompletionItem(c)), lineContext);
+		if (token.isCancellationRequested) {
+			return;
+		}
 		this._showCompletions(model);
 	}
 
@@ -202,8 +208,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this.isPasting) {
 			return;
 		}
-
-		await this._handleCompletionProviders(this._terminal);
+		if (this._cancellationTokenSource) {
+			this._cancellationTokenSource.cancel();
+			this._cancellationTokenSource.dispose();
+		}
+		this._cancellationTokenSource = new CancellationTokenSource();
+		const token = this._cancellationTokenSource.token;
+		await this._handleCompletionProviders(this._terminal, token);
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
@@ -463,6 +474,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	hideSuggestWidget(): void {
+		this._cancellationTokenSource?.cancel();
+		this._cancellationTokenSource = undefined;
 		this._currentPromptInputState = undefined;
 		this._leadingLineContent = undefined;
 		this._suggestWidget?.hide();

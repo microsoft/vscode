@@ -1909,6 +1909,12 @@ export enum TextEditorSelectionChangeKind {
 	Command = 3
 }
 
+export enum TextEditorDiffKind {
+	Addition = 1,
+	Deletion = 2,
+	Modification = 3
+}
+
 export enum TextDocumentChangeReason {
 	Undo = 1,
 	Redo = 2,
@@ -3905,6 +3911,19 @@ export class NotebookCellOutput {
 			this.metadata = idOrMetadata ?? metadata;
 		}
 	}
+}
+
+export class CellErrorStackFrame {
+	/**
+	 * @param label The name of the stack frame
+	 * @param file The file URI of the stack frame
+	 * @param position The position of the stack frame within the file
+	 */
+	constructor(
+		public label: string,
+		public uri?: vscode.Uri,
+		public position?: Position,
+	) { }
 }
 
 export enum NotebookCellKind {

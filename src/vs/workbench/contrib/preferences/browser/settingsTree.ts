@@ -5,6 +5,7 @@
 
 import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
 import * as DOM from '../../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
@@ -2513,7 +2514,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 					}
 				},
 				accessibilityProvider: new SettingsTreeAccessibilityProvider(configurationService, languageService, userDataProfilesService),
-				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
+				styleController: id => new DefaultStyleController(domStylesheetsJs.createStyleSheet(container), id),
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,

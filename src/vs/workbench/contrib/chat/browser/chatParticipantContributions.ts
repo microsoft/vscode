@@ -27,7 +27,7 @@ import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common
 import { ChatAgentLocation, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IRawChatParticipantContribution } from '../common/chatParticipantContribTypes.js';
-import { CHAT_VIEW_ID } from './chat.js';
+import { ChatViewId } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from './chatViewPane.js';
 
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
@@ -299,7 +299,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 		// Register View. Name must be hardcoded because we want to show it even when the extension fails to load due to an API version incompatibility.
 		const name = 'GitHub Copilot';
 		const viewDescriptor: IViewDescriptor[] = [{
-			id: CHAT_VIEW_ID,
+			id: ChatViewId,
 			containerIcon: this._viewContainer.icon,
 			containerTitle: this._viewContainer.title.value,
 			singleViewPaneContainerTitle: this._viewContainer.title.value,
@@ -424,7 +424,7 @@ export class ChatCompatibilityNotifier extends Disposable implements IWorkbenchC
 		const commandButton = `[${showExtensionLabel}](command:${showExtensionsWithIdsCommandId}?${encodeURIComponent(JSON.stringify([['GitHub.copilot-chat']]))})`;
 		const versionMessage = `GitHub Copilot Chat version: ${chatExtension.version}`;
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-		this._register(viewsRegistry.registerViewWelcomeContent(CHAT_VIEW_ID, {
+		this._register(viewsRegistry.registerViewWelcomeContent(ChatViewId, {
 			content: [mainMessage, commandButton, versionMessage].join('\n\n'),
 			when: ChatContextKeys.extensionInvalid,
 		}));
