@@ -81,23 +81,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return undefined;
 		}
 
-		const collectCompletions = async (providers: ITerminalCompletionProvider[]) => {
-			await Promise.all(providers.map(async provider => {
-				if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
-					return;
-				}
-				const completions = await provider.provideCompletions(promptValue, cursorPosition, token);
-				const devModeEnabled = this._configurationService.getValue(TerminalSettingId.DevMode);
-				if (completions) {
-					for (const completion of completions) {
-						if (devModeEnabled && !completion.detail?.includes(provider.id)) {
-							completion.detail = `(${provider.id}) ${completion.detail ?? ''}`;
-						}
-						completionItems.push(completion);
-					}
-				}
-			}));
-		};
 
 
 		const extensionCompletionsEnabled = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enableExtensionCompletions;
@@ -112,9 +95,30 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			providers = providers.filter(p => p.isBuiltin);
 		}
 
-		await collectCompletions(providers);
-
+		await this._collectCompletions(providers, shellType, promptValue, cursorPosition, completionItems, token);
 		return completionItems.length > 0 ? completionItems : undefined;
+	}
+
+	private async _collectCompletions(providers: ITerminalCompletionProvider[], shellType: TerminalShellType, promptValue: string, cursorPosition: number, completionItems: ISimpleCompletion[], token: CancellationToken) {
+		const completionPromises = providers.map(async provider => {
+			if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
+				return [];
+			}
+			const completions = await provider.provideCompletions(promptValue, cursorPosition, token);
+			const devModeEnabled = this._configurationService.getValue(TerminalSettingId.DevMode);
+			if (completions) {
+				return completions.map(completion => {
+					if (devModeEnabled && !completion.detail?.includes(provider.id)) {
+						completion.detail = `(${provider.id}) ${completion.detail ?? ''}`;
+					}
+					return completion;
+				});
+			}
+			return [];
+		});
+
+		const results = await Promise.all(completionPromises);
+		results.forEach(completions => completionItems.push(...completions));
 	}
 }
 
