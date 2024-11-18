@@ -6,7 +6,7 @@ This project includes files from the following third-party projects:
 - **Source**: [[GitHub Repository URL](https://github.com/withfig/autocomplete)]
 - **License**: [MIT License]
 - **Copyright**: [2021] [Hercules Labs Inc. (Fig)]
-- **Description**: [Brief description of what was used]
+- **Description**: Completion spec files and completion types have been ported over to this project temporarily.
 
 ### Attribution
 Files in the `./src/completions` folder have been copied or modified from the original project under the MIT license. The original license notice is included below:
