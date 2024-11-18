@@ -6,7 +6,7 @@
   "version": "1.0.1",
   "private": true,
   "license": "MIT",
-  "icon": "media/icon.png",
+  "icon": "./src/media/icon.png",
   "engines": {
     "vscode": "^1.95.0"
   },
