@@ -43,6 +43,7 @@ div.chat-welcome-view {
 		font-size: 24px;
 		margin-top: 10px;
 		font-weight: 500;
+		text-align: center;
 	}
 
 	& > .chat-welcome-view-indicator {

@@ -4061,6 +4061,10 @@ declare namespace monaco.editor {
 		 * Controls whether the search result and diff result automatically restarts from the beginning (or the end) when no further matches can be found
 		 */
 		loop?: boolean;
+		/**
+		 * Controls how the find widget search history should be stored
+		 */
+		findSearchHistory?: 'never' | 'workspace';
 	}
 
 	export type GoToLocationValues = 'peek' | 'gotoAndPeek' | 'goto';
@@ -7247,6 +7251,10 @@ declare namespace monaco.languages {
 		readonly range?: IRange;
 		readonly command?: Command;
 		/**
+		 * Is called the first time an inline completion is shown.
+		*/
+		readonly shownCommand?: Command;
+		/**
 		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
 		 * Defaults to `false`.
 		*/
@@ -8134,6 +8142,7 @@ declare namespace monaco.languages {
 		range: IRange;
 		accepted?: Command;
 		rejected?: Command;
+		shown?: Command;
 		commands?: Command[];
 	}
 

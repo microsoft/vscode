@@ -264,15 +264,9 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			const didResetToOriginalContent = this.doc.getValue() === this.originalContent;
 			const currentState = this._stateObs.get();
 			switch (currentState) {
-				case WorkingSetEntryState.Accepted:
 				case WorkingSetEntryState.Modified:
 					if (didResetToOriginalContent) {
 						this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
-						break;
-					}
-				case WorkingSetEntryState.Rejected:
-					if (event.isUndoing && !didResetToOriginalContent) {
-						this._stateObs.set(WorkingSetEntryState.Modified, undefined);
 						break;
 					}
 			}

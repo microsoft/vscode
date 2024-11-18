@@ -35,7 +35,7 @@ import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
@@ -99,7 +99,7 @@ class OpenChatGlobalAction extends Action2 {
 			},
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'a_chat',
+				group: 'a_open',
 				order: 1
 			}
 		});
@@ -162,7 +162,7 @@ class ChatHistoryAction extends Action2 {
 			title: localize2('chat.history.label', "Show Chats..."),
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', CHAT_VIEW_ID),
+				when: ContextKeyExpr.equals('view', ChatViewId),
 				group: 'navigation',
 				order: 2
 			},
@@ -253,7 +253,7 @@ class ChatHistoryAction extends Action2 {
 				try {
 					const item = picker.selectedItems[0];
 					const sessionId = item.chat.sessionId;
-					const view = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
+					const view = await viewsService.openView(ChatViewId) as ChatViewPane;
 					view.loadSession(sessionId);
 				} finally {
 					picker.hide();
@@ -368,7 +368,7 @@ export function registerChatActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.clearAllHistoryEntries();
 
-			const chatView = viewsService.getViewWithId(CHAT_VIEW_ID) as ChatViewPane | undefined;
+			const chatView = viewsService.getViewWithId(ChatViewId) as ChatViewPane | undefined;
 			if (chatView) {
 				chatView.widget.clear();
 			}
@@ -459,17 +459,11 @@ export function registerChatActions() {
 				id: LearnMoreChatAction.ID,
 				title: LearnMoreChatAction.TITLE,
 				category: CHAT_CATEGORY,
-				menu: [{
+				menu: {
 					id: MenuId.ChatCommandCenter,
-					group: 'a_atfirst',
-					order: 2,
-					when: ChatContextKeys.panelParticipantRegistered.negate()
-				}, {
-					id: MenuId.ChatCommandCenter,
-					group: 'z_atlast',
-					order: 1,
-					when: ChatContextKeys.panelParticipantRegistered
-				}]
+					group: 'z_learn',
+					order: 1
+				}
 			});
 		}
 
@@ -519,7 +513,7 @@ registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
 		super(
 			'chat.commandCenter.enabled',
 			localize('toggle.chatControl', 'Chat Controls'),
-			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
+			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 4, false,
 			ContextKeyExpr.and(
 				ContextKeyExpr.has('config.window.commandCenter'),
 				ContextKeyExpr.or(
@@ -536,15 +530,12 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 
 	static readonly ID = 'chat.commandCenterRendering';
 
-	private readonly _store = new DisposableStore();
-	private _dropdown: DropdownWithPrimaryActionViewItem | undefined;
-
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatAgentService agentService: IChatAgentService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
+		actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
@@ -563,14 +554,7 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 				icon: defaultChat.icon,
 			}, undefined, undefined, undefined, undefined);
 
-			this._dropdown = instantiationService.createInstance(DropdownWithPrimaryActionViewItem, primaryAction, dropdownAction, action.actions, '', { ...options, skipTelemetry: true });
-
-			return this._dropdown;
-		}, agentService.onDidChangeAgents));
-	}
-
-	dispose() {
-		this._store.dispose();
+			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, primaryAction, dropdownAction, action.actions, '', { ...options, skipTelemetry: true });
+		}, agentService.onDidChangeAgents);
 	}
 }
-

@@ -71,6 +71,7 @@ export class InlineEditsAdapter extends Disposable {
 								range: e.result.range,
 								insertText: e.result.text,
 								command: e.result.accepted,
+								shownCommand: e.result.shown,
 								isInlineEdit: true,
 								edit: e.result,
 							};

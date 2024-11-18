@@ -1555,13 +1555,17 @@ export class CommandCenter {
 	async stageSelectedChanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
-		if (!textEditor) {
+		this.logger.debug('[CommandCenter][stageSelectedChanges] changes:', changes);
+		this.logger.debug('[CommandCenter][stageSelectedChanges] diffInformation.diff:', textEditor?.diffInformation?.diff);
+		this.logger.debug('[CommandCenter][stageSelectedChanges] diffInformation.isStale:', textEditor?.diffInformation?.isStale);
+
+		if (!textEditor || !textEditor.diffInformation || textEditor.diffInformation.isStale) {
 			return;
 		}
 
 		const modifiedDocument = textEditor.document;
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
-		const selectedChanges = changes
+		const selectedChanges = textEditor.diffInformation.diff
 			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
 			.filter(d => !!d) as LineChange[];
 
@@ -1737,18 +1741,22 @@ export class CommandCenter {
 	async revertSelectedRanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
-		if (!textEditor) {
+		this.logger.debug('[CommandCenter][revertSelectedRanges] changes:', changes);
+		this.logger.debug('[CommandCenter][revertSelectedRanges] diffInformation.diff:', textEditor?.diffInformation?.diff);
+		this.logger.debug('[CommandCenter][revertSelectedRanges] diffInformation.isStale:', textEditor?.diffInformation?.isStale);
+
+		if (!textEditor || !textEditor.diffInformation || textEditor.diffInformation.isStale) {
 			return;
 		}
 
 		const modifiedDocument = textEditor.document;
 		const selections = textEditor.selections;
-		const selectedChanges = changes.filter(change => {
+		const selectedChanges = textEditor.diffInformation.diff.filter(change => {
 			const modifiedRange = getModifiedRange(modifiedDocument, change);
 			return selections.every(selection => !selection.intersection(modifiedRange));
 		});
 
-		if (selectedChanges.length === changes.length) {
+		if (selectedChanges.length === textEditor.diffInformation.diff.length) {
 			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
 			return;
 		}
@@ -1811,10 +1819,14 @@ export class CommandCenter {
 	}
 
 	@command('git.unstageSelectedRanges', { diff: true })
-	async unstageSelectedRanges(diffs: LineChange[]): Promise<void> {
+	async unstageSelectedRanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
-		if (!textEditor) {
+		this.logger.debug('[CommandCenter][unstageSelectedRanges] changes:', changes);
+		this.logger.debug('[CommandCenter][unstageSelectedRanges] diffInformation.diff:', textEditor?.diffInformation?.diff);
+		this.logger.debug('[CommandCenter][unstageSelectedRanges] diffInformation.isStale:', textEditor?.diffInformation?.isStale);
+
+		if (!textEditor || !textEditor.diffInformation || textEditor.diffInformation.isStale) {
 			return;
 		}
 
@@ -1834,7 +1846,7 @@ export class CommandCenter {
 		const originalUri = toGitUri(modifiedUri, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
-		const selectedDiffs = diffs
+		const selectedDiffs = textEditor.diffInformation.diff
 			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
 			.filter(d => !!d) as LineChange[];
 

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 15
-
-declare module 'vscode' {
-}
+exports.setPassword = () => Promise.resolve();
+exports.getPassword = () => Promise.resolve();
+exports.deletePassword = () => Promise.resolve();

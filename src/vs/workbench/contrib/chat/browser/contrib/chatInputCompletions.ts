@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isPatternInWord } from '../../../../../base/common/filters.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -486,18 +487,23 @@ class BuiltinDynamicCompletions extends Disposable {
 
 	private async addFileEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
 
-		const makeFileCompletionItem = (resource: URI): CompletionItem => {
+		const makeFileCompletionItem = (resource: URI, description?: string): CompletionItem => {
 
 			const basename = this.labelService.getUriBasenameLabel(resource);
 			const text = `${chatVariableLeader}file:${basename}`;
+			const uriLabel = this.labelService.getUriLabel(resource, { relative: true });
+			const labelDescription = description
+				? localize('fileEntryDescription', '{0} ({1})', uriLabel, description)
+				: uriLabel;
+			const sortText = description ? 'z' : '{'; // after `z`
 
 			return {
-				label: { label: basename, description: this.labelService.getUriLabel(resource, { relative: true }) },
+				label: { label: basename, description: labelDescription },
 				filterText: `${chatVariableLeader}${basename}`,
 				insertText: info.varWord?.endColumn === info.replace.endColumn ? `${text} ` : text,
 				range: info,
 				kind: CompletionItemKind.File,
-				sortText: '{', // after `z`
+				sortText,
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
 						id: 'vscode.file',
@@ -517,6 +523,20 @@ class BuiltinDynamicCompletions extends Disposable {
 
 		const seen = new ResourceSet();
 		const len = result.suggestions.length;
+
+		// RELATED FILES
+		if (widget.location === ChatAgentLocation.EditingSession && widget.viewModel && this._chatEditingService.currentEditingSessionObs.get()?.chatSessionId === widget.viewModel?.sessionId) {
+			const relatedFiles = (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), token), 1000)) ?? [];
+			for (const relatedFileGroup of relatedFiles) {
+				for (const relatedFile of relatedFileGroup.files) {
+					if (seen.has(relatedFile.uri)) {
+						continue;
+					}
+					seen.add(relatedFile.uri);
+					result.suggestions.push(makeFileCompletionItem(relatedFile.uri, relatedFile.description));
+				}
+			}
+		}
 
 		// HISTORY
 		// always take the last N items
@@ -573,16 +593,6 @@ class BuiltinDynamicCompletions extends Disposable {
 					continue;
 				}
 				result.suggestions.push(makeFileCompletionItem(match.resource));
-			}
-		}
-
-		// RELATED FILES
-		if (widget.location === ChatAgentLocation.EditingSession && widget.viewModel && this._chatEditingService.currentEditingSessionObs.get()?.chatSessionId === widget.viewModel?.sessionId) {
-			for (const relatedFile of (await this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), token) ?? [])) {
-				if (seen.has(relatedFile.uri)) {
-					continue;
-				}
-				result.suggestions.push(makeFileCompletionItem(relatedFile.uri));
 			}
 		}
 

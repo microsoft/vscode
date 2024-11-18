@@ -52,7 +52,7 @@ import { IRevealOptions, ITreeItem, IViewBadge } from '../../common/views.js';
 import { CallHierarchyItem } from '../../contrib/callHierarchy/common/callHierarchy.js';
 import { ChatAgentLocation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatWelcomeMessageContent } from '../../contrib/chat/common/chatAgents.js';
 import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
-import { IChatRelatedFile, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
+import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatProgressHistoryResponseContent } from '../../contrib/chat/common/chatModel.js';
 import { IChatContentInlineReference, IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress } from '../../contrib/chat/common/chatVariables.js';
@@ -1275,7 +1275,7 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): void;
 	$registerChatParticipantDetectionProvider(handle: number): void;
 	$unregisterChatParticipantDetectionProvider(handle: number): void;
-	$registerRelatedFilesProvider(handle: number): void;
+	$registerRelatedFilesProvider(handle: number, metadata: IChatRelatedFilesProviderMetadata): void;
 	$unregisterRelatedFilesProvider(handle: number): void;
 	$registerAgentCompletionsProvider(handle: number, id: string, triggerCharacters: string[]): void;
 	$unregisterAgentCompletionsProvider(handle: number, id: string): void;
@@ -1817,6 +1817,21 @@ export interface ITextEditorAddData {
 export interface ITextEditorPositionData {
 	[id: string]: EditorGroupColumn;
 }
+
+export type ITextEditorDiff = [
+	originalStartLineNumber: number,
+	originalEndLineNumber: number,
+	modifiedStartLineNumber: number,
+	modifiedEndLineNumber: number
+];
+
+export interface ITextEditorDiffInformation {
+	readonly documentVersion: number;
+	readonly original: UriComponents | undefined;
+	readonly modified: UriComponents;
+	readonly diff: readonly ITextEditorDiff[];
+}
+
 export interface IEditorPropertiesChangeData {
 	options: IResolvedTextEditorConfiguration | null;
 	selections: ISelectionChangeEvent | null;
@@ -1830,6 +1845,7 @@ export interface ISelectionChangeEvent {
 export interface ExtHostEditorsShape {
 	$acceptEditorPropertiesChanged(id: string, props: IEditorPropertiesChangeData): void;
 	$acceptEditorPositionData(data: ITextEditorPositionData): void;
+	$acceptEditorDiffInformation(id: string, diffInformation: ITextEditorDiffInformation | undefined): void;
 }
 
 export interface IDocumentsAndEditorsDelta {
