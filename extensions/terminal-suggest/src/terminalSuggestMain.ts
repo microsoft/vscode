@@ -60,100 +60,103 @@ function getBuiltinCommands(shell: string): string[] | undefined {
 	}
 }
 
-vscode.window.registerTerminalCompletionProvider({
-	id: 'terminal-suggest',
-	async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { commandLine: string; cursorPosition: number }, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | undefined> {
-		if (token.isCancellationRequested) {
-			return;
-		}
 
-		const availableCommands = await getCommandsInPath();
-		if (!availableCommands) {
-			return;
-		}
-
-		// TODO: Leverage shellType when available https://github.com/microsoft/vscode/issues/230165
-		const shellPath = 'shellPath' in terminal.creationOptions ? terminal.creationOptions.shellPath : vscode.env.shell;
-		if (!shellPath) {
-			return;
-		}
-
-		const builtinCommands = getBuiltinCommands(shellPath);
-		builtinCommands?.forEach(command => availableCommands.add(command));
-
-		const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
-		let result: vscode.TerminalCompletionItem[] = [];
-
-		const specs = [codeCompletionSpec, codeInsidersCompletionSpec];
-		for (const spec of specs) {
-			const specName = getLabel(spec);
-			if (!specName) {
-				continue;
+export async function activate(context: vscode.ExtensionContext) {
+	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
+		id: 'terminal-suggest',
+		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { commandLine: string; cursorPosition: number }, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | undefined> {
+			if (token.isCancellationRequested) {
+				return;
 			}
-			if (terminalContext.commandLine.startsWith(specName)) {
-				if ('options' in codeInsidersCompletionSpec && codeInsidersCompletionSpec.options) {
-					for (const option of codeInsidersCompletionSpec.options) {
-						const optionLabel = getLabel(option);
-						if (!optionLabel) {
-							continue;
-						}
 
-						if (optionLabel.startsWith(prefix) || (prefix.length > specName.length && prefix.trim() === specName)) {
-							result.push(createCompletionItem(terminalContext.cursorPosition, prefix, optionLabel, option.description));
-						}
-						if (option.args !== undefined) {
-							const args = Array.isArray(option.args) ? option.args : [option.args];
-							for (const arg of args) {
-								if (!arg) {
-									continue;
-								}
+			const availableCommands = await getCommandsInPath();
+			if (!availableCommands) {
+				return;
+			}
 
-								if (arg.template) {
-									// TODO: return file/folder completion items
-									if (arg.template === 'filepaths') {
-										// if (label.startsWith(prefix+\s*)) {
-										// result.push(FilePathCompletionItem)
-										// }
-									} else if (arg.template === 'folders') {
-										// if (label.startsWith(prefix+\s*)) {
-										// result.push(FolderPathCompletionItem)
-										// }
+			// TODO: Leverage shellType when available https://github.com/microsoft/vscode/issues/230165
+			const shellPath = 'shellPath' in terminal.creationOptions ? terminal.creationOptions.shellPath : vscode.env.shell;
+			if (!shellPath) {
+				return;
+			}
+
+			const builtinCommands = getBuiltinCommands(shellPath);
+			builtinCommands?.forEach(command => availableCommands.add(command));
+
+			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
+			let result: vscode.TerminalCompletionItem[] = [];
+
+			const specs = [codeCompletionSpec, codeInsidersCompletionSpec];
+			for (const spec of specs) {
+				const specName = getLabel(spec);
+				if (!specName) {
+					continue;
+				}
+				if (terminalContext.commandLine.startsWith(specName)) {
+					if ('options' in codeInsidersCompletionSpec && codeInsidersCompletionSpec.options) {
+						for (const option of codeInsidersCompletionSpec.options) {
+							const optionLabel = getLabel(option);
+							if (!optionLabel) {
+								continue;
+							}
+
+							if (optionLabel.startsWith(prefix) || (prefix.length > specName.length && prefix.trim() === specName)) {
+								result.push(createCompletionItem(terminalContext.cursorPosition, prefix, optionLabel, option.description));
+							}
+							if (option.args !== undefined) {
+								const args = Array.isArray(option.args) ? option.args : [option.args];
+								for (const arg of args) {
+									if (!arg) {
+										continue;
 									}
-									continue;
-								}
 
-								const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition);
-								const expectedText = `${optionLabel} `;
-								if (arg.suggestions?.length && precedingText.endsWith(expectedText)) {
-									// there are specific suggestions to show
-									result = [];
-									for (const suggestion of arg.suggestions) {
-										const suggestionLabel = getLabel(suggestion);
-										if (suggestionLabel) {
-											result.push(createCompletionItem(terminalContext.cursorPosition, optionLabel + ' ', suggestionLabel, arg.name, terminalContext.cursorPosition));
+									if (arg.template) {
+										// TODO: return file/folder completion items
+										if (arg.template === 'filepaths') {
+											// if (label.startsWith(prefix+\s*)) {
+											// result.push(FilePathCompletionItem)
+											// }
+										} else if (arg.template === 'folders') {
+											// if (label.startsWith(prefix+\s*)) {
+											// result.push(FolderPathCompletionItem)
+											// }
 										}
+										continue;
 									}
-									return result;
+
+									const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition);
+									const expectedText = `${optionLabel} `;
+									if (arg.suggestions?.length && precedingText.endsWith(expectedText)) {
+										// there are specific suggestions to show
+										result = [];
+										for (const suggestion of arg.suggestions) {
+											const suggestionLabel = getLabel(suggestion);
+											if (suggestionLabel) {
+												result.push(createCompletionItem(terminalContext.cursorPosition, optionLabel + ' ', suggestionLabel, arg.name, terminalContext.cursorPosition));
+											}
+										}
+										return result;
+									}
 								}
 							}
 						}
 					}
 				}
 			}
-		}
 
-		for (const command of availableCommands) {
-			if (command.startsWith(prefix)) {
-				result.push(createCompletionItem(terminalContext.cursorPosition, prefix, command));
+			for (const command of availableCommands) {
+				if (command.startsWith(prefix)) {
+					result.push(createCompletionItem(terminalContext.cursorPosition, prefix, command));
+				}
 			}
-		}
 
-		if (token.isCancellationRequested) {
-			return undefined;
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			return result.length ? result : undefined;
 		}
-		return result.length ? result : undefined;
-	}
-});
+	}));
+}
 
 function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string | undefined {
 	if (typeof spec === 'string') {
