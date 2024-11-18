@@ -37,6 +37,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IChatViewsWelcomeContributionRegistry, ChatViewsWelcomeExtensions } from './viewsWelcome/chatViewsWelcome.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -75,10 +76,10 @@ type InstallChatEvent = {
 
 class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
-	private static readonly CHAT_EXTENSION_INSTALLED_KEY = 'chat.extensionInstalled';
-
 	private readonly chatSetupSignedInContextKey = ChatContextKeys.ChatSetup.signedIn.bindTo(this.contextKeyService);
 	private readonly chatSetupEntitledContextKey = ChatContextKeys.ChatSetup.entitled.bindTo(this.contextKeyService);
+
+	private readonly chatSetupState = this.instantiationService.createInstance(ChatSetupState);
 
 	private resolvedEntitlement: boolean | undefined = undefined;
 
@@ -90,7 +91,6 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IRequestService private readonly requestService: IRequestService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -100,59 +100,21 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 			return;
 		}
 
-		this.checkExtensionInstallation(entitlement);
-
 		this.registerChatWelcome();
 
 		this.registerEntitlementListeners(entitlement);
 		this.registerAuthListeners(entitlement);
-	}
 
-	private async checkExtensionInstallation(entitlement: IGitHubEntitlement): Promise<void> {
-		const extensions = await this.extensionManagementService.getInstalled();
-
-		const installed = extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, entitlement.extensionId));
-		this.updateExtensionInstalled(installed ? true : false);
+		this.checkExtensionInstallation(entitlement);
 	}
 
 	private registerChatWelcome(): void {
-
-		// Action to hide setup
-		const chatSetupTrigger = this.instantiationService.createInstance(ChatSetupTrigger);
-		const disableChatSetupActionId = 'workbench.action.chat.disableSetup';
-
-		registerAction2(class extends Action2 {
-
-			constructor() {
-				super({
-					id: disableChatSetupActionId,
-					title: localize2('hideChatSetup', "Hide Chat Setup"),
-					f1: false
-				});
-			}
-
-			override async run(accessor: ServicesAccessor): Promise<void> {
-				const viewsDescriptorService = accessor.get(IViewDescriptorService);
-				const layoutService = accessor.get(IWorkbenchLayoutService);
-
-				const location = viewsDescriptorService.getViewLocationById(ChatViewId);
-
-				chatSetupTrigger.update(false);
-
-				if (location === ViewContainerLocation.AuxiliaryBar) {
-					const activeContainers = viewsDescriptorService.getViewContainersByLocation(location).filter(container => viewsDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
-					if (activeContainers.length === 0) {
-						layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
-					}
-				}
-			}
-		});
 
 		// Setup: Triggered (signed-out)
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
 			title: defaultChat.welcomeTitle,
 			when: ContextKeyExpr.and(
-				ChatContextKeys.ChatSetup.triggering,
+				ChatContextKeys.ChatSetup.triggered,
 				ChatContextKeys.ChatSetup.signedIn.negate(),
 				ChatContextKeys.ChatSetup.signingIn.negate(),
 				ChatContextKeys.ChatSetup.installing.negate(),
@@ -160,14 +122,14 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				ChatContextKeys.panelParticipantRegistered.negate()
 			)!,
 			icon: defaultChat.icon,
-			content: new MarkdownString(`${localize('setupContent', "{0} is your AI pair programmer that helps you write code faster and smarter.", defaultChat.name)}\n\n[${localize('signInAndSetup', "Sign in to use {0}", defaultChat.name)}](command:${ChatSetupSignInAndInstallChatAction.ID})\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl}) | [${localize('hideSetup', "Hide")}](command:${disableChatSetupActionId})`, { isTrusted: true }),
+			content: new MarkdownString(`${localize('setupContent', "{0} is your AI pair programmer that helps you write code faster and smarter.", defaultChat.name)}\n\n[${localize('signInAndSetup', "Sign in to use {0}", defaultChat.name)}](command:${ChatSetupSignInAndInstallChatAction.ID})\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl}) | [${localize('hideSetup', "Hide")}](command:${ChatSetupHideAction.ID} "${localize('hideSetup', "Hide")}")`, { isTrusted: true }),
 		});
 
 		// Setup: Triggered (signed-in)
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
 			title: defaultChat.welcomeTitle,
 			when: ContextKeyExpr.and(
-				ChatContextKeys.ChatSetup.triggering,
+				ChatContextKeys.ChatSetup.triggered,
 				ChatContextKeys.ChatSetup.signedIn,
 				ChatContextKeys.ChatSetup.signingIn.negate(),
 				ChatContextKeys.ChatSetup.installing.negate(),
@@ -175,7 +137,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				ChatContextKeys.panelParticipantRegistered.negate()
 			)!,
 			icon: defaultChat.icon,
-			content: new MarkdownString(`${localize('setupContent', "{0} is your AI pair programmer that helps you write code faster and smarter.", defaultChat.name)}\n\n[${localize('setup', "Install {0}", defaultChat.name)}](command:${ChatSetupInstallAction.ID})\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl}) | [${localize('hideSetup', "Hide")}](command:${disableChatSetupActionId})`, { isTrusted: true }),
+			content: new MarkdownString(`${localize('setupContent', "{0} is your AI pair programmer that helps you write code faster and smarter.", defaultChat.name)}\n\n[${localize('setup', "Install {0}", defaultChat.name)}](command:${ChatSetupInstallAction.ID})\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl}) | [${localize('hideSetup', "Hide")}](command:${ChatSetupHideAction.ID} "${localize('hideSetup', "Hide")}")`, { isTrusted: true }),
 		});
 
 		// Setup: Signing-in
@@ -188,7 +150,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 			)!,
 			icon: defaultChat.icon,
 			progress: localize('setupChatSigningIn', "Signing in to {0}...", defaultChat.providerName),
-			content: new MarkdownString(`\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`, { isTrusted: true }),
+			content: new MarkdownString(`${localize('setupContent', "{0} is your AI pair programmer that helps you write code faster and smarter.", defaultChat.name)}`, { isTrusted: true }),
 		});
 
 		// Setup: Installing
@@ -197,7 +159,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 			when: ChatContextKeys.ChatSetup.installing,
 			icon: defaultChat.icon,
 			progress: localize('setupChatInstalling', "Setting up Chat for you..."),
-			content: new MarkdownString(`\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`, { isTrusted: true }),
+			content: new MarkdownString(`${localize('setupContent', "{0} is your AI pair programmer that helps you write code faster and smarter.", defaultChat.name)}`, { isTrusted: true }),
 		});
 	}
 
@@ -205,14 +167,14 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		this._register(this.extensionService.onDidChangeExtensions(result => {
 			for (const extension of result.removed) {
 				if (ExtensionIdentifier.equals(entitlement.extensionId, extension.identifier)) {
-					this.updateExtensionInstalled(false);
+					this.chatSetupState.update({ chatInstalled: false });
 					break;
 				}
 			}
 
 			for (const extension of result.added) {
 				if (ExtensionIdentifier.equals(entitlement.extensionId, extension.identifier)) {
-					this.updateExtensionInstalled(true);
+					this.chatSetupState.update({ chatInstalled: true });
 					break;
 				}
 			}
@@ -314,8 +276,59 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		return this.resolvedEntitlement;
 	}
 
-	private updateExtensionInstalled(isExtensionInstalled: boolean): void {
-		this.storageService.store(ChatSetupContribution.CHAT_EXTENSION_INSTALLED_KEY, isExtensionInstalled, StorageScope.PROFILE, StorageTarget.MACHINE);
+	private async checkExtensionInstallation(entitlement: IGitHubEntitlement): Promise<void> {
+		const extensions = await this.extensionManagementService.getInstalled();
+
+		const chatInstalled = !!extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, entitlement.extensionId));
+		this.chatSetupState.update({ chatInstalled });
+	}
+}
+
+class ChatSetupState {
+
+	private static readonly CHAT_SETUP_TRIGGERD = 'chat.setupTriggered';
+	private static readonly CHAT_EXTENSION_INSTALLED = 'chat.extensionInstalled';
+
+	private readonly chatSetupTriggeredContext = ChatContextKeys.ChatSetup.triggered.bindTo(this.contextKeyService);
+
+	constructor(
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+	) {
+		this.updateContext();
+	}
+
+	update(context: { triggered: boolean }): void;
+	update(context: { chatInstalled?: boolean }): void;
+	update(context: { triggered?: boolean; chatInstalled?: boolean }): void {
+		if (typeof context.chatInstalled === 'boolean') {
+			this.storageService.store(ChatSetupState.CHAT_EXTENSION_INSTALLED, context.chatInstalled, StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+
+		if (typeof context.triggered === 'boolean') {
+			if (context.triggered) {
+				this.storageService.store(ChatSetupState.CHAT_SETUP_TRIGGERD, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+			} else {
+				this.storageService.remove(ChatSetupState.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE);
+			}
+		}
+
+		this.updateContext();
+	}
+
+	private updateContext(): void {
+		const chatSetupTriggered = this.storageService.getBoolean(ChatSetupState.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE, false);
+		const chatInstalled = this.storageService.getBoolean(ChatSetupState.CHAT_EXTENSION_INSTALLED, StorageScope.PROFILE, false);
+
+		const showChatSetup = chatSetupTriggered && !chatInstalled;
+		if (showChatSetup) {
+			// this is ugly but fixes flicker from a previous chat install
+			this.storageService.remove('chat.welcomeMessageContent.panel', StorageScope.APPLICATION);
+			this.storageService.remove('interactive.sessions', this.workspaceContextService.getWorkspace().folders.length ? StorageScope.WORKSPACE : StorageScope.APPLICATION);
+		}
+
+		this.chatSetupTriggeredContext.set(showChatSetup);
 	}
 }
 
@@ -336,36 +349,40 @@ class ChatSetupTriggerAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const instantiationService = accessor.get(IInstantiationService);
 
-		instantiationService.createInstance(ChatSetupTrigger).update(true);
+		instantiationService.createInstance(ChatSetupState).update({ triggered: true });
 
 		showChatView(viewsService);
 	}
 }
 
-class ChatSetupTrigger {
+class ChatSetupHideAction extends Action2 {
 
-	private static readonly CHAT_SETUP_TRIGGERD = 'chat.setupTriggered';
+	static readonly ID = 'workbench.action.chat.hideSetup';
+	static readonly TITLE = localize2('hideChatSetup', "Hide Chat Setup");
 
-	private readonly chatSetupTriggeringContext = ChatContextKeys.ChatSetup.triggering.bindTo(this.contextKeyService);
-
-	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IStorageService private readonly storageService: IStorageService
-	) {
-		if (this.storageService.getBoolean(ChatSetupTrigger.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE)) {
-			this.update(true);
-		}
+	constructor() {
+		super({
+			id: ChatSetupHideAction.ID,
+			title: ChatSetupHideAction.TITLE,
+			f1: false
+		});
 	}
 
-	update(enabled: boolean): void {
-		if (enabled) {
-			this.storageService.store(ChatSetupTrigger.CHAT_SETUP_TRIGGERD, enabled, StorageScope.PROFILE, StorageTarget.MACHINE);
-			this.storageService.remove('chat.welcomeMessageContent.panel', StorageScope.APPLICATION); // fixes flicker issues with cached welcome from previous install
-		} else {
-			this.storageService.remove(ChatSetupTrigger.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE);
-		}
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsDescriptorService = accessor.get(IViewDescriptorService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const instantiationService = accessor.get(IInstantiationService);
 
-		this.chatSetupTriggeringContext.set(enabled);
+		const location = viewsDescriptorService.getViewLocationById(ChatViewId);
+
+		instantiationService.createInstance(ChatSetupState).update({ triggered: false });
+
+		if (location === ViewContainerLocation.AuxiliaryBar) {
+			const activeContainers = viewsDescriptorService.getViewContainersByLocation(location).filter(container => viewsDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
+			if (activeContainers.length === 0) {
+				layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
+			}
+		}
 	}
 }
 
@@ -422,14 +439,15 @@ class ChatSetupInstallAction extends Action2 {
 			installResult = 'installed';
 		} catch (error) {
 			installResult = isCancellationError(error) ? 'cancelled' : 'failedInstall';
-		} finally {
-			Promise.race([
-				timeout(2000), 										// helps prevent flicker with sign-in welcome view
-				Event.toPromise(chatAgentService.onDidChangeAgents)	// https://github.com/microsoft/vscode-copilot/issues/9274
-			]).finally(() => setupInstallingContextKey.reset());
 		}
 
 		telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signedIn });
+
+		await Promise.race([timeout(2000), Event.toPromise(chatAgentService.onDidChangeAgents)]); // reduce flicker (https://github.com/microsoft/vscode-copilot/issues/9274)
+
+		setupInstallingContextKey.reset();
+
+		(await showChatView(viewsService))?.focusInput();
 	}
 }
 
@@ -491,6 +509,7 @@ class ChatSetupSignInAndInstallChatAction extends Action2 {
 }
 
 registerAction2(ChatSetupTriggerAction);
+registerAction2(ChatSetupHideAction);
 registerAction2(ChatSetupInstallAction);
 registerAction2(ChatSetupSignInAndInstallChatAction);
 
