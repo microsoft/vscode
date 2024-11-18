@@ -20,14 +20,7 @@
     "compile": "npx gulp compile-extension:npm",
     "watch": "npx gulp watch-extension:npm"
   },
-  "dependencies": {
-    "@fig/autocomplete-generators": "^2.4.0"
-  },
-  "devDependencies": {
-    "@types/minimatch": "^5.1.2",
-    "@types/node": "20.x",
-    "@types/which": "^3.0.0"
-  },
+
   "main": "./out/terminalSuggestMain",
   "activationEvents": [
     "onTerminalCompletionsRequested"
