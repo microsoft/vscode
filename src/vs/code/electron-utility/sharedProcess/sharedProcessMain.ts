@@ -118,6 +118,7 @@ import { getOSReleaseInfo } from '../../../base/node/osReleaseInfo.js';
 import { getDesktopEnvironment } from '../../../base/common/desktopEnvironmentInfo.js';
 import { getCodeDisplayProtocol, getDisplayProtocol } from '../../../base/node/osDisplayProtocolInfo.js';
 import { RequestService } from '../../../platform/request/electron-utility/requestService.js';
+import { DefaultExtensionsInitializer } from './contrib/defaultExtensionsInitializer.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -187,7 +188,8 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			instantiationService.createInstance(LogsDataCleaner),
 			instantiationService.createInstance(LocalizationsUpdater),
 			instantiationService.createInstance(ExtensionsContributions),
-			instantiationService.createInstance(UserDataProfilesCleaner)
+			instantiationService.createInstance(UserDataProfilesCleaner),
+			instantiationService.createInstance(DefaultExtensionsInitializer)
 		));
 	}
 
@@ -326,14 +328,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Extension Management
 		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService, undefined, true));
 		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService, undefined, true));
-
-		if (productService.quality === 'stable') {
-			services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
-		} else {
-			// Do extension signature verification in the main process in insiders
-			services.set(IExtensionSignatureVerificationService, ProxyChannel.toService(mainProcessService.getChannel('signatureVerificationService')));
-		}
-
+		services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
 		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService, undefined, true));
 
 		// Extension Gallery

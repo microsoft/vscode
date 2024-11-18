@@ -32,8 +32,8 @@ suite('MainThreadHostTreeView', function () {
 	}
 
 	class MockExtHostTreeViewsShape extends mock<ExtHostTreeViewsShape>() {
-		override async $getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[]> {
-			return [<CustomTreeItem>{ handle: 'testItem1', collapsibleState: TreeItemCollapsibleState.Expanded, customProp: customValue }];
+		override async $getChildren(treeViewId: string, treeItemHandle?: string[]): Promise<(number | ITreeItem)[][]> {
+			return [[0, <CustomTreeItem>{ handle: 'testItem1', collapsibleState: TreeItemCollapsibleState.Expanded, customProp: customValue }]];
 		}
 
 		override async $hasResolve(): Promise<boolean> {

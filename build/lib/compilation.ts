@@ -14,12 +14,12 @@ import * as util from './util';
 import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 import * as os from 'os';
-import ts = require('typescript');
 import * as File from 'vinyl';
 import * as task from './task';
 import { Mangler } from './mangle/index';
 import { RawSourceMap } from 'source-map';
 import { gulpPostcss } from './postcss';
+import ts = require('typescript');
 const watch = require('./watch');
 
 
@@ -45,7 +45,7 @@ function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 interface ICompileTaskOptions {
 	readonly build: boolean;
 	readonly emitError: boolean;
-	readonly transpileOnly: boolean | { swc: boolean };
+	readonly transpileOnly: boolean | { esbuild: boolean };
 	readonly preserveEnglish: boolean;
 }
 
@@ -63,7 +63,7 @@ function createCompile(src: string, { build, emitError, transpileOnly, preserveE
 	const compilation = tsb.create(projectPath, overrideOptions, {
 		verbose: false,
 		transpileOnly: Boolean(transpileOnly),
-		transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
+		transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.esbuild
 	}, err => reporter(err));
 
 	function pipeline(token?: util.ICancellationToken) {
@@ -105,11 +105,11 @@ function createCompile(src: string, { build, emitError, transpileOnly, preserveE
 	return pipeline;
 }
 
-export function transpileTask(src: string, out: string, swc: boolean): task.StreamTask {
+export function transpileTask(src: string, out: string, esbuild: boolean): task.StreamTask {
 
 	const task = () => {
 
-		const transpile = createCompile(src, { build: false, emitError: true, transpileOnly: { swc }, preserveEnglish: false });
+		const transpile = createCompile(src, { build: false, emitError: true, transpileOnly: { esbuild }, preserveEnglish: false });
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 
 		return srcPipe

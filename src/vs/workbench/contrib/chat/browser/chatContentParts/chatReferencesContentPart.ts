@@ -6,7 +6,6 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
-import { IAction } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -17,7 +16,7 @@ import { basenameOrAuthority, isEqualAuthority } from '../../../../../base/commo
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { createAndFillInContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -43,12 +42,13 @@ import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
 import { ChatTreeItem, IChatWidgetService } from '../chat.js';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
-import { IChatContentPart } from './chatContentParts.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 const $ = dom.$;
 
 export interface IChatReferenceListItem extends IChatContentReference {
 	title?: string;
+	description?: string;
 	state?: WorkingSetEntryState;
 }
 
@@ -60,10 +60,12 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
+	private readonly hasFollowingContent: boolean;
+
 	constructor(
 		private readonly data: ReadonlyArray<IChatCollapsibleListItem>,
 		labelOverride: string | undefined,
-		element: IChatResponseViewModel,
+		context: IChatContentPartRenderContext,
 		contentReferencesListPool: CollapsibleListPool,
 		@IOpenerService openerService: IOpenerService,
 		@IMenuService menuService: IMenuService,
@@ -72,6 +74,8 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 	) {
 		super();
 
+		const element = context.element as IChatResponseViewModel;
+		this.hasFollowingContent = context.contentIndex + 1 < context.content.length;
 		const referencesLabel = labelOverride ?? (data.length > 1 ?
 			localize('usedReferencesPlural', "Used {0} references", data.length) :
 			localize('usedReferencesSingular', "Used {0} reference", 1));
@@ -141,9 +145,7 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 				getAnchor: () => e.anchor,
 				getActions: () => {
 					const menu = menuService.getMenuActions(MenuId.ChatAttachmentsContext, list.contextKeyService, { shouldForwardArgs: true, arg: uri });
-					const primary: IAction[] = [];
-					createAndFillInContextMenuActions(menu, primary);
-					return primary;
+					return getFlatContextMenuActions(menu);
 				}
 			});
 		}));
@@ -165,8 +167,7 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		return other.kind === 'references' && other.references.length === this.data.length ||
-			other.kind === 'codeCitations' && other.citations.length === this.data.length;
+		return other.kind === 'references' && other.references.length === this.data.length && (!!followingContent.length === this.hasFollowingContent);
 	}
 
 	private updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {
@@ -385,13 +386,23 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
 				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString() });
 			} else {
-				templateData.label.setFile(uri, {
-					fileKind: FileKind.FILE,
-					// Should not have this live-updating data on a historical reference
-					fileDecorations: undefined,
-					range: 'range' in reference ? reference.range : undefined,
-					title: data.options?.status?.description ?? data.title
-				});
+				if (data.state === WorkingSetEntryState.Transient || data.state === WorkingSetEntryState.Suggested) {
+					templateData.label.setResource(
+						{
+							resource: uri,
+							name: basenameOrAuthority(uri),
+							description: data.description ?? localize('chat.openEditor', 'Open Editor'),
+							range: 'range' in reference ? reference.range : undefined,
+						}, { icon, title: data.options?.status?.description ?? data.title });
+				} else {
+					templateData.label.setFile(uri, {
+						fileKind: FileKind.FILE,
+						// Should not have this live-updating data on a historical reference
+						fileDecorations: undefined,
+						range: 'range' in reference ? reference.range : undefined,
+						title: data.options?.status?.description ?? data.title
+					});
+				}
 			}
 		}
 

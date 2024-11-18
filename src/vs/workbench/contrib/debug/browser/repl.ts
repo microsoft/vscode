@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
@@ -39,7 +40,7 @@ import { ITextResourcePropertiesService } from '../../../../editor/common/servic
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -156,7 +157,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 		this.menu = menuService.createMenu(MenuId.DebugConsoleContext, contextKeyService);
 		this._register(this.menu);
-		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 100);
+		this.history = new HistoryNavigator(new Set(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]'))), 100);
 		this.filter = new ReplFilter();
 		this.filter.filterQuery = filterText;
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
@@ -576,11 +577,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	private get refreshScheduler(): RunOnceScheduler {
 		const autoExpanded = new Set<string>();
 		return new RunOnceScheduler(async () => {
-			if (!this.tree) {
-				return;
-			}
-
-			if (!this.tree.getInput()) {
+			if (!this.tree || !this.tree.getInput() || !this.isVisible()) {
 				return;
 			}
 
@@ -712,7 +709,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		}));
 		// Make sure to select the session if debugging is already active
 		this.selectSession();
-		this.styleElement = dom.createStyleSheet(this.container);
+		this.styleElement = domStylesheetsJs.createStyleSheet(this.container);
 		this.onDidStyleChange();
 	}
 
@@ -772,8 +769,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {
-		const actions: IAction[] = [];
-		createAndFillInContextMenuActions(this.menu, { arg: e.element, shouldForwardArgs: false }, actions);
+		const actions = getFlatContextMenuActions(this.menu.getActions({ arg: e.element, shouldForwardArgs: false }));
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
@@ -907,8 +903,7 @@ class AcceptReplInputAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'repl.action.acceptInput',
-			label: localize({ key: 'actions.repl.acceptInput', comment: ['Apply input from the debug console input box'] }, "Debug Console: Accept Input"),
-			alias: 'Debug Console: Accept Input',
+			label: localize2({ key: 'actions.repl.acceptInput', comment: ['Apply input from the debug console input box'] }, "Debug Console: Accept Input"),
 			precondition: CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,

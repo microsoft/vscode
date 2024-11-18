@@ -1554,12 +1554,25 @@ class InlineEditAdapter {
 			rejectCommand = this._commands.toInternal(result.rejected, disposableStore);
 		}
 
+		let shownCommand: languages.Command | undefined = undefined;
+		if (result.shown) {
+			if (!disposableStore) {
+				disposableStore = new DisposableStore();
+			}
+			shownCommand = this._commands.toInternal(result.shown, disposableStore);
+		}
+
+		if (!disposableStore) {
+			disposableStore = new DisposableStore();
+		}
 		const langResult: extHostProtocol.IdentifiableInlineEdit = {
 			pid,
 			text: result.text,
 			range: typeConvert.Range.from(result.range),
 			accepted: acceptCommand,
 			rejected: rejectCommand,
+			shown: shownCommand,
+			commands: result.commands?.map(c => this._commands.toInternal(c, disposableStore)),
 		};
 
 		return langResult;
@@ -2896,6 +2909,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector, extension), isProposedApiEnabled(extension, 'documentPaste') && metadata ? {
 			supportsResolve: !!provider.resolveDocumentDropEdit,
 			dropMimeTypes: metadata.dropMimeTypes,
+			providedDropKinds: metadata.providedDropEditKinds?.map(x => x.value),
 		} : undefined);
 
 		return this._createDisposable(handle);

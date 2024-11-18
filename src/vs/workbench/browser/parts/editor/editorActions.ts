@@ -1425,7 +1425,7 @@ export class NavigateForwardAction extends Action2 {
 			},
 			menu: [
 				{ id: MenuId.MenubarGoMenu, group: '1_history_nav', order: 2 },
-				{ id: MenuId.CommandCenter, order: 2 }
+				{ id: MenuId.CommandCenter, order: 2, when: ContextKeyExpr.has('config.workbench.navigationControl.enabled') }
 			]
 		});
 	}
@@ -1460,7 +1460,7 @@ export class NavigateBackwardsAction extends Action2 {
 			},
 			menu: [
 				{ id: MenuId.MenubarGoMenu, group: '1_history_nav', order: 1 },
-				{ id: MenuId.CommandCenter, order: 1 }
+				{ id: MenuId.CommandCenter, order: 1, when: ContextKeyExpr.has('config.workbench.navigationControl.enabled') }
 			]
 		});
 	}

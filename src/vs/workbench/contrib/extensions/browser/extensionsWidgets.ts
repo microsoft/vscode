@@ -425,6 +425,7 @@ class RemoteBadge extends Disposable {
 export class ExtensionPackCountWidget extends ExtensionWidget {
 
 	private element: HTMLElement | undefined;
+	private countBadge: CountBadge | undefined;
 
 	constructor(
 		private readonly parent: HTMLElement,
@@ -436,6 +437,8 @@ export class ExtensionPackCountWidget extends ExtensionWidget {
 
 	private clear(): void {
 		this.element?.remove();
+		this.countBadge?.dispose();
+		this.countBadge = undefined;
 	}
 
 	render(): void {
@@ -444,8 +447,8 @@ export class ExtensionPackCountWidget extends ExtensionWidget {
 			return;
 		}
 		this.element = append(this.parent, $('.extension-badge.extension-pack-badge'));
-		const countBadge = new CountBadge(this.element, {}, defaultCountBadgeStyles);
-		countBadge.setCount(this.extension.extensionPack.length);
+		this.countBadge = new CountBadge(this.element, {}, defaultCountBadgeStyles);
+		this.countBadge.setCount(this.extension.extensionPack.length);
 	}
 }
 
@@ -837,10 +840,10 @@ export class ExtensionRecommendationWidget extends ExtensionWidget {
 	}
 }
 
-export const extensionRatingIconColor = registerColor('extensionIcon.starForeground', { light: '#DF6100', dark: '#FF8E00', hcDark: '#FF8E00', hcLight: textLinkForeground }, localize('extensionIconStarForeground', "The icon color for extension ratings."), true);
-export const extensionVerifiedPublisherIconColor = registerColor('extensionIcon.verifiedForeground', textLinkForeground, localize('extensionIconVerifiedForeground', "The icon color for extension verified publisher."), true);
-export const extensionPreReleaseIconColor = registerColor('extensionIcon.preReleaseForeground', { dark: '#1d9271', light: '#1d9271', hcDark: '#1d9271', hcLight: textLinkForeground }, localize('extensionPreReleaseForeground', "The icon color for pre-release extension."), true);
-export const extensionSponsorIconColor = registerColor('extensionIcon.sponsorForeground', { light: '#B51E78', dark: '#D758B3', hcDark: null, hcLight: '#B51E78' }, localize('extensionIcon.sponsorForeground', "The icon color for extension sponsor."), true);
+export const extensionRatingIconColor = registerColor('extensionIcon.starForeground', { light: '#DF6100', dark: '#FF8E00', hcDark: '#FF8E00', hcLight: textLinkForeground }, localize('extensionIconStarForeground', "The icon color for extension ratings."), false);
+export const extensionVerifiedPublisherIconColor = registerColor('extensionIcon.verifiedForeground', textLinkForeground, localize('extensionIconVerifiedForeground', "The icon color for extension verified publisher."), false);
+export const extensionPreReleaseIconColor = registerColor('extensionIcon.preReleaseForeground', { dark: '#1d9271', light: '#1d9271', hcDark: '#1d9271', hcLight: textLinkForeground }, localize('extensionPreReleaseForeground', "The icon color for pre-release extension."), false);
+export const extensionSponsorIconColor = registerColor('extensionIcon.sponsorForeground', { light: '#B51E78', dark: '#D758B3', hcDark: null, hcLight: '#B51E78' }, localize('extensionIcon.sponsorForeground', "The icon color for extension sponsor."), false);
 
 registerThemingParticipant((theme, collector) => {
 	const extensionRatingIcon = theme.getColor(extensionRatingIconColor);

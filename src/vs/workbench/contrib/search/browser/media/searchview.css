@@ -195,6 +195,22 @@
 	height: 100%;
 }
 
+.search-view .textsearchresult {
+	display: flex;
+	position: relative;
+	line-height: 22px;
+	padding: 0;
+	height: 100%;
+	font-weight: 500;
+}
+
+.search-view .textsearchresult .monaco-icon-label .codicon {
+	position: relative;
+	font-size: 12px;
+	top: 1px;
+	padding-right: 3px;
+}
+
 .pane-body:not(.wide) .search-view .foldermatch .monaco-icon-label,
 .pane-body:not(.wide) .search-view .filematch .monaco-icon-label {
 	flex: 1;

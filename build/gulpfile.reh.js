@@ -27,7 +27,7 @@ const File = require('vinyl');
 const fs = require('fs');
 const glob = require('glob');
 const { compileBuildTask } = require('./gulpfile.compile');
-const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
+const { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
 const { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } = require('./gulpfile.vscode.web');
 const cp = require('child_process');
 const log = require('fancy-log');
@@ -72,7 +72,7 @@ const serverResourceIncludes = [
 	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-profile.zsh',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/fish_xdg_data/fish/vendor_conf.d/shellIntegration.fish',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish',
 
 ];
 
@@ -433,9 +433,9 @@ function tweakProductForServerWeb(product) {
 }
 
 ['reh', 'reh-web'].forEach(type => {
-	const optimizeTask = task.define(`optimize-vscode-${type}`, task.series(
+	const bundleTask = task.define(`bundle-vscode-${type}`, task.series(
 		util.rimraf(`out-vscode-${type}`),
-		optimize.optimizeTask(
+		optimize.bundleTask(
 			{
 				out: `out-vscode-${type}`,
 				esm: {
@@ -452,7 +452,7 @@ function tweakProductForServerWeb(product) {
 	));
 
 	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
-		optimizeTask,
+		bundleTask,
 		util.rimraf(`out-vscode-${type}-min`),
 		optimize.minifyTask(`out-vscode-${type}`, `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
 	));
@@ -468,6 +468,7 @@ function tweakProductForServerWeb(product) {
 			const destinationFolderName = `vscode-${type}${dashed(platform)}${dashed(arch)}`;
 
 			const serverTaskCI = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
+				compileNativeExtensionsBuildTask,
 				gulp.task(`node-${platform}-${arch}`),
 				util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
 				packageTask(type, platform, arch, sourceFolderName, destinationFolderName)
@@ -476,9 +477,10 @@ function tweakProductForServerWeb(product) {
 
 			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 				compileBuildTask,
-				compileExtensionsBuildTask,
+				cleanExtensionsBuildTask,
+				compileNonNativeExtensionsBuildTask,
 				compileExtensionMediaBuildTask,
-				minified ? minifyTask : optimizeTask,
+				minified ? minifyTask : bundleTask,
 				serverTaskCI
 			));
 			gulp.task(serverTask);

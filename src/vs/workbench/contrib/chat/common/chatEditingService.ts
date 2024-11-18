@@ -3,10 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -15,25 +20,64 @@ import { IChatResponseModel } from './chatModel.js';
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
 export interface IChatEditingService {
+
 	_serviceBrand: undefined;
 
 	readonly onDidCreateEditingSession: Event<IChatEditingSession>;
+	/**
+	 * emitted when a session is created, changed or disposed
+	 */
+	readonly onDidChangeEditingSession: Event<void>;
+
+	readonly currentEditingSessionObs: IObservable<IChatEditingSession | null>;
 
 	readonly currentEditingSession: IChatEditingSession | null;
+	readonly currentAutoApplyOperation: CancellationTokenSource | null;
+
+	readonly editingSessionFileLimit: number;
 
 	startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession>;
-	addFileToWorkingSet(resource: URI): Promise<void>;
-	triggerEditComputation(responseModel: IChatResponseModel): Promise<void>;
+	getEditingSession(resource: URI): IChatEditingSession | null;
+	createSnapshot(requestId: string): void;
+	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
+	restoreSnapshot(requestId: string | undefined): Promise<void>;
+
+	hasRelatedFilesProviders(): boolean;
+	registerRelatedFilesProvider(handle: number, provider: IChatRelatedFilesProvider): IDisposable;
+	getRelatedFiles(chatSessionId: string, prompt: string, token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined>;
 }
+
+export interface IChatRequestDraft {
+	readonly prompt: string;
+	readonly files: readonly URI[];
+}
+
+export interface IChatRelatedFileProviderMetadata {
+	readonly description: string;
+}
+
+export interface IChatRelatedFile {
+	readonly uri: URI;
+	readonly description: string;
+}
+
+export interface IChatRelatedFilesProvider {
+	readonly description: string;
+	provideRelatedFiles(chatRequest: IChatRequestDraft, token: CancellationToken): Promise<IChatRelatedFile[] | undefined>;
+}
+
+export interface WorkingSetDisplayMetadata { state: WorkingSetEntryState; description?: string }
 
 export interface IChatEditingSession {
 	readonly chatSessionId: string;
-	readonly onDidChange: Event<void>;
+	readonly onDidChange: Event<ChatEditingSessionChangeType>;
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
-	readonly workingSet: IObservable<readonly URI[]>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
+	readonly hiddenRequestIds: IObservable<readonly string[]>;
+	readonly workingSet: ResourceMap<WorkingSetDisplayMetadata>;
 	readonly isVisible: boolean;
+	addFileToWorkingSet(uri: URI, description?: string, kind?: WorkingSetEntryState.Transient | WorkingSetEntryState.Suggested): void;
 	show(): Promise<void>;
 	remove(...uris: URI[]): void;
 	accept(...uris: URI[]): Promise<void>;
@@ -42,25 +86,41 @@ export interface IChatEditingSession {
 	 * Will lead to this object getting disposed
 	 */
 	stop(): Promise<void>;
+
+	undoInteraction(): Promise<void>;
+	redoInteraction(): Promise<void>;
 }
 
 export const enum WorkingSetEntryState {
 	Modified,
 	Accepted,
 	Rejected,
+	Transient,
 	Attached,
+	Sent, // TODO@joyceerhl remove this
+	Suggested,
+}
+
+export const enum ChatEditingSessionChangeType {
+	WorkingSet,
+	Other,
 }
 
 export interface IModifiedFileEntry {
 	readonly originalURI: URI;
+	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
 	readonly state: IObservable<WorkingSetEntryState>;
+	readonly isCurrentlyBeingModified: IObservable<boolean>;
+	readonly rewriteRatio: IObservable<number>;
+	readonly diffInfo: IObservable<IDocumentDiff>;
+	readonly lastModifyingRequestId: string;
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
 }
 
 export interface IChatEditingSessionStream {
-	textEdits(resource: URI, textEdits: TextEdit[]): void;
+	textEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
 }
 
 export const enum ChatEditingSessionState {
@@ -76,3 +136,24 @@ export const chatEditingWidgetFileStateContextKey = new RawContextKey<WorkingSet
 export const decidedChatEditingResourceContextKey = new RawContextKey<string[]>('decidedChatEditingResource', []);
 export const chatEditingResourceContextKey = new RawContextKey<string | undefined>('chatEditingResource', undefined);
 export const inChatEditingSessionContextKey = new RawContextKey<boolean | undefined>('inChatEditingSession', undefined);
+export const applyingChatEditsContextKey = new RawContextKey<boolean | undefined>('isApplyingChatEdits', undefined);
+export const hasUndecidedChatEditingResourceContextKey = new RawContextKey<boolean | undefined>('hasUndecidedChatEditingResource', false);
+export const hasAppliedChatEditsContextKey = new RawContextKey<boolean | undefined>('hasAppliedChatEdits', false);
+export const applyingChatEditsFailedContextKey = new RawContextKey<boolean | undefined>('applyingChatEditsFailed', false);
+
+export const chatEditingMaxFileAssignmentName = 'chatEditingSessionFileLimit';
+export const defaultChatEditingMaxFileLimit = 10;
+
+export const enum ChatEditKind {
+	Created,
+	Modified,
+}
+
+export interface IChatEditingActionContext {
+	// The chat session ID that this editing session is associated with
+	sessionId: string;
+}
+
+export function isChatEditingActionContext(thing: unknown): thing is IChatEditingActionContext {
+	return typeof thing === 'object' && !!thing && 'sessionId' in thing;
+}
