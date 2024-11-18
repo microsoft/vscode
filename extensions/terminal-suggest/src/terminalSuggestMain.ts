@@ -126,13 +126,15 @@ export async function activate(context: vscode.ExtensionContext) {
 
 									const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition);
 									const expectedText = `${optionLabel} `;
-									if (arg.suggestions?.length && precedingText.endsWith(expectedText)) {
+									if (arg.suggestions?.length && precedingText.includes(expectedText)) {
 										// there are specific suggestions to show
 										result = [];
+										const indexOfPrecedingText = terminalContext.commandLine.lastIndexOf(expectedText);
+										const currentPrefix = precedingText.slice(indexOfPrecedingText + expectedText.length);
 										for (const suggestion of arg.suggestions) {
 											const suggestionLabel = getLabel(suggestion);
-											if (suggestionLabel) {
-												result.push(createCompletionItem(terminalContext.cursorPosition, optionLabel + ' ', suggestionLabel, arg.name, terminalContext.cursorPosition));
+											if (suggestionLabel && suggestionLabel.startsWith(currentPrefix)) {
+												result.push(createCompletionItem(terminalContext.cursorPosition, optionLabel, suggestionLabel, arg.name, terminalContext.cursorPosition - 1));
 											}
 										}
 										return result;
