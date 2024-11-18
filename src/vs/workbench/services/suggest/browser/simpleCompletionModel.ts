@@ -115,7 +115,7 @@ export class SimpleCompletionModel {
 
 			// remember the word against which this item was
 			// scored. If word is undefined, then match against the empty string.
-			item.word = word || '';
+			item.word = word;
 			if (wordLen === 0) {
 				// when there is nothing to score against, don't
 				// event try to do. Use a const rank and rely on

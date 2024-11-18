@@ -29,7 +29,7 @@ export interface ITerminalCompletionProvider {
 
 export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
-	providers: ITerminalCompletionProvider[];
+	readonly providers: IterableIterator<ITerminalCompletionProvider>;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider, ...triggerCharacters: string[]): IDisposable;
 	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggeredProviders?: ITerminalCompletionProvider[]): Promise<ISimpleCompletion[] | undefined>;
 }
@@ -37,7 +37,18 @@ export interface ITerminalCompletionService {
 export class TerminalCompletionService extends Disposable implements ITerminalCompletionService {
 	declare _serviceBrand: undefined;
 	private readonly _providers: Map</*ext id*/string, Map</*provider id*/string, ITerminalCompletionProvider>> = new Map();
-	get providers() { return [...this._providers.values()].flatMap(providerMap => [...providerMap.values()]); }
+
+	get providers(): IterableIterator<ITerminalCompletionProvider> {
+		return this._providersGenerator();
+	}
+
+	private *_providersGenerator(): IterableIterator<ITerminalCompletionProvider> {
+		for (const providerMap of this._providers.values()) {
+			for (const provider of providerMap.values()) {
+				yield provider;
+			}
+		}
+	}
 
 	constructor(@IConfigurationService private readonly _configurationService: IConfigurationService) {
 		super();
@@ -106,3 +117,5 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		return completionItems.length > 0 ? completionItems : undefined;
 	}
 }
+
+
