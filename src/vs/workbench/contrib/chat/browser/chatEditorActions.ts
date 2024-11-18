@@ -110,11 +110,9 @@ abstract class NavigateAction extends Action2 {
 
 abstract class AcceptDiscardAction extends Action2 {
 
-	constructor(readonly accept: boolean) {
+	constructor(id: string, readonly accept: boolean) {
 		super({
-			id: accept
-				? 'chatEditor.action.accept'
-				: 'chatEditor.action.reject',
+			id,
 			title: accept
 				? localize2('accept', 'Accept Chat Edit')
 				: localize2('discard', 'Discard Chat Edit'),
@@ -168,6 +166,24 @@ abstract class AcceptDiscardAction extends Action2 {
 	}
 }
 
+export class AcceptAction extends AcceptDiscardAction {
+
+	static readonly ID = 'chatEditor.action.accept';
+
+	constructor() {
+		super(AcceptAction.ID, true);
+	}
+}
+
+export class RejectAction extends AcceptDiscardAction {
+
+	static readonly ID = 'chatEditor.action.reject';
+
+	constructor() {
+		super(RejectAction.ID, false);
+	}
+}
+
 class UndoHunkAction extends EditorAction2 {
 	constructor() {
 		super({
@@ -218,8 +234,8 @@ class OpenDiffFromHunkAction extends EditorAction2 {
 export function registerChatEditorActions() {
 	registerAction2(class NextAction extends NavigateAction { constructor() { super(true); } });
 	registerAction2(class PrevAction extends NavigateAction { constructor() { super(false); } });
-	registerAction2(class AcceptAction extends AcceptDiscardAction { constructor() { super(true); } });
-	registerAction2(class RejectAction extends AcceptDiscardAction { constructor() { super(false); } });
+	registerAction2(AcceptAction);
+	registerAction2(RejectAction);
 	registerAction2(UndoHunkAction);
 	registerAction2(OpenDiffFromHunkAction);
 }
