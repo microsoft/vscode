@@ -129,15 +129,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		// TODO: This currently invalidates everything after the deleted line, it could shift the
 		//       line data up to retain some up to date lines
 		// TODO: This does not invalidate lines that are no longer in the file
-		for (const i of [0, 1]) {
-			const upToDateLines = this._upToDateLines[i];
-			const lines = Array.from(upToDateLines);
-			for (const upToDateLine of lines) {
-				if (upToDateLine > e.fromLineNumber) {
-					upToDateLines.delete(upToDateLine);
-				}
-			}
-		}
+		this._invalidateLinesFrom(e.fromLineNumber);
 
 		// Queue updates that need to happen on the active buffer, not just the cache. This is
 		// deferred since the active buffer could be locked by the GPU which would block the main
@@ -150,15 +142,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	public override onLinesInserted(e: ViewLinesInsertedEvent): boolean {
 		// TODO: This currently invalidates everything after the deleted line, it could shift the
 		//       line data up to retain some up to date lines
-		for (const i of [0, 1]) {
-			const upToDateLines = this._upToDateLines[i];
-			const lines = Array.from(upToDateLines);
-			for (const upToDateLine of lines) {
-				if (upToDateLine > e.fromLineNumber) {
-					upToDateLines.delete(upToDateLine);
-				}
-			}
-		}
+		this._invalidateLinesFrom(e.fromLineNumber);
 		return true;
 	}
 
@@ -179,6 +163,18 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	}
 
 	// #endregion
+
+	private _invalidateLinesFrom(lineNumber: number): void {
+		for (const i of [0, 1]) {
+			const upToDateLines = this._upToDateLines[i];
+			const lines = Array.from(upToDateLines);
+			for (const upToDateLine of lines) {
+				if (upToDateLine >= lineNumber) {
+					upToDateLines.delete(upToDateLine);
+				}
+			}
+		}
+	}
 
 	reset() {
 		for (const bufferIndex of [0, 1]) {
