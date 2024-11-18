@@ -70,7 +70,14 @@ declare module 'vscode' {
 
 
 	export interface TerminalCompletionContext {
+		/**
+		 * The complete terminal command line.
+		 */
 		commandLine: string;
+		/**
+		 * The index of the
+		 * cursor in the command line.
+		 */
 		cursorPosition: number;
 	}
 

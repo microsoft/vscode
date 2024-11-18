@@ -2399,6 +2399,11 @@ export interface ITerminalCommandDto {
 	output: string | undefined;
 }
 
+export interface ITerminalCompletionContextDto {
+	commandLine: string;
+	cursorPosition: number;
+}
+
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number, exitCode: number | undefined, exitReason: TerminalExitReason): void;
 	$acceptTerminalOpened(id: number, extHostTerminalId: string | undefined, name: string, shellLaunchConfig: IShellLaunchConfigDto): void;
@@ -2425,7 +2430,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
 	$createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
 	$provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto, token: CancellationToken): Promise<SingleOrMany<TerminalQuickFix> | undefined>;
-	$provideTerminalCompletions(id: string, options: { commandLine: string; cursorPosition: number }, token: CancellationToken): Promise<TerminalCompletionItem[] | undefined>;
+	$provideTerminalCompletions(id: string, options: ITerminalCompletionContextDto, token: CancellationToken): Promise<TerminalCompletionItem[] | undefined>;
 }
 
 export interface ExtHostTerminalShellIntegrationShape {

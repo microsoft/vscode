@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { Event, Emitter } from '../../../base/common/event.js';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, ICommandDto, ITerminalQuickFixOpenerDto, ITerminalQuickFixTerminalCommandDto, TerminalCommandMatchResultDto, ITerminalCommandDto } from './extHost.protocol.js';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, ICommandDto, ITerminalQuickFixOpenerDto, ITerminalQuickFixTerminalCommandDto, TerminalCommandMatchResultDto, ITerminalCommandDto, ITerminalCompletionContextDto } from './extHost.protocol.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
@@ -771,10 +771,10 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public async $provideTerminalCompletions(id: string, options: { commandLine: string; cursorPosition: number }): Promise<vscode.TerminalCompletionItem[] | undefined> {
+	public async $provideTerminalCompletions(id: string, options: ITerminalCompletionContextDto): Promise<vscode.TerminalCompletionItem[] | undefined> {
 		const token = new CancellationTokenSource().token;
 		if (token.isCancellationRequested || !this.activeTerminal) {
-			return;
+			return undefined;
 		}
 
 		const provider = this._completionProviders.get(id);
