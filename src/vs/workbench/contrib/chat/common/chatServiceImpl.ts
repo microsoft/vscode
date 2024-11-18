@@ -952,7 +952,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	public hasSessions(): boolean {
-		return !!Object.values(this._persistedSessions);
+		return Object.values(this._persistedSessions).length > 0;
 	}
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void {

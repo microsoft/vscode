@@ -57,14 +57,15 @@ export class ChatViewWelcomeController extends Disposable {
 			return;
 		}
 
+		this.enabled = enabled;
 		this.enabledDisposables.clear();
+
 		if (!enabled) {
 			this.container.classList.toggle('chat-view-welcome-visible', false);
 			this.renderDisposables.clear();
 			return;
 		}
 
-		this.enabled = true;
 		const descriptors = chatViewsWelcomeRegistry.get();
 		if (descriptors.length) {
 			this.render(descriptors);
