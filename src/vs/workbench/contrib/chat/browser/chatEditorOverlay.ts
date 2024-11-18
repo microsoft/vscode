@@ -25,7 +25,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { assertType } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { ctxNotebookHasEditorModification } from '../../notebook/browser/chatEdit/notebookChatEditController.js';
+import { ctxNotebookHasEditorModification } from '../../notebook/browser/contrib/chatEdit/notebookChatEditController.js';
 import { AcceptAction, RejectAction } from './chatEditorActions.js';
 
 class ChatEditorOverlayWidget implements IOverlayWidget {

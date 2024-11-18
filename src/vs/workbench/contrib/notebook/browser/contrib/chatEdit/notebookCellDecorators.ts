@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqual } from '../../../../../base/common/resources.js';
-import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived } from '../../../../../base/common/observable.js';
-import { IChatEditingService, ChatEditingSessionState } from '../../../chat/common/chatEditingService.js';
-import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
-import { INotebookEditor } from '../notebookBrowser.js';
-import { ThrottledDelayer } from '../../../../../base/common/async.js';
-import { CellDiffInfo } from '../diff/notebookDiffViewModel.js';
-import { CellKind } from '../../common/notebookCommon.js';
-import { ICodeEditor, IViewZone } from '../../../../../editor/browser/editorBrowser.js';
-import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
-import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
-import { themeColorFromId } from '../../../../../base/common/themables.js';
-import { RenderOptions, LineSource, renderLines } from '../../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
-import { diffAddDecoration, diffWholeLineAddDecoration, diffDeleteDecoration } from '../../../../../editor/browser/widget/diffEditor/registrations.contribution.js';
-import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
-import { ITextModel, TrackedRangeStickiness, MinimapPosition, IModelDeltaDecoration, OverviewRulerLane } from '../../../../../editor/common/model.js';
-import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
-import { InlineDecoration, InlineDecorationType } from '../../../../../editor/common/viewModel.js';
-import { overviewRulerModifiedForeground, minimapGutterModifiedBackground, overviewRulerAddedForeground, minimapGutterAddedBackground, overviewRulerDeletedForeground, minimapGutterDeletedBackground } from '../../../scm/browser/dirtydiffDecorator.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
-import { tokenizeToString } from '../../../../../editor/common/languages/textToHtmlTokenizer.js';
-import * as DOM from '../../../../../base/browser/dom.js';
-import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
-import { splitLines } from '../../../../../base/common/strings.js';
-import { DefaultLineHeight } from '../diff/diffElementViewModel.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, derived } from '../../../../../../base/common/observable.js';
+import { IChatEditingService, ChatEditingSessionState } from '../../../../chat/common/chatEditingService.js';
+import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
+import { INotebookEditor } from '../../notebookBrowser.js';
+import { ThrottledDelayer } from '../../../../../../base/common/async.js';
+import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
+import { CellKind } from '../../../common/notebookCommon.js';
+import { ICodeEditor, IViewZone } from '../../../../../../editor/browser/editorBrowser.js';
+import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { EditorOption } from '../../../../../../editor/common/config/editorOptions.js';
+import { themeColorFromId } from '../../../../../../base/common/themables.js';
+import { RenderOptions, LineSource, renderLines } from '../../../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
+import { diffAddDecoration, diffWholeLineAddDecoration, diffDeleteDecoration } from '../../../../../../editor/browser/widget/diffEditor/registrations.contribution.js';
+import { IDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
+import { ITextModel, TrackedRangeStickiness, MinimapPosition, IModelDeltaDecoration, OverviewRulerLane } from '../../../../../../editor/common/model.js';
+import { ModelDecorationOptions } from '../../../../../../editor/common/model/textModel.js';
+import { InlineDecoration, InlineDecorationType } from '../../../../../../editor/common/viewModel.js';
+import { overviewRulerModifiedForeground, minimapGutterModifiedBackground, overviewRulerAddedForeground, minimapGutterAddedBackground, overviewRulerDeletedForeground, minimapGutterDeletedBackground } from '../../../../scm/browser/dirtydiffDecorator.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
+import { tokenizeToString } from '../../../../../../editor/common/languages/textToHtmlTokenizer.js';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { createTrustedTypesPolicy } from '../../../../../../base/browser/trustedTypes.js';
+import { splitLines } from '../../../../../../base/common/strings.js';
+import { DefaultLineHeight } from '../../diff/diffElementViewModel.js';
 import { INotebookOriginalCellModelFactory } from './notebookOriginalCellModelFactory.js';
 
 
