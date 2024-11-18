@@ -193,7 +193,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
-		const model = new SimpleCompletionModel(completions.map(c => new SimpleCompletionItem(c)), lineContext);
+		const model = new SimpleCompletionModel(completions.filter(c => !!c.label).map(c => new SimpleCompletionItem(c)), lineContext);
 		if (token.isCancellationRequested) {
 			return;
 		}
