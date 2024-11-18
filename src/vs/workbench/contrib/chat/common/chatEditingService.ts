@@ -66,16 +66,18 @@ export interface IChatRelatedFilesProvider {
 	provideRelatedFiles(chatRequest: IChatRequestDraft, token: CancellationToken): Promise<IChatRelatedFile[] | undefined>;
 }
 
+export interface WorkingSetDisplayMetadata { state: WorkingSetEntryState; description?: string }
+
 export interface IChatEditingSession {
 	readonly chatSessionId: string;
-	readonly onDidChange: Event<void>;
+	readonly onDidChange: Event<ChatEditingSessionChangeType>;
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	readonly hiddenRequestIds: IObservable<readonly string[]>;
-	readonly workingSet: ResourceMap<WorkingSetEntryState>;
+	readonly workingSet: ResourceMap<WorkingSetDisplayMetadata>;
 	readonly isVisible: boolean;
-	addFileToWorkingSet(uri: URI): void;
+	addFileToWorkingSet(uri: URI, description?: string, kind?: WorkingSetEntryState.Transient | WorkingSetEntryState.Suggested): void;
 	show(): Promise<void>;
 	remove(...uris: URI[]): void;
 	accept(...uris: URI[]): Promise<void>;
@@ -95,7 +97,13 @@ export const enum WorkingSetEntryState {
 	Rejected,
 	Transient,
 	Attached,
-	Sent,
+	Sent, // TODO@joyceerhl remove this
+	Suggested,
+}
+
+export const enum ChatEditingSessionChangeType {
+	WorkingSet,
+	Other,
 }
 
 export interface IModifiedFileEntry {

@@ -42,12 +42,13 @@ import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
 import { ChatTreeItem, IChatWidgetService } from '../chat.js';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
-import { IChatContentPart } from './chatContentParts.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 const $ = dom.$;
 
 export interface IChatReferenceListItem extends IChatContentReference {
 	title?: string;
+	description?: string;
 	state?: WorkingSetEntryState;
 }
 
@@ -59,10 +60,12 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
+	private readonly hasFollowingContent: boolean;
+
 	constructor(
 		private readonly data: ReadonlyArray<IChatCollapsibleListItem>,
 		labelOverride: string | undefined,
-		element: IChatResponseViewModel,
+		context: IChatContentPartRenderContext,
 		contentReferencesListPool: CollapsibleListPool,
 		@IOpenerService openerService: IOpenerService,
 		@IMenuService menuService: IMenuService,
@@ -71,6 +74,8 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 	) {
 		super();
 
+		const element = context.element as IChatResponseViewModel;
+		this.hasFollowingContent = context.contentIndex + 1 < context.content.length;
 		const referencesLabel = labelOverride ?? (data.length > 1 ?
 			localize('usedReferencesPlural', "Used {0} references", data.length) :
 			localize('usedReferencesSingular', "Used {0} reference", 1));
@@ -162,8 +167,7 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		return other.kind === 'references' && other.references.length === this.data.length ||
-			other.kind === 'codeCitations' && other.citations.length === this.data.length;
+		return other.kind === 'references' && other.references.length === this.data.length && (!!followingContent.length === this.hasFollowingContent);
 	}
 
 	private updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {
@@ -382,12 +386,12 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
 				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString() });
 			} else {
-				if (data.state === WorkingSetEntryState.Transient) {
+				if (data.state === WorkingSetEntryState.Transient || data.state === WorkingSetEntryState.Suggested) {
 					templateData.label.setResource(
 						{
 							resource: uri,
 							name: basenameOrAuthority(uri),
-							description: localize('chat.openEditor', 'Open Editor'),
+							description: data.description ?? localize('chat.openEditor', 'Open Editor'),
 							range: 'range' in reference ? reference.range : undefined,
 						}, { icon, title: data.options?.status?.description ?? data.title });
 				} else {

@@ -192,7 +192,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 	private openResource(resource: URI, isDirectory?: boolean, range?: IRange): void {
 		if (isDirectory) {
 			// Reveal Directory in explorer
-			this.commandService.executeCommand(revealInsideBarCommand.id, resource);
+			this.commandService.executeCommand(revealInSideBarCommand.id, resource);
 			return;
 		}
 

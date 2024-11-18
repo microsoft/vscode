@@ -95,7 +95,7 @@ export class NotebookAccessibilityProvider extends Disposable implements IListAc
 
 	private createItemLabel(executionLabel: string, cellKind: CellKind) {
 		return this.isReplHistory ?
-			`item${executionLabel}` :
+			`cell${executionLabel}` :
 			`${cellKind === CellKind.Markup ? 'markdown' : 'code'} cell${executionLabel}`;
 	}
 

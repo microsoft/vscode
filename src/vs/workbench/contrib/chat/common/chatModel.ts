@@ -36,7 +36,7 @@ export interface IBaseChatRequestVariableEntry {
 	mimeType?: string;
 
 	// TODO these represent different kinds, should be extracted to new interfaces with kind tags
-	kind?: unknown;
+	kind?: never;
 	/**
 	 * True if the variable has a value vs being a reference to a variable
 	 */
@@ -49,6 +49,8 @@ export interface IBaseChatRequestVariableEntry {
 
 export interface IChatRequestImplicitVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
 	readonly kind: 'implicit';
+	readonly isDynamic: true;
+	readonly isFile: true;
 	readonly value: URI | Location | undefined;
 	readonly isSelection: boolean;
 	enabled: boolean;
@@ -62,7 +64,18 @@ export interface IChatRequestPasteVariableEntry extends Omit<IBaseChatRequestVar
 	pastedLines: string;
 }
 
-export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | IBaseChatRequestVariableEntry;
+export interface ISymbolVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+	readonly kind: 'symbol';
+	readonly isDynamic: true;
+	readonly value: Location;
+}
+
+export interface ICommandResultVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+	readonly kind: 'command';
+	readonly isDynamic: true;
+}
+
+export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry| ISymbolVariableEntry | ICommandResultVariableEntry | IBaseChatRequestVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';

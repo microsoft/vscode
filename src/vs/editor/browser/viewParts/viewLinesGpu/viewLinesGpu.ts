@@ -355,8 +355,8 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 						}
 					},
 					{
-						width: page.usedArea.right - page.usedArea.left,
-						height: page.usedArea.bottom - page.usedArea.top
+						width: page.usedArea.right - page.usedArea.left + 1,
+						height: page.usedArea.bottom - page.usedArea.top + 1
 					},
 				);
 			}
@@ -386,6 +386,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean { return true; }
 	override onFlushed(e: viewEvents.ViewFlushedEvent): boolean { return true; }
 	override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean { return true; }
+	override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean { return true; }
 	override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean { return true; }
 	override onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean { return true; }
 	override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean { return true; }
@@ -394,10 +395,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 	override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this._contentLeftObs.set(this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft, undefined);
-		return true;
-	}
-	override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		this._renderStrategy.onLinesDeleted(e);
 		return true;
 	}
 
@@ -427,6 +424,10 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		const pass = encoder.beginRenderPass(this._renderPassDescriptor);
 		pass.setPipeline(this._pipeline);
 		pass.setVertexBuffer(0, this._vertexBuffer);
+
+		// Only draw the content area
+		const contentLeft = Math.ceil(this._contentLeftObs.get() * this._viewGpuContext.devicePixelRatio.get());
+		pass.setScissorRect(contentLeft, 0, this.canvas.width - contentLeft, this.canvas.height);
 
 		pass.setBindGroup(0, this._bindGroup);
 

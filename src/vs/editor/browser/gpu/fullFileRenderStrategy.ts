@@ -9,7 +9,7 @@ import { EditorOption } from '../../common/config/editorOptions.js';
 import { CursorColumns } from '../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
 import { ViewEventHandler } from '../../common/viewEventHandler.js';
-import type { ViewLinesDeletedEvent, ViewScrollChangedEvent } from '../../common/viewEvents.js';
+import { ViewEventType, type ViewConfigurationChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../common/viewEvents.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewLineRenderingData } from '../../common/viewModel.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
@@ -38,6 +38,8 @@ const enum CellBufferInfo {
 	TextureIndex = 5,
 }
 
+type QueuedBufferEvent = ViewLinesDeletedEvent | ViewZonesChangedEvent;
+
 export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRenderStrategy {
 
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
@@ -61,7 +63,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	private _scrollOffsetValueBuffer: Float32Array;
 	private _scrollInitialized: boolean = false;
 
-	private readonly _queuedBufferUpdates: [ViewLinesDeletedEvent[], ViewLinesDeletedEvent[]] = [[], []];
+	private readonly _queuedBufferUpdates: [QueuedBufferEvent[], QueuedBufferEvent[]] = [[], []];
 
 	get bindGroupEntries(): GPUBindGroupEntry[] {
 		return [
@@ -107,8 +109,50 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 	// #region Event handlers
 
+	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
+		this._upToDateLines[0].clear();
+		this._upToDateLines[1].clear();
+		return true;
+	}
+
+	public override onTokensChanged(e: ViewTokensChangedEvent): boolean {
+		// TODO: This currently fires for the entire viewport whenever scrolling stops
+		//       https://github.com/microsoft/vscode/issues/233942
+		for (const range of e.ranges) {
+			for (let i = range.fromLineNumber; i <= range.toLineNumber; i++) {
+				this._upToDateLines[0].delete(i);
+				this._upToDateLines[1].delete(i);
+			}
+		}
+		return true;
+	}
+
 	public override onLinesDeleted(e: ViewLinesDeletedEvent): boolean {
+		// TODO: This currently invalidates everything after the deleted line, it could shift the
+		//       line data up to retain some up to date lines
+		// TODO: This does not invalidate lines that are no longer in the file
+		this._invalidateLinesFrom(e.fromLineNumber);
+
+		// Queue updates that need to happen on the active buffer, not just the cache. This is
+		// deferred since the active buffer could be locked by the GPU which would block the main
+		// thread.
 		this._queueBufferUpdate(e);
+
+		return true;
+	}
+
+	public override onLinesInserted(e: ViewLinesInsertedEvent): boolean {
+		// TODO: This currently invalidates everything after the deleted line, it could shift the
+		//       line data up to retain some up to date lines
+		this._invalidateLinesFrom(e.fromLineNumber);
+		return true;
+	}
+
+	public override onLinesChanged(e: ViewLinesChangedEvent): boolean {
+		for (let i = e.fromLineNumber; i < e.fromLineNumber + e.count; i++) {
+			this._upToDateLines[0].delete(i);
+			this._upToDateLines[1].delete(i);
+		}
 		return true;
 	}
 
@@ -120,7 +164,31 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		return true;
 	}
 
+	public override onZonesChanged(e: ViewZonesChangedEvent): boolean {
+		this._upToDateLines[0].clear();
+		this._upToDateLines[1].clear();
+
+		// Queue updates that need to happen on the active buffer, not just the cache. This is
+		// deferred since the active buffer could be locked by the GPU which would block the main
+		// thread.
+		this._queueBufferUpdate(e);
+
+		return true;
+	}
+
 	// #endregion
+
+	private _invalidateLinesFrom(lineNumber: number): void {
+		for (const i of [0, 1]) {
+			const upToDateLines = this._upToDateLines[i];
+			const lines = Array.from(upToDateLines);
+			for (const upToDateLine of lines) {
+				if (upToDateLine >= lineNumber) {
+					upToDateLines.delete(upToDateLine);
+				}
+			}
+		}
+	}
 
 	reset() {
 		for (const bufferIndex of [0, 1]) {
@@ -176,19 +244,34 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		while (queuedBufferUpdates.length) {
 			const e = queuedBufferUpdates.shift()!;
 
-			// Shift content below deleted line up
-			const deletedLineContentStartIndex = (e.fromLineNumber - 1) * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
-			const deletedLineContentEndIndex = (e.toLineNumber) * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
-			const nullContentStartIndex = (this._finalRenderedLine - (e.toLineNumber - e.fromLineNumber + 1)) * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
-			cellBuffer.set(cellBuffer.subarray(deletedLineContentEndIndex), deletedLineContentStartIndex);
+			switch (e.type) {
+				case ViewEventType.ViewLinesDeleted: {
+					// Shift content below deleted line up
+					const deletedLineContentStartIndex = (e.fromLineNumber - 1) * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
+					const deletedLineContentEndIndex = (e.toLineNumber) * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
+					const nullContentStartIndex = (this._finalRenderedLine - (e.toLineNumber - e.fromLineNumber + 1)) * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
+					cellBuffer.set(cellBuffer.subarray(deletedLineContentEndIndex), deletedLineContentStartIndex);
 
-			// Zero out content on lines that are no longer valid
-			cellBuffer.fill(0, nullContentStartIndex);
+					// Zero out content on lines that are no longer valid
+					cellBuffer.fill(0, nullContentStartIndex);
 
-			// Update dirty lines and final rendered line
-			dirtyLineStart = Math.min(dirtyLineStart, e.fromLineNumber);
-			dirtyLineEnd = this._finalRenderedLine;
-			this._finalRenderedLine -= e.toLineNumber - e.fromLineNumber + 1;
+					// Update dirty lines and final rendered line
+					dirtyLineStart = Math.min(dirtyLineStart, e.fromLineNumber);
+					dirtyLineEnd = this._finalRenderedLine;
+					this._finalRenderedLine -= e.toLineNumber - e.fromLineNumber + 1;
+					break;
+				}
+				case ViewEventType.ViewZonesChanged: {
+					// TODO: We could retain render data if we know what view zones changed and how
+					// Zero out content on all lines
+					cellBuffer.fill(0);
+
+					dirtyLineStart = 1;
+					dirtyLineEnd = this._finalRenderedLine;
+					this._finalRenderedLine = 0;
+					break;
+				}
+			}
 		}
 
 		for (y = viewportData.startLineNumber; y <= viewportData.endLineNumber; y++) {
@@ -201,10 +284,10 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 				continue;
 			}
 
-			// TODO: Update on dirty lines; is this known by line before rendering?
-			// if (upToDateLines.has(y)) {
-			// 	continue;
-			// }
+			// Skip updating the line if it's already up to date
+			if (upToDateLines.has(y)) {
+				continue;
+			}
 			dirtyLineStart = Math.min(dirtyLineStart, y);
 			dirtyLineEnd = Math.max(dirtyLineEnd, y);
 
@@ -306,7 +389,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		);
 	}
 
-	private _queueBufferUpdate(e: ViewLinesDeletedEvent) {
+	private _queueBufferUpdate(e: QueuedBufferEvent) {
 		this._queuedBufferUpdates[0].push(e);
 		this._queuedBufferUpdates[1].push(e);
 	}
