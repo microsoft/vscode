@@ -73,8 +73,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	isPasting: boolean = false;
 
-	private _hasActivatedExtensions: boolean = false;
-
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
 	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
@@ -111,7 +109,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._promptInputModel = undefined;
 			}
 		}));
-		this._registerExtensionListeners();
 	}
 
 	activate(xterm: Terminal): void {
@@ -137,9 +134,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		const enableExtensionCompletions = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enableExtensionCompletions;
-		if (enableExtensionCompletions && !this._hasActivatedExtensions) {
+		if (enableExtensionCompletions) {
 			await this._extensionService.activateByEvent('onTerminalCompletionsRequested');
-			this._hasActivatedExtensions = true;
 		}
 
 		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._promptInputModel.cursorIndex, this._shellType, token, providers);
@@ -204,20 +200,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._showCompletions(model);
 	}
 
-	private _registerExtensionListeners() {
-		this._register(this._extensionService.onDidChangeExtensions(() => this._hasActivatedExtensions = false));
-		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._hasActivatedExtensions = false));
-		this._register(this._extensionService.onDidChangeResponsiveChange(() => this._hasActivatedExtensions = false));
-		this._register(this._extensionService.onDidRegisterExtensions(() => this._hasActivatedExtensions = false));
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(terminalSuggestConfigSection)) {
-				const enableExtensionCompletions = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enableExtensionCompletions;
-				if (enableExtensionCompletions) {
-					this._hasActivatedExtensions = false;
-				}
-			}
-		}));
-	}
+
 
 	setContainerWithOverflow(container: HTMLElement): void {
 		this._container = container;
