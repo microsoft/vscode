@@ -439,14 +439,15 @@ class ChatSetupInstallAction extends Action2 {
 			installResult = 'installed';
 		} catch (error) {
 			installResult = isCancellationError(error) ? 'cancelled' : 'failedInstall';
-		} finally {
-			Promise.race([
-				timeout(2000), 										// helps prevent flicker with sign-in welcome view
-				Event.toPromise(chatAgentService.onDidChangeAgents)	// https://github.com/microsoft/vscode-copilot/issues/9274
-			]).finally(() => setupInstallingContextKey.reset());
 		}
 
 		telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signedIn });
+
+		await Promise.race([timeout(2000), Event.toPromise(chatAgentService.onDidChangeAgents)]); // reduce flicker (https://github.com/microsoft/vscode-copilot/issues/9274)
+
+		setupInstallingContextKey.reset();
+
+		(await showChatView(viewsService))?.focusInput();
 	}
 }
 
