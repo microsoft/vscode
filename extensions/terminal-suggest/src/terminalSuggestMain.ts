@@ -97,7 +97,8 @@ vscode.window.registerTerminalCompletionProvider({
 						if (!optionLabel) {
 							continue;
 						}
-						if (optionLabel.startsWith(prefix)) {
+
+						if (optionLabel.startsWith(prefix) || (prefix.length > specName.length && prefix.trim() === specName)) {
 							result.push(createCompletionItem(terminalContext.cursorPosition, prefix, optionLabel, option.description));
 						}
 						if (option.args !== undefined) {
