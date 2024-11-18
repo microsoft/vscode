@@ -135,14 +135,6 @@ export class ChatViewWelcomePart extends Disposable {
 				featureIndicator.textContent = localize('preview', 'PREVIEW');
 			}
 
-			if (content.progress) {
-				const progress = dom.append(this.element, $('.chat-welcome-view-progress'));
-				progress.appendChild(renderIcon(spinningLoading));
-
-				const progressLabel = dom.append(progress, $('span'));
-				progressLabel.textContent = content.progress;
-			}
-
 			const message = dom.append(this.element, $('.chat-welcome-view-message'));
 
 			if (content.icon) {
@@ -166,6 +158,14 @@ export class ChatViewWelcomePart extends Disposable {
 			}
 
 			dom.append(message, messageResult.element);
+
+			if (content.progress) {
+				const progress = dom.append(this.element, $('.chat-welcome-view-progress'));
+				progress.appendChild(renderIcon(spinningLoading));
+
+				const progressLabel = dom.append(progress, $('span'));
+				progressLabel.textContent = content.progress;
+			}
 
 			if (content.tips) {
 				const tips = dom.append(this.element, $('.chat-welcome-view-tips'));

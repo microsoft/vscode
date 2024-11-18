@@ -45,9 +45,9 @@ export namespace ChatContextKeys {
 		signedIn: new RawContextKey<boolean>('chatSetupSignedIn', false, { type: 'boolean', description: localize('chatSetupSignedIn', "True when chat setup is offered for a signed-in user.") }),
 		entitled: new RawContextKey<boolean>('chatSetupEntitled', false, { type: 'boolean', description: localize('chatSetupEntitled', "True when chat setup is offered for a signed-in, entitled user.") }),
 
-		triggering: new RawContextKey<boolean>('chatSetupTriggered', false, { type: 'boolean', description: localize('chatSetupTriggered', "True when chat setup is triggered.") }),
+		triggered: new RawContextKey<boolean>('chatSetupTriggered', false, { type: 'boolean', description: localize('chatSetupTriggered', "True when chat setup is triggered.") }),
 		installing: new RawContextKey<boolean>('chatSetupInstalling', false, { type: 'boolean', description: localize('chatSetupInstalling', "True when chat setup is installing chat.") }),
 		signingIn: new RawContextKey<boolean>('chatSetupSigningIn', false, { type: 'boolean', description: localize('chatSetupSigningIn', "True when chat setup is waiting for signing in.") })
 	};
-	export const setupRunning = ContextKeyExpr.or(ChatSetup.triggering, ChatSetup.signingIn, ChatSetup.installing);
+	export const setupRunning = ContextKeyExpr.or(ChatSetup.triggered, ChatSetup.signingIn, ChatSetup.installing);
 }
