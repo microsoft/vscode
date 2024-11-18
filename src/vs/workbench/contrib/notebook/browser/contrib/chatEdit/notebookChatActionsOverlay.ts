@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { INotebookEditor } from '../notebookBrowser.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
-import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { ActionRunner, IAction, IActionRunner } from '../../../../../base/common/actions.js';
-import { $ } from '../../../../../base/browser/dom.js';
-import { IChatEditingService, IModifiedFileEntry } from '../../../chat/common/chatEditingService.js';
-import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { autorunWithStore, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
-import { CellDiffInfo } from '../diff/notebookDiffViewModel.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { INotebookEditor } from '../../notebookBrowser.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ActionRunner, IAction, IActionRunner } from '../../../../../../base/common/actions.js';
+import { $ } from '../../../../../../base/browser/dom.js';
+import { IChatEditingService, IModifiedFileEntry } from '../../../../chat/common/chatEditingService.js';
+import { ACTIVE_GROUP, IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { autorunWithStore, IObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
 
 export class NotebookChatActionsOverlayController extends Disposable {
 	constructor(

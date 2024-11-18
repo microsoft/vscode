@@ -3,24 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqual } from '../../../../../base/common/resources.js';
-import { Disposable, dispose, IDisposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { IChatEditingService, WorkingSetEntryState } from '../../../chat/common/chatEditingService.js';
-import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
-import { INotebookEditor, INotebookEditorContribution } from '../notebookBrowser.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
-import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { Disposable, dispose, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { IChatEditingService, WorkingSetEntryState } from '../../../../chat/common/chatEditingService.js';
+import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
+import { INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { NotebookDeletedCellDecorator, NotebookInsertedCellDecorator, NotebookCellDiffDecorator } from './notebookCellDecorators.js';
-import { INotebookModelSynchronizerFactory, NotebookModelSynchronizer } from './notebookSynchronizer.js';
-import { INotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
-import { debouncedObservable2 } from '../../../../../base/common/observableInternal/utils.js';
-import { CellDiffInfo } from '../diff/notebookDiffViewModel.js';
+import { INotebookModelSynchronizerFactory, NotebookModelSynchronizer, NotebookModelSynchronizerFactory } from './notebookSynchronizer.js';
+import { INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
+import { debouncedObservable2 } from '../../../../../../base/common/observableInternal/utils.js';
+import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
 import { NotebookChatActionsOverlayController } from './notebookChatActionsOverlay.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { localize } from '../../../../../nls.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { localize } from '../../../../../../nls.js';
+import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
+import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
+import { INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory } from './notebookOriginalCellModelFactory.js';
 
 export const ctxNotebookHasEditorModification = new RawContextKey<boolean>('chat.hasNotebookEditorModifications', undefined, localize('chat.hasNotebookEditorModifications', "The current Notebook editor contains chat modifications"));
 
@@ -191,3 +194,8 @@ class NotebookChatEditorController extends Disposable {
 	}
 
 }
+
+registerNotebookContribution(NotebookChatEditorControllerContrib.ID, NotebookChatEditorControllerContrib);
+registerSingleton(INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory, InstantiationType.Delayed);
+registerSingleton(INotebookModelSynchronizerFactory, NotebookModelSynchronizerFactory, InstantiationType.Delayed);
+registerSingleton(INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory, InstantiationType.Delayed);
