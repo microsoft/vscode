@@ -3,82 +3,78 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from 'assert';
+import { TestDecoder } from './utils/testDecoder.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { newWriteableStream } from '../../../../../base/common/stream.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileReference } from '../../../../common/codecs/chatbotPromptCodec/tokens/fileReference.js';
 import { ChatbotPromptCodec } from '../../../../common/codecs/chatbotPromptCodec/chatbotPromptCodec.js';
+import { ChatbotPromptDecoder, TChatbotPromptToken } from '../../../../common/codecs/chatbotPromptCodec/chatbotPromptDecoder.js';
 
-// TODO: @legomushroom - refactor using common test helper?
+/**
+ * A reusable test utility that asserts that a `ChatbotPromptDecoder` instance
+ * correctly decodes `inputData` into a stream of `TChatbotPromptToken` tokens.
+ *
+ * ## Examples
+ *
+ * ```typescript
+ * // create a new test utility instance
+ * const test = testDisposables.add(new TestChatbotPromptCodec());
+ *
+ * // run the test
+ * await test.run(
+ *   ' hello #file:./some-file.md world\n',
+ *   [
+ *     new FileReference(
+ *       new Range(1, 8, 1, 28),
+ *       './some-file.md',
+ *     ),
+ *   ]
+ * );
+ */
+export class TestChatbotPromptCodec extends TestDecoder<TChatbotPromptToken, ChatbotPromptDecoder> {
+	constructor() {
+		const stream = newWriteableStream<VSBuffer>(null);
+		const codec = new ChatbotPromptCodec();
+		const decoder = codec.decode(stream);
+
+		super(stream, decoder);
+
+		this._register(codec);
+	}
+}
+
 suite('ChatbotPromptCodec', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('produces expected tokens', async () => {
-		const testInput = '#file:/etc/hosts some text\t\n  for #file:./README.md\t testing\n ✔ purposes\n#file:LICENSE.md ✌ \t#file:.gitignore\n\n\n\t   #file:/Users/legomushroom/repos/vscode   ';
+		const test = testDisposables.add(new TestChatbotPromptCodec());
 
-		// expected tokens for each of the sublines separated by the `\n` character
-		const expectedTokens = [
-			new FileReference(
-				new Range(1, 1, 1, 1 + 16),
-				'/etc/hosts',
-			),
-			new FileReference(
-				new Range(2, 7, 2, 7 + 17),
-				'./README.md',
-			),
-			new FileReference(
-				new Range(4, 1, 4, 1 + 16),
-				'LICENSE.md',
-			),
-			new FileReference(
-				new Range(4, 21, 4, 21 + 16),
-				'.gitignore',
-			),
-			new FileReference(
-				new Range(7, 5, 7, 5 + 38),
-				'/Users/legomushroom/repos/vscode',
-			),
-		];
-
-		// create the decoder from a binary stream
-		const stream = newWriteableStream<VSBuffer>(null);
-		const codec = testDisposables.add(new ChatbotPromptCodec());
-
-		// write the data to the stream after a short delay to ensure
-		// that the the data is sent after the reading loop below
-		setTimeout(() => {
-			stream.write(VSBuffer.fromString(testInput));
-			stream.end();
-		}, 1);
-
-		// get all tokens in one go
-		const tokens = await codec.decode(stream).consumeAll();
-
-
-		// validate the tokens that we received
-		for (let i = 0; i < expectedTokens.length; i++) {
-			const expectedToken = expectedTokens[i];
-			const receivedToken = tokens[i];
-
-			if (expectedToken instanceof FileReference) {
-				assert(
-					receivedToken instanceof FileReference,
-					`Token '${i}' must be a FileReference, got '${receivedToken}'.`,
-				);
-
-				assert(
-					receivedToken.equals(expectedToken),
-					`Token '${i}' (FileReference) must be ${expectedToken}, got ${receivedToken}.`,
-				);
-
-				continue;
-			}
-
-			throw new Error('Must produce only `FileReference` tokens atm.');
-		}
-
-		stream.destroy();
+		await test.run(
+			'#file:/etc/hosts some text\t\n  for #file:./README.md\t testing\n ✔ purposes\n#file:LICENSE.md ✌ \t#file:.gitignore\n\n\n\t   #file:/Users/legomushroom/repos/vscode   ',
+			[
+				new FileReference(
+					new Range(1, 1, 1, 1 + 16),
+					'/etc/hosts',
+				),
+				new FileReference(
+					new Range(2, 7, 2, 7 + 17),
+					'./README.md',
+				),
+				new FileReference(
+					new Range(4, 1, 4, 1 + 16),
+					'LICENSE.md',
+				),
+				new FileReference(
+					new Range(4, 21, 4, 21 + 16),
+					'.gitignore',
+				),
+				new FileReference(
+					new Range(7, 5, 7, 5 + 38),
+					'/Users/legomushroom/repos/vscode',
+				),
+			],
+		);
 	});
 });

@@ -22,7 +22,7 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 	/**
 	 * Buffered received data yet to be processed.
 	 */
-	private buffer: string = '';
+	private buffer: VSBuffer = VSBuffer.alloc(0);
 
 	/**
 	 * The last emitted `Line` token, if any. The value is used
@@ -36,7 +36,7 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 	 * Process data received from the input stream.
 	 */
 	protected override onStreamData(chunk: VSBuffer): void {
-		this.buffer += chunk.toString();
+		this.buffer = VSBuffer.concat([this.buffer, chunk]);
 
 		this.processData(this.buffer, false);
 	}
@@ -49,11 +49,20 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 	 * 					  which means that is the last call of this method.
 	 */
 	private processData(
-		data: string,
+		data: VSBuffer,
 		streamEnded: boolean,
 	): void {
+		// get previous emitted line number, if any
+		const lastLineNumber = this.lastEmittedLine
+			? this.lastEmittedLine.range.startLineNumber
+			: 0;
+
 		// split existing received data into a list of lines
-		const lines = data.split(NewLine.symbol);
+		// Note! we are doing `toString().split()` here with the assumption that
+		// 		 the `split()` method is faster than interating over the buffer
+		//       because it is inmplemented in `C`, otherwise it would make more
+		// 		 sense to implement the explicit iteration logic over here
+		const lines = data.toString().split(NewLine.symbol);
 
 		// iterate over all lines, emitting `line` objects for each of them,
 		// then shorten the `currentChunk` buffer value accordingly
@@ -61,8 +70,9 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 			const line = lines[i];
 			const maybeNextLine = lines[i + 1];
 
-			// index is 0-based but line numbers are 1-based
-			const lineNumber = i + 1;
+			// current line number is the last emitted line number plus one
+			// plus the current line index in the lines list
+			const lineNumber = lastLineNumber + 1 + i;
 
 			// the line is not empty and there is a next line present, then we
 			// can emit the current line because we know that it's a full line
@@ -91,6 +101,15 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 
 			break;
 		}
+
+		// if the stream has ended, assert that the input data buffer is now empty
+		// otherwise we have a logic error and leaving some buffered data behind
+		if (streamEnded) {
+			assert(
+				this.buffer.byteLength === 0,
+				'Expected the input data buffer to be empty when the stream ends.',
+			);
+		}
 	}
 
 	/**
@@ -101,13 +120,14 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 		lineNumber: number, // Note! 1-based indexing
 		lineText: string,
 	): void {
+		const lineByteLength = Buffer.from(lineText).length;
 		// assert that the buffer has enough data, otherwise
 		// there is an logic error in the data processing
 		assert(
-			this.buffer.length >= lineText.length,
+			this.buffer.byteLength >= lineByteLength,
 			[
 				'Not enough data in the input data buffer to emit the line',
-				`(line length: ${lineText.length}, buffer length: ${this.buffer.length}).`,
+				`(line length: ${lineByteLength}, buffer length: ${this.buffer.byteLength}).`,
 			].join(' '),
 		);
 
@@ -119,7 +139,7 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 		this.lastEmittedLine = line;
 
 		// remove line-length of data from the buffer
-		this.buffer = this.buffer.slice(lineText.length);
+		this.buffer = this.buffer.slice(lineByteLength);
 	}
 
 	/**
@@ -153,7 +173,7 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 		// if the input data buffer is not empty when the input stream ends,
 		// emit the remaining data as the last line before firing the `onEnd`
 		// event on this stream
-		if (this.buffer) {
+		if (this.buffer.byteLength > 0) {
 			this.processData(this.buffer, true);
 		}
 

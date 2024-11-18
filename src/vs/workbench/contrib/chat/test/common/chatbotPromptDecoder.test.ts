@@ -12,43 +12,33 @@ import { FileReference } from '../../../../common/codecs/chatbotPromptCodec/toke
 import { ChatbotPromptDecoder, TChatbotPromptToken } from '../../../../common/codecs/chatbotPromptCodec/chatbotPromptDecoder.js';
 
 /**
- * A reusable test utility that asserts that a `ChatbotPromptDecoder` isntance
+ * A reusable test utility that asserts that a `ChatbotPromptDecoder` instance
  * correctly decodes `inputData` into a stream of `TChatbotPromptToken` tokens.
  *
  * ## Examples
  *
  * ```typescript
  * // create a new test utility instance
- * const test = testDisposables.add(
- * new TestChatbotPromptDecoder(
- *   ' hello #file:./some-file.md world\n',
- * 	 [
- * 	   new FileReference(
- * 	     new Range(1, 8, 1, 28),
- * 	     './some-file.md',
- * 	   ),
- *   ]),
- * );
+ * const test = testDisposables.add(new TestChatbotPromptDecoder());
  *
  * // run the test
- * await test.run();
+ * await test.run(
+ *   ' hello #file:./some-file.md world\n',
+ *   [
+ *     new FileReference(
+ *       new Range(1, 8, 1, 28),
+ *       './some-file.md',
+ *     ),
+ *   ]
+ * );
  */
 export class TestChatbotPromptDecoder extends TestDecoder<TChatbotPromptToken, ChatbotPromptDecoder> {
 	constructor(
-		inputData: string,
-		expectedTokens: readonly TChatbotPromptToken[],
 	) {
 		const stream = newWriteableStream<VSBuffer>(null);
 		const decoder = new ChatbotPromptDecoder(stream);
 
-		super(
-			decoder,
-			() => {
-				stream.write(VSBuffer.fromString(inputData));
-				stream.end();
-			},
-			expectedTokens,
-		);
+		super(stream, decoder);
 	}
 }
 
@@ -57,29 +47,29 @@ suite('ChatbotPromptDecoder', () => {
 
 	test('produces expected tokens', async () => {
 		const test = testDisposables.add(
-			new TestChatbotPromptDecoder(
-				'\nhaalo!\n message 👾 message #file:./path/to/file1.md \n\n \t#file:a/b/c/filename2.md\t🖖\t#file:other-file.md\nsome text #file:/some/file/with/absolute/path.md\t',
-				[
-					new FileReference(
-						new Range(3, 21, 3, 21 + 24),
-						'./path/to/file1.md',
-					),
-					new FileReference(
-						new Range(5, 3, 5, 3 + 24),
-						'a/b/c/filename2.md',
-					),
-					new FileReference(
-						new Range(5, 31, 5, 31 + 19),
-						'other-file.md',
-					),
-					new FileReference(
-						new Range(6, 11, 6, 11 + 38),
-						'/some/file/with/absolute/path.md',
-					),
-				],
-			),
+			new TestChatbotPromptDecoder(),
 		);
 
-		await test.run();
+		await test.run(
+			'\nhaalo!\n message 👾 message #file:./path/to/file1.md \n\n \t#file:a/b/c/filename2.md\t🖖\t#file:other-file.md\nsome text #file:/some/file/with/absolute/path.md\t',
+			[
+				new FileReference(
+					new Range(3, 21, 3, 21 + 24),
+					'./path/to/file1.md',
+				),
+				new FileReference(
+					new Range(5, 3, 5, 3 + 24),
+					'a/b/c/filename2.md',
+				),
+				new FileReference(
+					new Range(5, 31, 5, 31 + 19),
+					'other-file.md',
+				),
+				new FileReference(
+					new Range(6, 11, 6, 11 + 38),
+					'/some/file/with/absolute/path.md',
+				),
+			],
+		);
 	});
 });

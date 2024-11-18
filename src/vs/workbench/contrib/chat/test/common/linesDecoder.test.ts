@@ -13,41 +13,30 @@ import { LinesDecoder, TLineToken } from '../../../../common/codecs/linesCodec/l
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 /**
- * A reusable test utility that asserts that a `LinesDecoder` isntance
+ * A reusable test utility that asserts that a `LinesDecoder` instance
  * correctly decodes `inputData` into a stream of `TLineToken` tokens.
  *
  * ## Examples
  *
  * ```typescript
  * // create a new test utility instance
- * const test = testDisposables.add(
- * new TestLinesDecoder(
- *   ' hello world\n',
- * 	 [
- * 	   new Line(1, ' hello world'),
- * 	   new NewLine(new Range(1, 13, 1, 14)),
- *   ]),
- * );
+ * const test = testDisposables.add(new TestLinesDecoder());
  *
  * // run the test
- * await test.run();
+ * await test.run(
+ *   ' hello world\n',
+ *   [
+ *     new Line(1, ' hello world'),
+ *     new NewLine(new Range(1, 13, 1, 14)),
+ *   ],
+ * );
  */
 export class TestLinesDecoder extends TestDecoder<TLineToken, LinesDecoder> {
-	constructor(
-		inputData: string,
-		expectedTokens: readonly TLineToken[],
-	) {
+	constructor() {
 		const stream = newWriteableStream<VSBuffer>(null);
 		const decoder = new LinesDecoder(stream);
 
-		super(
-			decoder,
-			() => {
-				stream.write(VSBuffer.fromString(inputData));
-				stream.end();
-			},
-			expectedTokens,
-		);
+		super(stream, decoder);
 	}
 }
 
@@ -56,7 +45,9 @@ suite('LinesDecoder', () => {
 		const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 		test('input starts with line data', async () => {
-			const test = testDisposables.add(new TestLinesDecoder(
+			const test = testDisposables.add(new TestLinesDecoder());
+
+			await test.run(
 				' hello world\nhow are you doing?\n\n 😊 \n ',
 				[
 					new Line(1, ' hello world'),
@@ -69,13 +60,13 @@ suite('LinesDecoder', () => {
 					new NewLine(new Range(4, 5, 4, 6)),
 					new Line(5, ' '),
 				],
-			));
-
-			await test.run();
+			);
 		});
 
 		test('input starts with a new line', async () => {
-			const test = testDisposables.add(new TestLinesDecoder(
+			const test = testDisposables.add(new TestLinesDecoder());
+
+			await test.run(
 				'\nsome text on this line\n\n\nanother 💬 on this line\n🤫\n',
 				[
 					new Line(1, ''),
@@ -91,13 +82,13 @@ suite('LinesDecoder', () => {
 					new Line(6, '🤫'),
 					new NewLine(new Range(6, 3, 6, 4)),
 				],
-			));
-
-			await test.run();
+			);
 		});
 
 		test('input starts and ends with multiple new lines', async () => {
-			const test = testDisposables.add(new TestLinesDecoder(
+			const test = testDisposables.add(new TestLinesDecoder());
+
+			await test.run(
 				'\n\n\nciao! 🗯️\t💭 💥 come\tva?\n\n\n\n\n',
 				[
 					new Line(1, ''),
@@ -117,9 +108,7 @@ suite('LinesDecoder', () => {
 					new Line(8, ''),
 					new NewLine(new Range(8, 1, 8, 2)),
 				],
-			));
-
-			await test.run();
+			);
 		});
 	});
 });
