@@ -249,11 +249,22 @@ export function registerActiveInstanceAction(
 	const originalRun = options.run;
 	return registerTerminalAction({
 		...options,
-		run: (c, accessor, args) => {
-			const activeInstance = c.service.activeInstance;
+		run: async (c, accessor, args) => {
+			let activeInstance = c.service.activeInstance;
+			const id = options.id;
 			if (activeInstance) {
 				return originalRun(activeInstance, c, accessor, args);
 			}
+			if (id !== 'workbench.action.terminal.runRecentCommand') {
+				return;
+			}
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand('workbench.action.terminal.new');
+			activeInstance = c.service.activeInstance;
+			if (activeInstance) {
+				return originalRun(activeInstance, c, accessor, args);
+			}
+			return;
 		}
 	});
 }
