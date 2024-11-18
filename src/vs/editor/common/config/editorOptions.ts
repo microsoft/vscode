@@ -1655,6 +1655,10 @@ export interface IEditorFindOptions {
 	 * Controls whether the search result and diff result automatically restarts from the beginning (or the end) when no further matches can be found
 	 */
 	loop?: boolean;
+	/**
+	 * Controls how the find widget search history should be stored
+	 */
+	findSearchHistory?: 'never' | 'workspace';
 }
 
 /**
@@ -1671,7 +1675,8 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			autoFindInSelection: 'never',
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
-			loop: true
+			loop: true,
+			findSearchHistory: 'never',
 		};
 		super(
 			EditorOption.find, 'find', defaults,
@@ -1719,7 +1724,16 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 					default: defaults.loop,
 					description: nls.localize('find.loop', "Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found.")
 				},
-
+				'editor.find.findSearchHistory': {
+					type: 'string',
+					enum: ['never', 'workspace'],
+					default: defaults.findSearchHistory,
+					enumDescriptions: [
+						nls.localize('editor.find.findSearchHistory.never', 'Do not store search history from the find widget.'),
+						nls.localize('editor.find.findSearchHistory.workspace', 'Store search history across the active workspace'),
+					],
+					description: nls.localize('find.findSearchHistory', "Controls how the find widget search history should be stored")
+				}
 			}
 		);
 	}
@@ -1740,6 +1754,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
 			loop: boolean(input.loop, this.defaultValue.loop),
+			findSearchHistory: stringSet<'never' | 'workspace'>(input.findSearchHistory, this.defaultValue.findSearchHistory, ['never', 'workspace']),
 		};
 	}
 }
@@ -4152,8 +4167,8 @@ export interface IInlineSuggestOptions {
 	edits?: {
 		experimental?: {
 			enabled?: boolean;
-			// side-by-side, mixed lines diff, interleaved lines diff
-			useMixedLinesDiff?: 'never' | 'whenPossible';
+			useMixedLinesDiff?: 'never' | 'whenPossible' | 'afterJumpWhenPossible';
+			useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
 		};
 	};
 }
@@ -4184,6 +4199,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				experimental: {
 					enabled: true,
 					useMixedLinesDiff: 'never',
+					useInterleavedLinesDiff: 'never',
 				},
 			},
 		};
@@ -4233,6 +4249,12 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.edits.experimental.useMixedLinesDiff', "Controls whether to enable experimental edits in inline suggestions."),
 					enum: ['never', 'whenPossible'],
 				},
+				'editor.inlineSuggest.edits.experimental.useInterleavedLinesDiff': {
+					type: 'string',
+					default: defaults.edits.experimental.useInterleavedLinesDiff,
+					description: nls.localize('inlineSuggest.edits.experimental.useInterleavedLinesDiff', "Controls whether to enable experimental interleaved lines diff in inline suggestions."),
+					enum: ['never', 'always', 'afterJump'],
+				},
 			}
 		);
 	}
@@ -4253,7 +4275,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			edits: {
 				experimental: {
 					enabled: boolean(input.edits?.experimental?.enabled, this.defaultValue.edits.experimental.enabled),
-					useMixedLinesDiff: stringSet(input.edits?.experimental?.useMixedLinesDiff, this.defaultValue.edits.experimental.useMixedLinesDiff, ['never', 'whenPossible']),
+					useMixedLinesDiff: stringSet(input.edits?.experimental?.useMixedLinesDiff, this.defaultValue.edits.experimental.useMixedLinesDiff, ['never', 'whenPossible', 'afterJumpWhenPossible']),
+					useInterleavedLinesDiff: stringSet(input.edits?.experimental?.useInterleavedLinesDiff, this.defaultValue.edits.experimental.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
 				},
 			},
 		};
@@ -6269,7 +6292,7 @@ export const EditorOptions = {
 	// Leave these at the end (because they have dependencies!)
 	editorClassName: register(new EditorClassName()),
 	defaultColorDecorators: register(new EditorBooleanOption(
-		EditorOption.defaultColorDecorators, 'defaultColorDecorators', false,
+		EditorOption.defaultColorDecorators, 'defaultColorDecorators', true,
 		{ markdownDescription: nls.localize('defaultColorDecorators', "Controls whether inline color decorations should be shown using the default document color provider") }
 	)),
 	pixelRatio: register(new EditorPixelRatio()),

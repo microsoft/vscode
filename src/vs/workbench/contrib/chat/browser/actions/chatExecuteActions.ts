@@ -18,7 +18,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsContextKey, IChatEditingService } from '../../common/chatEditingService.js';
 import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
-import { EDITS_VIEW_ID, IChatWidget, IChatWidgetService } from '../chat.js';
+import { EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
@@ -32,17 +32,27 @@ export interface IChatExecuteActionContext {
 	voice?: IVoiceChatExecuteActionContext;
 }
 
-export class SubmitAction extends Action2 {
+abstract class SubmitAction extends Action2 {
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const context: IChatExecuteActionContext | undefined = args[0];
+
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		widget?.acceptInput(context?.inputValue);
+	}
+}
+
+export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';
 
 	constructor() {
 		super({
-			id: SubmitAction.ID,
+			id: ChatSubmitAction.ID,
 			title: localize2('interactive.submit.label', "Send and Dispatch"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
-			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.requestInProgress.negate(), ContextKeyExpr.or(ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession), ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()))),
+			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.requestInProgress.negate(), ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession)),
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyCode.Enter,
@@ -57,19 +67,45 @@ export class SubmitAction extends Action2 {
 				{
 					id: MenuId.ChatExecute,
 					order: 4,
-					when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), ContextKeyExpr.or(ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession), ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()))),
+					when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession)),
 					group: 'navigation',
 				},
 			]
 		});
 	}
+}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext | undefined = args[0];
+export class ChatEditingSessionSubmitAction extends SubmitAction {
+	static readonly ID = 'workbench.action.edits.submit';
 
-		const widgetService = accessor.get(IChatWidgetService);
-		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		widget?.acceptInput(context?.inputValue);
+	constructor() {
+		super({
+			id: ChatEditingSessionSubmitAction.ID,
+			title: localize2('edits.submit.label', "Send"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.send,
+			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.requestInProgress.negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()),
+			keybinding: {
+				when: ChatContextKeys.inChatInput,
+				primary: KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menu: [
+				{
+					id: MenuId.ChatExecuteSecondary,
+					group: 'group_1',
+					when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()),
+					order: 1
+				},
+				{
+					id: MenuId.ChatExecute,
+					order: 4,
+					when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()),
+					group: 'navigation',
+				},
+			]
+		});
 	}
 }
 
@@ -85,7 +121,10 @@ class SubmitWithoutDispatchingAction extends Action2 {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.inputHasText,
 				ChatContextKeys.requestInProgress.negate(),
-				ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel))),
+				ContextKeyExpr.and(ContextKeyExpr.or(
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Editor),
+				))),
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Enter,
@@ -124,7 +163,8 @@ MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
 			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
 			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditingSession),
 			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),
-			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook)
+			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
+			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal)
 		)
 	),
 });
@@ -140,7 +180,8 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 			menu: {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_1',
-				order: 3
+				order: 3,
+				when: ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel)
 			},
 			keybinding: {
 				when: ChatContextKeys.inChatInput,
@@ -185,12 +226,22 @@ class SendToChatEditingAction extends Action2 {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_1',
 				order: 4,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession))
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ChatContextKeys.editingParticipantRegistered,
+					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
+					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Editor)
+				)
 			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession))
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ChatContextKeys.editingParticipantRegistered,
+					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
+					ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Editor),
+				)
 			}
 		});
 	}
@@ -231,7 +282,7 @@ class SendToChatEditingAction extends Action2 {
 			await currentEditingSession?.stop();
 		}
 
-		const { widget: editingWidget } = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
+		const { widget: editingWidget } = await viewsService.openView(EditsViewId) as ChatViewPane;
 		for (const attachment of widget.attachmentModel.attachments) {
 			if (attachment.isFile && URI.isUri(attachment.value)) {
 				chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(attachment.value);
@@ -258,7 +309,9 @@ class SendToNewChatAction extends Action2 {
 			f1: false,
 			menu: {
 				id: MenuId.ChatExecuteSecondary,
-				group: 'group_2'
+				group: 'group_2',
+				when: ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel)
+
 			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -328,7 +381,8 @@ export class CancelAction extends Action2 {
 }
 
 export function registerChatExecuteActions() {
-	registerAction2(SubmitAction);
+	registerAction2(ChatSubmitAction);
+	registerAction2(ChatEditingSessionSubmitAction);
 	registerAction2(SubmitWithoutDispatchingAction);
 	registerAction2(CancelAction);
 	registerAction2(SendToNewChatAction);

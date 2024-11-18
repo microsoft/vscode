@@ -27,7 +27,7 @@ import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common
 import { ChatAgentLocation, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IRawChatParticipantContribution } from '../common/chatParticipantContribTypes.js';
-import { CHAT_VIEW_ID } from './chat.js';
+import { ChatViewId } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from './chatViewPane.js';
 
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
@@ -299,7 +299,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 		// Register View. Name must be hardcoded because we want to show it even when the extension fails to load due to an API version incompatibility.
 		const name = 'GitHub Copilot';
 		const viewDescriptor: IViewDescriptor[] = [{
-			id: CHAT_VIEW_ID,
+			id: ChatViewId,
 			containerIcon: this._viewContainer.icon,
 			containerTitle: this._viewContainer.title.value,
 			singleViewPaneContainerTitle: this._viewContainer.title.value,
@@ -308,16 +308,22 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			canMoveView: true,
 			openCommandActionDescriptor: {
 				id: CHAT_SIDEBAR_PANEL_ID,
+				title: this._viewContainer.title,
+				mnemonicTitle: localize({ key: 'miToggleChat', comment: ['&& denotes a mnemonic'] }, "&&Chat"),
 				keybindings: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
 					mac: {
 						primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
 					}
 				},
-				order: 100
+				order: 1
 			},
 			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.Panel }]),
-			when: ContextKeyExpr.or(ChatContextKeys.panelParticipantRegistered, ChatContextKeys.extensionInvalid)
+			when: ContextKeyExpr.or(
+				ChatContextKeys.panelParticipantRegistered,
+				ChatContextKeys.extensionInvalid,
+				ChatContextKeys.setupRunning
+			)
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, this._viewContainer);
 
@@ -337,18 +343,30 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [viewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
 			storageId: viewContainerId,
 			hideIfEmpty: true,
-			order: 100,
-		}, ViewContainerLocation.AuxiliaryBar);
+			order: 101,
+		}, ViewContainerLocation.AuxiliaryBar, { doNotRegisterOpenCommand: true });
 
 		const id = 'workbench.panel.chat.view.edits';
 		const viewDescriptor: IViewDescriptor[] = [{
-			id: id,
+			id,
 			containerIcon: viewContainer.icon,
 			containerTitle: title.value,
 			singleViewPaneContainerTitle: title.value,
 			name: { value: title.value, original: title.value },
 			canToggleVisibility: false,
 			canMoveView: true,
+			openCommandActionDescriptor: {
+				id: viewContainerId,
+				title,
+				mnemonicTitle: localize({ key: 'miToggleEdits', comment: ['&& denotes a mnemonic'] }, "Copilot Ed&&its"),
+				keybindings: {
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
+					linux: {
+						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI
+					}
+				},
+				order: 2
+			},
 			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.EditingSession }]),
 			when: ChatContextKeys.editingParticipantRegistered
 		}];
@@ -406,7 +424,7 @@ export class ChatCompatibilityNotifier extends Disposable implements IWorkbenchC
 		const commandButton = `[${showExtensionLabel}](command:${showExtensionsWithIdsCommandId}?${encodeURIComponent(JSON.stringify([['GitHub.copilot-chat']]))})`;
 		const versionMessage = `GitHub Copilot Chat version: ${chatExtension.version}`;
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-		this._register(viewsRegistry.registerViewWelcomeContent(CHAT_VIEW_ID, {
+		this._register(viewsRegistry.registerViewWelcomeContent(ChatViewId, {
 			content: [mainMessage, commandButton, versionMessage].join('\n\n'),
 			when: ChatContextKeys.extensionInvalid,
 		}));

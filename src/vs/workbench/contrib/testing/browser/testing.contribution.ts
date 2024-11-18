@@ -180,7 +180,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.revealTest',
-	handler: async (accessor: ServicesAccessor, extId: string) => {
+	handler: async (accessor: ServicesAccessor, extId: string, opts?: { preserveFocus?: boolean; openToSide?: boolean }) => {
 		const test = accessor.get(ITestService).collection.getNodeById(extId);
 		if (!test) {
 			return;
@@ -217,7 +217,13 @@ CommandsRegistry.registerCommand({
 
 		await openerService.open(position
 			? uri.with({ fragment: `L${position.lineNumber}:${position.column}` })
-			: uri
+			: uri,
+			{
+				openToSide: opts?.openToSide,
+				editorOptions: {
+					preserveFocus: opts?.preserveFocus,
+				}
+			}
 		);
 	}
 });

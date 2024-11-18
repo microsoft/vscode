@@ -1909,6 +1909,12 @@ export enum TextEditorSelectionChangeKind {
 	Command = 3
 }
 
+export enum TextEditorDiffKind {
+	Addition = 1,
+	Deletion = 2,
+	Modification = 3
+}
+
 export enum TextDocumentChangeReason {
 	Undo = 1,
 	Redo = 2,
@@ -3907,6 +3913,19 @@ export class NotebookCellOutput {
 	}
 }
 
+export class CellErrorStackFrame {
+	/**
+	 * @param label The name of the stack frame
+	 * @param file The file URI of the stack frame
+	 * @param position The position of the stack frame within the file
+	 */
+	constructor(
+		public label: string,
+		public uri?: vscode.Uri,
+		public position?: Position,
+	) { }
+}
+
 export enum NotebookCellKind {
 	Markup = 1,
 	Code = 2
@@ -4345,7 +4364,8 @@ export class ChatCompletionItem implements vscode.ChatCompletionItem {
 
 export enum ChatEditingSessionActionOutcome {
 	Accepted = 1,
-	Rejected = 2
+	Rejected = 2,
+	Saved = 3
 }
 
 //#endregion
@@ -4511,12 +4531,18 @@ export class ChatResponseMovePart {
 	}
 }
 
-export class ChatResponseTextEditPart {
+export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart {
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
-	constructor(uri: vscode.Uri, edits: vscode.TextEdit | vscode.TextEdit[]) {
+	isDone?: boolean;
+	constructor(uri: vscode.Uri, editsOrDone: vscode.TextEdit | vscode.TextEdit[] | true) {
 		this.uri = uri;
-		this.edits = Array.isArray(edits) ? edits : [edits];
+		if (editsOrDone === true) {
+			this.isDone = true;
+			this.edits = [];
+		} else {
+			this.edits = Array.isArray(editsOrDone) ? editsOrDone : [editsOrDone];
+		}
 	}
 }
 
@@ -4659,16 +4685,11 @@ export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPa
 	name: string;
 	input: any;
 
-	/** @deprecated */
-	parameters: any;
-
 	constructor(callId: string, name: string, input: any) {
 		this.callId = callId;
 		this.name = name;
 
 		this.input = input;
-		// TODO@API backwards compat, remove
-		this.parameters = input;
 	}
 }
 

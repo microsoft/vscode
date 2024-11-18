@@ -36,24 +36,38 @@ export interface IBaseChatRequestVariableEntry {
 	mimeType?: string;
 
 	// TODO these represent different kinds, should be extracted to new interfaces with kind tags
-	kind?: unknown;
+	kind?: never;
 	/**
 	 * True if the variable has a value vs being a reference to a variable
 	 */
 	isDynamic?: boolean;
 	isFile?: boolean;
+	isDirectory?: boolean;
 	isTool?: boolean;
 	isImage?: boolean;
 }
 
 export interface IChatRequestImplicitVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
 	readonly kind: 'implicit';
+	readonly isDynamic: true;
+	readonly isFile: true;
 	readonly value: URI | Location | undefined;
 	readonly isSelection: boolean;
 	enabled: boolean;
 }
 
-export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IBaseChatRequestVariableEntry;
+export interface ISymbolVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+	readonly kind: 'symbol';
+	readonly isDynamic: true;
+	readonly value: Location;
+}
+
+export interface ICommandResultVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+	readonly kind: 'command';
+	readonly isDynamic: true;
+}
+
+export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | IBaseChatRequestVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
@@ -98,6 +112,7 @@ export interface IChatTextEditGroup {
 	edits: TextEdit[][];
 	state?: IChatTextEditGroupState;
 	kind: 'textEditGroup';
+	done: boolean | undefined;
 }
 
 /**
@@ -306,25 +321,26 @@ export class Response extends Disposable implements IResponse {
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit') {
-			if (progress.edits.length > 0) {
-				// merge text edits for the same file no matter when they come in
-				let found = false;
-				for (let i = 0; !found && i < this._responseParts.length; i++) {
-					const candidate = this._responseParts[i];
-					if (candidate.kind === 'textEditGroup' && isEqual(candidate.uri, progress.uri)) {
-						candidate.edits.push(progress.edits);
-						found = true;
-					}
+			// merge text edits for the same file no matter when they come in
+			let found = false;
+			for (let i = 0; !found && i < this._responseParts.length; i++) {
+				const candidate = this._responseParts[i];
+				if (candidate.kind === 'textEditGroup' && isEqual(candidate.uri, progress.uri)) {
+					candidate.edits.push(progress.edits);
+					candidate.done = progress.done;
+					found = true;
 				}
-				if (!found) {
-					this._responseParts.push({
-						kind: 'textEditGroup',
-						uri: progress.uri,
-						edits: [progress.edits]
-					});
-				}
-				this._updateRepr(quiet);
 			}
+			if (!found) {
+				this._responseParts.push({
+					kind: 'textEditGroup',
+					uri: progress.uri,
+					edits: [progress.edits],
+					done: progress.done
+				});
+			}
+			this._updateRepr(quiet);
+
 		} else if (progress.kind === 'progressTask') {
 			// Add a new resolving part
 			const responsePosition = this._responseParts.push(progress) - 1;
@@ -556,7 +572,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	setAgent(agent: IChatAgentData, slashCommand?: IChatAgentCommand) {
 		this._agent = agent;
 		this._slashCommand = slashCommand;
-		this._agentOrSlashCommandDetected = true;
+		this._agentOrSlashCommandDetected = !agent.isDefault;
 		this._onDidChange.fire();
 	}
 

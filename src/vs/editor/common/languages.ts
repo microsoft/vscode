@@ -93,6 +93,7 @@ export interface ITreeSitterTokenizationSupport {
 	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): Parser.QueryCapture[];
 	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[];
 	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
+	tokenizeEncodedInstrumented(lineNumber: number, textModel: model.ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined;
 }
 
 /**
@@ -758,6 +759,11 @@ export interface InlineCompletion {
 	readonly range?: IRange;
 
 	readonly command?: Command;
+
+	/**
+	 * Is called the first time an inline completion is shown.
+	*/
+	readonly shownCommand?: Command;
 
 	/**
 	 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
@@ -2277,6 +2283,7 @@ export interface DocumentDropEditsSession {
 export interface DocumentDropEditProvider {
 	readonly id?: string;
 	readonly dropMimeTypes?: readonly string[];
+	readonly providedDropEditKinds?: readonly HierarchicalKind[];
 
 	provideDocumentDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentDropEditsSession>;
 	resolveDocumentDropEdit?(edit: DocumentDropEdit, token: CancellationToken): Promise<DocumentDropEdit>;
@@ -2343,6 +2350,7 @@ export interface IInlineEdit {
 	range: IRange;
 	accepted?: Command;
 	rejected?: Command;
+	shown?: Command;
 	commands?: Command[];
 }
 

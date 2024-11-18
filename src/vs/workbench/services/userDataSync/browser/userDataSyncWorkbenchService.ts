@@ -42,6 +42,7 @@ import { ISecretStorageService } from '../../../../platform/secrets/common/secre
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { IUserDataSyncMachinesService } from '../../../../platform/userDataSync/common/userDataSyncMachines.js';
+import { equals } from '../../../../base/common/arrays.js';
 
 type AccountQuickPickItem = { label: string; authenticationProvider: IAuthenticationProvider; account?: UserDataSyncAccount; description?: string };
 
@@ -74,7 +75,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	private _authenticationProviders: IAuthenticationProvider[] = [];
 	get authenticationProviders() { return this._authenticationProviders; }
 
-	private _accountStatus: AccountStatus = AccountStatus.Unavailable;
+	private _accountStatus: AccountStatus = AccountStatus.Uninitialized;
 	get accountStatus(): AccountStatus { return this._accountStatus; }
 	private readonly _onDidChangeAccountStatus = this._register(new Emitter<AccountStatus>());
 	readonly onDidChangeAccountStatus = this._onDidChangeAccountStatus.event;
@@ -142,8 +143,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 	}
 
-	private updateAuthenticationProviders(): void {
+	private updateAuthenticationProviders(): boolean {
+		const oldValue = this._authenticationProviders;
 		this._authenticationProviders = (this.userDataSyncStoreManagementService.userDataSyncStore?.authenticationProviders || []).filter(({ id }) => this.authenticationService.declaredProviders.some(provider => provider.id === id));
+		this.logService.trace('Settings Sync: Authentication providers updated', this._authenticationProviders.map(({ id }) => id));
+		return equals(oldValue, this._authenticationProviders, (a, b) => a.id === b.id);
 	}
 
 	private isSupportedAuthenticationProviderId(authenticationProviderId: string): boolean {
@@ -181,9 +185,14 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			}
 		}
 
-		await this.update('initialize');
-
-		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => this.updateAuthenticationProviders()));
+		const initPromise = this.update('initialize');
+		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => {
+			if (this.updateAuthenticationProviders()) {
+				// Trigger update only after the initialization is done
+				initPromise.finally(() => this.update('declared authentication providers changed'));
+			}
+		}));
+		await initPromise;
 
 		this._register(Event.filter(
 			Event.any(
@@ -214,7 +223,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async update(reason: string): Promise<void> {
-		this.logService.info(`Settings Sync: Updating due to ${reason}`);
+		this.logService.trace(`Settings Sync: Updating due to ${reason}`);
 
 		this.updateAuthenticationProviders();
 		await this.updateCurrentAccount();
@@ -228,6 +237,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async updateCurrentAccount(): Promise<void> {
+		this.logService.trace('Settings Sync: Updating the current account');
 		const currentSessionId = this.currentSessionId;
 		const currentAuthenticationProviderId = this.currentAuthenticationProviderId;
 		if (currentSessionId) {
@@ -237,6 +247,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				for (const session of sessions) {
 					if (session.id === currentSessionId) {
 						this._current = new UserDataSyncAccount(id, session);
+						this.logService.trace('Settings Sync: Updated the current account', this._current.accountName);
 						return;
 					}
 				}
@@ -251,7 +262,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			try {
 				this.logService.trace('Settings Sync: Updating the token for the account', current.accountName);
 				const token = current.token;
-				this.logService.trace('Settings Sync: Token updated for the account', current.accountName);
+				this.logService.info('Settings Sync: Token updated for the account', current.accountName);
 				value = { token, authenticationProviderId: current.authenticationProviderId };
 			} catch (e) {
 				this.logService.error(e);
@@ -261,9 +272,10 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private updateAccountStatus(accountStatus: AccountStatus): void {
+		this.logService.trace(`Settings Sync: Updating the account status to ${accountStatus}`);
 		if (this._accountStatus !== accountStatus) {
 			const previous = this._accountStatus;
-			this.logService.trace(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
+			this.logService.info(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
 
 			this._accountStatus = accountStatus;
 			this.accountStatusContext.set(accountStatus);

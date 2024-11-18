@@ -67,7 +67,12 @@ struct VSOutput {
 	var vsOut: VSOutput;
 	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
 	vsOut.position = vec4f(
-		(((vert.position * vec2f(2, -2)) / layoutInfo.canvasDims)) * glyph.size + cell.position + ((glyph.origin * vec2f(2, -2)) / layoutInfo.canvasDims) + (((layoutInfo.viewportOffset - scrollOffset.offset * vec2(1, -1)) * 2) / layoutInfo.canvasDims),
+		// Make everything relative to top left instead of center
+		vec2f(-1, 1) +
+		((vert.position * vec2f(2, -2)) / layoutInfo.canvasDims) * glyph.size +
+		((cell.position * vec2f(2, -2)) / layoutInfo.canvasDims) +
+		((glyph.origin * vec2f(2, -2)) / layoutInfo.canvasDims) +
+		(((layoutInfo.viewportOffset - scrollOffset.offset * vec2(1, -1)) * 2) / layoutInfo.canvasDims),
 		0.0,
 		1.0
 	);

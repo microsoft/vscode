@@ -8,10 +8,12 @@ import { $, DragAndDropObserver } from '../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Mimes } from '../../../../base/common/mime.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { containsDragType, extractEditorsDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
@@ -20,7 +22,9 @@ import { ChatInputPart } from './chatInputPart.js';
 import { IChatWidgetStyles } from './chatWidget.js';
 
 enum ChatDragAndDropType {
-	FILE,
+	FILE_INTERNAL,
+	FILE_EXTERNAL,
+	FOLDER,
 	IMAGE
 }
 
@@ -35,7 +39,8 @@ export class ChatDragAndDrop extends Themable {
 		private readonly inputPart: ChatInputPart,
 		private readonly styles: IChatWidgetStyles,
 		@IThemeService themeService: IThemeService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(themeService);
 
@@ -85,8 +90,11 @@ export class ChatDragAndDrop extends Themable {
 
 	private onDrop(e: DragEvent): void {
 		this.updateDropFeedback(e, undefined);
+		this.drop(e);
+	}
 
-		const contexts = this.getAttachContext(e);
+	private async drop(e: DragEvent): Promise<void> {
+		const contexts = await this.getAttachContext(e);
 		if (contexts.length === 0) {
 			return;
 		}
@@ -94,17 +102,7 @@ export class ChatDragAndDrop extends Themable {
 		e.stopPropagation();
 		e.preventDefault();
 
-		// Make sure to attach only new contexts
-		const currentContextIds = this.inputPart.attachmentModel.getAttachmentIDs();
-		const filteredContext = [];
-		for (const context of contexts) {
-			if (!currentContextIds.has(context.id)) {
-				currentContextIds.add(context.id);
-				filteredContext.push(context);
-			}
-		}
-
-		this.inputPart.attachmentModel.addContext(...filteredContext);
+		this.inputPart.attachmentModel.addContext(...contexts);
 	}
 
 	private updateDropFeedback(e: DragEvent, dropType: ChatDragAndDropType | undefined): void {
@@ -114,6 +112,36 @@ export class ChatDragAndDrop extends Themable {
 		}
 
 		this.setOverlay(dropType);
+	}
+
+	private guessDropType(e: DragEvent): ChatDragAndDropType | undefined {
+		// This is an esstimation based on the datatransfer types/items
+		if (this.isImageDnd(e)) {
+			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? ChatDragAndDropType.IMAGE : undefined;
+		} else if (containsDragType(e, DataTransfers.FILES)) {
+			return ChatDragAndDropType.FILE_EXTERNAL;
+		} else if (containsDragType(e, DataTransfers.INTERNAL_URI_LIST)) {
+			return ChatDragAndDropType.FILE_INTERNAL;
+		} else if (containsDragType(e, Mimes.uriList)) {
+			return ChatDragAndDropType.FOLDER;
+		}
+
+		return undefined;
+	}
+
+	private isDragEventSupported(e: DragEvent): boolean {
+		// if guessed drop type is undefined, it means the drop is not supported
+		const dropType = this.guessDropType(e);
+		return dropType !== undefined;
+	}
+
+	private getDropTypeName(type: ChatDragAndDropType): string {
+		switch (type) {
+			case ChatDragAndDropType.FILE_INTERNAL: return localize('file', 'File');
+			case ChatDragAndDropType.FILE_EXTERNAL: return localize('file', 'File');
+			case ChatDragAndDropType.FOLDER: return localize('folder', 'Folder');
+			case ChatDragAndDropType.IMAGE: return localize('image', 'Image');
+		}
 	}
 
 	private isImageDnd(e: DragEvent): boolean {
@@ -139,42 +167,18 @@ export class ChatDragAndDrop extends Themable {
 		return false;
 	}
 
-	private guessDropType(e: DragEvent): ChatDragAndDropType | undefined {
-		// This is an esstimation based on the datatransfer types/items
-		if (this.isImageDnd(e)) {
-			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? ChatDragAndDropType.IMAGE : undefined;
-		} else if (containsDragType(e, DataTransfers.FILES, DataTransfers.INTERNAL_URI_LIST)) {
-			return ChatDragAndDropType.FILE;
-		}
-
-		return undefined;
-	}
-
-	private isDragEventSupported(e: DragEvent): boolean {
-		// if guessed drop type is undefined, it means the drop is not supported
-		const dropType = this.guessDropType(e);
-		return dropType !== undefined;
-	}
-
-	private getDropTypeName(type: ChatDragAndDropType): string {
-		switch (type) {
-			case ChatDragAndDropType.FILE: return localize('file', 'File');
-			case ChatDragAndDropType.IMAGE: return localize('image', 'Image');
-		}
-	}
-
-	private getAttachContext(e: DragEvent): IChatRequestVariableEntry[] {
+	private async getAttachContext(e: DragEvent): Promise<IChatRequestVariableEntry[]> {
 		if (!this.isDragEventSupported(e)) {
 			return [];
 		}
 
 		const data = extractEditorsDropData(e);
-		return coalesce(data.map(editorInput => {
+		return coalesce(await Promise.all(data.map(editorInput => {
 			return this.resolveAttachContext(editorInput);
-		}));
+		})));
 	}
 
-	private resolveAttachContext(editorInput: IDraggedResourceEditorInput): IChatRequestVariableEntry | undefined {
+	private async resolveAttachContext(editorInput: IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
 		// Image
 		const imageContext = getImageAttachContext(editorInput);
 		if (imageContext) {
@@ -182,7 +186,26 @@ export class ChatDragAndDrop extends Themable {
 		}
 
 		// File
-		return getEditorAttachContext(editorInput);
+		return await this.getEditorAttachContext(editorInput);
+	}
+
+	private async getEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
+		if (!editor.resource) {
+			return undefined;
+		}
+
+		let stat;
+		try {
+			stat = await this.fileService.stat(editor.resource);
+		} catch {
+			return undefined;
+		}
+
+		if (!stat.isDirectory && !stat.isFile) {
+			return undefined;
+		}
+
+		return getResourceAttachContext(editor.resource, stat.isDirectory);
 	}
 
 	private setOverlay(type: ChatDragAndDropType | undefined): void {
@@ -217,20 +240,14 @@ export class ChatDragAndDrop extends Themable {
 	}
 }
 
-function getEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput): IChatRequestVariableEntry | undefined {
-	if (!editor.resource) {
-		return undefined;
-	}
 
-	return getFileAttachContext(editor.resource);
-}
-
-function getFileAttachContext(resource: URI): IChatRequestVariableEntry | undefined {
+function getResourceAttachContext(resource: URI, isDirectory: boolean): IChatRequestVariableEntry | undefined {
 	return {
 		value: resource,
 		id: resource.toString(),
 		name: basename(resource),
-		isFile: true,
+		isFile: !isDirectory,
+		isDirectory,
 		isDynamic: true
 	};
 }

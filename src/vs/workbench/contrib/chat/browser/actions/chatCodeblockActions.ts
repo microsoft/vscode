@@ -21,8 +21,8 @@ import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
+import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatCopyKind, IChatService } from '../../common/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../chat.js';
@@ -191,15 +191,22 @@ export function registerChatCodeBlockActions() {
 				category: CHAT_CATEGORY,
 				icon: Codicon.gitPullRequestGoToChanges,
 
-				menu: {
-					id: MenuId.ChatCodeBlock,
-					group: 'navigation',
-					when: ContextKeyExpr.and(
-						ChatContextKeys.inChatSession,
-						...shellLangIds.map(e => ContextKeyExpr.notEquals(EditorContextKeys.languageId.key, e))
-					),
-					order: 10
-				},
+				menu: [
+					{
+						id: MenuId.ChatCodeBlock,
+						group: 'navigation',
+						when: ContextKeyExpr.and(
+							...shellLangIds.map(e => ContextKeyExpr.notEquals(EditorContextKeys.languageId.key, e))
+						),
+						order: 10
+					},
+					{
+						id: MenuId.ChatCodeBlock,
+						when: ContextKeyExpr.or(
+							...shellLangIds.map(e => ContextKeyExpr.equals(EditorContextKeys.languageId.key, e))
+						)
+					},
+				],
 				keybinding: {
 					when: ContextKeyExpr.or(ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()), accessibleViewInCodeBlock),
 					primary: KeyMod.CtrlCmd | KeyCode.Enter,
@@ -217,38 +224,6 @@ export function registerChatCodeBlockActions() {
 		}
 	});
 
-	registerAction2(class ApplyAllAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.chat.applyAll',
-				title: localize2('chat.applyAll.label', "Apply All Edits"),
-				precondition: ChatContextKeys.enabled, // improve this condition
-				f1: true,
-				category: CHAT_CATEGORY,
-				icon: Codicon.edit
-			});
-		}
-
-		override async run(accessor: ServicesAccessor, ...args: any[]) {
-			const chatWidgetService = accessor.get(IChatWidgetService);
-			const chatEditingService = accessor.get(IChatEditingService);
-
-			const widget = chatWidgetService.lastFocusedWidget;
-			if (!widget || !widget.viewModel) {
-				return;
-			}
-
-			const applyEditsId = args[0];
-
-			const chatModel = widget.viewModel.model;
-			const request = chatModel.getRequests().find(request => request.response?.result?.metadata?.applyEditsId === applyEditsId);
-			if (request && request.response) {
-				await chatEditingService.startOrContinueEditingSession(widget.viewModel.sessionId, { silent: true }); // make sure we have an editing session
-				await chatEditingService.triggerEditComputation(request.response);
-			}
-		}
-	});
-
 	registerAction2(class SmartApplyInEditorAction extends ChatCodeBlockAction {
 		constructor() {
 			super({
@@ -258,12 +233,18 @@ export function registerChatCodeBlockActions() {
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.insert,
-				menu: {
+				menu: [{
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
-					when: ChatContextKeys.inChatSession,
+					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.Terminal)),
 					order: 20
-				},
+				}, {
+					id: MenuId.ChatCodeBlock,
+					group: 'navigation',
+					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Terminal)),
+					isHiddenByDefault: true,
+					order: 20
+				}],
 				keybinding: {
 					when: ContextKeyExpr.or(ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()), accessibleViewInCodeBlock),
 					primary: KeyMod.CtrlCmd | KeyCode.Enter,

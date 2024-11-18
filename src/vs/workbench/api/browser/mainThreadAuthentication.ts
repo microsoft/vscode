@@ -20,6 +20,7 @@ import { getAuthenticationProviderActivationEvent } from '../../services/authent
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { ILogService } from '../../../platform/log/common/log.js';
 
 interface AuthenticationForceNewSessionOptions {
 	detail?: string;
@@ -70,6 +71,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	private readonly _proxy: ExtHostAuthenticationShape;
 
 	private readonly _registrations = this._register(new DisposableMap<string>());
+	private _sentProviderUsageEvents = new Set<string>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -81,7 +83,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -96,6 +99,16 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): Promise<void> {
+		if (!this.authenticationService.declaredProviders.find(p => p.id === id)) {
+			// If telemetry shows that this is not happening much, we can instead throw an error here.
+			this.logService.warn(`Authentication provider ${id} was not declared in the Extension Manifest.`);
+			type AuthProviderNotDeclaredClassification = {
+				owner: 'TylerLeonhardt';
+				comment: 'An authentication provider was not declared in the Extension Manifest.';
+				id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider id.' };
+			};
+			this.telemetryService.publicLog2<{ id: string }, AuthProviderNotDeclaredClassification>('authentication.providerNotDeclared', { id });
+		}
 		const emitter = new Emitter<AuthenticationSessionsChangeEvent>();
 		this._registrations.set(id, emitter);
 		const provider = new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, this.notificationService, emitter);
@@ -302,6 +315,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	private sendProviderUsageTelemetry(extensionId: string, providerId: string): void {
+		const key = `${extensionId}|${providerId}`;
+		if (this._sentProviderUsageEvents.has(key)) {
+			return;
+		}
+		this._sentProviderUsageEvents.add(key);
 		type AuthProviderUsageClassification = {
 			owner: 'TylerLeonhardt';
 			comment: 'Used to see which extensions are using which providers';

@@ -43,6 +43,7 @@ import { equals, sortedDiff } from '../../../../base/common/arrays.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { ISplice } from '../../../../base/common/sequence.js';
 import * as dom from '../../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { EncodingMode, ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from '../../../services/textfile/common/textfiles.js';
 import { gotoNextLocation, gotoPreviousLocation } from '../../../../platform/theme/common/iconRegistry.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -482,8 +483,7 @@ export class ShowPreviousChangeAction extends EditorAction {
 	constructor(private readonly outerEditor?: ICodeEditor) {
 		super({
 			id: 'editor.action.dirtydiff.previous',
-			label: nls.localize('show previous change', "Show Previous Change"),
-			alias: 'Show Previous Change',
+			label: nls.localize2('show previous change', "Show Previous Change"),
 			precondition: TextCompareEditorActiveContext.toNegated(),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F3, weight: KeybindingWeight.EditorContrib }
 		});
@@ -516,8 +516,7 @@ export class ShowNextChangeAction extends EditorAction {
 	constructor(private readonly outerEditor?: ICodeEditor) {
 		super({
 			id: 'editor.action.dirtydiff.next',
-			label: nls.localize('show next change', "Show Next Change"),
-			alias: 'Show Next Change',
+			label: nls.localize2('show next change', "Show Next Change"),
 			precondition: TextCompareEditorActiveContext.toNegated(),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F3, weight: KeybindingWeight.EditorContrib }
 		});
@@ -569,8 +568,7 @@ export class GotoPreviousChangeAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'workbench.action.editor.previousChange',
-			label: nls.localize('move to previous change', "Go to Previous Change"),
-			alias: 'Go to Previous Change',
+			label: nls.localize2('move to previous change', "Go to Previous Change"),
 			precondition: TextCompareEditorActiveContext.toNegated(),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F5, weight: KeybindingWeight.EditorContrib }
 		});
@@ -611,8 +609,7 @@ export class GotoNextChangeAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'workbench.action.editor.nextChange',
-			label: nls.localize('move to next change', "Go to Next Change"),
-			alias: 'Go to Next Change',
+			label: nls.localize2('move to next change', "Go to Next Change"),
 			precondition: TextCompareEditorActiveContext.toNegated(),
 			kbOpts: { kbExpr: EditorContextKeys.editorTextFocus, primary: KeyMod.Alt | KeyCode.F5, weight: KeybindingWeight.EditorContrib }
 		});
@@ -725,7 +722,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 	) {
 		super();
 		this.enabled = !contextKeyService.getContextKeyValue('isInDiffEditor');
-		this.stylesheet = dom.createStyleSheet(undefined, undefined, this._store);
+		this.stylesheet = domStylesheetsJs.createStyleSheet(undefined, undefined, this._store);
 
 		if (this.enabled) {
 			this.isDirtyDiffVisible = isDirtyDiffVisible.bindTo(contextKeyService);
@@ -1216,7 +1213,7 @@ export class DirtyDiffModel extends Disposable {
 	private _model: ITextFileEditorModel;
 	get original(): ITextModel[] { return this._originalTextModels; }
 
-	private diffDelayer = new ThrottledDelayer<{ changes: LabeledChange[]; mapChanges: Map<string, number[]> } | null>(200);
+	private diffDelayer = new ThrottledDelayer<void>(200);
 	private _quickDiffsPromise?: Promise<QuickDiff[]>;
 	private repositoryDisposables = new Set<IDisposable>();
 	private readonly originalModelDisposables = this._register(new DisposableStore());
@@ -1299,14 +1296,15 @@ export class DirtyDiffModel extends Disposable {
 		this.triggerDiff();
 	}
 
-	private triggerDiff(): Promise<void> {
+	private triggerDiff(): void {
 		if (!this.diffDelayer) {
-			return Promise.resolve();
+			return;
 		}
 
-		return this.diffDelayer
-			.trigger(() => this.diff())
-			.then((result: { changes: LabeledChange[]; mapChanges: Map<string, number[]> } | null) => {
+		this.diffDelayer
+			.trigger(async () => {
+				const result: { changes: LabeledChange[]; mapChanges: Map<string, number[]> } | null = await this.diff();
+
 				const originalModels = Array.from(this._originalModels.values());
 				if (!result || this._disposed || this._model.isDisposed() || originalModels.some(originalModel => originalModel.isDisposed())) {
 					return; // disposed
@@ -1321,7 +1319,8 @@ export class DirtyDiffModel extends Disposable {
 				}
 
 				this.setChanges(result.changes, result.mapChanges);
-			}, (err) => onUnexpectedError(err));
+			})
+			.catch(err => onUnexpectedError(err));
 	}
 
 	private setChanges(changes: LabeledChange[], mapChanges: Map<string, number[]>): void {
@@ -1547,7 +1546,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super();
-		this.stylesheet = dom.createStyleSheet(undefined, undefined, this._store);
+		this.stylesheet = domStylesheetsJs.createStyleSheet(undefined, undefined, this._store);
 
 		const onDidChangeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorations'));
 		this._register(onDidChangeConfiguration(this.onDidChangeConfiguration, this));

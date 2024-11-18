@@ -100,6 +100,7 @@ export interface IProductConfiguration {
 		readonly itemUrl: string;
 		readonly publisherUrl: string;
 		readonly resourceUrlTemplate: string;
+		readonly extensionUrlTemplate: string;
 		readonly controlUrl: string;
 		readonly nlsBaseUrl: string;
 	};
@@ -197,10 +198,14 @@ export interface IProductConfiguration {
 
 	readonly defaultChatAgent?: {
 		readonly extensionId: string;
+		readonly providerId: string;
+		readonly providerName: string;
+		readonly providerScopes: string[];
 		readonly name: string;
 		readonly icon: string;
 		readonly documentationUrl: string;
 		readonly gettingStartedCommand: string;
+		readonly welcomeTitle: string;
 	};
 }
 
@@ -313,6 +318,8 @@ export interface IGitHubEntitlement {
 	entitlementUrl: string;
 	extensionId: string;
 	enablementKey: string;
+	trialKey: string;
+	trialValue: string;
 	confirmationMessage: string;
 	confirmationAction: string;
 }

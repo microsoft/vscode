@@ -246,5 +246,18 @@
 				"appendText": "\t",
 			}
 		},
+		// Add // when pressing enter from inside line comment
+		{
+			"beforeText": {
+				"pattern": "\/\/.*"
+			},
+			"afterText": {
+				"pattern": "^(?!\\s*$).+"
+			},
+			"action": {
+				"indent": "none",
+				"appendText": "// "
+			}
+		},
 	]
 }
