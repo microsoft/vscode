@@ -214,8 +214,8 @@ function getPrefix(commandLine: string, cursorPosition: number): string {
 	// Extract the part of the line up to the cursor position
 	const beforeCursor = commandLine.slice(0, cursorPosition);
 
-	// Find the last word boundary before the cursor
-	const match = beforeCursor.match(/[\w-]+$/);
+	// Find the last sequence of non-whitespace characters before the cursor
+	const match = beforeCursor.match(/(\S+)\s*$/);
 
 	// Return the match if found, otherwise undefined
 	return match ? match[0] : '';
