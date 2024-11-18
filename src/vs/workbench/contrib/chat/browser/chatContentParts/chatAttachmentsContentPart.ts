@@ -21,7 +21,7 @@ import { IOpenerService, OpenInternalOptions } from '../../../../../platform/ope
 import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { IChatRequestVariableEntry, isPasteVariableEntry } from '../../common/chatModel.js';
-import { revealInsideBarCommand } from '../../../files/browser/fileActions.contribution.js';
+import { revealInSideBarCommand } from '../../../files/browser/fileActions.contribution.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService.js';
 
 export class ChatAttachmentsContentPart extends Disposable {
