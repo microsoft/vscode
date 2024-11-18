@@ -120,6 +120,12 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		this._ctx.textBaseline = 'top';
 		this._ctx.fillText(chars, originX, originY);
 
+		// TODO: Don't draw beyond glyph - how to handle monospace, wide and proportional?
+		// TODO: Support strikethrough color
+		if (fontStyle & FontStyle.Strikethrough) {
+			this._ctx.fillRect(originX, originY + Math.round(devicePixelFontSize / 2), devicePixelFontSize, Math.max(Math.floor(getActiveWindow().devicePixelRatio), 1));
+		}
+
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);
 		this._findGlyphBoundingBox(imageData, this._workGlyph.boundingBox);
 		// const offset = {

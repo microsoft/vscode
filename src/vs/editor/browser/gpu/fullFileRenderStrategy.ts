@@ -7,9 +7,12 @@ import { getActiveWindow } from '../../../base/browser/dom.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import { CursorColumns } from '../../common/core/cursorColumns.js';
+import { Range } from '../../common/core/range.js';
+import { MetadataConsts } from '../../common/encodedTokenAttributes.js';
+import { ClassName } from '../../common/model/intervalTree.js';
 import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
 import { ViewEventHandler } from '../../common/viewEventHandler.js';
-import { ViewEventType, type ViewConfigurationChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../common/viewEvents.js';
+import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../common/viewEvents.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewLineRenderingData } from '../../common/viewModel.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
@@ -110,6 +113,13 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	// #region Event handlers
 
 	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
+		this._upToDateLines[0].clear();
+		this._upToDateLines[1].clear();
+		return true;
+	}
+
+	public override onDecorationsChanged(e: ViewDecorationsChangedEvent): boolean {
+		// TODO: Don't clear all lines
 		this._upToDateLines[0].clear();
 		this._upToDateLines[1].clear();
 		return true;
@@ -274,6 +284,8 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 			}
 		}
 
+		const decorations = viewportData.getDecorationsInViewport();
+
 		for (y = viewportData.startLineNumber; y <= viewportData.endLineNumber; y++) {
 
 			// Only attempt to render lines that the GPU renderer can handle
@@ -290,6 +302,14 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 			}
 			dirtyLineStart = Math.min(dirtyLineStart, y);
 			dirtyLineEnd = Math.max(dirtyLineEnd, y);
+
+			const inlineDecorations = decorations.filter(e => (
+				e.range.startLineNumber <= y && e.range.endLineNumber >= y &&
+				e.options.inlineClassName
+			));
+			if (inlineDecorations.length > 0) {
+				console.log('decoration!', inlineDecorations);
+			}
 
 			lineData = viewportData.getViewLineRenderingData(y);
 			content = lineData.content;
@@ -313,6 +333,33 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						break;
 					}
 					chars = content.charAt(x);
+
+					// TODO: We'd want to optimize pulling the decorations in order
+					// HACK: Temporary replace char to demonstrate inline decorations
+					const cellDecorations = decorations.filter(decoration => {
+						// TODO: Why does Range.containsPosition and Range.strictContainsPosition not work here?
+						if (y < decoration.range.startLineNumber || y > decoration.range.endLineNumber) {
+							return false;
+						}
+						if (y === decoration.range.startLineNumber && x < decoration.range.startColumn - 1) {
+							return false;
+						}
+						if (y === decoration.range.endLineNumber && x >= decoration.range.endColumn - 1) {
+							return false;
+						}
+						return true;
+					});
+					for (const decoration of cellDecorations) {
+						switch (decoration.options.inlineClassName) {
+							case (ClassName.EditorDeprecatedInlineDecoration): {
+								// HACK: We probably shouldn't override tokenMetadata
+								tokenMetadata |= MetadataConsts.STRIKETHROUGH_MASK;
+								// chars = '-';
+								break;
+							}
+						}
+					}
+
 					if (chars === ' ' || chars === '\t') {
 						// Zero out glyph to ensure it doesn't get rendered
 						cellIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + x) * Constants.IndicesPerCell;

@@ -19,6 +19,7 @@ import { GPULifecycle } from './gpuDisposable.js';
 import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
 import { RectangleRenderer } from './rectangleRenderer.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
+import { ClassName } from '../../common/model/intervalTree.js';
 
 const enum GpuRenderLimits {
 	maxGpuLines = 3000,
@@ -131,7 +132,8 @@ export class ViewGpuContext extends Disposable {
 			data.containsRTL ||
 			data.maxColumn > GpuRenderLimits.maxGpuCols ||
 			data.continuesWithWrappedLine ||
-			data.inlineDecorations.length > 0 ||
+			// HACK: ...
+			data.inlineDecorations.length > 0 && data.inlineDecorations[0].inlineClassName !== ClassName.EditorDeprecatedInlineDecoration ||
 			lineNumber >= GpuRenderLimits.maxGpuLines
 		) {
 			return false;
@@ -155,7 +157,10 @@ export class ViewGpuContext extends Disposable {
 			reasons.push('continuesWithWrappedLine');
 		}
 		if (data.inlineDecorations.length > 0) {
-			reasons.push('inlineDecorations > 0');
+			// HACK: ...
+			if (data.inlineDecorations[0].inlineClassName !== ClassName.EditorDeprecatedInlineDecoration) {
+				reasons.push('inlineDecorations > 0');
+			}
 		}
 		if (lineNumber >= GpuRenderLimits.maxGpuLines) {
 			reasons.push('lineNumber >= maxGpuLines');
