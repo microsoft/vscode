@@ -19,6 +19,8 @@ import { GPULifecycle } from './gpuDisposable.js';
 import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
 import { RectangleRenderer } from './rectangleRenderer.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
+import { Event } from '../../../base/common/event.js';
+import type { IEditorOptions } from '../../common/config/editorOptions.js';
 
 const enum GpuRenderLimits {
 	maxGpuLines = 3000,
@@ -82,6 +84,15 @@ export class ViewGpuContext extends Disposable {
 
 		this.canvas = createFastDomNode(document.createElement('canvas'));
 		this.canvas.setClassName('editorCanvas');
+
+		// Adjust the canvas size to avoid drawing under the scroll bar
+		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
+			if (!e || e.affectsConfiguration('editor.scrollbar.verticalScrollbarSize')) {
+				const verticalScrollbarSize = configurationService.getValue<IEditorOptions>('editor').scrollbar?.verticalScrollbarSize ?? 14;
+				this.canvas.domNode.style.boxSizing = 'border-box';
+				this.canvas.domNode.style.paddingRight = `${verticalScrollbarSize}px`;
+			}
+		}));
 
 		this.ctx = ensureNonNullable(this.canvas.domNode.getContext('webgpu'));
 
