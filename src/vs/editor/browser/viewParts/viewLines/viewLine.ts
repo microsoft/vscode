@@ -175,8 +175,6 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString('<div style="top:');
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');
-		// sb.appendString(String(lineHeight));
-		// sb.appendString('px;line-height:');
 		sb.appendString(String(lineHeight));
 		sb.appendString('px;" class="');
 		sb.appendString(ViewLine.CLASS_NAME);
