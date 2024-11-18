@@ -14,9 +14,12 @@ import { $ } from '../../../../../base/browser/dom.js';
 import { IChatEditingService, IModifiedFileEntry } from '../../../chat/common/chatEditingService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { autorunWithStore, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, autorunWithStore, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { CellDiffInfo } from '../diff/notebookDiffViewModel.js';
+import { navigationBearingFakeActionId } from '../../../chat/browser/chatEditorOverlay.js';
+import { assertType } from '../../../../../base/common/types.js';
+import { localize } from '../../../../../nls.js';
 
 export class NotebookChatActionsOverlayController extends Disposable {
 	constructor(
@@ -42,7 +45,7 @@ export class NotebookChatActionsOverlayController extends Disposable {
 				const entry = entries[idx];
 				const nextEntry = entries[(idx + 1) % entries.length];
 				const previousEntry = entries[(idx - 1 + entries.length) % entries.length];
-				store.add(instantiationService.createInstance(NotebookChatActionsOverlay, notebookEditor, entry, cellDiffInfo, nextEntry, previousEntry));
+				store.add(instantiationService.createInstance(NotebookChatActionsOverlay, notebookEditor, entry, idx, cellDiffInfo, nextEntry, previousEntry));
 			}
 		}));
 	}
@@ -50,9 +53,11 @@ export class NotebookChatActionsOverlayController extends Disposable {
 
 // Copied from src/vs/workbench/contrib/chat/browser/chatEditorOverlay.ts (until we unify these)
 export class NotebookChatActionsOverlay extends Disposable {
+	private readonly _navigationBearings = observableValue<{ changeCount: number; activeIdx: number }>(this, { changeCount: -1, activeIdx: -1 });
 	constructor(
 		notebookEditor: INotebookEditor,
 		entry: IModifiedFileEntry,
+		entryIndex: number,
 		cellDiffInfo: IObservable<CellDiffInfo[] | undefined, unknown>,
 		nextEntry: IModifiedFileEntry,
 		previousEntry: IModifiedFileEntry,
@@ -60,6 +65,7 @@ export class NotebookChatActionsOverlay extends Disposable {
 		@IInstantiationService instaService: IInstantiationService,
 	) {
 		super();
+		this._navigationBearings.set({ changeCount: 1, activeIdx: entryIndex }, undefined);
 		const toolbarNode = $('div');
 		toolbarNode.classList.add('notebook-chat-editor-overlay-widget');
 		notebookEditor.getDomNode().appendChild(toolbarNode);
@@ -78,6 +84,33 @@ export class NotebookChatActionsOverlay extends Disposable {
 			menuOptions: { renderShortTitle: true },
 			actionViewItemProvider: (action, options) => {
 				const that = this;
+				if (action.id === navigationBearingFakeActionId) {
+					return new class extends ActionViewItem {
+
+						constructor() {
+							super(undefined, action, { ...options, icon: false, label: true, keybindingNotRenderedWithLabel: true });
+						}
+
+						override render(container: HTMLElement) {
+							super.render(container);
+
+							container.classList.add('label-item');
+
+							this._store.add(autorun(r => {
+								assertType(this.label);
+
+								const { changeCount, activeIdx } = that._navigationBearings.read(r);
+								const n = activeIdx === -1 ? '?' : `${activeIdx + 1}`;
+								const m = changeCount === -1 ? '?' : `${changeCount}`;
+								this.label.innerText = localize('nOfM', "{0} of {1}", n, m);
+							}));
+						}
+
+						protected override getTooltip(): string | undefined {
+							return undefined;
+						}
+					};
+				}
 
 				if (action.id === 'chatEditor.action.accept' || action.id === 'chatEditor.action.reject') {
 					return new class extends ActionViewItem {

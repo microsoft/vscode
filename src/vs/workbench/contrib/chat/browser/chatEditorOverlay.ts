@@ -246,7 +246,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 	}
 }
 
-const navigationBearingFakeActionId = 'chatEditor.navigation.bearings';
+export const navigationBearingFakeActionId = 'chatEditor.navigation.bearings';
 
 MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorContent, {
 	command: {
