@@ -134,7 +134,9 @@ export async function activate(context: vscode.ExtensionContext) {
 										for (const suggestion of arg.suggestions) {
 											const suggestionLabel = getLabel(suggestion);
 											if (suggestionLabel && suggestionLabel.startsWith(currentPrefix)) {
-												result.push(createCompletionItem(terminalContext.cursorPosition, optionLabel, suggestionLabel, arg.name, terminalContext.cursorPosition - 1));
+												const hasSpaceBeforeCursor = terminalContext.commandLine[terminalContext.cursorPosition - 1] === ' ';
+												// prefix will be '' if there is a space before the cursor
+												result.push(createCompletionItem(terminalContext.cursorPosition, precedingText, suggestionLabel, arg.name, hasSpaceBeforeCursor));
 											}
 										}
 										return result;
@@ -173,13 +175,13 @@ function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string | 
 	return spec.name[0];
 }
 
-function createCompletionItem(cursorPosition: number, prefix: string, label: string, description?: string, replacementIndex?: number): vscode.TerminalCompletionItem {
+function createCompletionItem(cursorPosition: number, prefix: string, label: string, description?: string, hasSpaceBeforeCursor?: boolean): vscode.TerminalCompletionItem {
 	return {
 		label,
 		isFile: false,
 		isDirectory: false,
 		detail: description ?? '',
-		replacementIndex: replacementIndex !== undefined ? replacementIndex : cursorPosition - prefix.length,
+		replacementIndex: hasSpaceBeforeCursor ? cursorPosition : cursorPosition - 1,
 		replacementLength: label.length - prefix.length,
 	};
 }
