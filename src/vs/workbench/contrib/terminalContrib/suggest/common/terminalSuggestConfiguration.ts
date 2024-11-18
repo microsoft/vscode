@@ -37,6 +37,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		markdownDescription: localize('suggest.enabled', "Enables experimental terminal Intellisense suggestions for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script. \n\nFor zsh and bash completions, {5} will also need to be set.", 'PowerShell v7+, zsh, bash', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`', `\`#${TerminalSuggestSettingId.EnableExtensionCompletions}#\``),
 		type: 'boolean',
 		default: false,
+		tags: ['experimental'],
 	},
 	[TerminalSuggestSettingId.QuickSuggestions]: {
 		restricted: true,
