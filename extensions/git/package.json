@@ -567,7 +567,7 @@
         "title": "%command.pull%",
         "icon": "$(repo-pull)",
         "category": "Git",
-        "enablement": "!operationInProgress"
+        "enablement": "!operationInProgress && scmCurrentHistoryItemRefInFilter && scmCurrentHistoryItemRefHasRemote"
       },
       {
         "command": "git.push",
@@ -616,7 +616,7 @@
         "title": "%command.push%",
         "icon": "$(repo-push)",
         "category": "Git",
-        "enablement": "!operationInProgress"
+        "enablement": "!operationInProgress && scmCurrentHistoryItemRefInFilter && scmCurrentHistoryItemRefHasRemote"
       },
       {
         "command": "git.cherryPick",
@@ -1974,16 +1974,16 @@
         {
           "command": "git.pullRef",
           "group": "navigation@901",
-          "when": "scmProvider == git && scmCurrentHistoryItemRefInFilter && scmCurrentHistoryItemRefHasRemote"
+          "when": "scmProvider == git"
         },
         {
           "command": "git.pushRef",
-          "when": "scmProvider == git && scmCurrentHistoryItemRefInFilter && scmCurrentHistoryItemRefHasRemote",
+          "when": "scmProvider == git && scmCurrentHistoryItemRefHasRemote",
           "group": "navigation@902"
         },
         {
           "command": "git.publish",
-          "when": "scmProvider == git && scmCurrentHistoryItemRefInFilter && !scmCurrentHistoryItemRefHasRemote",
+          "when": "scmProvider == git && !scmCurrentHistoryItemRefHasRemote",
           "group": "navigation@903"
         }
       ],

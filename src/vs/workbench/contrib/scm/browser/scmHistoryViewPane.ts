@@ -1320,8 +1320,10 @@ export class SCMHistoryViewPane extends ViewPane {
 					return historyProvider.historyItemRef.read(reader)?.id;
 				});
 				store.add(runOnChange(historyItemRefId, historyItemRefIdValue => {
-					this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefIdValue));
 					this.refresh();
+
+					// Update context key (needs to be done after the refresh call)
+					this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefIdValue));
 				}));
 
 				// HistoryItemRefs changed
@@ -1345,8 +1347,10 @@ export class SCMHistoryViewPane extends ViewPane {
 
 				// HistoryItemRefs filter changed
 				store.add(runOnChange(this._treeViewModel.onDidChangeHistoryItemsFilter, () => {
-					this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefId.get()));
 					this.refresh();
+
+					// Update context key (needs to be done after the refresh call)
+					this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefId.get()));
 				}));
 
 				// HistoryItemRemoteRef changed
