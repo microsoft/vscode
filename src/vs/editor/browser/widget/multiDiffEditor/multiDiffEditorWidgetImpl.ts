@@ -3,35 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getWindow, h, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { compareBy, numberComparator } from 'vs/base/common/arrays';
-import { findFirstMax } from 'vs/base/common/arraysFind';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { Disposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, autorun, autorunWithStore, derived, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import { ITransaction, disposableObservableValue, globalTransaction, transaction } from 'vs/base/common/observableInternal/base';
-import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./style';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ObservableElementSizeObserver } from 'vs/editor/browser/widget/diffEditor/utils';
-import { RevealOptions } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidget';
-import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditor/workbenchUIElementFactory';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { IRange } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IDiffEditor } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ContextKeyValue, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate';
-import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel';
-import { ObjectPool } from './objectPool';
-import { localize } from 'vs/nls';
-import { IDocumentDiffItem } from 'vs/editor/browser/widget/multiDiffEditor/model';
+import { Dimension, getWindow, h, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { SmoothScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { compareBy, numberComparator } from '../../../../base/common/arrays.js';
+import { findFirstMax } from '../../../../base/common/arraysFind.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, IReader, ITransaction, autorun, autorunWithStore, derived, derivedWithStore, disposableObservableValue, globalTransaction, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { Scrollable, ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { OffsetRange } from '../../../common/core/offsetRange.js';
+import { IRange } from '../../../common/core/range.js';
+import { ISelection, Selection } from '../../../common/core/selection.js';
+import { IDiffEditor } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { ICodeEditor } from '../../editorBrowser.js';
+import { ObservableElementSizeObserver } from '../diffEditor/utils.js';
+import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate.js';
+import { IDocumentDiffItem } from './model.js';
+import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
+import { RevealOptions } from './multiDiffEditorWidget.js';
+import { ObjectPool } from './objectPool.js';
+import './style.css';
+import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _scrollableElements = h('div.scrollContent', [
@@ -58,7 +57,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	private readonly _elements = h('div.monaco-component.multiDiffEditor', {}, [
 		h('div', {}, [this._scrollableElement.getDomNode()]),
-		h('div.placeholder@placeholder', {}, [h('div', [localize('noChangedFiles', 'No Changed Files') as any])]),
+		h('div.placeholder@placeholder', {}, [h('div')]),
 	]);
 
 	private readonly _sizeObserver = this._register(new ObservableElementSizeObserver(this._element, undefined));
@@ -129,8 +128,6 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	) {
 		super();
 
-		this._contextKeyService.createKey(EditorContextKeys.inMultiDiffEditor.key, true);
-
 		this._register(autorunWithStore((reader, store) => {
 			const viewModel = this._viewModel.read(reader);
 			if (viewModel && viewModel.contextKeys) {
@@ -157,10 +154,20 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._sizeObserver.observe(dimension);
 		}));
 
-		this._register(autorun((reader) => {
-			/** @description Update widget dimension */
+		const placeholderMessage = derived(reader => {
 			const items = this._viewItems.read(reader);
-			this._elements.placeholder.classList.toggle('visible', items.length === 0);
+			if (items.length > 0) { return undefined; }
+
+			const vm = this._viewModel.read(reader);
+			return (!vm || vm.isLoading.read(reader))
+				? localize('loading', 'Loading...')
+				: localize('noChangedFiles', 'No Changed Files');
+		});
+
+		this._register(autorun((reader) => {
+			const message = placeholderMessage.read(reader);
+			this._elements.placeholder.innerText = message ?? '';
+			this._elements.placeholder.classList.toggle('visible', !!message);
 		}));
 
 		this._scrollableElements.content.style.position = 'relative';

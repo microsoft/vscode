@@ -5,59 +5,59 @@
 
 import * as sinon from 'sinon';
 import assert from 'assert';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey } from '../../common/extensions.js';
+import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
 	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { anExtensionManagementServerService, TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IURLService } from 'vs/platform/url/common/url';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IPager } from 'vs/base/common/paging';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestExtensionTipsService, TestSharedProcessService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
-import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { NativeURLService } from 'vs/platform/url/common/urlService';
-import { URI } from 'vs/base/common/uri';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { ExtensionKind } from 'vs/platform/environment/common/environment';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentService';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { Schemas } from 'vs/base/common/network';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { platform } from 'vs/base/common/platform';
-import { arch } from 'vs/base/common/process';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Mutable } from 'vs/base/common/types';
-import { IUpdateService, State } from 'vs/platform/update/common/update';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+} from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionRecommendationsService } from '../../../../services/extensionRecommendations/common/extensionRecommendations.js';
+import { getGalleryExtensionId } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { anExtensionManagementServerService, TestExtensionEnablementService } from '../../../../services/extensionManagement/test/browser/extensionEnablementService.test.js';
+import { ExtensionGalleryService } from '../../../../../platform/extensionManagement/common/extensionGalleryService.js';
+import { IURLService } from '../../../../../platform/url/common/url.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { Event, Emitter } from '../../../../../base/common/event.js';
+import { IPager } from '../../../../../base/common/paging.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { TestExtensionTipsService, TestSharedProcessService } from '../../../../test/electron-sandbox/workbenchTestServices.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
+import { ProgressService } from '../../../../services/progress/browser/progressService.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { NativeURLService } from '../../../../../platform/url/common/urlService.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { ExtensionType } from '../../../../../platform/extensions/common/extensions.js';
+import { ExtensionKind } from '../../../../../platform/environment/common/environment.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { RemoteAgentService } from '../../../../services/remote/electron-sandbox/remoteAgentService.js';
+import { ISharedProcessService } from '../../../../../platform/ipc/electron-sandbox/services.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { platform } from '../../../../../base/common/platform.js';
+import { arch } from '../../../../../base/common/process.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Mutable } from '../../../../../base/common/types.js';
+import { IUpdateService, State } from '../../../../../platform/update/common/update.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { UserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfileService.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
+import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -1581,7 +1581,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
 		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), ['pub.a']);
 
-		await testObject.updateAutoUpdateValue(false);
+		await testObject.updateAutoUpdateForAllExtensions(false);
 
 		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
 		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
@@ -1607,7 +1607,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), ['pub.a']);
 		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
 
-		await testObject.updateAutoUpdateValue(true);
+		await testObject.updateAutoUpdateForAllExtensions(true);
 
 		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
 		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
@@ -1650,7 +1650,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			type: ExtensionType.User,
 			location: URI.file(`pub.${name}`),
 			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
-			...properties
+			...properties,
+			isValid: properties.isValid ?? true,
 		};
 		return <ILocalExtension>Object.create({ manifest, ...properties });
 	}
@@ -1669,7 +1670,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: IGalleryExtensionAssets = noAssets): IGalleryExtension {
 		const targetPlatform = getTargetPlatform(platform, arch);
-		const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', allTargetPlatforms: [targetPlatform], properties: {}, assets: {}, ...properties });
+		const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', allTargetPlatforms: [targetPlatform], properties: {}, assets: {}, isSigned: true, ...properties });
 		galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], targetPlatform, ...galleryExtensionProperties };
 		galleryExtension.assets = { ...galleryExtension.assets, ...assets };
 		galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: generateUuid() };

@@ -7,10 +7,10 @@
 
 import type * as vscode from 'vscode';
 
-import { ExtHostSecretState } from 'vs/workbench/api/common/extHostSecretState';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ExtHostSecretState } from './extHostSecretState.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { Event } from '../../../base/common/event.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 
 export class ExtensionSecrets implements vscode.SecretStorage {
 

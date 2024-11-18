@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorConfiguration, IEnvConfiguration } from 'vs/editor/browser/config/editorConfiguration';
-import { EditorFontLigatures, EditorFontVariations } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
-import { TestCodeEditorCreationOptions } from 'vs/editor/test/browser/testCodeEditor';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { EditorConfiguration, IEnvConfiguration } from '../../../browser/config/editorConfiguration.js';
+import { EditorFontLigatures, EditorFontVariations } from '../../../common/config/editorOptions.js';
+import { BareFontInfo, FontInfo } from '../../../common/config/fontInfo.js';
+import { TestCodeEditorCreationOptions } from '../testCodeEditor.js';
+import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 
 export class TestConfiguration extends EditorConfiguration {
 

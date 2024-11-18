@@ -3,45 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, IUserDataSyncStoreManagementService, SyncStatus, IUserDataSyncEnablementService, IUserDataSyncResource, IResourcePreview, USER_DATA_SYNC_SCHEME, USER_DATA_SYNC_LOG_ID, } from 'vs/platform/userDataSync/common/userDataSync';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE, SYNC_CONFLICTS_VIEW_ID, CONTEXT_ENABLE_SYNC_CONFLICTS_VIEW, CONTEXT_HAS_CONFLICTS, IUserDataSyncConflictsView } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { localize } from 'vs/nls';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { URI } from 'vs/base/common/uri';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataSyncStoreTypeSynchronizer } from 'vs/platform/userDataSync/common/globalStateSync';
-import { CancellationError } from 'vs/base/common/errors';
-import { raceCancellationError } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { isDiffEditorInput } from 'vs/workbench/common/editor';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
-import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
-import { IFileService } from 'vs/platform/files/common/files';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, IUserDataSyncStoreManagementService, SyncStatus, IUserDataSyncEnablementService, IUserDataSyncResource, IResourcePreview, USER_DATA_SYNC_SCHEME, USER_DATA_SYNC_LOG_ID, } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE, SYNC_CONFLICTS_VIEW_ID, CONTEXT_ENABLE_SYNC_CONFLICTS_VIEW, CONTEXT_HAS_CONFLICTS, IUserDataSyncConflictsView } from '../common/userDataSync.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { getCurrentAuthenticationSessionInfo } from '../../authentication/browser/authenticationService.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../authentication/common/authentication.js';
+import { IUserDataSyncAccountService } from '../../../../platform/userDataSync/common/userDataSyncAccount.js';
+import { IQuickInputService, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { localize } from '../../../../nls.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { IViewsService } from '../../views/common/viewsService.js';
+import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { UserDataSyncStoreClient } from '../../../../platform/userDataSync/common/userDataSyncStoreService.js';
+import { UserDataSyncStoreTypeSynchronizer } from '../../../../platform/userDataSync/common/globalStateSync.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { raceCancellationError } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { isDiffEditorInput } from '../../../common/editor.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
+import { IUserDataInitializationService } from '../../userData/browser/userDataInit.js';
+import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+import { IUserDataSyncMachinesService } from '../../../../platform/userDataSync/common/userDataSyncMachines.js';
+import { equals } from '../../../../base/common/arrays.js';
 
 type AccountQuickPickItem = { label: string; authenticationProvider: IAuthenticationProvider; account?: UserDataSyncAccount; description?: string };
 
@@ -74,10 +75,13 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	private _authenticationProviders: IAuthenticationProvider[] = [];
 	get authenticationProviders() { return this._authenticationProviders; }
 
-	private _accountStatus: AccountStatus = AccountStatus.Unavailable;
+	private _accountStatus: AccountStatus = AccountStatus.Uninitialized;
 	get accountStatus(): AccountStatus { return this._accountStatus; }
 	private readonly _onDidChangeAccountStatus = this._register(new Emitter<AccountStatus>());
 	readonly onDidChangeAccountStatus = this._onDidChangeAccountStatus.event;
+
+	private readonly _onDidTurnOnSync = this._register(new Emitter<void>());
+	readonly onDidTurnOnSync = this._onDidTurnOnSync.event;
 
 	private _current: UserDataSyncAccount | undefined;
 	get current(): UserDataSyncAccount | undefined { return this._current; }
@@ -139,8 +143,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 	}
 
-	private updateAuthenticationProviders(): void {
+	private updateAuthenticationProviders(): boolean {
+		const oldValue = this._authenticationProviders;
 		this._authenticationProviders = (this.userDataSyncStoreManagementService.userDataSyncStore?.authenticationProviders || []).filter(({ id }) => this.authenticationService.declaredProviders.some(provider => provider.id === id));
+		this.logService.trace('Settings Sync: Authentication providers updated', this._authenticationProviders.map(({ id }) => id));
+		return equals(oldValue, this._authenticationProviders, (a, b) => a.id === b.id);
 	}
 
 	private isSupportedAuthenticationProviderId(authenticationProviderId: string): boolean {
@@ -148,11 +155,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async waitAndInitialize(): Promise<void> {
-		/* wait */
-		await Promise.all([this.extensionService.whenInstalledExtensionsRegistered(), this.userDataInitializationService.whenInitializationFinished()]);
-
-		/* initialize */
 		try {
+			/* wait */
+			await Promise.all([this.extensionService.whenInstalledExtensionsRegistered(), this.userDataInitializationService.whenInitializationFinished()]);
+
+			/* initialize */
 			await this.initialize();
 		} catch (error) {
 			// Do not log if the current window is running extension tests
@@ -178,20 +185,25 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			}
 		}
 
-		await this.update();
-
-		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => this.updateAuthenticationProviders()));
+		const initPromise = this.update('initialize');
+		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => {
+			if (this.updateAuthenticationProviders()) {
+				// Trigger update only after the initialization is done
+				initPromise.finally(() => this.update('declared authentication providers changed'));
+			}
+		}));
+		await initPromise;
 
 		this._register(Event.filter(
 			Event.any(
 				this.authenticationService.onDidRegisterAuthenticationProvider,
 				this.authenticationService.onDidUnregisterAuthenticationProvider,
-			), info => this.isSupportedAuthenticationProviderId(info.id))(() => this.update()));
+			), info => this.isSupportedAuthenticationProviderId(info.id))(() => this.update('authentication provider change')));
 
 		this._register(Event.filter(this.userDataSyncAccountService.onTokenFailed, isSuccessive => !isSuccessive)(() => this.update('token failure')));
 
 		this._register(Event.filter(this.authenticationService.onDidChangeSessions, e => this.isSupportedAuthenticationProviderId(e.providerId))(({ event }) => this.onDidChangeSessions(event)));
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, this._register(new DisposableStore()))(() => this.onDidChangeStorage()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, this._store)(() => this.onDidChangeStorage()));
 		this._register(Event.filter(this.userDataSyncAccountService.onTokenFailed, bailout => bailout)(() => this.onDidAuthFailure()));
 		this.hasConflicts.set(this.userDataSyncService.conflicts.length > 0);
 		this._register(this.userDataSyncService.onDidChangeConflicts(conflicts => {
@@ -210,11 +222,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}));
 	}
 
-	private async update(reason?: string): Promise<void> {
-
-		if (reason) {
-			this.logService.info(`Settings Sync: Updating due to ${reason}`);
-		}
+	private async update(reason: string): Promise<void> {
+		this.logService.trace(`Settings Sync: Updating due to ${reason}`);
 
 		this.updateAuthenticationProviders();
 		await this.updateCurrentAccount();
@@ -228,6 +237,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async updateCurrentAccount(): Promise<void> {
+		this.logService.trace('Settings Sync: Updating the current account');
 		const currentSessionId = this.currentSessionId;
 		const currentAuthenticationProviderId = this.currentAuthenticationProviderId;
 		if (currentSessionId) {
@@ -237,6 +247,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				for (const session of sessions) {
 					if (session.id === currentSessionId) {
 						this._current = new UserDataSyncAccount(id, session);
+						this.logService.trace('Settings Sync: Updated the current account', this._current.accountName);
 						return;
 					}
 				}
@@ -251,7 +262,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			try {
 				this.logService.trace('Settings Sync: Updating the token for the account', current.accountName);
 				const token = current.token;
-				this.logService.trace('Settings Sync: Token updated for the account', current.accountName);
+				this.logService.info('Settings Sync: Token updated for the account', current.accountName);
 				value = { token, authenticationProviderId: current.authenticationProviderId };
 			} catch (e) {
 				this.logService.error(e);
@@ -261,9 +272,10 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private updateAccountStatus(accountStatus: AccountStatus): void {
+		this.logService.trace(`Settings Sync: Updating the account status to ${accountStatus}`);
 		if (this._accountStatus !== accountStatus) {
 			const previous = this._accountStatus;
-			this.logService.trace(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
+			this.logService.info(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
 
 			this._accountStatus = accountStatus;
 			this.accountStatusContext.set(accountStatus);
@@ -324,6 +336,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		this.notificationService.info(localize('sync turned on', "{0} is turned on", SYNC_TITLE.value));
+		this._onDidTurnOnSync.fire();
 	}
 
 	async turnoff(everywhere: boolean): Promise<void> {
@@ -544,6 +557,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		if (authenticationProvider) {
 			await this.doSignIn(authenticationProvider);
 		} else {
+			if (!this.authenticationProviders.length) {
+				throw new Error(localize('no authentication providers during signin', "Cannot sign in because there are no authentication providers available."));
+			}
 			await this.pick();
 		}
 	}
@@ -684,7 +700,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			this.currentAuthenticationProviderId = accountOrAuthProvider.authenticationProviderId;
 		}
 		this.currentSessionId = sessionId;
-		await this.update();
+		await this.update('sign in');
 	}
 
 	private async onDidAuthFailure(): Promise<void> {

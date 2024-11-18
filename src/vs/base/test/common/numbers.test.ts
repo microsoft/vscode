@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { isPointWithinTriangle } from 'vs/base/common/numbers';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { isPointWithinTriangle } from '../../common/numbers.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('isPointWithinTriangle', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

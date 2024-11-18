@@ -201,8 +201,8 @@ export class ApiRepository implements Repository {
 		return this.repository.getMergeBase(ref1, ref2);
 	}
 
-	tag(name: string, upstream: string): Promise<void> {
-		return this.repository.tag(name, upstream);
+	tag(name: string, message: string, ref?: string | undefined): Promise<void> {
+		return this.repository.tag({ name, message, ref });
 	}
 
 	deleteTag(name: string): Promise<void> {
@@ -322,6 +322,10 @@ export class ApiImpl implements API {
 	}
 
 	async openRepository(root: Uri): Promise<Repository | null> {
+		if (root.scheme !== 'file') {
+			return null;
+		}
+
 		await this._model.openRepository(root.fsPath);
 		return this.getRepository(root) || null;
 	}

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { range } from 'vs/base/common/arrays';
-import { timeout } from 'vs/base/common/async';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IListRenderer, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
+import { List } from '../../../../browser/ui/list/listWidget.js';
+import { range } from '../../../../common/arrays.js';
+import { timeout } from '../../../../common/async.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ListWidget', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

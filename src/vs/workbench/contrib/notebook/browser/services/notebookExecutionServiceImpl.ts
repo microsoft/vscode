@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { KernelPickerMRUStrategy } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelQuickPickStrategy';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookTextModel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionService, ICellExecutionParticipant } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernelHistoryService, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import * as nls from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { KernelPickerMRUStrategy } from '../viewParts/notebookKernelQuickPickStrategy.js';
+import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
+import { CellKind, INotebookTextModel, NotebookCellExecutionState } from '../../common/notebookCommon.js';
+import { INotebookExecutionService, ICellExecutionParticipant } from '../../common/notebookExecutionService.js';
+import { INotebookCellExecution, INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
+import { INotebookKernelHistoryService, INotebookKernelService } from '../../common/notebookKernelService.js';
+import { INotebookLoggingService } from '../../common/notebookLoggingService.js';
 
 
 export class NotebookExecutionService implements INotebookExecutionService, IDisposable {
@@ -27,7 +27,7 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@INotebookKernelHistoryService private readonly _notebookKernelHistoryService: INotebookKernelHistoryService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@ILogService private readonly _logService: ILogService,
+		@INotebookLoggingService private readonly _logService: INotebookLoggingService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 	}
@@ -39,7 +39,7 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 			return;
 		}
 
-		this._logService.debug(`NotebookExecutionService#executeNotebookCells ${JSON.stringify(cellsArr.map(c => c.handle))}`);
+		this._logService.debug(`Execution`, `${JSON.stringify(cellsArr.map(c => c.handle))}`);
 		const message = nls.localize('notebookRunTrust', "Executing a notebook cell will run code from this workspace.");
 		const trust = await this._workspaceTrustRequestService.requestWorkspaceTrust({ message });
 		if (!trust) {
@@ -85,15 +85,16 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 			// the connecting state can change before the kernel resolves executeNotebookCellsRequest
 			const unconfirmed = validCellExecutions.filter(exe => exe.state === NotebookCellExecutionState.Unconfirmed);
 			if (unconfirmed.length) {
-				this._logService.debug(`NotebookExecutionService#executeNotebookCells completing unconfirmed executions ${JSON.stringify(unconfirmed.map(exe => exe.cellHandle))}`);
+				this._logService.debug(`Execution`, `Completing unconfirmed executions ${JSON.stringify(unconfirmed.map(exe => exe.cellHandle))}`);
 				unconfirmed.forEach(exe => exe.complete({}));
 			}
+			this._logService.debug(`Execution`, `Completed executions ${JSON.stringify(validCellExecutions.map(exe => exe.cellHandle))}`);
 		}
 	}
 
 	async cancelNotebookCellHandles(notebook: INotebookTextModel, cells: Iterable<number>): Promise<void> {
 		const cellsArr = Array.from(cells);
-		this._logService.debug(`NotebookExecutionService#cancelNotebookCellHandles ${JSON.stringify(cellsArr)}`);
+		this._logService.debug(`Execution`, `CancelNotebookCellHandles ${JSON.stringify(cellsArr)}`);
 		const kernel = this._notebookKernelService.getSelectedOrSuggestedKernel(notebook);
 		if (kernel) {
 			await kernel.cancelNotebookCellExecution(notebook.uri, cellsArr);

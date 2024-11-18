@@ -181,7 +181,12 @@ suite('createEditAddingLinksForUriList', () => {
 		});
 
 		test('Smart should be disabled in math blocks', async () => {
-			const katex = (await import('@vscode/markdown-it-katex')).default;
+
+			let katex: any = (await import('@vscode/markdown-it-katex')).default;
+			if (typeof katex === 'object') {
+				katex = katex.default;
+			}
+
 			const engine = createNewMarkdownEngine();
 			(await engine.getEngine(undefined)).use(katex);
 			assert.strictEqual(

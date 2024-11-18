@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import * as languages from 'vs/editor/common/languages';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionItem, CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { Progress } from 'vs/platform/progress/common/progress';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { HierarchicalKind } from '../../../../../base/common/hierarchicalKind.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Range } from '../../../../common/core/range.js';
+import { LanguageFeatureRegistry } from '../../../../common/languageFeatureRegistry.js';
+import * as languages from '../../../../common/languages.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { getCodeActions } from '../../browser/codeAction.js';
+import { CodeActionItem, CodeActionKind, CodeActionTriggerSource } from '../../common/types.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { IMarkerData, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
+import { Progress } from '../../../../../platform/progress/common/progress.js';
 
 function staticCodeActionProvider(...actions: languages.CodeAction[]): languages.CodeActionProvider {
 	return new class implements languages.CodeActionProvider {

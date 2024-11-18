@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { basename, dirname, extname, isEqual } from 'vs/base/common/resources';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IModelService } from 'vs/editor/common/services/model';
-import { Schemas } from 'vs/base/common/network';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
-import { isLinux } from 'vs/base/common/platform';
+import { DisposableStore } from '../../base/common/lifecycle.js';
+import { URI } from '../../base/common/uri.js';
+import { localize } from '../../nls.js';
+import { IContextKeyService, IContextKey, RawContextKey } from '../../platform/contextkey/common/contextkey.js';
+import { basename, dirname, extname, isEqual } from '../../base/common/resources.js';
+import { ILanguageService } from '../../editor/common/languages/language.js';
+import { IFileService } from '../../platform/files/common/files.js';
+import { IModelService } from '../../editor/common/services/model.js';
+import { Schemas } from '../../base/common/network.js';
+import { EditorInput } from './editor/editorInput.js';
+import { IEditorResolverService } from '../services/editor/common/editorResolverService.js';
+import { DEFAULT_EDITOR_ASSOCIATION } from './editor.js';
+import { isLinux } from '../../base/common/platform.js';
 
 //#region < --- Workbench --- >
 

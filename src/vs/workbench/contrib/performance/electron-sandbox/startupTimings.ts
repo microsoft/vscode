@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { timeout } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUpdateService } from 'vs/platform/update/common/update';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { StartupTimings } from 'vs/workbench/contrib/performance/browser/startupTimings';
-import { coalesce } from 'vs/base/common/arrays';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { timeout } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-sandbox/environmentService.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IUpdateService } from '../../../../platform/update/common/update.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ITimerService } from '../../../services/timer/browser/timerService.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { URI } from '../../../../base/common/uri.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { StartupTimings } from '../browser/startupTimings.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 
 interface ITracingData {
 	readonly args?: {

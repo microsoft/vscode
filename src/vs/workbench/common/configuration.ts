@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ConfigurationScope, IConfigurationNode, IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationTarget, IConfigurationService, IConfigurationValue, IInspectValue } from 'vs/platform/configuration/common/configuration';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { OperatingSystem, isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { equals } from 'vs/base/common/objects';
-import { DeferredPromise } from 'vs/base/common/async';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { localize } from '../../nls.js';
+import { ConfigurationScope, IConfigurationNode, IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { IWorkbenchContribution } from './contributions.js';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../platform/workspace/common/workspace.js';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue, IInspectValue } from '../../platform/configuration/common/configuration.js';
+import { Disposable } from '../../base/common/lifecycle.js';
+import { Emitter } from '../../base/common/event.js';
+import { IRemoteAgentService } from '../services/remote/common/remoteAgentService.js';
+import { OperatingSystem, isWindows } from '../../base/common/platform.js';
+import { URI } from '../../base/common/uri.js';
+import { equals } from '../../base/common/objects.js';
+import { DeferredPromise } from '../../base/common/async.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfile.js';
 
 export const applicationConfigurationNodeBase = Object.freeze<IConfigurationNode>({
 	'id': 'application',

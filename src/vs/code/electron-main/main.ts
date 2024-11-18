@@ -3,75 +3,75 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/platform/update/common/update.config.contribution';
+import '../../platform/update/common/update.config.contribution.js';
 
 import { app, dialog } from 'electron';
 import { unlinkSync, promises } from 'fs';
-import { URI } from 'vs/base/common/uri';
-import { coalesce, distinct } from 'vs/base/common/arrays';
-import { Promises } from 'vs/base/common/async';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ExpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
-import { Event } from 'vs/base/common/event';
-import { getPathLabel } from 'vs/base/common/labels';
-import { Schemas } from 'vs/base/common/network';
-import { basename, resolve } from 'vs/base/common/path';
-import { mark } from 'vs/base/common/performance';
-import { IProcessEnvironment, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
-import { cwd } from 'vs/base/common/process';
-import { rtrim, trim } from 'vs/base/common/strings';
-import { Promises as FSPromises } from 'vs/base/node/pfs';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Client as NodeIPCClient } from 'vs/base/parts/ipc/common/ipc.net';
-import { connect as nodeIPCConnect, serve as nodeIPCServe, Server as NodeIPCServer, XDG_RUNTIME_DIR } from 'vs/base/parts/ipc/node/ipc.net';
-import { CodeApplication } from 'vs/code/electron-main/app';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
-import { IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
-import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { EnvironmentMainService, IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { addArg, parseMainProcessArgv } from 'vs/platform/environment/node/argvHelper';
-import { createWaitMarkerFileSync } from 'vs/platform/environment/node/wait';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
-import { ILifecycleMainService, LifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { BufferLogger } from 'vs/platform/log/common/bufferLog';
-import { ConsoleMainLogger, getLogLevel, ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { ProtocolMainService } from 'vs/platform/protocol/electron-main/protocolMainService';
-import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
-import { TunnelService } from 'vs/platform/tunnel/node/tunnelService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { RequestMainService } from 'vs/platform/request/electron-main/requestMainService';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { SignService } from 'vs/platform/sign/node/signService';
-import { IStateReadService, IStateService } from 'vs/platform/state/node/state';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { IUserDataProfilesMainService, UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
-import { NativePolicyService } from 'vs/platform/policy/node/nativePolicyService';
-import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { ILoggerMainService, LoggerMainService } from 'vs/platform/log/electron-main/loggerService';
-import { LogService } from 'vs/platform/log/common/logService';
-import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
-import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
-import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
-import { addUNCHostToAllowlist, getUNCHost } from 'vs/base/node/unc';
+import { URI } from '../../base/common/uri.js';
+import { coalesce, distinct } from '../../base/common/arrays.js';
+import { Promises } from '../../base/common/async.js';
+import { toErrorMessage } from '../../base/common/errorMessage.js';
+import { ExpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
+import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanitizeFilePath } from '../../base/common/extpath.js';
+import { Event } from '../../base/common/event.js';
+import { getPathLabel } from '../../base/common/labels.js';
+import { Schemas } from '../../base/common/network.js';
+import { basename, resolve } from '../../base/common/path.js';
+import { mark } from '../../base/common/performance.js';
+import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
+import { cwd } from '../../base/common/process.js';
+import { rtrim, trim } from '../../base/common/strings.js';
+import { Promises as FSPromises } from '../../base/node/pfs.js';
+import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
+import { Client as NodeIPCClient } from '../../base/parts/ipc/common/ipc.net.js';
+import { connect as nodeIPCConnect, serve as nodeIPCServe, Server as NodeIPCServer, XDG_RUNTIME_DIR } from '../../base/parts/ipc/node/ipc.net.js';
+import { CodeApplication } from './app.js';
+import { localize } from '../../nls.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { ConfigurationService } from '../../platform/configuration/common/configurationService.js';
+import { IDiagnosticsMainService } from '../../platform/diagnostics/electron-main/diagnosticsMainService.js';
+import { DiagnosticsService } from '../../platform/diagnostics/node/diagnosticsService.js';
+import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
+import { EnvironmentMainService, IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
+import { addArg, parseMainProcessArgv } from '../../platform/environment/node/argvHelper.js';
+import { createWaitMarkerFileSync } from '../../platform/environment/node/wait.js';
+import { IFileService } from '../../platform/files/common/files.js';
+import { FileService } from '../../platform/files/common/fileService.js';
+import { DiskFileSystemProvider } from '../../platform/files/node/diskFileSystemProvider.js';
+import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
+import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
+import { InstantiationService } from '../../platform/instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
+import { ILaunchMainService } from '../../platform/launch/electron-main/launchMainService.js';
+import { ILifecycleMainService, LifecycleMainService } from '../../platform/lifecycle/electron-main/lifecycleMainService.js';
+import { BufferLogger } from '../../platform/log/common/bufferLog.js';
+import { ConsoleMainLogger, getLogLevel, ILoggerService, ILogService } from '../../platform/log/common/log.js';
+import product from '../../platform/product/common/product.js';
+import { IProductService } from '../../platform/product/common/productService.js';
+import { IProtocolMainService } from '../../platform/protocol/electron-main/protocol.js';
+import { ProtocolMainService } from '../../platform/protocol/electron-main/protocolMainService.js';
+import { ITunnelService } from '../../platform/tunnel/common/tunnel.js';
+import { TunnelService } from '../../platform/tunnel/node/tunnelService.js';
+import { IRequestService } from '../../platform/request/common/request.js';
+import { RequestService } from '../../platform/request/electron-utility/requestService.js';
+import { ISignService } from '../../platform/sign/common/sign.js';
+import { SignService } from '../../platform/sign/node/signService.js';
+import { IStateReadService, IStateService } from '../../platform/state/node/state.js';
+import { NullTelemetryService } from '../../platform/telemetry/common/telemetryUtils.js';
+import { IThemeMainService, ThemeMainService } from '../../platform/theme/electron-main/themeMainService.js';
+import { IUserDataProfilesMainService, UserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
+import { IPolicyService, NullPolicyService } from '../../platform/policy/common/policy.js';
+import { NativePolicyService } from '../../platform/policy/node/nativePolicyService.js';
+import { FilePolicyService } from '../../platform/policy/common/filePolicyService.js';
+import { DisposableStore } from '../../base/common/lifecycle.js';
+import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
+import { UriIdentityService } from '../../platform/uriIdentity/common/uriIdentityService.js';
+import { ILoggerMainService, LoggerMainService } from '../../platform/log/electron-main/loggerService.js';
+import { LogService } from '../../platform/log/common/logService.js';
+import { massageMessageBoxOptions } from '../../platform/dialogs/common/dialogs.js';
+import { SaveStrategy, StateService } from '../../platform/state/node/stateService.js';
+import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
+import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';
 
 /**
  * The main VS Code entry point.
@@ -99,7 +99,7 @@ class CodeMain {
 		setUnexpectedErrorHandler(err => console.error(err));
 
 		// Create services
-		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService, userDataProfilesMainService] = this.createServices();
+		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogger, productService, userDataProfilesMainService] = this.createServices();
 
 		try {
 
@@ -133,7 +133,7 @@ class CodeMain {
 				});
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
-				bufferLogService.logger = loggerService.createLogger('main', { name: localize('mainLog', "Main") });
+				bufferLogger.logger = loggerService.createLogger('main', { name: localize('mainLog', "Main") });
 
 				// Lifecycle
 				Event.once(lifecycleMainService.onWillShutdown)(evt => {
@@ -211,7 +211,7 @@ class CodeMain {
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService, undefined, false));
 
 		// Request
-		services.set(IRequestService, new SyncDescriptor(RequestMainService, undefined, true));
+		services.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
 
 		// Themes
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));

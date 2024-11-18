@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadStorageShape, ExtHostStorageShape } from './extHost.protocol';
-import { Emitter } from 'vs/base/common/event';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionIdWithVersion } from 'vs/platform/extensionManagement/common/extensionStorage';
-import { ILogService } from 'vs/platform/log/common/log';
+import { MainContext, MainThreadStorageShape, ExtHostStorageShape } from './extHost.protocol.js';
+import { Emitter } from '../../../base/common/event.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { IExtensionIdWithVersion } from '../../../platform/extensionManagement/common/extensionStorage.js';
+import { ILogService } from '../../../platform/log/common/log.js';
 
 export interface IStorageChangeEvent {
 	shared: boolean;

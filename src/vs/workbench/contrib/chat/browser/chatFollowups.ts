@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { formatChatQuestion } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import * as dom from '../../../../base/browser/dom.js';
+import { Button, IButtonStyles } from '../../../../base/browser/ui/button/button.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
+import { formatChatQuestion } from '../common/chatParserTypes.js';
+import { IChatFollowup } from '../common/chatService.js';
 
 const $ = dom.$;
 

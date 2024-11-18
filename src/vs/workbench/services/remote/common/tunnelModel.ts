@@ -3,33 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { debounce } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { hash } from 'vs/base/common/hash';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IRemoteAuthorityResolverService, TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { RemoteTunnel, ITunnelService, TunnelProtocol, TunnelPrivacyId, LOCALHOST_ADDRESSES, ProvidedPortAttributes, PortAttributesProvider, isLocalhost, isAllInterfaces, ProvidedOnAutoForward, ALL_INTERFACES_ADDRESSES } from 'vs/platform/tunnel/common/tunnel';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { isNumber, isObject, isString } from 'vs/base/common/types';
-import { deepClone } from 'vs/base/common/objects';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import * as nls from '../../../../nls.js';
+import { debounce } from '../../../../base/common/decorators.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { hash } from '../../../../base/common/hash.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IAddressProvider } from '../../../../platform/remote/common/remoteAgentConnection.js';
+import { IRemoteAuthorityResolverService, TunnelDescription } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { RemoteTunnel, ITunnelService, TunnelProtocol, TunnelPrivacyId, LOCALHOST_ADDRESSES, ProvidedPortAttributes, PortAttributesProvider, isLocalhost, isAllInterfaces, ProvidedOnAutoForward, ALL_INTERFACES_ADDRESSES } from '../../../../platform/tunnel/common/tunnel.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isNumber, isObject, isString } from '../../../../base/common/types.js';
+import { deepClone } from '../../../../base/common/objects.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 const MISMATCH_LOCAL_PORT_COOLDOWN = 10 * 1000; // 10 seconds
 const TUNNELS_TO_RESTORE = 'remote.tunnels.toRestore';
 const TUNNELS_TO_RESTORE_EXPIRATION = 'remote.tunnels.toRestoreExpiration';
 const RESTORE_EXPIRATION_TIME = 1000 * 60 * 60 * 24 * 14; // 2 weeks
 export const ACTIVATION_EVENT = 'onTunnel';
-export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
+export const forwardedPortsFeaturesEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
+export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewOnlyEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
 
 export interface RestorableTunnel {
 	remoteHost: string;
@@ -497,13 +498,14 @@ export class TunnelModel extends Disposable {
 				});
 			}
 			await this.storeForwarded();
+			this.checkExtensionActivationEvents(true);
 			this.remoteTunnels.set(key, tunnel);
 			this._onForwardPort.fire(this.forwarded.get(key)!);
 		}));
 		this._register(this.tunnelService.onTunnelClosed(address => {
 			return this.onTunnelClosed(address, TunnelCloseReason.Other);
 		}));
-		this.checkExtensionActivationEvents();
+		this.checkExtensionActivationEvents(false);
 	}
 
 	private extensionHasActivationEvent() {
@@ -514,7 +516,19 @@ export class TunnelModel extends Disposable {
 		return false;
 	}
 
-	private checkExtensionActivationEvents() {
+	private hasCheckedExtensionsOnTunnelOpened = false;
+	private checkExtensionActivationEvents(tunnelOpened: boolean) {
+		if (this.hasCheckedExtensionsOnTunnelOpened) {
+			return;
+		}
+		if (tunnelOpened) {
+			this.hasCheckedExtensionsOnTunnelOpened = true;
+		}
+		const hasRemote = this.environmentService.remoteAuthority !== undefined;
+		if (hasRemote && !tunnelOpened) {
+			// We don't activate extensions on startup if there is a remote
+			return;
+		}
 		if (this.extensionHasActivationEvent()) {
 			return;
 		}

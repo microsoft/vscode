@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+import { ExtensionRecommendations, ExtensionRecommendation } from './extensionRecommendations.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ExtensionRecommendationReason } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 
 export class KeymapRecommendations extends ExtensionRecommendations {
 

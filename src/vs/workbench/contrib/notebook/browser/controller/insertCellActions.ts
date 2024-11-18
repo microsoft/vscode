@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { localize } from 'vs/nls';
-import { IAction2Options, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { INotebookActionContext, NotebookAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
-import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { localize } from '../../../../../nls.js';
+import { IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { InputFocusedContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { insertCell } from './cellOperations.js';
+import { INotebookActionContext, NotebookAction } from './coreActions.js';
+import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE } from '../../common/notebookContextKeys.js';
+import { CellViewModel } from '../viewModel/notebookViewModelImpl.js';
+import { CellKind, NotebookSetting } from '../../common/notebookCommon.js';
+import { CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION } from './chat/notebookChatContext.js';
 
 const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertCodeCellAbove';
 const INSERT_CODE_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertCodeCellBelow';

@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { URI } from 'vs/base/common/uri';
-import { hasWorkspaceFileExtension, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { basename } from 'vs/base/common/resources';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IFileService } from 'vs/platform/files/common/files';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { AbstractWorkspaceEditingService } from 'vs/workbench/services/workspaces/browser/abstractWorkspaceEditingService';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { isMacintosh } from 'vs/base/common/platform';
-import { WorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { localize } from '../../../../nls.js';
+import { IWorkspaceEditingService } from '../common/workspaceEditing.js';
+import { URI } from '../../../../base/common/uri.js';
+import { hasWorkspaceFileExtension, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
+import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
+import { WorkspaceService } from '../../configuration/browser/configurationService.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { IWorkingCopyBackupService } from '../../workingCopy/common/workingCopyBackup.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { basename } from '../../../../base/common/resources.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService.js';
+import { ILifecycleService, ShutdownReason } from '../../lifecycle/common/lifecycle.js';
+import { IFileDialogService, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
+import { ITextFileService } from '../../textfile/common/textfiles.js';
+import { IHostService } from '../../host/browser/host.js';
+import { AbstractWorkspaceEditingService } from '../browser/abstractWorkspaceEditingService.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { WorkingCopyBackupService } from '../../workingCopy/common/workingCopyBackupService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 
 export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingService {
 

@@ -3,51 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, getClientArea, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement } from 'vs/base/browser/dom';
-import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from 'vs/base/common/platform';
-import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
-import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
-import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
-import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal } from 'vs/workbench/services/layout/browser/layoutService';
-import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, TitleBarSetting, CustomTitleBarVisibility } from 'vs/platform/window/common/window';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorGroupLayout, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing } from 'vs/base/browser/ui/grid/grid';
-import { Part } from 'vs/workbench/browser/part';
-import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IFileService } from 'vs/platform/files/common/files';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { coalesce } from 'vs/base/common/arrays';
-import { assertIsDefined } from 'vs/base/common/types';
-import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
-import { LineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { URI } from 'vs/base/common/uri';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { mark } from 'vs/base/common/performance';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { DeferredPromise, Promises } from 'vs/base/common/async';
-import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { CodeWindow, mainWindow } from 'vs/base/browser/window';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { Event, Emitter } from '../../base/common/event.js';
+import { EventType, addDisposableListener, getClientArea, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement } from '../../base/browser/dom.js';
+import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
+import { IWorkingCopyBackupService } from '../services/workingCopy/common/workingCopyBackup.js';
+import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
+import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
+import { SidebarPart } from './parts/sidebar/sidebarPart.js';
+import { PanelPart } from './parts/panel/panelPart.js';
+import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal } from '../services/layout/browser/layoutService.js';
+import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { ITitleService } from '../services/title/browser/titleService.js';
+import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
+import { StartupKind, ILifecycleService } from '../services/lifecycle/common/lifecycle.js';
+import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, TitleBarSetting, CustomTitleBarVisibility, useWindowControlsOverlay } from '../../platform/window/common/window.js';
+import { IHostService } from '../services/host/browser/host.js';
+import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
+import { IEditorService } from '../services/editor/common/editorService.js';
+import { EditorGroupLayout, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
+import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing } from '../../base/browser/ui/grid/grid.js';
+import { Part } from './part.js';
+import { IStatusbarService } from '../services/statusbar/browser/statusbar.js';
+import { IFileService } from '../../platform/files/common/files.js';
+import { isCodeEditor } from '../../editor/browser/editorBrowser.js';
+import { coalesce } from '../../base/common/arrays.js';
+import { assertIsDefined } from '../../base/common/types.js';
+import { INotificationService, NotificationsFilter } from '../../platform/notification/common/notification.js';
+import { IThemeService } from '../../platform/theme/common/themeService.js';
+import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from '../common/theme.js';
+import { LineNumbersType } from '../../editor/common/config/editorOptions.js';
+import { URI } from '../../base/common/uri.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../common/views.js';
+import { DiffEditorInput } from '../common/editor/diffEditorInput.js';
+import { mark } from '../../base/common/performance.js';
+import { IExtensionService } from '../services/extensions/common/extensions.js';
+import { ILogService } from '../../platform/log/common/log.js';
+import { DeferredPromise, Promises } from '../../base/common/async.js';
+import { IBannerService } from '../services/banner/browser/bannerService.js';
+import { IPaneCompositePartService } from '../services/panecomposite/browser/panecomposite.js';
+import { AuxiliaryBarPart } from './parts/auxiliarybar/auxiliaryBarPart.js';
+import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { IAuxiliaryWindowService } from '../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { CodeWindow, mainWindow } from '../../base/browser/window.js';
 
 //#region Layout Implementation
 
@@ -121,6 +121,7 @@ export const TITLE_BAR_SETTINGS = [
 	LayoutSettings.COMMAND_CENTER,
 	LayoutSettings.EDITOR_ACTIONS_LOCATION,
 	LayoutSettings.LAYOUT_ACTIONS,
+	'workbench.navigationControl.enabled',
 	'window.menuBarVisibility',
 	TitleBarSetting.TITLE_BAR_STYLE,
 	TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY,
@@ -424,12 +425,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// The menu bar toggles the title bar in web because it does not need to be shown for window controls only
 			if (isWeb && menuBarVisibility === 'toggle') {
-				this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled, this.isZenModeActive()));
+				this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
 			}
 
 			// The menu bar toggles the title bar in full screen for toggle and classic settings
 			else if (this.state.runtime.mainWindowFullscreen && (menuBarVisibility === 'toggle' || menuBarVisibility === 'classic')) {
-				this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled, this.isZenModeActive()));
+				this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
 			}
 
 			// Move layout call to any time the menubar
@@ -478,7 +479,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (hasCustomTitlebar(this.configurationService)) {
 
 			// Propagate to grid
-			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled, this.isZenModeActive()));
+			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
 
 			this.updateWindowsBorder(true);
 		}
@@ -559,7 +560,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private updateWindowsBorder(skipLayout = false) {
 		if (
 			isWeb ||
-			isWindows || // not working well with zooming and window control overlays
+			isWindows || 											// not working well with zooming (border often not visible)
+			useWindowControlsOverlay(this.configurationService) || 	// not working with WCO (border cannot draw over the overlay)
 			hasNativeTitlebar(this.configurationService)
 		) {
 			return;
@@ -634,7 +636,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Layout Initialization State
 		const initialEditorsState = this.getInitialEditorsState();
 		if (initialEditorsState) {
-			this.logService.info('Initial editor state', initialEditorsState);
+			this.logService.trace('Initial editor state', initialEditorsState);
 		}
 		const initialLayoutState: ILayoutInitializationState = {
 			layout: {
@@ -705,9 +707,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Auxiliary Panel to restore
 		if (this.isVisible(Parts.AUXILIARYBAR_PART)) {
-			const viewContainerToRestore = this.storageService.get(AuxiliaryBarPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id);
-
+			let viewContainerToRestore = this.storageService.get(AuxiliaryBarPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id);
 			if (viewContainerToRestore) {
+				if (viewContainerToRestore === 'workbench.panel.chatSidebar') {
+					viewContainerToRestore = 'workbench.panel.chat'; // TODO@bpasero remove me after some months
+				}
 				this.state.initialization.views.containerToRestore.auxiliaryBar = viewContainerToRestore;
 			} else {
 				this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, true);
@@ -1225,7 +1229,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				return shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled, this.isZenModeActive());
+				return shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled);
 			case Parts.SIDEBAR_PART:
 				return !this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN);
 			case Parts.PANEL_PART:
@@ -2034,14 +2038,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	updateMenubarVisibility(skipLayout: boolean): void {
-		const shouldShowTitleBar = shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled, this.isZenModeActive());
+		const shouldShowTitleBar = shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled);
 		if (!skipLayout && this.workbenchGrid && shouldShowTitleBar !== this.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
 		}
 	}
 
 	updateCustomTitleBarVisibility(): void {
-		const shouldShowTitleBar = shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled, this.isZenModeActive());
+		const shouldShowTitleBar = shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled);
 		const titlebarVisible = this.isVisible(Parts.TITLEBAR_PART);
 		if (shouldShowTitleBar !== titlebarVisible) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
@@ -2201,7 +2205,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.workbenchGrid.moveView(this.bannerPartView, Sizing.Distribute, this.titleBarPartView, shouldBannerBeFirst ? Direction.Up : Direction.Down);
 		}
 
-		this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled, this.isZenModeActive()));
+		this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
 	}
 
 	private arrangeEditorNodes(nodes: { editor: ISerializedNode; sideBar?: ISerializedNode; auxiliaryBar?: ISerializedNode }, availableHeight: number, availableWidth: number): ISerializedNode {
@@ -2645,7 +2649,7 @@ class LayoutStateModel extends Disposable {
 		}
 
 		// Register for runtime key changes
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._register(new DisposableStore()))(storageChangeEvent => {
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(storageChangeEvent => {
 			let key: keyof typeof LayoutStateKeys;
 			for (key in LayoutStateKeys) {
 				const stateKey = LayoutStateKeys[key] as WorkbenchLayoutStateKey<StorageKeyType>;

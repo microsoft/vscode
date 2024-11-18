@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
-import { ChatProgressContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatProgressContentPart';
-import { ChatCollapsibleListContentPart, CollapsibleListPool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatReferencesContentPart';
-import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatTask } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import * as dom from '../../../../../base/browser/dom.js';
+import { Event } from '../../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { ChatProgressContentPart } from './chatProgressContentPart.js';
+import { ChatCollapsibleListContentPart, CollapsibleListPool } from './chatReferencesContentPart.js';
+import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
+import { IChatTask } from '../../common/chatService.js';
+import { IChatResponseViewModel } from '../../common/chatViewModel.js';
 
 export class ChatTaskContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;

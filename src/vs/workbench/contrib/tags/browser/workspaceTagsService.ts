@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { URI } from 'vs/base/common/uri';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
+import { WorkbenchState, IWorkspace } from '../../../../platform/workspace/common/workspace.js';
+import { URI } from '../../../../base/common/uri.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IWorkspaceTagsService, Tags } from '../common/workspaceTags.js';
 
 export class NoOpWorkspaceTagsService implements IWorkspaceTagsService {
 

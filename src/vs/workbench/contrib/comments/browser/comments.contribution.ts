@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
-import { ICommentService, CommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/contrib/comments/browser/commentService';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Extensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
-import { CommentThreadState } from 'vs/editor/common/languages';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CONTEXT_KEY_HAS_COMMENTS, CONTEXT_KEY_SOME_COMMENTS_EXPANDED, CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
-import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { Codicon } from 'vs/base/common/codicons';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
-import { MarshalledCommentThreadInternal } from 'vs/workbench/common/comments';
-import { accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
-import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { CommentsAccessibleView } from 'vs/workbench/contrib/comments/browser/commentsAccessibleView';
-import { CommentsAccessibilityHelp } from 'vs/workbench/contrib/comments/browser/commentsAccessibility';
+import * as nls from '../../../../nls.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import './commentsEditorContribution.js';
+import { ICommentService, CommentService, IWorkspaceCommentThreadsEvent } from './commentService.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { Extensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import { COMMENTS_VIEW_ID } from './commentsTreeViewer.js';
+import { CommentThreadState } from '../../../../editor/common/languages.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CONTEXT_KEY_HAS_COMMENTS, CONTEXT_KEY_SOME_COMMENTS_EXPANDED, CommentsPanel } from './commentsView.js';
+import { ViewAction } from '../../../browser/parts/views/viewPane.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { revealCommentThread } from './commentsController.js';
+import { MarshalledCommentThreadInternal } from '../../../common/comments.js';
+import { accessibleViewCurrentProviderId, accessibleViewIsShown } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { CommentsAccessibleView, CommentThreadAccessibleView } from './commentsAccessibleView.js';
+import { CommentsAccessibilityHelp } from './commentsAccessibility.js';
 
 registerAction2(class Collapse extends ViewAction<CommentsPanel> {
 	constructor() {
@@ -193,4 +193,5 @@ export class UnresolvedCommentsBadge extends Disposable implements IWorkbenchCon
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(UnresolvedCommentsBadge, LifecyclePhase.Eventually);
 
 AccessibleViewRegistry.register(new CommentsAccessibleView());
+AccessibleViewRegistry.register(new CommentThreadAccessibleView());
 AccessibleViewRegistry.register(new CommentsAccessibilityHelp());

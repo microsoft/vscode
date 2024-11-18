@@ -169,13 +169,13 @@ var _nls;
             .filter(n => n.kind === ts.SyntaxKind.ImportEqualsDeclaration)
             .map(n => n)
             .filter(d => d.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference)
-            .filter(d => d.moduleReference.expression.getText() === '\'vs/nls\'');
+            .filter(d => d.moduleReference.expression.getText().endsWith(`/nls.js'`));
         // import ... from 'vs/nls';
         const importDeclarations = imports
             .filter(n => n.kind === ts.SyntaxKind.ImportDeclaration)
             .map(n => n)
             .filter(d => d.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral)
-            .filter(d => d.moduleSpecifier.getText() === '\'vs/nls\'')
+            .filter(d => d.moduleSpecifier.getText().endsWith(`/nls.js'`))
             .filter(d => !!d.importClause && !!d.importClause.namedBindings);
         // `nls.localize(...)` calls
         const nlsLocalizeCallExpressions = importDeclarations

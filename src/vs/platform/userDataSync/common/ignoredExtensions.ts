@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { distinct } from '../../../base/common/arrays.js';
+import { ConfigurationTarget, IConfigurationService } from '../../configuration/common/configuration.js';
+import { ILocalExtension } from '../../extensionManagement/common/extensionManagement.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IIgnoredExtensionsManagementService = createDecorator<IIgnoredExtensionsManagementService>('IIgnoredExtensionsManagementService');
 export interface IIgnoredExtensionsManagementService {

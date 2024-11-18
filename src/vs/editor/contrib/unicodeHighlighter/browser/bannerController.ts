@@ -2,18 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import 'vs/css!./bannerController';
-import { $, append, clearNode } from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action } from 'vs/base/common/actions';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILinkDescriptor, Link } from 'vs/platform/opener/browser/link';
-import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/base/common/themables';
+import './bannerController.css';
+import { $, append, clearNode } from '../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { Action } from '../../../../base/common/actions.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { MarkdownRenderer } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILinkDescriptor, Link } from '../../../../platform/opener/browser/link.js';
+import { widgetClose } from '../../../../platform/theme/common/iconRegistry.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const BANNER_ELEMENT_HEIGHT = 26;
 

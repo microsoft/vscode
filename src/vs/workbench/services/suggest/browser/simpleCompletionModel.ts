@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
-import { quickSelect } from 'vs/base/common/arrays';
-import { CharCode } from 'vs/base/common/charCode';
-import { FuzzyScore, fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from 'vs/base/common/filters';
-import { isWindows } from 'vs/base/common/platform';
+import { SimpleCompletionItem } from './simpleCompletionItem.js';
+import { quickSelect } from '../../../../base/common/arrays.js';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { FuzzyScore, fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer } from '../../../../base/common/filters.js';
+import { isWindows } from '../../../../base/common/platform.js';
 
 export interface ISimpleCompletionStats {
 	pLabelLen: number;
@@ -40,8 +40,6 @@ export class SimpleCompletionModel {
 	constructor(
 		private readonly _items: SimpleCompletionItem[],
 		private _lineContext: LineContext,
-		readonly replacementIndex: number,
-		readonly replacementLength: number,
 	) {
 	}
 
@@ -108,7 +106,7 @@ export class SimpleCompletionModel {
 			// filter and score against. In theory each suggestion uses a
 			// different word, but in practice not - that's why we cache
 			// TODO: Fix
-			const overwriteBefore = this.replacementLength; // item.position.column - item.editStart.column;
+			const overwriteBefore = item.completion.replacementLength; // item.position.column - item.editStart.column;
 			const wordLen = overwriteBefore + characterCountDelta; // - (item.position.column - this._column);
 			if (word.length !== wordLen) {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
@@ -227,11 +225,12 @@ export class SimpleCompletionModel {
 // File score boosts for specific file extensions on Windows. This only applies when the file is the
 // _first_ part of the command line.
 const fileExtScores = new Map<string, number>(isWindows ? [
-	// Pwsh
+	// Windows - .ps1 > .exe > .bat > .cmd. This is the command precedence when running the files
+	//           without an extension, tested manually in pwsh v7.4.4
 	['ps1', 0.09],
-	// Windows
-	['bat', 0.05],
-	['cmd', 0.05],
+	['exe', 0.08],
+	['bat', 0.07],
+	['cmd', 0.07],
 	// Non-Windows
 	['sh', -0.05],
 	['bash', -0.05],
@@ -247,6 +246,7 @@ const fileExtScores = new Map<string, number>(isWindows ? [
 	// Windows
 	['bat', -0.05],
 	['cmd', -0.05],
+	['exe', -0.05],
 	// Non-Windows
 	['sh', 0.05],
 	['bash', 0.05],

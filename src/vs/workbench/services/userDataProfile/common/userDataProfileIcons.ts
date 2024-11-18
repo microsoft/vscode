@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { localize } from '../../../../nls.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 
 export const DEFAULT_ICON = registerIcon('settings-view-bar-icon', Codicon.settingsGear, localize('settingsViewBarIcon', "Settings icon in the view bar."));
 
@@ -30,10 +30,14 @@ export const ICONS = [
 	Codicon.snake,
 
 	/* project types */
+	Codicon.project,
 	Codicon.window,
 	Codicon.library,
 	Codicon.extensions,
 	Codicon.terminal,
+	Codicon.terminalDebian,
+	Codicon.terminalLinux,
+	Codicon.terminalUbuntu,
 	Codicon.beaker,
 	Codicon.package,
 	Codicon.cloud,
@@ -45,10 +49,16 @@ export const ICONS = [
 	Codicon.game,
 	Codicon.chip,
 	Codicon.music,
+	Codicon.remoteExplorer,
+	Codicon.github,
+	Codicon.azure,
+	Codicon.vscode,
+	Codicon.copilot,
 
 	/* misc */
 	Codicon.gift,
 	Codicon.send,
+	Codicon.bookmark,
 	Codicon.briefcase,
 	Codicon.megaphone,
 	Codicon.comment,
@@ -86,6 +96,8 @@ export const ICONS = [
 	Codicon.dashboard,
 	Codicon.calendar,
 	Codicon.shield,
+	Codicon.verified,
+	Codicon.debug,
 	Codicon.flame,
 	Codicon.compass,
 	Codicon.paintcan,

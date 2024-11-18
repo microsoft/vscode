@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { getReplView, Repl } from 'vs/workbench/contrib/debug/browser/repl';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { localize } from 'vs/nls';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { getReplView, Repl } from './repl.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { localize } from '../../../../nls.js';
 
 export class ReplAccessibilityHelp implements IAccessibleViewImplentation {
 	priority = 120;

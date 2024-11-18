@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IndexedDB } from 'vs/base/browser/indexedDB';
-import { bufferToReadable, bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { flakySuite } from 'vs/base/test/common/testUtils';
-import { IndexedDBFileSystemProvider } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
-import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileSystemProviderError, FileSystemProviderErrorCode, FileType } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { IndexedDB } from '../../../../base/browser/indexedDB.js';
+import { bufferToReadable, bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { basename, joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { flakySuite } from '../../../../base/test/common/testUtils.js';
+import { IndexedDBFileSystemProvider } from '../../browser/indexedDBFileSystemProvider.js';
+import { FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FileSystemProviderError, FileSystemProviderErrorCode, FileType } from '../../common/files.js';
+import { FileService } from '../../common/fileService.js';
+import { NullLogService } from '../../../log/common/log.js';
 
 flakySuite('IndexedDBFileSystemProvider', function () {
 

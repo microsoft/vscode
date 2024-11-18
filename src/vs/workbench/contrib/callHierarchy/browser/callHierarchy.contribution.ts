@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { CallHierarchyProviderRegistry, CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CallHierarchyTreePeekWidget } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek';
-import { Event } from 'vs/base/common/event';
-import { registerEditorContribution, EditorAction2, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextKeyService, RawContextKey, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Range } from 'vs/editor/common/core/range';
-import { IPosition } from 'vs/editor/common/core/position';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { isCancellationError } from 'vs/base/common/errors';
+import { localize, localize2 } from '../../../../nls.js';
+import { CallHierarchyProviderRegistry, CallHierarchyDirection, CallHierarchyModel } from '../common/callHierarchy.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { CallHierarchyTreePeekWidget } from './callHierarchyPeek.js';
+import { Event } from '../../../../base/common/event.js';
+import { registerEditorContribution, EditorAction2, EditorContributionInstantiation } from '../../../../editor/browser/editorExtensions.js';
+import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IContextKeyService, RawContextKey, IContextKey, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { PeekContext } from '../../../../editor/contrib/peekView/browser/peekView.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { IPosition } from '../../../../editor/common/core/position.js';
+import { MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 
 const _ctxHasCallHierarchyProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false, localize('editorHasCallHierarchyProvider', 'Whether a call hierarchy provider is available'));
 const _ctxCallHierarchyVisible = new RawContextKey<boolean>('callHierarchyVisible', false, localize('callHierarchyVisible', 'Whether call hierarchy peek is currently showing'));

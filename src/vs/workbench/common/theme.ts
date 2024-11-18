@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, editorForeground, toolbarHoverBackground, inputBorder, widgetBorder, scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { localize } from '../../nls.js';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground, editorForeground, toolbarHoverBackground, inputBorder, widgetBorder, scrollbarShadow } from '../../platform/theme/common/colorRegistry.js';
+import { IColorTheme } from '../../platform/theme/common/themeService.js';
+import { Color } from '../../base/common/color.js';
+import { ColorScheme } from '../../platform/theme/common/theme.js';
 
 // < --- Workbench (not customizable) --- >
 

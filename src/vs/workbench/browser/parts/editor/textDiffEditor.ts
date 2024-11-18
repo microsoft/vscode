@@ -3,38 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { deepClone } from 'vs/base/common/objects';
-import { isObject, assertIsDefined } from 'vs/base/common/types';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { AbstractTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorOpenContext, isEditorInput, isTextEditorViewState, createTooLargeFileError } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { ScrollType, IDiffEditorViewState, IDiffEditorModel, IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { isEqual } from 'vs/base/common/resources';
-import { Dimension, multibyteAwareBtoa } from 'vs/base/browser/dom';
-import { ByteSize, FileOperationError, FileOperationResult, IFileService, TooLargeFileOperationError } from 'vs/platform/files/common/files';
-import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { localize } from '../../../../nls.js';
+import { deepClone } from '../../../../base/common/objects.js';
+import { isObject, assertIsDefined } from '../../../../base/common/types.js';
+import { ICodeEditor, IDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { AbstractTextEditor, IEditorConfiguration } from './textEditor.js';
+import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorOpenContext, isEditorInput, isTextEditorViewState, createTooLargeFileError } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { applyTextEditorOptions } from '../../../common/editor/editorOptions.js';
+import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
+import { TextDiffEditorModel } from '../../../common/editor/textDiffEditorModel.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { TextFileOperationError, TextFileOperationResult } from '../../../services/textfile/common/textfiles.js';
+import { ScrollType, IDiffEditorViewState, IDiffEditorModel, IDiffEditorViewModel } from '../../../../editor/common/editorCommon.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { EditorActivation, ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { Dimension, multibyteAwareBtoa } from '../../../../base/browser/dom.js';
+import { ByteSize, FileOperationError, FileOperationResult, IFileService, TooLargeFileOperationError } from '../../../../platform/files/common/files.js';
+import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.

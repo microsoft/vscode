@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, registerTestFileEditor, registerTestResourceEditor, TestFileEditorInput, createEditorPart, registerTestSideBySideEditor, TestEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { URI } from 'vs/base/common/uri';
-import { resolveCommandsContext } from 'vs/workbench/browser/parts/editor/editorCommandsContext';
-import { IEditorCommandsContext } from 'vs/workbench/common/editor';
-import { IListService, WorkbenchListWidget } from 'vs/platform/list/browser/listService';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, registerTestFileEditor, registerTestResourceEditor, TestFileEditorInput, createEditorPart, registerTestSideBySideEditor, TestEditorInput } from '../../workbenchTestServices.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { GroupDirection, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { EditorService } from '../../../../services/editor/browser/editorService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
+import { IEditorCommandsContext } from '../../../../common/editor.js';
+import { IListService, WorkbenchListWidget } from '../../../../../platform/list/browser/listService.js';
 
 class TestListService implements IListService {
 	declare readonly _serviceBrand: undefined;

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Client as IPCElectronClient } from 'vs/base/parts/ipc/electron-sandbox/ipc.electron';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { Client as IPCElectronClient } from '../../../base/parts/ipc/electron-sandbox/ipc.electron.js';
+import { IMainProcessService } from '../common/mainProcessService.js';
 
 /**
  * An implementation of `IMainProcessService` that leverages Electron's IPC.

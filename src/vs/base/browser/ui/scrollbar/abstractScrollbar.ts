@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
-import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
-import { StandardWheelEvent } from 'vs/base/browser/mouseEvent';
-import { ScrollbarArrow, ScrollbarArrowOptions } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
-import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
-import { ScrollbarVisibilityController } from 'vs/base/browser/ui/scrollbar/scrollbarVisibilityController';
-import { Widget } from 'vs/base/browser/ui/widget';
-import * as platform from 'vs/base/common/platform';
-import { INewScrollPosition, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import * as dom from '../../dom.js';
+import { createFastDomNode, FastDomNode } from '../../fastDomNode.js';
+import { GlobalPointerMoveMonitor } from '../../globalPointerMoveMonitor.js';
+import { StandardWheelEvent } from '../../mouseEvent.js';
+import { ScrollbarArrow, ScrollbarArrowOptions } from './scrollbarArrow.js';
+import { ScrollbarState } from './scrollbarState.js';
+import { ScrollbarVisibilityController } from './scrollbarVisibilityController.js';
+import { Widget } from '../widget.js';
+import * as platform from '../../../common/platform.js';
+import { INewScrollPosition, Scrollable, ScrollbarVisibility } from '../../../common/scrollable.js';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"

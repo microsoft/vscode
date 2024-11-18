@@ -5,13 +5,13 @@
 
 import assert from 'assert';
 import * as fs from 'fs';
-import * as encoding from 'vs/workbench/services/textfile/common/encoding';
-import * as streams from 'vs/base/common/stream';
-import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, streamToBufferReadableStream } from 'vs/base/common/buffer';
-import { splitLines } from 'vs/base/common/strings';
-import { FileAccess } from 'vs/base/common/network';
-import { importAMDNodeModule } from 'vs/amdX';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import * as encoding from '../../../common/encoding.js';
+import * as streams from '../../../../../../base/common/stream.js';
+import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, streamToBufferReadableStream } from '../../../../../../base/common/buffer.js';
+import { splitLines } from '../../../../../../base/common/strings.js';
+import { FileAccess } from '../../../../../../base/common/network.js';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 
 export async function detectEncodingByBOM(file: string): Promise<typeof encoding.UTF16be | typeof encoding.UTF16le | typeof encoding.UTF8_with_bom | null> {
 	try {

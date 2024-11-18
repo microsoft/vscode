@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress } from 'vs/platform/progress/common/progress';
-import { IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
-import { IChatFollowup, IChatProgress, IChatResponseProgressFileTreeData } from 'vs/workbench/contrib/chat/common/chatService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProgress } from '../../../../platform/progress/common/progress.js';
+import { IChatMessage } from './languageModels.js';
+import { IChatFollowup, IChatProgress, IChatResponseProgressFileTreeData } from './chatService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { ChatAgentLocation } from './chatAgents.js';
 
 //#region slash service, commands etc
 

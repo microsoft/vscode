@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { watch, promises } from 'fs';
-import { RunOnceWorker, ThrottledWorker } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isEqualOrParent } from 'vs/base/common/extpath';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { basename, dirname, join } from 'vs/base/common/path';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { realcase } from 'vs/base/node/extpath';
-import { Promises } from 'vs/base/node/pfs';
-import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, isWatchRequestWithCorrelation } from 'vs/platform/files/common/watcher';
+import { RunOnceWorker, ThrottledWorker } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { isEqualOrParent } from '../../../../../base/common/extpath.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { normalizeNFC } from '../../../../../base/common/normalization.js';
+import { basename, dirname, join } from '../../../../../base/common/path.js';
+import { isLinux, isMacintosh } from '../../../../../base/common/platform.js';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { realcase } from '../../../../../base/node/extpath.js';
+import { Promises } from '../../../../../base/node/pfs.js';
+import { FileChangeType, IFileChange } from '../../../common/files.js';
+import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, isWatchRequestWithCorrelation } from '../../../common/watcher.js';
 
 export class NodeJSFileWatcherLibrary extends Disposable {
 
@@ -51,7 +51,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	private readonly excludes = parseWatcherPatterns(this.request.path, this.request.excludes);
 	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
-	private readonly filter = isWatchRequestWithCorrelation(this.request) ? this.request.filter : undefined; // TODO@bpasero filtering for now is only enabled when correlating because watchers are otherwise potentially reused
+	private readonly filter = isWatchRequestWithCorrelation(this.request) ? this.request.filter : undefined; // filtering is only enabled when correlating because watchers are otherwise potentially reused
 
 	private readonly cts = new CancellationTokenSource();
 

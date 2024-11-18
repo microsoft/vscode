@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtension, ExtensionType, IExtensionManifest, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, Metadata, UninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { URI } from 'vs/base/common/uri';
-import { FileAccess } from 'vs/base/common/network';
-import { localize } from 'vs/nls';
+import { Event } from '../../../../base/common/event.js';
+import { createDecorator, refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IExtension, ExtensionType, IExtensionManifest, IExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, Metadata, UninstallExtensionEvent, DidUpdateExtensionMetadata } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { URI } from '../../../../base/common/uri.js';
+import { FileAccess } from '../../../../base/common/network.js';
+import { localize } from '../../../../nls.js';
 
 export type DidChangeProfileEvent = { readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] };
 
 export const IProfileAwareExtensionManagementService = refineServiceDecorator<IExtensionManagementService, IProfileAwareExtensionManagementService>(IExtensionManagementService);
 export interface IProfileAwareExtensionManagementService extends IExtensionManagementService {
+	readonly onProfileAwareDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
+	readonly onProfileAwareDidUninstallExtension: Event<DidUninstallExtensionEvent>;
+	readonly onProfileAwareDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
 	readonly onDidChangeProfile: Event<DidChangeProfileEvent>;
 }
 
@@ -60,12 +63,16 @@ export const IWorkbenchExtensionManagementService = refineServiceDecorator<IProf
 export interface IWorkbenchExtensionManagementService extends IProfileAwareExtensionManagementService {
 	readonly _serviceBrand: undefined;
 
-	onInstallExtension: Event<InstallExtensionOnServerEvent>;
-	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
-	onUninstallExtension: Event<UninstallExtensionOnServerEvent>;
-	onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
-	onDidChangeProfile: Event<DidChangeProfileForServerEvent>;
-	onDidEnableExtensions: Event<IExtension[]>;
+	readonly onInstallExtension: Event<InstallExtensionOnServerEvent>;
+	readonly onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
+	readonly onUninstallExtension: Event<UninstallExtensionOnServerEvent>;
+	readonly onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
+	readonly onDidChangeProfile: Event<DidChangeProfileForServerEvent>;
+	readonly onDidEnableExtensions: Event<IExtension[]>;
+
+	readonly onProfileAwareDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
+	readonly onProfileAwareDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
+	readonly onProfileAwareDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
 
 	getExtensions(locations: URI[]): Promise<IResourceExtension[]>;
 	getInstalledWorkspaceExtensionLocations(): URI[];
@@ -94,6 +101,7 @@ export const enum EnablementState {
 	DisabledByEnvironment,
 	EnabledByEnvironment,
 	DisabledByVirtualWorkspace,
+	DisabledByInvalidExtension,
 	DisabledByExtensionDependency,
 	DisabledGlobally,
 	DisabledWorkspace,
