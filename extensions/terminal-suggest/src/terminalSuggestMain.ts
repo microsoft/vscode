@@ -7,7 +7,8 @@ import * as os from 'os';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ExecOptionsWithStringEncoding, execSync } from 'child_process';
-import completionSpec from './completions/code-insiders';
+import codeInsidersCompletionSpec from './completions/code-insiders';
+import codeCompletionSpec from './completions/code';
 
 let cachedAvailableCommands: Set<string> | undefined;
 let cachedBuiltinCommands: Map<string, string[]> | undefined;
@@ -82,51 +83,59 @@ vscode.window.registerTerminalCompletionProvider({
 
 		const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 		let result: vscode.TerminalCompletionItem[] = [];
-		if (!('options' in completionSpec) || !completionSpec.options) {
-			return;
-		}
 
-		for (const option of completionSpec.options) {
-			const optionLabel = getLabel(option);
-			if (!optionLabel) {
+		const specs = [codeCompletionSpec, codeInsidersCompletionSpec];
+		for (const spec of specs) {
+			const specName = getLabel(spec);
+			if (!specName) {
 				continue;
 			}
-			if (optionLabel.startsWith(prefix)) {
-				result.push(createCompletionItem(terminalContext.cursorPosition, prefix, optionLabel, option.description));
-			}
-			if (option.args !== undefined) {
-				const args = Array.isArray(option.args) ? option.args : [option.args];
-				for (const arg of args) {
-					if (!arg) {
-						continue;
-					}
-
-					if (arg.template) {
-						// TODO: return file/folder completion items
-						if (arg.template === 'filepaths') {
-							// if (label.startsWith(prefix+\s*)) {
-							// result.push(FilePathCompletionItem)
-							// }
-						} else if (arg.template === 'folders') {
-							// if (label.startsWith(prefix+\s*)) {
-							// result.push(FolderPathCompletionItem)
-							// }
+			if (terminalContext.commandLine.startsWith(specName)) {
+				if ('options' in codeInsidersCompletionSpec && codeInsidersCompletionSpec.options) {
+					for (const option of codeInsidersCompletionSpec.options) {
+						const optionLabel = getLabel(option);
+						if (!optionLabel) {
+							continue;
 						}
-						continue;
-					}
+						if (optionLabel.startsWith(prefix)) {
+							result.push(createCompletionItem(terminalContext.cursorPosition, prefix, optionLabel, option.description));
+						}
+						if (option.args !== undefined) {
+							const args = Array.isArray(option.args) ? option.args : [option.args];
+							for (const arg of args) {
+								if (!arg) {
+									continue;
+								}
 
-					const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition);
-					const expectedText = `${optionLabel} `;
-					if (arg.suggestions?.length && precedingText.endsWith(expectedText)) {
-						// there are specific suggestions to show
-						result = [];
-						for (const suggestion of arg.suggestions) {
-							const suggestionLabel = getLabel(suggestion);
-							if (suggestionLabel) {
-								result.push(createCompletionItem(terminalContext.cursorPosition, optionLabel + ' ', suggestionLabel, arg.name, terminalContext.cursorPosition));
+								if (arg.template) {
+									// TODO: return file/folder completion items
+									if (arg.template === 'filepaths') {
+										// if (label.startsWith(prefix+\s*)) {
+										// result.push(FilePathCompletionItem)
+										// }
+									} else if (arg.template === 'folders') {
+										// if (label.startsWith(prefix+\s*)) {
+										// result.push(FolderPathCompletionItem)
+										// }
+									}
+									continue;
+								}
+
+								const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition);
+								const expectedText = `${optionLabel} `;
+								if (arg.suggestions?.length && precedingText.endsWith(expectedText)) {
+									// there are specific suggestions to show
+									result = [];
+									for (const suggestion of arg.suggestions) {
+										const suggestionLabel = getLabel(suggestion);
+										if (suggestionLabel) {
+											result.push(createCompletionItem(terminalContext.cursorPosition, optionLabel + ' ', suggestionLabel, arg.name, terminalContext.cursorPosition));
+										}
+									}
+									return result;
+								}
 							}
 						}
-						return result;
 					}
 				}
 			}
@@ -186,8 +195,9 @@ async function getCommandsInPath(): Promise<Set<string> | undefined> {
 				continue;
 			}
 			const files = await vscode.workspace.fs.readDirectory(vscode.Uri.file(path));
+
 			for (const [file, fileType] of files) {
-				if (fileType === vscode.FileType.File) {
+				if (fileType === vscode.FileType.File || fileType === vscode.FileType.SymbolicLink) {
 					executables.add(file);
 				}
 			}

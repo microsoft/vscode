@@ -301,7 +301,7 @@ const troubleshootingOptions: Fig.Option[] = [
 	},
 ];
 
-const completionSpec: Fig.Spec = {
+const codeCompletionSpec: Fig.Spec = {
 	name: 'code',
 	description: 'Visual Studio Code',
 	args: {
@@ -315,4 +315,4 @@ const completionSpec: Fig.Spec = {
 	],
 };
 
-export default completionSpec;
+export default codeCompletionSpec;

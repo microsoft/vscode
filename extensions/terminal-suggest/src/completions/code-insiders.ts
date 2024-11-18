@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import code from './code';
 
-const completionSpec: Fig.Spec = {
+const codeInsidersCompletionSpec: Fig.Spec = {
 	...code,
 	name: 'code-insiders',
 };
 
-export default completionSpec;
+export default codeInsidersCompletionSpec;
