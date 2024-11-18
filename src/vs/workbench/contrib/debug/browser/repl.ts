@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
@@ -708,7 +709,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		}));
 		// Make sure to select the session if debugging is already active
 		this.selectSession();
-		this.styleElement = dom.createStyleSheet(this.container);
+		this.styleElement = domStylesheetsJs.createStyleSheet(this.container);
 		this.onDidStyleChange();
 	}
 

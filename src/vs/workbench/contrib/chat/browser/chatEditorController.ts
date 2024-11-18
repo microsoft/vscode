@@ -27,11 +27,11 @@ import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGu
 import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { Event } from '../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
 
@@ -185,6 +185,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			const mightContainNonBasicASCII = originalModel.mightContainNonBasicASCII();
 			const mightContainRTL = originalModel.mightContainRTL();
 			const renderOptions = RenderOptions.fromEditor(this._editor);
+			const editorLineCount = this._editor.getModel()?.getLineCount();
 
 			for (const diffEntry of diff.changes) {
 				const originalRange = diffEntry.original;
@@ -202,11 +203,20 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 						diffDeleteDecoration.className!,
 						InlineDecorationType.Regular
 					));
-					modifiedDecorations.push({
-						range: i.modifiedRange, options: chatDiffAddDecoration
-					});
+
+					// If the original range is empty, the start line number is 1 and the new range spans the entire file, don't draw an Added decoration
+					if (!(i.originalRange.isEmpty() && i.originalRange.startLineNumber === 1 && i.modifiedRange.endLineNumber === editorLineCount) && !i.modifiedRange.isEmpty()) {
+						modifiedDecorations.push({
+							range: i.modifiedRange, options: chatDiffAddDecoration
+						});
+					}
 				}
-				if (!diffEntry.modified.isEmpty) {
+
+				// Render an added decoration but don't also render a deleted decoration for newly inserted content at the start of the file
+				// Note, this is a workaround for the `LineRange.isEmpty()` in diffEntry.original being `false` for newly inserted content
+				const isCreatedContent = decorations.length === 1 && decorations[0].range.isEmpty() && diffEntry.original.startLineNumber === 1;
+
+				if (!diffEntry.modified.isEmpty && !(isCreatedContent && (diffEntry.modified.endLineNumberExclusive - 1) === editorLineCount)) {
 					modifiedDecorations.push({
 						range: diffEntry.modified.toInclusiveRange()!,
 						options: chatDiffWholeLineAddDecoration
@@ -236,7 +246,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				domNode.className = 'chat-editing-original-zone view-lines line-delete monaco-mouse-cursor-text';
 				const result = renderLines(source, renderOptions, decorations, domNode);
 
-				const isCreatedContent = decorations.length === 1 && decorations[0].range.isEmpty() && decorations[0].range.startLineNumber === 1;
 				if (!isCreatedContent) {
 					const viewZoneData: IViewZone = {
 						afterLineNumber: diffEntry.modified.startLineNumber - 1,
@@ -492,31 +501,17 @@ class DiffHunkWidget implements IOverlayWidget {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'chat-diff-change-content-widget';
 
-		const btns = instaService.createInstance(MenuWorkbenchButtonBar, this._domNode, MenuId.ChatEditingEditorHunk, {
+		const toolbar = instaService.createInstance(MenuWorkbenchToolBar, this._domNode, MenuId.ChatEditingEditorHunk, {
 			telemetrySource: 'chatEditingEditorHunk',
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true, },
 			menuOptions: {
 				renderShortTitle: true,
 				arg: this,
 			},
-			buttonConfigProvider: (action) => {
-				if (action.id === 'chatEditor.action.undoHunk') { // TODO@jrieken don't hardcode id
-					return {
-						isSecondary: false,
-						showIcon: true,
-						showLabel: true
-					};
-				} else {
-					return {
-						isSecondary: true,
-						showIcon: true,
-						showLabel: false
-					};
-				}
-			}
 		});
 
-		this._store.add(btns);
+		this._store.add(toolbar);
 		this._editor.addOverlayWidget(this);
 	}
 

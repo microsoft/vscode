@@ -5,11 +5,11 @@
 
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import { CursorColumns } from '../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
-import type { ViewLinesDeletedEvent } from '../../common/viewEvents.js';
+import { ViewEventHandler } from '../../common/viewEventHandler.js';
+import type { ViewConfigurationChangedEvent, ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewLinesInsertedEvent, ViewScrollChangedEvent, ViewTokensChangedEvent } from '../../common/viewEvents.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewLineRenderingData } from '../../common/viewModel.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
@@ -38,7 +38,7 @@ const enum CellBufferInfo {
 	TextureIndex = 5,
 }
 
-export class FullFileRenderStrategy extends Disposable implements IGpuRenderStrategy {
+export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRenderStrategy {
 
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
@@ -57,8 +57,9 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 	private _visibleObjectCount: number = 0;
 	private _finalRenderedLine: number = 0;
 
-	private _scrollOffsetBindBuffer!: GPUBuffer;
-	private _scrollOffsetValueBuffers!: [Float32Array, Float32Array];
+	private _scrollOffsetBindBuffer: GPUBuffer;
+	private _scrollOffsetValueBuffer: Float32Array;
+	private _scrollInitialized: boolean = false;
 
 	private readonly _queuedBufferUpdates: [ViewLinesDeletedEvent[], ViewLinesDeletedEvent[]] = [[], []];
 
@@ -75,6 +76,8 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 		private readonly _device: GPUDevice,
 	) {
 		super();
+
+		this._context.addEventHandler(this);
 
 		// TODO: Detect when lines have been tokenized and clear _upToDateLines
 		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
@@ -99,11 +102,83 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 			size: scrollOffsetBufferSize * Float32Array.BYTES_PER_ELEMENT,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		})).object;
-		this._scrollOffsetValueBuffers = [
-			new Float32Array(scrollOffsetBufferSize),
-			new Float32Array(scrollOffsetBufferSize),
-		];
+		this._scrollOffsetValueBuffer = new Float32Array(scrollOffsetBufferSize);
 	}
+
+	// #region Event handlers
+
+	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
+		this._upToDateLines[0].clear();
+		this._upToDateLines[1].clear();
+		return true;
+	}
+
+	public override onTokensChanged(e: ViewTokensChangedEvent): boolean {
+		// TODO: This currently fires for the entire viewport whenever scrolling stops
+		//       https://github.com/microsoft/vscode/issues/233942
+		for (const range of e.ranges) {
+			for (let i = range.fromLineNumber; i <= range.toLineNumber; i++) {
+				this._upToDateLines[0].delete(i);
+				this._upToDateLines[1].delete(i);
+			}
+		}
+		return true;
+	}
+
+	public override onLinesDeleted(e: ViewLinesDeletedEvent): boolean {
+		// TODO: This currently invalidates everything after the deleted line, it could shift the
+		//       line data up to retain some up to date lines
+		// TODO: This does not invalidate lines that are no longer in the file
+		for (const i of [0, 1]) {
+			const upToDateLines = this._upToDateLines[i];
+			const lines = Array.from(upToDateLines);
+			for (const upToDateLine of lines) {
+				if (upToDateLine > e.fromLineNumber) {
+					upToDateLines.delete(upToDateLine);
+				}
+			}
+		}
+
+		// Queue updates that need to happen on the active buffer, not just the cache. This is
+		// deferred since the active buffer could be locked by the GPU which would block the main
+		// thread.
+		this._queueBufferUpdate(e);
+
+		return true;
+	}
+
+	public override onLinesInserted(e: ViewLinesInsertedEvent): boolean {
+		// TODO: This currently invalidates everything after the deleted line, it could shift the
+		//       line data up to retain some up to date lines
+		for (const i of [0, 1]) {
+			const upToDateLines = this._upToDateLines[i];
+			const lines = Array.from(upToDateLines);
+			for (const upToDateLine of lines) {
+				if (upToDateLine > e.fromLineNumber) {
+					upToDateLines.delete(upToDateLine);
+				}
+			}
+		}
+		return true;
+	}
+
+	public override onLinesChanged(e: ViewLinesChangedEvent): boolean {
+		for (let i = e.fromLineNumber; i < e.fromLineNumber + e.count; i++) {
+			this._upToDateLines[0].delete(i);
+			this._upToDateLines[1].delete(i);
+		}
+		return true;
+	}
+
+	public override onScrollChanged(e?: ViewScrollChangedEvent): boolean {
+		const dpr = getActiveWindow().devicePixelRatio;
+		this._scrollOffsetValueBuffer[0] = (e?.scrollLeft ?? this._context.viewLayout.getCurrentScrollLeft()) * dpr;
+		this._scrollOffsetValueBuffer[1] = (e?.scrollTop ?? this._context.viewLayout.getCurrentScrollTop()) * dpr;
+		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer);
+		return true;
+	}
+
+	// #endregion
 
 	reset() {
 		for (const bufferIndex of [0, 1]) {
@@ -122,12 +197,8 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 		let chars = '';
 		let y = 0;
 		let x = 0;
-		let screenAbsoluteX = 0;
-		let screenAbsoluteY = 0;
-		let zeroToOneX = 0;
-		let zeroToOneY = 0;
-		let wgslX = 0;
-		let wgslY = 0;
+		let absoluteOffsetX = 0;
+		let absoluteOffsetY = 0;
 		let xOffset = 0;
 		let glyph: Readonly<ITextureAtlasPageGlyph>;
 		let cellIndex = 0;
@@ -145,11 +216,10 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 
 		const dpr = getActiveWindow().devicePixelRatio;
 
-		// Update scroll offset
-		const scrollOffsetBuffer = this._scrollOffsetValueBuffers[this._activeDoubleBufferIndex];
-		scrollOffsetBuffer[0] = this._context.viewLayout.getCurrentScrollLeft() * dpr;
-		scrollOffsetBuffer[1] = this._context.viewLayout.getCurrentScrollTop() * dpr;
-		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, scrollOffsetBuffer);
+		if (!this._scrollInitialized) {
+			this.onScrollChanged();
+			this._scrollInitialized = true;
+		}
 
 		// Update cell data
 		const cellBuffer = new Float32Array(this._cellValueBuffers[this._activeDoubleBufferIndex]);
@@ -189,39 +259,16 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 				continue;
 			}
 
-			// TODO: Update on dirty lines; is this known by line before rendering?
-			// if (upToDateLines.has(y)) {
-			// 	continue;
-			// }
+			// Skip updating the line if it's already up to date
+			if (upToDateLines.has(y)) {
+				continue;
+			}
 			dirtyLineStart = Math.min(dirtyLineStart, y);
 			dirtyLineEnd = Math.max(dirtyLineEnd, y);
 
 			lineData = viewportData.getViewLineRenderingData(y);
 			content = lineData.content;
 			xOffset = 0;
-
-			// See ViewLine#renderLine
-			// const renderLineInput = new RenderLineInput(
-			// 	options.useMonospaceOptimizations,
-			// 	options.canUseHalfwidthRightwardsArrow,
-			// 	lineData.content,
-			// 	lineData.continuesWithWrappedLine,
-			// 	lineData.isBasicASCII,
-			// 	lineData.containsRTL,
-			// 	lineData.minColumn - 1,
-			// 	lineData.tokens,
-			// 	actualInlineDecorations,
-			// 	lineData.tabSize,
-			// 	lineData.startVisibleColumn,
-			// 	options.spaceWidth,
-			// 	options.middotWidth,
-			// 	options.wsmiddotWidth,
-			// 	options.stopRenderingLineAfter,
-			// 	options.renderWhitespace,
-			// 	options.renderControlCharacters,
-			// 	options.fontLigatures !== EditorFontLigatures.OFF,
-			// 	selectionsOnLine
-			// );
 
 			tokens = lineData.tokens;
 			tokenStartIndex = lineData.minColumn - 1;
@@ -255,8 +302,8 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer, chars, tokenMetadata);
 
 					// TODO: Support non-standard character widths
-					screenAbsoluteX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);
-					screenAbsoluteY = (
+					absoluteOffsetX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);
+					absoluteOffsetY = (
 						Math.ceil((
 							// Top of line including line height
 							viewportData.relativeVerticalOffset[y - viewportData.startLineNumber] +
@@ -264,14 +311,10 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 							Math.floor((viewportData.lineHeight - this._context.configuration.options.get(EditorOption.fontSize)) / 2)
 						) * dpr)
 					);
-					zeroToOneX = screenAbsoluteX / this._viewGpuContext.canvas.domNode.width;
-					zeroToOneY = screenAbsoluteY / this._viewGpuContext.canvas.domNode.height;
-					wgslX = zeroToOneX * 2 - 1;
-					wgslY = zeroToOneY * 2 - 1;
 
 					cellIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + x) * Constants.IndicesPerCell;
-					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = wgslX;
-					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = -wgslY;
+					cellBuffer[cellIndex + CellBufferInfo.Offset_X] = absoluteOffsetX;
+					cellBuffer[cellIndex + CellBufferInfo.Offset_Y] = absoluteOffsetY;
 					cellBuffer[cellIndex + CellBufferInfo.GlyphIndex] = glyph.glyphIndex;
 					cellBuffer[cellIndex + CellBufferInfo.TextureIndex] = glyph.pageIndex;
 				}
@@ -324,9 +367,5 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 	private _queueBufferUpdate(e: ViewLinesDeletedEvent) {
 		this._queuedBufferUpdates[0].push(e);
 		this._queuedBufferUpdates[1].push(e);
-	}
-
-	onLinesDeleted(e: ViewLinesDeletedEvent): void {
-		this._queueBufferUpdate(e);
 	}
 }

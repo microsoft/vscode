@@ -282,14 +282,6 @@ class CliMain extends Disposable {
 			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).listExtensions(!!this.argv['show-versions'], this.argv['category'], profileLocation);
 		}
 
-		// Download Extensions
-		else if (this.argv['download-extension']) {
-			if (!this.argv['location']) {
-				throw new Error('The location argument is required to download an extension.');
-			}
-			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).downloadExtensions(this.argv['download-extension'], URI.parse(this.argv['location']));
-		}
-
 		// Install Extension
 		else if (this.argv['install-extension'] || this.argv['install-builtin-extension']) {
 			const installOptions: InstallOptions = { isMachineScoped: !!this.argv['do-not-sync'], installPreReleaseVersion: !!this.argv['pre-release'], profileLocation };

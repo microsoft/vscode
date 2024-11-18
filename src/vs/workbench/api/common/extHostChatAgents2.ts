@@ -369,7 +369,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	registerRelatedFilesProvider(extension: IExtensionDescription, provider: vscode.ChatRelatedFilesProvider, metadata: vscode.ChatRelatedFilesProviderMetadata): vscode.Disposable {
 		const handle = ExtHostChatAgents2._relatedFilesProviderIdPool++;
 		this._relatedFilesProviders.set(handle, new ExtHostRelatedFilesProvider(extension, provider));
-		this._proxy.$registerRelatedFilesProvider(handle);
+		this._proxy.$registerRelatedFilesProvider(handle, metadata);
 		return toDisposable(() => {
 			this._relatedFilesProviders.delete(handle);
 			this._proxy.$unregisterRelatedFilesProvider(handle);

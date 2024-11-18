@@ -34,13 +34,6 @@ steps:
         KeyVaultName: vscode-build-secrets
         SecretsFilter: "github-distro-mixin-password"
 
-    - task: AzureKeyVault@2
-      displayName: "Azure Key Vault: Get ESRP Secrets"
-      inputs:
-        azureSubscription: vscode-esrp
-        KeyVaultName: vscode-esrp
-        SecretsFilter: "esrp-sign-legacy,esrp-aad-username,esrp-aad-password"
-
     - task: DownloadPipelineArtifact@2
       inputs:
         artifact: Compilation
@@ -356,14 +349,26 @@ steps:
       inputs:
         version: 6.x
 
-    - task: EsrpClientTool@1
-      continueOnError: true
-      displayName: Download ESRPClient
+    - task: EsrpCodeSigning@5
+      inputs:
+        UseMSIAuthentication: true
+        ConnectedServiceName: vscode-esrp
+        AppRegistrationClientId: $(ESRP_CLIENT_ID)
+        AppRegistrationTenantId: $(ESRP_TENANT_ID)
+        AuthAKVName: vscode-esrp
+        AuthSignCertName: esrp-sign
+        FolderPath: .
+        Pattern: noop
+      displayName: 'Install ESRP Tooling'
 
-    - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll sign-pgp $(esrp-sign-legacy) $(esrp-aad-username) $(esrp-aad-password) .build/linux/deb '*.deb'
+    - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-pgp .build/linux/deb '*.deb'
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Codesign deb
 
-    - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll sign-pgp $(esrp-sign-legacy) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
+    - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-pgp .build/linux/rpm '*.rpm'
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Codesign rpm
 
     - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
