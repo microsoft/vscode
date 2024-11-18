@@ -724,6 +724,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return _asExtensionEvent(extHostEditors.onDidChangeTextEditorViewColumn)(listener, thisArg, disposables);
 			},
 			onDidChangeTextEditorDiffInformation(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'textEditorDiffInformation');
 				return _asExtensionEvent(extHostEditors.onDidChangeTextEditorDiffInformation)(listener, thisArg, disposables);
 			},
 			onDidCloseTerminal(listener, thisArg?, disposables?) {
