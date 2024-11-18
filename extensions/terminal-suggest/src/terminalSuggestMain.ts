@@ -81,8 +81,7 @@ vscode.window.registerTerminalCompletionProvider({
 		builtinCommands?.forEach(command => availableCommands.add(command));
 
 		const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
-
-		const result: vscode.TerminalCompletionItem[] = [];
+		let result: vscode.TerminalCompletionItem[] = [];
 		if (!('options' in completionSpec) || !completionSpec.options) {
 			return;
 		}
@@ -118,14 +117,16 @@ vscode.window.registerTerminalCompletionProvider({
 
 					const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition);
 					const expectedText = `${optionLabel} `;
-
 					if (arg.suggestions?.length && precedingText.endsWith(expectedText)) {
+						// there are specific suggestions to show
+						result = [];
 						for (const suggestion of arg.suggestions) {
 							const suggestionLabel = getLabel(suggestion);
 							if (suggestionLabel) {
 								result.push(createCompletionItem(terminalContext.cursorPosition, optionLabel + ' ', suggestionLabel, arg.name, terminalContext.cursorPosition));
 							}
 						}
+						return result;
 					}
 				}
 			}
@@ -163,7 +164,7 @@ function createCompletionItem(cursorPosition: number, prefix: string, label: str
 		isFile: false,
 		isDirectory: false,
 		detail: description ?? '',
-		replacementIndex: replacementIndex !== undefined ? replacementIndex : prefix === '' ? 0 : cursorPosition - prefix.length,
+		replacementIndex: replacementIndex !== undefined ? replacementIndex : cursorPosition - prefix.length,
 		replacementLength: label.length - prefix.length,
 	};
 }
