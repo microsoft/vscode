@@ -23,8 +23,9 @@ declare module 'vscode' {
 	export interface TextEditorDiffInformation {
 		readonly documentVersion: number;
 		readonly original: Uri | undefined;
-		readonly modified: Uri | undefined;
+		readonly modified: Uri;
 		readonly diff: readonly TextEditorDiff[];
+		get isStale(): boolean;
 	}
 
 	export interface TextEditorDiffInformationChangeEvent {
