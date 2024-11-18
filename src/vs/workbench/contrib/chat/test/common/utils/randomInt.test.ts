@@ -7,8 +7,6 @@ import assert from 'assert';
 import { randomInt } from './randomInt.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 
-// TODO: @legomushroom - finish the test
-
 /**
  * Run a `testName` test suite with specified `max` and `min` values.
  */
@@ -78,105 +76,105 @@ suite('randomInt', () => {
 		test('should throw if "min" is == "max" #1', () => {
 			assert.throws(() => {
 				randomInt(200, 200);
-			}, `""max"(200) param should be greater than "min"(200)."`);
+			}, `"max"(200) param should be greater than "min"(200)."`);
 		});
 
-		// test('should throw if "min" is == "max" #2', () => {
-		// 	expect(() => {
-		// 		randomInt(2, 2);
-		// 	}).toThrowErrorMatchingInlineSnapshot(`""max"(2) param should be greater than "min"(2)."`);
-		// })
+		test('should throw if "min" is == "max" #2', () => {
+			assert.throws(() => {
+				randomInt(2, 2);
+			}, `"max"(2) param should be greater than "min"(2)."`);
+		});
 
-		// test('should throw if "min" is == "max" #3', () => {
-		// 	expect(() => {
-		// 		randomInt(0);
-		// 	}).toThrowErrorMatchingInlineSnapshot(`""max"(0) param should be greater than "min"(0)."`);
-		// })
+		test('should throw if "min" is == "max" #3', () => {
+			assert.throws(() => {
+				randomInt(0);
+			}, `"max"(0) param should be greater than "min"(0)."`);
+		});
 
-		// test('should throw if "min" is > "max" #1', () => {
-		// 	expect(() => {
-		// 		randomInt(2, 3);
-		// 	}).toThrowErrorMatchingInlineSnapshot(`""max"(2) param should be greater than "min"(3)."`);
-		// })
+		test('should throw if "min" is > "max" #1', () => {
+			assert.throws(() => {
+				randomInt(2, 3);
+			}, `"max"(2) param should be greater than "min"(3)."`);
+		});
 
-		// test('should throw if "min" is > "max" #2', () => {
-		// 	expect(() => {
-		// 		randomInt(999, 2000)
-		// 	}).toThrowErrorMatchingInlineSnapshot(`""max"(999) param should be greater than "min"(2000)."`);
-		// })
+		test('should throw if "min" is > "max" #2', () => {
+			assert.throws(() => {
+				randomInt(999, 2000);
+			}, `"max"(999) param should be greater than "min"(2000)."`);
+		});
 
-		// test('should throw if "min" is > "max" #3', () => {
-		// 	expect(() => {
-		// 		randomInt(0, 1);
-		// 	}).toThrowErrorMatchingInlineSnapshot(`""max"(0) param should be greater than "min"(1)."`);
-		// });
+		test('should throw if "min" is > "max" #3', () => {
+			assert.throws(() => {
+				randomInt(0, 1);
+			}, `"max"(0) param should be greater than "min"(1)."`);
+		});
 
-		// test('should throw if "min" is > "max" #4', () => {
-		// 	expect(() => {
-		// 		randomInt(-5, 2);
-		// 	}).toThrowErrorMatchingInlineSnapshot(`""max"(-5) param should be greater than "min"(2)."`);
-		// });
+		test('should throw if "min" is > "max" #4', () => {
+			assert.throws(() => {
+				randomInt(-5, 2);
+			}, `"max"(-5) param should be greater than "min"(2)."`);
+		});
 
-		// test('should throw if "min" is > "max" #5', () => {
-		// 	expect(() => {
-		// 		randomInt(-5, 0);
-		// 	}).toThrowErrorMatchingInlineSnapshot(`""max"(-5) param should be greater than "min"(0)."`);
-		// })
+		test('should throw if "min" is > "max" #5', () => {
+			assert.throws(() => {
+				randomInt(-5, 0);
+			}, `"max"(-5) param should be greater than "min"(0)."`);
+		});
 
-		// test('should throw if "min" is > "max" #6', () => {
-		// 	expect(() => {
-		// 		randomInt(-5)
-		// 	}).toThrowErrorMatchingInlineSnapshot(`""max"(-5) param should be greater than "min"(0)."`);
-		// })
+		test('should throw if "min" is > "max" #6', () => {
+			assert.throws(() => {
+				randomInt(-5);
+			}, `"max"(-5) param should be greater than "min"(0)."`);
+		});
 
-		// test('should throw if "max" is `NaN`', () => {
-		// 	expect(() => {
-		// 		randomInt(NaN);
-		// 	}).toThrowErrorMatchingInlineSnapshot(`""max" param is not a number."`);
-		// });
+		test('should throw if "max" is `NaN`', () => {
+			assert.throws(() => {
+				randomInt(NaN);
+			}, `"max" param is not a number."`);
+		});
 
-		// test('should throw if "min" is `NaN`', () => {
-		// 	expect(() => {
-		// 		randomInt(5, NaN);
-		// 	}).toThrowErrorMatchingInlineSnapshot(`""min" param is not a number."`);
-		// });
+		test('should throw if "min" is `NaN`', () => {
+			assert.throws(() => {
+				randomInt(5, NaN);
+			}, `"min" param is not a number."`);
+		});
 
-		// 	suite('infinite arguments', () => {
-		// 		test('should throw if "max" is infinite [Infinity]', () => {
-		// 			expect(() => {
-		// 				randomInt(Infinity);
-		// 			}).toThrowErrorMatchingInlineSnapshot(`""max" param is not finite."`);
-		// 		})
+		suite('infinite arguments', () => {
+			test('should throw if "max" is infinite [Infinity]', () => {
+				assert.throws(() => {
+					randomInt(Infinity);
+				}, `"max" param is not finite."`);
+			});
 
-		// 		test('should throw if "max" is infinite [-Infinity]', () => {
-		// 			expect(() => {
-		// 				randomInt(-Infinity);
-		// 			}).toThrowErrorMatchingInlineSnapshot(`""max" param is not finite."`);
-		// 		})
+			test('should throw if "max" is infinite [-Infinity]', () => {
+				assert.throws(() => {
+					randomInt(-Infinity);
+				}, `"max" param is not finite."`);
+			});
 
-		// 		test('should throw if "max" is infinite [+Infinity]', () => {
-		// 			expect(() => {
-		// 				randomInt(+Infinity);
-		// 			}).toThrowErrorMatchingInlineSnapshot(`""max" param is not finite."`);
-		// 		})
+			test('should throw if "max" is infinite [+Infinity]', () => {
+				assert.throws(() => {
+					randomInt(+Infinity);
+				}, `"max" param is not finite."`);
+			});
 
-		// 		test('should throw if "min" is infinite [Infinity]', () => {
-		// 			expect(() => {
-		// 				randomInt(Infinity, Infinity);
-		// 			}).toThrowErrorMatchingInlineSnapshot(`""max" param is not finite."`);
-		// 		})
+			test('should throw if "min" is infinite [Infinity]', () => {
+				assert.throws(() => {
+					randomInt(Infinity, Infinity);
+				}, `"max" param is not finite."`);
+			});
 
-		// 		test('should throw if "min" is infinite [-Infinity]', () => {
-		// 			expect(() => {
-		// 				randomInt(Infinity, -Infinity);
-		// 			}).toThrowErrorMatchingInlineSnapshot(`""max" param is not finite."`);
-		// 		})
+			test('should throw if "min" is infinite [-Infinity]', () => {
+				assert.throws(() => {
+					randomInt(Infinity, -Infinity);
+				}, `"max" param is not finite."`);
+			});
 
-		// 		test('should throw if "min" is infinite [+Infinity]', () => {
-		// 			expect(() => {
-		// 				randomInt(Infinity, +Infinity);
-		// 			}).toThrowErrorMatchingInlineSnapshot(`""max" param is not finite."`);
-		// 		});
-		// 	});
+			test('should throw if "min" is infinite [+Infinity]', () => {
+				assert.throws(() => {
+					randomInt(Infinity, +Infinity);
+				}, `"max" param is not finite."`);
+			});
+		});
 	});
 });

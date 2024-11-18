@@ -6,7 +6,9 @@
 import { assert } from '../../../../../../base/common/assert.js';
 
 /**
- * Function to get a random integer from a defined range.
+ * Function to get a random integer from a provided `max`...[`min`] range.
+ * Both `min` and `max` values are inclusive. The `min` value is optional
+ * and defaults to `0` if not explicitely specified.
  *
  * Throws!
  * 	- if provided `min` or `max` is not a number
@@ -28,7 +30,7 @@ import { assert } from '../../../../../../base/common/assert.js';
  *
  * assert(
  *   randomInt <= 10,
- *   'Should be less than 10.',
+ *   'Should be less than or equal to 10.',
  * );
  * ```
  * * Specifying both `max` and `min` values:
@@ -44,7 +46,7 @@ import { assert } from '../../../../../../base/common/assert.js';
  *
  * assert(
  *   randomInt <= 8,
- *   'Should be less than 8.',
+ *   'Should be less than or equal to 8.',
  * );
  * ```
  */
