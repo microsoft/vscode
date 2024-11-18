@@ -9,13 +9,13 @@
 
 const withBrowserDefaults = require('../shared.webpack.config').browser;
 
-const config = withBrowserDefaults({
+module.exports = withBrowserDefaults({
 	context: __dirname,
 	entry: {
-		extension: './src/npmBrowserMain.ts'
+		extension: './src/terminalSuggestMain.ts'
 	},
 	output: {
-		filename: 'npmBrowserMain.js'
+		filename: 'terminalSuggestMain.js'
 	},
 	resolve: {
 		fallback: {
@@ -23,5 +23,3 @@ const config = withBrowserDefaults({
 		}
 	}
 });
-
-module.exports = config;

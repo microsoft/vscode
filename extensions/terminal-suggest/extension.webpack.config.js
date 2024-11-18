@@ -6,17 +6,15 @@
 //@ts-check
 'use strict';
 
-const path = require('path');
 const withDefaults = require('../shared.webpack.config');
-const webpack = require('webpack');
 
 module.exports = withDefaults({
 	context: __dirname,
 	entry: {
-		extension: './src/terminalSuggestMain.ts',
+		extension: './src/terminalSuggestMain.ts'
 	},
 	output: {
-		filename: 'terminalSuggestMain.js',
+		filename: 'terminalSuggestMain.js'
 	},
 	resolve: {
 		mainFields: ['module', 'main'],
