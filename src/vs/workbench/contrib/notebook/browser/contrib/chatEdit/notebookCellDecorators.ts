@@ -399,25 +399,8 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 	}
 	private async _createWidgetImpl(index: number, cells: { cell: NotebookCellTextModel; originalIndex: number; previousIndex: number }[]) {
 		const rootContainer = document.createElement('div');
-		const widgets: NotebookDeletedCellWidget[] = [];
-		const heights = await Promise.all(cells.map(async cell => {
-			const widget = new NotebookDeletedCellWidget(this._notebookEditor, cell.cell.getValue(), cell.cell.language, rootContainer, cell.originalIndex, this.languageService);
-			widgets.push(widget);
-			const height = await widget.render();
-			this.deletedCellInfos.set(cell.originalIndex, { height, previousIndex: cell.previousIndex, offset: 0 });
-			return height;
-		}));
-
-		Array.from(this.deletedCellInfos.keys()).sort((a, b) => a - b).forEach((originalIndex) => {
-			const previousDeletedCell = this.deletedCellInfos.get(originalIndex - 1);
-			if (previousDeletedCell) {
-				const deletedCell = this.deletedCellInfos.get(originalIndex);
-				if (deletedCell) {
-					deletedCell.offset = previousDeletedCell.height + previousDeletedCell.offset;
-				}
-			}
-		});
-
+		const widgets = cells.map(cell => new NotebookDeletedCellWidget(this._notebookEditor, cell.getValue(), cell.language, rootContainer, this.languageService));
+		const heights = await Promise.all(widgets.map(w => w.render()));
 		const totalHeight = heights.reduce<number>((prev, curr) => prev + curr, 0);
 
 		this._notebookEditor.changeViewZones(accessor => {
