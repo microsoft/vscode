@@ -138,7 +138,9 @@ export async function activate(context: vscode.ExtensionContext) {
 												result.push(createCompletionItem(terminalContext.cursorPosition, precedingText, suggestionLabel, arg.name, hasSpaceBeforeCursor));
 											}
 										}
-										return result;
+										if (result.length) {
+											return result;
+										}
 									}
 								}
 							}
@@ -156,7 +158,13 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (token.isCancellationRequested) {
 				return undefined;
 			}
-			return result.length ? result : undefined;
+			const uniqueResults = new Map<string, vscode.TerminalCompletionItem>();
+			for (const item of result) {
+				if (!uniqueResults.has(item.label)) {
+					uniqueResults.set(item.label, item);
+				}
+			}
+			return uniqueResults.size ? Array.from(uniqueResults.values()) : undefined;
 		}
 	}));
 }
