@@ -584,8 +584,8 @@ export class ChatService extends Disposable implements IChatService {
 					totalTime: stopWatch.elapsed(),
 					result: 'cancelled',
 					requestType,
-					agent: agentPart?.agent.id ?? '',
-					agentExtensionId: agentPart?.agent.extensionId.value ?? '',
+					agent: detectedAgent?.id ?? agentPart?.agent.id ?? '',
+					agentExtensionId: detectedAgent?.extensionId.value ?? agentPart?.agent.extensionId.value ?? '',
 					slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
 					chatSessionId: model.sessionId,
 					location,
@@ -755,8 +755,8 @@ export class ChatService extends Disposable implements IChatService {
 					totalTime: undefined,
 					result,
 					requestType,
-					agent: agentPart?.agent.id ?? '',
-					agentExtensionId: agentPart?.agent.extensionId.value ?? '',
+					agent: detectedAgent?.id ?? agentPart?.agent.id ?? '',
+					agentExtensionId: detectedAgent?.extensionId.value ?? agentPart?.agent.extensionId.value ?? '',
 					slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
 					chatSessionId: model.sessionId,
 					location,
@@ -952,7 +952,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	public hasSessions(): boolean {
-		return !!Object.values(this._persistedSessions);
+		return Object.values(this._persistedSessions).length > 0;
 	}
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void {

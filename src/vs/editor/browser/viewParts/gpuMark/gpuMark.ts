@@ -77,8 +77,8 @@ export class GpuMarkOverlay extends DynamicViewOverlay {
 		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
-			const canRender = ViewGpuContext.canRender(options, viewportData, lineNumber);
-			output[lineIndex] = canRender ? `<div class="${GpuMarkOverlay.CLASS_NAME}"></div>` : '';
+			const cannotRenderReasons = ViewGpuContext.canRenderDetailed(options, viewportData, lineNumber);
+			output[lineIndex] = cannotRenderReasons.length ? `<div class="${GpuMarkOverlay.CLASS_NAME}" title="Cannot render on GPU: ${cannotRenderReasons.join(', ')}"></div>` : '';
 		}
 
 		this._renderResult = output;

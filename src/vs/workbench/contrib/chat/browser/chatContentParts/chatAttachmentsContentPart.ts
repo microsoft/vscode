@@ -19,7 +19,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IOpenerService, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
-import { revealInsideBarCommand } from '../../../files/browser/fileActions.contribution.js';
+import { revealInSideBarCommand } from '../../../files/browser/fileActions.contribution.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService.js';
 
@@ -172,7 +172,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 	private openResource(resource: URI, isDirectory?: boolean, range?: IRange): void {
 		if (isDirectory) {
 			// Reveal Directory in explorer
-			this.commandService.executeCommand(revealInsideBarCommand.id, resource);
+			this.commandService.executeCommand(revealInSideBarCommand.id, resource);
 			return;
 		}
 
