@@ -6,6 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
 import { basename } from '../../../../../base/common/resources.js';
@@ -505,21 +506,21 @@ export function registerChatTitleActions() {
 
 		private async _pickTurns(quickPickService: IQuickInputService, requests: IChatRequestModel[]): Promise<IChatRequestModel[]> {
 
-			const timeThreshold = 60000; // 1 minute in milliseconds
+			const timeThreshold = 2 * 60000; // 2 minutes
 			const lastRequestTimestamp = requests[requests.length - 1].timestamp;
 			const relatedRequests = requests.filter(request => request.timestamp >= 0 && lastRequestTimestamp - request.timestamp <= timeThreshold);
 
-			const allPick: IQuickPickItem = {
-				label: localize('chat.startEditing.pickAll', "All requests from the conversation"),
-			};
-
 			const lastPick: IQuickPickItem = {
 				label: localize('chat.startEditing.last', "The last {0} requests", relatedRequests.length),
-				detail: relatedRequests.map(req => req.message.text).join(', '),
+				detail: relatedRequests.map(req => req.message.text).join(', ')
+			};
+
+			const allPick: IQuickPickItem = {
+				label: localize('chat.startEditing.pickAll', "All requests from the conversation")
 			};
 
 			const customPick: IQuickPickItem = {
-				label: localize('chat.startEditing.pickCustom', "Select requests...")
+				label: localize('chat.startEditing.pickCustom', "Manually select requests...")
 			};
 
 			const picks: IQuickPickItem[] = relatedRequests.length !== 0
@@ -527,37 +528,64 @@ export function registerChatTitleActions() {
 				: [allPick, customPick];
 
 			const firstPick = await quickPickService.pick(picks, {
-				placeHolder: localize('chat.startEditing.pickRequest', "Select requests that you want to use for editing"),
+				placeHolder: localize('chat.startEditing.pickRequest', "Select requests that you want to use for editing")
 			});
 
 			if (!firstPick) {
 				return [];
-			}
-
-			if (firstPick === allPick) {
+			} else if (firstPick === allPick) {
 				return requests;
 			} else if (firstPick === lastPick) {
 				return relatedRequests;
 			}
 
 			// custom pick
+			type PickType = (IQuickPickItem & { request: IChatRequestModel });
 			const customPicks: (IQuickPickItem & { request: IChatRequestModel })[] = requests.map(request => ({
-				picked: true,
+
+				picked: false,
 				request: request,
 				label: request.message.text,
-				detail: request.response?.response.toString()
+				detail: request.response?.response.toString(),
 			}));
 
-			const secondPick = await quickPickService.pick(customPicks, {
-				placeHolder: localize('chat.startEditing.pickRequest', "Select requests that you want to use for editing"),
-				canPickMany: true
+
+			return await new Promise<IChatRequestModel[]>(_resolve => {
+
+				const resolve = (value: IChatRequestModel[]) => {
+					qp.hide();
+					store.dispose();
+					_resolve(value);
+				};
+
+				const store = new DisposableStore();
+
+				const qp = quickPickService.createQuickPick<PickType>();
+				qp.placeholder = localize('chat.startEditing.pickRequest', "Select requests that you want to use for editing");
+				qp.canSelectMany = true;
+				qp.items = customPicks;
+
+				let ignore = false;
+				store.add(qp.onDidChangeSelection(e => {
+					if (ignore) {
+						return;
+					}
+					ignore = true;
+					try {
+						const [first] = e;
+						const idx = first ? customPicks.indexOf(first) : -1;
+						const selected = idx >= 0 ? customPicks.slice(idx) : [];
+						qp.selectedItems = selected;
+					} finally {
+						ignore = false;
+					}
+				}));
+
+				store.add(qp.onDidAccept(_e => resolve(qp.selectedItems.map(i => i.request))));
+				store.add(qp.onDidHide(_ => resolve([])));
+				store.add(qp);
+				qp.show();
 			});
-
-			if (!secondPick) {
-				return [];
-			}
-
-			return secondPick.map(p => p.request);
 		}
 
 	});
