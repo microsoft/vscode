@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveDocument, getActiveWindow } from '../../../base/browser/dom.js';
+import { getActiveWindow } from '../../../base/browser/dom.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import { CursorColumns } from '../../common/core/cursorColumns.js';
@@ -17,7 +17,6 @@ import type { ViewLineRenderingData } from '../../common/viewModel.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
 import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
 import type { ITextureAtlasPageGlyph } from './atlas/atlas.js';
-import { CssRuleExtractor } from './cssRuleExtractor.js';
 import { fullFileRenderStrategyWgsl } from './fullFileRenderStrategy.wgsl.js';
 import { BindingId, type IGpuRenderStrategy } from './gpu.js';
 import { GPULifecycle } from './gpuDisposable.js';
@@ -48,7 +47,6 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
 	private readonly _glyphRasterizer: GlyphRasterizer;
-	private readonly _cssRuleExtractor: CssRuleExtractor;
 
 	private _cellBindBuffer!: GPUBuffer;
 
@@ -90,7 +88,6 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
 
 		this._glyphRasterizer = this._register(new GlyphRasterizer(fontSize, fontFamily));
-		this._cssRuleExtractor = this._register(new CssRuleExtractor(this._viewGpuContext));
 
 		const bufferSize = this._viewGpuContext.maxGpuLines * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
@@ -291,7 +288,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		for (y = viewportData.startLineNumber; y <= viewportData.endLineNumber; y++) {
 
 			// Only attempt to render lines that the GPU renderer can handle
-			if (!ViewGpuContext.canRender(viewLineOptions, viewportData, y)) {
+			if (!ViewGpuContext.canRender(this._viewGpuContext.canvas.domNode, viewLineOptions, viewportData, y)) {
 				fillStartIndex = ((y - 1) * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
 				fillEndIndex = (y * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
 				cellBuffer.fill(0, fillStartIndex, fillEndIndex);
@@ -351,26 +348,10 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						}
 						return true;
 					});
+
+					// Only lines containing fully supported inline decorations should have made it
+					// this far.
 					for (const decoration of cellDecorations) {
-						if (!decoration.options.inlineClassName) {
-							throw new BugIndicatingError('Expected inlineClassName on decoration');
-						}
-						const rules = this._cssRuleExtractor.getStyleRules(decoration.options.inlineClassName);
-						const supportedCssRules = [
-							'text-decoration-line',
-							'text-decoration-thickness',
-							'text-decoration-style',
-							'text-decoration-color',
-						];
-						const supported = rules.every(rule => {
-							for (const r of rule.style) {
-								if (!supportedCssRules.includes(r)) {
-									return false;
-								}
-							}
-							return true;
-						});
-						console.log('rules supported?', supported, rules);
 						switch (decoration.options.inlineClassName) {
 							case (ClassName.EditorDeprecatedInlineDecoration): {
 								// HACK: We probably shouldn't override tokenMetadata

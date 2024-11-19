@@ -551,7 +551,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		if (!this._lastViewportData || !this._lastViewLineOptions) {
 			return undefined;
 		}
-		if (!ViewGpuContext.canRender(this._lastViewLineOptions, this._lastViewportData, lineNumber)) {
+		if (!ViewGpuContext.canRender(this._viewGpuContext.canvas.domNode, this._lastViewLineOptions, this._lastViewportData, lineNumber)) {
 			return undefined;
 		}
 
@@ -569,7 +569,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		if (!this._lastViewportData || !this._lastViewLineOptions) {
 			return undefined;
 		}
-		if (!ViewGpuContext.canRender(this._lastViewLineOptions, this._lastViewportData, lineNumber)) {
+		if (!ViewGpuContext.canRender(this._viewGpuContext.canvas.domNode, this._lastViewLineOptions, this._lastViewportData, lineNumber)) {
 			return undefined;
 		}
 		const lineData = this._lastViewportData.getViewLineRenderingData(lineNumber);

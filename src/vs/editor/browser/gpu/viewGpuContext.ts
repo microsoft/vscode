@@ -19,7 +19,7 @@ import { GPULifecycle } from './gpuDisposable.js';
 import { ensureNonNullable, observeDevicePixelDimensions } from './gpuUtils.js';
 import { RectangleRenderer } from './rectangleRenderer.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
-import { ClassName } from '../../common/model/intervalTree.js';
+import { DecorationCssRuleExtractor } from './decorationCssRuleExtractor.js';
 
 const enum GpuRenderLimits {
 	maxGpuLines = 3000,
@@ -48,6 +48,7 @@ export class ViewGpuContext extends Disposable {
 
 	private static _atlas: TextureAtlas | undefined;
 
+	private static readonly _decorationCssRuleExtractor = new DecorationCssRuleExtractor();
 
 	/**
 	 * The shared texture atlas to use across all views.
@@ -126,25 +127,52 @@ export class ViewGpuContext extends Disposable {
 	 * renderer. Eventually this should trend all lines, except maybe exceptional cases like
 	 * decorations that use class names.
 	 */
-	public static canRender(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): boolean {
+	public static canRender(container: HTMLElement, options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): boolean {
 		const data = viewportData.getViewLineRenderingData(lineNumber);
+
+		// Check if the line has simple attributes that aren't supported
 		if (
 			data.containsRTL ||
 			data.maxColumn > GpuRenderLimits.maxGpuCols ||
 			data.continuesWithWrappedLine ||
-			// HACK: ...
-			data.inlineDecorations.length > 0 && data.inlineDecorations[0].inlineClassName !== ClassName.EditorDeprecatedInlineDecoration ||
 			lineNumber >= GpuRenderLimits.maxGpuLines
 		) {
 			return false;
 		}
+
+		// Check if all inline decorations are supported
+		if (data.inlineDecorations.length > 0) {
+			let supported = true;
+			for (const decoration of data.inlineDecorations) {
+				const styleRules = ViewGpuContext._decorationCssRuleExtractor.getStyleRules(container, decoration.inlineClassName);
+				const supportedCssRules = [
+					'text-decoration-line',
+					'text-decoration-thickness',
+					'text-decoration-style',
+					'text-decoration-color',
+				];
+				supported &&= styleRules.every(rule => {
+					for (const r of rule.style) {
+						if (!supportedCssRules.includes(r)) {
+							return false;
+						}
+					}
+					return true;
+				});
+				if (!supported) {
+					break;
+				}
+			}
+			return supported;
+		}
+
 		return true;
 	}
 
 	/**
 	 * Like {@link canRender} but returned detailed information about why the line cannot be rendered.
 	 */
-	public static canRenderDetailed(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): string[] {
+	public static canRenderDetailed(container: HTMLElement, options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): string[] {
 		const data = viewportData.getViewLineRenderingData(lineNumber);
 		const reasons: string[] = [];
 		if (data.containsRTL) {
@@ -157,9 +185,31 @@ export class ViewGpuContext extends Disposable {
 			reasons.push('continuesWithWrappedLine');
 		}
 		if (data.inlineDecorations.length > 0) {
-			// HACK: ...
-			if (data.inlineDecorations[0].inlineClassName !== ClassName.EditorDeprecatedInlineDecoration) {
-				reasons.push('inlineDecorations > 0');
+			let supported = true;
+			const problemRules: string[] = [];
+			for (const decoration of data.inlineDecorations) {
+				const styleRules = ViewGpuContext._decorationCssRuleExtractor.getStyleRules(container, decoration.inlineClassName);
+				const supportedCssRules = [
+					'text-decoration-line',
+					'text-decoration-thickness',
+					'text-decoration-style',
+					'text-decoration-color',
+				];
+				supported &&= styleRules.every(rule => {
+					for (const r of rule.style) {
+						if (!supportedCssRules.includes(r)) {
+							problemRules.push(r);
+							return false;
+						}
+					}
+					return true;
+				});
+				if (!supported) {
+					break;
+				}
+			}
+			if (problemRules.length > 0) {
+				reasons.push(`inlineDecorations with unsupported CSS rules (\`${problemRules.join(', ')}\`)`);
 			}
 		}
 		if (lineNumber >= GpuRenderLimits.maxGpuLines) {
