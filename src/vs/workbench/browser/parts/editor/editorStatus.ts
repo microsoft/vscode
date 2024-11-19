@@ -470,7 +470,7 @@ class EditorStatus extends Disposable {
 	}
 
 	private updateInputModeElement(inputMode: 'overtype' | 'insert' | undefined): void {
-		if (!!inputMode && inputMode === 'overtype') {
+		if (inputMode === 'overtype') {
 			if (!this.inputModeElement.value) {
 				const text = localize('inputModeOvertype', 'OVR');
 				const name = localize('status.editor.enableInsertMode', "Enable Insert Mode");
