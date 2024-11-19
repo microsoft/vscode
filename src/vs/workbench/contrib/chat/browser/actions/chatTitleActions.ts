@@ -453,6 +453,7 @@ export function registerChatTitleActions() {
 
 			if (sourceRequests.length === 0) {
 				logService.trace('[CHAT_MOVE] NO requests to move');
+				return;
 			}
 
 			await viewsService.openView(EditsViewId);
