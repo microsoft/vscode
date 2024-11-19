@@ -7,7 +7,7 @@ import { Viewlet } from './viewlet';
 import { Code } from './code';
 
 const VIEWLET = '.search-view';
-const INPUT = `${VIEWLET} .search-widget .search-container .monaco-inputbox .native-edit-context`;
+const INPUT = `${VIEWLET} .search-widget .search-container .monaco-inputbox textarea`;
 const INCLUDE_INPUT = `${VIEWLET} .query-details .file-types.includes .monaco-inputbox input`;
 const FILE_MATCH = (filename: string) => `${VIEWLET} .results .filematch[data-resource$="${filename}"]`;
 
@@ -117,7 +117,7 @@ export class Search extends Viewlet {
 	}
 
 	async setReplaceText(text: string): Promise<void> {
-		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox .native-edit-context[aria-label="Replace"]`, text);
+		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox textarea[aria-label="Replace"]`, text);
 	}
 
 	async replaceFileMatch(filename: string, expectedText: string): Promise<void> {
