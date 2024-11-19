@@ -721,31 +721,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		return Promise.resolve(id);
 	}
 
-	public registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable {
-		this._linkProviders.add(provider);
-		if (this._linkProviders.size === 1) {
-			this._proxy.$startLinkProvider();
-		}
-		return new VSCodeDisposable(() => {
-			this._linkProviders.delete(provider);
-			if (this._linkProviders.size === 0) {
-				this._proxy.$stopLinkProvider();
-			}
-		});
-	}
-
-	public registerTerminalCompletionProvider(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<TerminalCompletionItem>, ...triggerCharacters: string[]): vscode.Disposable {
-		if (this._completionProviders.has(provider.id)) {
-			throw new Error(`Terminal completion provider "${provider.id}" already registered`);
-		}
-		this._completionProviders.set(provider.id, provider);
-		this._proxy.$registerCompletionProvider(provider.id, extension.identifier.value, ...triggerCharacters);
-		return new VSCodeDisposable(() => {
-			this._completionProviders.delete(provider.id);
-			this._proxy.$unregisterCompletionProvider(provider.id);
-		});
-	}
-
 
 	public registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable {
 		if (this._profileProviders.has(id)) {
@@ -759,15 +734,15 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {
-		if (this._quickFixProviders.has(id)) {
-			throw new Error(`Terminal quick fix provider "${id}" is already registered`);
+	public registerTerminalCompletionProvider(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<TerminalCompletionItem>, ...triggerCharacters: string[]): vscode.Disposable {
+		if (this._completionProviders.has(provider.id)) {
+			throw new Error(`Terminal completion provider "${provider.id}" already registered`);
 		}
-		this._quickFixProviders.set(id, provider);
-		this._proxy.$registerQuickFixProvider(id, extensionId);
+		this._completionProviders.set(provider.id, provider);
+		this._proxy.$registerCompletionProvider(provider.id, extension.identifier.value, ...triggerCharacters);
 		return new VSCodeDisposable(() => {
-			this._quickFixProviders.delete(id);
-			this._proxy.$unregisterQuickFixProvider(id);
+			this._completionProviders.delete(provider.id);
+			this._proxy.$unregisterCompletionProvider(provider.id);
 		});
 	}
 
@@ -788,6 +763,18 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		}
 
 		return completions;
+	}
+
+	public registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {
+		if (this._quickFixProviders.has(id)) {
+			throw new Error(`Terminal quick fix provider "${id}" is already registered`);
+		}
+		this._quickFixProviders.set(id, provider);
+		this._proxy.$registerQuickFixProvider(id, extensionId);
+		return new VSCodeDisposable(() => {
+			this._quickFixProviders.delete(id);
+			this._proxy.$unregisterQuickFixProvider(id);
+		});
 	}
 
 	public async $provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto): Promise<(ITerminalQuickFixTerminalCommandDto | ITerminalQuickFixOpenerDto | ICommandDto)[] | ITerminalQuickFixTerminalCommandDto | ITerminalQuickFixOpenerDto | ICommandDto | undefined> {
@@ -842,6 +829,19 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			return;
 		}
 		this.createTerminalFromOptions(profile.options, options);
+	}
+
+	public registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable {
+		this._linkProviders.add(provider);
+		if (this._linkProviders.size === 1) {
+			this._proxy.$startLinkProvider();
+		}
+		return new VSCodeDisposable(() => {
+			this._linkProviders.delete(provider);
+			if (this._linkProviders.size === 0) {
+				this._proxy.$stopLinkProvider();
+			}
+		});
 	}
 
 	public async $provideLinks(terminalId: number, line: string): Promise<ITerminalLinkDto[]> {
