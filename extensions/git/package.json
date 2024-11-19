@@ -3193,7 +3193,10 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "%config.blameEditorDecoration.enabled%",
-          "scope": "resource"
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },
