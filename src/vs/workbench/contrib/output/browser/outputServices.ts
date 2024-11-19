@@ -90,7 +90,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IDefaultLogLevelsService private readonly defaultLogLevelsService: IDefaultLogLevelsService,
+		@IDefaultLogLevelsService private readonly defaultLogLevelsService: IDefaultLogLevelsService
 	) {
 		super();
 		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, '');
