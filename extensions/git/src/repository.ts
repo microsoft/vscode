@@ -14,7 +14,7 @@ import { Branch, BranchQuery, Change, CommitOptions, FetchOptions, ForcePushMode
 import { AutoFetcher } from './autofetch';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { debounce, memoize, throttle } from './decorators';
-import { Repository as BaseRepository, Commit, GitError, LogFileOptions, LsTreeElement, PullOptions, Stash, Submodule } from './git';
+import { Repository as BaseRepository, BlameInformation, Commit, GitError, LogFileOptions, LsTreeElement, PullOptions, Stash, Submodule } from './git';
 import { GitHistoryProvider } from './historyProvider';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
@@ -1783,7 +1783,11 @@ export class Repository implements Disposable {
 	}
 
 	async blame(path: string): Promise<string> {
-		return await this.run(Operation.Blame, () => this.repository.blame(path));
+		return await this.run(Operation.Blame(true), () => this.repository.blame(path));
+	}
+
+	async blame2(path: string): Promise<BlameInformation[] | undefined> {
+		return await this.run(Operation.Blame(false), () => this.repository.blame2(path));
 	}
 
 	@throttle

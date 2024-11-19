@@ -3291,6 +3291,16 @@
           "highContrast": "#8db9e2",
           "highContrastLight": "#1258a7"
         }
+      },
+      {
+        "id": "gitDecoration.blameEditorDecorationForeground",
+        "description": "%colors.blameEditorDecoration%",
+        "defaults": {
+          "dark": "editorCodeLens.foreground",
+          "light": "editorCodeLens.foreground",
+          "highContrast": "editorCodeLens.foreground",
+          "highContrastLight": "editorCodeLens.foreground"
+        }
       }
     ],
     "configurationDefaults": {
