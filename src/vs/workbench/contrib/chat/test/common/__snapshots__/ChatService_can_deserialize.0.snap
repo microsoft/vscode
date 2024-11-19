@@ -94,7 +94,8 @@
         kind: "usedContext"
       },
       contentReferences: [  ],
-      codeCitations: [  ]
+      codeCitations: [  ],
+      timestamp: undefined
     }
   ]
 }
