@@ -5,7 +5,7 @@
 
 import { ConfigurationChangeEvent, DecorationOptions, l10n, Position, Range, TextDocument, TextEditor, TextEditorDecorationType, TextEditorDiff, TextEditorDiffKind, ThemeColor, Uri, window, workspace } from 'vscode';
 import { Model } from './model';
-import { dispose, filterEvent, fromNow, IDisposable } from './util';
+import { dispose, fromNow, IDisposable } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation } from './git';
@@ -27,7 +27,7 @@ function isLineChanged(lineNumber: number, changes: readonly TextEditorDiff[]): 
 	return false;
 }
 
-function lineNumberTransform(lineNumber: number, changes: readonly TextEditorDiff[]): number {
+function mapLineNumber(lineNumber: number, changes: readonly TextEditorDiff[]): number {
 	if (changes.length === 0) {
 		return lineNumber;
 	}
@@ -59,12 +59,15 @@ function lineNumberTransform(lineNumber: number, changes: readonly TextEditorDif
 	return lineNumber;
 }
 
+interface RepositoryBlameInformation {
+	readonly commit: string;
+	readonly blameInformation: Map<Uri, BlameInformation[]>;
+}
+
 export class GitBlameController {
 	private readonly _decorationType: TextEditorDecorationType;
 
-	/* Repository -> Uri -> BlameInformation[] */
-	/* TODO @lszomoru - consider storing repository HEAD */
-	private readonly _blameInformation = new Map<Repository, Map<Uri, BlameInformation[]>>();
+	private readonly _blameInformation = new Map<Repository, RepositoryBlameInformation>();
 
 	private _repositoryDisposables = new Map<Repository, IDisposable[]>();
 	private _disposables: IDisposable[] = [];
@@ -73,7 +76,7 @@ export class GitBlameController {
 		this._decorationType = window.createTextEditorDecorationType({
 			isWholeLine: true,
 			after: {
-				color: new ThemeColor('gitDecoration.blameEditorDecorationForeground')
+				color: new ThemeColor('git.blame.editorDecorationForeground')
 			}
 		});
 		this._disposables.push(this._decorationType);
@@ -90,7 +93,7 @@ export class GitBlameController {
 	}
 
 	private _onDidChangeConfiguration(e: ConfigurationChangeEvent): void {
-		if (!e.affectsConfiguration('git.blame.enabled')) {
+		if (!e.affectsConfiguration('git.blame.editorDecoration.enabled')) {
 			return;
 		}
 
@@ -102,8 +105,16 @@ export class GitBlameController {
 	private _onDidOpenRepository(repository: Repository): void {
 		const disposables: IDisposable[] = [];
 
-		const onDidRunWriteOperation = filterEvent(repository.onDidRunOperation, e => !e.operation.readOnly);
-		onDidRunWriteOperation(() => this._blameInformation.delete(repository), this, disposables);
+		repository.onDidRunGitStatus(() => {
+			if (this._blameInformation.get(repository)?.commit === repository.HEAD?.commit) {
+				return;
+			}
+
+			this._blameInformation.delete(repository);
+			for (const textEditor of window.visibleTextEditors) {
+				this._updateDecorations(textEditor);
+			}
+		}, this, disposables);
 
 		this._repositoryDisposables.set(repository, disposables);
 	}
@@ -124,7 +135,7 @@ export class GitBlameController {
 			return;
 		}
 
-		const enabled = workspace.getConfiguration('git').get<boolean>('blame.enabled', false);
+		const enabled = workspace.getConfiguration('git').get<boolean>('blame.editorDecoration.enabled', false);
 		if (!enabled) {
 			textEditor.setDecorations(this._decorationType, []);
 			return;
@@ -151,7 +162,7 @@ export class GitBlameController {
 			}
 
 			// Recalculate the line number factoring in the diff information
-			const lineNumberWithDiff = lineNumberTransform(lineNumber + 1, diffInformation.diff);
+			const lineNumberWithDiff = mapLineNumber(lineNumber + 1, diffInformation.diff);
 			const blameInformation = blameInformationCollection.find(blameInformation => {
 				return blameInformation.ranges.find(range => {
 					return lineNumberWithDiff >= range.startLineNumber && lineNumberWithDiff <= range.endLineNumber;
@@ -182,27 +193,25 @@ export class GitBlameController {
 
 	private async _getBlameInformation(document: TextDocument): Promise<BlameInformation[] | undefined> {
 		const repository = this._model.getRepository(document.uri);
-		if (!repository) {
+		if (!repository || !repository.HEAD?.commit) {
 			return undefined;
 		}
 
-		let repositoryBlameInformation = this._blameInformation.get(repository);
-		if (!repositoryBlameInformation) {
-			repositoryBlameInformation = new Map();
-			this._blameInformation.set(repository, repositoryBlameInformation);
+		const repositoryBlameInformation = this._blameInformation.get(repository) ?? {
+			commit: repository.HEAD.commit,
+			blameInformation: new Map<Uri, BlameInformation[]>()
+		} satisfies RepositoryBlameInformation;
+
+		let fileBlameInformation = repositoryBlameInformation.blameInformation.get(document.uri);
+		if (repositoryBlameInformation.commit === repository.HEAD.commit && fileBlameInformation) {
+			return fileBlameInformation;
 		}
 
-		if (!this._blameInformation.has(repository)) {
-			this._blameInformation.set(repository, new Map());
-		}
-
-		let fileBlameInformation = repositoryBlameInformation.get(document.uri);
-		if (!fileBlameInformation) {
-			fileBlameInformation = await repository.blame2(document.uri.fsPath) ?? [];
-
-			repositoryBlameInformation.set(document.uri, fileBlameInformation);
-			this._blameInformation.set(repository, repositoryBlameInformation);
-		}
+		fileBlameInformation = await repository.blame2(document.uri.fsPath) ?? [];
+		this._blameInformation.set(repository, {
+			...repositoryBlameInformation,
+			blameInformation: repositoryBlameInformation.blameInformation.set(document.uri, fileBlameInformation)
+		});
 
 		return fileBlameInformation;
 	}

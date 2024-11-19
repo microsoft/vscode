@@ -3188,6 +3188,12 @@
           "maximum": 100,
           "markdownDescription": "%config.similarityThreshold%",
           "scope": "resource"
+        },
+        "git.blame.editorDecoration.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.blameEditorDecoration.enabled%",
+          "scope": "resource"
         }
       }
     },
@@ -3293,7 +3299,7 @@
         }
       },
       {
-        "id": "gitDecoration.blameEditorDecorationForeground",
+        "id": "git.blame.editorDecorationForeground",
         "description": "%colors.blameEditorDecoration%",
         "defaults": {
           "dark": "editorCodeLens.foreground",
