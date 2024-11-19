@@ -362,7 +362,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			if (alreadyRequestedInstallations.length) {
 				await this.joinAllSettled(alreadyRequestedInstallations);
 			}
-			return [...installExtensionResultsMap.values()];
 		} catch (error) {
 			const getAllDepsAndPacks = (extension: ILocalExtension, profileLocation: URI, allDepsOrPacks: string[]) => {
 				const depsOrPacks = [];
@@ -424,8 +423,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					}
 				}));
 			}
-
-			throw error;
 		} finally {
 			// Finally, remove all the tasks from the cache
 			for (const { task } of installingExtensionsMap.values()) {
@@ -433,16 +430,15 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					this.installingExtensions.delete(getInstallExtensionTaskKey(task.source, task.options.profileLocation));
 				}
 			}
-			if (installExtensionResultsMap.size) {
-				const results = [...installExtensionResultsMap.values()];
-				for (const result of results) {
-					if (result.local) {
-						this.logService.info(`Extension installed successfully:`, result.identifier.id, result.profileLocation.toString());
-					}
-				}
-				this._onDidInstallExtensions.fire(results);
+		}
+		const results = [...installExtensionResultsMap.values()];
+		for (const result of results) {
+			if (result.local) {
+				this.logService.info(`Extension installed successfully:`, result.identifier.id, result.profileLocation.toString());
 			}
 		}
+		this._onDidInstallExtensions.fire(results);
+		return results;
 	}
 
 	private async getOtherProfilesToUpdateExtension(tasks: IInstallExtensionTask[]): Promise<[URI, IInstallExtensionTask][]> {
