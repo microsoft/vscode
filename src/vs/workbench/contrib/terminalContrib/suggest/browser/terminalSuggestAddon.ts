@@ -27,7 +27,7 @@ import { SimpleCompletionItem, ISimpleCompletion } from '../../../../services/su
 import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import type { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
-import { ITerminalCompletionProvider, ITerminalCompletionService } from './terminalCompletionService.js';
+import { ITerminalCompletionService } from './terminalCompletionService.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -118,7 +118,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}));
 	}
 
-	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, providers?: ITerminalCompletionProvider[]): Promise<void> {
+	private async _handleCompletionProviders(terminal: Terminal | undefined, token: CancellationToken, triggerCharacter?: boolean): Promise<void> {
 		// Nothing to handle if the terminal is not attached
 		if (!terminal?.element || !this._enableWidget || !this._promptInputModel) {
 			return;
@@ -138,7 +138,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			await this._extensionService.activateByEvent('onTerminalCompletionsRequested');
 		}
 
-		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._promptInputModel.cursorIndex, this._shellType, token, providers);
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._promptInputModel.cursorIndex, this._shellType, token, triggerCharacter);
 		if (!providedCompletions?.length || token.isCancellationRequested) {
 			return;
 		}
@@ -210,7 +210,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._screen = screen;
 	}
 
-	async requestCompletions(triggeredProviders?: ITerminalCompletionProvider[]): Promise<void> {
+	async requestCompletions(triggerCharacter?: boolean): Promise<void> {
 		if (!this._promptInputModel) {
 			return;
 		}
@@ -224,7 +224,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		this._cancellationTokenSource = new CancellationTokenSource();
 		const token = this._cancellationTokenSource.token;
-		await this._handleCompletionProviders(this._terminal, token, triggeredProviders);
+		await this._handleCompletionProviders(this._terminal, token, triggerCharacter);
 	}
 
 	private _sync(promptInputState: IPromptInputModelState): void {
@@ -264,72 +264,70 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					this.requestCompletions();
 					sent = true;
 				}
-				const providersToRequest: ITerminalCompletionProvider[] = [];
-				for (const provider of this._terminalCompletionService.providers) {
-					if (!provider.triggerCharacters) {
-						continue;
-					}
-					for (const char of provider.triggerCharacters) {
-						if (prefix?.endsWith(char)) {
-							providersToRequest.push(provider);
-							break;
+				if (!sent) {
+					for (const provider of this._terminalCompletionService.providers) {
+						if (!provider.triggerCharacters) {
+							continue;
+						}
+						for (const char of provider.triggerCharacters) {
+							if (prefix?.endsWith(char)) {
+								this.requestCompletions();
+								sent = true;
+								break;
+							}
 						}
 					}
-					if (providersToRequest.length > 0) {
-						this.requestCompletions(providersToRequest);
-						sent = true;
-					}
 				}
+
+				this._mostRecentPromptInputState = promptInputState;
+				if (!this._promptInputModel || !this._terminal || !this._suggestWidget || this._leadingLineContent === undefined) {
+					return;
+				}
+
+				this._currentPromptInputState = promptInputState;
+
+				// Hide the widget if the latest character was a space
+				if (this._currentPromptInputState.cursorIndex > 1 && this._currentPromptInputState.value.at(this._currentPromptInputState.cursorIndex - 1) === ' ') {
+					this.hideSuggestWidget();
+					return;
+				}
+
+				// Hide the widget if the cursor moves to the left of the initial position as the
+				// completions are no longer valid
+				// to do: get replacement length to be correct, readd this?
+				if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex <= this._leadingLineContent.length) {
+					this.hideSuggestWidget();
+					return;
+				}
+
+				if (this._terminalSuggestWidgetVisibleContextKey.get()) {
+					this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._requestedCompletionsIndex);
+					let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(this._providerReplacementIndex, this._requestedCompletionsIndex + this._cursorIndexDelta);
+					if (this._isFilteringDirectories) {
+						normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
+					}
+					const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
+					this._suggestWidget.setLineContext(lineContext);
+				}
+
+				// Hide and clear model if there are no more items
+				if (!this._suggestWidget.hasCompletions()) {
+					this.hideSuggestWidget();
+					return;
+				}
+
+				const dimensions = this._getTerminalDimensions();
+				if (!dimensions.width || !dimensions.height) {
+					return;
+				}
+				const xtermBox = this._screen!.getBoundingClientRect();
+				this._suggestWidget.showSuggestions(0, false, false, {
+					left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
+					top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
+					height: dimensions.height
+				});
 			}
 		}
-
-		this._mostRecentPromptInputState = promptInputState;
-		if (!this._promptInputModel || !this._terminal || !this._suggestWidget || this._leadingLineContent === undefined) {
-			return;
-		}
-
-		this._currentPromptInputState = promptInputState;
-
-		// Hide the widget if the latest character was a space
-		if (this._currentPromptInputState.cursorIndex > 1 && this._currentPromptInputState.value.at(this._currentPromptInputState.cursorIndex - 1) === ' ') {
-			this.hideSuggestWidget();
-			return;
-		}
-
-		// Hide the widget if the cursor moves to the left of the initial position as the
-		// completions are no longer valid
-		// to do: get replacement length to be correct, readd this?
-		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex <= this._leadingLineContent.length) {
-			this.hideSuggestWidget();
-			return;
-		}
-
-		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
-			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._requestedCompletionsIndex);
-			let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(this._providerReplacementIndex, this._requestedCompletionsIndex + this._cursorIndexDelta);
-			if (this._isFilteringDirectories) {
-				normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
-			}
-			const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
-			this._suggestWidget.setLineContext(lineContext);
-		}
-
-		// Hide and clear model if there are no more items
-		if (!this._suggestWidget.hasCompletions()) {
-			this.hideSuggestWidget();
-			return;
-		}
-
-		const dimensions = this._getTerminalDimensions();
-		if (!dimensions.width || !dimensions.height) {
-			return;
-		}
-		const xtermBox = this._screen!.getBoundingClientRect();
-		this._suggestWidget.showSuggestions(0, false, false, {
-			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
-			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
-			height: dimensions.height
-		});
 	}
 
 	private _getTerminalDimensions(): { width: number; height: number } {

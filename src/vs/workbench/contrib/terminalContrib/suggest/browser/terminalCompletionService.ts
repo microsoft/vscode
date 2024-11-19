@@ -31,7 +31,7 @@ export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	readonly providers: IterableIterator<ITerminalCompletionProvider>;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider, ...triggerCharacters: string[]): IDisposable;
-	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggeredProviders?: ITerminalCompletionProvider[]): Promise<ISimpleCompletion[] | undefined>;
+	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean): Promise<ISimpleCompletion[] | undefined>;
 }
 
 export class TerminalCompletionService extends Disposable implements ITerminalCompletionService {
@@ -74,19 +74,29 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		});
 	}
 
-	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggeredProviders?: ITerminalCompletionProvider[]): Promise<ISimpleCompletion[] | undefined> {
+	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean): Promise<ISimpleCompletion[] | undefined> {
 		const completionItems: ISimpleCompletion[] = [];
 
 		if (!this._providers || !this._providers.values) {
 			return undefined;
 		}
 
-
-
 		const extensionCompletionsEnabled = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enableExtensionCompletions;
 		let providers;
-		if (triggeredProviders) {
-			providers = triggeredProviders;
+		if (triggerCharacter) {
+			const providersToRequest: ITerminalCompletionProvider[] = [];
+			for (const provider of this.providers) {
+				if (!provider.triggerCharacters) {
+					continue;
+				}
+				for (const char of provider.triggerCharacters) {
+					if (promptValue.substring(0, cursorPosition)?.endsWith(char)) {
+						providersToRequest.push(provider);
+						break;
+					}
+				}
+			}
+			providers = providersToRequest;
 		} else {
 			providers = [...this._providers.values()].flatMap(providerMap => [...providerMap.values()]);
 		}
