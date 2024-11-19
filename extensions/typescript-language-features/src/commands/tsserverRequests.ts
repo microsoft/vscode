@@ -16,7 +16,6 @@ function isCancellationToken(value: any): value is vscode.CancellationToken {
 
 interface RequestArgs {
 	readonly file?: unknown;
-	readonly token?: unknown;
 }
 
 export class TSServerRequestCommand implements Command {
@@ -26,8 +25,10 @@ export class TSServerRequestCommand implements Command {
 		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>
 	) { }
 
-	public async execute(command: keyof TypeScriptRequests, args?: any, config?: any): Promise<unknown> {
-		let token: vscode.CancellationToken = nulToken;
+	public async execute(command: keyof TypeScriptRequests, args?: any, config?: any, token?: vscode.CancellationToken): Promise<unknown> {
+		if (!isCancellationToken(token)) {
+			token = nulToken;
+		}
 		if (args && typeof args === 'object' && !Array.isArray(args)) {
 			const requestArgs = args as RequestArgs;
 			let newArgs: any = undefined;
@@ -35,13 +36,6 @@ export class TSServerRequestCommand implements Command {
 				newArgs = { ...args };
 				const client = this.lazyClientHost.value.serviceClient;
 				newArgs.file = client.toOpenTsFilePath(requestArgs.file);
-			}
-			if (isCancellationToken(requestArgs.token)) {
-				newArgs = newArgs ?? { ...args };
-				token = requestArgs.token;
-				delete newArgs.token;
-			}
-			if (newArgs !== undefined) {
 				args = newArgs;
 			}
 		}
