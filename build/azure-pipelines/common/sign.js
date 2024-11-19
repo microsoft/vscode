@@ -105,6 +105,20 @@ function getParams(type) {
                     toolName: 'sign',
                     toolVersion: '1.0'
                 }];
+        case 'nuget':
+            return [{
+                    keyCode: 'CP-401405',
+                    operationSetCode: 'NuGetSign',
+                    parameters: [],
+                    toolName: 'sign',
+                    toolVersion: '1.0'
+                }, {
+                    keyCode: 'CP-401405',
+                    operationSetCode: 'NuGetVerify',
+                    parameters: [],
+                    toolName: 'sign',
+                    toolVersion: '1.0'
+                }];
         default:
             throw new Error(`Sign type ${type} not found`);
     }
