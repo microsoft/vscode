@@ -780,11 +780,6 @@ export interface IEditorOptions {
 	inlineCompletionsAccessibilityVerbose?: boolean;
 
 	/**
-	 * Controls the input mode, whether it is insert or overtype
-	 */
-	inputMode?: 'insert' | 'overtype';
-
-	/**
 	 *  Controls whether paste in overtype mode should overwrite or insert.
 	 */
 	overtypeOnPaste?: boolean;
@@ -5405,7 +5400,6 @@ export const enum EditorOption {
 	hover,
 	inDiffEditor,
 	inlineSuggest,
-	inputMode,
 	letterSpacing,
 	lightbulb,
 	lineDecorationsWidth,
@@ -5867,18 +5861,6 @@ export const EditorOptions = {
 	hover: register(new EditorHover()),
 	inDiffEditor: register(new EditorBooleanOption(
 		EditorOption.inDiffEditor, 'inDiffEditor', false
-	)),
-	inputMode: register(new EditorStringEnumOption(
-		EditorOption.inputMode, 'inputMode',
-		'insert' as 'insert' | 'overtype',
-		['insert', 'overtype'] as const,
-		{
-			enumDescriptions: [
-				nls.localize('inputMode.insert', "Insert text at cursor position"),
-				nls.localize('inputMode.overtype', "Replace text at cursor position")
-			],
-			description: nls.localize('inputMode', "Controls whether new text is inserted or it replaces existing text, at the cursor position.")
-		}
 	)),
 	letterSpacing: register(new EditorFloatOption(
 		EditorOption.letterSpacing, 'letterSpacing',

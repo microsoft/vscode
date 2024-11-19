@@ -330,8 +330,7 @@ class StatusInputMode extends Disposable {
 	constructor(@IConfigurationService private readonly configurationService: IConfigurationService) {
 		super();
 		this.registerListeners();
-		const inputMode = configurationService.getValue<'overtype' | 'insert'>('editor.inputMode');
-		InputMode.setInputMode(inputMode);
+		InputMode.setInputMode('insert');
 	}
 
 	private registerListeners(): void {
