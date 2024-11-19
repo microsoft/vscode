@@ -419,7 +419,6 @@ export function registerChatTitleActions() {
 			const chatService = accessor.get(IChatService);
 			const chatAgentService = accessor.get(IChatAgentService);
 			const viewsService = accessor.get(IViewsService);
-			// const dialogService = accessor.get(IDialogService);
 			const chatEditingService = accessor.get(IChatEditingService);
 			const quickPickService = accessor.get(IQuickInputService);
 
@@ -449,23 +448,7 @@ export function registerChatTitleActions() {
 
 			// when having multiple turns, let the user pick
 			if (sourceRequests.length > 1) {
-				const picks: (IQuickPickItem & { request: IChatRequestModel })[] = [];
-				for (const request of sourceRequests) {
-					picks.push({
-						picked: true,
-						request: request,
-						label: request.message.text,
-						description: request.response?.response.toString()
-					});
-				}
-				const result = await quickPickService.pick(picks, {
-					placeHolder: localize('chat.startEditing.pickRequest', "Select requests that you want to use for editing"),
-					canPickMany: true
-				});
-				if (!result) {
-					return;
-				}
-				sourceRequests = picks.map(pick => pick.request);
+				sourceRequests = await this._pickTurns(quickPickService, sourceRequests);
 			}
 
 			if (sourceRequests.length === 0) {
@@ -517,6 +500,63 @@ export function registerChatTitleActions() {
 					);
 				}
 			}
+		}
+
+		private async _pickTurns(quickPickService: IQuickInputService, requests: IChatRequestModel[]): Promise<IChatRequestModel[]> {
+
+			const timeThreshold = 60000; // 1 minute in milliseconds
+			const lastRequestTimestamp = requests[requests.length - 1].timestamp;
+			const relatedRequests = requests.filter(request => request.timestamp >= 0 && lastRequestTimestamp - request.timestamp <= timeThreshold);
+
+			const allPick: IQuickPickItem = {
+				label: localize('chat.startEditing.pickAll', "All requests from the conversation"),
+			};
+
+			const lastPick: IQuickPickItem = {
+				label: localize('chat.startEditing.last', "The last {0} requests", relatedRequests.length),
+				detail: relatedRequests.map(req => req.message.text).join(', '),
+			};
+
+			const customPick: IQuickPickItem = {
+				label: localize('chat.startEditing.pickCustom', "Select requests...")
+			};
+
+			const picks: IQuickPickItem[] = relatedRequests.length !== 0
+				? [lastPick, allPick, customPick]
+				: [allPick, customPick];
+
+			const firstPick = await quickPickService.pick(picks, {
+				placeHolder: localize('chat.startEditing.pickRequest', "Select requests that you want to use for editing"),
+			});
+
+			if (!firstPick) {
+				return [];
+			}
+
+			if (firstPick === allPick) {
+				return requests;
+			} else if (firstPick === lastPick) {
+				return relatedRequests;
+			}
+
+			// custom pick
+			const customPicks: (IQuickPickItem & { request: IChatRequestModel })[] = requests.map(request => ({
+				picked: true,
+				request: request,
+				label: request.message.text,
+				detail: request.response?.response.toString()
+			}));
+
+			const secondPick = await quickPickService.pick(customPicks, {
+				placeHolder: localize('chat.startEditing.pickRequest', "Select requests that you want to use for editing"),
+				canPickMany: true
+			});
+
+			if (!secondPick) {
+				return [];
+			}
+
+			return secondPick.map(p => p.request);
 		}
 
 	});
