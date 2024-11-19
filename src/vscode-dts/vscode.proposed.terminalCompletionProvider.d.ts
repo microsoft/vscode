@@ -20,6 +20,7 @@ declare module 'vscode' {
 		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T | Thenable<T | undefined>>;
 	}
 
+	// TODO:
 	// export class TerminalDirectoryFilesCompletionItem {
 	// 	constructor(dir: string, includeFiles: boolean) {
 	// 	}
