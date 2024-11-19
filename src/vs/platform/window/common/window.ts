@@ -14,6 +14,7 @@ import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { FileType } from '../../files/common/files.js';
 import { ILoggerResource, LogLevel } from '../../log/common/log.js';
 import { PolicyDefinition, PolicyValue } from '../../policy/common/policy.js';
+import product from '../../product/common/product.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
 import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
@@ -220,7 +221,7 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 		}
 	}
 
-	return isLinux ? TitlebarStyle.NATIVE : TitlebarStyle.CUSTOM; // default to custom on all macOS and Windows
+	return isLinux && product.quality === 'stable' ? TitlebarStyle.NATIVE : TitlebarStyle.CUSTOM; // default to custom on all OS except Linux stable (for now)
 }
 
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
