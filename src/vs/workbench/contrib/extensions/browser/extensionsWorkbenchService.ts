@@ -1893,7 +1893,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 		}
 		if (options.length) {
-			const message = nls.localize('platform placeholder', "Please select the platform you would like to download.");
+			const message = nls.localize('platform placeholder', "Please select the platform for which you want to download the VSIX");
 			const option = await this.quickInputService.pick(options.sort((a, b) => a.label.localeCompare(b.label)), { placeHolder: message });
 			if (!option) {
 				return;
