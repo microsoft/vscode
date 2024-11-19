@@ -2114,6 +2114,14 @@ export class TerminalProfile implements vscode.TerminalProfile {
 	}
 }
 
+export enum TerminalCompletionItemKind {
+	File = 0,
+	Folder = 1,
+	Flag = 2,
+	Method = 3,
+	Argument = 4
+}
+
 export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 	label: string;
 	icon?: ThemeIcon | undefined;

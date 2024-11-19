@@ -12,11 +12,16 @@ import { ITerminalSuggestConfiguration, terminalSuggestConfigSection } from '../
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
-export enum ISimpleCompletionKind {
+export enum TerminalCompletionItemKind {
 	File = 0,
 	Folder = 1,
 	Flag = 2,
-	Method = 3
+	Method = 3,
+	Argument = 4
+}
+
+export interface ITerminalCompletion extends ISimpleCompletion {
+	kind?: TerminalCompletionItemKind;
 }
 
 export interface ITerminalCompletionProvider {
@@ -31,7 +36,7 @@ export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	readonly providers: IterableIterator<ITerminalCompletionProvider>;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider, ...triggerCharacters: string[]): IDisposable;
-	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean): Promise<ISimpleCompletion[] | undefined>;
+	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean): Promise<ITerminalCompletion[] | undefined>;
 }
 
 export class TerminalCompletionService extends Disposable implements ITerminalCompletionService {

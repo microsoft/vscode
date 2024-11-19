@@ -100,7 +100,7 @@ export async function activate(context: vscode.ExtensionContext) {
 							}
 
 							if (optionLabel.startsWith(prefix) || (prefix.length > specName.length && prefix.trim() === specName)) {
-								result.push(createCompletionItem(terminalContext.cursorPosition, prefix, optionLabel, option.description));
+								result.push(createCompletionItem(terminalContext.cursorPosition, prefix, optionLabel, option.description, false, vscode.TerminalCompletionItemKind.Flag));
 							}
 							if (option.args !== undefined) {
 								const args = Array.isArray(option.args) ? option.args : [option.args];
@@ -135,7 +135,7 @@ export async function activate(context: vscode.ExtensionContext) {
 											if (suggestionLabel && suggestionLabel.startsWith(currentPrefix)) {
 												const hasSpaceBeforeCursor = terminalContext.commandLine[terminalContext.cursorPosition - 1] === ' ';
 												// prefix will be '' if there is a space before the cursor
-												result.push(createCompletionItem(terminalContext.cursorPosition, precedingText, suggestionLabel, arg.name, hasSpaceBeforeCursor));
+												result.push(createCompletionItem(terminalContext.cursorPosition, precedingText, suggestionLabel, arg.name, hasSpaceBeforeCursor, vscode.TerminalCompletionItemKind.Argument));
 											}
 										}
 										if (result.length) {
@@ -182,14 +182,13 @@ function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string | 
 	return spec.name[0];
 }
 
-function createCompletionItem(cursorPosition: number, prefix: string, label: string, description?: string, hasSpaceBeforeCursor?: boolean): vscode.TerminalCompletionItem {
+function createCompletionItem(cursorPosition: number, prefix: string, label: string, description?: string, hasSpaceBeforeCursor?: boolean, kind?: vscode.TerminalCompletionItemKind): vscode.TerminalCompletionItem {
 	return {
 		label,
-		isFile: false,
-		isDirectory: false,
 		detail: description ?? '',
 		replacementIndex: hasSpaceBeforeCursor ? cursorPosition : cursorPosition - 1,
 		replacementLength: label.length - prefix.length,
+		kind: kind ?? vscode.TerminalCompletionItemKind.Method
 	};
 }
 

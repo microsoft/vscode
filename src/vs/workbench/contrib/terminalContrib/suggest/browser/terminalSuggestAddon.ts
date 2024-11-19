@@ -23,14 +23,15 @@ import { ITerminalConfigurationService } from '../../../terminal/browser/termina
 import type { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
 import { terminalSuggestConfigSection, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
-import { SimpleCompletionItem, ISimpleCompletion } from '../../../../services/suggest/browser/simpleCompletionItem.js';
+import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import type { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
-import { ITerminalCompletionService } from './terminalCompletionService.js';
+import { ITerminalCompletion, ITerminalCompletionService, TerminalCompletionItemKind } from './terminalCompletionService.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -58,7 +59,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _enableWidget: boolean = true;
 	private _pathSeparator: string = sep;
 	private _isFilteringDirectories: boolean = false;
-	private _mostRecentCompletion?: ISimpleCompletion;
+	private _mostRecentCompletion?: ITerminalCompletion;
 
 	// TODO: Remove these in favor of prompt input state
 	private _leadingLineContent?: string;
@@ -79,6 +80,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
 	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
+
+	private _kindToIconMap = new Map<number, ThemeIcon>([
+		[TerminalCompletionItemKind.File, Codicon.file],
+		[TerminalCompletionItemKind.Folder, Codicon.folder],
+		[TerminalCompletionItemKind.Flag, Codicon.symbolProperty],
+		[TerminalCompletionItemKind.Method, Codicon.symbolMethod],
+		[TerminalCompletionItemKind.Argument, Codicon.symbolVariable]
+	]);
 
 	constructor(
 		private readonly _shellType: TerminalShellType | undefined,
@@ -191,6 +200,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			const firstDir = completions.find(e => e.isDirectory);
 			this._pathSeparator = firstDir?.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
 			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
+		}
+		for (const completion of completions) {
+			if (!completion.icon && completion.kind) {
+				completion.icon = this._kindToIconMap.get(completion.kind);
+			}
 		}
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
 		const model = new SimpleCompletionModel(completions.filter(c => !!c.label).map(c => new SimpleCompletionItem(c)), lineContext);

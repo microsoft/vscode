@@ -32,19 +32,11 @@ declare module 'vscode' {
 		 * The completion's detail which appears on the right of the list.
 		 */
 		detail?: string;
+
 		/**
-		 * Whether the completion is a file. Files with the same score will be sorted against each other
-		 * first by extension length and then certain extensions will get a boost based on the OS.
+		 * The completion's kind. Note that this will map to an icon.
 		 */
-		isFile?: boolean;
-		/**
-		 * Whether the completion is a directory.
-		 */
-		isDirectory?: boolean;
-		/**
-		 * Whether the completion is a keyword.
-		 */
-		isKeyword?: boolean;
+		kind?: TerminalCompletionItemKind;
 
 		/**
 		 * The index of the start of the range to replace.
@@ -57,6 +49,17 @@ declare module 'vscode' {
 		replacementLength: number;
 	}
 
+
+	/**
+	 * Terminal item kinds.
+	 */
+	export enum TerminalCompletionItemKind {
+		File = 0,
+		Folder = 1,
+		Flag = 2,
+		Method = 3,
+		Argument = 4
+	}
 
 	export interface TerminalCompletionContext {
 		/**

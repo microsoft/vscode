@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalCompletionProvider } from './terminalCompletionService.js';
-import { ISimpleCompletion } from '../../../../services/suggest/browser/simpleCompletionItem.js';
+import { ITerminalCompletion, ITerminalCompletionProvider } from './terminalCompletionService.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 import { Event, Emitter } from '../../../../../base/common/event.js';
@@ -58,18 +57,18 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	triggerCharacters?: string[] | undefined;
 	isBuiltin?: boolean = true;
 	static readonly ID = 'terminal.pwshCompletionProvider';
-	static cachedPwshCommands: Set<ISimpleCompletion>;
+	static cachedPwshCommands: Set<ITerminalCompletion>;
 	readonly shellTypes = [GeneralShellType.PowerShell];
 	private _codeCompletionsRequested: boolean = false;
 	private _gitCompletionsRequested: boolean = false;
 	private _lastUserDataTimestamp: number = 0;
 	private _terminal?: Terminal;
-	private _mostRecentCompletion?: ISimpleCompletion;
+	private _mostRecentCompletion?: ITerminalCompletion;
 	private _promptInputModel?: IPromptInputModel;
 	private _currentPromptInputState?: IPromptInputModelState;
 	private _enableWidget: boolean = true;
 	isPasting: boolean = false;
-	private _completionsDeferred: DeferredPromise<ISimpleCompletion[] | undefined> | null = null;
+	private _completionsDeferred: DeferredPromise<ITerminalCompletion[] | undefined> | null = null;
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
 	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
@@ -80,7 +79,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	readonly onDidRequestSendText = this._onDidRequestSendText.event;
 
 	constructor(
-		providedPwshCommands: Set<ISimpleCompletion> | undefined,
+		providedPwshCommands: Set<ITerminalCompletion> | undefined,
 		capabilities: ITerminalCapabilityStore,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService
@@ -231,7 +230,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 		return true;
 	}
 
-	private _resolveCompletions(result: ISimpleCompletion[] | undefined) {
+	private _resolveCompletions(result: ITerminalCompletion[] | undefined) {
 		if (!this._completionsDeferred) {
 			return;
 		}
@@ -240,12 +239,12 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 		this._completionsDeferred = null;
 	}
 
-	private _getCompletionsPromise(): Promise<ISimpleCompletion[] | undefined> {
-		this._completionsDeferred = new DeferredPromise<ISimpleCompletion[] | undefined>();
+	private _getCompletionsPromise(): Promise<ITerminalCompletion[] | undefined> {
+		this._completionsDeferred = new DeferredPromise<ITerminalCompletion[] | undefined>();
 		return this._completionsDeferred.p;
 	}
 
-	provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<ISimpleCompletion[] | undefined> {
+	provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<ITerminalCompletion[] | undefined> {
 		const builtinCompletionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).builtinCompletions;
 		if (!this._codeCompletionsRequested && builtinCompletionsConfig.pwshCode) {
 			this._onDidRequestSendText.fire(RequestCompletionsSequence.Code);
@@ -286,7 +285,7 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 	}
 }
 
-export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion, replacementIndex: number, replacementLength: number): ISimpleCompletion[] {
+export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion, replacementIndex: number, replacementLength: number): ITerminalCompletion[] {
 	if (!rawCompletions) {
 		return [];
 	}
@@ -315,10 +314,10 @@ export function parseCompletionsFromShell(rawCompletions: PwshCompletion | PwshC
 			typedRawCompletions = rawCompletions as PwshCompletion[];
 		}
 	}
-	return typedRawCompletions.map(e => rawCompletionToISimpleCompletion(e, replacementIndex, replacementLength));
+	return typedRawCompletions.map(e => rawCompletionToITerminalCompletion(e, replacementIndex, replacementLength));
 }
 
-function rawCompletionToISimpleCompletion(rawCompletion: PwshCompletion, replacementIndex: number, replacementLength: number): ISimpleCompletion {
+function rawCompletionToITerminalCompletion(rawCompletion: PwshCompletion, replacementIndex: number, replacementLength: number): ITerminalCompletion {
 	// HACK: Somewhere along the way from the powershell script to here, the path separator at the
 	// end of directories may go missing, likely because `\"` -> `"`. As a result, make sure there
 	// is a trailing separator at the end of all directory completions. This should not be done for
