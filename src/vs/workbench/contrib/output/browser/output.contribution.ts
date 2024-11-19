@@ -546,7 +546,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'output.showQuietly': {
 			type: 'boolean',
-			description: nls.localize('output.showQuietly', "When an extension requests an output channel to be shown, if Output view is hidden then display a clickable status bar indicator instead."),
+			description: nls.localize('output.showQuietly', "If an extension requests an output channel to be shown while Output view is hidden, display a clickable status bar indicator instead."),
 			default: false,
 			scope: ConfigurationScope.WINDOW,
 			tags: ['output']
