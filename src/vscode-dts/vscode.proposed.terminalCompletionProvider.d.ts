@@ -7,7 +7,7 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/226562
 
-	export interface TerminalCompletionProvider<T extends TerminalCompletionItem[]> {
+	export interface TerminalCompletionProvider<T extends TerminalCompletionItem> {
 		id: string;
 		/**
 		 * Provide completions for the given position and document.
@@ -17,29 +17,17 @@ declare module 'vscode' {
 		 * @return A list of completions.
 		 */
 		// TODO: return TerminalCompletionItem | TermimalDirectoryFilesCompletionItem
-		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T | Thenable<T | undefined>>;
+		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T[]>;
 	}
-
-	// TODO:
-	// export class TerminalDirectoryFilesCompletionItem {
-	// 	constructor(dir: string, includeFiles: boolean) {
-	// 	}
-
-	// `cd ` (should find src/, but not package.json)
-	// `get-content ` (should find all files and directories, since since the file could be in an inner dir)
-	// `cd src/ (should find folders within <cwd>/src)
-	// }
 
 
 	export interface TerminalCompletionItem {
+		icon?: ThemeIcon;
 		/**
 		 * The completion's label which appears on the left beside the icon.
 		 */
 		label: string;
-		/**
-		 * The completion's icon to show on the left of the suggest widget.
-		 */
-		icon?: ThemeIcon;
+
 		/**
 		 * The completion's detail which appears on the right of the list.
 		 */
@@ -89,6 +77,6 @@ declare module 'vscode' {
 		 * @param provider The completion provider.
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem[]>(provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
+		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
 	}
 }
