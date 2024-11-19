@@ -41,7 +41,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 
 	private readonly _entry = observableValue<{ entry: IModifiedFileEntry; next: IModifiedFileEntry } | undefined>(this, undefined);
 
-	private readonly _navigationBearings = observableValue<{ changeCount: number; activeIdx: number }>(this, { changeCount: -1, activeIdx: -1 });
+	private readonly _navigationBearings = observableValue<{ changeCount: number; activeIdx: number; entriesCount: number }>(this, { changeCount: -1, activeIdx: -1, entriesCount: -1 });
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -89,11 +89,24 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 								const n = activeIdx === -1 ? '?' : `${activeIdx + 1}`;
 								const m = changeCount === -1 ? '?' : `${changeCount}`;
 								this.label.innerText = localize('nOfM', "{0} of {1}", n, m);
+
+								this.updateTooltip();
 							}));
 						}
 
 						protected override getTooltip(): string | undefined {
-							return undefined;
+							const { changeCount, entriesCount } = that._navigationBearings.get();
+							if (changeCount === -1 || entriesCount === -1) {
+								return undefined;
+							} else if (changeCount === 1 && entriesCount === 1) {
+								return localize('tooltip_11', "1 change in 1 file");
+							} else if (changeCount === 1) {
+								return localize('tooltip_1n', "1 change in {0} files", entriesCount);
+							} else if (entriesCount === 1) {
+								return localize('tooltip_n1', "{0} changes in 1 file", changeCount);
+							} else {
+								return localize('tooltip_nm', "{0} changes in {1} files", changeCount, entriesCount);
+							}
 						}
 					};
 				}
@@ -224,7 +237,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 				}
 			}
 
-			this._navigationBearings.set({ changeCount: changes, activeIdx }, undefined);
+			this._navigationBearings.set({ changeCount: changes, activeIdx, entriesCount: entries.length }, undefined);
 		}));
 
 		if (!this._isAdded) {
@@ -237,7 +250,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 
 		transaction(tx => {
 			this._entry.set(undefined, tx);
-			this._navigationBearings.set({ changeCount: -1, activeIdx: -1 }, tx);
+			this._navigationBearings.set({ changeCount: -1, activeIdx: -1, entriesCount: -1 }, tx);
 		});
 
 		if (this._isAdded) {
