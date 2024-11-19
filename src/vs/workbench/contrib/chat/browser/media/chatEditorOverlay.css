@@ -18,6 +18,7 @@
 	display: none;
 	padding: 0px 5px;
 	font-size: 12px;
+	font-variant-numeric: tabular-nums;
 }
 
 .chat-editor-overlay-widget.busy .chat-editor-overlay-progress {
@@ -51,6 +52,9 @@
 }
 
 
+.chat-editor-overlay-widget .action-item.label-item {
+	font-variant-numeric: tabular-nums;
+}
 
 .chat-editor-overlay-widget .action-item.label-item > .action-label,
 .chat-editor-overlay-widget .action-item.label-item > .action-label:hover {

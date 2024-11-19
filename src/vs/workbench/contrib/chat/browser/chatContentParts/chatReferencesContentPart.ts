@@ -42,7 +42,7 @@ import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
 import { ChatTreeItem, IChatWidgetService } from '../chat.js';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
-import { IChatContentPart } from './chatContentParts.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 const $ = dom.$;
 
@@ -60,10 +60,12 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
+	private readonly hasFollowingContent: boolean;
+
 	constructor(
 		private readonly data: ReadonlyArray<IChatCollapsibleListItem>,
 		labelOverride: string | undefined,
-		element: IChatResponseViewModel,
+		context: IChatContentPartRenderContext,
 		contentReferencesListPool: CollapsibleListPool,
 		@IOpenerService openerService: IOpenerService,
 		@IMenuService menuService: IMenuService,
@@ -72,6 +74,8 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 	) {
 		super();
 
+		const element = context.element as IChatResponseViewModel;
+		this.hasFollowingContent = context.contentIndex + 1 < context.content.length;
 		const referencesLabel = labelOverride ?? (data.length > 1 ?
 			localize('usedReferencesPlural', "Used {0} references", data.length) :
 			localize('usedReferencesSingular', "Used {0} reference", 1));
@@ -163,8 +167,7 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		return other.kind === 'references' && other.references.length === this.data.length ||
-			other.kind === 'codeCitations' && other.citations.length === this.data.length;
+		return other.kind === 'references' && other.references.length === this.data.length && (!!followingContent.length === this.hasFollowingContent);
 	}
 
 	private updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {

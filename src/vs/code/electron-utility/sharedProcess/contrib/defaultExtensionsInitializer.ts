@@ -71,8 +71,8 @@ export class DefaultExtensionsInitializer extends Disposable {
 
 	private getDefaultExtensionVSIXsLocation(): URI {
 		// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\resources\app
-		// extensionsPath = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\extras\extensions
-		return URI.file(join(dirname(dirname(this.environmentService.appRoot)), 'extras', 'extensions'));
+		// extensionsPath = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\bootstrap\extensions
+		return URI.file(join(dirname(dirname(this.environmentService.appRoot)), 'bootstrap', 'extensions'));
 	}
 
 }

@@ -46,10 +46,10 @@ export class Notebook {
 
 		await this.code.waitForElement(editor);
 
-		const textarea = `${editor} textarea`;
-		await this.code.waitForActiveElement(textarea);
+		const editContext = `${editor} .native-edit-context`;
+		await this.code.waitForActiveElement(editContext);
 
-		await this.code.waitForTypeInEditor(textarea, text);
+		await this.code.waitForTypeInEditor(editContext, text);
 
 		await this._waitForActiveCellEditorContents(c => c.indexOf(text) > -1);
 	}

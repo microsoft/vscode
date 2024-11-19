@@ -8,7 +8,6 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
-import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -44,11 +43,11 @@ export interface IChatWidgetService {
 }
 
 export async function showChatView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
-	return (await viewsService.openView<ChatViewPane>(CHAT_VIEW_ID))?.widget;
+	return (await viewsService.openView<ChatViewPane>(ChatViewId))?.widget;
 }
 
 export async function showEditsView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
-	return (await viewsService.openView<ChatViewPane>(EDITS_VIEW_ID))?.widget;
+	return (await viewsService.openView<ChatViewPane>(EditsViewId))?.widget;
 }
 
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
@@ -212,8 +211,6 @@ export interface IChatCodeBlockContextProviderService {
 	registerProvider(provider: ICodeBlockActionContextProvider, id: string): IDisposable;
 }
 
-export const GeneratingPhrase = localize('generating', "Generating");
+export const ChatViewId = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
 
-export const CHAT_VIEW_ID = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
-
-export const EDITS_VIEW_ID = 'workbench.panel.chat.view.edits';
+export const EditsViewId = 'workbench.panel.chat.view.edits';

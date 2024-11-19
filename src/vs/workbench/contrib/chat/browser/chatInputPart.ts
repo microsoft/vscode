@@ -71,7 +71,7 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/edit
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
-import { revealInsideBarCommand } from '../../files/browser/fileActions.contribution.js';
+import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
@@ -87,6 +87,7 @@ import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
+import { ChatDragAndDrop, EditsDragAndDrop } from './chatDragAndDrop.js';
 import { ChatEditingShowChangesAction } from './chatEditing/chatEditingActions.js';
 import { ChatEditingSaveAllAction } from './chatEditorSaving.js';
 import { ChatFollowups } from './chatFollowups.js';
@@ -96,6 +97,12 @@ import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 const $ = dom.$;
 
 const INPUT_EDITOR_MAX_HEIGHT = 250;
+
+export interface IChatInputStyles {
+	overlayBackground: string;
+	listForeground: string;
+	listBackground: string;
+}
 
 interface IChatInputPartOptions {
 	renderFollowups: boolean;
@@ -191,6 +198,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._inputEditor;
 	}
 
+	private readonly dnd: ChatDragAndDrop;
+
 	private history: HistoryNavigator2<IChatHistoryEntry>;
 	private historyNavigationBackwardsEnablement!: IContextKey<boolean>;
 	private historyNavigationForewardsEnablement!: IContextKey<boolean>;
@@ -248,6 +257,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
 		private readonly location: ChatAgentLocation,
 		private readonly options: IChatInputPartOptions,
+		styles: IChatInputStyles,
 		getContribsInputState: () => any,
 		@IChatWidgetHistoryService private readonly historyService: IChatWidgetHistoryService,
 		@IModelService private readonly modelService: IModelService,
@@ -294,6 +304,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 
 		this._chatEditsListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, MenuId.ChatEditingWidgetModifiedFilesToolbar));
+		this.dnd = this._register(this.instantiationService.createInstance(this.location === ChatAgentLocation.EditingSession ? EditsDragAndDrop : ChatDragAndDrop, this.attachmentModel, styles));
 
 		this._hasFileAttachmentContextKey = ChatContextKeys.hasFileAttachments.bindTo(contextKeyService);
 	}
@@ -554,6 +565,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._register(this._attachmentModel.onDidChangeContext(() => this._handleAttachedContextChange()));
 		this.renderChatEditingSessionState(null, widget);
+
+		this.dnd.addOverlay(container, container);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		ChatContextKeys.inChatInput.bindTo(inputScopedContextKeyService).set(true);
@@ -882,7 +895,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private openResource(resource: URI, isDirectory?: boolean, range?: IRange): void {
 		if (isDirectory) {
 			// Reveal Directory in explorer
-			this.commandService.executeCommand(revealInsideBarCommand.id, resource);
+			this.commandService.executeCommand(revealInSideBarCommand.id, resource);
 			return;
 		}
 

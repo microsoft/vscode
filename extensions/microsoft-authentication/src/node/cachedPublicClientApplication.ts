@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PublicClientApplication, AccountInfo, Configuration, SilentFlowRequest, AuthenticationResult, InteractiveRequest, LogLevel } from '@azure/msal-node';
+import { PublicClientApplication, AccountInfo, Configuration, SilentFlowRequest, AuthenticationResult, InteractiveRequest, LogLevel, RefreshTokenRequest } from '@azure/msal-node';
 import { NativeBrokerPlugin } from '@azure/msal-node-extensions';
 import { Disposable, Memento, SecretStorage, LogOutputChannel, window, ProgressLocation, l10n, EventEmitter } from 'vscode';
 import { Delayer, raceCancellationAndTimeoutError } from '../common/async';
@@ -124,6 +124,24 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		this._setupRefresh(result);
 		if (this._isBrokerAvailable) {
 			await this._accountAccess.setAllowedAccess(result.account!, true);
+		}
+		return result;
+	}
+
+	/**
+	 * Allows for passing in a refresh token to get a new access token. This is the migration scenario.
+	 * TODO: MSAL Migration. Remove this when we remove the old flow.
+	 * @param request a {@link RefreshTokenRequest} object that contains the refresh token and other parameters.
+	 * @returns an {@link AuthenticationResult} object that contains the result of the token acquisition operation.
+	 */
+	async acquireTokenByRefreshToken(request: RefreshTokenRequest) {
+		this._logger.debug(`[acquireTokenByRefreshToken] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}]`);
+		const result = await this._pca.acquireTokenByRefreshToken(request);
+		if (result) {
+			this._setupRefresh(result);
+			if (this._isBrokerAvailable && result.account) {
+				await this._accountAccess.setAllowedAccess(result.account, true);
+			}
 		}
 		return result;
 	}
