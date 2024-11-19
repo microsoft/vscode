@@ -1477,6 +1477,14 @@
         {
           "command": "git.cherryPickRef",
           "when": "false"
+        },
+        {
+          "command": "git.diff.stageHunk",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && diffEditorOriginalUri =~ /^git\\:.*%22ref%22%3A%22~%22%7D$/"
+        },
+        {
+          "command": "git.diff.stageSelection",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && diffEditorOriginalUri =~ /^git\\:.*%22ref%22%3A%22~%22%7D$/"
         }
       ],
       "scm/title": [
