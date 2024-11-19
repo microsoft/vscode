@@ -53,7 +53,7 @@ export class Editors {
 	}
 
 	async waitForActiveEditor(fileName: string, retryCount?: number): Promise<any> {
-		const selector = `.editor-instance .monaco-editor[data-uri$="${fileName}"] textarea`;
+		const selector = `.editor-instance .monaco-editor[data-uri$="${fileName}"] .native-edit-context`;
 		return this.code.waitForActiveElement(selector, retryCount);
 	}
 

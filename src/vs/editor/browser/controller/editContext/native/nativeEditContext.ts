@@ -28,6 +28,7 @@ import { PositionOffsetTransformer } from '../../../../common/core/positionToOff
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { EditContext } from './editContextFactory.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { NativeEditContextRegistry } from './nativeEditContextRegistry.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -37,8 +38,6 @@ enum CompositionClassName {
 }
 
 export class NativeEditContext extends AbstractEditContext {
-
-	public static TEXT_AREA_CLASS_NAME = 'native-edit-context-textarea';
 
 	// Text area used to handle paste events
 	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
@@ -60,6 +59,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private readonly _selectionChangeListener: MutableDisposable<IDisposable>;
 
 	constructor(
+		ownerID: string,
 		context: ViewContext,
 		overflowGuardContainer: FastDomNode<HTMLElement>,
 		viewController: ViewController,
@@ -72,8 +72,10 @@ export class NativeEditContext extends AbstractEditContext {
 		this.domNode = new FastDomNode(document.createElement('div'));
 		this.domNode.setClassName(`native-edit-context`);
 		this.textArea = new FastDomNode(document.createElement('textarea'));
-		this.textArea.setClassName(NativeEditContext.TEXT_AREA_CLASS_NAME);
-		this.textArea.setAttribute('modeluri', context.viewModel.model.uri.path);
+		this.textArea.setClassName('native-edit-context-textarea');
+
+		this._register(NativeEditContextRegistry.registerTextArea(ownerID, this.textArea.domNode));
+
 		this._updateDomAttributes();
 
 		overflowGuardContainer.appendChild(this.domNode);

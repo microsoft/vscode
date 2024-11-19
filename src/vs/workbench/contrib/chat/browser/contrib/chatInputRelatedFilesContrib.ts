@@ -57,7 +57,7 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 					}
 
 					const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
-					if (!currentEditingSession || currentEditingSession.chatSessionId !== widget.viewModel?.sessionId || currentEditingSession.entries.get()) {
+					if (!currentEditingSession || currentEditingSession.chatSessionId !== widget.viewModel?.sessionId || currentEditingSession.entries.get().length) {
 						return; // Might have disposed while we were calculating
 					}
 

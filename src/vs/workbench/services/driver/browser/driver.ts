@@ -134,17 +134,23 @@ export class BrowserWindowDriver implements IWindowDriver {
 			throw new Error(`Editor not found: ${selector}`);
 		}
 
-		const textarea = element as HTMLTextAreaElement;
-		const start = textarea.selectionStart;
-		const newStart = start + text.length;
-		const value = textarea.value;
-		const newValue = value.substr(0, start) + text + value.substr(start);
-
-		textarea.value = newValue;
-		textarea.setSelectionRange(newStart, newStart);
-
-		const event = new Event('input', { 'bubbles': true, 'cancelable': true });
-		textarea.dispatchEvent(event);
+		const divElement = element as HTMLDivElement;
+		const editContext = divElement.editContext;
+		if (!editContext) {
+			throw new Error(`Edit context not found: ${selector}`);
+		}
+		const selectionStart = editContext.selectionStart;
+		const selectionEnd = editContext.selectionEnd;
+		const event = new TextUpdateEvent('textupdate', {
+			updateRangeStart: selectionStart,
+			updateRangeEnd: selectionEnd,
+			text,
+			selectionStart: selectionStart + text.length,
+			selectionEnd: selectionStart + text.length,
+			compositionStart: 0,
+			compositionEnd: 0
+		});
+		editContext.dispatchEvent(event);
 	}
 
 	async getTerminalBuffer(selector: string): Promise<string[]> {
