@@ -597,7 +597,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.renderAttachedContext();
 		if (this.options.enableImplicitContext) {
-			this._implicitContext = this._register(new ChatImplicitContext(this.fileService));
+			this._implicitContext = this._register(new ChatImplicitContext(this.fileService, this.configurationService));
 			this._register(this._implicitContext.onDidChangeValue(() => this._handleAttachedContextChange()));
 		}
 

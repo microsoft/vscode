@@ -11,6 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Location } from '../../../../../editor/common/languages.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorsOrder } from '../../../../common/editor.js';
@@ -130,10 +131,15 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	private _onDidChangeValue = this._register(new Emitter<void>());
 	readonly onDidChangeValue = this._onDidChangeValue.event;
 
-	private chatReference?: PromptFileReference;
+	/**
+	 * Chat reference object for the current implicit context `URI`
+	 * allows to resolve nested file references(aka `prompt snippets`).
+	 */
+	private promptFileReference?: PromptFileReference;
 
 	constructor(
 		private readonly fileService: IFileService,
+		private readonly configurationService: IConfigurationService,
 	) {
 		super();
 	}
@@ -203,14 +209,14 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	}
 
 	/**
-	 * Get child file references list, if any.
+	 * Get nested file references list, if exists.
 	 */
 	public get validFileReferenceUris(): readonly URI[] {
-		if (!this.chatReference) {
+		if (!this.promptFileReference) {
 			return [];
 		}
 
-		return this.chatReference.validChildReferenceUris;
+		return this.promptFileReference.validChildReferenceUris;
 	}
 
 	/**
@@ -220,31 +226,9 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		value: Location | URI | undefined,
 		isSelection: boolean,
 	) {
-		// if new value is `undefined` or a new `URI` is provided,
-		// remove existing chat reference
-		if (!value || !this.chatReference?.sameUri(value)) {
-			this.removeChatReference();
-		}
-
-		// if a `URI` is provided but no chat reference exists, create it
-		if (value && !this.chatReference) {
-			this.chatReference = this._register(new PromptFileReference(
-				value,
-				this.fileService,
-			));
-
-			// subscribe to filesystem changes for the file reference
-			this.chatReference.addFilesystemListeners();
-
-			// subscribe to updates of the chat reference
-			this._register(
-				this.chatReference.onUpdate(
-					this._onDidChangeValue.fire.bind(this._onDidChangeValue),
-				),
-			);
-
-			// start resolving the chat references immediately
-			this.chatReference.resolve();
+		// if the `prompt-snippets` feature is enabled, add a chat reference object
+		if (PromptFileReference.promptSnippetsEnabled(this.configurationService)) {
+			this.addPromprFileReferenceFor(value);
 		}
 
 		this._value = value;
@@ -252,13 +236,53 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		this._onDidChangeValue.fire();
 	}
 
-	private removeChatReference() {
-		if (!this.chatReference) {
+	/**
+	 * Add a prompt file reference object for the provided `URI` value.
+	 */
+	private addPromprFileReferenceFor(
+		value: Location | URI | undefined,
+	) {
+		// new value is `undefined` so remove the existing file reference
+		if (!value) {
+			return this.removePromptFileReference();
+		}
+
+		// if the `URI` value didn't change and prompt file reference exists, nothing to do
+		if (this.promptFileReference && this.promptFileReference.sameUri(value)) {
 			return;
 		}
 
-		this.chatReference.dispose();
-		delete this.chatReference;
+		// got a new `URI` value, so remove the existing prompt file
+		// reference object(if present) and create a new one
+		this.removePromptFileReference();
+		this.promptFileReference = this._register(new PromptFileReference(
+			value,
+			this.fileService,
+		));
+
+		// subscribe to filesystem changes for the file reference
+		this.promptFileReference.addFilesystemListeners();
+
+		// subscribe to updates of the prompt file reference
+		this._register(
+			this.promptFileReference.onUpdate(
+				this._onDidChangeValue.fire.bind(this._onDidChangeValue),
+			),
+		);
+		// start resolving the nested prompt file references immediately
+		this.promptFileReference.resolve();
+	}
+
+	/**
+	 * Remove current prompt file reference, if present.
+	 */
+	private removePromptFileReference() {
+		if (!this.promptFileReference) {
+			return;
+		}
+
+		this.promptFileReference.dispose();
+		delete this.promptFileReference;
 	}
 
 	toBaseEntry(): IBaseChatRequestVariableEntry {

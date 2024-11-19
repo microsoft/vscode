@@ -8,6 +8,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { extUri } from '../../../../base/common/resources.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Location } from '../../../../editor/common/languages.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ChatbotPromptCodec } from '../../../common/codecs/chatbotPromptCodec/chatbotPromptCodec.js';
 import { FileOpenFailed, NotPromptSnippetFile, RecursiveReference } from './promptFileReferenceErrors.js';
 import { FileChangesEvent, FileChangeType, IFileService, IFileStreamContent } from '../../../../platform/files/common/files.js';
@@ -18,9 +19,14 @@ import { FileChangesEvent, FileChangeType, IFileService, IFileStreamContent } fr
 export type TErrorCondition = FileOpenFailed | RecursiveReference | NotPromptSnippetFile;
 
 /**
- * Well-defined file extension for the prompt snippet files.
+ * File extension for the prompt snippet files.
  */
 const PROMP_SNIPPET_FILE_EXTENSION: string = '.prompt.md';
+
+/**
+ * Configuration key for the prompt snippets feature.
+ */
+const PROMPT_SNIPPETS_CONFIG_KEY: string = 'chat.experimental.prompt-snippets';
 
 /**
  * Represents a file reference in the chatbot prompt, e.g. `#file:./path/to/file.md`.
@@ -119,6 +125,26 @@ export class PromptFileReference extends Disposable {
 	}
 
 	/**
+	 * Check if the prompt snippets feature is enabled.
+	 * @see {@link PROMPT_SNIPPETS_CONFIG_KEY}
+	 */
+	public static promptSnippetsEnabled(
+		configService: IConfigurationService,
+	): boolean {
+		const value = configService.getValue(PROMPT_SNIPPETS_CONFIG_KEY);
+
+		if (!value) {
+			return false;
+		}
+
+		if (typeof value === 'string') {
+			return value.trim().toLowerCase() === 'true';
+		}
+
+		return !!value;
+	}
+
+	/**
 	 * Associated URI of the reference.
 	 */
 	public get uri(): URI {
@@ -196,7 +222,7 @@ export class PromptFileReference extends Disposable {
 	 * Resolve the current file reference on the disk and
 	 * all nested file references that may exist in the file.
 	 *
-	 * @param waitForChildren Whether need to block until all child references resolved.
+	 * @param waitForChildren Whether need to block until all child references are resolved.
 	 */
 	public async resolve(
 		waitForChildren: boolean = false,
