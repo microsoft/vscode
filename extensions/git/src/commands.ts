@@ -1525,16 +1525,20 @@ export class CommandCenter {
 	}
 
 	@command('git.diff.stageHunk')
-	async diffStageHunk(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+	async diffStageHunk(changes: DiffEditorSelectionHunkToolbarContext | undefined): Promise<void> {
 		this.diffStageHunkOrSelection(changes);
 	}
 
 	@command('git.diff.stageSelection')
-	async diffStageSelection(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+	async diffStageSelection(changes: DiffEditorSelectionHunkToolbarContext | undefined): Promise<void> {
 		this.diffStageHunkOrSelection(changes);
 	}
 
-	async diffStageHunkOrSelection(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+	async diffStageHunkOrSelection(changes: DiffEditorSelectionHunkToolbarContext | undefined): Promise<void> {
+		if (!changes) {
+			return;
+		}
+
 		let modifiedUri = changes.modifiedUri;
 		if (!modifiedUri) {
 			const textEditor = window.activeTextEditor;
