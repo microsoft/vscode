@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqual } from '../../../../../base/common/resources.js';
-import { Disposable, IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
-import { IChatEditingService, IModifiedFileEntry, WorkingSetEntryState } from '../../../chat/common/chatEditingService.js';
-import { INotebookService } from '../../common/notebookService.js';
-import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
-import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
-import { raceCancellation, ThrottledDelayer } from '../../../../../base/common/async.js';
-import { CellDiffInfo, computeDiff, prettyChanges } from '../diff/notebookDiffViewModel.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
-import { ChatEditingModifiedFileEntry } from '../../../chat/browser/chatEditing/chatEditingModifiedFileEntry.js';
-import { CellEditType, ICellDto2, ICellReplaceEdit, NotebookData, NotebookSetting } from '../../common/notebookCommon.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
-import { INotebookLoggingService } from '../../common/notebookLoggingService.js';
-import { filter } from '../../../../../base/common/objects.js';
-import { INotebookEditorModelResolverService } from '../../common/notebookEditorModelResolverService.js';
-import { SaveReason } from '../../../../common/editor.js';
-import { IChatService } from '../../../chat/common/chatService.js';
-import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { Disposable, IReference, ReferenceCollection } from '../../../../../../base/common/lifecycle.js';
+import { IChatEditingService, IModifiedFileEntry, WorkingSetEntryState } from '../../../../chat/common/chatEditingService.js';
+import { INotebookService } from '../../../common/notebookService.js';
+import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
+import { raceCancellation, ThrottledDelayer } from '../../../../../../base/common/async.js';
+import { CellDiffInfo, computeDiff, prettyChanges } from '../../diff/notebookDiffViewModel.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { INotebookEditorWorkerService } from '../../../common/services/notebookWorkerService.js';
+import { ChatEditingModifiedFileEntry } from '../../../../chat/browser/chatEditing/chatEditingModifiedFileEntry.js';
+import { CellEditType, ICellDto2, ICellReplaceEdit, NotebookData, NotebookSetting } from '../../../common/notebookCommon.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { EditOperation } from '../../../../../../editor/common/core/editOperation.js';
+import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
+import { filter } from '../../../../../../base/common/objects.js';
+import { INotebookEditorModelResolverService } from '../../../common/notebookEditorModelResolverService.js';
+import { SaveReason } from '../../../../../common/editor.js';
+import { IChatService } from '../../../../chat/common/chatService.js';
+import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { INotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
-import { autorun, autorunWithStore, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 
 
 export const INotebookModelSynchronizerFactory = createDecorator<INotebookModelSynchronizerFactory>('INotebookModelSynchronizerFactory');
