@@ -91,7 +91,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		return getCustomPaste(model, imageContext, mimeType, new HierarchicalKind('chat.attach.image'), 'Pasted Image Attachment', this.chatWidgetService);
+		return getCustomPaste(model, imageContext, mimeType, new HierarchicalKind('chat.attach.image'), localize('pastedImageAttachment', 'Pasted Image Attachment'), this.chatWidgetService);
 	}
 }
 
@@ -194,7 +194,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		return getCustomPaste(model, copiedContext, Mimes.text, new HierarchicalKind('chat.attach.text'), 'Pasted Code Attachment', this.chatWidgetService);
+		return getCustomPaste(model, copiedContext, Mimes.text, new HierarchicalKind('chat.attach.text'), localize('pastedCodeAttachment', 'Pasted Code Attachment'), this.chatWidgetService);
 	}
 }
 
