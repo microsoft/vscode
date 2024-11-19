@@ -6,9 +6,9 @@
 import { BaseDecoder } from '../baseDecoder.js';
 import { Word } from '../simpleCodec/tokens/index.js';
 import { FileReference } from './tokens/fileReference.js';
-import { SimpleDecoder, TSimpleToken } from '../simpleCodec/simpleDecoder.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
+import { SimpleDecoder, TSimpleToken } from '../simpleCodec/simpleDecoder.js';
 
 /**
  * Tokens handled by the `ChatbotPromptDecoder` decoder.
@@ -17,11 +17,9 @@ export type TChatbotPromptToken = FileReference;
 
 /**
  * Decoder for the common chatbot prompt message syntax.
- * For instance, the file references `#file:./path/file.md`
- * are handled by this decoder.
+ * For instance, the file references `#file:./path/file.md` are handled by this decoder.
  */
 export class ChatbotPromptDecoder extends BaseDecoder<TChatbotPromptToken, TSimpleToken> {
-
 	constructor(
 		stream: ReadableStream<VSBuffer>,
 	) {

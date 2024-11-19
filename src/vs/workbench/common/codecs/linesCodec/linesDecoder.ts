@@ -42,7 +42,7 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 	}
 
 	/**
-	 * Process provided data.
+	 * Process buffered data.
 	 *
 	 * @param streamEnded Flag that indicates if the input stream has ended,
 	 * 					  which means that is the last call of this method.

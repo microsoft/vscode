@@ -157,7 +157,7 @@ export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	}
 
 	/**
-	 * Convert current object to `IDynamicVariable`.
+	 * Convert current object to an `IDynamicVariable` object.
 	 */
 	public toDynamicVariable(): IDynamicVariable {
 		return this.variable;
