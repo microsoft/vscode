@@ -278,56 +278,56 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						}
 					}
 				}
-
-				this._mostRecentPromptInputState = promptInputState;
-				if (!this._promptInputModel || !this._terminal || !this._suggestWidget || this._leadingLineContent === undefined) {
-					return;
-				}
-
-				this._currentPromptInputState = promptInputState;
-
-				// Hide the widget if the latest character was a space
-				if (this._currentPromptInputState.cursorIndex > 1 && this._currentPromptInputState.value.at(this._currentPromptInputState.cursorIndex - 1) === ' ') {
-					this.hideSuggestWidget();
-					return;
-				}
-
-				// Hide the widget if the cursor moves to the left of the initial position as the
-				// completions are no longer valid
-				// to do: get replacement length to be correct, readd this?
-				if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex <= this._leadingLineContent.length) {
-					this.hideSuggestWidget();
-					return;
-				}
-
-				if (this._terminalSuggestWidgetVisibleContextKey.get()) {
-					this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._requestedCompletionsIndex);
-					let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(this._providerReplacementIndex, this._requestedCompletionsIndex + this._cursorIndexDelta);
-					if (this._isFilteringDirectories) {
-						normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
-					}
-					const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
-					this._suggestWidget.setLineContext(lineContext);
-				}
-
-				// Hide and clear model if there are no more items
-				if (!this._suggestWidget.hasCompletions()) {
-					this.hideSuggestWidget();
-					return;
-				}
-
-				const dimensions = this._getTerminalDimensions();
-				if (!dimensions.width || !dimensions.height) {
-					return;
-				}
-				const xtermBox = this._screen!.getBoundingClientRect();
-				this._suggestWidget.showSuggestions(0, false, false, {
-					left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
-					top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
-					height: dimensions.height
-				});
 			}
 		}
+
+		this._mostRecentPromptInputState = promptInputState;
+		if (!this._promptInputModel || !this._terminal || !this._suggestWidget || this._leadingLineContent === undefined) {
+			return;
+		}
+
+		this._currentPromptInputState = promptInputState;
+
+		// Hide the widget if the latest character was a space
+		if (this._currentPromptInputState.cursorIndex > 1 && this._currentPromptInputState.value.at(this._currentPromptInputState.cursorIndex - 1) === ' ') {
+			this.hideSuggestWidget();
+			return;
+		}
+
+		// Hide the widget if the cursor moves to the left of the initial position as the
+		// completions are no longer valid
+		// to do: get replacement length to be correct, readd this?
+		if (this._currentPromptInputState && this._currentPromptInputState.cursorIndex <= this._leadingLineContent.length) {
+			this.hideSuggestWidget();
+			return;
+		}
+
+		if (this._terminalSuggestWidgetVisibleContextKey.get()) {
+			this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._requestedCompletionsIndex);
+			let normalizedLeadingLineContent = this._currentPromptInputState.value.substring(this._providerReplacementIndex, this._requestedCompletionsIndex + this._cursorIndexDelta);
+			if (this._isFilteringDirectories) {
+				normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
+			}
+			const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
+			this._suggestWidget.setLineContext(lineContext);
+		}
+
+		// Hide and clear model if there are no more items
+		if (!this._suggestWidget.hasCompletions()) {
+			this.hideSuggestWidget();
+			return;
+		}
+
+		const dimensions = this._getTerminalDimensions();
+		if (!dimensions.width || !dimensions.height) {
+			return;
+		}
+		const xtermBox = this._screen!.getBoundingClientRect();
+		this._suggestWidget.showSuggestions(0, false, false, {
+			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
+			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
+			height: dimensions.height
+		});
 	}
 
 	private _getTerminalDimensions(): { width: number; height: number } {
