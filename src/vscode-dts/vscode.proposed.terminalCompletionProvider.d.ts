@@ -22,21 +22,10 @@ declare module 'vscode' {
 
 
 	export interface TerminalCompletionItem {
-		icon?: ThemeIcon;
 		/**
-		 * The completion's label which appears on the left beside the icon.
+		 * The label of the completion.
 		 */
 		label: string;
-
-		/**
-		 * The completion's detail which appears on the right of the list.
-		 */
-		detail?: string;
-
-		/**
-		 * The completion's kind. Note that this will map to an icon.
-		 */
-		kind?: TerminalCompletionItemKind;
 
 		/**
 		 * The index of the start of the range to replace.
@@ -47,6 +36,16 @@ declare module 'vscode' {
 		 * The length of the range to replace.
 		 */
 		replacementLength: number;
+
+		/**
+		 * The completion's detail which appears on the right of the list.
+		 */
+		detail?: string;
+
+		/**
+		 * The completion's kind. Note that this will map to an icon.
+		 */
+		kind?: TerminalCompletionItemKind;
 	}
 
 
