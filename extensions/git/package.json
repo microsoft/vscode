@@ -3188,6 +3188,12 @@
           "maximum": 100,
           "markdownDescription": "%config.similarityThreshold%",
           "scope": "resource"
+        },
+        "git.blame.editorDecoration.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.blameEditorDecoration.enabled%",
+          "scope": "resource"
         }
       }
     },
@@ -3290,6 +3296,16 @@
           "dark": "#8db9e2",
           "highContrast": "#8db9e2",
           "highContrastLight": "#1258a7"
+        }
+      },
+      {
+        "id": "git.blame.editorDecorationForeground",
+        "description": "%colors.blameEditorDecoration%",
+        "defaults": {
+          "dark": "editorCodeLens.foreground",
+          "light": "editorCodeLens.foreground",
+          "highContrast": "editorCodeLens.foreground",
+          "highContrastLight": "editorCodeLens.foreground"
         }
       }
     ],
