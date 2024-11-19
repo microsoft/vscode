@@ -5,7 +5,7 @@
 
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 
-export const NativeEditContextRegistry = new class NativeEditContextRegistry {
+class NativeEditContextRegistryImpl {
 
 	private _textAreaMapping: Map<string, HTMLTextAreaElement> = new Map();
 
@@ -21,4 +21,6 @@ export const NativeEditContextRegistry = new class NativeEditContextRegistry {
 	getTextArea(ownerID: string): HTMLTextAreaElement | undefined {
 		return this._textAreaMapping.get(ownerID);
 	}
-};
+}
+
+export const NativeEditContextRegistry = new NativeEditContextRegistryImpl();
