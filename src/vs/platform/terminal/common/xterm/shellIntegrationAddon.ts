@@ -656,12 +656,18 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 }
 
 export function deserializeMessage(message: string): string {
-	return message.replaceAll(
-		// Backslash ('\') followed by an escape operator: either another '\', or 'x' and two hex chars.
-		/\\(\\|x([0-9a-f]{2}))/gi,
-		// If it's a hex value, parse it to a character.
-		// Otherwise the operator is '\', which we return literally, now unescaped.
-		(_match: string, op: string, hex?: string) => hex ? String.fromCharCode(parseInt(hex, 16)) : op);
+	try {
+		const temp = message.replaceAll(
+			// Backslash ('\') followed by an escape operator: either another '\', or 'x' and two hex chars.
+			/\\(\\|x([0-9a-f]{2}))/gi,
+			// If it's a hex value, parse it to a character.
+			// Otherwise the operator is '\', which we return literally, now unescaped.
+			(_match: string, op: string, hex?: string) => hex ? String.fromCharCode(parseInt(hex, 16)) : op);
+		return temp;
+	} catch (e) {
+		console.error('Failed to deserialize message:', message);
+	}
+	return '';
 }
 
 export function parseKeyValueAssignment(message: string): { key: string; value: string | undefined } {
