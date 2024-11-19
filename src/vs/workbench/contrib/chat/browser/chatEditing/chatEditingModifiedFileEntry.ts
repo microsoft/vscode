@@ -27,7 +27,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { SaveReason } from '../../../../common/editor.js';
-import { IResolvedTextFileEditorModel } from '../../../../services/textfile/common/textfiles.js';
+import { IResolvedTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { IChatAgentResult } from '../../common/chatAgents.js';
 import { ChatEditKind, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
@@ -121,6 +121,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
 		private _telemetryInfo: IModifiedEntryTelemetryInfo,
 		kind: ChatEditKind,
+		originalContent: string | undefined,
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@ILanguageService languageService: ILanguageService,
@@ -136,10 +137,10 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this.docFileEditorModel = this._register(resourceRef).object as IResolvedTextFileEditorModel;
 		this.doc = resourceRef.object.textEditorModel;
 
-		this.originalContent = this.doc.getValue();
+		this.originalContent = originalContent ?? this.doc.getValue();
 		const docSnapshot = this.docSnapshot = this._register(
 			modelService.createModel(
-				createTextBufferFactoryFromSnapshot(this.doc.createSnapshot()),
+				createTextBufferFactoryFromSnapshot(originalContent ? stringToSnapshot(originalContent) : this.doc.createSnapshot()),
 				languageService.createById(this.doc.getLanguageId()),
 				ChatEditingTextModelContentProvider.getFileURI(this.entryId, this.modifiedURI.path),
 				false
