@@ -46,9 +46,12 @@ export class ViewGpuContext extends Disposable {
 
 	readonly rectangleRenderer: RectangleRenderer;
 
-	private static _atlas: TextureAtlas | undefined;
-
 	private static readonly _decorationCssRuleExtractor = new DecorationCssRuleExtractor();
+	static get decorationCssRuleExtractor(): DecorationCssRuleExtractor {
+		return ViewGpuContext._decorationCssRuleExtractor;
+	}
+
+	private static _atlas: TextureAtlas | undefined;
 
 	/**
 	 * The shared texture atlas to use across all views.
@@ -145,15 +148,9 @@ export class ViewGpuContext extends Disposable {
 			let supported = true;
 			for (const decoration of data.inlineDecorations) {
 				const styleRules = ViewGpuContext._decorationCssRuleExtractor.getStyleRules(container, decoration.inlineClassName);
-				const supportedCssRules = [
-					'text-decoration-line',
-					'text-decoration-thickness',
-					'text-decoration-style',
-					'text-decoration-color',
-				];
 				supported &&= styleRules.every(rule => {
 					for (const r of rule.style) {
-						if (!supportedCssRules.includes(r)) {
+						if (!gpuSupportedCssRules.includes(r)) {
 							return false;
 						}
 					}
@@ -189,15 +186,9 @@ export class ViewGpuContext extends Disposable {
 			const problemRules: string[] = [];
 			for (const decoration of data.inlineDecorations) {
 				const styleRules = ViewGpuContext._decorationCssRuleExtractor.getStyleRules(container, decoration.inlineClassName);
-				const supportedCssRules = [
-					'text-decoration-line',
-					'text-decoration-thickness',
-					'text-decoration-style',
-					'text-decoration-color',
-				];
 				supported &&= styleRules.every(rule => {
 					for (const r of rule.style) {
-						if (!supportedCssRules.includes(r)) {
+						if (!gpuSupportedCssRules.includes(r)) {
 							problemRules.push(r);
 							return false;
 						}
@@ -218,3 +209,11 @@ export class ViewGpuContext extends Disposable {
 		return reasons;
 	}
 }
+
+const gpuSupportedCssRules = [
+	// 'color',
+	'text-decoration-line',
+	'text-decoration-thickness',
+	'text-decoration-style',
+	'text-decoration-color',
+];

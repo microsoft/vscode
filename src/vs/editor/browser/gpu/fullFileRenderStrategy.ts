@@ -8,7 +8,6 @@ import { BugIndicatingError } from '../../../base/common/errors.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import { CursorColumns } from '../../common/core/cursorColumns.js';
 import { MetadataConsts } from '../../common/encodedTokenAttributes.js';
-import { ClassName } from '../../common/model/intervalTree.js';
 import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
 import { ViewEventHandler } from '../../common/viewEventHandler.js';
 import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../common/viewEvents.js';
@@ -351,14 +350,37 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 					// Only lines containing fully supported inline decorations should have made it
 					// this far.
+					const inlineStyles: Map<string, string> = new Map();
 					for (const decoration of cellDecorations) {
-						switch (decoration.options.inlineClassName) {
-							case (ClassName.EditorDeprecatedInlineDecoration): {
-								// HACK: We probably shouldn't override tokenMetadata
+						if (!decoration.options.inlineClassName) {
+							throw new BugIndicatingError('Unexpected inline decoration without class name');
+						}
+						const rules = ViewGpuContext.decorationCssRuleExtractor.getStyleRules(this._viewGpuContext.canvas.domNode, decoration.options.inlineClassName);
+						for (const rule of rules) {
+							for (const r of rule.style) {
+								inlineStyles.set(r, rule.styleMap.get(r)?.toString() ?? '');
+							}
+						}
+					}
+
+					for (const [k, v] of inlineStyles.entries()) {
+						switch (k) {
+							case 'text-decoration-line': {
+								// TODO: Don't set tokenMetadata as it applies to more than just this token
 								tokenMetadata |= MetadataConsts.STRIKETHROUGH_MASK;
-								// chars = '-';
 								break;
 							}
+							case 'text-decoration-thickness':
+							case 'text-decoration-style':
+							case 'text-decoration-color': {
+								// HACK: Ignore for now to avoid throwing
+								break;
+							}
+							// case 'color': {
+							// tokenMetadata |= ...
+							// break;
+							// }
+							default: throw new BugIndicatingError('Unexpected inline decoration style');
 						}
 					}
 
