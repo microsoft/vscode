@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { PromptFileReference } from '../promptFileReference.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
@@ -57,10 +58,10 @@ export class ChatDynamicVariable extends PromptFileReference implements IDynamic
 	 * the current reference has. E.g. `(+3 more)` if there are 3 child references found.
 	 */
 	public get filenameWithReferences(): string {
-		const fileName = basename(this.data);
+		const fileName = basename(this.uri);
 
 		const suffix = this.validChildReferences.length
-			? ` (+${this.validChildReferences.length} more)`
+			? ` (+${this.validChildReferences.length} ${localize('more', 'more')})`
 			: '';
 
 		return `${fileName}${suffix}`;

@@ -123,7 +123,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const referencesCount = this.attachment.validFileReferenceUris.length;
 
 		return referencesCount
-			? ` (+${referencesCount} more)`
+			? ` (+${referencesCount} ${localize('more', 'more')})`
 			: '';
 	}
 
