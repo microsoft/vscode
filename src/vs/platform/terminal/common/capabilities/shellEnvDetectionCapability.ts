@@ -19,7 +19,11 @@ export class ShellEnvDetectionCapability extends Disposable implements IShellEnv
 		super();
 	}
 
-	setEnvironment(env: { [key: string]: string | undefined }): void {
+	setEnvironment(env: { [key: string]: string | undefined }, isTrusted: boolean): void {
+		if (!isTrusted) {
+			return;
+		}
+
 		this._env.clear();
 		for (const [key, value] of Object.entries(env)) {
 			if (value !== undefined) {

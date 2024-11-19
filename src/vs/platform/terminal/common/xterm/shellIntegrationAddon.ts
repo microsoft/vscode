@@ -433,6 +433,19 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				this._createOrGetCommandDetection(this._terminal).handleContinuationEnd();
 				return true;
 			}
+			case VSCodeOscPt.Env: {
+				const arg0 = args[0];
+				const arg1 = args[1];
+				if (arg0 !== undefined) {
+					try {
+						const env = JSON.parse(deserializeMessage(arg0));
+						this._createOrGetShellEnvDetection().setEnvironment(env, arg1 !== this._nonce);
+					} catch (e) {
+						this._logService.warn('Failed to parse environment from shell integration sequence', arg0);
+					}
+				}
+				return true;
+			}
 			case VSCodeOscPt.RightPromptStart: {
 				this._createOrGetCommandDetection(this._terminal).handleRightPromptStart();
 				return true;
@@ -476,21 +489,6 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			case VSCodeOscPt.SetMark: {
 				this._createOrGetBufferMarkDetection(this._terminal).addMark(parseMarkSequence(args));
-				return true;
-			}
-			case VSCodeOscPt.Env: {
-				const arg0 = args[0];
-				const arg1 = args[1];
-				// Ignore unless nonce is correct
-				if (arg1 !== this._nonce) {
-					return true;
-				}
-				if (arg0 !== undefined) {
-					const env = JSON.parse(deserializeMessage(arg0));
-					const capability = this._createOrGetShellEnvDetection();
-					capability.setEnvironment(env);
-
-				}
 				return true;
 			}
 		}
@@ -656,18 +654,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 }
 
 export function deserializeMessage(message: string): string {
-	try {
-		const temp = message.replaceAll(
-			// Backslash ('\') followed by an escape operator: either another '\', or 'x' and two hex chars.
-			/\\(\\|x([0-9a-f]{2}))/gi,
-			// If it's a hex value, parse it to a character.
-			// Otherwise the operator is '\', which we return literally, now unescaped.
-			(_match: string, op: string, hex?: string) => hex ? String.fromCharCode(parseInt(hex, 16)) : op);
-		return temp;
-	} catch (e) {
-		console.error('Failed to deserialize message:', message);
-	}
-	return '';
+	return message.replaceAll(
+		// Backslash ('\') followed by an escape operator: either another '\', or 'x' and two hex chars.
+		/\\(\\|x([0-9a-f]{2}))/gi,
+		// If it's a hex value, parse it to a character.
+		// Otherwise the operator is '\', which we return literally, now unescaped.
+		(_match: string, op: string, hex?: string) => hex ? String.fromCharCode(parseInt(hex, 16)) : op);
 }
 
 export function parseKeyValueAssignment(message: string): { key: string; value: string | undefined } {
