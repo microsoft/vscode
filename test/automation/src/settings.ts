@@ -73,7 +73,7 @@ export class SettingsEditor {
 		}
 		await this.code.dispatchKeybinding('Delete');
 		await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => !results || (results?.length === 1 && !results[0].textContent));
-		await this.code.waitForTypeInEditor(`.settings-editor .suggest-input-container .monaco-editor ${this._editContextSelector()}`, query);
+		await this.code.waitForTypeInEditor(this._editContextSelector(), query);
 		await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => results?.length === 1 && results[0].textContent.includes('Found'));
 	}
 
