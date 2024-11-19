@@ -338,11 +338,15 @@ registerAction2(class extends Action2 {
 			title: localize2('repl.execute', 'Execute REPL input'),
 			category: 'REPL',
 			keybinding: [{
-				when: ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
+				when: ContextKeyExpr.and(
+					IS_COMPOSITE_NOTEBOOK,
+					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl')
+				),
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			}, {
 				when: ContextKeyExpr.and(
+					IS_COMPOSITE_NOTEBOOK,
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
 					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', true)
 				),
@@ -350,6 +354,7 @@ registerAction2(class extends Action2 {
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			}, {
 				when: ContextKeyExpr.and(
+					IS_COMPOSITE_NOTEBOOK,
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
 					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', false)
 				),
