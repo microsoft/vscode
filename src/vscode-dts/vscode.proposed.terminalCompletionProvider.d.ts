@@ -16,7 +16,6 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A list of completions.
 		 */
-		// TODO: return TerminalCompletionItem | TermimalDirectoryFilesCompletionItem
 		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T[]>;
 	}
 
