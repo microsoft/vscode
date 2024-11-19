@@ -148,10 +148,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		this._register(this.lifecycleService.onWillShutdown((e) => {
 			const session = this._currentSessionObs.get();
 			if (session) {
-				e.join(session.storeState(), { id: 'join.chatEditingSession', label: localize('join.chatEditingSession', "Saving chat edit history") });
+				e.join(session.storeState(), { id: 'join.chatEditingSession', label: localize('join.chatEditingSession', "Saving chat edits history") });
 			}
-
-
 		}));
 
 		this._editingSessionFileLimitPromise = this._workbenchAssignmentService.getTreatment<number>(chatEditingMaxFileAssignmentName).then(value => {
