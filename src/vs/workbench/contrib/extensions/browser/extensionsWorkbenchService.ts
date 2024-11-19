@@ -64,6 +64,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -720,7 +721,7 @@ class Extensions extends Disposable {
 		return this.workbenchExtensionManagementService.updateMetadata(localExtension, { id: gallery.identifier.uuid, publisherDisplayName: gallery.publisherDisplayName, publisherId: gallery.publisherId, isPreReleaseVersion });
 	}
 
-	canInstall(galleryExtension: IGalleryExtension): Promise<boolean> {
+	canInstall(galleryExtension: IGalleryExtension): Promise<true | IMarkdownString> {
 		return this.server.extensionManagementService.canInstall(galleryExtension);
 	}
 
@@ -2250,43 +2251,47 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 	}
 
-	async canInstall(extension: IExtension): Promise<boolean> {
+	async canInstall(extension: IExtension): Promise<true | IMarkdownString> {
 		if (!(extension instanceof Extension)) {
-			return false;
+			return new MarkdownString().appendText(nls.localize('not an extension', "The provided object is not an extension."));
 		}
 
 		if (extension.isMalicious) {
-			return false;
+			return new MarkdownString().appendText(nls.localize('malicious', "This extension is reported to be problematic."));
 		}
 
 		if (extension.deprecationInfo?.disallowInstall) {
-			return false;
+			return new MarkdownString().appendText(nls.localize('disallowed', "This extension is disallowed to be installed."));
 		}
 
 		if (extension.gallery) {
 			if (!extension.gallery.isSigned) {
-				return false;
+				return new MarkdownString().appendText(nls.localize('not signed', "This extension is not signed."));
 			}
 
-			if (this.localExtensions && await this.localExtensions.canInstall(extension.gallery)) {
+			const localResult = this.localExtensions ? await this.localExtensions.canInstall(extension.gallery) : undefined;
+			if (localResult === true) {
 				return true;
 			}
 
-			if (this.remoteExtensions && await this.remoteExtensions.canInstall(extension.gallery)) {
+			const remoteResult = this.remoteExtensions ? await this.remoteExtensions.canInstall(extension.gallery) : undefined;
+			if (remoteResult === true) {
 				return true;
 			}
 
-			if (this.webExtensions && await this.webExtensions.canInstall(extension.gallery)) {
+			const webResult = this.webExtensions ? await this.webExtensions.canInstall(extension.gallery) : undefined;
+			if (webResult === true) {
 				return true;
 			}
-			return false;
+
+			return localResult ?? remoteResult ?? webResult ?? new MarkdownString().appendText(nls.localize('cannot be installed', "Cannot install the '{0}' extension because it is not available in this setup.", extension.displayName ?? extension.identifier.id));
 		}
 
-		if (extension.resourceExtension && await this.extensionManagementService.canInstall(extension.resourceExtension)) {
+		if (extension.resourceExtension && await this.extensionManagementService.canInstall(extension.resourceExtension) === true) {
 			return true;
 		}
 
-		return false;
+		return new MarkdownString().appendText(nls.localize('cannot be installed', "Cannot install the '{0}' extension because it is not available in this setup.", extension.displayName ?? extension.identifier.id));
 	}
 
 	async install(arg: string | URI | IExtension, installOptions: InstallExtensionOptions = {}, progressLocation?: ProgressLocation | string): Promise<IExtension> {

@@ -14,6 +14,7 @@ import { delta } from '../../../../base/common/arrays.js';
 import { compare } from '../../../../base/common/strings.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { DidChangeProfileEvent, IProfileAwareExtensionManagementService } from './extensionManagement.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 export abstract class ProfileAwareExtensionManagementChannelClient extends BaseExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 
@@ -30,10 +31,11 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 	get onProfileAwareDidUpdateExtensionMetadata() { return this._onDidProfileAwareUpdateExtensionMetadata.event; }
 
 	constructor(channel: IChannel,
+		productService: IProductService,
 		protected readonly userDataProfileService: IUserDataProfileService,
 		protected readonly uriIdentityService: IUriIdentityService,
 	) {
-		super(channel);
+		super(channel, productService);
 		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
 			if (!this.uriIdentityService.extUri.isEqual(e.previous.extensionsResource, e.profile.extensionsResource)) {
 				e.join(this.whenProfileChanged(e));

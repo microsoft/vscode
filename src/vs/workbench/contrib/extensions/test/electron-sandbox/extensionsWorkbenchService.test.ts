@@ -425,7 +425,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		uninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 		didUninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 
-		assert.ok(!(await testObject.canInstall(target)));
+		assert.ok(await testObject.canInstall(target) !== true);
 	});
 
 	test('test canInstall returns false for a system extension', async () => {
@@ -435,7 +435,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		testObject = await aWorkbenchService();
 		const target = testObject.local[0];
 
-		assert.ok(!(await testObject.canInstall(target)));
+		assert.ok(await testObject.canInstall(target) !== true);
 	});
 
 	test('test canInstall returns true for extensions with gallery', async () => {
@@ -449,7 +449,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const target = testObject.local[0];
 
 		await Event.toPromise(Event.filter(testObject.onChange, e => !!e?.gallery));
-		assert.ok(await testObject.canInstall(target));
+		assert.equal(await testObject.canInstall(target), true);
 	});
 
 	test('test onchange event is triggered while installing', async () => {
