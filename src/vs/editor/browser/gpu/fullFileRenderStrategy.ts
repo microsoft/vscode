@@ -225,6 +225,8 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		let tokenEndIndex = 0;
 		let tokenMetadata = 0;
 
+		let charMetadata = 0;
+
 		let lineData: ViewLineRenderingData;
 		let content: string = '';
 		let fillStartIndex = 0;
@@ -331,6 +333,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						break;
 					}
 					chars = content.charAt(x);
+					charMetadata = tokenMetadata;
 
 					// TODO: We'd want to optimize pulling the decorations in order
 					// HACK: Temporary replace char to demonstrate inline decorations
@@ -363,11 +366,10 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						}
 					}
 
-					for (const [k, v] of inlineStyles.entries()) {
-						switch (k) {
+					for (const [key, _value] of inlineStyles.entries()) {
+						switch (key) {
 							case 'text-decoration-line': {
-								// TODO: Don't set tokenMetadata as it applies to more than just this token
-								tokenMetadata |= MetadataConsts.STRIKETHROUGH_MASK;
+								charMetadata |= MetadataConsts.STRIKETHROUGH_MASK;
 								break;
 							}
 							case 'text-decoration-thickness':
@@ -376,10 +378,12 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 								// HACK: Ignore for now to avoid throwing
 								break;
 							}
-							// case 'color': {
-							// tokenMetadata |= ...
-							// break;
-							// }
+							case 'color': {
+								// HACK: Set color requests to the first token's fg color
+								charMetadata &= ~MetadataConsts.FOREGROUND_MASK;
+								charMetadata |= 0b1 << MetadataConsts.FOREGROUND_OFFSET;
+								break;
+							}
 							default: throw new BugIndicatingError('Unexpected inline decoration style');
 						}
 					}
@@ -395,7 +399,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						continue;
 					}
 
-					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer, chars, tokenMetadata);
+					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer, chars, charMetadata);
 
 					// TODO: Support non-standard character widths
 					absoluteOffsetX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);

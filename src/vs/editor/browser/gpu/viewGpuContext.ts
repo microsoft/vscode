@@ -211,9 +211,9 @@ export class ViewGpuContext extends Disposable {
 }
 
 const gpuSupportedCssRules = [
-	// 'color',
-	'text-decoration-line',
-	'text-decoration-thickness',
-	'text-decoration-style',
-	'text-decoration-color',
+	'color',
+	// 'text-decoration-line',
+	// 'text-decoration-thickness',
+	// 'text-decoration-style',
+	// 'text-decoration-color',
 ];
