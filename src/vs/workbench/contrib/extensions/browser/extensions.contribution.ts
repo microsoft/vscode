@@ -1579,16 +1579,14 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '1_copy',
-
+				when: BuiltInExtensionsContext.negate(),
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
 				const clipboardService = accessor.get(IClipboardService);
 				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
-				if (extension) {
-					const link = extension.url;
-					const clipboardStr = `${link ? link : ''}`;
-					await clipboardService.writeText(clipboardStr);
+				if (extension && extension.url) {
+					await clipboardService.writeText(extension.url);
 				}
 			}
 		});
