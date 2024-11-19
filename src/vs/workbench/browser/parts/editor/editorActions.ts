@@ -38,7 +38,7 @@ import { ICommandActionTitle } from '../../../../platform/action/common/action.j
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { resolveCommandsContext } from './editorCommandsContext.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
-import { InputMode } from '../../../../base/common/inputMode.js';
+import { InputMode } from '../../../../editor/common/inputMode.js';
 
 class ExecuteCommandAction extends Action2 {
 

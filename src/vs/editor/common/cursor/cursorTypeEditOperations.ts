@@ -23,7 +23,7 @@ import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from '../config/e
 import { createScopedLineTokens } from '../languages/supports.js';
 import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from '../languages/autoIndent.js';
 import { getEnterAction } from '../languages/enterAction.js';
-import { InputMode } from '../../../base/common/inputMode.js';
+import { InputMode } from '../inputMode.js';
 
 export class AutoIndentOperation {
 

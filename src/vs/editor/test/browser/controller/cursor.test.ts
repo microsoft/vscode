@@ -28,7 +28,7 @@ import { OutgoingViewModelEventKind } from '../../../common/viewModelEventDispat
 import { ITestCodeEditor, TestCodeEditorInstantiationOptions, createCodeEditorServices, instantiateTestCodeEditor, withTestCodeEditor } from '../testCodeEditor.js';
 import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel } from '../../common/testTextModel.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { InputMode } from '../../../../base/common/inputMode.js';
+import { InputMode } from '../../../common/inputMode.js';
 
 // --------- utils
 

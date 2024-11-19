@@ -14,7 +14,7 @@ import { RenderingContext, RestrictedRenderingContext } from '../../view/renderi
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../common/viewEvents.js';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../base/browser/ui/mouseCursor/mouseCursor.js';
-import { InputMode } from '../../../../base/common/inputMode.js';
+import { InputMode } from '../../../common/inputMode.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 
 export interface IViewCursorRenderData {

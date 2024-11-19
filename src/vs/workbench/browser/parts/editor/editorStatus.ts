@@ -56,7 +56,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { TabFocus } from '../../../../editor/browser/config/tabFocus.js';
 import { IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
-import { InputMode } from '../../../../base/common/inputMode.js';
+import { InputMode } from '../../../../editor/common/inputMode.js';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
