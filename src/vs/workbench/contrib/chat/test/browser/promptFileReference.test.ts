@@ -12,9 +12,9 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { PromptFileReference, TErrorCondition } from '../../browser/promptFileReference.js';
-import { FileOpenFailed, RecursiveReference } from '../../browser/promptFileReferenceErrors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { FileOpenFailed, RecursiveReference, NotPromptSnippetFile } from '../../browser/promptFileReferenceErrors.js';
 
 /**
  * Represents a file system node.
@@ -95,7 +95,7 @@ class TestPromptFileReference extends Disposable {
 
 		// start for the root file reference
 		const rootReference = this._register(new PromptFileReference(
-			URI.file(`/${this.fileStructure.name}/file2.txt`),
+			URI.file(`/${this.fileStructure.name}/file2.prompt.md`),
 			this.fileService,
 		));
 
@@ -190,37 +190,41 @@ suite('ChatbotPromptReference', function () {
 				name: 'resolves-nested-file-references',
 				children: [
 					{
-						name: 'file1.txt',
+						name: 'file1.prompt.md',
 						contents: '## Some Header\nsome contents\n ',
 					},
 					{
-						name: 'file2.txt',
-						contents: '## Files\n\t- this file #file:folder1/file3.txt \n\t- also this #file:./folder1/some-other-folder/file4.txt please!\n ',
+						name: 'file2.prompt.md',
+						contents: '## Files\n\t- this file #file:folder1/file3.prompt.md \n\t- also this #file:./folder1/some-other-folder/file4.prompt.md please!\n ',
 					},
 					{
 						name: 'folder1',
 						children: [
 							{
-								name: 'file3.txt',
-								contents: '\n\n\t- some seemingly random #file:/resolves-nested-file-references/folder1/some-other-folder/yetAnotherFolder🤭/another-file.md contents\n some more\t content',
+								name: 'file3.prompt.md',
+								contents: '\n\n\t- some seemingly random #file:/resolves-nested-file-references/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents\n some more\t content',
 							},
 							{
 								name: 'some-other-folder',
 								children: [
 									{
-										name: 'file4.txt',
-										contents: 'this file has a non-existing #file:./some-non-existing/file.md\t\treference',
+										name: 'file4.prompt.md',
+										contents: 'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference\n\nand some non-prompt #file:./some-non-prompt-file.md',
+									},
+									{
+										name: 'file.txt',
+										contents: 'contents of a non-prompt-snippet file',
 									},
 									{
 										name: 'yetAnotherFolder🤭',
 										children: [
 											{
-												name: 'another-file.md',
-												contents: 'another-file.md contents',
+												name: 'another-file.prompt.md',
+												contents: 'another-file.prompt.md contents\t  #file:../file.txt',
 											},
 											{
-												name: 'one_more_file_just_in_case.md',
-												contents: 'one_more_file_just_in_case.md contents',
+												name: 'one_more_file_just_in_case.prompt.md',
+												contents: 'one_more_file_just_in_case.prompt.md contents',
 											},
 										],
 									},
@@ -235,26 +239,40 @@ suite('ChatbotPromptReference', function () {
 			 */
 			[
 				testDisposables.add(new ExpectedReference(
-					URI.joinPath(rootFolder, './file2.txt'),
+					URI.joinPath(rootFolder, './file2.prompt.md'),
 					undefined,
 				)),
 				testDisposables.add(new ExpectedReference(
-					URI.joinPath(rootFolder, './folder1/file3.txt'),
+					URI.joinPath(rootFolder, './folder1/file3.prompt.md'),
 					undefined,
 				)),
 				testDisposables.add(new ExpectedReference(
-					URI.joinPath(rootFolder, './folder1/some-other-folder/yetAnotherFolder🤭/another-file.md'),
+					URI.joinPath(rootFolder, './folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md'),
 					undefined,
 				)),
 				testDisposables.add(new ExpectedReference(
-					URI.joinPath(rootFolder, './folder1/some-other-folder/file4.txt'),
+					URI.joinPath(rootFolder, './folder1/some-other-folder/file.txt'),
+					new NotPromptSnippetFile(
+						URI.joinPath(rootFolder, './folder1/some-other-folder/file.txt'),
+						'Ughh oh!',
+					),
+				)),
+				testDisposables.add(new ExpectedReference(
+					URI.joinPath(rootFolder, './folder1/some-other-folder/file4.prompt.md'),
 					undefined,
 				)),
 				testDisposables.add(new ExpectedReference(
-					URI.joinPath(rootFolder, './folder1/some-other-folder/some-non-existing/file.md'),
+					URI.joinPath(rootFolder, './folder1/some-other-folder/some-non-existing/file.prompt.md'),
 					new FileOpenFailed(
-						URI.joinPath(rootFolder, './folder1/some-other-folder/some-non-existing/file.md'),
+						URI.joinPath(rootFolder, './folder1/some-other-folder/some-non-existing/file.prompt.md'),
 						'Some error message.',
+					),
+				)),
+				testDisposables.add(new ExpectedReference(
+					URI.joinPath(rootFolder, './folder1/some-other-folder/some-non-prompt-file.md'),
+					new NotPromptSnippetFile(
+						URI.joinPath(rootFolder, './folder1/some-other-folder/some-non-prompt-file.md'),
+						'Oh no!',
 					),
 				)),
 			]
@@ -274,42 +292,42 @@ suite('ChatbotPromptReference', function () {
 				name: 'infinite-recursion',
 				children: [
 					{
-						name: 'file1.txt',
+						name: 'file1.md',
 						contents: '## Some Header\nsome contents\n ',
 					},
 					{
-						name: 'file2.txt',
-						contents: '## Files\n\t- this file #file:folder1/file3.txt \n\t- also this #file:./folder1/some-other-folder/file4.txt\n\n#file:/infinite-recursion/folder1/some-other-folder/file5.txt\t please!\n ',
+						name: 'file2.prompt.md',
+						contents: '## Files\n\t- this file #file:folder1/file3.prompt.md \n\t- also this #file:./folder1/some-other-folder/file4.prompt.md\n\n#file:/infinite-recursion/folder1/some-other-folder/file5.prompt.md\t please!\n\t#file:./file1.md ',
 					},
 					{
 						name: 'folder1',
 						children: [
 							{
-								name: 'file3.txt',
-								contents: '\n\n\t- some seemingly random #file:/infinite-recursion/folder1/some-other-folder/yetAnotherFolder🤭/another-file.md contents\n some more\t content',
+								name: 'file3.prompt.md',
+								contents: '\n\n\t- some seemingly random #file:/infinite-recursion/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md contents\n some more\t content',
 							},
 							{
 								name: 'some-other-folder',
 								children: [
 									{
-										name: 'file4.txt',
-										contents: 'this file has a non-existing #file:../some-non-existing/file.md\t\treference',
+										name: 'file4.prompt.md',
+										contents: 'this file has a non-existing #file:../some-non-existing/file.prompt.md\t\treference',
 									},
 									{
-										name: 'file5.txt',
-										contents: 'this file has a relative recursive #file:../../file2.txt\nreference\n ',
+										name: 'file5.prompt.md',
+										contents: 'this file has a relative recursive #file:../../file2.prompt.md\nreference\n ',
 									},
 									{
 										name: 'yetAnotherFolder🤭',
 										children: [
 											{
-												name: 'another-file.md',
+												name: 'another-file.prompt.md',
 												// absolute path with recursion
-												contents: 'some test goes\t\nhere #file:/infinite-recursion/file2.txt',
+												contents: 'some test goes\t\nhere #file:/infinite-recursion/file2.prompt.md',
 											},
 											{
-												name: 'one_more_file_just_in_case.md',
-												contents: 'one_more_file_just_in_case.md contents',
+												name: 'one_more_file_just_in_case.prompt.md',
+												contents: 'one_more_file_just_in_case.prompt.md contents',
 											},
 										],
 									},
@@ -324,15 +342,15 @@ suite('ChatbotPromptReference', function () {
 			 */
 			[
 				testDisposables.add(new ExpectedReference(
-					URI.joinPath(rootFolder, './file2.txt'),
+					URI.joinPath(rootFolder, './file2.prompt.md'),
 					undefined,
 				)),
 				testDisposables.add(new ExpectedReference(
-					URI.joinPath(rootFolder, './folder1/file3.txt'),
+					URI.joinPath(rootFolder, './folder1/file3.prompt.md'),
 					undefined,
 				)),
 				testDisposables.add(new ExpectedReference(
-					URI.joinPath(rootFolder, './folder1/some-other-folder/yetAnotherFolder🤭/another-file.md'),
+					URI.joinPath(rootFolder, './folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md'),
 					undefined,
 				)),
 				/**
@@ -341,30 +359,30 @@ suite('ChatbotPromptReference', function () {
 				 * (the absolute reference case)
 				 */
 				testDisposables.add(new ExpectedReference(
-					URI.joinPath(rootFolder, './file2.txt'),
+					URI.joinPath(rootFolder, './file2.prompt.md'),
 					new RecursiveReference(
-						URI.joinPath(rootFolder, './file2.txt'),
+						URI.joinPath(rootFolder, './file2.prompt.md'),
 						[
-							'/infinite-recursion/file2.txt',
-							'/infinite-recursion/folder1/file3.txt',
-							'/infinite-recursion/folder1/some-other-folder/yetAnotherFolder🤭/another-file.md',
-							'/infinite-recursion/file2.txt',
+							'/infinite-recursion/file2.prompt.md',
+							'/infinite-recursion/folder1/file3.prompt.md',
+							'/infinite-recursion/folder1/some-other-folder/yetAnotherFolder🤭/another-file.prompt.md',
+							'/infinite-recursion/file2.prompt.md',
 						],
 					),
 				)),
 				testDisposables.add(new ExpectedReference(
-					URI.joinPath(rootFolder, './folder1/some-other-folder/file4.txt'),
+					URI.joinPath(rootFolder, './folder1/some-other-folder/file4.prompt.md'),
 					undefined,
 				)),
 				testDisposables.add(new ExpectedReference(
-					URI.joinPath(rootFolder, './folder1/some-non-existing/file.md'),
+					URI.joinPath(rootFolder, './folder1/some-non-existing/file.prompt.md'),
 					new FileOpenFailed(
-						URI.joinPath(rootFolder, './folder1/some-non-existing/file.md'),
+						URI.joinPath(rootFolder, './folder1/some-non-existing/file.prompt.md'),
 						'Some error message.',
 					),
 				)),
 				testDisposables.add(new ExpectedReference(
-					URI.joinPath(rootFolder, './folder1/some-other-folder/file5.txt'),
+					URI.joinPath(rootFolder, './folder1/some-other-folder/file5.prompt.md'),
 					undefined,
 				)),
 				/**
@@ -373,14 +391,21 @@ suite('ChatbotPromptReference', function () {
 				 * (the relative reference case)
 				 */
 				testDisposables.add(new ExpectedReference(
-					URI.joinPath(rootFolder, './file2.txt'),
+					URI.joinPath(rootFolder, './file2.prompt.md'),
 					new RecursiveReference(
-						URI.joinPath(rootFolder, './file2.txt'),
+						URI.joinPath(rootFolder, './file2.prompt.md'),
 						[
-							'/infinite-recursion/file2.txt',
-							'/infinite-recursion/folder1/some-other-folder/file5.txt',
-							'/infinite-recursion/file2.txt',
+							'/infinite-recursion/file2.prompt.md',
+							'/infinite-recursion/folder1/some-other-folder/file5.prompt.md',
+							'/infinite-recursion/file2.prompt.md',
 						],
+					),
+				)),
+				testDisposables.add(new ExpectedReference(
+					URI.joinPath(rootFolder, './file1.md'),
+					new NotPromptSnippetFile(
+						URI.joinPath(rootFolder, './file1.md'),
+						'Uggh oh!',
 					),
 				)),
 			]

@@ -63,8 +63,9 @@ export interface IDynamicVariable {
 	modelDescription?: string;
 	isFile?: boolean;
 	data: IChatRequestVariableValue;
-	// TODO: @legomushroom
+
+	/**
+	 * The nested child file references of this variable, if any.
+	 */
 	validFileReferenceUris?: readonly URI[];
-	// TODO: @legomushroom
-	resolveReferencesReady?: Promise<readonly URI[]>;
 }

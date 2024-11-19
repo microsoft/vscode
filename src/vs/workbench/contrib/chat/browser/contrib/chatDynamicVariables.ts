@@ -51,7 +51,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			e.changes.forEach(c => {
 				// Don't mutate entries in _variables, since they will be returned from the getter
 				this._variables = coalesce(this._variables.map((ref) => {
-					// TODO: @legomushroom - `&& Range.equalsRange(c.range, ref.range)`
 					if (c.text === `#file:${ref.filenameWithReferences}`) {
 						return ref;
 					}
@@ -73,7 +72,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 					if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
 						const delta = c.text.length - c.rangeLength;
-						// TODO: @legomushroom - see the variables mutation comment above
 						ref.range = {
 							startLineNumber: ref.range.startLineNumber,
 							startColumn: ref.range.startColumn + delta,
@@ -121,7 +119,8 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Update variables text inside input editor to add the `(+N more)`
+	 * suffix if the variable has nested child file references.
 	 */
 	private updateVariableTexts(): void {
 		for (const variable of this._variables) {
@@ -133,17 +132,16 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 				[EditOperation.replaceMove(new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn), text)],
 			);
 
-			// TODO: @legomushroom - handle the error case?
-			if (success) {
-				const newRange = new Range(
-					range.startLineNumber,
-					range.startColumn,
-					range.endLineNumber,
-					range.startColumn + text.length,
-				);
-
-				variable.range = newRange;
+			if (!success) {
+				continue;
 			}
+
+			variable.range = new Range(
+				range.startLineNumber,
+				range.startColumn,
+				range.endLineNumber,
+				range.startColumn + text.length,
+			);
 		}
 	}
 
@@ -160,7 +158,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		);
 	}
 
-	// TODO: @legomushroom - reuse the logic from `ImplicitContextAttachmentWidget.getUriLabel()`?
 	private getHoverForReference(variable: IDynamicVariable): IMarkdownString | IMarkdownString[] {
 		const result: IMarkdownString[] = [];
 		const { data } = variable;

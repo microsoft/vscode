@@ -8,6 +8,7 @@ import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -115,10 +116,9 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 	}
 
 	/**
-	 * If file is a prompt that references other files,
-	 * include number of references in the label.
+	 * If file is a prompt that references other files, include the number of
+	 * child references in the label as a `(+N more)` suffix.
 	 */
-	// TODO: @legomushroom - can we use `PromptFileReference` logic here isntead?
 	private getReferencesSuffix(): string {
 		const referencesCount = this.attachment.validFileReferenceUris.length;
 
@@ -132,14 +132,18 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 	 */
 	private getUriLabel(
 		file: URI,
-	): string {
-		const result = [this.labelService.getUriLabel(file, { relative: true })];
+	): IMarkdownString | IMarkdownString[] {
+		const result = [new MarkdownString(
+			`'• ${this.labelService.getUriLabel(file, { relative: true })}'`,
+		)];
 
 		// if file is a prompt that references other files, add them to the label
 		for (const child of this.attachment.validFileReferenceUris) {
-			result.push(this.labelService.getUriLabel(child, { relative: true }));
+			result.push(new MarkdownString(
+				`  • ${this.labelService.getUriLabel(child, { relative: true })}`,
+			));
 		}
 
-		return '\n• ' + result.join('\n  • ');
+		return result;
 	}
 }

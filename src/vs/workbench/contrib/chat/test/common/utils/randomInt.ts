@@ -10,7 +10,7 @@ import { assert } from '../../../../../../base/common/assert.js';
  * Both `min` and `max` values are inclusive. The `min` value is optional
  * and defaults to `0` if not explicitely specified.
  *
- * Throws!
+ * @throws in the next cases:
  * 	- if provided `min` or `max` is not a number
  *  - if provided `min` or `max` is not finite
  *  - if provided `min` is larger than `max` value

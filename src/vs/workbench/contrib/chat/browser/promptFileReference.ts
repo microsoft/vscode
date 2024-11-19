@@ -8,14 +8,19 @@ import { Emitter } from '../../../../base/common/event.js';
 import { extUri } from '../../../../base/common/resources.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Location } from '../../../../editor/common/languages.js';
-import { FileOpenFailed, RecursiveReference } from './promptFileReferenceErrors.js';
 import { ChatbotPromptCodec } from '../../../common/codecs/chatbotPromptCodec/chatbotPromptCodec.js';
+import { FileOpenFailed, NotPromptSnippetFile, RecursiveReference } from './promptFileReferenceErrors.js';
 import { FileChangesEvent, FileChangeType, IFileService, IFileStreamContent } from '../../../../platform/files/common/files.js';
 
 /**
  * Error conditions that may happen during the file reference resolution.
  */
-export type TErrorCondition = FileOpenFailed | RecursiveReference;
+export type TErrorCondition = FileOpenFailed | RecursiveReference | NotPromptSnippetFile;
+
+/**
+ * Well-defined file extension for the prompt snippet files.
+ */
+const PROMP_SNIPPET_FILE_EXTENSION: string = '.prompt.md';
 
 /**
  * Represents a file reference in the chatbot prompt, e.g. `#file:./path/to/file.md`.
@@ -102,6 +107,9 @@ export class PromptFileReference extends Disposable {
 		return !!this._errorCondition;
 	}
 
+	/**
+	 * @throws if provided `URI`/`Location` isn't for a prompt snippet file.
+	 */
 	constructor(
 		private readonly _uri: URI | Location,
 		private readonly fileService: IFileService,
@@ -120,6 +128,13 @@ export class PromptFileReference extends Disposable {
 	}
 
 	/**
+	 * Get the parent folder of the file reference.
+	 */
+	public get parentFolder() {
+		return URI.joinPath(this.uri, '..');
+	}
+
+	/**
 	 * Check if the current reference points to a given resource.
 	 */
 	public sameUri(other: URI | Location): boolean {
@@ -129,17 +144,12 @@ export class PromptFileReference extends Disposable {
 	}
 
 	/**
-	 * Get the parent folder of the file reference.
-	 */
-	public get parentFolder() {
-		return URI.joinPath(this.uri, '..');
-	}
-
-	/**
 	 * Add file system event listeners for the current file reference.
 	 */
 	public addFilesystemListeners(): this {
-		this._register(this.fileService.onDidFilesChange(this.onFilesChanged));
+		this._register(
+			this.fileService.onDidFilesChange(this.onFilesChanged),
+		);
 
 		return this;
 	}
@@ -166,10 +176,15 @@ export class PromptFileReference extends Disposable {
 	 * Get file stream, if the file exsists.
 	 */
 	private async getFileStream(): Promise<IFileStreamContent | null> {
-		try {
-			const fileStream = await this.fileService.readFileStream(this.uri);
+		// if URI doesn't point to a prompt snippet file, don't try to resolve it
+		if (this.uri.path.endsWith(PROMP_SNIPPET_FILE_EXTENSION) === false) {
+			this._errorCondition = new NotPromptSnippetFile(this.uri);
 
-			return fileStream;
+			return null;
+		}
+
+		try {
+			return await this.fileService.readFileStream(this.uri);
 		} catch (error) {
 			this._errorCondition = new FileOpenFailed(this.uri, error);
 
@@ -193,7 +208,6 @@ export class PromptFileReference extends Disposable {
 	 * Private implementation of the {@link resolve} method, that allows
 	 * to pass `seenReferences` list to the recursive calls to prevent
 	 * infinite file reference recursion.
-	 * @see {@link resolve}
 	 */
 	private async resolveReference(
 		waitForChildren: boolean = false,
@@ -312,12 +326,20 @@ export class PromptFileReference extends Disposable {
 	/**
 	 * Get list of all valid child references.
 	 */
-	public getValidChildReferences(): readonly PromptFileReference[] {
+	public get validChildReferences(): readonly PromptFileReference[] {
 		return this.flatten()
 			// skip the root reference itself (this variable)
 			.slice(1)
 			// filter out unresolved references
 			.filter(reference => reference.resolveFailed === false);
+	}
+
+	/**
+	 * Get list of all valid child references as URIs.
+	 */
+	public get validChildReferenceUris(): readonly URI[] {
+		return this.validChildReferences
+			.map(child => child.uri);
 	}
 
 	/**

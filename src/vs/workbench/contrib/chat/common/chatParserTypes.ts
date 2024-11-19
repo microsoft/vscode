@@ -149,16 +149,16 @@ export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 		private readonly variable: IDynamicVariable,
 	) { }
 
-	// TODO: @legomushroom
+	/**
+	 * The nested child file references of this variable, if any.
+	 */
 	public get childReferences(): ReadonlyArray<URI> | undefined {
 		return this.variable.validFileReferenceUris;
 	}
 
-	// TODO: @legomushroom
-	public get resolveReferencesReady(): Promise<readonly URI[]> | undefined {
-		return this.variable.resolveReferencesReady;
-	}
-
+	/**
+	 * Convert current object to `IDynamicVariable`.
+	 */
 	public toDynamicVariable(): IDynamicVariable {
 		return this.variable;
 	}

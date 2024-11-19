@@ -1076,11 +1076,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						continue;
 					}
 
-					for (const childRefrence of variable.getValidChildReferences()) {
+					for (const childUri of variable.validChildReferenceUris) {
 						attachedContext.unshift({
 							id: variable.id,
-							name: basename(childRefrence.uri),
-							value: childRefrence.uri,
+							name: basename(childUri),
+							value: childUri,
 							kind: 'implicit',
 							isSelection: false,
 							enabled: true,

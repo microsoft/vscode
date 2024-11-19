@@ -108,3 +108,22 @@ export class RecursiveReference extends ResolveError {
 		return `"${this.message}"(${this.uri})`;
 	}
 }
+
+/**
+ * Error that reflects the case when resource URI does not point to
+ * a prompt snippet file, hence was not attempted to be resolved.
+ */
+export class NotPromptSnippetFile extends ResolveError {
+	constructor(
+		uri: URI,
+		message: string = '',
+	) {
+
+		const suffix = message ? `: ${message}` : '';
+
+		super(
+			uri,
+			`Resource at ${uri.path} is not a prompt snippet file${suffix}`,
+		);
+	}
+}

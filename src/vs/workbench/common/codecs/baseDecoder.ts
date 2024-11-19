@@ -49,8 +49,7 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 
 	/**
 	 * Start receiveing data from the stream.
-	 *
-	 * Throws! if the decoder stream has already ended.
+	 * @throws if the decoder stream has already ended.
 	 */
 	public start(): this {
 		assert(
@@ -112,8 +111,7 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 
 	/**
 	 * Add listener for the `data` event.
-	 *
-	 * Throws! if the decoder stream has already ended.
+	 * @throws if the decoder stream has already ended.
 	 */
 	public onData(callback: (data: T) => void): void {
 		assert(
@@ -133,8 +131,7 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 
 	/**
 	 * Add listener for the `error` event.
-	 *
-	 * Throws! if the decoder stream has already ended.
+	 * @throws if the decoder stream has already ended.
 	 */
 	public onError(callback: (error: Error) => void): void {
 		assert(
@@ -154,8 +151,7 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 
 	/**
 	 * Add listener for the `end` event.
-	 *
-	 * Throws! if the decoder stream has already ended.
+	 * @throws if the decoder stream has already ended.
 	 */
 	public onEnd(callback: () => void): void {
 		assert(
@@ -201,8 +197,7 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 
 	/**
 	 * Resumes the stream if it has been paused.
-	 *
-	 * Throws! if the decoder stream has already ended.
+	 * @throws if the decoder stream has already ended.
 	 */
 	public resume(): void {
 		assert(
@@ -270,10 +265,8 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 	}
 
 	/**
-	 * Consume all messages from the stream, blocking
-	 * until the stream finishes.
-	 *
-	 * Throws! if the decoder stream has already ended.
+	 * Consume all messages from the stream, blocking until the stream finishes.
+	 * @throws if the decoder stream has already ended.
 	 */
 	public async consumeAll(): Promise<T[]> {
 		assert(
@@ -296,8 +289,7 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 
 	/**
 	 * Async iterator interface for the decoder.
-	 *
-	 * Throws! if the decoder stream has already ended.
+	 * @throws if the decoder stream has already ended.
 	 */
 	[Symbol.asyncIterator](): AsyncIterator<T | null> {
 		assert(

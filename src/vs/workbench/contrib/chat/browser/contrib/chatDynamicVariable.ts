@@ -14,8 +14,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 
 /**
  * Parse the `data` property of a reference as an `URI`.
- *
- * Throws! if the reference is not defined or an invalid `URI`.
+ * @throws if the reference is not defined or an invalid `URI`.
  */
 const parseUri = (data: IDynamicVariable['data']): URI | Location => {
 	assertDefined(
@@ -41,7 +40,9 @@ const parseUri = (data: IDynamicVariable['data']): URI | Location => {
 };
 
 /**
- * TODO: @legomushroom
+ * A wrapper class for an `IDynamicVariable` object that that adds functionality
+ * to parse nested file references of this variable.
+ * See {@link PromptFileReference} for details.
  */
 export class ChatDynamicVariable extends PromptFileReference implements IDynamicVariable {
 	constructor(
@@ -52,24 +53,25 @@ export class ChatDynamicVariable extends PromptFileReference implements IDynamic
 	}
 
 	/**
-	 * TODO: @legomushroom
+	 * Get the filename of the reference with the suffix for how many nested child references
+	 * the current reference has. E.g. `(+3 more)` if there are 3 child references found.
 	 */
 	public get filenameWithReferences(): string {
-		const fileName = basename(this.uri);
+		const fileName = basename(this.data);
 
-		const childReferences = this.flatten()
-			.slice(1)
-			.filter(child => child.resolveFailed === false);
-
-		const suffix = childReferences.length
-			? ` (+${childReferences.length} more)`
+		const suffix = this.validChildReferences.length
+			? ` (+${this.validChildReferences.length} more)`
 			: '';
 
 		return `${fileName}${suffix}`;
 	}
 
-	// TODO: @legomushroom - is it possible to use a `Proxy` instead of all
-	// 						 the getters and make TS happy at the same time?
+	/**
+	 * Note! below are the getters that simply forward to the underlying `IDynamicVariable` object;
+	 * 		 while we could implement the logic generically using the `Proxy` class here, it's hard
+	 * 		 to make Typescript to recognize this generic implementation correctly
+	 */
+
 	public get id() {
 		return this.reference.id;
 	}
@@ -100,14 +102,5 @@ export class ChatDynamicVariable extends PromptFileReference implements IDynamic
 
 	public get modelDescription() {
 		return this.reference.modelDescription;
-	}
-
-	/**
-	 * Get child file references list, if any.
-	 */
-	// TODO: @legomushroom - reuse the logic of the `ChatImplicitContext` here?
-	public get validFileReferenceUris(): readonly URI[] {
-		return super.getValidChildReferences()
-			.map(child => child.uri);
 	}
 }

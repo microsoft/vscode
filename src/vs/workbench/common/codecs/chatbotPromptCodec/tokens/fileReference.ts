@@ -34,9 +34,8 @@ export class FileReference extends RangedToken {
 
 	/**
 	 * Create a file reference token out of a generic `Word`.
-	 *
-	 * Throws! if the word does not conform to the expected format or
-	 * if the reference is an invalid `URI`.
+	 * @throws if the word does not conform to the expected format or if
+	 *         the reference is an invalid `URI`.
 	 */
 	public static fromWord(word: Word): FileReference {
 		const { text } = word;

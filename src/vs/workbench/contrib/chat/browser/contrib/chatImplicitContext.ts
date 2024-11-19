@@ -210,8 +210,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 			return [];
 		}
 
-		return this.chatReference.getValidChildReferences()
-			.map(child => child.uri);
+		return this.chatReference.validChildReferenceUris;
 	}
 
 	/**
@@ -234,11 +233,8 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 				this.fileService,
 			));
 
-			// start resolving the chat references immediately and
 			// subscribe to filesystem changes for the file reference
-			// TODO: @legomushroom - can we have non-file references here?
 			this.chatReference.addFilesystemListeners();
-			this.chatReference.resolve();
 
 			// subscribe to updates of the chat reference
 			this._register(
@@ -246,6 +242,9 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 					this._onDidChangeValue.fire.bind(this._onDidChangeValue),
 				),
 			);
+
+			// start resolving the chat references immediately
+			this.chatReference.resolve();
 		}
 
 		this._value = value;

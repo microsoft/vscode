@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Asserts that a provided value is `defined` - not `null` or `undefined`,
+ * Asserts that a provided `value` is `defined` - not `null` or `undefined`,
  * throwing an error with the provided error or error message otherwise.
+ *
+ * @throws if the provided `value` is `null` or `undefined`.
  *
  * ## Examples
  *
@@ -13,7 +15,7 @@
  * // an assert with an error message
  * assertDefined('some value', 'String constant is not defined.')
  *
- * // (throws!) an assert with an error message
+ * // `throws!` an assert with an error message
  * assertDefined(null, new Error('Should throw this error.'))
  * ```
  */
