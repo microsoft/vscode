@@ -120,7 +120,7 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 		lineNumber: number, // Note! 1-based indexing
 		lineText: string,
 	): void {
-		const lineByteLength = Buffer.from(lineText).length;
+		const lineByteLength = VSBuffer.fromString(lineText).byteLength;
 		// assert that the buffer has enough data, otherwise
 		// there is an logic error in the data processing
 		assert(
