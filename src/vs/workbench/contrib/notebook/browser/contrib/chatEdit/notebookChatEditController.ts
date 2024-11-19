@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isEqual } from '../../../../../../base/common/resources.js';
-import { Disposable, dispose, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, dispose, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { IChatEditingService, WorkingSetEntryState } from '../../../../chat/common/chatEditingService.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { NotebookDeletedCellDecorator, NotebookInsertedCellDecorator, NotebookCellDiffDecorator } from './notebookCellDecorators.js';
@@ -65,7 +64,7 @@ class NotebookChatEditorController extends Disposable {
 		const originalModel = observableValue<NotebookTextModel | undefined>('originalModel', undefined);
 		const viewModelAttached = observableFromEvent(this.notebookEditor.onDidAttachViewModel, () => !!this.notebookEditor.getViewModel());
 		const onDidChangeVisibleRanges = debouncedObservable2(observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges), 100);
-		const decorators = new Map<NotebookCellTextModel, { editor: ICodeEditor } & IDisposable>();
+		const decorators = new Map<NotebookCellTextModel, NotebookCellDiffDecorator>();
 
 		let updatedCellDecoratorsOnceBefore = false;
 		let updatedDeletedInsertedDecoratorsOnceBefore = false;
@@ -120,7 +119,7 @@ class NotebookChatEditorController extends Disposable {
 		}).recomputeInitiallyAndOnChange(this._store).flatten();
 
 		const notebookCellDiffInfo = notebookDiffInfo.map(d => d?.cellDiff);
-		this._register(instantiationService.createInstance(NotebookChatActionsOverlayController, notebookEditor, notebookCellDiffInfo));
+		this._register(instantiationService.createInstance(NotebookChatActionsOverlayController, notebookEditor, notebookCellDiffInfo, this.deletedCellDecorator));
 
 		this._register(autorun(r => {
 			// If we have a new entry for the file, then clear old decorators.
@@ -158,11 +157,15 @@ class NotebookChatEditorController extends Disposable {
 			diffInfo.cellDiff.forEach((diff) => {
 				if (diff.type === 'modified') {
 					const modifiedCell = modified.cells[diff.modifiedCellIndex];
-					const originalCellValue = original.cells[diff.originalCellIndex].getValue();
+					const originalCell = original.cells[diff.originalCellIndex];
 					const editor = this.notebookEditor.codeEditors.find(([vm,]) => vm.handle === modifiedCell.handle)?.[1];
-					if (editor && decorators.get(modifiedCell)?.editor !== editor) {
+
+					if (editor && (decorators.get(modifiedCell)?.editor !== editor ||
+						decorators.get(modifiedCell)?.modifiedCell !== modifiedCell ||
+						decorators.get(modifiedCell)?.originalCell !== originalCell)) {
+
 						decorators.get(modifiedCell)?.dispose();
-						const decorator = this.instantiationService.createInstance(NotebookCellDiffDecorator, editor, originalCellValue, modifiedCell.cellKind);
+						const decorator = this.instantiationService.createInstance(NotebookCellDiffDecorator, editor, modifiedCell, originalCell);
 						decorators.set(modifiedCell, decorator);
 						this._register(editor.onDidDispose(() => {
 							decorator.dispose();
@@ -171,6 +174,14 @@ class NotebookChatEditorController extends Disposable {
 							}
 						}));
 					}
+				}
+			});
+
+			const visibleEditors = new Set(this.notebookEditor.codeEditors.map(e => e[1]));
+			decorators.forEach((v, cell) => {
+				if (!visibleEditors.has(v.editor)) {
+					v.dispose();
+					decorators.delete(cell);
 				}
 			});
 		}));
