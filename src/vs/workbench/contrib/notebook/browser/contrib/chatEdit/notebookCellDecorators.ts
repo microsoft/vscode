@@ -11,7 +11,6 @@ import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { INotebookEditor } from '../../notebookBrowser.js';
 import { ThrottledDelayer } from '../../../../../../base/common/async.js';
 import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
-import { CellKind } from '../../../common/notebookCommon.js';
 import { ICodeEditor, IViewZone } from '../../../../../../editor/browser/editorBrowser.js';
 import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
@@ -41,15 +40,18 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 
 	constructor(
 		public readonly editor: ICodeEditor,
-		private readonly originalCellValue: string,
-		private readonly cellKind: CellKind,
+		public readonly modifiedCell: NotebookCellTextModel,
+		public readonly originalCell: NotebookCellTextModel,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@INotebookOriginalCellModelFactory private readonly originalCellModelFactory: INotebookOriginalCellModelFactory,
 
 	) {
 		super();
-		this.add(this.editor.onDidChangeModel(() => this.update()));
+		this.add(this.editor.onDidChangeModel(() => {
+			this._clearRendering();
+			this.update();
+		}));
 		this.add(this.editor.onDidChangeModelContent(() => this.update()));
 		this.add(this.editor.onDidChangeConfiguration((e) => {
 			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.lineHeight)) {
@@ -157,7 +159,7 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 			if (!model) {
 				return;
 			}
-			this._originalModel = this.add(this.originalCellModelFactory.getOrCreate(model.uri, this.originalCellValue, model.getLanguageId(), this.cellKind)).object;
+			this._originalModel = this.add(this.originalCellModelFactory.getOrCreate(model.uri, this.originalCell.getValue(), model.getLanguageId(), this.modifiedCell.cellKind)).object;
 		}
 		return this._originalModel;
 	}
@@ -293,9 +295,14 @@ export class NotebookInsertedCellDecorator extends Disposable {
 
 const ttPolicy = createTrustedTypesPolicy('notebookChatEditController', { createHTML: value => value });
 
-export class NotebookDeletedCellDecorator extends Disposable {
+export interface INotebookDeletedCellDecorator {
+	getTop(deletedIndex: number): number | undefined;
+}
+
+export class NotebookDeletedCellDecorator extends Disposable implements INotebookDeletedCellDecorator {
 	private readonly zoneRemover = this._register(new DisposableStore());
 	private readonly createdViewZones = new Map<number, string>();
+	private readonly deletedCellInfos = new Map<number, { height: number; previousIndex: number; offset: number }>();
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
 		@ILanguageService private readonly languageService: ILanguageService,
@@ -303,17 +310,31 @@ export class NotebookDeletedCellDecorator extends Disposable {
 		super();
 	}
 
+	public getTop(deletedIndex: number) {
+		const info = this.deletedCellInfos.get(deletedIndex);
+		if (!info) {
+			return;
+		}
+		const cells = this._notebookEditor.getCellsInRange({ start: info.previousIndex, end: info.previousIndex + 1 });
+		if (!cells.length) {
+			return;
+		}
+		const cell = cells[0];
+		const cellHeight = this._notebookEditor.getHeightOfElement(cell);
+		const top = this._notebookEditor.getAbsoluteTopOfElement(cell);
+		return top + cellHeight + info.offset;
+	}
 
 	public apply(diffInfo: CellDiffInfo[], original: NotebookTextModel): void {
 		this.clear();
 
 		let currentIndex = 0;
-		const deletedCellsToRender: { cells: NotebookCellTextModel[]; index: number } = { cells: [], index: 0 };
+		const deletedCellsToRender: { cells: { cell: NotebookCellTextModel; originalIndex: number; previousIndex: number }[]; index: number } = { cells: [], index: 0 };
 		diffInfo.forEach(diff => {
 			if (diff.type === 'delete') {
 				const deletedCell = original.cells[diff.originalCellIndex];
 				if (deletedCell) {
-					deletedCellsToRender.cells.push(deletedCell);
+					deletedCellsToRender.cells.push({ cell: deletedCell, originalIndex: diff.originalCellIndex, previousIndex: currentIndex });
 					deletedCellsToRender.index = currentIndex;
 				}
 			} else {
@@ -330,17 +351,35 @@ export class NotebookDeletedCellDecorator extends Disposable {
 	}
 
 	public clear() {
+		this.deletedCellInfos.clear();
 		this.zoneRemover.clear();
 	}
 
 
-	private _createWidget(index: number, cells: NotebookCellTextModel[]) {
+	private _createWidget(index: number, cells: { cell: NotebookCellTextModel; originalIndex: number; previousIndex: number }[]) {
 		this._createWidgetImpl(index, cells);
 	}
-	private async _createWidgetImpl(index: number, cells: NotebookCellTextModel[]) {
+	private async _createWidgetImpl(index: number, cells: { cell: NotebookCellTextModel; originalIndex: number; previousIndex: number }[]) {
 		const rootContainer = document.createElement('div');
-		const widgets = cells.map(cell => new NotebookDeletedCellWidget(this._notebookEditor, cell.getValue(), cell.language, rootContainer, this.languageService));
-		const heights = await Promise.all(widgets.map(w => w.render()));
+		const widgets: NotebookDeletedCellWidget[] = [];
+		const heights = await Promise.all(cells.map(async cell => {
+			const widget = new NotebookDeletedCellWidget(this._notebookEditor, cell.cell.getValue(), cell.cell.language, rootContainer, cell.originalIndex, this.languageService);
+			widgets.push(widget);
+			const height = await widget.render();
+			this.deletedCellInfos.set(cell.originalIndex, { height, previousIndex: cell.previousIndex, offset: 0 });
+			return height;
+		}));
+
+		Array.from(this.deletedCellInfos.keys()).sort().forEach((originalIndex) => {
+			const previousDeletedCell = this.deletedCellInfos.get(originalIndex - 1);
+			if (previousDeletedCell) {
+				const deletedCell = this.deletedCellInfos.get(originalIndex);
+				if (deletedCell) {
+					deletedCell.offset = previousDeletedCell.height;
+				}
+			}
+		});
+
 		const totalHeight = heights.reduce<number>((prev, curr) => prev + curr, 0);
 
 		this._notebookEditor.changeViewZones(accessor => {
@@ -377,6 +416,7 @@ export class NotebookDeletedCellWidget extends Disposable {
 		private readonly code: string,
 		private readonly language: string,
 		container: HTMLElement,
+		public readonly originalIndex: number,
 		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
