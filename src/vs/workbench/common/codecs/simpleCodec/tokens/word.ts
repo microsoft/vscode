@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RangedToken } from '../../rangedToken.js';
+import { BaseToken } from '../../baseToken.js';
 import { Line } from '../../linesCodec/tokens/line.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -13,7 +13,7 @@ import { Position } from '../../../../../editor/common/core/position.js';
  * characters without stop characters, like a `space`,
  * a `tab`, or a `new line`.
  */
-export class Word extends RangedToken {
+export class Word extends BaseToken {
 	constructor(
 		/**
 		 * The word range.

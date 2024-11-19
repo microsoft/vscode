@@ -12,7 +12,6 @@ import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js'
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../common/chatAgents.js';
 import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from '../common/chatModel.js';
@@ -28,8 +27,8 @@ interface IChatData {
 }
 
 /**
- * Helper to run provided `jobs` in parallel and return the `successful`
- * results in the same order as the original jobs.
+ * Helper to run provided `jobs` in parallel and return only
+ * the `successful` results in the same order as the original jobs.
  */
 const getJobResults = async (
 	jobs: Promise<IChatRequestVariableEntry | null>[],
@@ -63,7 +62,6 @@ export class ChatVariablesService implements IChatVariablesService {
 	constructor(
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IFileService _: IFileService,
 	) { }
 
 	public async resolveVariables(
@@ -183,8 +181,8 @@ export class ChatVariablesService implements IChatVariablesService {
 			});
 
 		// run all jobs in paralle and get results in the original order
-		// Note! the `getJobResults` call supposed to never fail, therefore
-		// 		 it's ok to `Promise.all` here
+		// Note! the `getJobResults` call supposed to never fail, hence it's ok to do
+		// 	     `Promise.all()`, otherwise we have a logic error that would be caught here
 		const [resolvedVariables, resolvedAttachedContext] = await Promise.all(
 			[
 				getJobResults(resolvedVariableJobs),

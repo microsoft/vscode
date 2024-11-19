@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RangedToken } from '../../rangedToken.js';
+import { BaseToken } from '../../baseToken.js';
 import { Line } from '../../linesCodec/tokens/line.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -12,7 +12,7 @@ import { Position } from '../../../../../editor/common/core/position.js';
  * A token that represent a `tab` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class Tab extends RangedToken {
+export class Tab extends BaseToken {
 	/**
 	 * The underlying symbol of the `Tab` token.
 	 */

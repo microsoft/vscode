@@ -10,8 +10,10 @@ import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { TStreamListenerNames } from './types/TStreamListenerEventNames.js';
 
 /**
- * Base decoder class that can be used to decode a stream of data of one type into another.
- * Aimed to be a part of a "codec" implementation and not to be used directly.
+ * Base decoder class that can be used to convert stream messages data type
+ * from one type to another. For instance, a stream of binary data can be
+ * "decoded" into a stream of well defined objects.
+ * Intended to be a part of "codec" implementation rather than used directly.
  */
 export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonNullable<unknown> = NonNullable<unknown>> extends Disposable implements ReadableStream<T> {
 	/**
@@ -28,10 +30,10 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 	 */
 	private readonly _listeners: Map<TStreamListenerNames, Map<Function, IDisposable>> = new Map();
 
+	/**
+	 * @param stream The input stream to decode.
+	 */
 	constructor(
-		/**
-		 * The input stream to decode.
-		 */
 		protected readonly stream: ReadableStream<K>,
 	) {
 		super();
@@ -174,9 +176,9 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 	 */
 	public removeAllListeners(): void {
 		// remove listeners set up by this class
-		this.stream.removeEventListener('data', this.tryOnStreamData);
-		this.stream.removeEventListener('error', this.onStreamError);
-		this.stream.removeEventListener('end', this.onStreamEnd);
+		this.stream.removeListener('data', this.tryOnStreamData);
+		this.stream.removeListener('error', this.onStreamError);
+		this.stream.removeListener('end', this.onStreamEnd);
 
 		// remove listeners set up by external consumers
 		for (const [name, listeners] of this._listeners.entries()) {
@@ -226,7 +228,7 @@ export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonN
 	 *    not found, therefore passing incorrect `callback` function may
 	 *    result in silent unexpected behaviour
 	 */
-	public removeEventListener(event: string, callback: Function): void {
+	public removeListener(event: string, callback: Function): void {
 		for (const [nameName, listeners] of this._listeners.entries()) {
 			if (nameName !== event) {
 				continue;
@@ -326,6 +328,9 @@ class AsyncDecoder<T extends NonNullable<unknown>, K extends NonNullable<unknown
 	 */
 	private resolveOnNewEvent?: (value: void) => void;
 
+	/**
+	 * @param decoder The decoder instance to wrap.
+	 */
 	constructor(
 		private readonly decoder: BaseDecoder<T, K>,
 	) {
@@ -336,14 +341,17 @@ class AsyncDecoder<T extends NonNullable<unknown>, K extends NonNullable<unknown
 	 * Async iterator implementation.
 	 */
 	async *[Symbol.asyncIterator](): AsyncIterator<T | null> {
+		// callback is called when `data` or `end` event is received
 		const callback = (data?: T) => {
 			if (data !== undefined) {
 				this.messages.push(data);
 			} else {
-				this.decoder.removeEventListener('data', callback);
-				this.decoder.removeEventListener('end', callback);
+				this.decoder.removeListener('data', callback);
+				this.decoder.removeListener('end', callback);
 			}
 
+			// is the promise resolve callback is present,
+			// then call it and remove the reference
 			if (this.resolveOnNewEvent) {
 				this.resolveOnNewEvent();
 				delete this.resolveOnNewEvent;
@@ -352,6 +360,7 @@ class AsyncDecoder<T extends NonNullable<unknown>, K extends NonNullable<unknown
 		this.decoder.on('data', callback);
 		this.decoder.on('end', callback);
 
+		// start flowing the decoder stream
 		this.decoder.start();
 
 		while (true) {
@@ -361,12 +370,13 @@ class AsyncDecoder<T extends NonNullable<unknown>, K extends NonNullable<unknown
 				continue;
 			}
 
-			// no data and stream ended, so we're done
+			// if no data and stream ended, so we're done
 			if (this.decoder.isEnded) {
 				return null;
 			}
 
-			// otherwise wait for new data to be available
+			// stream isn't ended so wait for the new
+			// `data` or `end` event to be received
 			await new Promise((resolve) => {
 				this.resolveOnNewEvent = resolve;
 			});

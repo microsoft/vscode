@@ -64,7 +64,7 @@ export interface ReadableStream<T> extends ReadableStreamEvents<T> {
 	/**
 	 * Allows to remove a listener that was previously added.
 	 */
-	removeEventListener(event: string, callback: Function): void;
+	removeListener(event: string, callback: Function): void;
 }
 
 /**
@@ -221,10 +221,13 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 
 	private readonly pendingWritePromises: Function[] = [];
 
+	/**
+	 * @param reducer a function that reduces the buffered data into a single object;
+	 * 				  because some objects can be complex and non-reducible, we also
+	 * 				  allow passing the explicit `null` value to skip the reduce step
+	 * @param options stream options
+	 */
 	constructor(
-		// some messages can be complex objects so are non-reducable,
-		// hence `reducer` cabe be `null`, the `null` value is used
-		// here to make the user intention more explicit
 		private reducer: IReducer<T> | null,
 		private options?: WriteableStreamOptions,
 	) { }
@@ -372,7 +375,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 		}
 	}
 
-	removeEventListener(event: string, callback: Function): void {
+	removeListener(event: string, callback: Function): void {
 		if (this.state.destroyed) {
 			return;
 		}
@@ -652,16 +655,16 @@ export function peekStream<T>(stream: ReadableStream<T>, maxChunks: number): Pro
 			return resolve({ stream, buffer, ended: true });
 		};
 
-		streamListeners.add(toDisposable(() => stream.removeEventListener('error', errorListener)));
+		streamListeners.add(toDisposable(() => stream.removeListener('error', errorListener)));
 		stream.on('error', errorListener);
 
-		streamListeners.add(toDisposable(() => stream.removeEventListener('end', endListener)));
+		streamListeners.add(toDisposable(() => stream.removeListener('end', endListener)));
 		stream.on('end', endListener);
 
 		// Important: leave the `data` listener last because
 		// this can turn the stream into flowing mode and we
 		// want `error` events to be received as well.
-		streamListeners.add(toDisposable(() => stream.removeEventListener('data', dataListener)));
+		streamListeners.add(toDisposable(() => stream.removeListener('data', dataListener)));
 		stream.on('data', dataListener);
 	});
 }

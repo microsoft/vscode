@@ -1,2 +1,4 @@
-// Well defined event names of `ReadableStream<T>`.
+/**
+ * Event names of {@link ReadableStream} stream.
+ */
 export type TStreamListenerNames = 'data' | 'error' | 'end';

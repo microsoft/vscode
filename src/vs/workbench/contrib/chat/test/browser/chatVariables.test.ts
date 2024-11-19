@@ -23,7 +23,6 @@ import { MockLanguageModelToolsService } from '../common/mockLanguageModelToolsS
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { TestViewsService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { FileService } from '../../../../../platform/files/common/fileService.js';
 
 suite('ChatVariables', function () {
 
@@ -32,7 +31,7 @@ suite('ChatVariables', function () {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
-		service = new ChatVariablesService(new MockChatWidgetService(), new TestViewsService(), new FileService(new NullLogService()));
+		service = new ChatVariablesService(new MockChatWidgetService(), new TestViewsService());
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());

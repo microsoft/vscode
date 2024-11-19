@@ -128,7 +128,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 	}
 
 	/**
-	 *	Get file URIs label.
+	 * Get file URIs label, including its possible nested file references.
 	 */
 	private getUriLabel(
 		file: URI,

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Line } from './line.js';
-import { RangedToken } from '../../rangedToken.js';
+import { BaseToken } from '../../baseToken.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
@@ -13,12 +13,15 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
  * A token that represent a `new line` with a `range`. The `range`
  * value reflects the position of the token in the original data.
  */
-export class NewLine extends RangedToken {
+export class NewLine extends BaseToken {
 	/**
 	 * The underlying symbol of the `NewLine` token.
 	 */
 	public static readonly symbol: string = '\n';
-	// TODO: @legomushroom
+
+	/**
+	 * The byte representation of the {@link symbol}.
+	 */
 	public static readonly byte = VSBuffer.fromString(NewLine.symbol);
 
 	/**

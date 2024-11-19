@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RangedToken } from '../../rangedToken.js';
+import { BaseToken } from '../../baseToken.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 
@@ -11,7 +11,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
  * Token representing a line of text with a `range` which
  * reflects the line's position in the original data.
  */
-export class Line extends RangedToken {
+export class Line extends BaseToken {
 	constructor(
 		// the line index
 		// Note! 1-based indexing

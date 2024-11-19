@@ -6,10 +6,10 @@
 import { Range } from '../../../editor/common/core/range.js';
 
 /**
- * Base class for all tokens with a `range` that reflects
- * token's position in the original data.
+ * Base class for all tokens with a `range` that
+ * reflects token position in the original data.
  */
-export class RangedToken {
+export class BaseToken {
 	constructor(
 		public readonly range: Range,
 	) { }

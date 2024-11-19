@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RangedToken } from '../../rangedToken.js';
+import { BaseToken } from '../../baseToken.js';
 import { Word } from '../../simpleCodec/tokens/index.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -14,7 +14,7 @@ const TOKEN_START: string = '#file:';
 /**
  * A file reference token inside a prompt.
  */
-export class FileReference extends RangedToken {
+export class FileReference extends BaseToken {
 	// Start sequence for a file reference token in a prompt.
 	public static readonly TOKEN_START = TOKEN_START;
 

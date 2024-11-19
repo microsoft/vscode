@@ -7,7 +7,7 @@ import assert from 'assert';
 import { randomInt } from './randomInt.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { RangedToken } from '../../../../../common/codecs/rangedToken.js';
+import { BaseToken } from '../../../../../common/codecs/baseToken.js';
 import { BaseDecoder } from '../../../../../common/codecs/baseDecoder.js';
 import { WriteableStream } from '../../../../../../base/common/stream.js';
 import { Line, NewLine } from '../../../../../common/codecs/linesCodec/tokens/index.js';
@@ -49,7 +49,7 @@ const randomBoolean = (): boolean => {
  *   ],
  * );
  */
-export class TestDecoder<T extends RangedToken, D extends BaseDecoder<T>> extends Disposable {
+export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends Disposable {
 	constructor(
 		private readonly stream: WriteableStream<VSBuffer>,
 		private readonly decoder: D,

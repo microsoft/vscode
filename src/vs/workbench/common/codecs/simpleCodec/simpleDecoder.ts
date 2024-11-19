@@ -15,9 +15,11 @@ import { LinesDecoder, TLineToken } from '../linesCodec/linesDecoder.js';
  */
 export type TSimpleToken = Word | Space | Tab | NewLine;
 
-// Note! the `\n` is excluded because this decoder based on lines
-// Characters that stop a word sequence.
-// 	     hence can't ever receive a line that contains a `newline`.
+/**
+ * Characters that stop a "word" sequence.
+ * Note! the `\n` is excluded because this decoder based on `LinesDecoder` that already
+ * 		 handles the `newline` case and emits lines that don't contain the `\n` anymore.
+ */
 const STOP_CHARACTERS = [Space.symbol, Tab.symbol];
 
 /**
