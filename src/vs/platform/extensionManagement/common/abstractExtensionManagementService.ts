@@ -31,6 +31,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
+import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 
 export type InstallableExtension = { readonly manifest: IExtensionManifest; extension: IGalleryExtension | URI; options: InstallOptions };
 
@@ -99,9 +100,12 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		}));
 	}
 
-	async canInstall(extension: IGalleryExtension): Promise<boolean> {
+	async canInstall(extension: IGalleryExtension): Promise<true | IMarkdownString> {
 		const currentTargetPlatform = await this.getTargetPlatform();
-		return extension.allTargetPlatforms.some(targetPlatform => isTargetPlatformCompatible(targetPlatform, extension.allTargetPlatforms, currentTargetPlatform));
+		if (extension.allTargetPlatforms.some(targetPlatform => isTargetPlatformCompatible(targetPlatform, extension.allTargetPlatforms, currentTargetPlatform))) {
+			return true;
+		}
+		return new MarkdownString(`${nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", extension.displayName ?? extension.identifier.id, this.productService.nameLong, TargetPlatformToString(currentTargetPlatform))} [${nls.localize('learn more', "Learn More")}](https://aka.ms/vscode-platform-specific-extensions)`);
 	}
 
 	async installFromGallery(extension: IGalleryExtension, options: InstallOptions = {}): Promise<ILocalExtension> {
@@ -598,7 +602,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		}
 
 		else {
-			if (!await this.canInstall(extension)) {
+			if (await this.canInstall(extension) !== true) {
 				const targetPlatform = await this.getTargetPlatform();
 				throw new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", extension.identifier.id, this.productService.nameLong, TargetPlatformToString(targetPlatform)), ExtensionManagementErrorCode.IncompatibleTargetPlatform);
 			}

@@ -18,11 +18,13 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { ProfileAwareExtensionManagementChannelClient } from '../common/extensionManagementChannelClient.js';
 import { ExtensionIdentifier, ExtensionType, isResolverExtension } from '../../../../platform/extensions/common/extensions.js';
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 export class NativeExtensionManagementService extends ProfileAwareExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 
 	constructor(
 		channel: IChannel,
+		@IProductService productService: IProductService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IFileService private readonly fileService: IFileService,
@@ -30,7 +32,7 @@ export class NativeExtensionManagementService extends ProfileAwareExtensionManag
 		@INativeWorkbenchEnvironmentService private readonly nativeEnvironmentService: INativeWorkbenchEnvironmentService,
 		@ILogService private readonly logService: ILogService,
 	) {
-		super(channel, userDataProfileService, uriIdentityService);
+		super(channel, productService, userDataProfileService, uriIdentityService);
 	}
 
 	protected filterEvent(profileLocation: URI, isApplicationScoped: boolean): boolean {
