@@ -81,12 +81,6 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		// Make sure to attach only new contexts
-		const currentContextIds = widget.attachmentModel.getAttachmentIDs();
-		if (currentContextIds.has(imageContext.id)) {
-			return;
-		}
-
 		widget.attachmentModel.addContext(imageContext);
 
 		return;

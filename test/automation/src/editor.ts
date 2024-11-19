@@ -78,10 +78,10 @@ export class Editor {
 	async waitForEditorFocus(filename: string, lineNumber: number, selectorPrefix = ''): Promise<void> {
 		const editor = [selectorPrefix || '', EDITOR(filename)].join(' ');
 		const line = `${editor} .view-lines > .view-line:nth-child(${lineNumber})`;
-		const textarea = `${editor} textarea`;
+		const editContext = `${editor} .native-edit-context`;
 
 		await this.code.waitAndClick(line, 1, 1);
-		await this.code.waitForActiveElement(textarea);
+		await this.code.waitForActiveElement(editContext);
 	}
 
 	async waitForTypeInEditor(filename: string, text: string, selectorPrefix = ''): Promise<any> {
@@ -92,10 +92,10 @@ export class Editor {
 
 		await this.code.waitForElement(editor);
 
-		const textarea = `${editor} textarea`;
-		await this.code.waitForActiveElement(textarea);
+		const editContext = `${editor} .native-edit-context`;
+		await this.code.waitForActiveElement(editContext);
 
-		await this.code.waitForTypeInEditor(textarea, text);
+		await this.code.waitForTypeInEditor(editContext, text);
 
 		await this.waitForEditorContents(filename, c => c.indexOf(text) > -1, selectorPrefix);
 	}

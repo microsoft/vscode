@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
-import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ITextModel } from '../../../../../editor/common/model.js';
-import { CellKind } from '../../common/notebookCommon.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
+import { IReference, ReferenceCollection } from '../../../../../../base/common/lifecycle.js';
+import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { CellKind } from '../../../common/notebookCommon.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
 
 
 export const INotebookOriginalCellModelFactory = createDecorator<INotebookOriginalCellModelFactory>('INotebookOriginalCellModelFactory');

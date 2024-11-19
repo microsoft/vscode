@@ -496,6 +496,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	left: 0;
 	width: 100%;
 	height: 100%;
+	box-sizing: border-box;
 
 	display: none;
 }
@@ -535,6 +536,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-editing-session {
 	margin-bottom: -4px;
 	width: 100%;
+	position: relative;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container {
@@ -703,6 +705,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	gap: 4px;
 	align-items: center;
+	position: relative;
 }
 
 .interactive-session .chat-input-container.focused {

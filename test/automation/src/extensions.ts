@@ -5,11 +5,11 @@
 
 import { Viewlet } from './viewlet';
 import { Code } from './code';
-import path = require('path');
-import fs = require('fs');
 import { ncp } from 'ncp';
 import { promisify } from 'util';
 import { Commands } from './workbench';
+import path = require('path');
+import fs = require('fs');
 
 
 export class Extensions extends Viewlet {
@@ -20,7 +20,7 @@ export class Extensions extends Viewlet {
 
 	async searchForExtension(id: string): Promise<any> {
 		await this.commands.runCommand('Extensions: Focus on Extensions View', { exactLabelMatch: true });
-		await this.code.waitForTypeInEditor('div.extensions-viewlet[id="workbench.view.extensions"] .monaco-editor textarea', `@id:${id}`);
+		await this.code.waitForTypeInEditor('div.extensions-viewlet[id="workbench.view.extensions"] .monaco-editor .native-edit-context', `@id:${id}`);
 		await this.code.waitForTextContent(`div.part.sidebar div.composite.title h2`, 'Extensions: Marketplace');
 
 		let retrials = 1;

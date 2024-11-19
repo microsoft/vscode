@@ -425,6 +425,10 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		pass.setPipeline(this._pipeline);
 		pass.setVertexBuffer(0, this._vertexBuffer);
 
+		// Only draw the content area
+		const contentLeft = Math.ceil(this._contentLeftObs.get() * this._viewGpuContext.devicePixelRatio.get());
+		pass.setScissorRect(contentLeft, 0, this.canvas.width - contentLeft, this.canvas.height);
+
 		pass.setBindGroup(0, this._bindGroup);
 
 		if (this._renderStrategy?.draw) {

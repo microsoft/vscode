@@ -8,7 +8,7 @@ import { IElement } from './driver';
 import { findElement, findElements, Code } from './code';
 
 const VIEWLET = 'div[id="workbench.view.scm"]';
-const SCM_INPUT = `${VIEWLET} .scm-editor textarea`;
+const SCM_INPUT = `${VIEWLET} .scm-editor .native-edit-context`;
 const SCM_RESOURCE = `${VIEWLET} .monaco-list-row .resource`;
 const REFRESH_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[aria-label="Refresh"]`;
 const COMMIT_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[aria-label="Commit"]`;

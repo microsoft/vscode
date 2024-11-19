@@ -37,15 +37,7 @@ export class ChatImageDropAndPaste extends Disposable {
 			return;
 		}
 
-		const currentContextIds = this.inputPart.attachmentModel.getAttachmentIDs();
-		const filteredContext = [];
-
-		if (!currentContextIds.has(context.id)) {
-			currentContextIds.add(context.id);
-			filteredContext.push(context);
-		}
-
-		this.inputPart.attachmentModel.addContext(...filteredContext);
+		this.inputPart.attachmentModel.addContext(context);
 	}
 }
 

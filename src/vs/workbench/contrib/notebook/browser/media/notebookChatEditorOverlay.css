@@ -23,7 +23,7 @@
 	border: 1px solid var(--vscode-contrastBorder);
 	display: flex;
 	align-items: center;
-	z-index: 10;
+	z-index: 30;
 }
 
 .notebook-chat-editor-overlay-widget .chat-editor-overlay-progress {
