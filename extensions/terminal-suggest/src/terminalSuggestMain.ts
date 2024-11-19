@@ -85,11 +85,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			let result: vscode.TerminalCompletionItem[] = [];
-
 			const specs = [codeCompletionSpec, codeInsidersCompletionSpec];
 			for (const spec of specs) {
 				const specName = getLabel(spec);
-				if (!specName) {
+				if (!specName || !availableCommands.has(specName)) {
 					continue;
 				}
 				if (terminalContext.commandLine.startsWith(specName)) {
