@@ -7,6 +7,7 @@ import { Line } from './line.js';
 import { RangedToken } from '../../rangedToken.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Position } from '../../../../../editor/common/core/position.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 
 /**
  * A token that represent a `new line` with a `range`. The `range`
@@ -17,6 +18,8 @@ export class NewLine extends RangedToken {
 	 * The underlying symbol of the `NewLine` token.
 	 */
 	public static readonly symbol: string = '\n';
+	// TODO: @legomushroom
+	public static readonly byte = VSBuffer.fromString(NewLine.symbol);
 
 	/**
 	 * Create new `NewLine` token with range inside

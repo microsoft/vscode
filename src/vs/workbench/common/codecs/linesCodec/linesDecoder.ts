@@ -38,68 +38,61 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 	protected override onStreamData(chunk: VSBuffer): void {
 		this.buffer = VSBuffer.concat([this.buffer, chunk]);
 
-		this.processData(this.buffer, false);
+		this.processData(false);
 	}
 
 	/**
 	 * Process provided data.
 	 *
-	 * @param data The data to process.
 	 * @param streamEnded Flag that indicates if the input stream has ended,
 	 * 					  which means that is the last call of this method.
+	 * @throws If internal logic implementation error is detected.
 	 */
 	private processData(
-		data: VSBuffer,
 		streamEnded: boolean,
-	): void {
-		// get previous emitted line number, if any
-		const lastLineNumber = this.lastEmittedLine
-			? this.lastEmittedLine.range.startLineNumber
-			: 0;
+	) {
+		// iterate over each line of the data buffer, emitting each line
+		// as a `Line` token followed by a `NewLine` token, if applies
+		while (this.buffer.byteLength > 0) {
+			// get line number based on a previously emitted line, if any
+			const lineNumber = this.lastEmittedLine
+				? this.lastEmittedLine.range.startLineNumber + 1
+				: 1;
 
-		// split existing received data into a list of lines
-		// Note! we are doing `toString().split()` here with the assumption that
-		// 		 the `split()` method is faster than interating over the buffer
-		//       because it is inmplemented in `C`, otherwise it would make more
-		// 		 sense to implement the explicit iteration logic over here
-		const lines = data.toString().split(NewLine.symbol);
+			// find the newline symbol in the data, if any
+			const newLineIndex = this.buffer.indexOf(NewLine.byte);
 
-		// iterate over all lines, emitting `line` objects for each of them,
-		// then shorten the `currentChunk` buffer value accordingly
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-			const maybeNextLine = lines[i + 1];
+			// no newline symbol found in the data, stop processing because we
+			// either (1)need more data to arraive or (2)the stream has ended
+			// in the case (2) remaining data must be emitted as the last line
+			if (newLineIndex < 0) {
+				// if `streamEnded`, we need to emit the whole remaining
+				// data as the last line immediately
+				if (streamEnded) {
+					this.emitLine(lineNumber, this.buffer.slice(0));
+				}
 
-			// current line number is the last emitted line number plus one
-			// plus the current line index in the lines list
-			const lineNumber = lastLineNumber + 1 + i;
-
-			// the line is not empty and there is a next line present, then we
-			// can emit the current line because we know that it's a full line
-			if (maybeNextLine !== undefined) {
-				this.emitLine(lineNumber, line);
-				this.emitNewLine();
-
-				continue;
+				break;
 			}
 
-			// unless `streamEnded` is `true`, in which case we need to emit
-			// the remaining data as the last line immediately
-			if (streamEnded) {
-				this.emitLine(lineNumber, line);
+			// emit the line found in the data as the `Line` token
+			this.emitLine(lineNumber, this.buffer.slice(0, newLineIndex));
 
-				continue;
-			}
-
-			// there is no next line, hence we don't know if the `line` is a "full"
-			// line yet, so we need to wait for some more data to arrive to be sure;
-			// this can happen only for the last line in the chunk, so assert that here
-			assert(
-				i === lines.length - 1,
-				`The loop must break only on the last line in the chunk, did on ${i}th iteration instead.`,
+			// must always hold true as the `emitLine` above sets this
+			assertDefined(
+				this.lastEmittedLine,
+				'No last emitted line found.',
 			);
 
-			break;
+			// emit `NewLine` token for the newline symbol found in the data
+			this._onData.fire(
+				NewLine.newOnLine(
+					this.lastEmittedLine,
+					this.lastEmittedLine.range.endColumn,
+				),
+			);
+			// shorten the data buffer by the length of the newline symbol
+			this.buffer = this.buffer.slice(NewLine.byte.byteLength);
 		}
 
 		// if the stream has ended, assert that the input data buffer is now empty
@@ -113,56 +106,22 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 	}
 
 	/**
-	 * Emit a provided line to the output stream then
-	 * shorten the `currentChunk` buffer accordingly.
+	 * Emit a provided line as the `Line` token to the output stream.
 	 */
 	private emitLine(
 		lineNumber: number, // Note! 1-based indexing
-		lineText: string,
+		lineBytes: VSBuffer,
 	): void {
-		const lineByteLength = VSBuffer.fromString(lineText).byteLength;
-		// assert that the buffer has enough data, otherwise
-		// there is an logic error in the data processing
-		assert(
-			this.buffer.byteLength >= lineByteLength,
-			[
-				'Not enough data in the input data buffer to emit the line',
-				`(line length: ${lineByteLength}, buffer length: ${this.buffer.byteLength}).`,
-			].join(' '),
-		);
 
-		const line = new Line(lineNumber, lineText);
+		const line = new Line(lineNumber, lineBytes.toString());
 		this._onData.fire(line);
 
 		// store the last emitted line so we can use it when we need
 		// to send the remaining line in the `onStreamEnd` method
 		this.lastEmittedLine = line;
 
-		// remove line-length of data from the buffer
-		this.buffer = this.buffer.slice(lineByteLength);
-	}
-
-	/**
-	 * Emit a `NewLine` token.
-	 */
-	private emitNewLine(): void {
-		// there must always be a last emitted line when we send a `newline`
-		// even if an input source starts with a `\n`, we should have emitted
-		// an empty line before before this point
-		assertDefined(
-			this.lastEmittedLine,
-			'No last emitted line found.',
-		);
-
-		this._onData.fire(
-			NewLine.newOnLine(
-				this.lastEmittedLine,
-				this.lastEmittedLine.range.endColumn,
-			),
-		);
-
-		// remove the newline symbol from the input data buffer
-		this.buffer = this.buffer.slice(NewLine.symbol.length);
+		// shorten the data buffer by the length of the line emitted
+		this.buffer = this.buffer.slice(lineBytes.byteLength);
 	}
 
 	/**
@@ -170,11 +129,10 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 	 * emit it as the last available line token before firing the `onEnd` event.
 	 */
 	protected override onStreamEnd(): void {
-		// if the input data buffer is not empty when the input stream ends,
-		// emit the remaining data as the last line before firing the `onEnd`
-		// event on this stream
+		// if the input data buffer is not empty when the input stream ends, emit
+		// the remaining data as the last line before firing the `onEnd` event
 		if (this.buffer.byteLength > 0) {
-			this.processData(this.buffer, true);
+			this.processData(true);
 		}
 
 		super.onStreamEnd();
