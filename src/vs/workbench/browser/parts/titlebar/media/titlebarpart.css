@@ -460,8 +460,12 @@
 	color: var(--vscode-titleBar-inactiveForeground);
 }
 
-/* MEMBRANE customizations*/
-/* Top-left Logo */
+/* MEMBRANE: Since we move the layout controls to the center, separate it from the command center */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center {
+	gap: 10px;
+}
+
+/* MEMBRANE: Top-left Logo */
 .membrane-appicon {
 	padding-top: 9px;
 	padding-left: 10px;
@@ -472,69 +476,8 @@
 	order: 1;
 }
 
-/* Logo SVG */
+/* MEMBRANE: Logo SVG */
 .membrane-appicon svg path {
 	fill: var(--vscode-titleBar-activeBackground);
 	stroke: var(--vscode-titleBar-activeForeground);
-}
-
-.membrane-package-search,
-.membrane-new-program {
-	z-index: 2500;
-	flex-shrink: 0;
-	order: 1;
-	border-radius: 3px;
-	white-space: nowrap;
-	padding: 0px 8px;
-	font-size: 10px;
-	text-transform: uppercase;
-	margin-right: 4px;
-	font-weight: 500;
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	cursor: pointer;
-}
-
-/* Find Programs Button */
-.membrane-package-search {
-	font-weight: 400;
-	color: var(--vscode-titleBar-activeForeground);
-	border-width: 1px;
-	border-style: solid;
-	border-color: transparent;
-}
-
-/* New Program Button */
-.membrane-new-program {
-	border: 1px solid var(--vscode-titleBar-activeForeground);
-	background-color: transparent;
-	color: var(--vscode-titleBar-activeForeground);
-	font-weight: 500;
-}
-
-/* Button icons (phosphor) */
-.membrane-new-program svg,
-.membrane-package-search svg {
-	fill: var(--vscode-titleBar-activeForeground);
-}
-
-.membrane-package-search:hover,
-.membrane-new-program:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-titleBar-activeForeground);
-}
-
-.membrane-package-search:active,
-.membrane-new-program:active {
-	border-width: 1px;
-	border-style: solid;
-	color: var(--vscode-commandCenter-activeForeground);
-	background-color: var(--vscode-commandCenter-activeBackground);
-	border-color: var(--vscode-commandCenter-activeBorder);
-}
-
-/* Since we move the layout controls to the center, separate it from the command center */
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center {
-	gap: 10px;
 }

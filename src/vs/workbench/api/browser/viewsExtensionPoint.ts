@@ -417,7 +417,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		containers.forEach(descriptor => {
 			const themeIcon = ThemeIcon.fromString(descriptor.icon);
 
-			// MEMBRANE: move Packages to auxiliary bar (right-side bar)
+			// MEMBRANE: move Program Overview to auxiliary bar (right-side bar)
 			const overridenLocation = descriptor.id === 'membraneAuxContainer' ? ViewContainerLocation.AuxiliaryBar : location;
 
 			const icon = themeIcon || resources.joinPath(extension.extensionLocation, descriptor.icon);

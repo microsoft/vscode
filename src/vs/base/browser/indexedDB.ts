@@ -232,7 +232,7 @@ function isMembraneKey(key: any): boolean {
 	const MEMBRANE_KEYS = [
 		'memento/webviewView.membrane.logs',
 		'memento/webviewView.membrane.navigator',
-		'memento/webviewView.membrane.packages',
+		'memento/webviewView.membrane.program',
 		'/User/settings.json'
 	];
 	return MEMBRANE_KEYS.includes(key);
