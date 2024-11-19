@@ -38,6 +38,7 @@ import { IChatViewsWelcomeContributionRegistry, ChatViewsWelcomeExtensions } fro
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { getActiveElement } from '../../../../base/browser/dom.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -424,6 +425,7 @@ class ChatSetupInstallAction extends Action2 {
 		const chatAgentService = accessor.get(IChatAgentService);
 
 		const setupInstallingContextKey = ChatContextKeys.ChatSetup.installing.bindTo(contextKeyService);
+		const activeElement = getActiveElement();
 
 		let installResult: 'installed' | 'cancelled' | 'failedInstall';
 		try {
@@ -447,7 +449,9 @@ class ChatSetupInstallAction extends Action2 {
 
 		setupInstallingContextKey.reset();
 
-		(await showChatView(viewsService))?.focusInput();
+		if (activeElement === getActiveElement()) {
+			(await showChatView(viewsService))?.focusInput();
+		}
 	}
 }
 
