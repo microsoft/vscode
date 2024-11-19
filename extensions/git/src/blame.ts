@@ -10,6 +10,8 @@ import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation } from './git';
 
+const notCommittedYetId = '0000000000000000000000000000000000000000';
+
 function isLineChanged(lineNumber: number, changes: readonly TextEditorDiff[]): boolean {
 	for (const change of changes) {
 		// If the change is a delete, skip it
@@ -157,7 +159,7 @@ export class GitBlameController {
 		for (const lineNumber of textEditor.selections.map(s => s.active.line)) {
 			// Check if the line is in an add/edit change
 			if (isLineChanged(lineNumber + 1, diffInformation.diff)) {
-				decorations.push(this._createDecoration(lineNumber, l10n.t('Uncommitted change')));
+				decorations.push(this._createDecoration(lineNumber, l10n.t('Not Committed Yet')));
 				continue;
 			}
 
@@ -170,8 +172,12 @@ export class GitBlameController {
 			});
 
 			if (blameInformation) {
-				const ago = fromNow(blameInformation.date ?? Date.now(), true, true);
-				decorations.push(this._createDecoration(lineNumber, `${blameInformation.message ?? ''}, ${blameInformation.authorName ?? ''} (${ago})`));
+				if (blameInformation.id === notCommittedYetId) {
+					decorations.push(this._createDecoration(lineNumber, l10n.t('Not Committed Yet')));
+				} else {
+					const ago = fromNow(blameInformation.date ?? Date.now(), true, true);
+					decorations.push(this._createDecoration(lineNumber, `${blameInformation.message ?? ''}, ${blameInformation.authorName ?? ''} (${ago})`));
+				}
 			}
 		}
 
