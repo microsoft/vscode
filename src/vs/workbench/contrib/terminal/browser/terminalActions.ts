@@ -1466,8 +1466,7 @@ function getSelectedInstances(accessor: ServicesAccessor, args?: unknown, args2?
 	const list = listService.lastFocusedList;
 	// Get selected tab list instance(s)
 	const selections = list?.getSelection();
-	// Get inline tab instance if there are not tab list selections #196578
-	if (terminalGroupService.lastAccessedMenu === 'inline-tab' && !selections?.length) {
+	if (terminalGroupService.lastAccessedMenu === 'inline-tab') {
 		const instance = terminalGroupService.activeInstance;
 		return instance ? [terminalGroupService.activeInstance] : undefined;
 	}
