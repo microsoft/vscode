@@ -26,6 +26,7 @@ import { IChatRequestVariableValue, IChatVariablesService, IDynamicVariable } fr
 import { ChatDynamicVariable } from './chatDynamicVariable.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
@@ -45,6 +46,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		private readonly widget: IChatWidget,
 		@ILabelService private readonly labelService: ILabelService,
 		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
 		super();
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
@@ -106,16 +108,20 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		this.updateVariableDecorations();
 		this.widget.refreshParsedInput();
 
-		// subscibe to variable changes
-		this._register(variable.onUpdate(() => {
-			this.updateVariableTexts();
-			this.updateVariableDecorations();
-			this.widget.refreshParsedInput();
-		}));
-		// make sure the variable is updated on filesystem changes
-		variable.addFilesystemListeners();
-		// start resolving the file references
-		variable.resolve();
+		// if the `prompt snippets` feature is enabled, start resolving
+		// nested file references immediatelly and subscribe to updates
+		if (ChatDynamicVariable.promptSnippetsEnabled(this.configService)) {
+			// subscribe to variable changes
+			this._register(variable.onUpdate(() => {
+				this.updateVariableTexts();
+				this.updateVariableDecorations();
+				this.widget.refreshParsedInput();
+			}));
+			// make sure the variable is updated on filesystem changes
+			variable.addFilesystemListeners();
+			// start resolving the file references
+			variable.resolve();
+		}
 	}
 
 	/**
