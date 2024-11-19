@@ -97,8 +97,8 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 				this._outputStatusItem = this._statusbarService.addEntry(
 					statusProperties,
 					'status.showOutput',
-					StatusbarAlignment.RIGHT,										//StatusbarAlignment.LEFT,
-					{ id: 'status.notifications', alignment: StatusbarAlignment.LEFT } /* immediately left of notifications bell */	//25,
+					StatusbarAlignment.RIGHT,
+					{ id: 'status.notifications', alignment: StatusbarAlignment.LEFT },
 				);
 			} else {
 				this._outputStatusItem.update(statusProperties);
