@@ -88,7 +88,10 @@ class OpenChatGlobalAction extends Action2 {
 			title: OpenChatGlobalAction.TITLE,
 			icon: defaultChat.icon,
 			f1: true,
-			precondition: ChatContextKeys.panelParticipantRegistered,
+			precondition: ContextKeyExpr.or(
+				ChatContextKeys.Setup.installed,
+				ChatContextKeys.panelParticipantRegistered
+			),
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -508,9 +511,10 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
 		ContextKeyExpr.or(
-			ChatContextKeys.panelParticipantRegistered,
-			ChatContextKeys.ChatSetup.entitled,
-			ContextKeyExpr.has('config.chat.experimental.offerSetup')
+			ChatContextKeys.Setup.installed,
+			ChatContextKeys.Setup.entitled,
+			ContextKeyExpr.has('config.chat.experimental.offerSetup'),
+			ChatContextKeys.panelParticipantRegistered
 		)
 	),
 	order: 10001,
@@ -525,9 +529,10 @@ registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
 			ContextKeyExpr.and(
 				ContextKeyExpr.has('config.window.commandCenter'),
 				ContextKeyExpr.or(
-					ChatContextKeys.panelParticipantRegistered,
-					ChatContextKeys.ChatSetup.entitled,
-					ContextKeyExpr.has('config.chat.experimental.offerSetup')
+					ChatContextKeys.Setup.installed,
+					ChatContextKeys.Setup.entitled,
+					ContextKeyExpr.has('config.chat.experimental.offerSetup'),
+					ChatContextKeys.panelParticipantRegistered
 				)
 			)
 		);

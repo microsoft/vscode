@@ -191,22 +191,11 @@ export interface IProductConfiguration {
 
 	readonly commonlyUsedSettings?: string[];
 	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
-	readonly gitHubEntitlement?: IGitHubEntitlement;
+
+	readonly defaultChatAgent?: IDefaultChatAgent;
 	readonly chatParticipantRegistry?: string;
 
 	readonly emergencyAlertUrl?: string;
-
-	readonly defaultChatAgent?: {
-		readonly extensionId: string;
-		readonly providerId: string;
-		readonly providerName: string;
-		readonly providerScopes: string[];
-		readonly name: string;
-		readonly icon: string;
-		readonly documentationUrl: string;
-		readonly gettingStartedCommand: string;
-		readonly welcomeTitle: string;
-	};
 }
 
 export interface ITunnelApplicationConfig {
@@ -312,14 +301,20 @@ export interface IAiGeneratedWorkspaceTrust {
 	readonly startupTrustRequestLearnMore: string;
 }
 
-export interface IGitHubEntitlement {
-	providerId: string;
-	command: { title: string; titleWithoutPlaceHolder: string; action: string; when: string };
-	entitlementUrl: string;
-	extensionId: string;
-	enablementKey: string;
-	trialKey: string;
-	trialValue: string;
-	confirmationMessage: string;
-	confirmationAction: string;
+export interface IDefaultChatAgent {
+	readonly extensionId: string;
+	readonly name: string;
+	readonly icon: string;
+	readonly chatExtensionId: string;
+	readonly chatName: string;
+	readonly chatWelcomeTitle: string;
+	readonly documentationUrl: string;
+	readonly privacyStatementUrl: string;
+	readonly providerId: string;
+	readonly providerName: string;
+	readonly providerScopes: string[];
+	readonly entitlementUrl: string;
+	readonly entitlementChatEnabled: string;
+	readonly entitlementSkuKey: string;
+	readonly entitlementSku30DTrialValue: string;
 }

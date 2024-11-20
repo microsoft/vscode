@@ -30,7 +30,7 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 		super();
 
 		const hideWelcomeView = this.storageService.getBoolean(ChatGettingStartedContribution.hideWelcomeView, StorageScope.APPLICATION, false);
-		if (!this.productService.gitHubEntitlement || hideWelcomeView) {
+		if (!this.productService.defaultChatAgent || hideWelcomeView) {
 			return;
 		}
 
@@ -41,7 +41,7 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 
 		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
 			for (const e of result) {
-				if (ExtensionIdentifier.equals(this.productService.gitHubEntitlement!.extensionId, e.identifier.id) && e.operation === InstallOperation.Install) {
+				if (ExtensionIdentifier.equals(this.productService.defaultChatAgent!.extensionId, e.identifier.id) && e.operation === InstallOperation.Install) {
 					this.recentlyInstalled = true;
 					return;
 				}
@@ -50,7 +50,7 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 
 		this._register(this.extensionService.onDidChangeExtensionsStatus(async (event) => {
 			for (const ext of event) {
-				if (ExtensionIdentifier.equals(this.productService.gitHubEntitlement!.extensionId, ext.value)) {
+				if (ExtensionIdentifier.equals(this.productService.defaultChatAgent!.extensionId, ext.value)) {
 					const extensionStatus = this.extensionService.getExtensionsStatus();
 					if (extensionStatus[ext.value].activationTimes && this.recentlyInstalled) {
 						await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID);

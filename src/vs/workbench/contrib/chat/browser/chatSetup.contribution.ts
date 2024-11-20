@@ -13,11 +13,10 @@ import { IExtensionManagementService } from '../../../../platform/extensionManag
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IRequestService, asText } from '../../../../platform/request/common/request.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
-import { IGitHubEntitlement } from '../../../../base/common/product.js';
 import { timeout } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
@@ -39,17 +38,22 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { getActiveElement } from '../../../../base/browser/dom.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	name: product.defaultChatAgent?.name ?? '',
+	icon: Codicon[product.defaultChatAgent?.icon as keyof typeof Codicon ?? 'commentDiscussion'],
+	chatWelcomeTitle: product.defaultChatAgent?.chatWelcomeTitle ?? '',
+	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
+	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? '',
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	providerName: product.defaultChatAgent?.providerName ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [],
-	icon: Codicon[product.defaultChatAgent?.icon as keyof typeof Codicon ?? 'commentDiscussion'],
-	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
-	gettingStartedCommand: product.defaultChatAgent?.gettingStartedCommand ?? '',
-	welcomeTitle: product.defaultChatAgent?.welcomeTitle ?? '',
+	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
+	entitlementSkuKey: product.defaultChatAgent?.entitlementSkuKey ?? '',
+	entitlementSku30DTrialValue: product.defaultChatAgent?.entitlementSku30DTrialValue ?? '',
+	entitlementChatEnabled: product.defaultChatAgent?.entitlementChatEnabled ?? '',
 };
 
 type ChatSetupEntitlementEnablementClassification = {
@@ -75,14 +79,21 @@ type InstallChatEvent = {
 	signedIn: boolean;
 };
 
+interface IChatEntitlement {
+	readonly chatEnabled?: boolean;
+	readonly chatSku30DTrial?: boolean;
+}
+
+const UNKNOWN_CHAT_ENTITLEMENT: IChatEntitlement = {};
+
 class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
-	private readonly chatSetupSignedInContextKey = ChatContextKeys.ChatSetup.signedIn.bindTo(this.contextKeyService);
-	private readonly chatSetupEntitledContextKey = ChatContextKeys.ChatSetup.entitled.bindTo(this.contextKeyService);
+	private readonly chatSetupSignedInContextKey = ChatContextKeys.Setup.signedIn.bindTo(this.contextKeyService);
+	private readonly chatSetupEntitledContextKey = ChatContextKeys.Setup.entitled.bindTo(this.contextKeyService);
 
 	private readonly chatSetupState = this.instantiationService.createInstance(ChatSetupState);
 
-	private resolvedEntitlement: boolean | undefined = undefined;
+	private resolvedEntitlement: IChatEntitlement | undefined = undefined;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -91,90 +102,105 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		@IProductService private readonly productService: IProductService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IRequestService private readonly requestService: IRequestService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
-		const entitlement = this.productService.gitHubEntitlement;
-		if (!entitlement) {
+		if (!this.productService.defaultChatAgent) {
 			return;
 		}
 
 		this.registerChatWelcome();
 
-		this.registerEntitlementListeners(entitlement);
-		this.registerAuthListeners(entitlement);
+		this.registerEntitlementListeners();
+		this.registerAuthListeners();
 
-		this.checkExtensionInstallation(entitlement);
+		this.checkExtensionInstallation();
 	}
 
 	private registerChatWelcome(): void {
+		const header = localize('setupPreamble1', "{0} is your AI pair programmer that helps you write code faster and smarter.", defaultChat.name);
+		const footer = localize('setupPreamble2', "By proceeding you agree to the [Privacy Statement]({0}).", defaultChat.privacyStatementUrl);
 
 		// Setup: Triggered (signed-out)
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
-			title: defaultChat.welcomeTitle,
+			title: defaultChat.chatWelcomeTitle,
 			when: ContextKeyExpr.and(
-				ChatContextKeys.ChatSetup.triggered,
-				ChatContextKeys.ChatSetup.signedIn.negate(),
-				ChatContextKeys.ChatSetup.signingIn.negate(),
-				ChatContextKeys.ChatSetup.installing.negate(),
-				ChatContextKeys.extensionInvalid.negate(),
-				ChatContextKeys.panelParticipantRegistered.negate()
+				ChatContextKeys.Setup.triggered,
+				ChatContextKeys.Setup.signedIn.negate(),
+				ChatContextKeys.Setup.signingIn.negate(),
+				ChatContextKeys.Setup.installing.negate(),
+				ChatContextKeys.Setup.installed.negate()
 			)!,
 			icon: defaultChat.icon,
-			content: new MarkdownString(`${localize('setupContent', "{0} is your AI pair programmer that helps you write code faster and smarter.", defaultChat.name)}\n\n[${localize('signInAndSetup', "Sign in to use {0}", defaultChat.name)}](command:${ChatSetupSignInAndInstallChatAction.ID})\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl}) | [${localize('hideSetup', "Hide")}](command:${ChatSetupHideAction.ID} "${localize('hideSetup', "Hide")}")`, { isTrusted: true }),
+			content: new MarkdownString([
+				header,
+				`[${localize('signInAndSetup', "Sign in to use {0}", defaultChat.name)}](command:${ChatSetupSignInAndInstallChatAction.ID})`,
+				footer,
+				`[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl}) | [${localize('hideSetup', "Hide")}](command:${ChatSetupHideAction.ID} "${localize('hideSetup', "Hide")}")`,
+			].join('\n\n'), { isTrusted: true }),
 		});
 
 		// Setup: Triggered (signed-in)
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
-			title: defaultChat.welcomeTitle,
+			title: defaultChat.chatWelcomeTitle,
 			when: ContextKeyExpr.and(
-				ChatContextKeys.ChatSetup.triggered,
-				ChatContextKeys.ChatSetup.signedIn,
-				ChatContextKeys.ChatSetup.signingIn.negate(),
-				ChatContextKeys.ChatSetup.installing.negate(),
-				ChatContextKeys.extensionInvalid.negate(),
-				ChatContextKeys.panelParticipantRegistered.negate()
+				ChatContextKeys.Setup.triggered,
+				ChatContextKeys.Setup.signedIn,
+				ChatContextKeys.Setup.signingIn.negate(),
+				ChatContextKeys.Setup.installing.negate(),
+				ChatContextKeys.Setup.installed.negate()
 			)!,
 			icon: defaultChat.icon,
-			content: new MarkdownString(`${localize('setupContent', "{0} is your AI pair programmer that helps you write code faster and smarter.", defaultChat.name)}\n\n[${localize('setup', "Install {0}", defaultChat.name)}](command:${ChatSetupInstallAction.ID})\n\n[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl}) | [${localize('hideSetup', "Hide")}](command:${ChatSetupHideAction.ID} "${localize('hideSetup', "Hide")}")`, { isTrusted: true }),
+			content: new MarkdownString([
+				header,
+				`[${localize('setup', "Install {0}", defaultChat.name)}](command:${ChatSetupInstallAction.ID})`,
+				footer,
+				`[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl}) | [${localize('hideSetup', "Hide")}](command:${ChatSetupHideAction.ID} "${localize('hideSetup', "Hide")}")`,
+			].join('\n\n'), { isTrusted: true })
 		});
 
 		// Setup: Signing-in
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
-			title: defaultChat.welcomeTitle,
+			title: defaultChat.chatWelcomeTitle,
 			when: ContextKeyExpr.and(
-				ChatContextKeys.ChatSetup.signingIn,
-				ChatContextKeys.extensionInvalid.negate(),
-				ChatContextKeys.panelParticipantRegistered.negate()
+				ChatContextKeys.Setup.signingIn,
+				ChatContextKeys.Setup.installed.negate()
 			)!,
 			icon: defaultChat.icon,
 			progress: localize('setupChatSigningIn', "Signing in to {0}...", defaultChat.providerName),
-			content: new MarkdownString(`${localize('setupContent', "{0} is your AI pair programmer that helps you write code faster and smarter.", defaultChat.name)}`, { isTrusted: true }),
+			content: new MarkdownString([
+				header,
+				footer,
+				`[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`,
+			].join('\n\n'), { isTrusted: true }),
 		});
 
 		// Setup: Installing
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
-			title: defaultChat.welcomeTitle,
-			when: ChatContextKeys.ChatSetup.installing,
+			title: defaultChat.chatWelcomeTitle,
+			when: ChatContextKeys.Setup.installing,
 			icon: defaultChat.icon,
 			progress: localize('setupChatInstalling', "Setting up Chat for you..."),
-			content: new MarkdownString(`${localize('setupContent', "{0} is your AI pair programmer that helps you write code faster and smarter.", defaultChat.name)}`, { isTrusted: true }),
+			content: new MarkdownString([
+				header,
+				footer,
+				`[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`,
+			].join('\n\n'), { isTrusted: true }),
 		});
 	}
 
-	private registerEntitlementListeners(entitlement: IGitHubEntitlement): void {
+	private registerEntitlementListeners(): void {
 		this._register(this.extensionService.onDidChangeExtensions(result => {
 			for (const extension of result.removed) {
-				if (ExtensionIdentifier.equals(entitlement.extensionId, extension.identifier)) {
+				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
 					this.chatSetupState.update({ chatInstalled: false });
 					break;
 				}
 			}
 
 			for (const extension of result.added) {
-				if (ExtensionIdentifier.equals(entitlement.extensionId, extension.identifier)) {
+				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
 					this.chatSetupState.update({ chatInstalled: true });
 					break;
 				}
@@ -182,9 +208,9 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(e => {
-			if (e.providerId === entitlement.providerId) {
+			if (e.providerId === defaultChat.providerId) {
 				if (e.event.added?.length) {
-					this.resolveEntitlement(entitlement, e.event.added[0]);
+					this.resolveEntitlement(e.event.added[0]);
 				} else if (e.event.removed?.length) {
 					this.chatSetupEntitledContextKey.set(false);
 				}
@@ -192,20 +218,20 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		}));
 
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(async e => {
-			if (e.id === entitlement.providerId) {
-				this.resolveEntitlement(entitlement, (await this.authenticationService.getSessions(e.id))[0]);
+			if (e.id === defaultChat.providerId) {
+				this.resolveEntitlement((await this.authenticationService.getSessions(e.id))[0]);
 			}
 		}));
 	}
 
-	private registerAuthListeners(entitlement: IGitHubEntitlement): void {
+	private registerAuthListeners(): void {
 		const hasProviderSessions = async () => {
-			const sessions = await this.authenticationService.getSessions(entitlement.providerId);
+			const sessions = await this.authenticationService.getSessions(defaultChat.providerId);
 			return sessions.length > 0;
 		};
 
 		const handleDeclaredAuthProviders = async () => {
-			if (this.authenticationService.declaredProviders.find(p => p.id === entitlement.providerId)) {
+			if (this.authenticationService.declaredProviders.find(p => p.id === defaultChat.providerId)) {
 				this.chatSetupSignedInContextKey.set(await hasProviderSessions());
 			}
 		};
@@ -215,73 +241,99 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		handleDeclaredAuthProviders();
 
 		this._register(this.authenticationService.onDidChangeSessions(async ({ providerId }) => {
-			if (providerId === entitlement.providerId) {
+			if (providerId === defaultChat.providerId) {
 				this.chatSetupSignedInContextKey.set(await hasProviderSessions());
 			}
 		}));
 	}
 
-	private async resolveEntitlement(entitlement: IGitHubEntitlement, session: AuthenticationSession | undefined): Promise<void> {
+	private async resolveEntitlement(session: AuthenticationSession | undefined): Promise<void> {
 		if (!session) {
 			return;
 		}
 
-		const entitled = await this.doResolveEntitlement(entitlement, session);
-		this.chatSetupEntitledContextKey.set(entitled);
+		const entitlement = await this.doResolveEntitlement(session);
+		this.chatSetupEntitledContextKey.set(!!entitlement.chatEnabled);
 	}
 
-	private async doResolveEntitlement(entitlement: IGitHubEntitlement, session: AuthenticationSession): Promise<boolean> {
-		if (typeof this.resolvedEntitlement === 'boolean') {
+	private async doResolveEntitlement(session: AuthenticationSession): Promise<IChatEntitlement> {
+		if (this.resolvedEntitlement) {
 			return this.resolvedEntitlement;
 		}
 
 		const cts = new CancellationTokenSource();
 		this._register(toDisposable(() => cts.dispose(true)));
 
-		let context: IRequestContext;
-		try {
-			context = await this.requestService.request({
-				type: 'GET',
-				url: entitlement.entitlementUrl,
-				headers: {
-					'Authorization': `Bearer ${session.accessToken}`
-				}
-			}, cts.token);
-		} catch (error) {
-			return false;
+		const context = await this.instantiationService.invokeFunction(accessor => ChatSetupRequestHelper.request(accessor, defaultChat.entitlementUrl, 'GET', session, cts.token));
+		if (!context) {
+			return UNKNOWN_CHAT_ENTITLEMENT;
 		}
 
 		if (context.res.statusCode && context.res.statusCode !== 200) {
-			return false;
+			return UNKNOWN_CHAT_ENTITLEMENT;
 		}
 
 		const result = await asText(context);
 		if (!result) {
-			return false;
+			return UNKNOWN_CHAT_ENTITLEMENT;
 		}
 
 		let parsedResult: any;
 		try {
 			parsedResult = JSON.parse(result);
 		} catch (err) {
-			return false; //ignore
+			return UNKNOWN_CHAT_ENTITLEMENT;
 		}
 
-		this.resolvedEntitlement = Boolean(parsedResult[entitlement.enablementKey]);
-		const trial = parsedResult[entitlement.trialKey] === entitlement.trialValue;
+		this.resolvedEntitlement = {
+			chatEnabled: Boolean(parsedResult[defaultChat.entitlementChatEnabled]),
+			chatSku30DTrial: parsedResult[defaultChat.entitlementSkuKey] === defaultChat.entitlementSku30DTrialValue
+		};
+
 		this.telemetryService.publicLog2<ChatSetupEntitlementEnablementEvent, ChatSetupEntitlementEnablementClassification>('chatInstallEntitlement', {
-			entitled: this.resolvedEntitlement,
-			trial
+			entitled: !!this.resolvedEntitlement.chatEnabled,
+			trial: !!this.resolvedEntitlement.chatSku30DTrial
 		});
 
 		return this.resolvedEntitlement;
 	}
 
-	private async checkExtensionInstallation(entitlement: IGitHubEntitlement): Promise<void> {
+	private async checkExtensionInstallation(): Promise<void> {
 		const extensions = await this.extensionManagementService.getInstalled();
 
-		const chatInstalled = !!extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, entitlement.extensionId));
+		const chatInstalled = !!extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
 		this.chatSetupState.update({ chatInstalled });
+	}
+}
+
+class ChatSetupRequestHelper {
+
+	static async request(accessor: ServicesAccessor, url: string, type: 'GET' | 'POST', session: AuthenticationSession | undefined, token: CancellationToken): Promise<IRequestContext | undefined> {
+		const requestService = accessor.get(IRequestService);
+		const logService = accessor.get(ILogService);
+		const authenticationService = accessor.get(IAuthenticationService);
+
+		try {
+			if (!session) {
+				session = (await authenticationService.getSessions(defaultChat.providerId))[0];
+			}
+
+			if (!session) {
+				throw new Error('ChatSetupRequestHelper: No session found for provider');
+			}
+
+			return await requestService.request({
+				type,
+				url,
+				headers: {
+					'Authorization': `Bearer ${session.accessToken}`
+				}
+			}, token);
+		} catch (error) {
+			logService.error(error);
+
+			return undefined;
+		}
 	}
 }
 
@@ -290,7 +342,8 @@ class ChatSetupState {
 	private static readonly CHAT_SETUP_TRIGGERD = 'chat.setupTriggered';
 	private static readonly CHAT_EXTENSION_INSTALLED = 'chat.extensionInstalled';
 
-	private readonly chatSetupTriggeredContext = ChatContextKeys.ChatSetup.triggered.bindTo(this.contextKeyService);
+	private readonly chatSetupTriggeredContext = ChatContextKeys.Setup.triggered.bindTo(this.contextKeyService);
+	private readonly chatSetupInstalledContext = ChatContextKeys.Setup.installed.bindTo(this.contextKeyService);
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -305,6 +358,7 @@ class ChatSetupState {
 	update(context: { triggered?: boolean; chatInstalled?: boolean }): void {
 		if (typeof context.chatInstalled === 'boolean') {
 			this.storageService.store(ChatSetupState.CHAT_EXTENSION_INSTALLED, context.chatInstalled, StorageScope.PROFILE, StorageTarget.MACHINE);
+			this.storageService.store(ChatSetupState.CHAT_SETUP_TRIGGERD, true, StorageScope.PROFILE, StorageTarget.MACHINE); // allows to fallback to setup view if the extension is uninstalled
 		}
 
 		if (typeof context.triggered === 'boolean') {
@@ -330,6 +384,7 @@ class ChatSetupState {
 		}
 
 		this.chatSetupTriggeredContext.set(showChatSetup);
+		this.chatSetupInstalledContext.set(chatInstalled);
 	}
 }
 
@@ -402,21 +457,18 @@ class ChatSetupInstallAction extends Action2 {
 				group: 'a_open',
 				order: 0,
 				when: ContextKeyExpr.and(
-					ChatContextKeys.panelParticipantRegistered.negate(),
-					ContextKeyExpr.or(
-						ChatContextKeys.ChatSetup.entitled,
-						ChatContextKeys.ChatSetup.signedIn
-					)
+					ChatContextKeys.Setup.signedIn,
+					ChatContextKeys.Setup.installed.negate()
 				)
 			}
 		});
 	}
 
 	override run(accessor: ServicesAccessor): Promise<void> {
-		return ChatSetupInstallAction.install(accessor, false);
+		return ChatSetupInstallAction.install(accessor, undefined);
 	}
 
-	static async install(accessor: ServicesAccessor, signedIn: boolean) {
+	static async install(accessor: ServicesAccessor, session: AuthenticationSession | undefined) {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const productService = accessor.get(IProductService);
 		const telemetryService = accessor.get(ITelemetryService);
@@ -424,7 +476,8 @@ class ChatSetupInstallAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const chatAgentService = accessor.get(IChatAgentService);
 
-		const setupInstallingContextKey = ChatContextKeys.ChatSetup.installing.bindTo(contextKeyService);
+		const signedIn = !!session;
+		const setupInstallingContextKey = ChatContextKeys.Setup.installing.bindTo(contextKeyService);
 		const activeElement = getActiveElement();
 
 		let installResult: 'installed' | 'cancelled' | 'failedInstall';
@@ -445,7 +498,7 @@ class ChatSetupInstallAction extends Action2 {
 
 		telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signedIn });
 
-		await Promise.race([timeout(2000), Event.toPromise(chatAgentService.onDidChangeAgents)]); // reduce flicker (https://github.com/microsoft/vscode-copilot/issues/9274)
+		await Promise.race([timeout(5000), Event.toPromise(chatAgentService.onDidChangeAgents)]); // reduce flicker (https://github.com/microsoft/vscode-copilot/issues/9274)
 
 		setupInstallingContextKey.reset();
 
@@ -470,9 +523,8 @@ class ChatSetupSignInAndInstallChatAction extends Action2 {
 				group: 'a_open',
 				order: 0,
 				when: ContextKeyExpr.and(
-					ChatContextKeys.panelParticipantRegistered.negate(),
-					ChatContextKeys.ChatSetup.entitled.negate(),
-					ChatContextKeys.ChatSetup.signedIn.negate()
+					ChatContextKeys.Setup.signedIn.negate(),
+					ChatContextKeys.Setup.installed.negate()
 				)
 			}
 		});
@@ -484,11 +536,8 @@ class ChatSetupSignInAndInstallChatAction extends Action2 {
 		const telemetryService = accessor.get(ITelemetryService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		const viewsService = accessor.get(IViewsService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
 
-		const hideSecondarySidebar = !layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-
-		const setupSigningInContextKey = ChatContextKeys.ChatSetup.signingIn.bindTo(contextKeyService);
+		const setupSigningInContextKey = ChatContextKeys.Setup.signingIn.bindTo(contextKeyService);
 
 		let session: AuthenticationSession | undefined;
 		try {
@@ -502,11 +551,8 @@ class ChatSetupSignInAndInstallChatAction extends Action2 {
 		}
 
 		if (session) {
-			instantiationService.invokeFunction(accessor => ChatSetupInstallAction.install(accessor, true));
+			instantiationService.invokeFunction(accessor => ChatSetupInstallAction.install(accessor, session));
 		} else {
-			if (hideSecondarySidebar) {
-				layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
-			}
 			telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', signedIn: false });
 		}
 	}
