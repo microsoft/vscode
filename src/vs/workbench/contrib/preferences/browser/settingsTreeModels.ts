@@ -822,10 +822,6 @@ function isObjectSetting({
 		return false;
 	}
 
-	if (key === AllowedExtensionsConfigKey) {
-		return true;
-	}
-
 	// object can have any shape
 	if (
 		isUndefinedOrNull(objectProperties) &&
