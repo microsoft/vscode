@@ -88,61 +88,71 @@ export async function activate(context: vscode.ExtensionContext) {
 			let result: vscode.TerminalCompletionItem[] = [];
 			const specs = [codeCompletionSpec, codeInsidersCompletionSpec];
 			for (const spec of specs) {
-				const specName = getLabel(spec);
-				if (!specName || !availableCommands.has(specName)) {
+				const specLabel = getLabel(spec);
+				if (!specLabel) {
 					continue;
 				}
-				if (terminalContext.commandLine.startsWith(specName)) {
-					if ('options' in codeInsidersCompletionSpec && codeInsidersCompletionSpec.options) {
-						for (const option of codeInsidersCompletionSpec.options) {
-							const optionLabel = getLabel(option);
-							if (!optionLabel) {
-								continue;
-							}
-
-							if (optionLabel.startsWith(prefix) || (prefix.length > specName.length && prefix.trim() === specName)) {
-								result.push(createCompletionItem(terminalContext.cursorPosition, prefix, optionLabel, option.description, false, vscode.TerminalCompletionItemKind.Flag));
-							}
-							if (!option.args) {
-								continue;
-							}
-							// TODO: handle multiple args / they may have multiple names
-							const args = asArray(option.args);
-							for (const arg of args) {
-								if (!arg) {
+				for (const specName of specLabel) {
+					if (!availableCommands.has(specName)) {
+						continue;
+					}
+					if (terminalContext.commandLine.startsWith(specName)) {
+						if ('options' in codeInsidersCompletionSpec && codeInsidersCompletionSpec.options) {
+							for (const option of codeInsidersCompletionSpec.options) {
+								const optionLabels = getLabel(option);
+								if (!optionLabels) {
 									continue;
 								}
-								const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
-								const expectedText = `${specName} ${optionLabel} `;
-								if (!precedingText.includes(expectedText)) {
-									continue;
-								}
-								if (arg.template) {
-									if (arg.template === 'filepaths') {
-										if (precedingText.includes(expectedText)) {
-											filesRequested = true;
-										}
-									} else if (arg.template === 'folders') {
-										if (precedingText.includes(expectedText)) {
-											foldersRequested = true;
-										}
+								for (const optionLabel of optionLabels) {
+									if (optionLabel.startsWith(prefix) || (prefix.length > specName.length && prefix.trim() === specName)) {
+										result.push(createCompletionItem(terminalContext.cursorPosition, prefix, optionLabel, option.description, false, vscode.TerminalCompletionItemKind.Flag));
 									}
-								}
-								if (arg.suggestions?.length) {
-									// there are specific suggestions to show
-									result = [];
-									const indexOfPrecedingText = terminalContext.commandLine.lastIndexOf(expectedText);
-									const currentPrefix = precedingText.slice(indexOfPrecedingText + expectedText.length);
-									for (const suggestion of arg.suggestions) {
-										const suggestionLabel = getLabel(suggestion);
-										if (suggestionLabel && suggestionLabel.startsWith(currentPrefix)) {
-											const hasSpaceBeforeCursor = terminalContext.commandLine[terminalContext.cursorPosition - 1] === ' ';
-											// prefix will be '' if there is a space before the cursor
-											result.push(createCompletionItem(terminalContext.cursorPosition, precedingText, suggestionLabel, arg.name, hasSpaceBeforeCursor, vscode.TerminalCompletionItemKind.Argument));
-										}
+									if (!option.args) {
+										continue;
 									}
-									if (result.length) {
-										return result;
+									const args = asArray(option.args);
+									for (const arg of args) {
+										if (!arg) {
+											continue;
+										}
+										const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
+										const expectedText = `${specName} ${optionLabel} `;
+										if (!precedingText.includes(expectedText)) {
+											continue;
+										}
+										if (arg.template) {
+											if (arg.template === 'filepaths') {
+												if (precedingText.includes(expectedText)) {
+													filesRequested = true;
+												}
+											} else if (arg.template === 'folders') {
+												if (precedingText.includes(expectedText)) {
+													foldersRequested = true;
+												}
+											}
+										}
+										if (arg.suggestions?.length) {
+											// there are specific suggestions to show
+											result = [];
+											const indexOfPrecedingText = terminalContext.commandLine.lastIndexOf(expectedText);
+											const currentPrefix = precedingText.slice(indexOfPrecedingText + expectedText.length);
+											for (const suggestion of arg.suggestions) {
+												const suggestionLabels = getLabel(suggestion);
+												if (!suggestionLabels) {
+													continue;
+												}
+												for (const suggestionLabel of suggestionLabels) {
+													if (suggestionLabel && suggestionLabel.startsWith(currentPrefix)) {
+														const hasSpaceBeforeCursor = terminalContext.commandLine[terminalContext.cursorPosition - 1] === ' ';
+														// prefix will be '' if there is a space before the cursor
+														result.push(createCompletionItem(terminalContext.cursorPosition, precedingText, suggestionLabel, arg.name, hasSpaceBeforeCursor, vscode.TerminalCompletionItemKind.Argument));
+													}
+												}
+												if (result.length) {
+													return result;
+												}
+											}
+										}
 									}
 								}
 							}
@@ -183,17 +193,17 @@ export async function activate(context: vscode.ExtensionContext) {
 	}));
 }
 
-function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string | undefined {
+function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string[] | undefined {
 	if (typeof spec === 'string') {
-		return spec;
+		return [spec];
 	}
 	if (typeof spec.name === 'string') {
-		return spec.name;
+		return [spec.name];
 	}
 	if (!Array.isArray(spec.name) || spec.name.length === 0) {
 		return;
 	}
-	return spec.name[0];
+	return spec.name;
 }
 
 function createCompletionItem(cursorPosition: number, prefix: string, label: string, description?: string, hasSpaceBeforeCursor?: boolean, kind?: vscode.TerminalCompletionItemKind): vscode.TerminalCompletionItem {
