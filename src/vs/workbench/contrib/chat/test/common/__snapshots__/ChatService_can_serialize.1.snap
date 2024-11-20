@@ -6,7 +6,7 @@
   initialLocation: "panel",
   requests: [
     {
-      requestId: "request_8ba5b8de-0652-41ae-b5a4-884d3c87b0af",
+      requestId: undefined,
       message: {
         parts: [
           {
@@ -56,7 +56,7 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
-      responseId: "response_7e7de94c-7908-4cba-83dd-8192cc691fe3",
+      responseId: undefined,
       result: { metadata: { metadataKey: "value" } },
       followups: [
         {
@@ -107,7 +107,7 @@
       timestamp: undefined
     },
     {
-      requestId: "request_9c7d3648-cc4a-4c63-9ad0-54593736fa40",
+      requestId: undefined,
       message: {
         parts: [
           {
@@ -129,7 +129,7 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
-      responseId: "response_81c8285d-939b-4aaf-b0df-fcd84ebc3d0a",
+      responseId: undefined,
       result: {  },
       followups: [  ],
       isCanceled: false,
