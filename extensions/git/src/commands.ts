@@ -4307,6 +4307,24 @@ export class CommandCenter {
 		env.clipboard.writeText(historyItem.message);
 	}
 
+	@command('git.statusBar.viewCommit', { repository: true })
+	async viewStatusBarCommit(repository: Repository, historyItemId: string): Promise<void> {
+		if (!repository || !historyItemId) {
+			return;
+		}
+
+		const commit = await repository.getCommit(historyItemId);
+		const title = `${historyItemId.substring(0, 8)} - ${commit.message}`;
+		const historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : `${historyItemId}^`;
+
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `${historyItemParentId}..${historyItemId}`, { scheme: 'git-commit', });
+
+		const changes = await repository.diffBetween(historyItemParentId, historyItemId);
+		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
+
+		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
+	}
+
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
