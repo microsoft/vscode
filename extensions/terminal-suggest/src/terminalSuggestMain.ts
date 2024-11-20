@@ -271,7 +271,7 @@ function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: { comma
 											continue;
 										}
 										for (const suggestionLabel of suggestionLabels) {
-											if (suggestionLabel && suggestionLabel.startsWith(currentPrefix)) {
+											if (suggestionLabel && suggestionLabel.startsWith(currentPrefix.trim())) {
 												const hasSpaceBeforeCursor = terminalContext.commandLine[terminalContext.cursorPosition - 1] === ' ';
 												// prefix will be '' if there is a space before the cursor
 												items.push(createCompletionItem(terminalContext.cursorPosition, precedingText, suggestionLabel, arg.name, hasSpaceBeforeCursor, vscode.TerminalCompletionItemKind.Argument));
