@@ -16,9 +16,8 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A list of completions.
 		 */
-		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T[]>;
+		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T[] | TerminalCompletionList<T>>;
 	}
-
 
 	export interface TerminalCompletionItem {
 		/**
@@ -79,5 +78,36 @@ declare module 'vscode' {
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
+	}
+
+	/**
+	 * Represents a collection of {@link CompletionItem completion items} to be presented
+	 * in the editor.
+	 */
+	export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalCompletionItem> {
+
+		/**
+		 * Resources should be shown in the completions list
+		 */
+		resourceRequestConfig?: TerminalResourceRequestConfig;
+
+		/**
+		 * The completion items.
+		 */
+		items: T[];
+
+		/**
+		 * Creates a new completion list.
+		 *
+		 * @param items The completion items.
+		 * @param isIncomplete The list is not complete.
+		 */
+		constructor(items?: T[], resourceRequestConfig?: TerminalResourceRequestConfig);
+	}
+
+	export interface TerminalResourceRequestConfig {
+		filesRequested?: boolean;
+		foldersRequested?: boolean;
+		cwd?: string;
 	}
 }

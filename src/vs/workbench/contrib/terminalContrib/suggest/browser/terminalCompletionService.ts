@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalSettingId, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { ISimpleCompletion } from '../../../../services/suggest/browser/simpleCompletionItem.js';
@@ -24,10 +26,46 @@ export interface ITerminalCompletion extends ISimpleCompletion {
 	kind?: TerminalCompletionItemKind;
 }
 
+
+/**
+ * Represents a collection of {@link CompletionItem completion items} to be presented
+ * in the editor.
+ */
+export class TerminalCompletionList<ITerminalCompletion> {
+
+	/**
+	 * Resources should be shown in the completions list
+	 */
+	resourceRequestConfig?: TerminalResourceRequestConfig;
+
+	/**
+	 * The completion items.
+	 */
+	items?: ITerminalCompletion[];
+
+	/**
+	 * Creates a new completion list.
+	 *
+	 * @param items The completion items.
+	 * @param isIncomplete The list is not complete.
+	 */
+	constructor(items?: ITerminalCompletion[], resourceRequestConfig?: TerminalResourceRequestConfig) {
+		this.items = items;
+		this.resourceRequestConfig = resourceRequestConfig;
+	}
+}
+
+export interface TerminalResourceRequestConfig {
+	filesRequested?: boolean;
+	foldersRequested?: boolean;
+	cwd?: string;
+}
+
+
 export interface ITerminalCompletionProvider {
 	id: string;
 	shellTypes?: TerminalShellType[];
-	provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<ISimpleCompletion[] | undefined>;
+	provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined>;
 	triggerCharacters?: string[];
 	isBuiltin?: boolean;
 }
@@ -55,7 +93,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 	}
 
-	constructor(@IConfigurationService private readonly _configurationService: IConfigurationService) {
+	constructor(@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService
+	) {
 		super();
 	}
 
@@ -79,9 +119,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		});
 	}
 
-	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean): Promise<ISimpleCompletion[] | undefined> {
-		const completionItems: ISimpleCompletion[] = [];
-
+	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean): Promise<ITerminalCompletion[] | undefined> {
 		if (!this._providers || !this._providers.values) {
 			return undefined;
 		}
@@ -110,31 +148,82 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			providers = providers.filter(p => p.isBuiltin);
 		}
 
-		await this._collectCompletions(providers, shellType, promptValue, cursorPosition, completionItems, token);
-		return completionItems.length > 0 ? completionItems : undefined;
+		return this._collectCompletions(providers, shellType, promptValue, cursorPosition, token);
 	}
 
-	private async _collectCompletions(providers: ITerminalCompletionProvider[], shellType: TerminalShellType, promptValue: string, cursorPosition: number, completionItems: ISimpleCompletion[], token: CancellationToken) {
+	private async _collectCompletions(providers: ITerminalCompletionProvider[], shellType: TerminalShellType, promptValue: string, cursorPosition: number, token: CancellationToken): Promise<ITerminalCompletion[] | undefined> {
 		const completionPromises = providers.map(async provider => {
 			if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
-				return [];
+				return undefined;
 			}
-			const completions = await provider.provideCompletions(promptValue, cursorPosition, token);
+			const completions: ITerminalCompletion[] | TerminalCompletionList<ITerminalCompletion> | undefined = await provider.provideCompletions(promptValue, cursorPosition, token);
+			if (!completions) {
+				return undefined;
+			}
 			const devModeEnabled = this._configurationService.getValue(TerminalSettingId.DevMode);
-			if (completions) {
-				return completions.map(completion => {
-					if (devModeEnabled && !completion.detail?.includes(provider.id)) {
-						completion.detail = `(${provider.id}) ${completion.detail ?? ''}`;
-					}
-					return completion;
-				});
+			const completionItems = Array.isArray(completions) ? completions : completions.items ?? [];
+
+			const itemsWithModifiedLabels = completionItems.map(completion => {
+				if (devModeEnabled && !completion.detail?.includes(provider.id)) {
+					completion.detail = `(${provider.id}) ${completion.detail ?? ''}`;
+				}
+				return completion;
+			});
+
+			if (Array.isArray(completions)) {
+				return itemsWithModifiedLabels;
+			} else if (completions.resourceRequestConfig) {
+				const resourceCompletions = await this._resolveResources(completions.resourceRequestConfig, cursorPosition);
+				if (resourceCompletions) {
+					itemsWithModifiedLabels?.push(...resourceCompletions);
+				}
+				return itemsWithModifiedLabels;
 			}
-			return [];
+			return;
 		});
 
+
 		const results = await Promise.all(completionPromises);
-		results.forEach(completions => completionItems.push(...completions));
+		return results.filter(result => !!result).flat();
+	}
+	private async _resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, cursorPosition: number): Promise<ITerminalCompletion[] | undefined> {
+		const cwd = resourceRequestConfig.cwd;
+		if (!cwd) {
+			return;
+		}
+		const result: ITerminalCompletion[] = [];
+		const foldersRequested = resourceRequestConfig.foldersRequested;
+		const filesRequested = resourceRequestConfig.filesRequested;
+
+		if (foldersRequested) {
+			const folders = await this._getResources(cwd, true);
+			result.push(...folders.map(folder => ({
+				label: folder,
+				kind: TerminalCompletionItemKind.Folder,
+				replacementIndex: cursorPosition,
+				replacementLength: folder.length
+			})));
+		}
+		if (filesRequested) {
+			const files = await this._getResources(cwd, false);
+			result.push(...files.map(file => ({
+				label: file,
+				kind: TerminalCompletionItemKind.File,
+				replacementIndex: cursorPosition,
+				replacementLength: file.length
+			})));
+		}
+		return result.length ? result : undefined;
+	}
+
+	private async _getResources(resource: string, folders: boolean): Promise<string[]> {
+		const resources = [URI.parse(resource)];
+
+		const stats = await this._fileService.resolveAll(resources.map(r => ({ resource: r, options: { resolveTo: [r] } })));
+		if (folders) {
+			return stats.filter(stat => stat && stat.stat?.isDirectory).map(stat => stat.stat?.resource.fsPath).filter(path => path !== undefined);
+		}
+		return stats.filter(stat => stat && stat.stat?.isFile).map(stat => stat.stat?.resource.fsPath).filter(path => path !== undefined);
 	}
 }
-
 
