@@ -56,6 +56,14 @@ export interface IChatRequestImplicitVariableEntry extends Omit<IBaseChatRequest
 	enabled: boolean;
 }
 
+export interface IChatRequestPasteVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+	readonly kind: 'paste';
+	code: string;
+	language: string;
+	fileName: string;
+	pastedLines: string;
+}
+
 export interface ISymbolVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
 	readonly kind: 'symbol';
 	readonly isDynamic: true;
@@ -67,10 +75,14 @@ export interface ICommandResultVariableEntry extends Omit<IBaseChatRequestVariab
 	readonly isDynamic: true;
 }
 
-export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | IBaseChatRequestVariableEntry;
+export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | IBaseChatRequestVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
+}
+
+export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
+	return obj.kind === 'paste';
 }
 
 export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVariableEntry {
@@ -87,6 +99,7 @@ export interface IChatRequestVariableData {
 
 export interface IChatRequestModel {
 	readonly id: string;
+	readonly timestamp: number;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
@@ -240,6 +253,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		private _session: ChatModel,
 		public readonly message: IParsedChatRequest,
 		private _variableData: IChatRequestVariableData,
+		public readonly timestamp: number,
 		private _attempt: number = 0,
 		private _confirmation?: string,
 		private _locationData?: IChatLocationData,
@@ -248,6 +262,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		public readonly isCompleteAddedRequest = false,
 	) {
 		this.id = 'request_' + ChatRequestModel.nextId++;
+		// this.timestamp = Date.now();
 	}
 
 	adoptTo(session: ChatModel) {
@@ -669,6 +684,7 @@ export interface ISerializableChatRequestData {
 	usedContext?: IChatUsedContext;
 	contentReferences?: ReadonlyArray<IChatContentReference>;
 	codeCitations?: ReadonlyArray<IChatCodeCitation>;
+	timestamp?: number;
 }
 
 export interface IExportableChatData {
@@ -998,7 +1014,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 				// Old messages don't have variableData, or have it in the wrong (non-array) shape
 				const variableData: IChatRequestVariableData = this.reviveVariableData(raw.variableData);
-				const request = new ChatRequestModel(this, parsedRequest, variableData);
+				const request = new ChatRequestModel(this, parsedRequest, variableData, raw.timestamp ?? -1);
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
 						reviveSerializedAgent(raw.agent) : undefined;
@@ -1121,7 +1137,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], workingSet?: URI[], isCompleteAddedRequest?: boolean): ChatRequestModel {
-		const request = new ChatRequestModel(this, message, variableData, attempt, confirmation, locationData, attachments, workingSet, isCompleteAddedRequest);
+		const request = new ChatRequestModel(this, message, variableData, Date.now(), attempt, confirmation, locationData, attachments, workingSet, isCompleteAddedRequest);
 		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id, undefined, undefined, undefined, undefined, undefined, undefined, undefined, isCompleteAddedRequest);
 
 		this._requests.push(request);
@@ -1284,7 +1300,8 @@ export class ChatModel extends Disposable implements IChatModel {
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
 					contentReferences: r.response?.contentReferences,
-					codeCitations: r.response?.codeCitations
+					codeCitations: r.response?.codeCitations,
+					timestamp: r.timestamp
 				};
 			}),
 		};

@@ -17,7 +17,8 @@ import {
 	InstallExtensionEvent, DidUninstallExtensionEvent, InstallOperation, WEB_EXTENSION_TAG, InstallExtensionResult,
 	IExtensionsControlManifest, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, isTargetPlatformCompatible, InstallExtensionInfo, EXTENSION_IDENTIFIER_REGEX,
 	InstallOptions, IProductVersion,
-	UninstallExtensionInfo
+	UninstallExtensionInfo,
+	TargetPlatformToString
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension, extensionsConfigurationNodeBase } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -53,7 +54,7 @@ import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/tel
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { IDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { areApiProposalsCompatible, isEngineValid } from '../../../../platform/extensions/common/extensionValidator.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -62,6 +63,8 @@ import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -718,7 +721,7 @@ class Extensions extends Disposable {
 		return this.workbenchExtensionManagementService.updateMetadata(localExtension, { id: gallery.identifier.uuid, publisherDisplayName: gallery.publisherDisplayName, publisherId: gallery.publisherId, isPreReleaseVersion });
 	}
 
-	canInstall(galleryExtension: IGalleryExtension): Promise<boolean> {
+	canInstall(galleryExtension: IGalleryExtension): Promise<true | IMarkdownString> {
 		return this.server.extensionManagementService.canInstall(galleryExtension);
 	}
 
@@ -953,6 +956,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IViewsService private readonly viewsService: IViewsService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 		const preferPreReleasesValue = configurationService.getValue('_extensions.preferPreReleases');
@@ -1872,6 +1877,55 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return this.extensionManagementService.installGalleryExtensions(toUpdate);
 	}
 
+	async downloadVSIX(extensionId: string, preRelease: boolean): Promise<void> {
+		let [galleryExtension] = await this.galleryService.getExtensions([{ id: extensionId, preRelease }], { compatible: true }, CancellationToken.None);
+		if (!galleryExtension) {
+			throw new Error(nls.localize('extension not found', "Extension '{0}' not found.", extensionId));
+		}
+
+		let targetPlatform = galleryExtension.properties.targetPlatform;
+		const options = [];
+		for (const targetPlatform of galleryExtension.allTargetPlatforms) {
+			if (targetPlatform !== TargetPlatform.UNDEFINED && targetPlatform !== TargetPlatform.UNKNOWN && targetPlatform !== TargetPlatform.UNIVERSAL) {
+				options.push({
+					label: TargetPlatformToString(targetPlatform),
+					id: targetPlatform
+				});
+			}
+		}
+		if (options.length) {
+			const message = nls.localize('platform placeholder', "Please select the platform for which you want to download the VSIX");
+			const option = await this.quickInputService.pick(options.sort((a, b) => a.label.localeCompare(b.label)), { placeHolder: message });
+			if (!option) {
+				return;
+			}
+			targetPlatform = option.id;
+		}
+
+		if (targetPlatform !== galleryExtension.properties.targetPlatform) {
+			[galleryExtension] = await this.galleryService.getExtensions([{ id: extensionId, preRelease }], { compatible: true, targetPlatform }, CancellationToken.None);
+		}
+
+		const result = await this.fileDialogService.showOpenDialog({
+			title: nls.localize('download title', "Select folder to download the VSIX"),
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: false,
+			openLabel: nls.localize('download', "Download"),
+		});
+
+		if (!result?.[0]) {
+			return;
+		}
+
+		this.progressService.withProgress({ location: ProgressLocation.Notification }, async progress => {
+			progress.report({ message: nls.localize('downloading...', "Downlading VSIX...") });
+			const name = `${galleryExtension.identifier.id}-${galleryExtension.version}${targetPlatform !== TargetPlatform.UNDEFINED && targetPlatform !== TargetPlatform.UNIVERSAL && targetPlatform !== TargetPlatform.UNKNOWN ? `-${targetPlatform}` : ''}.vsix`;
+			await this.galleryService.download(galleryExtension, this.uriIdentityService.extUri.joinPath(result[0], name), InstallOperation.None);
+			this.notificationService.info(nls.localize('download.completed', "Successfully downloaded the VSIX"));
+		});
+	}
+
 	private async syncInstalledExtensionsWithGallery(gallery: IGalleryExtension[]): Promise<void> {
 		const extensions: Extensions[] = [];
 		if (this.localExtensions) {
@@ -2197,43 +2251,47 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 	}
 
-	async canInstall(extension: IExtension): Promise<boolean> {
+	async canInstall(extension: IExtension): Promise<true | IMarkdownString> {
 		if (!(extension instanceof Extension)) {
-			return false;
+			return new MarkdownString().appendText(nls.localize('not an extension', "The provided object is not an extension."));
 		}
 
 		if (extension.isMalicious) {
-			return false;
+			return new MarkdownString().appendText(nls.localize('malicious', "This extension is reported to be problematic."));
 		}
 
 		if (extension.deprecationInfo?.disallowInstall) {
-			return false;
+			return new MarkdownString().appendText(nls.localize('disallowed', "This extension is disallowed to be installed."));
 		}
 
 		if (extension.gallery) {
 			if (!extension.gallery.isSigned) {
-				return false;
+				return new MarkdownString().appendText(nls.localize('not signed', "This extension is not signed."));
 			}
 
-			if (this.localExtensions && await this.localExtensions.canInstall(extension.gallery)) {
+			const localResult = this.localExtensions ? await this.localExtensions.canInstall(extension.gallery) : undefined;
+			if (localResult === true) {
 				return true;
 			}
 
-			if (this.remoteExtensions && await this.remoteExtensions.canInstall(extension.gallery)) {
+			const remoteResult = this.remoteExtensions ? await this.remoteExtensions.canInstall(extension.gallery) : undefined;
+			if (remoteResult === true) {
 				return true;
 			}
 
-			if (this.webExtensions && await this.webExtensions.canInstall(extension.gallery)) {
+			const webResult = this.webExtensions ? await this.webExtensions.canInstall(extension.gallery) : undefined;
+			if (webResult === true) {
 				return true;
 			}
-			return false;
+
+			return localResult ?? remoteResult ?? webResult ?? new MarkdownString().appendText(nls.localize('cannot be installed', "Cannot install the '{0}' extension because it is not available in this setup.", extension.displayName ?? extension.identifier.id));
 		}
 
-		if (extension.resourceExtension && await this.extensionManagementService.canInstall(extension.resourceExtension)) {
+		if (extension.resourceExtension && await this.extensionManagementService.canInstall(extension.resourceExtension) === true) {
 			return true;
 		}
 
-		return false;
+		return new MarkdownString().appendText(nls.localize('cannot be installed', "Cannot install the '{0}' extension because it is not available in this setup.", extension.displayName ?? extension.identifier.id));
 	}
 
 	async install(arg: string | URI | IExtension, installOptions: InstallExtensionOptions = {}, progressLocation?: ProgressLocation | string): Promise<IExtension> {

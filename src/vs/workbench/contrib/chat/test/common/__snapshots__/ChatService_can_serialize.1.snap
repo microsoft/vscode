@@ -101,7 +101,8 @@
         kind: "usedContext"
       },
       contentReferences: [  ],
-      codeCitations: [  ]
+      codeCitations: [  ],
+      timestamp: undefined
     },
     {
       message: {
@@ -149,7 +150,8 @@
       slashCommand: undefined,
       usedContext: undefined,
       contentReferences: [  ],
-      codeCitations: [  ]
+      codeCitations: [  ],
+      timestamp: undefined
     }
   ]
 }

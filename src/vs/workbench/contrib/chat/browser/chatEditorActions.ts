@@ -19,7 +19,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
-import { ctxNotebookHasEditorModification } from '../../notebook/browser/chatEdit/notebookChatEditController.js';
+import { ctxNotebookHasEditorModification } from '../../notebook/browser/contrib/chatEdit/notebookChatEditController.js';
 
 abstract class NavigateAction extends Action2 {
 
@@ -95,7 +95,7 @@ abstract class NavigateAction extends Action2 {
 		}
 
 		const entry = entries[newIdx];
-		const change = entry.diffInfo.get().changes.at(0);
+		const change = entry.diffInfo.get().changes.at(this.next ? 0 : -1);
 
 		return editorService.openEditor({
 			resource: entry.modifiedURI,

@@ -1821,7 +1821,7 @@ export interface ITextEditorPositionData {
 	[id: string]: EditorGroupColumn;
 }
 
-export type ITextEditorDiff = [
+export type ITextEditorChange = [
 	originalStartLineNumber: number,
 	originalEndLineNumber: number,
 	modifiedStartLineNumber: number,
@@ -1831,8 +1831,8 @@ export type ITextEditorDiff = [
 export interface ITextEditorDiffInformation {
 	readonly documentVersion: number;
 	readonly original: UriComponents | undefined;
-	readonly modified: UriComponents | undefined;
-	readonly diff: readonly ITextEditorDiff[];
+	readonly modified: UriComponents;
+	readonly changes: readonly ITextEditorChange[];
 }
 
 export interface IEditorPropertiesChangeData {

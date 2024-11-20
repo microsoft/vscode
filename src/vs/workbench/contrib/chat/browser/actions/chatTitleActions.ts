@@ -6,6 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
 import { basename } from '../../../../../base/common/resources.js';
@@ -419,7 +420,6 @@ export function registerChatTitleActions() {
 			const chatService = accessor.get(IChatService);
 			const chatAgentService = accessor.get(IChatAgentService);
 			const viewsService = accessor.get(IViewsService);
-			// const dialogService = accessor.get(IDialogService);
 			const chatEditingService = accessor.get(IChatEditingService);
 			const quickPickService = accessor.get(IQuickInputService);
 
@@ -449,27 +449,12 @@ export function registerChatTitleActions() {
 
 			// when having multiple turns, let the user pick
 			if (sourceRequests.length > 1) {
-				const picks: (IQuickPickItem & { request: IChatRequestModel })[] = [];
-				for (const request of sourceRequests) {
-					picks.push({
-						picked: true,
-						request: request,
-						label: request.message.text,
-						description: request.response?.response.toString()
-					});
-				}
-				const result = await quickPickService.pick(picks, {
-					placeHolder: localize('chat.startEditing.pickRequest', "Select requests that you want to use for editing"),
-					canPickMany: true
-				});
-				if (!result) {
-					return;
-				}
-				sourceRequests = picks.map(pick => pick.request);
+				sourceRequests = await this._pickTurns(quickPickService, sourceRequests);
 			}
 
 			if (sourceRequests.length === 0) {
 				logService.trace('[CHAT_MOVE] NO requests to move');
+				return;
 			}
 
 			await viewsService.openView(EditsViewId);
@@ -517,6 +502,90 @@ export function registerChatTitleActions() {
 					);
 				}
 			}
+		}
+
+		private async _pickTurns(quickPickService: IQuickInputService, requests: IChatRequestModel[]): Promise<IChatRequestModel[]> {
+
+			const timeThreshold = 2 * 60000; // 2 minutes
+			const lastRequestTimestamp = requests[requests.length - 1].timestamp;
+			const relatedRequests = requests.filter(request => request.timestamp >= 0 && lastRequestTimestamp - request.timestamp <= timeThreshold);
+
+			const lastPick: IQuickPickItem = {
+				label: localize('chat.startEditing.last', "The last {0} requests", relatedRequests.length),
+				detail: relatedRequests.map(req => req.message.text).join(', ')
+			};
+
+			const allPick: IQuickPickItem = {
+				label: localize('chat.startEditing.pickAll', "All requests from the conversation")
+			};
+
+			const customPick: IQuickPickItem = {
+				label: localize('chat.startEditing.pickCustom', "Manually select requests...")
+			};
+
+			const picks: IQuickPickItem[] = relatedRequests.length !== 0
+				? [lastPick, allPick, customPick]
+				: [allPick, customPick];
+
+			const firstPick = await quickPickService.pick(picks, {
+				placeHolder: localize('chat.startEditing.pickRequest', "Select requests that you want to use for editing")
+			});
+
+			if (!firstPick) {
+				return [];
+			} else if (firstPick === allPick) {
+				return requests;
+			} else if (firstPick === lastPick) {
+				return relatedRequests;
+			}
+
+			// custom pick
+			type PickType = (IQuickPickItem & { request: IChatRequestModel });
+			const customPicks: (IQuickPickItem & { request: IChatRequestModel })[] = requests.map(request => ({
+
+				picked: false,
+				request: request,
+				label: request.message.text,
+				detail: request.response?.response.toString(),
+			}));
+
+
+			return await new Promise<IChatRequestModel[]>(_resolve => {
+
+				const resolve = (value: IChatRequestModel[]) => {
+					qp.hide();
+					store.dispose();
+					_resolve(value);
+				};
+
+				const store = new DisposableStore();
+
+				const qp = quickPickService.createQuickPick<PickType>();
+				qp.placeholder = localize('chat.startEditing.pickRequest', "Select requests that you want to use for editing");
+				qp.canSelectMany = true;
+				qp.items = customPicks;
+
+				let ignore = false;
+				store.add(qp.onDidChangeSelection(e => {
+					if (ignore) {
+						return;
+					}
+					ignore = true;
+					try {
+						const [first] = e;
+						const idx = first ? customPicks.indexOf(first) : -1;
+						const selected = idx >= 0 ? customPicks.slice(idx) : [];
+						qp.selectedItems = selected;
+					} finally {
+						ignore = false;
+					}
+				}));
+
+				store.add(qp.onDidAccept(_e => resolve(qp.selectedItems.map(i => i.request))));
+				store.add(qp.onDidHide(_ => resolve([])));
+				store.add(qp);
+				qp.show();
+			});
 		}
 
 	});

@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Event } from '../../../base/common/event.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IPager } from '../../../base/common/paging.js';
 import { Platform } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
@@ -562,7 +563,7 @@ export interface IExtensionManagementService {
 	zip(extension: ILocalExtension): Promise<URI>;
 	getManifest(vsix: URI): Promise<IExtensionManifest>;
 	install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension>;
-	canInstall(extension: IGalleryExtension): Promise<boolean>;
+	canInstall(extension: IGalleryExtension): Promise<true | IMarkdownString>;
 	installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension>;
 	installGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<InstallExtensionResult[]>;
 	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
