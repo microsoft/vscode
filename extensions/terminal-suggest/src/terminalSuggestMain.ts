@@ -167,6 +167,14 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 			}
 			const resultItems = uniqueResults.size ? Array.from(uniqueResults.values()) : undefined;
+
+			// show files as fallback or if only a single dot is present (fixes a bug where the completion of '.' would prevent
+			// file completions from being provided via quick suggestions
+			if ((!resultItems?.length || resultItems.length === 1 && resultItems[0].label === '.') && prefix.match(/^[./\\ ]/)) {
+				filesRequested = true;
+				foldersRequested = true;
+			}
+
 			if (filesRequested || foldersRequested) {
 				return new vscode.TerminalCompletionList(resultItems, { filesRequested, foldersRequested, cwd: terminal.shellIntegration?.cwd });
 			}
