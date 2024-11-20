@@ -97,7 +97,7 @@ export class Editor {
 
 		await this.code.waitForTypeInEditor(textarea, text);
 
-		await this.waitForEditorContents(filename, c => c.indexOf(text) > -1, textarea);
+		await this.waitForEditorContents(filename, c => c.indexOf(text) > -1, selectorPrefix);
 	}
 
 	async waitForEditorContents(filename: string, accept: (contents: string) => boolean, selectorPrefix = ''): Promise<any> {
