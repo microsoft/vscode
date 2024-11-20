@@ -31,12 +31,14 @@ import { createTrustedTypesPolicy } from '../../../../../../base/browser/trusted
 import { splitLines } from '../../../../../../base/common/strings.js';
 import { DefaultLineHeight } from '../../diff/diffElementViewModel.js';
 import { INotebookOriginalCellModelFactory } from './notebookOriginalCellModelFactory.js';
+import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
 
 
 export class NotebookCellDiffDecorator extends DisposableStore {
 	private readonly _decorations = this.editor.createDecorationsCollection();
 	private _viewZones: string[] = [];
 	private readonly throttledDecorator = new ThrottledDelayer(100);
+	private diffForPreviouslyAppliedDecorators?: IDocumentDiff;
 
 	constructor(
 		public readonly editor: ICodeEditor,
@@ -113,7 +115,7 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 			return;
 		}
 		const model = this.editor.getModel();
-		if (!model) {
+		if (!model || model !== this.modifiedCell.textModel) {
 			this._clearRendering();
 			return;
 		}
@@ -131,11 +133,13 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 			'advanced'
 		);
 
+
 		if (this.isDisposed) {
 			return;
 		}
 
-		if (diff && originalModel && model === this.editor.getModel() && this.editor.getModel()?.getVersionId() === version) {
+
+		if (diff && !diff.identical && originalModel && model === this.editor.getModel() && this.editor.getModel()?.getVersionId() === version) {
 			this._updateWithDiff(originalModel, diff);
 		} else {
 			this._clearRendering();
@@ -165,6 +169,11 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 	}
 
 	private _updateWithDiff(originalModel: ITextModel | undefined, diff: IDocumentDiff): void {
+		if (areDiffsEqual(diff, this.diffForPreviouslyAppliedDecorators)) {
+			return;
+		}
+		this.diffForPreviouslyAppliedDecorators = diff;
+
 		const chatDiffAddDecoration = ModelDecorationOptions.createDynamic({
 			...diffAddDecoration,
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
@@ -475,5 +484,73 @@ export class NotebookDeletedCellWidget extends Disposable {
 		const totalHeight = height + 16 + 16;
 
 		return totalHeight;
+	}
+}
+
+function areDiffsEqual(a: IDocumentDiff | undefined, b: IDocumentDiff | undefined): boolean {
+	if (a && b) {
+		if (a.changes.length !== b.changes.length) {
+			return false;
+		}
+		if (a.moves.length !== b.moves.length) {
+			return false;
+		}
+		if (!areLineRangeMappinsEqual(a.changes, b.changes)) {
+			return false;
+		}
+		if (!a.moves.some((move, i) => {
+			const bMove = b.moves[i];
+			if (!areLineRangeMappinsEqual(move.changes, bMove.changes)) {
+				return true;
+			}
+			if (move.lineRangeMapping.changedLineCount !== bMove.lineRangeMapping.changedLineCount) {
+				return true;
+			}
+			if (!move.lineRangeMapping.modified.equals(bMove.lineRangeMapping.modified)) {
+				return true;
+			}
+			if (!move.lineRangeMapping.original.equals(bMove.lineRangeMapping.original)) {
+				return true;
+			}
+			return false;
+		})) {
+			return false;
+		}
+		return true;
+	} else if (!a && !b) {
+		return true;
+	} else {
+		return false;
+	}
+}
+
+function areLineRangeMappinsEqual(a: readonly DetailedLineRangeMapping[], b: readonly DetailedLineRangeMapping[]): boolean {
+	if (a.length !== b.length) {
+		return false;
+	}
+	if (a.some((c, i) => {
+		const bChange = b[i];
+		if (c.changedLineCount !== bChange.changedLineCount) {
+			return true;
+		}
+		if ((c.innerChanges || []).length !== (bChange.innerChanges || []).length) {
+			return true;
+		}
+		if ((c.innerChanges || []).some((innerC, innerIdx) => {
+			const bInnerC = bChange.innerChanges![innerIdx];
+			if (!innerC.modifiedRange.equalsRange(bInnerC.modifiedRange)) {
+				return true;
+			}
+			if (!innerC.originalRange.equalsRange(bInnerC.originalRange)) {
+				return true;
+			}
+			return false;
+		})) {
+			return true;
+		}
+
+		return false;
+	})) {
+		return false;
 	}
 }
