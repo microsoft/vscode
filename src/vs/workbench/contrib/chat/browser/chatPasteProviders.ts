@@ -23,8 +23,9 @@ import { URI } from '../../../../base/common/uri.js';
 const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
 
 export class PasteImageProvider implements DocumentPasteEditProvider {
-
-	public readonly kind = new HierarchicalKind('chat.attach.image');
+	public readonly kind = new HierarchicalKind('image');
+	public readonly copyMimeTypes = ['image/*'];
+	public readonly providedPasteEditKinds = [this.kind];
 	public readonly pasteMimeTypes = ['image/*'];
 
 	constructor(

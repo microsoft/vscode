@@ -22,7 +22,7 @@ import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/c
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
@@ -96,7 +96,7 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 
 	async runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
 		// Remove from working set
-		currentEditingSession.remove(...uris);
+		currentEditingSession.remove(WorkingSetEntryRemovalReason.User, ...uris);
 
 		// Remove from chat input part
 		const resourceSet = new ResourceSet(uris);

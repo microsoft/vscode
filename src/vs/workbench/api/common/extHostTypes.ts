@@ -1909,7 +1909,7 @@ export enum TextEditorSelectionChangeKind {
 	Command = 3
 }
 
-export enum TextEditorDiffKind {
+export enum TextEditorChangeKind {
 	Addition = 1,
 	Deletion = 2,
 	Modification = 3
@@ -2113,6 +2113,37 @@ export class TerminalProfile implements vscode.TerminalProfile {
 		}
 	}
 }
+
+export enum TerminalCompletionItemKind {
+	File = 0,
+	Folder = 1,
+	Flag = 2,
+	Method = 3,
+	Argument = 4
+}
+
+export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
+	label: string;
+	icon?: ThemeIcon | undefined;
+	detail?: string | undefined;
+	isFile?: boolean | undefined;
+	isDirectory?: boolean | undefined;
+	isKeyword?: boolean | undefined;
+	replacementIndex: number;
+	replacementLength: number;
+
+	constructor(label: string, icon?: ThemeIcon, detail?: string, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, replacementIndex?: number, replacementLength?: number) {
+		this.label = label;
+		this.icon = icon;
+		this.detail = detail;
+		this.isFile = isFile;
+		this.isDirectory = isDirectory;
+		this.isKeyword = isKeyword;
+		this.replacementIndex = replacementIndex ?? 0;
+		this.replacementLength = replacementLength ?? 0;
+	}
+}
+
 
 export enum TaskRevealKind {
 	Always = 1,
@@ -2876,6 +2907,7 @@ export enum DocumentPasteTriggerKind {
 
 export class DocumentDropOrPasteEditKind {
 	static Empty: DocumentDropOrPasteEditKind;
+	static Text: DocumentDropOrPasteEditKind;
 
 	private static sep = '.';
 
@@ -2896,6 +2928,7 @@ export class DocumentDropOrPasteEditKind {
 	}
 }
 DocumentDropOrPasteEditKind.Empty = new DocumentDropOrPasteEditKind('');
+DocumentDropOrPasteEditKind.Text = new DocumentDropOrPasteEditKind('text');
 
 export class DocumentPasteEdit {
 

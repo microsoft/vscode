@@ -2209,7 +2209,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	install(vsix: URI, options?: InstallOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
-	async canInstall(extension: IGalleryExtension): Promise<boolean> { return false; }
+	async canInstall(extension: IGalleryExtension): Promise<true> { return true; }
 	installFromGallery(extension: IGalleryExtension, options?: InstallOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}

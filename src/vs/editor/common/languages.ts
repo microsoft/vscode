@@ -937,9 +937,9 @@ export interface DocumentPasteEditsSession {
  */
 export interface DocumentPasteEditProvider {
 	readonly id?: string;
-	readonly copyMimeTypes?: readonly string[];
-	readonly pasteMimeTypes?: readonly string[];
-	readonly providedPasteEditKinds?: readonly HierarchicalKind[];
+	readonly copyMimeTypes: readonly string[];
+	readonly pasteMimeTypes: readonly string[];
+	readonly providedPasteEditKinds: readonly HierarchicalKind[];
 
 	prepareDocumentPaste?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer>;
 

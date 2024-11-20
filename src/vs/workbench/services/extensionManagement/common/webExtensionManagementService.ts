@@ -22,6 +22,8 @@ import { compare } from '../../../../base/common/strings.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { localize } from '../../../../nls.js';
 
 export class WebExtensionManagementService extends AbstractExtensionManagementService implements IProfileAwareExtensionManagementService {
 
@@ -78,14 +80,15 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return TargetPlatform.WEB;
 	}
 
-	override async canInstall(gallery: IGalleryExtension): Promise<boolean> {
-		if (await super.canInstall(gallery)) {
+	override async canInstall(gallery: IGalleryExtension): Promise<true | IMarkdownString> {
+		if (await super.canInstall(gallery) === true) {
 			return true;
 		}
 		if (this.isConfiguredToExecuteOnWeb(gallery)) {
 			return true;
 		}
-		return false;
+		const productName = localize('VS Code for Web', "{0} for the Web", this.productService.nameLong);
+		return new MarkdownString(`${localize('not web tooltip', "The '{0}' extension is not available in {1}.", gallery.displayName || gallery.identifier.id, productName)} [${localize('learn why', "Learn Why")}](https://aka.ms/vscode-web-extensions-guide)`);
 	}
 
 	async getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]> {
