@@ -487,7 +487,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 			this._workingSet.set(resource, { description, state: WorkingSetEntryState.Suggested });
 			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
-		} else if (state === undefined || state.state === WorkingSetEntryState.Transient) {
+		} else if (state === undefined || state.state === WorkingSetEntryState.Transient || state.state === WorkingSetEntryState.Suggested) {
 			this._workingSet.set(resource, { description, state: WorkingSetEntryState.Attached });
 			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 		}
