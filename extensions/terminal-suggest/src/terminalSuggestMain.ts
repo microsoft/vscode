@@ -107,7 +107,7 @@ export async function activate(context: vscode.ExtensionContext) {
 								continue;
 							}
 							// TODO: handle multiple args / they may have multiple names
-							const args = Array.isArray(option.args) ? option.args : [option.args];
+							const args = asArray(option.args);
 							for (const arg of args) {
 								if (!arg) {
 									continue;
@@ -251,3 +251,8 @@ function getPrefix(commandLine: string, cursorPosition: number): string {
 	return match ? match[0] : '';
 }
 
+export function asArray<T>(x: T | T[]): T[];
+export function asArray<T>(x: T | readonly T[]): readonly T[];
+export function asArray<T>(x: T | T[]): T[] {
+	return Array.isArray(x) ? x : [x];
+}
