@@ -5,7 +5,6 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -99,16 +98,9 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 		currentEditingSession.remove(WorkingSetEntryRemovalReason.User, ...uris);
 
 		// Remove from chat input part
-		const resourceSet = new ResourceSet(uris);
-		const newContext = [];
-
-		for (const context of chatWidget.input.attachmentModel.attachments) {
-			if (!URI.isUri(context.value) || !context.isFile || !resourceSet.has(context.value)) {
-				newContext.push(context);
-			}
+		for (const uri of uris) {
+			chatWidget.attachmentModel.delete(uri.toString());
 		}
-
-		chatWidget.attachmentModel.clearAndSetContext(...newContext);
 	}
 });
 
