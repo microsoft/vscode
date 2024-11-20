@@ -56,8 +56,7 @@ export async function membraneApi(
 	path: `/${string}`,
 	body?: BodyInit
 ): Promise<Response> {
-	// const isDev = window.location.hostname === 'localhost';
-	const baseUrl = 'https://staging.membrane.io';
+	const baseUrl = 'https://api.membrane.io';
 
 	const secretProvider = SecretStorageProvider.getInstance();
 	const token = await secretProvider.getAuthToken();
