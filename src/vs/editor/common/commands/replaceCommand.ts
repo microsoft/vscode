@@ -45,15 +45,16 @@ export class ReplaceOvertypeCommand implements ICommand {
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		const startPosition = this._range.getStartPosition();
-		const endPosition = this._range.getEndPosition();
-		const rangeEndOffset = model.getOffsetAt(endPosition);
-		const endOffset = rangeEndOffset + this._text.length + (this._range.isEmpty() ? 0 : - 1);
+		const intialStartPosition = this._range.getStartPosition();
+		const initialEndPosition = this._range.getEndPosition();
+		const offsetDelta = this._text.length + (this._range.isEmpty() ? 0 : - 1);
+		const candidateEndPosition: Position = addPositiveDeltaToModelPosition(model, initialEndPosition, offsetDelta);
+		const candidateSecondToEndPosition = previousModelPosition(model, candidateEndPosition);
 		const endOfLine = model.getEndOfLineSequence() === EndOfLineSequence.CRLF ? '\r\n' : '\n';
-		const lastCharacterRange = Range.fromPositions(model.getPositionAt(endOffset - 1), model.getPositionAt(endOffset));
+		const lastCharacterRange = Range.fromPositions(candidateSecondToEndPosition, candidateEndPosition);
 		const lastCharacter = model.getValueInRange(lastCharacterRange);
-		const newEndOffset = lastCharacter === endOfLine ? endOffset - 1 : endOffset;
-		const replaceRange = Range.fromPositions(startPosition, model.getPositionAt(newEndOffset));
+		const endPosition = lastCharacter === endOfLine ? candidateSecondToEndPosition : candidateEndPosition;
+		const replaceRange = Range.fromPositions(intialStartPosition, endPosition);
 		builder.addTrackedEditOperation(replaceRange, this._text);
 	}
 
@@ -77,18 +78,18 @@ export class OvertypePasteCommand implements ICommand {
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		const startPosition = this._range.getStartPosition();
-		const endPosition = this._range.getEndPosition();
-		const endLineNumber = endPosition.lineNumber;
-		const potentialEndOffset = model.getOffsetAt(endPosition) + this._text.length + (this._range.isEmpty() ? 0 : - 1);
-		const potentialEndPosition = model.getPositionAt(potentialEndOffset);
-		let newEndPosition: Position;
-		if (potentialEndPosition.lineNumber > endLineNumber) {
-			newEndPosition = new Position(endLineNumber, model.getLineMaxColumn(endLineNumber));
+		const initialStartPosition = this._range.getStartPosition();
+		const initialEndPosition = this._range.getEndPosition();
+		const endLineNumber = initialEndPosition.lineNumber;
+		const offsetDelta = this._text.length + (this._range.isEmpty() ? 0 : - 1);
+		const candidateEndPosition = addPositiveDeltaToModelPosition(model, initialEndPosition, offsetDelta);
+		let endPosition: Position;
+		if (candidateEndPosition.lineNumber > endLineNumber) {
+			endPosition = new Position(endLineNumber, model.getLineMaxColumn(endLineNumber));
 		} else {
-			newEndPosition = potentialEndPosition;
+			endPosition = candidateEndPosition;
 		}
-		const replaceRange = Range.fromPositions(startPosition, newEndPosition);
+		const replaceRange = Range.fromPositions(initialStartPosition, endPosition);
 		builder.addTrackedEditOperation(replaceRange, this._text);
 	}
 
@@ -181,8 +182,7 @@ export class ReplaceOvertypeCommandInComposition implements ICommand {
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		const text = model.getValueInRange(this._range);
 		const startPosition = this._range.getStartPosition();
-		const endOffset = model.getOffsetAt(startPosition) + 2 * text.length;
-		let endPosition = model.getPositionAt(endOffset);
+		let endPosition = addPositiveDeltaToModelPosition(model, startPosition, 2 * text.length);
 		if (endPosition.lineNumber > this._range.endLineNumber) {
 			endPosition = new Position(this._range.endLineNumber, model.getLineMaxColumn(this._range.endLineNumber));
 		}
@@ -221,4 +221,44 @@ export class ReplaceCommandThatPreservesSelection implements ICommand {
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this._selectionId!);
 	}
+}
+
+function addPositiveDeltaToModelPosition(model: ITextModel, position: Position, delta: number): Position {
+	if (delta < 0) {
+		throw new Error('Unexpected negative delta');
+	}
+	const lineCount = model.getLineCount();
+	let endPosition: Position | undefined;
+	for (let potentialEndLineNumber = position.lineNumber; potentialEndLineNumber <= lineCount; potentialEndLineNumber++) {
+		if (potentialEndLineNumber === position.lineNumber) {
+			const futureDelta = delta - model.getLineMaxColumn(position.lineNumber) - position.column;
+			if (futureDelta <= 0) {
+				endPosition = new Position(position.lineNumber, position.column + delta);
+				break;
+			}
+			delta = futureDelta;
+		} else {
+			const futureDelta = delta - model.getLineMaxColumn(potentialEndLineNumber);
+			if (futureDelta <= 0) {
+				endPosition = new Position(potentialEndLineNumber, delta);
+				break;
+			}
+			delta = futureDelta;
+		}
+	}
+	return endPosition ?? new Position(lineCount, model.getLineMaxColumn(lineCount));
+}
+
+function previousModelPosition(model: ITextModel, position: Position): Position {
+	let previousPosition: Position;
+	if (position.column > 1) {
+		previousPosition = new Position(position.lineNumber, position.column - 1);
+	} else {
+		if (position.lineNumber > 1) {
+			previousPosition = new Position(position.lineNumber - 1, model.getLineMaxColumn(position.lineNumber - 1));
+		} else {
+			previousPosition = new Position(1, 1);
+		}
+	}
+	return previousPosition;
 }
