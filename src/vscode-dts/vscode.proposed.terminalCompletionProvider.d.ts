@@ -81,8 +81,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a collection of {@link CompletionItem completion items} to be presented
-	 * in the editor.
+	 * Represents a collection of {@link TerminalCompletionItem completion items} to be presented
+	 * in the terminal.
 	 */
 	export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalCompletionItem> {
 
