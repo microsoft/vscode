@@ -1299,11 +1299,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: none;
 }
 
-.chat-attached-context-attachment .attachment-additional-info {
-	opacity: 0.7;
-	font-size: .9em;
-}
-
 .chat-attached-context-attachment .chat-attached-context-pill-image {
 	width: 14px;
 	height: 14px;
