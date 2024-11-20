@@ -172,7 +172,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 			if (Array.isArray(completions)) {
 				return itemsWithModifiedLabels;
-			} else if (completions.resourceRequestConfig) {
+			}
+			if (completions.resourceRequestConfig) {
 				const resourceCompletions = await this._resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition);
 				if (resourceCompletions) {
 					itemsWithModifiedLabels.push(...resourceCompletions);
