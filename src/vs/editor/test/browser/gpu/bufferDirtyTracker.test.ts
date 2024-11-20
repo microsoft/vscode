@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { BufferDirtyTracker } from '../../../../browser/gpu/bufferDirtyTracker.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { BufferDirtyTracker } from '../../../browser/gpu/bufferDirtyTracker.js';
 
 suite('BufferDirtyTracker', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
