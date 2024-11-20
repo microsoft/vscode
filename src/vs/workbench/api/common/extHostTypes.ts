@@ -1909,7 +1909,7 @@ export enum TextEditorSelectionChangeKind {
 	Command = 3
 }
 
-export enum TextEditorDiffKind {
+export enum TextEditorChangeKind {
 	Addition = 1,
 	Deletion = 2,
 	Modification = 3
