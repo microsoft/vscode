@@ -98,8 +98,8 @@ export async function activate(context: vscode.ExtensionContext) {
 						continue;
 					}
 					if (terminalContext.commandLine.startsWith(specLabel)) {
-						if ('options' in codeInsidersCompletionSpec && codeInsidersCompletionSpec.options) {
-							for (const option of codeInsidersCompletionSpec.options) {
+						if ('options' in spec && spec.options) {
+							for (const option of spec.options) {
 								const optionLabels = getLabel(option);
 								if (!optionLabels) {
 									continue;
@@ -276,3 +276,5 @@ export function asArray<T>(x: T | readonly T[]): readonly T[];
 export function asArray<T>(x: T | T[]): T[] {
 	return Array.isArray(x) ? x : [x];
 }
+
+
