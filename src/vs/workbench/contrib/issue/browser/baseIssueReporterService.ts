@@ -975,7 +975,7 @@ export class BaseIssueReporterService extends Disposable {
 			inputValidationMessage?.classList.remove('hidden');
 			descriptionShortMessage?.classList.add('hidden');
 			return false;
-		} else if (inputId === 'description' && inputElement.value.length < 10) {
+		} else if (inputId === 'description' && inputElement.value.length < 100) {
 			inputElement.classList.add('invalid-input');
 			descriptionShortMessage?.classList.remove('hidden');
 			inputValidationMessage?.classList.add('hidden');
