@@ -1573,21 +1573,17 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
-			id: 'workbench.extensions.action.copyExtensionLink',
-			title: localize2('workbench.extensions.action.copyExtensionLink', 'Copy Extension Link'),
-			precondition: BuiltInExtensionsContext.negate(),
+			id: 'workbench.extensions.action.copyMarketplaceLink',
+			title: localize2('workbench.extensions.action.copyMarketplaceLink', 'Copy Marketplace Link'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '1_copy',
-				when: BuiltInExtensionsContext.negate(),
+				when: ContextKeyExpr.and(ContextKeyExpr.not('isBuiltinExtension'), ContextKeyExpr.not('extensionDisallowInstall')),
 			},
-			run: async (accessor: ServicesAccessor, extensionId: string) => {
+			run: async (accessor: ServicesAccessor, id: string) => {
 				const clipboardService = accessor.get(IClipboardService);
-				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
-					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
-				if (extension && extension.url) {
-					await clipboardService.writeText(extension.url);
-				}
+				const extensionLinkPrefix = 'https://marketplace.visualstudio.com/items?itemName=';
+				await clipboardService.writeText(extensionLinkPrefix + id);
 			}
 		});
 
