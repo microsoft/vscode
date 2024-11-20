@@ -160,9 +160,12 @@ export class ViewGpuContext extends Disposable {
 			for (const decoration of data.inlineDecorations) {
 				const styleRules = ViewGpuContext._decorationCssRuleExtractor.getStyleRules(container, decoration.inlineClassName);
 				supported &&= styleRules.every(rule => {
+					// Pseudo classes aren't supported currently
+					if (rule.selectorText.includes(':')) {
+						return false;
+					}
 					for (const r of rule.style) {
-						// TODO: Consider pseudo classes when checking for support
-						if (!gpuSupportedCssRules.includes(r)) {
+						if (!gpuSupportedDecorationCssRules.includes(r)) {
 							return false;
 						}
 					}
@@ -179,7 +182,7 @@ export class ViewGpuContext extends Disposable {
 	}
 
 	/**
-	 * Like {@link canRender} but returned detailed information about why the line cannot be rendered.
+	 * Like {@link canRender} but returns detailed information about why the line cannot be rendered.
 	 */
 	public static canRenderDetailed(container: HTMLElement, options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): string[] {
 		const data = viewportData.getViewLineRenderingData(lineNumber);
@@ -195,12 +198,18 @@ export class ViewGpuContext extends Disposable {
 		}
 		if (data.inlineDecorations.length > 0) {
 			let supported = true;
+			const problemSelectors: string[] = [];
 			const problemRules: string[] = [];
 			for (const decoration of data.inlineDecorations) {
 				const styleRules = ViewGpuContext._decorationCssRuleExtractor.getStyleRules(container, decoration.inlineClassName);
 				supported &&= styleRules.every(rule => {
+					// Pseudo classes aren't supported currently
+					if (rule.selectorText.includes(':')) {
+						problemSelectors.push(rule.selectorText);
+						return false;
+					}
 					for (const r of rule.style) {
-						if (!gpuSupportedCssRules.includes(r)) {
+						if (!gpuSupportedDecorationCssRules.includes(r)) {
 							problemRules.push(r);
 							return false;
 						}
@@ -214,6 +223,9 @@ export class ViewGpuContext extends Disposable {
 			if (problemRules.length > 0) {
 				reasons.push(`inlineDecorations with unsupported CSS rules (\`${problemRules.join(', ')}\`)`);
 			}
+			if (problemSelectors.length > 0) {
+				reasons.push(`inlineDecorations with unsupported CSS selectors (\`${problemSelectors.join(', ')}\`)`);
+			}
 		}
 		if (lineNumber >= GpuRenderLimits.maxGpuLines) {
 			reasons.push('lineNumber >= maxGpuLines');
@@ -222,10 +234,9 @@ export class ViewGpuContext extends Disposable {
 	}
 }
 
-const gpuSupportedCssRules = [
+/**
+ * A list of fully supported decoration CSS rules that can be used in the GPU renderer.
+ */
+const gpuSupportedDecorationCssRules = [
 	'color',
-	// 'text-decoration-line',
-	// 'text-decoration-thickness',
-	// 'text-decoration-style',
-	// 'text-decoration-color',
 ];
