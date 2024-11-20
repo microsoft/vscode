@@ -61,7 +61,10 @@ export class DecorationCssRuleExtractor extends Disposable {
 						stylesheets.push(rule.styleSheet);
 					}
 				} else if (rule instanceof CSSStyleRule) {
-					if (this._dummyElement.matches(rule.selectorText) && rule.selectorText.includes(`.${className}`)) {
+					// Note that originally `.matches(rule.selectorText)` was used but this would
+					// not pick up pseudo-classes which are important to determine support of the
+					// returned styles.
+					if (rule.selectorText.includes(`.${className}`)) {
 						rules.push(rule);
 					}
 				}
