@@ -204,6 +204,142 @@ suite('Color', () => {
 
 	suite('Format', () => {
 		suite('CSS', () => {
+			suite('parse', () => {
+				test('invalid', () => {
+					assert.deepStrictEqual(Color.Format.CSS.parse(''), null);
+					assert.deepStrictEqual(Color.Format.CSS.parse('#'), null);
+					assert.deepStrictEqual(Color.Format.CSS.parse('#0102030'), null);
+				});
+				test('transparent', () => {
+					assert.deepStrictEqual(Color.Format.CSS.parse('transparent'), new Color(new RGBA(0, 0, 0, 0)));
+				});
+				test('hex-color', () => {
+					// somewhat valid
+					assert.deepStrictEqual(Color.Format.CSS.parse('#FFFFG0')!.rgba, new RGBA(255, 255, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#FFFFg0')!.rgba, new RGBA(255, 255, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#-FFF00')!.rgba, new RGBA(15, 255, 0, 1));
+
+					// valid
+					assert.deepStrictEqual(Color.Format.CSS.parse('#000000')!.rgba, new RGBA(0, 0, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#FFFFFF')!.rgba, new RGBA(255, 255, 255, 1));
+
+					assert.deepStrictEqual(Color.Format.CSS.parse('#FF0000')!.rgba, new RGBA(255, 0, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#00FF00')!.rgba, new RGBA(0, 255, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#0000FF')!.rgba, new RGBA(0, 0, 255, 1));
+
+					assert.deepStrictEqual(Color.Format.CSS.parse('#FFFF00')!.rgba, new RGBA(255, 255, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#00FFFF')!.rgba, new RGBA(0, 255, 255, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#FF00FF')!.rgba, new RGBA(255, 0, 255, 1));
+
+					assert.deepStrictEqual(Color.Format.CSS.parse('#C0C0C0')!.rgba, new RGBA(192, 192, 192, 1));
+
+					assert.deepStrictEqual(Color.Format.CSS.parse('#808080')!.rgba, new RGBA(128, 128, 128, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#800000')!.rgba, new RGBA(128, 0, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#808000')!.rgba, new RGBA(128, 128, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#008000')!.rgba, new RGBA(0, 128, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#800080')!.rgba, new RGBA(128, 0, 128, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#008080')!.rgba, new RGBA(0, 128, 128, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#000080')!.rgba, new RGBA(0, 0, 128, 1));
+
+					assert.deepStrictEqual(Color.Format.CSS.parse('#010203')!.rgba, new RGBA(1, 2, 3, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#040506')!.rgba, new RGBA(4, 5, 6, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#070809')!.rgba, new RGBA(7, 8, 9, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#0a0A0a')!.rgba, new RGBA(10, 10, 10, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#0b0B0b')!.rgba, new RGBA(11, 11, 11, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#0c0C0c')!.rgba, new RGBA(12, 12, 12, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#0d0D0d')!.rgba, new RGBA(13, 13, 13, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#0e0E0e')!.rgba, new RGBA(14, 14, 14, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#0f0F0f')!.rgba, new RGBA(15, 15, 15, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#a0A0a0')!.rgba, new RGBA(160, 160, 160, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#CFA')!.rgba, new RGBA(204, 255, 170, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('#CFA8')!.rgba, new RGBA(204, 255, 170, 0.533));
+				});
+
+				test('rgb()', () => {
+					// somewhat valid / unusual
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(-255, 0, 0)')!.rgba, new RGBA(0, 0, 0));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(+255, 0, 0)')!.rgba, new RGBA(255, 0, 0));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(800, 0, 0)')!.rgba, new RGBA(255, 0, 0));
+
+					// valid
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(0, 0, 0)')!.rgba, new RGBA(0, 0, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(255, 255, 255)')!.rgba, new RGBA(255, 255, 255, 1));
+
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(255, 0, 0)')!.rgba, new RGBA(255, 0, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(0, 255, 0)')!.rgba, new RGBA(0, 255, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(0, 0, 255)')!.rgba, new RGBA(0, 0, 255, 1));
+
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(255, 255, 0)')!.rgba, new RGBA(255, 255, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(0, 255, 255)')!.rgba, new RGBA(0, 255, 255, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(255, 0, 255)')!.rgba, new RGBA(255, 0, 255, 1));
+
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(192, 192, 192)')!.rgba, new RGBA(192, 192, 192, 1));
+
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(128, 128, 128)')!.rgba, new RGBA(128, 128, 128, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(128, 0, 0)')!.rgba, new RGBA(128, 0, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(128, 128, 0)')!.rgba, new RGBA(128, 128, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(0, 128, 0)')!.rgba, new RGBA(0, 128, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(128, 0, 128)')!.rgba, new RGBA(128, 0, 128, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(0, 128, 128)')!.rgba, new RGBA(0, 128, 128, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(0, 0, 128)')!.rgba, new RGBA(0, 0, 128, 1));
+
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(1, 2, 3)')!.rgba, new RGBA(1, 2, 3, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(4, 5, 6)')!.rgba, new RGBA(4, 5, 6, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(7, 8, 9)')!.rgba, new RGBA(7, 8, 9, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(10, 10, 10)')!.rgba, new RGBA(10, 10, 10, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(11, 11, 11)')!.rgba, new RGBA(11, 11, 11, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(12, 12, 12)')!.rgba, new RGBA(12, 12, 12, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(13, 13, 13)')!.rgba, new RGBA(13, 13, 13, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(14, 14, 14)')!.rgba, new RGBA(14, 14, 14, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgb(15, 15, 15)')!.rgba, new RGBA(15, 15, 15, 1));
+				});
+
+				test('rgba()', () => {
+					// somewhat valid / unusual
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(0, 0, 0, 255)')!.rgba, new RGBA(0, 0, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(-255, 0, 0, 1)')!.rgba, new RGBA(0, 0, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(+255, 0, 0, 1)')!.rgba, new RGBA(255, 0, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(800, 0, 0, 1)')!.rgba, new RGBA(255, 0, 0, 1));
+
+					// alpha values
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(255, 0, 0, 0.2)')!.rgba, new RGBA(255, 0, 0, 0.2));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(255, 0, 0, 0.5)')!.rgba, new RGBA(255, 0, 0, 0.5));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(255, 0, 0, 0.75)')!.rgba, new RGBA(255, 0, 0, 0.75));
+
+					// valid
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(0, 0, 0, 1)')!.rgba, new RGBA(0, 0, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(255, 255, 255, 1)')!.rgba, new RGBA(255, 255, 255, 1));
+
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(255, 0, 0, 1)')!.rgba, new RGBA(255, 0, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(0, 255, 0, 1)')!.rgba, new RGBA(0, 255, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(0, 0, 255, 1)')!.rgba, new RGBA(0, 0, 255, 1));
+
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(255, 255, 0, 1)')!.rgba, new RGBA(255, 255, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(0, 255, 255, 1)')!.rgba, new RGBA(0, 255, 255, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(255, 0, 255, 1)')!.rgba, new RGBA(255, 0, 255, 1));
+
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(192, 192, 192, 1)')!.rgba, new RGBA(192, 192, 192, 1));
+
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(128, 128, 128, 1)')!.rgba, new RGBA(128, 128, 128, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(128, 0, 0, 1)')!.rgba, new RGBA(128, 0, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(128, 128, 0, 1)')!.rgba, new RGBA(128, 128, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(0, 128, 0, 1)')!.rgba, new RGBA(0, 128, 0, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(128, 0, 128, 1)')!.rgba, new RGBA(128, 0, 128, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(0, 128, 128, 1)')!.rgba, new RGBA(0, 128, 128, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(0, 0, 128, 1)')!.rgba, new RGBA(0, 0, 128, 1));
+
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(1, 2, 3, 1)')!.rgba, new RGBA(1, 2, 3, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(4, 5, 6, 1)')!.rgba, new RGBA(4, 5, 6, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(7, 8, 9, 1)')!.rgba, new RGBA(7, 8, 9, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(10, 10, 10, 1)')!.rgba, new RGBA(10, 10, 10, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(11, 11, 11, 1)')!.rgba, new RGBA(11, 11, 11, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(12, 12, 12, 1)')!.rgba, new RGBA(12, 12, 12, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(13, 13, 13, 1)')!.rgba, new RGBA(13, 13, 13, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(14, 14, 14, 1)')!.rgba, new RGBA(14, 14, 14, 1));
+					assert.deepStrictEqual(Color.Format.CSS.parse('rgba(15, 15, 15, 1)')!.rgba, new RGBA(15, 15, 15, 1));
+				});
+			});
+
 			test('parseHex', () => {
 
 				// invalid

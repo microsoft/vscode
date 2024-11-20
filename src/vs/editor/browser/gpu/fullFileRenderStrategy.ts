@@ -24,6 +24,7 @@ import { quadVertices } from './gpuUtils.js';
 import { GlyphRasterizer } from './raster/glyphRasterizer.js';
 import { ViewGpuContext } from './viewGpuContext.js';
 import { GpuCharMetadata } from './raster/raster.js';
+import { Color } from '../../../base/common/color.js';
 
 
 const enum Constants {
@@ -410,18 +411,17 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 								break;
 							}
 							case 'color': {
-								// TODO: Move to color.ts and make more generic
-								function parseRgb(text: string): number {
-									const color = text.match(/rgba?\((\d+), ?(\d+), ?(\d+)(?:, ?\d+(?:.\d+)?)?\)/);
-									if (!color) {
-										throw new Error('Invalid color format ' + text);
-									}
-									const r = parseInt(color[1], 10);
-									const g = parseInt(color[2], 10);
-									const b = parseInt(color[3], 10);
-									return r << 16 | g << 8 | b;
+								// TODO: This parsing/error handling should move into canRender so fallback to DOM works
+								const parsedColor = Color.Format.CSS.parse(value);
+								if (!parsedColor) {
+									throw new Error('Invalid color format ' + value);
 								}
-								charMetadata = ((parseRgb(value) << GpuCharMetadata.FOREGROUND_OFFSET) & GpuCharMetadata.FOREGROUND_MASK) >>> 0;
+								const rgb = parsedColor.rgba.r << 16 | parsedColor.rgba.g << 8 | parsedColor.rgba.b;
+								charMetadata |= ((rgb << GpuCharMetadata.FOREGROUND_OFFSET) & GpuCharMetadata.FOREGROUND_MASK) >>> 0;
+								// TODO: _foreground_ opacity should not be applied to regular opacity
+								if (parsedColor.rgba.a < 1) {
+									charMetadata |= ((parsedColor.rgba.a * 0xFF << GpuCharMetadata.OPACITY_OFFSET) & GpuCharMetadata.OPACITY_MASK) >>> 0;
+								}
 								break;
 							}
 							default: throw new BugIndicatingError('Unexpected inline decoration style');

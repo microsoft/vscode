@@ -631,6 +631,43 @@ export namespace Color {
 			}
 
 			/**
+			 * Parse a CSS color and return a {@link Color}.
+			 * @param css The CSS color to parse.
+			 * @see https://drafts.csswg.org/css-color/#typedef-color
+			 */
+			export function parse(css: string): Color | null {
+				if (css === 'transparent') {
+					return Color.transparent;
+				}
+				if (css.startsWith('#')) {
+					return parseHex(css);
+				}
+				if (css.startsWith('rgba(')) {
+					const color = css.match(/rgba\((?<r>(?:\+|-)?\d+), *(?<g>(?:\+|-)?\d+), *(?<b>(?:\+|-)?\d+), *(?<a>(?:\+|-)?\d+(\.\d+)?)\)/);
+					if (!color) {
+						throw new Error('Invalid color format ' + css);
+					}
+					const r = parseInt(color.groups?.r ?? '0');
+					const g = parseInt(color.groups?.g ?? '0');
+					const b = parseInt(color.groups?.b ?? '0');
+					const a = parseFloat(color.groups?.a ?? '0');
+					return new Color(new RGBA(r, g, b, a));
+				}
+				if (css.startsWith('rgb(')) {
+					const color = css.match(/rgb\((?<r>(?:\+|-)?\d+), *(?<g>(?:\+|-)?\d+), *(?<b>(?:\+|-)?\d+)\)/);
+					if (!color) {
+						throw new Error('Invalid color format ' + css);
+					}
+					const r = parseInt(color.groups?.r ?? '0');
+					const g = parseInt(color.groups?.g ?? '0');
+					const b = parseInt(color.groups?.b ?? '0');
+					return new Color(new RGBA(r, g, b));
+				}
+				// TODO: Support more formats
+				return null;
+			}
+
+			/**
 			 * Converts an Hex color value to a Color.
 			 * returns r, g, and b are contained in the set [0, 255]
 			 * @param hex string (#RGB, #RGBA, #RRGGBB or #RRGGBBAA).
