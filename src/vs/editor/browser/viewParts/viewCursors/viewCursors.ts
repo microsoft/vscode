@@ -7,7 +7,7 @@ import './viewCursors.css';
 import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../base/common/async.js';
 import { ViewPart } from '../../view/viewPart.js';
-import { IViewCursorRenderData, ViewCursor, CursorPlurality, getCursorStyle } from './viewCursor.js';
+import { IViewCursorRenderData, ViewCursor, CursorPlurality } from './viewCursor.js';
 import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle, EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import {
@@ -73,7 +73,12 @@ export class ViewCursors extends ViewPart {
 
 		this._isVisible = false;
 
-		this._primaryCursor = this._register(new ViewCursor(this._context, CursorPlurality.Single));
+		this._updateCursorStyle();
+		this._register(InputMode.onDidChangeInputMode(() => {
+			this._updateCursorStyle();
+		}));
+
+		this._primaryCursor = new ViewCursor(this._context, CursorPlurality.Single, this._cursorStyle);
 		this._secondaryCursors = [];
 		this._renderData = [];
 
@@ -91,17 +96,12 @@ export class ViewCursors extends ViewPart {
 
 		this._editorHasFocus = false;
 		this._updateBlinking();
-		this._updateCursorStyle();
-		this._register(InputMode.onDidChangeInputMode(() => {
-			this._updateCursorStyle();
-		}));
 	}
 
 	public override dispose(): void {
 		super.dispose();
 		this._startCursorBlinkAnimation.dispose();
 		this._cursorFlatBlinkInterval.dispose();
-		this._secondaryCursors.forEach((cursor) => cursor.dispose());
 	}
 
 	public getDomNode(): FastDomNode<HTMLElement> {
@@ -151,7 +151,7 @@ export class ViewCursors extends ViewPart {
 			// Create new cursors
 			const addCnt = secondaryPositions.length - this._secondaryCursors.length;
 			for (let i = 0; i < addCnt; i++) {
-				const newCursor = new ViewCursor(this._context, CursorPlurality.MultiSecondary);
+				const newCursor = new ViewCursor(this._context, CursorPlurality.MultiSecondary, this._cursorStyle);
 				this._domNode.domNode.insertBefore(newCursor.getDomNode().domNode, this._primaryCursor.getDomNode().domNode.nextSibling);
 				this._secondaryCursors.push(newCursor);
 			}
@@ -160,8 +160,7 @@ export class ViewCursors extends ViewPart {
 			const removeCnt = this._secondaryCursors.length - secondaryPositions.length;
 			for (let i = 0; i < removeCnt; i++) {
 				this._domNode.removeChild(this._secondaryCursors[0].getDomNode());
-				const cursors = this._secondaryCursors.splice(0, 1);
-				cursors.forEach((cursor) => cursor.dispose());
+				this._secondaryCursors.splice(0, 1);
 			}
 		}
 
@@ -352,9 +351,18 @@ export class ViewCursors extends ViewPart {
 	}
 
 	private _updateCursorStyle(): void {
-		this._cursorStyle = getCursorStyle(this._context.configuration.options);
+		this._cursorStyle = this._getCursorStyle();
+		this._primaryCursor.updateCursorStyle(this._cursorStyle);
+		this._secondaryCursors.forEach((cursor) => cursor.updateCursorStyle(this._cursorStyle));
 		this.forceShouldRender();
 		this._viewHelper.renderNow();
+	}
+
+	private _getCursorStyle() {
+		const options = this._context.configuration.options;
+		return InputMode.getInputMode() === 'overtype' ?
+			options.get(EditorOption.overtypeCursorStyle) :
+			options.get(EditorOption.cursorStyle);
 	}
 
 	private _show(): void {

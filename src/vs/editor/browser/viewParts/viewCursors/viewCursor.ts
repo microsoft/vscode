@@ -7,15 +7,13 @@ import * as dom from '../../../../base/browser/dom.js';
 import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
 import * as strings from '../../../../base/common/strings.js';
 import { applyFontInfo } from '../../config/domFontInfo.js';
-import { TextEditorCursorStyle, EditorOption, IComputedEditorOptions } from '../../../common/config/editorOptions.js';
+import { TextEditorCursorStyle, EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../common/viewEvents.js';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../base/browser/ui/mouseCursor/mouseCursor.js';
-import { InputMode } from '../../../common/inputMode.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
 
 export interface IViewCursorRenderData {
 	domNode: HTMLElement;
@@ -43,11 +41,11 @@ export enum CursorPlurality {
 	MultiSecondary,
 }
 
-export class ViewCursor extends Disposable {
+export class ViewCursor {
 	private readonly _context: ViewContext;
 	private readonly _domNode: FastDomNode<HTMLElement>;
 
-	private _cursorStyle!: TextEditorCursorStyle;
+	private _cursorStyle: TextEditorCursorStyle;
 	private _lineCursorWidth: number;
 	private _lineHeight: number;
 	private _typicalHalfwidthCharacterWidth: number;
@@ -60,12 +58,12 @@ export class ViewCursor extends Disposable {
 	private _lastRenderedContent: string;
 	private _renderData: ViewCursorRenderData | null;
 
-	constructor(context: ViewContext, plurality: CursorPlurality) {
-		super();
+	constructor(context: ViewContext, plurality: CursorPlurality, cursorStyle: TextEditorCursorStyle) {
 		this._context = context;
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 
+		this._cursorStyle = cursorStyle;
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
@@ -87,11 +85,6 @@ export class ViewCursor extends Disposable {
 
 		this._lastRenderedContent = '';
 		this._renderData = null;
-
-		this._updateCursorStyle();
-		this._register(InputMode.onDidChangeInputMode(() => {
-			this._updateCursorStyle();
-		}));
 	}
 
 	public getDomNode(): FastDomNode<HTMLElement> {
@@ -137,7 +130,7 @@ export class ViewCursor extends Disposable {
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 
-		this._updateCursorStyle();
+		this._cursorStyle = options.get(EditorOption.cursorStyle);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
@@ -241,14 +234,14 @@ export class ViewCursor extends Disposable {
 		return new ViewCursorRenderData(top, range.left, 0, width, height, textContent, textContentClassName);
 	}
 
-	private _updateCursorStyle(): void {
-		this._cursorStyle = getCursorStyle(this._context.configuration.options);
-	}
-
 	private _getTokenClassName(position: Position): string {
 		const lineData = this._context.viewModel.getViewLineData(position.lineNumber);
 		const tokenIndex = lineData.tokens.findTokenIndexAtOffset(position.column - 1);
 		return lineData.tokens.getClassName(tokenIndex);
+	}
+
+	public updateCursorStyle(cursorStyle: TextEditorCursorStyle): void {
+		this._cursorStyle = cursorStyle;
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
@@ -284,10 +277,4 @@ export class ViewCursor extends Disposable {
 			width: 2
 		};
 	}
-}
-
-export function getCursorStyle(options: IComputedEditorOptions) {
-	return InputMode.getInputMode() === 'overtype' ?
-		options.get(EditorOption.overtypeCursorStyle) :
-		options.get(EditorOption.cursorStyle);
 }
