@@ -22,6 +22,7 @@ import { GPULifecycle } from './gpuDisposable.js';
 import { quadVertices } from './gpuUtils.js';
 import { GlyphRasterizer } from './raster/glyphRasterizer.js';
 import { ViewGpuContext } from './viewGpuContext.js';
+import { GpuCharMetadata } from './raster/raster.js';
 
 
 const enum Constants {
@@ -333,7 +334,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						break;
 					}
 					chars = content.charAt(x);
-					charMetadata = tokenMetadata;
+					charMetadata = 0;
 
 					// TODO: We'd want to optimize pulling the decorations in order
 					// HACK: Temporary replace char to demonstrate inline decorations
@@ -366,7 +367,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						}
 					}
 
-					for (const [key, _value] of inlineStyles.entries()) {
+					for (const [key, value] of inlineStyles.entries()) {
 						switch (key) {
 							case 'text-decoration-line': {
 								charMetadata |= MetadataConsts.STRIKETHROUGH_MASK;
@@ -379,9 +380,18 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 								break;
 							}
 							case 'color': {
-								// HACK: Set color requests to the first token's fg color
-								charMetadata &= ~MetadataConsts.FOREGROUND_MASK;
-								charMetadata |= 0b1 << MetadataConsts.FOREGROUND_OFFSET;
+								// TODO: Move to color.ts and make more generic
+								function parseRgb(text: string): number {
+									const color = text.match(/rgb\((\d+), (\d+), (\d+)\)/);
+									if (!color) {
+										throw new Error('Invalid color format');
+									}
+									const r = parseInt(color[1], 10);
+									const g = parseInt(color[2], 10);
+									const b = parseInt(color[3], 10);
+									return r << 16 | g << 8 | b;
+								}
+								charMetadata = ((parseRgb(value) << GpuCharMetadata.FOREGROUND_OFFSET) & GpuCharMetadata.FOREGROUND_MASK) >>> 0;
 								break;
 							}
 							default: throw new BugIndicatingError('Unexpected inline decoration style');
@@ -399,7 +409,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						continue;
 					}
 
-					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer, chars, charMetadata);
+					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer, chars, tokenMetadata, charMetadata);
 
 					// TODO: Support non-standard character widths
 					absoluteOffsetX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);

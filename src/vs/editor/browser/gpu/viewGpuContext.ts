@@ -150,6 +150,7 @@ export class ViewGpuContext extends Disposable {
 				const styleRules = ViewGpuContext._decorationCssRuleExtractor.getStyleRules(container, decoration.inlineClassName);
 				supported &&= styleRules.every(rule => {
 					for (const r of rule.style) {
+						// TODO: Consider pseudo classes when checking for support
 						if (!gpuSupportedCssRules.includes(r)) {
 							return false;
 						}
