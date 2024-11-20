@@ -19,7 +19,6 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -330,32 +329,19 @@ class ChatAddAction extends Action2 {
 	}
 }
 
-class ChatReleaseNotesAction extends Action2 {
-	constructor() {
-		super({
-			id: `workbench.action.chat.releaseNotes`,
-			title: localize2('chat.releaseNotes.label', "Explore New Features"),
-			category: CHAT_CATEGORY,
-			f1: false,
-			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', ChatViewId)
-			},
-		});
-	}
-
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		const commandService = accessor.get(ICommandService);
-		return await commandService.executeCommand('update.showCurrentReleaseNotes');
-	}
-}
+MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+	command: {
+		id: 'update.showCurrentReleaseNotes',
+		title: localize2('chat.releaseNotes.label', "Explore New Features"),
+	},
+	when: ContextKeyExpr.equals('view', ChatViewId)
+});
 
 export function registerChatActions() {
 	registerAction2(OpenChatGlobalAction);
 	registerAction2(ChatHistoryAction);
 	registerAction2(OpenChatEditorAction);
 	registerAction2(ChatAddAction);
-	registerAction2(ChatReleaseNotesAction);
 
 	registerAction2(class ClearChatInputHistoryAction extends Action2 {
 		constructor() {
