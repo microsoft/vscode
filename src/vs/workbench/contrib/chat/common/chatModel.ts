@@ -56,14 +56,6 @@ export interface IChatRequestImplicitVariableEntry extends Omit<IBaseChatRequest
 	enabled: boolean;
 }
 
-export interface IChatRequestPasteVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
-	readonly kind: 'paste';
-	code: string;
-	language: string;
-	fileName: string;
-	pastedLines: string;
-}
-
 export interface ISymbolVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
 	readonly kind: 'symbol';
 	readonly isDynamic: true;
@@ -75,14 +67,10 @@ export interface ICommandResultVariableEntry extends Omit<IBaseChatRequestVariab
 	readonly isDynamic: true;
 }
 
-export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | IBaseChatRequestVariableEntry;
+export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | ISymbolVariableEntry | ICommandResultVariableEntry | IBaseChatRequestVariableEntry;
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
-}
-
-export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
-	return obj.kind === 'paste';
 }
 
 export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVariableEntry {
@@ -201,7 +189,6 @@ export interface IChatResponseModel {
 }
 
 export class ChatRequestModel implements IChatRequestModel {
-	private static nextId = 0;
 
 	public response: ChatResponseModel | undefined;
 
@@ -260,8 +247,9 @@ export class ChatRequestModel implements IChatRequestModel {
 		private _attachedContext?: IChatRequestVariableEntry[],
 		private _workingSet?: URI[],
 		public readonly isCompleteAddedRequest = false,
+		restoredId?: string,
 	) {
-		this.id = 'request_' + ChatRequestModel.nextId++;
+		this.id = restoredId ?? 'request_' + generateUuid();
 		// this.timestamp = Date.now();
 	}
 
@@ -439,8 +427,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private static nextId = 0;
-
 	public readonly id: string;
 
 	public get session() {
@@ -546,7 +532,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		private _result?: IChatAgentResult,
 		followups?: ReadonlyArray<IChatFollowup>,
 		public readonly isCompleteAddedRequest = false,
-		private _isHidden: boolean = false
+		private _isHidden: boolean = false,
+		restoredId?: string
 	) {
 		super();
 
@@ -556,7 +543,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._followups = followups ? [...followups] : undefined;
 		this._response = this._register(new Response(_response));
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire()));
-		this.id = 'response_' + ChatResponseModel.nextId++;
+		this.id = restoredId ?? 'response_' + generateUuid();
 	}
 
 	/**
@@ -668,10 +655,12 @@ export interface ISerializableChatsData {
 export type ISerializableChatAgentData = UriDto<IChatAgentData>;
 
 export interface ISerializableChatRequestData {
+	requestId: string;
 	message: string | IParsedChatRequest; // string => old format
 	/** Is really like "prompt data". This is the message in the format in which the agent gets it + variable values. */
 	variableData: IChatRequestVariableData;
 	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability> | undefined;
+	responseId?: string;
 	agent?: ISerializableChatAgentData;
 	slashCommand?: IChatAgentCommand;
 	// responseErrorDetails: IChatResponseErrorDetails | undefined;
@@ -1014,7 +1003,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 				// Old messages don't have variableData, or have it in the wrong (non-array) shape
 				const variableData: IChatRequestVariableData = this.reviveVariableData(raw.variableData);
-				const request = new ChatRequestModel(this, parsedRequest, variableData, raw.timestamp ?? -1);
+				const request = new ChatRequestModel(this, parsedRequest, variableData, raw.timestamp ?? -1, undefined, undefined, undefined, undefined, undefined, undefined, raw.requestId);
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
 						reviveSerializedAgent(raw.agent) : undefined;
@@ -1023,7 +1012,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					const result = 'responseErrorDetails' in raw ?
 						// eslint-disable-next-line local/code-no-dangerous-type-assertions
 						{ errorDetails: raw.responseErrorDetails } as IChatAgentResult : raw.result;
-					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, raw.slashCommand, request.id, true, raw.isCanceled, raw.vote, raw.voteDownReason, result, raw.followups);
+					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, raw.slashCommand, request.id, true, raw.isCanceled, raw.vote, raw.voteDownReason, result, raw.followups, undefined, undefined, raw.responseId);
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 						request.response.applyReference(revive(raw.usedContext));
 					}
@@ -1277,6 +1266,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				const agentJson = agent && 'toJSON' in agent ? (agent.toJSON as Function)() :
 					agent ? { ...agent } : undefined;
 				return {
+					requestId: r.id,
 					message,
 					variableData: r.variableData,
 					response: r.response ?
@@ -1291,6 +1281,7 @@ export class ChatModel extends Disposable implements IChatModel {
 							}
 						})
 						: undefined,
+					responseId: r.response?.id,
 					result: r.response?.result,
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,

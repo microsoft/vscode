@@ -11,10 +11,9 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
-import { getBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
@@ -73,13 +72,13 @@ import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
-import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
-import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
-import { IChatRequestVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
+import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatRequestDynamicVariablePart } from '../common/chatParserTypes.js';
+import { IChatFollowup } from '../common/chatService.js';
+import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
@@ -840,29 +839,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 								return;
 							}
 							buffer = readFile.value.buffer;
-						} else {
-							buffer = attachment.value as Uint8Array;
-						}
-						this.createImageElements(buffer, widget, hoverElement);
-					} catch (error) {
-						console.error('Error processing attachment:', error);
-					}
-
-					widget.style.position = 'relative';
 					store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
 					resolve();
 				}));
-			} else if (isPasteVariableEntry(attachment)) {
-				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
-
-				const hoverContent: IManagedHoverTooltipMarkdownString = {
-					markdown: {
-						value: `\`\`\`${attachment.language}\n${attachment.code}\n\`\`\``,
-					},
-					markdownNotSupportedFallback: attachment.code,
-				};
-
-				const classNames = ['file-icon', `${attachment.language}-lang-file-icon`];
+			} else {
+				const attachmentLabel = attachment.fullName ?? attachment.name;
+				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
 				label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
 				widget.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.pastedLines}`));
 
@@ -1082,28 +1064,42 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					title: localize('chatEditingSession.excludedFile', 'The Working Set file limit has ben reached. {0} is excluded from the Woking Set. Remove other files to make space for {0}.', basename(excludedAttachment.value.path))
 				});
 				seenEntries.add(excludedAttachment.value);
-			}
-		}
-		entries.sort((a, b) => {
-			if (a.kind === 'reference' && b.kind === 'reference') {
-				if (a.state === b.state || a.state === undefined || b.state === undefined) {
-					return a.reference.toString().localeCompare(b.reference.toString());
+			// The user tried to attach too many files, we have to drop anything after the limit
+			const entriesToPreserve: IChatCollapsibleListItem[] = [];
+			const newEntries: IChatCollapsibleListItem[] = [];
+			const suggestedFiles: IChatCollapsibleListItem[] = [];
+			for (let i = 0; i < entries.length; i += 1) {
+				const entry = entries[i];
+				if (entry.kind !== 'reference' || !URI.isUri(entry.reference)) {
+					continue;
 				}
-				return a.state - b.state;
+				const currentEntryUri = entry.reference;
+				if (entry.state === WorkingSetEntryState.Suggested) {
+					// Keep track of suggested files for now, they should not take precedence over newly added files
+					suggestedFiles.push(entry);
+				} else if (this._combinedChatEditWorkingSetEntries.find((e) => e.toString() === currentEntryUri?.toString())) {
+					// If this entry was here earlier and is still here, we should prioritize preserving it
+					// so that nothing existing gets evicted
+					if (remainingFileEntriesBudget > 0) {
+						entriesToPreserve.push(entry);
+						remainingFileEntriesBudget -= 1;
+					}
+				} else {
+					newEntries.push(entry);
+				}
 			}
-			return 0;
-		});
-		let remainingFileEntriesBudget = this.chatEditingService.editingSessionFileLimit;
-		const overviewRegion = innerContainer.querySelector('.chat-editing-session-overview') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-overview'));
-		const overviewTitle = overviewRegion.querySelector('.working-set-title') as HTMLElement ?? dom.append(overviewRegion, $('.working-set-title'));
-		const overviewWorkingSet = overviewTitle.querySelector('span') ?? dom.append(overviewTitle, $('span'));
-		const overviewFileCount = overviewTitle.querySelector('span.working-set-count') ?? dom.append(overviewTitle, $('span.working-set-count'));
 
-		overviewWorkingSet.textContent = localize('chatEditingSession.workingSet', 'Working Set');
-
-		// Record the number of entries that the user wanted to add to the working set
-		this._attemptedWorkingSetEntriesCount = entries.length + excludedEntries.length;
-
+			const newEntriesThatFit = remainingFileEntriesBudget > 0 ? newEntries.slice(0, remainingFileEntriesBudget) : [];
+			remainingFileEntriesBudget -= newEntriesThatFit.length;
+			const suggestedFilesThatFit = remainingFileEntriesBudget > 0 ? suggestedFiles.slice(0, remainingFileEntriesBudget) : [];
+			// Intentional: to make bad suggestions less annoying,
+			// here we don't count the suggested files against the budget,
+			// so that the Add Files button remains enabled and the user can easily
+			// override the suggestions with their own manual file selections
+			entries = [...entriesToPreserve, ...newEntriesThatFit, ...suggestedFilesThatFit];
+		}
+		if (entries.length > 1) {
+			overviewText.textContent += ' ' + localize('chatEditingSession.manyFiles', '({0} files)', entries.length);
 		overviewFileCount.textContent = '';
 		if (entries.length === 1) {
 			overviewFileCount.textContent = ' ' + localize('chatEditingSession.oneFile', '(1 file)');
@@ -1181,12 +1177,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._chatEditsProgress?.infinite().show(500);
 		}
 
-		// Working set
-		const workingSetContainer = innerContainer.querySelector('.chat-editing-session-list') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-list'));
-		if (!this._chatEditList) {
-			this._chatEditList = this._chatEditsListPool.get();
-			const list = this._chatEditList.object;
-			this._chatEditsDisposables.add(this._chatEditList);
+			supportIcons: true,
+			secondary: true
+		}));
+		// Disable the button if the entries that are not suggested exceed the budget
+		button.enabled = remainingFileEntriesBudget > 0;
+		button.label = localize('chatAddFiles', '{0} Add Files...', '$(add)');
+		button.setTitle(button.enabled ? localize('addFiles.label', 'Add files to your working set') : localize('addFilesDisabled.label', 'You have reached the maximum number of files that can be added to the working set.'));
 			this._chatEditsDisposables.add(list.onDidFocus(() => {
 				this._onDidFocus.fire();
 			}));

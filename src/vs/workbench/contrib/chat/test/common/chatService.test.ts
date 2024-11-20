@@ -314,7 +314,9 @@ function toSnapshotExportData(model: IChatModel) {
 		requests: exp.requests.map(r => {
 			return {
 				...r,
-				timestamp: undefined
+				timestamp: undefined,
+				requestId: undefined, // id contains a random part
+				responseId: undefined, // id contains a random part
 			};
 		})
 	};

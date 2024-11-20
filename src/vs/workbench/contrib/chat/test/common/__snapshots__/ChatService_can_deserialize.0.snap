@@ -6,6 +6,7 @@
   initialLocation: "panel",
   requests: [
     {
+      requestId: undefined,
       message: {
         text: "@ChatProviderWithUsedContext test request",
         parts: [
@@ -55,6 +56,7 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
+      responseId: undefined,
       result: { metadata: { metadataKey: "value" } },
       followups: undefined,
       isCanceled: false,

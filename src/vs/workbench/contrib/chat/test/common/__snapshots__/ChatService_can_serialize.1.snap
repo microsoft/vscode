@@ -6,6 +6,7 @@
   initialLocation: "panel",
   requests: [
     {
+      requestId: undefined,
       message: {
         parts: [
           {
@@ -55,6 +56,7 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
+      responseId: undefined,
       result: { metadata: { metadataKey: "value" } },
       followups: [
         {
@@ -105,6 +107,7 @@
       timestamp: undefined
     },
     {
+      requestId: undefined,
       message: {
         parts: [
           {
@@ -126,6 +129,7 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
+      responseId: undefined,
       result: {  },
       followups: [  ],
       isCanceled: false,
