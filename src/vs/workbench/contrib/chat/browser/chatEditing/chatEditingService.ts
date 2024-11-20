@@ -189,8 +189,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	async startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession> {
 		const session = this._currentSessionObs.get();
 		if (session) {
-			if (session.chatSessionId !== chatSessionId) {
-				throw new BugIndicatingError('Cannot start new session while another session is active');
+			if (session.chatSessionId === chatSessionId) {
+				return session;
+			} else if (session.chatSessionId !== chatSessionId) {
+				await session.stop();
 			}
 		}
 		return this._createEditingSession(chatSessionId, options);

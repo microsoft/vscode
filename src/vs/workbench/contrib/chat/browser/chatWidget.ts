@@ -35,7 +35,7 @@ import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
 import { IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, formatChatQuestion } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
@@ -281,16 +281,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this._location.location === ChatAgentLocation.EditingSession) {
 			let currentEditSession: IChatEditingSession | undefined = undefined;
 			this._register(this.onDidChangeViewModel(async () => {
-
 				const sessionId = this._viewModel?.sessionId;
-				if (sessionId !== currentEditSession?.chatSessionId) {
-					if (currentEditSession && (currentEditSession.state.get() !== ChatEditingSessionState.Disposed)) {
-						await currentEditSession.stop();
-					}
-					if (sessionId) {
+				if (sessionId) {
+					if (sessionId !== currentEditSession?.chatSessionId) {
 						currentEditSession = await this.chatEditingService.startOrContinueEditingSession(sessionId, { silent: true });
-					} else {
+					}
+				} else {
+					if (currentEditSession) {
+						const session = currentEditSession;
 						currentEditSession = undefined;
+						await session.stop();
 					}
 				}
 			}));
