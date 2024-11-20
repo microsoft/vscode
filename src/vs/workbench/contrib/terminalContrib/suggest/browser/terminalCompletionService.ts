@@ -215,7 +215,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				continue;
 			}
 			const lastWord = promptValue.substring(0, cursorPosition).split(' ').pop();
-			const lastIndexOfDot = lastWord?.lastIndexOf(' .') ?? -1;
+			const lastIndexOfDot = lastWord?.lastIndexOf('.') ?? -1;
 			const lastIndexOfSlash = lastWord?.lastIndexOf(resourceRequestConfig.pathSeparator) ?? -1;
 			let label;
 			if (lastIndexOfSlash > -1) {
