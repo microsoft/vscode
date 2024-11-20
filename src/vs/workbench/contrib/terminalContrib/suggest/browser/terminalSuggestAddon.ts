@@ -202,7 +202,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
 		for (const completion of completions) {
-			if (!completion.icon && completion.kind) {
+			if (!completion.icon && completion.kind !== undefined) {
 				completion.icon = this._kindToIconMap.get(completion.kind);
 			}
 		}

@@ -139,7 +139,6 @@ export async function activate(context: vscode.ExtensionContext) {
 											}
 										}
 										if (result.length) {
-											console.log('returning result', result.map(r => r.label));
 											return result;
 										}
 									}

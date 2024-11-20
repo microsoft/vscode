@@ -217,13 +217,24 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 
 	private async _getResources(resource: string, folders: boolean): Promise<string[]> {
-		const resources = [URI.parse(resource)];
-
-		const stats = await this._fileService.resolveAll(resources.map(r => ({ resource: r, options: { resolveTo: [r] } })));
+		const uri = URI.parse(resource);
+		const resources = [uri];
+		const paths = [];
+		const stats = await this._fileService.resolveAll(resources.map(r => ({ resource: r, options: { resolveSingleChildDescendants: true } })));
 		if (folders) {
-			return stats.filter(stat => stat && stat.stat?.isDirectory).map(stat => stat.stat?.resource.fsPath).filter(path => path !== undefined);
+			const result = stats.filter(stat => stat && stat.stat?.isDirectory);
+			for (const r of result) {
+				if (r.success) {
+					for (const child of r.stat?.children ?? []) {
+						if (folders ? child.isDirectory : child.isFile) {
+							// make label relative to the cwd
+							paths.push('.' + child.resource.fsPath.replace(uri.fsPath, ''));
+						}
+					}
+				}
+			}
 		}
-		return stats.filter(stat => stat && stat.stat?.isFile).map(stat => stat.stat?.resource.fsPath).filter(path => path !== undefined);
+		return paths;
 	}
 }
 
