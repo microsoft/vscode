@@ -100,7 +100,7 @@ declare module 'vscode' {
 		 * Creates a new completion list.
 		 *
 		 * @param items The completion items.
-		 * @param isIncomplete The list is not complete.
+		 * @param resourceRequestConfig Indicates which resources should be shown as completions
 		 */
 		constructor(items?: T[], resourceRequestConfig?: TerminalResourceRequestConfig);
 	}
