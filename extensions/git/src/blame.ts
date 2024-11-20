@@ -5,7 +5,7 @@
 
 import { ConfigurationChangeEvent, DecorationOptions, l10n, Position, Range, TextDocument, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace } from 'vscode';
 import { Model } from './model';
-import { dispose, fromNow, IDisposable } from './util';
+import { dispose, fromNow, IDisposable, pathEquals } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation } from './git';
@@ -62,8 +62,13 @@ function mapLineNumber(lineNumber: number, changes: readonly TextEditorChange[])
 }
 
 interface RepositoryBlameInformation {
-	readonly commit: string;
-	readonly blameInformation: Map<Uri, BlameInformation[]>;
+	readonly commit: string; /* commit used for blame information */
+	readonly blameInformation: Map<Uri, ResourceBlameInformation>;
+}
+
+interface ResourceBlameInformation {
+	readonly staged: boolean; /* whether the file is staged */
+	readonly blameInformation: BlameInformation[];
 }
 
 export class GitBlameController {
@@ -105,20 +110,10 @@ export class GitBlameController {
 	}
 
 	private _onDidOpenRepository(repository: Repository): void {
-		const disposables: IDisposable[] = [];
+		const repositoryDisposables: IDisposable[] = [];
 
-		repository.onDidRunGitStatus(() => {
-			if (this._blameInformation.get(repository)?.commit === repository.HEAD?.commit) {
-				return;
-			}
-
-			this._blameInformation.delete(repository);
-			for (const textEditor of window.visibleTextEditors) {
-				this._updateDecorations(textEditor);
-			}
-		}, this, disposables);
-
-		this._repositoryDisposables.set(repository, disposables);
+		repository.onDidRunGitStatus(() => this._onDidRunGitStatus(repository), this, repositoryDisposables);
+		this._repositoryDisposables.set(repository, repositoryDisposables);
 	}
 
 	private _onDidCloseRepository(repository: Repository): void {
@@ -129,6 +124,39 @@ export class GitBlameController {
 
 		this._repositoryDisposables.delete(repository);
 		this._blameInformation.delete(repository);
+	}
+
+	private _onDidRunGitStatus(repository: Repository): void {
+		let repositoryBlameInformation = this._blameInformation.get(repository);
+		if (!repositoryBlameInformation) {
+			return;
+		}
+
+		let updateDecorations = false;
+
+		// 1. HEAD commit changed (remove all blame information for the repository)
+		if (repositoryBlameInformation.commit !== repository.HEAD?.commit) {
+			this._blameInformation.delete(repository);
+			repositoryBlameInformation = undefined;
+			updateDecorations = true;
+		}
+
+		// 2. Resource has been staged/unstaged (remove blame information for the file)
+		for (const [uri, resourceBlameInformation] of repositoryBlameInformation?.blameInformation.entries() ?? []) {
+			const isStaged = repository.indexGroup.resourceStates
+				.some(r => pathEquals(uri.fsPath, r.resourceUri.fsPath));
+
+			if (resourceBlameInformation.staged !== isStaged) {
+				repositoryBlameInformation?.blameInformation.delete(uri);
+				updateDecorations = true;
+			}
+		}
+
+		if (updateDecorations) {
+			for (const textEditor of window.visibleTextEditors) {
+				this._updateDecorations(textEditor);
+			}
+		}
 	}
 
 	@throttle
@@ -205,21 +233,25 @@ export class GitBlameController {
 
 		const repositoryBlameInformation = this._blameInformation.get(repository) ?? {
 			commit: repository.HEAD.commit,
-			blameInformation: new Map<Uri, BlameInformation[]>()
+			blameInformation: new Map<Uri, ResourceBlameInformation>()
 		} satisfies RepositoryBlameInformation;
 
-		let fileBlameInformation = repositoryBlameInformation.blameInformation.get(document.uri);
-		if (repositoryBlameInformation.commit === repository.HEAD.commit && fileBlameInformation) {
-			return fileBlameInformation;
+		let resourceBlameInformation = repositoryBlameInformation.blameInformation.get(document.uri);
+		if (repositoryBlameInformation.commit === repository.HEAD.commit && resourceBlameInformation) {
+			return resourceBlameInformation.blameInformation;
 		}
 
-		fileBlameInformation = await repository.blame2(document.uri.fsPath) ?? [];
+		const staged = repository.indexGroup.resourceStates
+			.some(r => pathEquals(document.uri.fsPath, r.resourceUri.fsPath));
+		const blameInformation = await repository.blame2(document.uri.fsPath) ?? [];
+		resourceBlameInformation = { staged, blameInformation } satisfies ResourceBlameInformation;
+
 		this._blameInformation.set(repository, {
 			...repositoryBlameInformation,
-			blameInformation: repositoryBlameInformation.blameInformation.set(document.uri, fileBlameInformation)
+			blameInformation: repositoryBlameInformation.blameInformation.set(document.uri, resourceBlameInformation)
 		});
 
-		return fileBlameInformation;
+		return resourceBlameInformation.blameInformation;
 	}
 
 	dispose() {
