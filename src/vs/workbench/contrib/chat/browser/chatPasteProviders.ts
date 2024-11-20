@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDataTransferItem, IReadonlyVSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteEditsSession } from '../../../../editor/common/languages.js';
+import { DocumentPasteContext, DocumentPasteEditProvider, DocumentPasteEditsSession } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -28,13 +28,6 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		private readonly chatWidgetService: IChatWidgetService,
 		private readonly extensionService: IExtensionService
 	) { }
-	id?: string | undefined;
-	prepareDocumentPaste?(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer> {
-		throw new Error('Method not implemented.');
-	}
-	resolveDocumentPasteEdit?(edit: DocumentPasteEdit, token: CancellationToken): Promise<DocumentPasteEdit> {
-		throw new Error('Method not implemented.');
-	}
 
 	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
 		if (!this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
