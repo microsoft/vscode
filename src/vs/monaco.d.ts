@@ -7962,14 +7962,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface WorkspaceEdit {
-		edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit | ICustomEdit>;
-	}
-
-	export interface ICustomEdit {
-		readonly resource: Uri;
-		readonly metadata?: WorkspaceEditMetadata;
-		undo(): Promise<void> | void;
-		redo(): Promise<void> | void;
+		edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>;
 	}
 
 	export interface Rejection {
