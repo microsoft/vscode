@@ -89,15 +89,15 @@ export async function activate(context: vscode.ExtensionContext) {
 			let result: vscode.TerminalCompletionItem[] = [];
 			const specs = [codeCompletionSpec, codeInsidersCompletionSpec];
 			for (const spec of specs) {
-				const specLabel = getLabel(spec);
-				if (!specLabel) {
+				const specLabels = getLabel(spec);
+				if (!specLabels) {
 					continue;
 				}
-				for (const specName of specLabel) {
-					if (!availableCommands.has(specName)) {
+				for (const specLabel of specLabels) {
+					if (!availableCommands.has(specLabel)) {
 						continue;
 					}
-					if (terminalContext.commandLine.startsWith(specName)) {
+					if (terminalContext.commandLine.startsWith(specLabel)) {
 						if ('options' in codeInsidersCompletionSpec && codeInsidersCompletionSpec.options) {
 							for (const option of codeInsidersCompletionSpec.options) {
 								const optionLabels = getLabel(option);
@@ -105,7 +105,7 @@ export async function activate(context: vscode.ExtensionContext) {
 									continue;
 								}
 								for (const optionLabel of optionLabels) {
-									if (optionLabel.startsWith(prefix) || (prefix.length > specName.length && prefix.trim() === specName)) {
+									if (optionLabel.startsWith(prefix) || (prefix.length > specLabel.length && prefix.trim() === specLabel)) {
 										result.push(createCompletionItem(terminalContext.cursorPosition, prefix, optionLabel, option.description, false, vscode.TerminalCompletionItemKind.Flag));
 									}
 									if (!option.args) {
@@ -117,7 +117,7 @@ export async function activate(context: vscode.ExtensionContext) {
 											continue;
 										}
 										const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
-										const expectedText = `${specName} ${optionLabel} `;
+										const expectedText = `${specLabel} ${optionLabel} `;
 										if (!precedingText.includes(expectedText)) {
 											continue;
 										}
