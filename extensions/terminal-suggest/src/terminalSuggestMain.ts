@@ -179,7 +179,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			const resultItems = uniqueResults.size ? Array.from(uniqueResults.values()) : undefined;
 
-			if ((!filesRequested && !foldersRequested) && (!resultItems?.length && prefix.match(/^[./\\ ]/))) {
+			// If no completions are found, the prefix is a path, and neither files nor folders
+			// are going to be requested (for a specific spec's argument), show file/folder completions
+			const shouldShowResourceCompletions = !resultItems?.length && prefix.match(/^[./\\ ]/) && !filesRequested && !foldersRequested;
+			if (shouldShowResourceCompletions) {
 				filesRequested = true;
 				foldersRequested = true;
 			}
