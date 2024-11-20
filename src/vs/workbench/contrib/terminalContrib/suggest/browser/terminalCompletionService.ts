@@ -227,6 +227,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			resourceCompletions.push({
 				label,
 				kind,
+				isDirectory: kind === TerminalCompletionItemKind.Folder,
+				isFile: kind === TerminalCompletionItemKind.File,
 				replacementIndex: cursorPosition,
 				replacementLength: label.length
 			});
