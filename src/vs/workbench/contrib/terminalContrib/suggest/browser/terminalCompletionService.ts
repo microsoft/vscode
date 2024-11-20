@@ -206,17 +206,16 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (foldersRequested && stat.isDirectory) {
 				kind = TerminalCompletionItemKind.Folder;
 			}
-			if (filesRequested && (stat.isFile || stat.resource.scheme === 'file')) {
+			if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === 'file')) {
 				kind = TerminalCompletionItemKind.File;
 			}
 			if (kind === undefined) {
 				continue;
 			}
-			const promptValueBeforeCursor = promptValue.substring(0, cursorPosition);
-			const lastIndexOfDot = promptValueBeforeCursor.lastIndexOf(' .');
-			const lastIndexOfSlash = promptValueBeforeCursor.lastIndexOf('/');
+			const lastWord = promptValue.substring(0, cursorPosition).split(' ').pop();
+			const lastIndexOfDot = lastWord?.lastIndexOf(' .') ?? -1;
+			const lastIndexOfSlash = lastWord?.lastIndexOf('/') ?? -1;
 			let label;
-
 			if (lastIndexOfSlash > -1) {
 				label = stat.resource.fsPath.replace(cwd.fsPath, '').substring(1);
 			} else if (lastIndexOfDot === -1) {
