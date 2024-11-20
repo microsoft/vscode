@@ -87,18 +87,20 @@ export async function activate(context: vscode.ExtensionContext) {
 			const items: vscode.TerminalCompletionItem[] = [];
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 
-			for (const command of commands) {
-				if (command.startsWith(prefix)) {
-					items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command));
-				}
-			}
-
 			const specs = [codeCompletionSpec, codeInsidersCompletionSpec];
 			const specCompletions = await getCompletionItemsFromSpecs(specs, terminalContext, new Set(commands), prefix, token);
 
 			let filesRequested = specCompletions.filesRequested;
 			let foldersRequested = specCompletions.foldersRequested;
 			items.push(...specCompletions.items);
+
+			if (!specCompletions.specificSuggestionsProvided) {
+				for (const command of commands) {
+					if (command.startsWith(prefix)) {
+						items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command));
+					}
+				}
+			}
 
 			if (token.isCancellationRequested) {
 				return undefined;
@@ -210,7 +212,7 @@ export function asArray<T>(x: T | T[]): T[] {
 	return Array.isArray(x) ? x : [x];
 }
 
-function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: { commandLine: string; cursorPosition: number }, availableCommands: Set<string>, prefix: string, token: vscode.CancellationToken): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } {
+function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: { commandLine: string; cursorPosition: number }, availableCommands: Set<string>, prefix: string, token: vscode.CancellationToken): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; specificSuggestionsProvided: boolean } {
 	let items: vscode.TerminalCompletionItem[] = [];
 	let filesRequested = false;
 	let foldersRequested = false;
@@ -275,9 +277,9 @@ function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: { comma
 												items.push(createCompletionItem(terminalContext.cursorPosition, precedingText, suggestionLabel, arg.name, hasSpaceBeforeCursor, vscode.TerminalCompletionItemKind.Argument));
 											}
 										}
-										if (items.length) {
-											return { items, filesRequested, foldersRequested };
-										}
+									}
+									if (items.length) {
+										return { items, filesRequested, foldersRequested, specificSuggestionsProvided: true };
 									}
 								}
 							}
@@ -287,6 +289,6 @@ function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: { comma
 			}
 		}
 	}
-	return { items, filesRequested, foldersRequested };
+	return { items, filesRequested, foldersRequested, specificSuggestionsProvided: false };
 }
 
