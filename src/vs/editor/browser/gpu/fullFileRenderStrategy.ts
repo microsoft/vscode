@@ -10,7 +10,7 @@ import { EditorOption } from '../../common/config/editorOptions.js';
 import { CursorColumns } from '../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
 import { ViewEventHandler } from '../../common/viewEventHandler.js';
-import { ViewEventType, type ViewConfigurationChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../common/viewEvents.js';
+import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../common/viewEvents.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewLineRenderingData } from '../../common/viewModel.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
@@ -113,9 +113,16 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 	// #region Event handlers
 
+	// The primary job of these handlers is to:
+	// 1. Invalidate the up to date line cache, which will cause the line to be re-rendered when
+	//    it's _within the viewport_.
+	// 2. Pass relevant events on to the render function so it can force certain line ranges to be
+	//    re-rendered even if they're not in the viewport. For example when a view zone is added,
+	//    there are lines that used to be visible but are no longer, so those ranges must be
+	//    cleared and uploaded to the GPU.
+
 	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
-		this._upToDateLines[0].clear();
-		this._upToDateLines[1].clear();
+		this._invalidateAllLines();
 		this._queueBufferUpdate(e);
 
 		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
@@ -127,6 +134,11 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 			this._glyphRasterizer.value = new GlyphRasterizer(fontSize, fontFamily);
 		}
 
+		return true;
+	}
+
+	public override onDecorationsChanged(e: ViewDecorationsChangedEvent): boolean {
+		this._invalidateAllLines();
 		return true;
 	}
 
@@ -180,8 +192,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	}
 
 	public override onZonesChanged(e: ViewZonesChangedEvent): boolean {
-		this._upToDateLines[0].clear();
-		this._upToDateLines[1].clear();
+		this._invalidateAllLines();
 
 		// Queue updates that need to happen on the active buffer, not just the cache. This is
 		// deferred since the active buffer could be locked by the GPU which would block the main
@@ -193,11 +204,15 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 	// #endregion
 
+	private _invalidateAllLines(): void {
+		this._upToDateLines[0].clear();
+		this._upToDateLines[1].clear();
+	}
+
 	private _invalidateLinesFrom(lineNumber: number): void {
 		for (const i of [0, 1]) {
 			const upToDateLines = this._upToDateLines[i];
-			const lines = Array.from(upToDateLines);
-			for (const upToDateLine of lines) {
+			for (const upToDateLine of upToDateLines) {
 				if (upToDateLine >= lineNumber) {
 					upToDateLines.delete(upToDateLine);
 				}
