@@ -80,7 +80,8 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const builtinCommands = getBuiltinCommands(shellPath);
+			// fixes a bug with file completions
+			const builtinCommands = getBuiltinCommands(shellPath)?.filter(c => c !== '.');
 			builtinCommands?.forEach(command => availableCommands.add(command));
 			let foldersRequested = false;
 			let filesRequested = false;
@@ -178,9 +179,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			const resultItems = uniqueResults.size ? Array.from(uniqueResults.values()) : undefined;
 
-			// show files as fallback or if only a single dot is present (fixes a bug where the completion of '.' would prevent
-			// file completions from being provided via quick suggestions
-			if ((!resultItems?.length || resultItems.length === 1 && resultItems[0].label === '.') && prefix.match(/^[./\\ ]/)) {
+			if ((!filesRequested && !foldersRequested) && (!resultItems?.length && prefix.match(/^[./\\ ]/))) {
 				filesRequested = true;
 				foldersRequested = true;
 			}
