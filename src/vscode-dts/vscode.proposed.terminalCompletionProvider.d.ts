@@ -87,7 +87,7 @@ declare module 'vscode' {
 	export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalCompletionItem> {
 
 		/**
-		 * Resources should be shown in the completions list
+		 * Resources that should be shown in the completions list for the cwd of the terminal.
 		 */
 		resourceRequestConfig?: TerminalResourceRequestConfig;
 
@@ -100,14 +100,23 @@ declare module 'vscode' {
 		 * Creates a new completion list.
 		 *
 		 * @param items The completion items.
-		 * @param resourceRequestConfig Indicates which resources should be shown as completions
+		 * @param resourceRequestConfig Indicates which resources should be shown as completions for the cwd of the terminal.
 		 */
 		constructor(items?: T[], resourceRequestConfig?: TerminalResourceRequestConfig);
 	}
 
 	export interface TerminalResourceRequestConfig {
+		/**
+		 * Show files as completion items.
+		 */
 		filesRequested?: boolean;
+		/**
+		 * Show folders as completion items.
+		 */
 		foldersRequested?: boolean;
+		/**
+		 * If no cwd is provided, no resources will be shown as completions.
+		 */
 		cwd?: Uri;
 	}
 }
