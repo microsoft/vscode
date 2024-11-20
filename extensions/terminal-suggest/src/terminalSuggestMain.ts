@@ -94,7 +94,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			const specs = [codeCompletionSpec, codeInsidersCompletionSpec];
-			const specCompletions = await getCompletionItemsFromSpecs(specs, terminalContext, commandsInPath, prefix, token);
+			const specCompletions = await getCompletionItemsFromSpecs(specs, terminalContext, new Set(commands), prefix, token);
 
 			let filesRequested = specCompletions.filesRequested;
 			let foldersRequested = specCompletions.foldersRequested;
