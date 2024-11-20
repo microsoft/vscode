@@ -164,7 +164,6 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 	public readonly copyMimeTypes = [];
 	public readonly pasteMimeTypes = [COPY_MIME_TYPES];
 
-
 	constructor(
 		private readonly chatWidgetService: IChatWidgetService
 	) { }
