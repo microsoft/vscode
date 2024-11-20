@@ -1525,16 +1525,20 @@ export class CommandCenter {
 	}
 
 	@command('git.diff.stageHunk')
-	async diffStageHunk(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+	async diffStageHunk(changes: DiffEditorSelectionHunkToolbarContext | undefined): Promise<void> {
 		this.diffStageHunkOrSelection(changes);
 	}
 
 	@command('git.diff.stageSelection')
-	async diffStageSelection(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+	async diffStageSelection(changes: DiffEditorSelectionHunkToolbarContext | undefined): Promise<void> {
 		this.diffStageHunkOrSelection(changes);
 	}
 
-	async diffStageHunkOrSelection(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+	async diffStageHunkOrSelection(changes: DiffEditorSelectionHunkToolbarContext | undefined): Promise<void> {
+		if (!changes) {
+			return;
+		}
+
 		let modifiedUri = changes.modifiedUri;
 		if (!modifiedUri) {
 			const textEditor = window.activeTextEditor;
@@ -1555,6 +1559,10 @@ export class CommandCenter {
 	async stageSelectedChanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
+		this.logger.debug('[CommandCenter][stageSelectedChanges] changes:', changes);
+		this.logger.debug('[CommandCenter][stageSelectedChanges] diffInformation.changes:', textEditor?.diffInformation?.changes);
+		this.logger.debug('[CommandCenter][stageSelectedChanges] diffInformation.isStale:', textEditor?.diffInformation?.isStale);
+
 		if (!textEditor) {
 			return;
 		}
@@ -1562,7 +1570,7 @@ export class CommandCenter {
 		const modifiedDocument = textEditor.document;
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
 		const selectedChanges = changes
-			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
+			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
 			.filter(d => !!d) as LineChange[];
 
 		if (!selectedChanges.length) {
@@ -1737,6 +1745,10 @@ export class CommandCenter {
 	async revertSelectedRanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
+		this.logger.debug('[CommandCenter][revertSelectedRanges] changes:', changes);
+		this.logger.debug('[CommandCenter][revertSelectedRanges] diffInformation.changes:', textEditor?.diffInformation?.changes);
+		this.logger.debug('[CommandCenter][revertSelectedRanges] diffInformation.isStale:', textEditor?.diffInformation?.isStale);
+
 		if (!textEditor) {
 			return;
 		}
@@ -1811,8 +1823,12 @@ export class CommandCenter {
 	}
 
 	@command('git.unstageSelectedRanges', { diff: true })
-	async unstageSelectedRanges(diffs: LineChange[]): Promise<void> {
+	async unstageSelectedRanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
+
+		this.logger.debug('[CommandCenter][unstageSelectedRanges] changes:', changes);
+		this.logger.debug('[CommandCenter][unstageSelectedRanges] diffInformation.changes:', textEditor?.diffInformation?.changes);
+		this.logger.debug('[CommandCenter][unstageSelectedRanges] diffInformation.isStale:', textEditor?.diffInformation?.isStale);
 
 		if (!textEditor) {
 			return;
@@ -1834,9 +1850,9 @@ export class CommandCenter {
 		const originalUri = toGitUri(modifiedUri, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
-		const selectedDiffs = diffs
-			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
-			.filter(d => !!d) as LineChange[];
+		const selectedDiffs = changes
+			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
+			.filter(c => !!c) as LineChange[];
 
 		if (!selectedDiffs.length) {
 			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));

@@ -13,6 +13,8 @@ import { MicrosoftAccountType, MicrosoftAuthenticationTelemetryReporter } from '
 import { loopbackTemplate } from './loopbackTemplate';
 import { ScopeData } from '../common/scopeData';
 import { EventBufferer } from '../common/event';
+import { BetterTokenStorage } from '../betterSecretStorage';
+import { IStoredSession } from '../AADHelper';
 
 const redirectUri = 'https://vscode.dev/redirect';
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
@@ -43,16 +45,16 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	onDidChangeSessions = this._onDidChangeSessionsEmitter.event;
 
 	constructor(
-		context: ExtensionContext,
+		private readonly _context: ExtensionContext,
 		private readonly _telemetryReporter: MicrosoftAuthenticationTelemetryReporter,
 		private readonly _logger: LogOutputChannel,
 		private readonly _uriHandler: UriEventHandler,
 		private readonly _env: Environment = Environment.AzureCloud
 	) {
-		this._disposables = context.subscriptions;
+		this._disposables = _context.subscriptions;
 		this._publicClientManager = new CachedPublicClientApplicationManager(
-			context.globalState,
-			context.secrets,
+			_context.globalState,
+			_context.secrets,
 			this._logger,
 			this._env.name
 		);
@@ -85,8 +87,40 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		);
 	}
 
+	/**
+	 * Migrate sessions from the old secret storage to MSAL.
+	 * TODO: MSAL Migration. Remove this when we remove the old flow.
+	 */
+	private async _migrateSessions() {
+		const betterSecretStorage = new BetterTokenStorage<IStoredSession>('microsoft.login.keylist', this._context);
+		const sessions = await betterSecretStorage.getAll(item => {
+			item.endpoint ||= Environment.AzureCloud.activeDirectoryEndpointUrl;
+			return item.endpoint === this._env.activeDirectoryEndpointUrl;
+		});
+		this._context.globalState.update('msalMigration', true);
+
+		const clientTenantMap = new Map<string, { clientId: string; tenant: string; refreshTokens: string[] }>();
+
+		for (const session of sessions) {
+			const scopeData = new ScopeData(session.scope.split(' '));
+			const key = `${scopeData.clientId}:${scopeData.tenant}`;
+			if (!clientTenantMap.has(key)) {
+				clientTenantMap.set(key, { clientId: scopeData.clientId, tenant: scopeData.tenant, refreshTokens: [] });
+			}
+			clientTenantMap.get(key)!.refreshTokens.push(session.refreshToken);
+		}
+
+		for (const { clientId, tenant, refreshTokens } of clientTenantMap.values()) {
+			await this.getOrCreatePublicClientApplication(clientId, tenant, refreshTokens);
+		}
+	}
+
 	async initialize(): Promise<void> {
 		await this._eventBufferer.bufferEventsAsync(() => this._publicClientManager.initialize());
+
+		if (!this._context.globalState.get('msalMigration', false)) {
+			await this._migrateSessions();
+		}
 
 		// Send telemetry for existing accounts
 		for (const cachedPca of this._publicClientManager.getAll()) {
@@ -259,9 +293,9 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	//#endregion
 
-	private async getOrCreatePublicClientApplication(clientId: string, tenant: string): Promise<ICachedPublicClientApplication> {
+	private async getOrCreatePublicClientApplication(clientId: string, tenant: string, refreshTokensToMigrate?: string[]): Promise<ICachedPublicClientApplication> {
 		const authority = new URL(tenant, this._env.activeDirectoryEndpointUrl).toString();
-		return await this._publicClientManager.getOrCreate(clientId, authority);
+		return await this._publicClientManager.getOrCreate(clientId, authority, refreshTokensToMigrate);
 	}
 
 	private async getAllSessionsForPca(

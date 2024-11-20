@@ -1085,22 +1085,36 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// The user tried to attach too many files, we have to drop anything after the limit
 			const entriesToPreserve: IChatCollapsibleListItem[] = [];
 			const newEntries: IChatCollapsibleListItem[] = [];
+			const suggestedFiles: IChatCollapsibleListItem[] = [];
 			for (let i = 0; i < entries.length; i += 1) {
 				const entry = entries[i];
-				// If this entry was here earlier and is still here, we should prioritize preserving it
-				// so that nothing existing gets evicted
-				const currentEntryUri = entry.kind === 'reference' && URI.isUri(entry.reference) ? entry.reference : undefined;
-				if (this._combinedChatEditWorkingSetEntries.find((e) => e.toString() === currentEntryUri?.toString()) && remainingFileEntriesBudget > 0) {
-					entriesToPreserve.push(entry);
-					remainingFileEntriesBudget -= 1;
+				if (entry.kind !== 'reference' || !URI.isUri(entry.reference)) {
+					continue;
+				}
+				const currentEntryUri = entry.reference;
+				if (entry.state === WorkingSetEntryState.Suggested) {
+					// Keep track of suggested files for now, they should not take precedence over newly added files
+					suggestedFiles.push(entry);
+				} else if (this._combinedChatEditWorkingSetEntries.find((e) => e.toString() === currentEntryUri?.toString())) {
+					// If this entry was here earlier and is still here, we should prioritize preserving it
+					// so that nothing existing gets evicted
+					if (remainingFileEntriesBudget > 0) {
+						entriesToPreserve.push(entry);
+						remainingFileEntriesBudget -= 1;
+					}
 				} else {
 					newEntries.push(entry);
 				}
 			}
 
-			const newEntriesThatFit = newEntries.slice(0, remainingFileEntriesBudget);
-			entries = [...entriesToPreserve, ...newEntriesThatFit];
+			const newEntriesThatFit = remainingFileEntriesBudget > 0 ? newEntries.slice(0, remainingFileEntriesBudget) : [];
 			remainingFileEntriesBudget -= newEntriesThatFit.length;
+			const suggestedFilesThatFit = remainingFileEntriesBudget > 0 ? suggestedFiles.slice(0, remainingFileEntriesBudget) : [];
+			// Intentional: to make bad suggestions less annoying,
+			// here we don't count the suggested files against the budget,
+			// so that the Add Files button remains enabled and the user can easily
+			// override the suggestions with their own manual file selections
+			entries = [...entriesToPreserve, ...newEntriesThatFit, ...suggestedFilesThatFit];
 		}
 		if (entries.length > 1) {
 			overviewText.textContent += ' ' + localize('chatEditingSession.manyFiles', '({0} files)', entries.length);
@@ -1184,6 +1198,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			supportIcons: true,
 			secondary: true
 		}));
+		// Disable the button if the entries that are not suggested exceed the budget
 		button.enabled = remainingFileEntriesBudget > 0;
 		button.label = localize('chatAddFiles', '{0} Add Files...', '$(add)');
 		button.setTitle(button.enabled ? localize('addFiles.label', 'Add files to your working set') : localize('addFilesDisabled.label', 'You have reached the maximum number of files that can be added to the working set.'));
