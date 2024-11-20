@@ -13,18 +13,18 @@ import Logger from './logger';
 
 function shouldUseMsal(expService: IExperimentationService): boolean {
 	// First check if there is a setting value to allow user to override the default
-	const inspect = workspace.getConfiguration('microsoft').inspect<boolean>('useMsal');
+	const inspect = workspace.getConfiguration('microsoft-authentication').inspect<'msal' | 'classic'>('implementation');
 	if (inspect?.workspaceFolderValue !== undefined) {
 		Logger.debug(`Acquired MSAL enablement value from 'workspaceFolderValue'. Value: ${inspect.workspaceFolderValue}`);
-		return inspect.workspaceFolderValue;
+		return inspect.workspaceFolderValue === 'msal';
 	}
 	if (inspect?.workspaceValue !== undefined) {
 		Logger.debug(`Acquired MSAL enablement value from 'workspaceValue'. Value: ${inspect.workspaceValue}`);
-		return inspect.workspaceValue;
+		return inspect.workspaceValue === 'msal';
 	}
 	if (inspect?.globalValue !== undefined) {
 		Logger.debug(`Acquired MSAL enablement value from 'globalValue'. Value: ${inspect.globalValue}`);
-		return inspect.globalValue;
+		return inspect.globalValue === 'msal';
 	}
 
 	// Then check if the experiment value
@@ -36,7 +36,7 @@ function shouldUseMsal(expService: IExperimentationService): boolean {
 
 	Logger.debug('Acquired MSAL enablement value from default. Value: false');
 	// If no setting or experiment value is found, default to false
-	return false;
+	return true;
 }
 let useMsal: boolean | undefined;
 
@@ -50,7 +50,7 @@ export async function activate(context: ExtensionContext) {
 	useMsal = shouldUseMsal(expService);
 
 	context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
-		if (!e.affectsConfiguration('microsoft.useMsal') || useMsal === shouldUseMsal(expService)) {
+		if (!e.affectsConfiguration('microsoft-authentication.implementation') || useMsal === shouldUseMsal(expService)) {
 			return;
 		}
 

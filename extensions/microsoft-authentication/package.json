@@ -100,9 +100,18 @@
       {
         "title": "Microsoft",
         "properties": {
-          "microsoft.useMsal": {
-            "type": "boolean",
-            "description": "%useMsal.description%",
+          "microsoft-authentication.implementation": {
+            "type": "string",
+            "default": "msal",
+            "enum": [
+              "msal",
+              "classic"
+            ],
+            "enumDescriptions": [
+              "%microsoft-authentication.implementation.enumDescriptions.msal%",
+              "%microsoft-authentication.implementation.enumDescriptions.classic%"
+            ],
+            "description": "%microsoft-authentication.implementation.description%",
             "tags": [
               "onExP",
               "preview"
