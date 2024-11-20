@@ -29,10 +29,6 @@ export class FocusTracker extends Disposable {
 		if (this._isFocused === focused) {
 			return;
 		}
-		// fixes https://github.com/microsoft/vscode/issues/234272
-		if (focused) {
-			this._domNode.focus();
-		}
 		this._isFocused = focused;
 		this._onFocusChange(this._isFocused);
 	}
