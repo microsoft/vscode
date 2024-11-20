@@ -1725,15 +1725,15 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 					default: defaults.loop,
 					description: nls.localize('find.loop', "Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found.")
 				},
-				'editor.find.findSearchHistory': {
+				'editor.find.history': {
 					type: 'string',
 					enum: ['never', 'workspace'],
 					default: defaults.findSearchHistory,
 					enumDescriptions: [
-						nls.localize('editor.find.findSearchHistory.never', 'Do not store search history from the find widget.'),
-						nls.localize('editor.find.findSearchHistory.workspace', 'Store search history across the active workspace'),
+						nls.localize('editor.find.history.never', 'Do not store search history from the find widget.'),
+						nls.localize('editor.find.history.workspace', 'Store search history across the active workspace'),
 					],
-					description: nls.localize('find.findSearchHistory', "Controls how the find widget search history should be stored")
+					description: nls.localize('find.history', "Controls how the find widget history should be stored")
 				}
 			}
 		);

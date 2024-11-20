@@ -302,7 +302,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		const session = await this.doGetSession(providerId, scopes, extensionId, extensionName, options);
 
 		if (session) {
-			this.sendProviderUsageTelemetry(extensionId, providerId);
+			this.sendProviderUsageTelemetry(extensionId, providerId, scopes);
 			this.authenticationUsageService.addAccountUsage(providerId, session.account.label, scopes, extensionId, extensionName);
 		}
 
@@ -314,11 +314,27 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return accounts;
 	}
 
-	private sendProviderUsageTelemetry(extensionId: string, providerId: string): void {
-		const key = `${extensionId}|${providerId}`;
+	private sendProviderUsageTelemetry(extensionId: string, providerId: string, scopes: string[]): void {
+		// TODO@TylerLeonhardt this is a temporary addition to telemetry to understand what extensions are overriding the client id.
+		// We can use this telemetry to reach out to these extension authors and let them know that they many need configuration changes
+		// due to the adoption of the Microsoft broker.
+		// Remove this in a few iterations.
+		const containsVSCodeClientIdScope = scopes.some(scope => scope.startsWith('VSCODE_CLIENT_ID:'));
+
+		const key = `${extensionId}|${providerId}|${containsVSCodeClientIdScope}`;
 		if (this._sentProviderUsageEvents.has(key)) {
 			return;
 		}
+
+		if (containsVSCodeClientIdScope) {
+			type ClientIdUsageClassification = {
+				owner: 'TylerLeonhardt';
+				comment: 'Used to see which extensions are using the VSCode client id override';
+				extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id.' };
+			};
+			this.telemetryService.publicLog2<{ extensionId: string }, ClientIdUsageClassification>('authentication.clientIdUsage', { extensionId });
+		}
+
 		this._sentProviderUsageEvents.add(key);
 		type AuthProviderUsageClassification = {
 			owner: 'TylerLeonhardt';

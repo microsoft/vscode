@@ -6,25 +6,25 @@
 declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/84899
 
-	export enum TextEditorDiffKind {
+	export enum TextEditorChangeKind {
 		Addition = 1,
 		Deletion = 2,
 		Modification = 3
 	}
 
-	export interface TextEditorDiff {
+	export interface TextEditorChange {
 		readonly originalStartLineNumber: number;
 		readonly originalEndLineNumber: number;
 		readonly modifiedStartLineNumber: number;
 		readonly modifiedEndLineNumber: number;
-		readonly kind: TextEditorDiffKind;
+		readonly kind: TextEditorChangeKind;
 	}
 
 	export interface TextEditorDiffInformation {
 		readonly documentVersion: number;
 		readonly original: Uri | undefined;
 		readonly modified: Uri;
-		readonly diff: readonly TextEditorDiff[];
+		readonly changes: readonly TextEditorChange[];
 		readonly isStale: boolean;
 	}
 

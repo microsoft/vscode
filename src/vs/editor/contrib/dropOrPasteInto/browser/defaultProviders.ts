@@ -28,6 +28,7 @@ abstract class SimplePasteAndDropProvider implements DocumentDropEditProvider, D
 	readonly providedPasteEditKinds: HierarchicalKind[];
 
 	abstract readonly dropMimeTypes: readonly string[] | undefined;
+	readonly copyMimeTypes = [];
 	abstract readonly pasteMimeTypes: readonly string[];
 
 	constructor(kind: HierarchicalKind) {
@@ -102,7 +103,7 @@ class PathProvider extends SimplePasteAndDropProvider {
 	readonly pasteMimeTypes = [Mimes.uriList];
 
 	constructor() {
-		super(HierarchicalKind.Empty.append('uri', 'absolute'));
+		super(HierarchicalKind.Empty.append('uri', 'path', 'absolute'));
 	}
 
 	protected async getEdit(dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
@@ -153,7 +154,7 @@ class RelativePathProvider extends SimplePasteAndDropProvider {
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
-		super(HierarchicalKind.Empty.append('uri', 'relative'));
+		super(HierarchicalKind.Empty.append('uri', 'path', 'relative'));
 	}
 
 	protected async getEdit(dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
@@ -185,9 +186,9 @@ class RelativePathProvider extends SimplePasteAndDropProvider {
 class PasteHtmlProvider implements DocumentPasteEditProvider {
 
 	public readonly kind = new HierarchicalKind('html');
-
 	public readonly providedPasteEditKinds = [this.kind];
 
+	public readonly copyMimeTypes = [];
 	public readonly pasteMimeTypes = ['text/html'];
 
 	private readonly _yieldTo = [{ mimeType: Mimes.text }];
