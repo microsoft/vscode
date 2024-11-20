@@ -5,6 +5,7 @@
 
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
+import { MandatoryMutableDisposable } from '../../../base/common/lifecycle.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import { CursorColumns } from '../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
@@ -38,13 +39,17 @@ const enum CellBufferInfo {
 	TextureIndex = 5,
 }
 
-type QueuedBufferEvent = ViewLinesDeletedEvent | ViewZonesChangedEvent;
+type QueuedBufferEvent = (
+	ViewConfigurationChangedEvent |
+	ViewLinesDeletedEvent |
+	ViewZonesChangedEvent
+);
 
 export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRenderStrategy {
 
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
-	private readonly _glyphRasterizer: GlyphRasterizer;
+	private readonly _glyphRasterizer: MandatoryMutableDisposable<GlyphRasterizer>;
 
 	private _cellBindBuffer!: GPUBuffer;
 
@@ -81,11 +86,10 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 		this._context.addEventHandler(this);
 
-		// TODO: Detect when lines have been tokenized and clear _upToDateLines
 		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
 		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
 
-		this._glyphRasterizer = this._register(new GlyphRasterizer(fontSize, fontFamily));
+		this._glyphRasterizer = this._register(new MandatoryMutableDisposable(new GlyphRasterizer(fontSize, fontFamily)));
 
 		const bufferSize = this._viewGpuContext.maxGpuLines * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
@@ -112,6 +116,17 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
 		this._upToDateLines[0].clear();
 		this._upToDateLines[1].clear();
+		this._queueBufferUpdate(e);
+
+		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
+		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
+		if (
+			this._glyphRasterizer.value.fontFamily !== fontFamily ||
+			this._glyphRasterizer.value.fontSize !== fontSize
+		) {
+			this._glyphRasterizer.value = new GlyphRasterizer(fontSize, fontFamily);
+		}
+
 		return true;
 	}
 
@@ -245,6 +260,15 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 			const e = queuedBufferUpdates.shift()!;
 
 			switch (e.type) {
+				case ViewEventType.ViewConfigurationChanged: {
+					// TODO: Refine the cases for when we throw away all the data
+					cellBuffer.fill(0);
+
+					dirtyLineStart = 1;
+					dirtyLineEnd = this._finalRenderedLine;
+					this._finalRenderedLine = 0;
+					break;
+				}
 				case ViewEventType.ViewLinesDeleted: {
 					// Shift content below deleted line up
 					const deletedLineContentStartIndex = (e.fromLineNumber - 1) * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
@@ -324,7 +348,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						continue;
 					}
 
-					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer, chars, tokenMetadata);
+					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata);
 
 					// TODO: Support non-standard character widths
 					absoluteOffsetX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);
