@@ -5,6 +5,7 @@
 
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
+import { MandatoryMutableDisposable } from '../../../base/common/lifecycle.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import { CursorColumns } from '../../common/core/cursorColumns.js';
 import { MetadataConsts } from '../../common/encodedTokenAttributes.js';
@@ -40,13 +41,17 @@ const enum CellBufferInfo {
 	TextureIndex = 5,
 }
 
-type QueuedBufferEvent = ViewLinesDeletedEvent | ViewZonesChangedEvent;
+type QueuedBufferEvent = (
+	ViewConfigurationChangedEvent |
+	ViewLinesDeletedEvent |
+	ViewZonesChangedEvent
+);
 
 export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRenderStrategy {
 
 	readonly wgsl: string = fullFileRenderStrategyWgsl;
 
-	private readonly _glyphRasterizer: GlyphRasterizer;
+	private readonly _glyphRasterizer: MandatoryMutableDisposable<GlyphRasterizer>;
 
 	private _cellBindBuffer!: GPUBuffer;
 
@@ -83,11 +88,10 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 		this._context.addEventHandler(this);
 
-		// TODO: Detect when lines have been tokenized and clear _upToDateLines
 		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
 		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
 
-		this._glyphRasterizer = this._register(new GlyphRasterizer(fontSize, fontFamily));
+		this._glyphRasterizer = this._register(new MandatoryMutableDisposable(new GlyphRasterizer(fontSize, fontFamily)));
 
 		const bufferSize = this._viewGpuContext.maxGpuLines * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
@@ -111,16 +115,33 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 	// #region Event handlers
 
+	// The primary job of these handlers is to:
+	// 1. Invalidate the up to date line cache, which will cause the line to be re-rendered when
+	//    it's _within the viewport_.
+	// 2. Pass relevant events on to the render function so it can force certain line ranges to be
+	//    re-rendered even if they're not in the viewport. For example when a view zone is added,
+	//    there are lines that used to be visible but are no longer, so those ranges must be
+	//    cleared and uploaded to the GPU.
+
 	public override onConfigurationChanged(e: ViewConfigurationChangedEvent): boolean {
-		this._upToDateLines[0].clear();
-		this._upToDateLines[1].clear();
+		this._invalidateAllLines();
+		this._queueBufferUpdate(e);
+
+		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
+		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
+		if (
+			this._glyphRasterizer.value.fontFamily !== fontFamily ||
+			this._glyphRasterizer.value.fontSize !== fontSize
+		) {
+			this._glyphRasterizer.value = new GlyphRasterizer(fontSize, fontFamily);
+		}
+
 		return true;
 	}
 
 	public override onDecorationsChanged(e: ViewDecorationsChangedEvent): boolean {
 		// TODO: Don't clear all lines
-		this._upToDateLines[0].clear();
-		this._upToDateLines[1].clear();
+		this._invalidateAllLines();
 		return true;
 	}
 
@@ -174,8 +195,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	}
 
 	public override onZonesChanged(e: ViewZonesChangedEvent): boolean {
-		this._upToDateLines[0].clear();
-		this._upToDateLines[1].clear();
+		this._invalidateAllLines();
 
 		// Queue updates that need to happen on the active buffer, not just the cache. This is
 		// deferred since the active buffer could be locked by the GPU which would block the main
@@ -187,11 +207,15 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 	// #endregion
 
+	private _invalidateAllLines(): void {
+		this._upToDateLines[0].clear();
+		this._upToDateLines[1].clear();
+	}
+
 	private _invalidateLinesFrom(lineNumber: number): void {
 		for (const i of [0, 1]) {
 			const upToDateLines = this._upToDateLines[i];
-			const lines = Array.from(upToDateLines);
-			for (const upToDateLine of lines) {
+			for (const upToDateLine of upToDateLines) {
 				if (upToDateLine >= lineNumber) {
 					upToDateLines.delete(upToDateLine);
 				}
@@ -256,6 +280,15 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 			const e = queuedBufferUpdates.shift()!;
 
 			switch (e.type) {
+				case ViewEventType.ViewConfigurationChanged: {
+					// TODO: Refine the cases for when we throw away all the data
+					cellBuffer.fill(0);
+
+					dirtyLineStart = 1;
+					dirtyLineEnd = this._finalRenderedLine;
+					this._finalRenderedLine = 0;
+					break;
+				}
 				case ViewEventType.ViewLinesDeleted: {
 					// Shift content below deleted line up
 					const deletedLineContentStartIndex = (e.fromLineNumber - 1) * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell;
@@ -406,7 +439,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						continue;
 					}
 
-					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer, chars, tokenMetadata, charMetadata);
+					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata, charMetadata);
 
 					// TODO: Support non-standard character widths
 					absoluteOffsetX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);

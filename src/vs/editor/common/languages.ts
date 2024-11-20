@@ -937,9 +937,9 @@ export interface DocumentPasteEditsSession {
  */
 export interface DocumentPasteEditProvider {
 	readonly id?: string;
-	readonly copyMimeTypes?: readonly string[];
-	readonly pasteMimeTypes?: readonly string[];
-	readonly providedPasteEditKinds?: readonly HierarchicalKind[];
+	readonly copyMimeTypes: readonly string[];
+	readonly pasteMimeTypes: readonly string[];
+	readonly providedPasteEditKinds: readonly HierarchicalKind[];
 
 	prepareDocumentPaste?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer>;
 
@@ -1758,7 +1758,14 @@ export interface IWorkspaceTextEdit {
 }
 
 export interface WorkspaceEdit {
-	edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>;
+	edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit | ICustomEdit>;
+}
+
+export interface ICustomEdit {
+	readonly resource: URI;
+	readonly metadata?: WorkspaceEditMetadata;
+	undo(): Promise<void> | void;
+	redo(): Promise<void> | void;
 }
 
 export interface Rejection {

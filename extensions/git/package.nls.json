@@ -276,6 +276,7 @@
 	"config.publishBeforeContinueOn.never": "Never publish unpublished Git state when using Continue Working On from a Git repository",
 	"config.publishBeforeContinueOn.prompt": "Prompt to publish unpublished Git state when using Continue Working On from a Git repository",
 	"config.similarityThreshold": "Controls the threshold of the similarity index (the amount of additions/deletions compared to the file's size) for changes in a pair of added/deleted files to be considered a rename. **Note:** Requires Git version `2.18.0` or later.",
+	"config.blameEditorDecoration.enabled": "Controls whether to show git blame information in the editor using editor decorations",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",
@@ -300,6 +301,7 @@
 	"colors.incomingDeleted": "Color for deleted incoming resource.",
 	"colors.incomingRenamed": "Color for renamed incoming resource.",
 	"colors.incomingModified": "Color for modified incoming resource.",
+	"colors.blameEditorDecoration": "Color for the blame editor decoration.",
 	"view.workbench.scm.missing.windows": {
 		"message": "[Download Git for Windows](https://git-scm.com/download/win)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
 		"comment": [

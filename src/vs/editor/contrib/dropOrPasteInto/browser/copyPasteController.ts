@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getActiveDocument } from '../../../../base/browser/dom.js';
+import { addDisposableListener } from '../../../../base/browser/dom.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { CancelablePromise, createCancelablePromise, DeferredPromise, raceCancellation } from '../../../../base/common/async.js';
@@ -18,6 +18,7 @@ import { upcast } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -67,9 +68,11 @@ interface DocumentPasteWithProviderEditsSession {
 	dispose(): void;
 }
 
-type PastePreference =
-	| HierarchicalKind
-	| { providerId: string };
+export type PastePreference =
+	| { readonly only: HierarchicalKind }
+	| { readonly preferences: readonly HierarchicalKind[] }
+	| { readonly providerId: string } // Only used internally
+	;
 
 export class CopyPasteController extends Disposable implements IEditorContribution {
 
@@ -110,6 +113,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
@@ -140,7 +144,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		this._editor.focus();
 		try {
 			this._pasteAsActionContext = { preferred };
-			getActiveDocument().execCommand('paste');
+			this._commandService.executeCommand('editor.action.clipboardPasteAction');
 		} finally {
 			this._pasteAsActionContext = undefined;
 		}
@@ -289,7 +293,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				// Filter out providers that don't match the requested paste types
 				const preference = this._pasteAsActionContext?.preferred;
 				if (preference) {
-					if (provider.providedPasteEditKinds && !this.providerMatchesPreference(provider, preference)) {
+					if (!this.providerMatchesPreference(provider, preference)) {
 						return false;
 					}
 				}
@@ -300,6 +304,10 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		if (!allProviders.length) {
 			if (this._pasteAsActionContext?.preferred) {
 				this.showPasteAsNoEditMessage(selections, this._pasteAsActionContext.preferred);
+
+				// Also prevent default paste from applying
+				e.preventDefault();
+				e.stopImmediatePropagation();
 			}
 			return;
 		}
@@ -318,7 +326,13 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private showPasteAsNoEditMessage(selections: readonly Selection[], preference: PastePreference) {
-		MessageController.get(this._editor)?.showMessage(localize('pasteAsError', "No paste edits for '{0}' found", preference instanceof HierarchicalKind ? preference.value : preference.providerId), selections[0].getStartPosition());
+		const kindLabel = 'only' in preference
+			? preference.only.value
+			: 'preferences' in preference
+				? (preference.preferences.length ? preference.preferences.map(preference => preference.value).join(', ') : localize('noPreferences', "empty"))
+				: preference.providerId;
+
+		MessageController.get(this._editor)?.showMessage(localize('pasteAsError', "No paste edits for '{0}' found", kindLabel), selections[0].getStartPosition());
 	}
 
 	private doPasteInline(allProviders: readonly DocumentPasteEditProvider[], selections: readonly Selection[], dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, clipboardEvent: ClipboardEvent): void {
@@ -448,7 +462,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 				const context: DocumentPasteContext = {
 					triggerKind: DocumentPasteTriggerKind.PasteAs,
-					only: preference && preference instanceof HierarchicalKind ? preference : undefined,
+					only: preference && 'only' in preference ? preference.only : undefined,
 				};
 				let editSession = disposables.add(await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, tokenSource.token));
 				if (tokenSource.token.isCancellationRequested) {
@@ -459,8 +473,10 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				if (preference) {
 					editSession = {
 						edits: editSession.edits.filter(edit => {
-							if (preference instanceof HierarchicalKind) {
-								return preference.contains(edit.kind);
+							if ('only' in preference) {
+								return preference.only.contains(edit.kind);
+							} else if ('preferences' in preference) {
+								return preference.preferences.some(preference => preference.contains(edit.kind));
 							} else {
 								return preference.providerId === edit.provider.id;
 							}
@@ -470,8 +486,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				}
 
 				if (!editSession.edits.length) {
-					if (context.only) {
-						this.showPasteAsNoEditMessage(selections, context.only);
+					if (preference) {
+						this.showPasteAsNoEditMessage(selections, preference);
 					}
 					return;
 				}
@@ -650,11 +666,10 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	}
 
 	private providerMatchesPreference(provider: DocumentPasteEditProvider, preference: PastePreference): boolean {
-		if (preference instanceof HierarchicalKind) {
-			if (!provider.providedPasteEditKinds) {
-				return true;
-			}
-			return provider.providedPasteEditKinds.some(providedKind => preference.contains(providedKind));
+		if ('only' in preference) {
+			return provider.providedPasteEditKinds.some(providedKind => preference.only.contains(providedKind));
+		} else if ('preferences' in preference) {
+			return preference.preferences.some(providedKind => preference.preferences.some(preferredKind => preferredKind.contains(providedKind)));
 		} else {
 			return provider.id === preference.providerId;
 		}

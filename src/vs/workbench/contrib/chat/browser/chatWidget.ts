@@ -35,7 +35,7 @@ import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
 import { IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, formatChatQuestion } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
@@ -47,8 +47,7 @@ import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js'
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
-import { ChatDragAndDrop } from './chatDragAndDrop.js';
-import { ChatInputPart } from './chatInputPart.js';
+import { ChatInputPart, IChatInputStyles } from './chatInputPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import './media/chat.css';
@@ -64,10 +63,7 @@ export interface IChatViewState {
 	selectedLanguageModelId?: string;
 }
 
-export interface IChatWidgetStyles {
-	listForeground: string;
-	listBackground: string;
-	overlayBackground: string;
+export interface IChatWidgetStyles extends IChatInputStyles {
 	inputEditorBackground: string;
 	resultEditorBackground: string;
 }
@@ -285,16 +281,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this._location.location === ChatAgentLocation.EditingSession) {
 			let currentEditSession: IChatEditingSession | undefined = undefined;
 			this._register(this.onDidChangeViewModel(async () => {
-
 				const sessionId = this._viewModel?.sessionId;
-				if (sessionId !== currentEditSession?.chatSessionId) {
-					if (currentEditSession && (currentEditSession.state.get() !== ChatEditingSessionState.Disposed)) {
-						await currentEditSession.stop();
-					}
-					if (sessionId) {
+				if (sessionId) {
+					if (sessionId !== currentEditSession?.chatSessionId) {
 						currentEditSession = await this.chatEditingService.startOrContinueEditingSession(sessionId, { silent: true });
-					} else {
+					}
+				} else {
+					if (currentEditSession) {
+						const session = currentEditSession;
 						currentEditSession = undefined;
+						await session.stop();
 					}
 				}
 			}));
@@ -451,7 +447,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}).filter(isDefined);
 
-		this._register(this.instantiationService.createInstance(ChatDragAndDrop, this.container, this.inputPart, this.styles));
 		this._register((this.chatWidgetService as ChatWidgetService).register(this));
 	}
 
@@ -765,6 +760,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				editorOverflowWidgetsDomNode: this.viewOptions.editorOverflowWidgetsDomNode,
 				enableImplicitContext: this.viewOptions.enableImplicitContext
 			},
+			this.styles,
 			() => this.collectInputState()
 		));
 		this.inputPart.render(container, '', this);
