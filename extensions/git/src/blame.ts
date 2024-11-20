@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter } from 'vscode';
+import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent } from 'vscode';
 import { Model } from './model';
-import { dispose, fromNow, IDisposable, pathEquals, runAndSubscribeEvent } from './util';
+import { dispose, fromNow, IDisposable, pathEquals } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation } from './git';
@@ -274,21 +274,32 @@ class GitBlameEditorDecoration {
 		});
 		this._disposables.push(this._decorationType);
 
-		this._disposables.push(runAndSubscribeEvent(workspace.onDidChangeConfiguration, e => {
-			if (!e || e?.affectsConfiguration('git.blame.editorDecoration.enabled')) {
-				for (const textEditor of window.visibleTextEditors) {
-					this._updateDecorations(textEditor);
-				}
-			}
-		}));
-
+		workspace.onDidChangeConfiguration(this._onDidChangeConfiguration, this, this._disposables);
 		this._controller.onDidChangeBlameInformation(e => this._updateDecorations(e), this, this._disposables);
 	}
 
+	private _onDidChangeConfiguration(e: ConfigurationChangeEvent): void {
+		if (!e.affectsConfiguration('git.blame.editorDecoration.enabled')) {
+			return;
+		}
+
+		const enabled = this._isEnabled();
+		for (const textEditor of window.visibleTextEditors) {
+			if (enabled) {
+				this._updateDecorations(textEditor);
+			} else {
+				textEditor.setDecorations(this._decorationType, []);
+			}
+		}
+	}
+
+	private _isEnabled(): boolean {
+		const config = workspace.getConfiguration('git');
+		return config.get<boolean>('blame.editorDecoration.enabled', false);
+	}
+
 	private _updateDecorations(textEditor: TextEditor): void {
-		const enabled = workspace.getConfiguration('git').get<boolean>('blame.editorDecoration.enabled', false);
-		if (!enabled) {
-			textEditor.setDecorations(this._decorationType, []);
+		if (!this._isEnabled()) {
 			return;
 		}
 
