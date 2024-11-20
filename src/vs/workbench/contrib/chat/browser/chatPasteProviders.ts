@@ -25,7 +25,6 @@ const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
 export class PasteImageProvider implements DocumentPasteEditProvider {
 
 	public readonly kind = new HierarchicalKind('chat.attach.image');
-	public readonly kind = new HierarchicalKind('chat.attach.image');
 	public readonly providedPasteEditKinds = [this.kind];
 
 	public readonly copyMimeTypes = [];
@@ -160,7 +159,11 @@ export class CopyTextProvider implements DocumentPasteEditProvider {
 export class PasteTextProvider implements DocumentPasteEditProvider {
 
 	public readonly kind = new HierarchicalKind('chat.attach.text');
+	public readonly providedPasteEditKinds = [this.kind];
+
+	public readonly copyMimeTypes = [];
 	public readonly pasteMimeTypes = [COPY_MIME_TYPES];
+
 
 	constructor(
 		private readonly chatWidgetService: IChatWidgetService
