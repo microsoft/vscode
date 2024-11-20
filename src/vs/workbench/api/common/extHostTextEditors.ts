@@ -178,8 +178,8 @@ export class ExtHostEditors extends Disposable implements ExtHostEditorsShape {
 		const original = URI.revive(diffInformation.original);
 		const modified = URI.revive(diffInformation.modified);
 
-		const diff = diffInformation.diff.map(diff => {
-			const [originalStartLineNumber, originalEndLineNumber, modifiedStartLineNumber, modifiedEndLineNumber] = diff;
+		const changes = diffInformation.changes.map(change => {
+			const [originalStartLineNumber, originalEndLineNumber, modifiedStartLineNumber, modifiedEndLineNumber] = change;
 
 			const kind = originalEndLineNumber === 0 ? TextEditorDiffKind.Addition :
 				modifiedEndLineNumber === 0 ? TextEditorDiffKind.Deletion : TextEditorDiffKind.Modification;
@@ -190,7 +190,7 @@ export class ExtHostEditors extends Disposable implements ExtHostEditorsShape {
 				modifiedStartLineNumber,
 				modifiedEndLineNumber,
 				kind
-			} satisfies vscode.TextEditorDiff;
+			} satisfies vscode.TextEditorChange;
 		});
 
 		const that = this;
@@ -198,7 +198,7 @@ export class ExtHostEditors extends Disposable implements ExtHostEditorsShape {
 			documentVersion: diffInformation.documentVersion,
 			original,
 			modified,
-			diff,
+			changes,
 			get isStale(): boolean {
 				const document = that._extHostDocumentsAndEditors.getDocument(modified);
 				return document?.version !== diffInformation.documentVersion;

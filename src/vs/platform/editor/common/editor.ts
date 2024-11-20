@@ -379,7 +379,7 @@ export interface ITextEditorOptions extends IEditorOptions {
 	selectionSource?: TextEditorSelectionSource | string;
 }
 
-export type ITextEditorDiff = [
+export type ITextEditorChange = [
 	originalStartLineNumber: number,
 	originalEndLineNumber: number,
 	modifiedStartLineNumber: number,
@@ -390,7 +390,7 @@ export interface ITextEditorDiffInformation {
 	readonly documentVersion: number;
 	readonly original: URI | undefined;
 	readonly modified: URI;
-	readonly diff: readonly ITextEditorDiff[];
+	readonly changes: readonly ITextEditorChange[];
 }
 
 export function isTextEditorDiffInformationEqual(
@@ -400,7 +400,7 @@ export function isTextEditorDiffInformationEqual(
 	return diff1?.documentVersion === diff2?.documentVersion &&
 		uriIdentityService.extUri.isEqual(diff1?.original, diff2?.original) &&
 		uriIdentityService.extUri.isEqual(diff1?.modified, diff2?.modified) &&
-		equals<ITextEditorDiff>(diff1?.diff, diff2?.diff, (a, b) => {
+		equals<ITextEditorChange>(diff1?.changes, diff2?.changes, (a, b) => {
 			return a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3];
 		});
 }

@@ -12,7 +12,7 @@ declare module 'vscode' {
 		Modification = 3
 	}
 
-	export interface TextEditorDiff {
+	export interface TextEditorChange {
 		readonly originalStartLineNumber: number;
 		readonly originalEndLineNumber: number;
 		readonly modifiedStartLineNumber: number;
@@ -24,7 +24,7 @@ declare module 'vscode' {
 		readonly documentVersion: number;
 		readonly original: Uri | undefined;
 		readonly modified: Uri;
-		readonly diff: readonly TextEditorDiff[];
+		readonly changes: readonly TextEditorChange[];
 		readonly isStale: boolean;
 	}
 

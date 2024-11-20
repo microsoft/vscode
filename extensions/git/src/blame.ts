@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigurationChangeEvent, DecorationOptions, l10n, Position, Range, TextDocument, TextEditor, TextEditorDecorationType, TextEditorDiff, TextEditorDiffKind, ThemeColor, Uri, window, workspace } from 'vscode';
+import { ConfigurationChangeEvent, DecorationOptions, l10n, Position, Range, TextDocument, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorDiffKind, ThemeColor, Uri, window, workspace } from 'vscode';
 import { Model } from './model';
 import { dispose, fromNow, IDisposable } from './util';
 import { Repository } from './repository';
@@ -12,7 +12,7 @@ import { BlameInformation } from './git';
 
 const notCommittedYetId = '0000000000000000000000000000000000000000';
 
-function isLineChanged(lineNumber: number, changes: readonly TextEditorDiff[]): boolean {
+function isLineChanged(lineNumber: number, changes: readonly TextEditorChange[]): boolean {
 	for (const change of changes) {
 		// If the change is a delete, skip it
 		if (change.kind === TextEditorDiffKind.Deletion) {
@@ -29,7 +29,7 @@ function isLineChanged(lineNumber: number, changes: readonly TextEditorDiff[]): 
 	return false;
 }
 
-function mapLineNumber(lineNumber: number, changes: readonly TextEditorDiff[]): number {
+function mapLineNumber(lineNumber: number, changes: readonly TextEditorChange[]): number {
 	if (changes.length === 0) {
 		return lineNumber;
 	}
@@ -158,13 +158,13 @@ export class GitBlameController {
 		const decorations: DecorationOptions[] = [];
 		for (const lineNumber of textEditor.selections.map(s => s.active.line)) {
 			// Check if the line is in an add/edit change
-			if (isLineChanged(lineNumber + 1, diffInformation.diff)) {
+			if (isLineChanged(lineNumber + 1, diffInformation.changes)) {
 				decorations.push(this._createDecoration(lineNumber, l10n.t('Not Committed Yet')));
 				continue;
 			}
 
 			// Recalculate the line number factoring in the diff information
-			const lineNumberWithDiff = mapLineNumber(lineNumber + 1, diffInformation.diff);
+			const lineNumberWithDiff = mapLineNumber(lineNumber + 1, diffInformation.changes);
 			const blameInformation = blameInformationCollection.find(blameInformation => {
 				return blameInformation.ranges.find(range => {
 					return lineNumberWithDiff >= range.startLineNumber && lineNumberWithDiff <= range.endLineNumber;
