@@ -1671,7 +1671,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TextEdit: extHostTypes.TextEdit,
 			SnippetTextEdit: extHostTypes.SnippetTextEdit,
 			TextEditorCursorStyle: TextEditorCursorStyle,
-			TextEditorDiffKind: extHostTypes.TextEditorDiffKind,
+			TextEditorChangeKind: extHostTypes.TextEditorChangeKind,
 			TextEditorLineNumbersStyle: extHostTypes.TextEditorLineNumbersStyle,
 			TextEditorRevealType: extHostTypes.TextEditorRevealType,
 			TextEditorSelectionChangeKind: extHostTypes.TextEditorSelectionChangeKind,

@@ -12,7 +12,7 @@ import { ExtHostEditorsShape, IEditorPropertiesChangeData, IMainContext, ITextDo
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 import { ExtHostTextEditor, TextEditorDecorationType } from './extHostTextEditor.js';
 import * as TypeConverters from './extHostTypeConverters.js';
-import { TextEditorSelectionChangeKind, TextEditorDiffKind } from './extHostTypes.js';
+import { TextEditorSelectionChangeKind, TextEditorChangeKind } from './extHostTypes.js';
 import * as vscode from 'vscode';
 
 export class ExtHostEditors extends Disposable implements ExtHostEditorsShape {
@@ -181,8 +181,8 @@ export class ExtHostEditors extends Disposable implements ExtHostEditorsShape {
 		const changes = diffInformation.changes.map(change => {
 			const [originalStartLineNumber, originalEndLineNumber, modifiedStartLineNumber, modifiedEndLineNumber] = change;
 
-			const kind = originalEndLineNumber === 0 ? TextEditorDiffKind.Addition :
-				modifiedEndLineNumber === 0 ? TextEditorDiffKind.Deletion : TextEditorDiffKind.Modification;
+			const kind = originalEndLineNumber === 0 ? TextEditorChangeKind.Addition :
+				modifiedEndLineNumber === 0 ? TextEditorChangeKind.Deletion : TextEditorChangeKind.Modification;
 
 			return {
 				originalStartLineNumber,

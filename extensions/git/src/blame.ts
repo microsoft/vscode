@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigurationChangeEvent, DecorationOptions, l10n, Position, Range, TextDocument, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorDiffKind, ThemeColor, Uri, window, workspace } from 'vscode';
+import { ConfigurationChangeEvent, DecorationOptions, l10n, Position, Range, TextDocument, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace } from 'vscode';
 import { Model } from './model';
 import { dispose, fromNow, IDisposable } from './util';
 import { Repository } from './repository';
@@ -15,7 +15,7 @@ const notCommittedYetId = '0000000000000000000000000000000000000000';
 function isLineChanged(lineNumber: number, changes: readonly TextEditorChange[]): boolean {
 	for (const change of changes) {
 		// If the change is a delete, skip it
-		if (change.kind === TextEditorDiffKind.Deletion) {
+		if (change.kind === TextEditorChangeKind.Deletion) {
 			continue;
 		}
 
@@ -36,23 +36,23 @@ function mapLineNumber(lineNumber: number, changes: readonly TextEditorChange[])
 
 	for (const change of changes) {
 		// Line number is before the change
-		if ((change.kind === TextEditorDiffKind.Addition && lineNumber < change.modifiedStartLineNumber) ||
-			(change.kind === TextEditorDiffKind.Modification && lineNumber < change.modifiedStartLineNumber) ||
-			(change.kind === TextEditorDiffKind.Deletion && lineNumber < change.originalStartLineNumber)) {
+		if ((change.kind === TextEditorChangeKind.Addition && lineNumber < change.modifiedStartLineNumber) ||
+			(change.kind === TextEditorChangeKind.Modification && lineNumber < change.modifiedStartLineNumber) ||
+			(change.kind === TextEditorChangeKind.Deletion && lineNumber < change.originalStartLineNumber)) {
 			break;
 		}
 
 		// Update line number
 		switch (change.kind) {
-			case TextEditorDiffKind.Addition:
+			case TextEditorChangeKind.Addition:
 				lineNumber = lineNumber - (change.modifiedEndLineNumber - change.originalStartLineNumber);
 				break;
-			case TextEditorDiffKind.Modification:
+			case TextEditorChangeKind.Modification:
 				if (change.originalStartLineNumber !== change.modifiedStartLineNumber || change.originalEndLineNumber !== change.modifiedEndLineNumber) {
 					lineNumber = lineNumber - (change.modifiedEndLineNumber - change.originalEndLineNumber);
 				}
 				break;
-			case TextEditorDiffKind.Deletion:
+			case TextEditorChangeKind.Deletion:
 				lineNumber = lineNumber + (change.originalEndLineNumber - change.originalStartLineNumber) + 1;
 				break;
 		}
