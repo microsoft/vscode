@@ -6,6 +6,7 @@
   initialLocation: "panel",
   requests: [
     {
+      requestId: "request_fedec2d6-ac28-4106-853f-d1545532c11a",
       message: {
         text: "@ChatProviderWithUsedContext test request",
         parts: [
@@ -55,6 +56,7 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
+      responseId: "response_8e249b80-29a4-46cb-bff8-512898b325d3",
       result: { errorDetails: { message: "No activated agent with id \"ChatProviderWithUsedContext\"" } },
       followups: undefined,
       isCanceled: false,
