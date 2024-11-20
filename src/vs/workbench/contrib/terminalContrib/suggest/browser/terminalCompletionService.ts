@@ -175,7 +175,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			} else if (completions.resourceRequestConfig) {
 				const resourceCompletions = await this._resolveResources(completions.resourceRequestConfig, cursorPosition);
 				if (resourceCompletions) {
-					itemsWithModifiedLabels?.push(...resourceCompletions);
+					itemsWithModifiedLabels.push(...resourceCompletions);
 				}
 				return itemsWithModifiedLabels;
 			}
@@ -186,54 +186,43 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const results = await Promise.all(completionPromises);
 		return results.filter(result => !!result).flat();
 	}
+
 	private async _resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, cursorPosition: number): Promise<ITerminalCompletion[] | undefined> {
 		const cwd = resourceRequestConfig.cwd;
-		if (!cwd) {
+		const foldersRequested = resourceRequestConfig.foldersRequested ?? false;
+		const filesRequested = resourceRequestConfig.filesRequested ?? false;
+		if (!cwd || (!foldersRequested && !filesRequested)) {
 			return;
 		}
-		const result: ITerminalCompletion[] = [];
-		const foldersRequested = resourceRequestConfig.foldersRequested;
-		const filesRequested = resourceRequestConfig.filesRequested;
 
-		if (foldersRequested) {
-			const folders = await this._getResources(cwd, true);
-			result.push(...folders.map(folder => ({
-				label: folder,
-				kind: TerminalCompletionItemKind.Folder,
-				replacementIndex: cursorPosition,
-				replacementLength: folder.length
-			})));
-		}
-		if (filesRequested) {
-			const files = await this._getResources(cwd, false);
-			result.push(...files.map(file => ({
-				label: file,
-				kind: TerminalCompletionItemKind.File,
-				replacementIndex: cursorPosition,
-				replacementLength: file.length
-			})));
-		}
-		return result.length ? result : undefined;
-	}
+		const uri = URI.parse(cwd);
+		const resourceCompletions: ITerminalCompletion[] = [];
+		const fileStat = await this._fileService.resolve(uri, { resolveSingleChildDescendants: true });
 
-	private async _getResources(resource: string, folders: boolean): Promise<string[]> {
-		const uri = URI.parse(resource);
-		const resources = [uri];
-		const paths = [];
-		const stats = await this._fileService.resolveAll(resources.map(r => ({ resource: r, options: { resolveSingleChildDescendants: true } })));
-		// todo fix for files, then remove true from terminalsuggestmain
-		const result = stats.filter(stat => stat && stat.stat?.isDirectory);
-		for (const r of result) {
-			if (r.success) {
-				for (const child of r.stat?.children ?? []) {
-					if (folders ? child.isDirectory : child.isFile) {
-						// make label relative to the cwd
-						paths.push('.' + child.resource.fsPath.replace(uri.fsPath, ''));
-					}
-				}
+		if (!fileStat || !fileStat?.children) {
+			return;
+		}
+
+		for (const stat of fileStat.children) {
+			let kind: TerminalCompletionItemKind | undefined;
+			if (foldersRequested && stat.isDirectory) {
+				kind = TerminalCompletionItemKind.Folder;
 			}
+			if (filesRequested && (stat.isFile || stat.resource.scheme === 'file')) {
+				kind = TerminalCompletionItemKind.File;
+			}
+			if (kind === undefined) {
+				continue;
+			}
+			const label = '.' + stat.resource.fsPath.replace(uri.fsPath, '');
+			resourceCompletions.push({
+				label,
+				kind,
+				replacementIndex: cursorPosition,
+				replacementLength: label.length
+			});
 		}
-		return paths;
+		return resourceCompletions.length ? resourceCompletions : undefined;
 	}
 }
 

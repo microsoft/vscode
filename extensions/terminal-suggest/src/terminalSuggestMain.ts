@@ -82,8 +82,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			const builtinCommands = getBuiltinCommands(shellPath);
 			builtinCommands?.forEach(command => availableCommands.add(command));
-			let provideFolderCompletions = false;
-			let provideFileCompletions = false;
+			let foldersRequested = false;
+			let filesRequested = false;
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 			let result: vscode.TerminalCompletionItem[] = [];
 			const specs = [codeCompletionSpec, codeInsidersCompletionSpec];
@@ -114,12 +114,11 @@ export async function activate(context: vscode.ExtensionContext) {
 									if (arg.template) {
 										if (arg.template === 'filepaths') {
 											if (precedingText.includes(expectedResourceText)) {
-												provideFileCompletions = true;
-												provideFolderCompletions = true;
+												filesRequested = true;
 											}
 										} else if (arg.template === 'folders') {
 											if (precedingText.includes(expectedResourceText)) {
-												provideFolderCompletions = true;
+												foldersRequested = true;
 											}
 										}
 									}
@@ -165,8 +164,8 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 			}
 			const resultItems = uniqueResults.size ? Array.from(uniqueResults.values()) : undefined;
-			if (provideFileCompletions || provideFolderCompletions) {
-				return new vscode.TerminalCompletionList(resultItems, { filesRequested: true, foldersRequested: true, cwd: terminal.shellIntegration?.cwd?.toString() });
+			if (filesRequested || foldersRequested) {
+				return new vscode.TerminalCompletionList(resultItems, { filesRequested, foldersRequested, cwd: terminal.shellIntegration?.cwd?.toString() });
 			}
 			return resultItems;
 		}
