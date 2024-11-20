@@ -16,6 +16,7 @@ import { USUAL_WORD_SEPARATORS } from '../core/wordHelper.js';
 import * as nls from '../../../nls.js';
 import { AccessibilitySupport } from '../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationPropertySchema } from '../../../platform/configuration/common/configurationRegistry.js';
+import product from '../../../platform/product/common/product.js';
 
 //#region typed options
 
@@ -1727,7 +1728,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 				'editor.find.history': {
 					type: 'string',
 					enum: ['never', 'workspace'],
-					default: defaults.findSearchHistory,
+					default: typeof product.quality === 'string' && product.quality !== 'stable' ? 'workspace' : 'none',
 					enumDescriptions: [
 						nls.localize('editor.find.history.never', 'Do not store search history from the find widget.'),
 						nls.localize('editor.find.history.workspace', 'Store search history across the active workspace'),
