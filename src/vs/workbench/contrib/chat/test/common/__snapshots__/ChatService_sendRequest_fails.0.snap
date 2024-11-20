@@ -6,6 +6,7 @@
   initialLocation: "panel",
   requests: [
     {
+      requestId: undefined,
       message: {
         parts: [
           {
@@ -55,6 +56,7 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
+      responseId: undefined,
       result: { errorDetails: { message: "No activated agent with id \"ChatProviderWithUsedContext\"" } },
       followups: undefined,
       isCanceled: false,
