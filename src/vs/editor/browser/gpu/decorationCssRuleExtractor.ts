@@ -25,14 +25,18 @@ export class DecorationCssRuleExtractor extends Disposable {
 		}
 		const dummyElement = $(`span.${decorationClassName}`);
 		this._container.appendChild(dummyElement);
+		canvas.appendChild(this._container);
+
 		const rules = this._getStyleRules(canvas, dummyElement, decorationClassName);
 		this._ruleCache.set(decorationClassName, rules);
+
+		canvas.removeChild(this._container);
+		this._container.removeChild(dummyElement);
+
 		return rules;
 	}
 
 	private _getStyleRules(canvas: HTMLElement, element: HTMLElement, className: string) {
-		canvas.appendChild(this._container);
-
 		// Iterate through all stylesheets and imported stylesheets to find matching rules
 		const rules = [];
 		const doc = getActiveDocument();
