@@ -5,7 +5,7 @@
 
 import { compareIgnoreCase } from '../../../base/common/strings.js';
 import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, getTargetPlatform } from './extensionManagement.js';
-import { ExtensionIdentifier, IExtension, TargetPlatform, UNDEFINED_PUBLISHER } from '../../extensions/common/extensions.js';
+import { ExtensionIdentifier, ExtensionType, IExtension, TargetPlatform, UNDEFINED_PUBLISHER } from '../../extensions/common/extensions.js';
 import { IFileService } from '../../files/common/files.js';
 import { isLinux, platform } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
@@ -195,4 +195,12 @@ export async function computeTargetPlatform(fileService: IFileService, logServic
 	const targetPlatform = getTargetPlatform(alpineLinux ? 'alpine' : platform, arch);
 	logService.debug('ComputeTargetPlatform:', targetPlatform);
 	return targetPlatform;
+}
+
+export function isGalleryExtension(extension: any): extension is IGalleryExtension {
+	return extension.type === 'gallery';
+}
+
+export function isIExtension(extension: any): extension is IExtension {
+	return extension.type === ExtensionType.User || extension.type === ExtensionType.System;
 }

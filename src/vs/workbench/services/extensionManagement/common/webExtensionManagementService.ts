@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionIdentifier, IExtensionManifest, TargetPlatform } from '../../../../platform/extensions/common/extensions.js';
-import { ILocalExtension, IGalleryExtension, InstallOperation, IExtensionGalleryService, Metadata, InstallOptions, IProductVersion } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ILocalExtension, IGalleryExtension, InstallOperation, IExtensionGalleryService, Metadata, InstallOptions, IProductVersion, IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { areSameExtensions, getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -22,8 +22,6 @@ import { compare } from '../../../../base/common/strings.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { localize } from '../../../../nls.js';
 
 export class WebExtensionManagementService extends AbstractExtensionManagementService implements IProfileAwareExtensionManagementService {
 
@@ -60,10 +58,11 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IProductService productService: IProductService,
+		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(extensionGalleryService, telemetryService, uriIdentityService, logService, productService, userDataProfilesService);
+		super(extensionGalleryService, telemetryService, uriIdentityService, logService, productService, allowedExtensionsService, userDataProfilesService);
 		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
 			if (!this.uriIdentityService.extUri.isEqual(e.previous.extensionsResource, e.profile.extensionsResource)) {
 				e.join(this.whenProfileChanged(e));
@@ -80,15 +79,11 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return TargetPlatform.WEB;
 	}
 
-	override async canInstall(gallery: IGalleryExtension): Promise<true | IMarkdownString> {
-		if (await super.canInstall(gallery) === true) {
+	protected override async isExtensionPlatformCompatible(extension: IGalleryExtension): Promise<boolean> {
+		if (this.isConfiguredToExecuteOnWeb(extension)) {
 			return true;
 		}
-		if (this.isConfiguredToExecuteOnWeb(gallery)) {
-			return true;
-		}
-		const productName = localize('VS Code for Web', "{0} for the Web", this.productService.nameLong);
-		return new MarkdownString(`${localize('not web tooltip', "The '{0}' extension is not available in {1}.", gallery.displayName || gallery.identifier.id, productName)} [${localize('learn why', "Learn Why")}](https://aka.ms/vscode-web-extensions-guide)`);
+		return super.isExtensionPlatformCompatible(extension);
 	}
 
 	async getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]> {
@@ -235,7 +230,7 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 		installedTimestamp: metadata.installedTimestamp,
 		isPreReleaseVersion: !!metadata.isPreReleaseVersion,
 		hasPreReleaseVersion: !!metadata.hasPreReleaseVersion,
-		preRelease: !!metadata.preRelease,
+		preRelease: extension.preRelease,
 		targetPlatform: TargetPlatform.WEB,
 		updated: !!metadata.updated,
 		pinned: !!metadata?.pinned,

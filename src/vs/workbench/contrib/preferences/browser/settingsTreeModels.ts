@@ -22,6 +22,7 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { AllowedExtensionsConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -819,6 +820,10 @@ function isObjectSetting({
 }: ISetting): boolean {
 	if (type !== 'object') {
 		return false;
+	}
+
+	if (key === AllowedExtensionsConfigKey) {
+		return true;
 	}
 
 	// object can have any shape
