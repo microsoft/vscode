@@ -103,43 +103,46 @@ export async function activate(context: vscode.ExtensionContext) {
 							if (optionLabel.startsWith(prefix) || (prefix.length > specName.length && prefix.trim() === specName)) {
 								result.push(createCompletionItem(terminalContext.cursorPosition, prefix, optionLabel, option.description, false, vscode.TerminalCompletionItemKind.Flag));
 							}
-							if (option.args !== undefined) {
-								const args = Array.isArray(option.args) ? option.args : [option.args];
-								for (const arg of args) {
-									if (!arg) {
-										continue;
-									}
-									const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
-									const expectedResourceText = `${specName} ${optionLabel} `;
-									if (arg.template) {
-										if (arg.template === 'filepaths') {
-											if (precedingText.includes(expectedResourceText)) {
-												filesRequested = true;
-											}
-										} else if (arg.template === 'folders') {
-											if (precedingText.includes(expectedResourceText)) {
-												foldersRequested = true;
-											}
+							if (!option.args) {
+								continue;
+							}
+							// TODO: handle multiple args / they may have multiple names
+							const args = Array.isArray(option.args) ? option.args : [option.args];
+							for (const arg of args) {
+								if (!arg) {
+									continue;
+								}
+								const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
+								const expectedText = `${specName} ${optionLabel} `;
+								if (!precedingText.includes(expectedText)) {
+									continue;
+								}
+								if (arg.template) {
+									if (arg.template === 'filepaths') {
+										if (precedingText.includes(expectedText)) {
+											filesRequested = true;
+										}
+									} else if (arg.template === 'folders') {
+										if (precedingText.includes(expectedText)) {
+											foldersRequested = true;
 										}
 									}
-
-									const expectedText = `${optionLabel} `;
-									if (arg.suggestions?.length && precedingText.includes(expectedText)) {
-										// there are specific suggestions to show
-										result = [];
-										const indexOfPrecedingText = terminalContext.commandLine.lastIndexOf(expectedText);
-										const currentPrefix = precedingText.slice(indexOfPrecedingText + expectedText.length);
-										for (const suggestion of arg.suggestions) {
-											const suggestionLabel = getLabel(suggestion);
-											if (suggestionLabel && suggestionLabel.startsWith(currentPrefix)) {
-												const hasSpaceBeforeCursor = terminalContext.commandLine[terminalContext.cursorPosition - 1] === ' ';
-												// prefix will be '' if there is a space before the cursor
-												result.push(createCompletionItem(terminalContext.cursorPosition, precedingText, suggestionLabel, arg.name, hasSpaceBeforeCursor, vscode.TerminalCompletionItemKind.Argument));
-											}
+								}
+								if (arg.suggestions?.length) {
+									// there are specific suggestions to show
+									result = [];
+									const indexOfPrecedingText = terminalContext.commandLine.lastIndexOf(expectedText);
+									const currentPrefix = precedingText.slice(indexOfPrecedingText + expectedText.length);
+									for (const suggestion of arg.suggestions) {
+										const suggestionLabel = getLabel(suggestion);
+										if (suggestionLabel && suggestionLabel.startsWith(currentPrefix)) {
+											const hasSpaceBeforeCursor = terminalContext.commandLine[terminalContext.cursorPosition - 1] === ' ';
+											// prefix will be '' if there is a space before the cursor
+											result.push(createCompletionItem(terminalContext.cursorPosition, precedingText, suggestionLabel, arg.name, hasSpaceBeforeCursor, vscode.TerminalCompletionItemKind.Argument));
 										}
-										if (result.length) {
-											return result;
-										}
+									}
+									if (result.length) {
+										return result;
 									}
 								}
 							}
