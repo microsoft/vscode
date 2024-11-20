@@ -308,9 +308,6 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 				e.range.startLineNumber <= y && e.range.endLineNumber >= y &&
 				e.options.inlineClassName
 			));
-			if (inlineDecorations.length > 0) {
-				console.log('decoration!', inlineDecorations);
-			}
 
 			lineData = viewportData.getViewLineRenderingData(y);
 			content = lineData.content;
@@ -382,9 +379,9 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 							case 'color': {
 								// TODO: Move to color.ts and make more generic
 								function parseRgb(text: string): number {
-									const color = text.match(/rgb\((\d+), (\d+), (\d+)\)/);
+									const color = text.match(/rgba?\((\d+), ?(\d+), ?(\d+)(?:, ?\d+(?:.\d+)?)?\)/);
 									if (!color) {
-										throw new Error('Invalid color format');
+										throw new Error('Invalid color format ' + text);
 									}
 									const r = parseInt(color[1], 10);
 									const g = parseInt(color[2], 10);
