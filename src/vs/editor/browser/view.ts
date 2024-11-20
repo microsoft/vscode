@@ -38,7 +38,7 @@ import { OverviewRuler } from './viewParts/overviewRuler/overviewRuler.js';
 import { Rulers } from './viewParts/rulers/rulers.js';
 import { ScrollDecorationViewPart } from './viewParts/scrollDecoration/scrollDecoration.js';
 import { SelectionsOverlay } from './viewParts/selections/selections.js';
-import { IViewCursorsHelper, ViewCursors } from './viewParts/viewCursors/viewCursors.js';
+import { ViewCursors } from './viewParts/viewCursors/viewCursors.js';
 import { ViewZones } from './viewParts/viewZones/viewZones.js';
 import { WhitespaceOverlay } from './viewParts/whitespace/whitespace.js';
 import { IEditorConfiguration } from '../common/config/editorConfiguration.js';
@@ -209,7 +209,7 @@ export class View extends ViewEventHandler {
 		this._contentWidgets = new ViewContentWidgets(this._context, this.domNode);
 		this._viewParts.push(this._contentWidgets);
 
-		this._viewCursors = new ViewCursors(this._context, this._createViewCursorsHelper());
+		this._viewCursors = new ViewCursors(this._context);
 		this._viewParts.push(this._viewCursors);
 
 		// Overlay widgets
@@ -365,14 +365,6 @@ export class View extends ViewEventHandler {
 			getLineWidth: (lineNumber: number) => {
 				this._flushAccumulatedAndRenderNow();
 				return this._viewLines.getLineWidth(lineNumber);
-			}
-		};
-	}
-
-	private _createViewCursorsHelper(): IViewCursorsHelper {
-		return {
-			renderNow: (): void => {
-				this.render(true, false);
 			}
 		};
 	}

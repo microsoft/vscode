@@ -22,11 +22,6 @@ import { registerThemingParticipant } from '../../../../platform/theme/common/th
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { CursorChangeReason } from '../../../common/cursorEvents.js';
 import { WindowIntervalTimer, getWindow } from '../../../../base/browser/dom.js';
-import { InputMode } from '../../../common/inputMode.js';
-
-export interface IViewCursorsHelper {
-	renderNow(): void;
-}
 
 /**
  * View cursors is a view part responsible for rendering the primary cursor and
@@ -38,7 +33,7 @@ export class ViewCursors extends ViewPart {
 
 	private _readOnly: boolean;
 	private _cursorBlinking: TextEditorCursorBlinkingStyle;
-	private _cursorStyle!: TextEditorCursorStyle;
+	private _cursorStyle: TextEditorCursorStyle;
 	private _cursorSmoothCaretAnimation: 'off' | 'explicit' | 'on';
 	private _experimentalEditContextEnabled: boolean;
 	private _selectionIsEmpty: boolean;
@@ -57,26 +52,20 @@ export class ViewCursors extends ViewPart {
 	private readonly _primaryCursor: ViewCursor;
 	private readonly _secondaryCursors: ViewCursor[];
 	private _renderData: IViewCursorRenderData[];
-	private _viewHelper: IViewCursorsHelper;
 
-	constructor(context: ViewContext, viewHelper: IViewCursorsHelper) {
+	constructor(context: ViewContext) {
 		super(context);
 
 		const options = this._context.configuration.options;
-		this._viewHelper = viewHelper;
 		this._readOnly = options.get(EditorOption.readOnly);
 		this._cursorBlinking = options.get(EditorOption.cursorBlinking);
+		this._cursorStyle = options.get(EditorOption.effectiveCursorStyle);
 		this._cursorSmoothCaretAnimation = options.get(EditorOption.cursorSmoothCaretAnimation);
 		this._experimentalEditContextEnabled = options.get(EditorOption.experimentalEditContextEnabled);
 		this._selectionIsEmpty = true;
 		this._isComposingInput = false;
 
 		this._isVisible = false;
-
-		this._updateCursorStyle();
-		this._register(InputMode.onDidChangeInputMode(() => {
-			this._updateCursorStyle();
-		}));
 
 		this._primaryCursor = new ViewCursor(this._context, CursorPlurality.Single, this._cursorStyle);
 		this._secondaryCursors = [];
@@ -130,7 +119,6 @@ export class ViewCursors extends ViewPart {
 
 		this._updateBlinking();
 		this._updateDomClassName();
-		this._updateCursorStyle();
 
 		this._primaryCursor.onConfigurationChanged(e);
 		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
@@ -348,21 +336,6 @@ export class ViewCursors extends ViewPart {
 			result += ' cursor-smooth-caret-animation';
 		}
 		return result;
-	}
-
-	private _updateCursorStyle(): void {
-		this._cursorStyle = this._getCursorStyle();
-		this._primaryCursor.updateCursorStyle(this._cursorStyle);
-		this._secondaryCursors.forEach((cursor) => cursor.updateCursorStyle(this._cursorStyle));
-		this.forceShouldRender();
-		this._viewHelper.renderNow();
-	}
-
-	private _getCursorStyle() {
-		const options = this._context.configuration.options;
-		return InputMode.getInputMode() === 'overtype' ?
-			options.get(EditorOption.overtypeCursorStyle) :
-			options.get(EditorOption.cursorStyle);
 	}
 
 	private _show(): void {

@@ -130,7 +130,7 @@ export class ViewCursor {
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 
-		this._cursorStyle = options.get(EditorOption.cursorStyle);
+		this._cursorStyle = options.get(EditorOption.effectiveCursorStyle);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
@@ -238,10 +238,6 @@ export class ViewCursor {
 		const lineData = this._context.viewModel.getViewLineData(position.lineNumber);
 		const tokenIndex = lineData.tokens.findTokenIndexAtOffset(position.column - 1);
 		return lineData.tokens.getClassName(tokenIndex);
-	}
-
-	public updateCursorStyle(cursorStyle: TextEditorCursorStyle): void {
-		this._cursorStyle = cursorStyle;
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
