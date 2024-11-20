@@ -221,15 +221,14 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const resources = [uri];
 		const paths = [];
 		const stats = await this._fileService.resolveAll(resources.map(r => ({ resource: r, options: { resolveSingleChildDescendants: true } })));
-		if (folders) {
-			const result = stats.filter(stat => stat && stat.stat?.isDirectory);
-			for (const r of result) {
-				if (r.success) {
-					for (const child of r.stat?.children ?? []) {
-						if (folders ? child.isDirectory : child.isFile) {
-							// make label relative to the cwd
-							paths.push('.' + child.resource.fsPath.replace(uri.fsPath, ''));
-						}
+		// todo fix for files, then remove true from terminalsuggestmain
+		const result = stats.filter(stat => stat && stat.stat?.isDirectory);
+		for (const r of result) {
+			if (r.success) {
+				for (const child of r.stat?.children ?? []) {
+					if (folders ? child.isDirectory : child.isFile) {
+						// make label relative to the cwd
+						paths.push('.' + child.resource.fsPath.replace(uri.fsPath, ''));
 					}
 				}
 			}
