@@ -4,30 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
+import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
+import type { LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
 import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
-import { importAMDNodeModule } from 'vs/amdX';
-import { $, addDisposableListener, addStandardDisposableListener, getWindow } from 'vs/base/browser/dom';
-import { memoize, throttle } from 'vs/base/common/decorators';
-import { Event } from 'vs/base/common/event';
-import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
-import 'vs/css!./media/stickyScroll';
-import { localize } from 'vs/nls';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ICommandDetectionCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITerminalInstance, IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
-import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { TERMINAL_CONFIG_SECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
+import { $, addDisposableListener, addStandardDisposableListener, getWindow } from '../../../../../base/browser/dom.js';
+import { throttle } from '../../../../../base/common/decorators.js';
+import { Event } from '../../../../../base/common/event.js';
+import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
+import './media/stickyScroll.css';
+import { localize } from '../../../../../nls.js';
+import { IMenu, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ICommandDetectionCapability, ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ICurrentPartialCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { ITerminalConfigurationService, ITerminalInstance, IXtermColorProvider, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { openContextMenu } from '../../../terminal/browser/terminalContextMenu.js';
+import { IXtermCore } from '../../../terminal/browser/xterm-private.js';
+import { TERMINAL_CONFIG_SECTION, TerminalCommandId } from '../../../terminal/common/terminal.js';
+import { terminalStrings } from '../../../terminal/common/terminalStrings.js';
+import { TerminalStickyScrollSettingId } from '../common/terminalStickyScrollConfiguration.js';
+import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from './terminalStickyScrollColorRegistry.js';
+import { XtermAddonImporter } from '../../../terminal/browser/xterm/xtermAddonImporter.js';
 
 const enum OverlayState {
 	/** Initial state/disabled by the alt buffer. */
@@ -45,7 +47,11 @@ const enum Constants {
 
 export class TerminalStickyScrollOverlay extends Disposable {
 	private _stickyScrollOverlay?: RawXtermTerminal;
+
+	private readonly _xtermAddonLoader = new XtermAddonImporter();
 	private _serializeAddon?: SerializeAddonType;
+	private _webglAddon?: WebglAddonType;
+	private _ligaturesAddon?: LigaturesAddonType;
 
 	private _element?: HTMLElement;
 	private _currentStickyCommand?: ITerminalCommand | ICurrentPartialCommand;
@@ -69,6 +75,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMenuService menuService: IMenuService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
@@ -82,8 +89,8 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// React to configuration changes
 		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
-			if (!e || e.affectsConfiguration(TerminalSettingId.StickyScrollMaxLineCount)) {
-				this._rawMaxLineCount = configurationService.getValue(TerminalSettingId.StickyScrollMaxLineCount);
+			if (!e || e.affectsConfiguration(TerminalStickyScrollSettingId.MaxLineCount)) {
+				this._rawMaxLineCount = configurationService.getValue(TerminalStickyScrollSettingId.MaxLineCount);
 			}
 		}));
 
@@ -101,6 +108,8 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				allowProposedApi: true,
 				...this._getOptions()
 			}));
+			this._refreshGpuAcceleration();
+
 			this._register(configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
 					this._syncOptions();
@@ -113,8 +122,13 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				this._syncOptions();
 				this._refresh();
 			}));
+			this._register(this._instance.onDidChangeVisibility(isVisible => {
+				if (isVisible) {
+					this._refresh();
+				}
+			}));
 
-			this._getSerializeAddonConstructor().then(SerializeAddon => {
+			this._xtermAddonLoader.importAddon('serialize').then(SerializeAddon => {
 				if (this._store.isDisposed) {
 					return;
 				}
@@ -312,20 +326,24 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			// initialized.
 			if (this._element) {
 				const termBox = xterm.element.getBoundingClientRect();
-				const rowHeight = termBox.height / xterm.rows;
-				const overlayHeight = stickyScrollLineCount * rowHeight;
+				// Only try reposition if the element is visible, if not a refresh will occur when
+				// it becomes visible
+				if (termBox.height > 0) {
+					const rowHeight = termBox.height / xterm.rows;
+					const overlayHeight = stickyScrollLineCount * rowHeight;
 
-				// Adjust sticky scroll content if it would below the end of the command, obscuring the
-				// following command.
-				let endMarkerOffset = 0;
-				if (!isPartialCommand && command.endMarker && command.endMarker.line !== -1) {
-					if (buffer.viewportY + stickyScrollLineCount > command.endMarker.line) {
-						const diff = buffer.viewportY + stickyScrollLineCount - command.endMarker.line;
-						endMarkerOffset = diff * rowHeight;
+					// Adjust sticky scroll content if it would below the end of the command, obscuring the
+					// following command.
+					let endMarkerOffset = 0;
+					if (!isPartialCommand && command.endMarker && command.endMarker.line !== -1) {
+						if (buffer.viewportY + stickyScrollLineCount > command.endMarker.line) {
+							const diff = buffer.viewportY + stickyScrollLineCount - command.endMarker.line;
+							endMarkerOffset = diff * rowHeight;
+						}
 					}
-				}
 
-				this._element.style.bottom = `${termBox.height - overlayHeight + 1 + endMarkerOffset}px`;
+					this._element.style.bottom = `${termBox.height - overlayHeight + 1 + endMarkerOffset}px`;
+				}
 			}
 		} else {
 			this._setVisible(false);
@@ -376,6 +394,14 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		this._stickyScrollOverlay.open(this._element);
 
+		this._xtermAddonLoader.importAddon('ligatures').then(LigaturesAddon => {
+			if (this._store.isDisposed || !this._stickyScrollOverlay) {
+				return;
+			}
+			this._ligaturesAddon = new LigaturesAddon();
+			this._stickyScrollOverlay.loadAddon(this._ligaturesAddon);
+		});
+
 		// Scroll to the command on click
 		this._register(addStandardDisposableListener(hoverOverlay, 'click', () => {
 			if (this._xterm && this._currentStickyCommand) {
@@ -413,12 +439,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 		this._stickyScrollOverlay.resize(this._xterm.raw.cols, this._stickyScrollOverlay.rows);
 		this._stickyScrollOverlay.options = this._getOptions();
+		this._refreshGpuAcceleration();
 	}
 
 	private _getOptions(): ITerminalOptions {
 		const o = this._xterm.raw.options;
 		return {
-			allowTransparency: true,
 			cursorInactiveStyle: 'none',
 			scrollback: 0,
 			logLevel: 'off',
@@ -434,8 +460,27 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			drawBoldTextInBrightColors: o.drawBoldTextInBrightColors,
 			minimumContrastRatio: o.minimumContrastRatio,
 			tabStopWidth: o.tabStopWidth,
-			overviewRulerWidth: o.overviewRulerWidth,
+			customGlyphs: o.customGlyphs,
 		};
+	}
+
+	@throttle(0)
+	private async _refreshGpuAcceleration() {
+		if (this._shouldLoadWebgl() && !this._webglAddon) {
+			const WebglAddon = await this._xtermAddonLoader.importAddon('webgl');
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._webglAddon = this._register(new WebglAddon());
+			this._stickyScrollOverlay?.loadAddon(this._webglAddon);
+		} else if (!this._shouldLoadWebgl() && this._webglAddon) {
+			this._webglAddon.dispose();
+			this._webglAddon = undefined;
+		}
+	}
+
+	private _shouldLoadWebgl(): boolean {
+		return this._terminalConfigurationService.config.gpuAcceleration === 'auto' || this._terminalConfigurationService.config.gpuAcceleration === 'on';
 	}
 
 	private _getTheme(isHovering: boolean): ITheme {
@@ -448,12 +493,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			selectionBackground: undefined,
 			selectionInactiveBackground: undefined
 		};
-	}
-
-	@memoize
-	private async _getSerializeAddonConstructor(): Promise<typeof SerializeAddonType> {
-		const m = await importAMDNodeModule<typeof import('@xterm/addon-serialize')>('@xterm/addon-serialize', 'lib/addon-serialize.js');
-		return m.SerializeAddon;
 	}
 }
 

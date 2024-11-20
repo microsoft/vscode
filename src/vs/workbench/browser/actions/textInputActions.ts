@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, Action, Separator } from 'vs/base/common/actions';
-import { localize } from 'vs/nls';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { EventHelper, addDisposableListener, getActiveDocument, getWindow } from 'vs/base/browser/dom';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { isNative } from 'vs/base/common/platform';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Event as BaseEvent } from 'vs/base/common/event';
-import { Lazy } from 'vs/base/common/lazy';
+import { IAction, Action, Separator } from '../../../base/common/actions.js';
+import { localize } from '../../../nls.js';
+import { IWorkbenchLayoutService } from '../../services/layout/browser/layoutService.js';
+import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { EventHelper, addDisposableListener, getActiveDocument, getWindow, isHTMLElement, isHTMLInputElement, isHTMLTextAreaElement } from '../../../base/browser/dom.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
+import { isNative } from '../../../base/common/platform.js';
+import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { Event as BaseEvent } from '../../../base/common/event.js';
+import { Lazy } from '../../../base/common/lazy.js';
 
 export class TextInputActionsProvider extends Disposable implements IWorkbenchContribution {
 
@@ -54,8 +54,8 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 				else {
 					const clipboardText = await this.clipboardService.readText();
 					if (
-						element instanceof HTMLTextAreaElement ||
-						element instanceof HTMLInputElement
+						isHTMLTextAreaElement(element) ||
+						isHTMLInputElement(element)
 					) {
 						const selectionStart = element.selectionStart || 0;
 						const selectionEnd = element.selectionEnd || 0;
@@ -88,7 +88,7 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 		}
 
 		const target = e.target;
-		if (!(target instanceof HTMLElement) || (target.nodeName.toLowerCase() !== 'input' && target.nodeName.toLowerCase() !== 'textarea')) {
+		if (!(isHTMLElement(target)) || (target.nodeName.toLowerCase() !== 'input' && target.nodeName.toLowerCase() !== 'textarea')) {
 			return; // only for inputs or textareas
 		}
 

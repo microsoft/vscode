@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { INotificationService, NotificationMessage, NotificationPriority } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { hash } from 'vs/base/common/hash';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { INotificationService, NotificationMessage, NotificationPriority } from '../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { hash } from '../../../../base/common/hash.js';
 
 export interface NotificationMetrics {
 	readonly id: string;

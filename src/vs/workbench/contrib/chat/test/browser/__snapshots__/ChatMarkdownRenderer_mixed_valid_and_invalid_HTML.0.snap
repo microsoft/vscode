@@ -1,0 +1,8 @@
+<div class="rendered-markdown"><h1>heading</h1>
+&lt;details&gt;
+<ul>
+    <li><span>&lt;details&gt;<i>1</i>&lt;/details&gt;</span></li>
+    <li><b>hi</b></li>
+</ul>
+&lt;/details&gt;
+<pre>&lt;canvas&gt;canvas here&lt;/canvas&gt;</pre>&lt;details&gt;&lt;/details&gt;</div>

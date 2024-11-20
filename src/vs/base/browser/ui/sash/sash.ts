@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, createStyleSheet, EventHelper, EventLike, getWindow } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { EventType, Gesture } from 'vs/base/browser/touch';
-import { Delayer } from 'vs/base/common/async';
-import { memoize } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import 'vs/css!./sash';
+import { $, append, EventHelper, EventLike, getWindow, isHTMLElement } from '../../dom.js';
+import { createStyleSheet } from '../../domStylesheets.js';
+import { DomEmitter } from '../../event.js';
+import { EventType, Gesture } from '../../touch.js';
+import { Delayer } from '../../../common/async.js';
+import { memoize } from '../../../common/decorators.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../common/lifecycle.js';
+import { isMacintosh } from '../../../common/platform.js';
+import './sash.css';
 
 /**
  * Allow the sashes to be visible at runtime.
@@ -575,7 +576,7 @@ export class Sash extends Disposable {
 		const onPointerUp = (e: PointerEvent) => {
 			EventHelper.stop(e, false);
 
-			this.el.removeChild(style);
+			style.remove();
 
 			this.el.classList.remove('active');
 			this._onDidEnd.fire();
@@ -670,7 +671,7 @@ export class Sash extends Disposable {
 	private getOrthogonalSash(e: PointerEvent): Sash | undefined {
 		const target = e.initialTarget ?? e.target;
 
-		if (!target || !(target instanceof HTMLElement)) {
+		if (!target || !(isHTMLElement(target))) {
 			return undefined;
 		}
 

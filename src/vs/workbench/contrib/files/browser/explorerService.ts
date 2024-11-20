@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IFilesConfiguration, ISortOrderConfiguration, SortOrder, LexicographicOptions } from 'vs/workbench/contrib/files/common/files';
-import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
-import { URI } from 'vs/base/common/uri';
-import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
-import { dirname, basename } from 'vs/base/common/resources';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditableData } from 'vs/workbench/common/views';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IBulkEditService, ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
-import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
-import { IExplorerView, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { IProgressService, ProgressLocation, IProgressNotificationOptions, IProgressCompositeOptions } from 'vs/platform/progress/common/progress';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IExpression } from 'vs/base/common/glob';
-import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Event } from '../../../../base/common/event.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IFilesConfiguration, ISortOrderConfiguration, SortOrder, LexicographicOptions } from '../common/files.js';
+import { ExplorerItem, ExplorerModel } from '../common/explorerModel.js';
+import { URI } from '../../../../base/common/uri.js';
+import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions } from '../../../../platform/files/common/files.js';
+import { dirname, basename } from '../../../../base/common/resources.js';
+import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditableData } from '../../../common/views.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IBulkEditService, ResourceFileEdit } from '../../../../editor/browser/services/bulkEditService.js';
+import { UndoRedoSource } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { IExplorerView, IExplorerService } from './files.js';
+import { IProgressService, ProgressLocation, IProgressCompositeOptions, IProgressOptions } from '../../../../platform/progress/common/progress.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IExpression } from '../../../../base/common/glob.js';
+import { ResourceGlobMatcher } from '../../../common/resources.js';
+import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -152,6 +152,7 @@ export class ExplorerService implements IExplorerService {
 		return {
 			sortOrder: this.config.sortOrder,
 			lexicographicOptions: this.config.sortOrderLexicographicOptions,
+			reverse: this.config.sortOrderReverse,
 		};
 	}
 
@@ -184,12 +185,23 @@ export class ExplorerService implements IExplorerService {
 
 	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string; progressLabel: string; confirmBeforeUndo?: boolean; progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void> {
 		const cancellationTokenSource = new CancellationTokenSource();
-		const promise = this.progressService.withProgress(<IProgressNotificationOptions | IProgressCompositeOptions>{
-			location: options.progressLocation || ProgressLocation.Window,
-			title: options.progressLabel,
-			cancellable: edit.length > 1, // Only allow cancellation when there is more than one edit. Since cancelling will not actually stop the current edit that is in progress.
-			delay: 500,
-		}, async progress => {
+		const location = options.progressLocation ?? ProgressLocation.Window;
+		let progressOptions;
+		if (location === ProgressLocation.Window) {
+			progressOptions = {
+				location: location,
+				title: options.progressLabel,
+				cancellable: edit.length > 1,
+			} satisfies IProgressOptions;
+		} else {
+			progressOptions = {
+				location: location,
+				title: options.progressLabel,
+				cancellable: edit.length > 1,
+				delay: 500,
+			} satisfies IProgressCompositeOptions;
+		}
+		const promise = this.progressService.withProgress(progressOptions, async progress => {
 			await this.bulkEditService.apply(edit, {
 				undoRedoSource: UNDO_REDO_SOURCE,
 				label: options.undoLabel,
@@ -352,6 +364,11 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	async refresh(reveal = true): Promise<void> {
+		// Do not refresh the tree when it is showing temporary nodes (phantom elements)
+		if (this.view?.hasPhantomElements()) {
+			return;
+		}
+
 		this.model.roots.forEach(r => r.forgetChildren());
 		if (this.view) {
 			await this.view.refresh(true);
@@ -509,6 +526,11 @@ export class ExplorerService implements IExplorerService {
 		const configLexicographicOptions = configuration?.explorer?.sortOrderLexicographicOptions || LexicographicOptions.Default;
 		if (this.config.sortOrderLexicographicOptions !== configLexicographicOptions) {
 			shouldRefresh = shouldRefresh || this.config.sortOrderLexicographicOptions !== undefined;
+		}
+		const sortOrderReverse = configuration?.explorer?.sortOrderReverse || false;
+
+		if (this.config.sortOrderReverse !== sortOrderReverse) {
+			shouldRefresh = shouldRefresh || this.config.sortOrderReverse !== undefined;
 		}
 
 		this.config = configuration.explorer;

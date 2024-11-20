@@ -3,53 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PixelRatio } from 'vs/base/browser/pixelRatio';
-import * as DOM from 'vs/base/browser/dom';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { localize } from 'vs/nls';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPartsCollection } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { CellChatPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatPart';
-import { CellComments } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellComments';
-import { CellContextKeyPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellContextKeys';
-import { CellDecorations } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDecorations';
-import { CellDragAndDropController, CellDragAndDropPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
-import { CodeCellDragImageRenderer } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDragRenderer';
-import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
-import { CellExecutionPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellExecution';
-import { CellFocusPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellFocus';
-import { CellFocusIndicator } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellFocusIndicator';
-import { CellProgressBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellProgressBar';
-import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellStatusPart';
-import { BetweenCellToolbar, CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
-import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCell';
-import { RunToolbar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellRunToolbar';
-import { CollapsedCellInput } from 'vs/workbench/contrib/notebook/browser/view/cellParts/collapsedCellInput';
-import { CollapsedCellOutput } from 'vs/workbench/contrib/notebook/browser/view/cellParts/collapsedCellOutput';
-import { FoldedCellHint } from 'vs/workbench/contrib/notebook/browser/view/cellParts/foldedCellHint';
-import { MarkupCell } from 'vs/workbench/contrib/notebook/browser/view/cellParts/markupCell';
-import { CodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { PixelRatio } from '../../../../../../base/browser/pixelRatio.js';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { FastDomNode } from '../../../../../../base/browser/fastDomNode.js';
+import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import { BareFontInfo } from '../../../../../../editor/common/config/fontInfo.js';
+import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../../editor/common/languages/modesRegistry.js';
+import { localize } from '../../../../../../nls.js';
+import { IMenuService } from '../../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService, IScopedContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { ICellViewModel, INotebookEditorDelegate } from '../../notebookBrowser.js';
+import { CellPartsCollection } from '../cellPart.js';
+import { CellChatPart } from '../cellParts/chat/cellChatPart.js';
+import { CellComments } from '../cellParts/cellComments.js';
+import { CellContextKeyPart } from '../cellParts/cellContextKeys.js';
+import { CellDecorations } from '../cellParts/cellDecorations.js';
+import { CellDragAndDropController, CellDragAndDropPart } from '../cellParts/cellDnd.js';
+import { CodeCellDragImageRenderer } from '../cellParts/cellDragRenderer.js';
+import { CellEditorOptions } from '../cellParts/cellEditorOptions.js';
+import { CellExecutionPart } from '../cellParts/cellExecution.js';
+import { CellFocusPart } from '../cellParts/cellFocus.js';
+import { CellFocusIndicator } from '../cellParts/cellFocusIndicator.js';
+import { CellProgressBar } from '../cellParts/cellProgressBar.js';
+import { CellEditorStatusBar } from '../cellParts/cellStatusPart.js';
+import { BetweenCellToolbar, CellTitleToolbarPart } from '../cellParts/cellToolbars.js';
+import { CodeCell } from '../cellParts/codeCell.js';
+import { RunToolbar } from '../cellParts/codeCellRunToolbar.js';
+import { CollapsedCellInput } from '../cellParts/collapsedCellInput.js';
+import { CollapsedCellOutput } from '../cellParts/collapsedCellOutput.js';
+import { FoldedCellHint } from '../cellParts/foldedCellHint.js';
+import { MarkupCell } from '../cellParts/markupCell.js';
+import { CodeCellRenderTemplate, MarkdownCellRenderTemplate } from '../notebookRenderingCommon.js';
+import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
+import { MarkupCellViewModel } from '../../viewModel/markupCellViewModel.js';
+import { CellViewModel } from '../../viewModel/notebookViewModelImpl.js';
+import { CellKind } from '../../../common/notebookCommon.js';
+import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
+import { NotebookCellEditorPool } from '../notebookCellEditorPool.js';
 
 const $ = DOM.$;
 
@@ -157,7 +158,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		const innerContent = DOM.append(container, $('.cell.markdown'));
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 
-		const scopedInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
+		const scopedInstaService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		const rootClassDelegate = {
 			toggle: (className: string, force?: boolean) => container.classList.toggle(className, force)
 		};
@@ -175,7 +176,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			templateDisposables.add(scopedInstaService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart, undefined)),
 			templateDisposables.add(new CellFocusIndicator(this.notebookEditor, titleToolbar, focusIndicatorTop, focusIndicatorLeft, focusIndicatorRight, focusIndicatorBottom)),
 			templateDisposables.add(new FoldedCellHint(this.notebookEditor, DOM.append(container, $('.notebook-folded-hint')), this._notebookExecutionStateService)),
-			templateDisposables.add(new CellDecorations(rootContainer, decorationContainer)),
+			templateDisposables.add(new CellDecorations(this.notebookEditor, rootContainer, decorationContainer)),
 			templateDisposables.add(scopedInstaService.createInstance(CellComments, this.notebookEditor, cellCommentPartContainer)),
 			templateDisposables.add(new CollapsedCellInput(this.notebookEditor, cellInputCollapsedContainer)),
 			templateDisposables.add(new CellFocusPart(container, undefined, this.notebookEditor)),
@@ -239,6 +240,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	constructor(
 		notebookEditor: INotebookEditorDelegate,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor>,
+		private editorPool: NotebookCellEditorPool,
 		dndController: CellDragAndDropController,
 		contextKeyServiceProvider: (container: HTMLElement) => IScopedContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -279,7 +281,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		// create a special context key service that set the inCompositeEditor-contextkey
 		const editorContextKeyService = templateDisposables.add(this.contextKeyServiceProvider(editorPart));
-		const editorInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService]));
+		const editorInstaService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService])));
 		EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
 
 		const editor = editorInstaService.createInstance(CodeEditorWidget, editorContainer, {
@@ -287,6 +289,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			dimension: {
 				width: 0,
 				height: 0
+			},
+			scrollbar: {
+				vertical: 'hidden',
+				horizontal: 'auto',
+				handleMouseWheel: false,
+				useShadows: false,
 			},
 		}, {
 			contributions: this.notebookEditor.creationOptions.cellEditorContributions
@@ -303,7 +311,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const bottomCellToolbarContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 		const focusIndicatorBottom = new FastDomNode(DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom')));
 
-		const scopedInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
+		const scopedInstaService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		const rootClassDelegate = {
 			toggle: (className: string, force?: boolean) => container.classList.toggle(className, force)
 		};
@@ -316,13 +324,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.notebookEditor));
 
 		const focusIndicatorPart = templateDisposables.add(new CellFocusIndicator(this.notebookEditor, titleToolbar, focusIndicatorTop, focusIndicatorLeft, focusIndicatorRight, focusIndicatorBottom));
-		const cellParts = new CellPartsCollection(DOM.getWindow(rootContainer), [
+		const contentParts = [
 			focusIndicatorPart,
 			templateDisposables.add(scopedInstaService.createInstance(CellChatPart, this.notebookEditor, cellChatPart)),
 			templateDisposables.add(scopedInstaService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart, editor)),
 			templateDisposables.add(scopedInstaService.createInstance(CellProgressBar, editorPart, cellInputCollapsedContainer)),
-			templateDisposables.add(scopedInstaService.createInstance(RunToolbar, this.notebookEditor, contextKeyService, container, runButtonContainer)),
-			templateDisposables.add(new CellDecorations(rootContainer, decorationContainer)),
+			templateDisposables.add(new CellDecorations(this.notebookEditor, rootContainer, decorationContainer)),
 			templateDisposables.add(scopedInstaService.createInstance(CellComments, this.notebookEditor, cellCommentPartContainer)),
 			templateDisposables.add(scopedInstaService.createInstance(CellExecutionPart, this.notebookEditor, executionOrderLabel)),
 			templateDisposables.add(scopedInstaService.createInstance(CollapsedCellOutput, this.notebookEditor, cellOutputCollapsedContainer)),
@@ -330,7 +337,16 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateDisposables.add(new CellFocusPart(container, focusSinkElement, this.notebookEditor)),
 			templateDisposables.add(new CellDragAndDropPart(container)),
 			templateDisposables.add(scopedInstaService.createInstance(CellContextKeyPart, this.notebookEditor)),
-		], [
+		];
+
+		const { cellExecutePrimary, cellExecuteToolbar } = this.notebookEditor.creationOptions.menuIds;
+		if (cellExecutePrimary && cellExecuteToolbar) {
+			contentParts.push(templateDisposables.add(
+				scopedInstaService.createInstance(RunToolbar, this.notebookEditor, contextKeyService, container, runButtonContainer, cellExecutePrimary, cellExecuteToolbar)
+			));
+		}
+
+		const cellParts = new CellPartsCollection(DOM.getWindow(rootContainer), contentParts, [
 			titleToolbar,
 			templateDisposables.add(scopedInstaService.createInstance(BetweenCellToolbar, this.notebookEditor, titleToolbarContainer, bottomCellToolbarContainer))
 		]);
@@ -376,7 +392,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.outputContainer.domNode.innerText = '';
 		templateData.outputContainer.domNode.appendChild(templateData.cellOutputCollapsedContainer);
 
-		templateData.elementDisposables.add(templateData.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData));
+		templateData.elementDisposables.add(templateData.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData, this.editorPool));
 		this.renderedEditors.set(element, templateData.editor);
 	}
 

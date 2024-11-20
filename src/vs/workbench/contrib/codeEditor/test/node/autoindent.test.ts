@@ -5,19 +5,25 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as assert from 'assert';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { getReindentEditOperations } from 'vs/editor/contrib/indentation/common/indentation';
-import { IRelaxedTextModelCreationOptions, createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILanguageConfiguration, LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/common/languageConfigurationExtensionPoint';
-import { parse } from 'vs/base/common/json';
-import { IRange } from 'vs/editor/common/core/range';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
+import assert from 'assert';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ILanguageConfigurationService } from '../../../../../editor/common/languages/languageConfigurationRegistry.js';
+import { getReindentEditOperations } from '../../../../../editor/contrib/indentation/common/indentation.js';
+import { IRelaxedTextModelCreationOptions, createModelServices, instantiateTextModel } from '../../../../../editor/test/common/testTextModel.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILanguageConfiguration, LanguageConfigurationFileHandler } from '../../common/languageConfigurationExtensionPoint.js';
+import { parse } from '../../../../../base/common/json.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { trimTrailingWhitespace } from '../../../../../editor/common/commands/trimTrailingWhitespaceCommand.js';
 import { execSync } from 'child_process';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from '../../../../../editor/common/languages.js';
+import { NullState } from '../../../../../editor/common/languages/nullTokenize.js';
+import { MetadataConsts, StandardTokenType } from '../../../../../editor/common/encodedTokenAttributes.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { FileAccess } from '../../../../../base/common/network.js';
 
 function getIRange(range: IRange): IRange {
 	return {
@@ -32,11 +38,26 @@ const enum LanguageId {
 	TypeScript = 'ts-test'
 }
 
-function registerLanguage(languageConfigurationService: ILanguageConfigurationService, languageId: LanguageId): IDisposable {
+function forceTokenizationFromLineToLine(model: ITextModel, startLine: number, endLine: number): void {
+	for (let line = startLine; line <= endLine; line++) {
+		model.tokenization.forceTokenization(line);
+	}
+}
+
+function registerLanguage(instantiationService: TestInstantiationService, languageId: LanguageId): IDisposable {
+	const disposables = new DisposableStore();
+	const languageService = instantiationService.get(ILanguageService);
+	disposables.add(registerLanguageConfiguration(instantiationService, languageId));
+	disposables.add(languageService.registerLanguage({ id: languageId }));
+	return disposables;
+}
+
+function registerLanguageConfiguration(instantiationService: TestInstantiationService, languageId: LanguageId): IDisposable {
+	const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 	let configPath: string;
 	switch (languageId) {
 		case LanguageId.TypeScript:
-			configPath = path.join('extensions', 'typescript-basics', 'language-configuration.json');
+			configPath = FileAccess.asFileUri('vs/workbench/contrib/codeEditor/test/node/language-configuration.json').fsPath;
 			break;
 		default:
 			throw new Error('Unknown languageId');
@@ -45,6 +66,33 @@ function registerLanguage(languageConfigurationService: ILanguageConfigurationSe
 	const parsedConfig = <ILanguageConfiguration>parse(configContent, []);
 	const languageConfig = LanguageConfigurationFileHandler.extractValidConfig(languageId, parsedConfig);
 	return languageConfigurationService.register(languageId, languageConfig);
+}
+
+interface StandardTokenTypeData {
+	startIndex: number;
+	standardTokenType: StandardTokenType;
+}
+
+function registerTokenizationSupport(instantiationService: TestInstantiationService, tokens: StandardTokenTypeData[][], languageId: LanguageId): IDisposable {
+	let lineIndex = 0;
+	const languageService = instantiationService.get(ILanguageService);
+	const tokenizationSupport: ITokenizationSupport = {
+		getInitialState: () => NullState,
+		tokenize: undefined!,
+		tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
+			const tokensOnLine = tokens[lineIndex++];
+			const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
+			const result = new Uint32Array(2 * tokensOnLine.length);
+			for (let i = 0; i < tokensOnLine.length; i++) {
+				result[2 * i] = tokensOnLine[i].startIndex;
+				result[2 * i + 1] =
+					((encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
+						| (tokensOnLine[i].standardTokenType << MetadataConsts.TOKEN_TYPE_OFFSET));
+			}
+			return new EncodedTokenizationResult(result, state);
+		}
+	};
+	return TokenizationRegistry.register(languageId, tokenizationSupport);
 }
 
 suite('Auto-Reindentation - TypeScript/JavaScript', () => {
@@ -59,7 +107,9 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		disposables = new DisposableStore();
 		instantiationService = createModelServices(disposables);
 		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
-		disposables.add(registerLanguage(languageConfigurationService, languageId));
+		disposables.add(instantiationService);
+		disposables.add(registerLanguage(instantiationService, languageId));
+		disposables.add(registerLanguageConfiguration(instantiationService, languageId));
 	});
 
 	teardown(() => {
@@ -160,7 +210,27 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'const foo = `{`;',
 			'    ',
 		].join('\n');
+		const tokens: StandardTokenTypeData[][] = [
+			[
+				{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 5, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 6, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 9, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 10, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 11, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 12, standardTokenType: StandardTokenType.String },
+				{ startIndex: 13, standardTokenType: StandardTokenType.String },
+				{ startIndex: 14, standardTokenType: StandardTokenType.String },
+				{ startIndex: 15, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 16, standardTokenType: StandardTokenType.Other }
+			],
+			[
+				{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 4, standardTokenType: StandardTokenType.Other }]
+		];
+		disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		forceTokenizationFromLineToLine(model, 1, 2);
 		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 1);
 		const operation = editOperations[0];
@@ -258,7 +328,28 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'const r = /{/;',
 			'   ',
 		].join('\n');
+		const tokens: StandardTokenTypeData[][] = [
+			[
+				{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 5, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 6, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 7, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 8, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 9, standardTokenType: StandardTokenType.RegEx },
+				{ startIndex: 10, standardTokenType: StandardTokenType.RegEx },
+				{ startIndex: 11, standardTokenType: StandardTokenType.RegEx },
+				{ startIndex: 12, standardTokenType: StandardTokenType.RegEx },
+				{ startIndex: 13, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 14, standardTokenType: StandardTokenType.Other }
+			],
+			[
+				{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 4, standardTokenType: StandardTokenType.Other }
+			]
+		];
+		disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		forceTokenizationFromLineToLine(model, 1, 2);
 		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 1);
 		const operation = editOperations[0];
@@ -288,6 +379,38 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'};',
 		].join('\n');
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
+		assert.deepStrictEqual(editOperations.length, 0);
+	});
+
+	test('Issue #209859: do not do reindentation for tokens inside of a string', () => {
+
+		// issue: https://github.com/microsoft/vscode/issues/209859
+
+		const tokens: StandardTokenTypeData[][] = [
+			[
+				{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 12, standardTokenType: StandardTokenType.String },
+			],
+			[
+				{ startIndex: 0, standardTokenType: StandardTokenType.String },
+			],
+			[
+				{ startIndex: 0, standardTokenType: StandardTokenType.String },
+			],
+			[
+				{ startIndex: 0, standardTokenType: StandardTokenType.String },
+			]
+		];
+		disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
+		const fileContents = [
+			'const foo = `some text',
+			'         which is strangely',
+			'    indented. It should',
+			'   not be reindented.`'
+		].join('\n');
+		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		forceTokenizationFromLineToLine(model, 1, 4);
 		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 0);
 	});

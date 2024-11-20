@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableWindowInterval } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { randomPort } from 'vs/base/common/ports';
-import * as nls from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ExtensionIdentifier, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
-import { IExtensionHostProfileService, ProfileSessionState } from 'vs/workbench/contrib/extensions/electron-sandbox/runtimeExtensionsEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { IExtensionHostProfile, IExtensionService, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-sandbox/extensionHostProfiler';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { disposableWindowInterval } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { randomPort } from '../../../../base/common/ports.js';
+import * as nls from '../../../../nls.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ExtensionIdentifier, ExtensionIdentifierMap } from '../../../../platform/extensions/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { RuntimeExtensionsInput } from '../common/runtimeExtensionsInput.js';
+import { IExtensionHostProfileService, ProfileSessionState } from './runtimeExtensionsEditor.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
+import { IExtensionHostProfile, IExtensionService, ProfileSession } from '../../../services/extensions/common/extensions.js';
+import { ExtensionHostProfiler } from '../../../services/extensions/electron-sandbox/extensionHostProfiler.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export class ExtensionHostProfileService extends Disposable implements IExtensionHostProfileService {
 
@@ -42,6 +43,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 	private profilingStatusBarIndicator: IStatusbarEntryAccessor | undefined;
 	private readonly profilingStatusBarIndicatorLabelUpdater = this._register(new MutableDisposable());
 
+	public lastProfileSavedTo: URI | undefined;
 	public get state() { return this._state; }
 	public get lastProfile() { return this._profile; }
 
@@ -166,6 +168,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 
 	private _setLastProfile(profile: IExtensionHostProfile) {
 		this._profile = profile;
+		this.lastProfileSavedTo = undefined;
 		this._onDidChangeLastProfile.fire(undefined);
 	}
 

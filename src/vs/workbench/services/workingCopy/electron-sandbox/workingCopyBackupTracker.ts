@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, IWorkingCopyIdentifier, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ConfirmResult, IFileDialogService, IDialogService, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isMacintosh } from 'vs/base/common/platform';
-import { HotExitConfiguration } from 'vs/platform/files/common/files';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { WorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/common/workingCopyBackupTracker';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { Promises, raceCancellation } from 'vs/base/common/async';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { localize } from '../../../../nls.js';
+import { IWorkingCopyBackupService } from '../common/workingCopyBackup.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IFilesConfigurationService, AutoSaveMode } from '../../filesConfiguration/common/filesConfigurationService.js';
+import { IWorkingCopyService } from '../common/workingCopyService.js';
+import { IWorkingCopy, IWorkingCopyIdentifier, WorkingCopyCapabilities } from '../common/workingCopy.js';
+import { ILifecycleService, ShutdownReason } from '../../lifecycle/common/lifecycle.js';
+import { ConfirmResult, IFileDialogService, IDialogService, getFileNamesMessage } from '../../../../platform/dialogs/common/dialogs.js';
+import { WorkbenchState, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { HotExitConfiguration } from '../../../../platform/files/common/files.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { WorkingCopyBackupTracker } from '../common/workingCopyBackupTracker.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { SaveReason } from '../../../common/editor.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { Promises, raceCancellation } from '../../../../base/common/async.js';
+import { IWorkingCopyEditorService } from '../common/workingCopyEditorService.js';
+import { IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
 
 export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker implements IWorkbenchContribution {
 
@@ -350,7 +350,14 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			if (result !== false) {
 				await Promises.settled(workingCopies.map(workingCopy => workingCopy.isModified() ? workingCopy.save(saveOptions) : Promise.resolve(true)));
 			}
-		}, localize('saveBeforeShutdown', "Saving editors with unsaved changes is taking a bit longer..."));
+		},
+			localize('saveBeforeShutdown', "Saving editors with unsaved changes is taking a bit longer..."),
+			undefined,
+			// Do not pick `Dialog` as location for reporting progress if it is likely
+			// that the save operation will itself open a dialog for asking for the
+			// location to save to for untitled or scratchpad working copies.
+			// https://github.com/microsoft/vscode-internalbacklog/issues/4943
+			workingCopies.some(workingCopy => workingCopy.capabilities & WorkingCopyCapabilities.Untitled || workingCopy.capabilities & WorkingCopyCapabilities.Scratchpad) ? ProgressLocation.Window : ProgressLocation.Dialog);
 	}
 
 	private doRevertAllBeforeShutdown(modifiedWorkingCopies: IWorkingCopy[]): Promise<void> {
@@ -439,13 +446,13 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		}, localize('discardBackupsBeforeShutdown', "Discarding backups is taking a bit longer..."));
 	}
 
-	private withProgressAndCancellation(promiseFactory: (token: CancellationToken) => Promise<void>, title: string, detail?: string): Promise<void> {
+	private withProgressAndCancellation(promiseFactory: (token: CancellationToken) => Promise<void>, title: string, detail?: string, location = ProgressLocation.Dialog): Promise<void> {
 		const cts = new CancellationTokenSource();
 
 		return this.progressService.withProgress({
-			location: ProgressLocation.Dialog, 	// use a dialog to prevent the user from making any more changes now (https://github.com/microsoft/vscode/issues/122774)
-			cancellable: true, 					// allow to cancel (https://github.com/microsoft/vscode/issues/112278)
-			delay: 800, 						// delay so that it only appears when operation takes a long time
+			location, 			// by default use a dialog to prevent the user from making any more changes now (https://github.com/microsoft/vscode/issues/122774)
+			cancellable: true, 	// allow to cancel (https://github.com/microsoft/vscode/issues/112278)
+			delay: 800, 		// delay so that it only appears when operation takes a long time
 			title,
 			detail
 		}, () => raceCancellation(promiseFactory(cts.token), cts.token), () => cts.dispose(true));

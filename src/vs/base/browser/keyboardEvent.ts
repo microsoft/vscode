@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { EVENT_KEY_CODE_MAP, KeyCode, KeyCodeUtils, KeyMod } from 'vs/base/common/keyCodes';
-import { KeyCodeChord } from 'vs/base/common/keybindings';
-import * as platform from 'vs/base/common/platform';
+import * as browser from './browser.js';
+import { EVENT_KEY_CODE_MAP, KeyCode, KeyCodeUtils, KeyMod } from '../common/keyCodes.js';
+import { KeyCodeChord } from '../common/keybindings.js';
+import * as platform from '../common/platform.js';
 
 
 

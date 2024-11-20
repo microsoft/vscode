@@ -49,15 +49,38 @@ const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
 	'big5': 'cp950'
 };
 
-export function detectEncoding(buffer: Buffer): string | null {
+const MAP_CANDIDATE_GUESS_ENCODING_TO_JSCHARDET: { [key: string]: string } = {
+	utf8: 'UTF-8',
+	utf16le: 'UTF-16LE',
+	utf16be: 'UTF-16BE',
+	windows1252: 'windows-1252',
+	windows1250: 'windows-1250',
+	iso88592: 'ISO-8859-2',
+	windows1251: 'windows-1251',
+	cp866: 'IBM866',
+	iso88595: 'ISO-8859-5',
+	koi8r: 'KOI8-R',
+	windows1253: 'windows-1253',
+	iso88597: 'ISO-8859-7',
+	windows1255: 'windows-1255',
+	iso88598: 'ISO-8859-8',
+	cp950: 'Big5',
+	shiftjis: 'SHIFT_JIS',
+	eucjp: 'EUC-JP',
+	euckr: 'EUC-KR',
+	gb2312: 'GB2312'
+};
+
+export function detectEncoding(buffer: Buffer, candidateGuessEncodings: string[]): string | null {
 	const result = detectEncodingByBOM(buffer);
 
 	if (result) {
 		return result;
 	}
 
-	const detected = jschardet.detect(buffer);
+	candidateGuessEncodings = candidateGuessEncodings.map(e => MAP_CANDIDATE_GUESS_ENCODING_TO_JSCHARDET[e]).filter(e => !!e);
 
+	const detected = jschardet.detect(buffer, candidateGuessEncodings.length > 0 ? { detectEncodings: candidateGuessEncodings } : undefined);
 	if (!detected || !detected.encoding) {
 		return null;
 	}

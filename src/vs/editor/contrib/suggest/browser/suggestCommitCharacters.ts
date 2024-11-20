@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
-import { State, SuggestModel } from 'vs/editor/contrib/suggest/browser/suggestModel';
-import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { CharacterSet } from '../../../common/core/characterClassifier.js';
+import { State, SuggestModel } from './suggestModel.js';
+import { ISelectedSuggestion, SuggestWidget } from './suggestWidget.js';
 
 export class CommitCharacterController {
 

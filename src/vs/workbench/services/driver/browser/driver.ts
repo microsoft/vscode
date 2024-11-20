@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getClientArea, getTopLeftOffset } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { coalesce } from 'vs/base/common/arrays';
-import { language, locale } from 'vs/base/common/platform';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import localizedStrings from 'vs/platform/languagePacks/common/localizedStrings';
-import { ILogFile, getLogs } from 'vs/platform/log/browser/log';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IWindowDriver, IElement, ILocaleInfo, ILocalizedStrings } from 'vs/workbench/services/driver/common/driver';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { getClientArea, getTopLeftOffset } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { language, locale } from '../../../../base/common/platform.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import localizedStrings from '../../../../platform/languagePacks/common/localizedStrings.js';
+import { ILogFile, getLogs } from '../../../../platform/log/browser/log.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IWindowDriver, IElement, ILocaleInfo, ILocalizedStrings } from '../common/driver.js';
+import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
 import type { Terminal as XtermTerminal } from '@xterm/xterm';
 
 export class BrowserWindowDriver implements IWindowDriver {
@@ -134,17 +134,23 @@ export class BrowserWindowDriver implements IWindowDriver {
 			throw new Error(`Editor not found: ${selector}`);
 		}
 
-		const textarea = element as HTMLTextAreaElement;
-		const start = textarea.selectionStart;
-		const newStart = start + text.length;
-		const value = textarea.value;
-		const newValue = value.substr(0, start) + text + value.substr(start);
-
-		textarea.value = newValue;
-		textarea.setSelectionRange(newStart, newStart);
-
-		const event = new Event('input', { 'bubbles': true, 'cancelable': true });
-		textarea.dispatchEvent(event);
+		const divElement = element as HTMLDivElement;
+		const editContext = divElement.editContext;
+		if (!editContext) {
+			throw new Error(`Edit context not found: ${selector}`);
+		}
+		const selectionStart = editContext.selectionStart;
+		const selectionEnd = editContext.selectionEnd;
+		const event = new TextUpdateEvent('textupdate', {
+			updateRangeStart: selectionStart,
+			updateRangeEnd: selectionEnd,
+			text,
+			selectionStart: selectionStart + text.length,
+			selectionEnd: selectionStart + text.length,
+			compositionStart: 0,
+			compositionEnd: 0
+		});
+		editContext.dispatchEvent(event);
 	}
 
 	async getTerminalBuffer(selector: string): Promise<string[]> {

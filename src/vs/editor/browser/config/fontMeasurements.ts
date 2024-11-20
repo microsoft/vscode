@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindowId } from 'vs/base/browser/dom';
-import { PixelRatio } from 'vs/base/browser/pixelRatio';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
-import { EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo, FontInfo, SERIALIZED_FONT_INFO_VERSION } from 'vs/editor/common/config/fontInfo';
+import { getWindowId } from '../../../base/browser/dom.js';
+import { PixelRatio } from '../../../base/browser/pixelRatio.js';
+import { Emitter } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { CharWidthRequest, CharWidthRequestType, readCharWidths } from './charWidthReader.js';
+import { EditorFontLigatures } from '../../common/config/editorOptions.js';
+import { BareFontInfo, FontInfo, SERIALIZED_FONT_INFO_VERSION } from '../../common/config/fontInfo.js';
 
 /**
  * Serializable font information.

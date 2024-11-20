@@ -20,8 +20,14 @@ vscode-textmate/webpack.config.js
 
 @xterm/xterm/src/**
 
+@xterm/addon-clipboard/src/**
+@xterm/addon-clipboard/out/**
+
 @xterm/addon-image/src/**
 @xterm/addon-image/out/**
+
+@xterm/addon-ligatures/src/**
+@xterm/addon-ligatures/out/**
 
 @xterm/addon-search/src/**
 @xterm/addon-search/out/**
@@ -35,6 +41,7 @@ vscode-textmate/webpack.config.js
 
 # This makes sure the model is included in the package
 !@vscode/vscode-languagedetection/model/**
+!@vscode/tree-sitter-wasm/wasm/**
 
 # Ensure only the required telemetry pieces are loaded in web to reduce bundle size
 @microsoft/1ds-core-js/**
@@ -42,7 +49,9 @@ vscode-textmate/webpack.config.js
 @microsoft/applicationinsights-core-js/**
 @microsoft/applicationinsights-shims/**
 !@microsoft/1ds-core-js/dist/ms.core.min.js
+!@microsoft/1ds-core-js/bundle/ms.core.min.js
 !@microsoft/1ds-post-js/dist/ms.post.min.js
+!@microsoft/1ds-post-js/bundle/ms.post.min.js
 !@microsoft/applicationinsights-core-js/browser/applicationinsights-core-js.min.js
 !@microsoft/applicationinsights-shims/dist/umd/applicationinsights-shims.min.js
 

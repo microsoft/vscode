@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import assert from 'assert';
+import { isHTMLAnchorElement } from '../../../../../base/browser/dom.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ITunnelService } from '../../../../../platform/tunnel/common/tunnel.js';
+import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { LinkDetector } from '../../browser/linkDetector.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('Debug - Link Detector', () => {
 
@@ -33,7 +34,7 @@ suite('Debug - Link Detector', () => {
 	 * @param element The Element to verify.
 	 */
 	function assertElementIsLink(element: Element) {
-		assert(element instanceof HTMLAnchorElement);
+		assert(isHTMLAnchorElement(element));
 	}
 
 	test('noLinks', () => {

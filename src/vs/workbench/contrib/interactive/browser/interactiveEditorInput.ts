@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IReference } from 'vs/base/common/lifecycle';
-import * as paths from 'vs/base/common/path';
-import { isEqual, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInputCapabilities, GroupIdentifier, IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
-import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
-import { IResolvedNotebookEditorModel, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { Event } from '../../../../base/common/event.js';
+import { IReference } from '../../../../base/common/lifecycle.js';
+import * as paths from '../../../../base/common/path.js';
+import { isEqual, joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { EditorInputCapabilities, GroupIdentifier, IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IInteractiveDocumentService } from './interactiveDocumentService.js';
+import { IInteractiveHistoryService } from './interactiveHistoryService.js';
+import { IResolvedNotebookEditorModel, NotebookSetting } from '../../notebook/common/notebookCommon.js';
+import { ICompositeNotebookEditorInput, NotebookEditorInput } from '../../notebook/common/notebookEditorInput.js';
+import { INotebookService } from '../../notebook/common/notebookService.js';
 
 export class InteractiveEditorInput extends EditorInput implements ICompositeNotebookEditorInput {
 	static create(instantiationService: IInstantiationService, resource: URI, inputResource: URI, title?: string, language?: string) {

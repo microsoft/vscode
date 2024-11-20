@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import * as paths from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
+import { CharCode } from './charCode.js';
+import { MarshalledId } from './marshallingIds.js';
+import * as paths from './path.js';
+import { isWindows } from './platform.js';
 
 const _schemePattern = /^\w[\w\d+.-]*$/;
 const _singleSlashStart = /^\//;
@@ -413,6 +413,10 @@ export class URI implements UriComponents {
 			return result;
 		}
 	}
+
+	[Symbol.for('debug.description')]() {
+		return `URI(${this.toString()})`;
+	}
 }
 
 export interface UriComponents {
@@ -469,6 +473,7 @@ class Uri extends URI {
 	}
 
 	override toJSON(): UriComponents {
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		const res = <UriState>{
 			$mid: MarshalledId.Uri
 		};

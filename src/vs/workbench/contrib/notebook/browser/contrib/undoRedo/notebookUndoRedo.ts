@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CellEditState, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../../common/contributions.js';
+import { CellKind } from '../../../common/notebookCommon.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { CellEditState, getNotebookEditorFromEditorPane } from '../../notebookBrowser.js';
+import { RedoCommand, UndoCommand } from '../../../../../../editor/browser/editorExtensions.js';
+import { NotebookViewModel } from '../../viewModel/notebookViewModelImpl.js';
 
 class NotebookUndoRedoContribution extends Disposable {
 

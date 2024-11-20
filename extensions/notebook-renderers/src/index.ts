@@ -11,7 +11,7 @@ import { formatStackTrace } from './stackTraceHelper';
 
 function clearContainer(container: HTMLElement) {
 	while (container.firstChild) {
-		container.removeChild(container.firstChild);
+		container.firstChild.remove();
 	}
 }
 
@@ -199,9 +199,9 @@ function renderError(
 		const content = createOutputContent(outputInfo.id, formattedStack, outputOptions);
 		const stackTraceElement = document.createElement('div');
 		stackTraceElement.appendChild(content);
-		stackTraceElement.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
+		outputElement.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
-			stackTraceElement.classList.toggle('word-wrap', e.outputWordWrap);
+			outputElement.classList.toggle('word-wrap', e.outputWordWrap);
 		}));
 
 		if (minimalError) {
@@ -378,15 +378,15 @@ function renderStream(outputInfo: OutputWithAppend, outputElement: HTMLElement, 
 			contentParent = document.createElement('div');
 			contentParent.appendChild(newContent);
 			while (outputElement.firstChild) {
-				outputElement.removeChild(outputElement.firstChild);
+				outputElement.firstChild.remove();
 			}
 			outputElement.appendChild(contentParent);
 		}
 
 		contentParent.classList.toggle('scrollable', outputScrolling);
-		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
+		outputElement.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
-			contentParent!.classList.toggle('word-wrap', e.outputWordWrap);
+			outputElement.classList.toggle('word-wrap', e.outputWordWrap);
 		}));
 
 		initializeScroll(contentParent, disposableStore, scrollTop);
@@ -404,9 +404,10 @@ function renderText(outputInfo: OutputItem, outputElement: HTMLElement, ctx: IRi
 	const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false, linkifyFilePaths: ctx.settings.linkifyFilePaths };
 	const content = createOutputContent(outputInfo.id, text, outputOptions);
 	content.classList.add('output-plaintext');
-	if (ctx.settings.outputWordWrap) {
-		content.classList.add('word-wrap');
-	}
+	outputElement.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
+	disposableStore.push(ctx.onDidChangeSettings(e => {
+		outputElement.classList.toggle('word-wrap', e.outputWordWrap);
+	}));
 
 	content.classList.toggle('scrollable', outputScrolling);
 	outputElement.appendChild(content);
@@ -445,7 +446,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		white-space: pre;
 	}
 	/* When wordwrap turned on, force it to pre-wrap */
-	#container div.output_container .word-wrap span {
+	#container div.output_container .word-wrap {
 		white-space: pre-wrap;
 	}
 	#container div.output>div {
@@ -461,7 +462,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		border-color: var(--theme-input-focus-border-color);
 	}
 	#container div.output .scrollable {
-		overflow-y: scroll;
+		overflow-y: auto;
 		max-height: var(--notebook-cell-output-max-height);
 	}
 	#container div.output .scrollable.scrollbar-visible {

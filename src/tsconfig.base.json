@@ -1,6 +1,6 @@
 {
 	"compilerOptions": {
-		"module": "amd",
+		"module": "es2022",
 		"moduleResolution": "node",
 		"experimentalDecorators": true,
 		"noImplicitReturns": true,
@@ -24,6 +24,7 @@
 			"DOM",
 			"DOM.Iterable",
 			"WebWorker.ImportScripts"
-		]
+		],
+		"allowSyntheticDefaultImports": true
 	}
 }
