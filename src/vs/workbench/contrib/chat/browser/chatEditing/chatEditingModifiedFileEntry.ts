@@ -399,12 +399,15 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	}
 
 	private _setDocValue(value: string): void {
-		this.doc.pushStackElement();
-		const edit = EditOperation.replace(this.doc.getFullModelRange(), value);
+		if (this.doc.getValue() !== value) {
 
-		this._applyEdits([edit]);
+			this.doc.pushStackElement();
+			const edit = EditOperation.replace(this.doc.getFullModelRange(), value);
 
-		this.doc.pushStackElement();
+			this._applyEdits([edit]);
+
+			this.doc.pushStackElement();
+		}
 	}
 
 	async collapse(transaction: ITransaction | undefined): Promise<void> {
