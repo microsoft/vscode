@@ -282,9 +282,12 @@ export class NotebookModelSynchronizer extends Disposable {
 
 			// First Delete.
 			const deletedIndexes: number[] = [];
-			cellDiffInfoToApplyEdits.reverse().forEach(diff => {
+			await Promise.all(cellDiffInfoToApplyEdits.reverse().map(async diff => {
 				if (diff.type === 'delete') {
 					deletedIndexes.push(diff.originalCellIndex);
+					const cell = currentModel.cells[diff.originalCellIndex];
+					// Ensure the models of these cells have been loaded before we delete them.
+					await this.waitForCellModelToBeAvailable(cell);
 					edits.push({
 						editType: CellEditType.Replace,
 						index: diff.originalCellIndex,
@@ -292,7 +295,7 @@ export class NotebookModelSynchronizer extends Disposable {
 						count: 1
 					});
 				}
-			});
+			}));
 			if (edits.length) {
 				currentModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
 				edits.length = 0;
@@ -335,13 +338,12 @@ export class NotebookModelSynchronizer extends Disposable {
 			await Promise.all(cellDiffInfoToApplyEdits.map(async diff => {
 				if (diff.type === 'modified') {
 					const cell = currentModel.cells[diff.originalCellIndex];
+					// Ensure the models of these cells have been loaded before we update them.
 					const textModel = await this.waitForCellModelToBeAvailable(cell);
-					if (textModel) {
-						const newText = modelWithChatEdits.cells[diff.modifiedCellIndex].getValue();
-						textModel.pushEditOperations(null, [
-							EditOperation.replace(textModel.getFullModelRange(), newText)
-						], () => null);
-					}
+					const newText = modelWithChatEdits.cells[diff.modifiedCellIndex].getValue();
+					textModel.pushEditOperations(null, [
+						EditOperation.replace(textModel.getFullModelRange(), newText)
+					], () => null);
 				}
 			}));
 
