@@ -2907,6 +2907,7 @@ export enum DocumentPasteTriggerKind {
 
 export class DocumentDropOrPasteEditKind {
 	static Empty: DocumentDropOrPasteEditKind;
+	static Text: DocumentDropOrPasteEditKind;
 
 	private static sep = '.';
 
@@ -2927,6 +2928,7 @@ export class DocumentDropOrPasteEditKind {
 	}
 }
 DocumentDropOrPasteEditKind.Empty = new DocumentDropOrPasteEditKind('');
+DocumentDropOrPasteEditKind.Text = new DocumentDropOrPasteEditKind('text');
 
 export class DocumentPasteEdit {
 

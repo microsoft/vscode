@@ -25,6 +25,9 @@ const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
 export class PasteImageProvider implements DocumentPasteEditProvider {
 
 	public readonly kind = new HierarchicalKind('chat.attach.image');
+	public readonly providedPasteEditKinds = [this.kind];
+
+	public readonly copyMimeTypes = [];
 	public readonly pasteMimeTypes = ['image/*'];
 
 	constructor(
@@ -91,7 +94,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		return getCustomPaste(model, imageContext, mimeType, new HierarchicalKind('chat.attach.image'), localize('pastedImageAttachment', 'Pasted Image Attachment'), this.chatWidgetService);
+		return getCustomPaste(model, imageContext, mimeType, this.kind, localize('pastedImageAttachment', 'Pasted Image Attachment'), this.chatWidgetService);
 	}
 }
 
@@ -138,9 +141,9 @@ export function isImage(array: Uint8Array): boolean {
 }
 
 export class CopyTextProvider implements DocumentPasteEditProvider {
-
-	public readonly kind = new HierarchicalKind('chat.attach.text');
+	public readonly providedPasteEditKinds = [];
 	public readonly copyMimeTypes = [COPY_MIME_TYPES];
+	public readonly pasteMimeTypes = [];
 
 	async prepareDocumentPaste(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer> {
 		if (model.uri.scheme === ChatInputPart.INPUT_SCHEME) {
@@ -156,6 +159,9 @@ export class CopyTextProvider implements DocumentPasteEditProvider {
 export class PasteTextProvider implements DocumentPasteEditProvider {
 
 	public readonly kind = new HierarchicalKind('chat.attach.text');
+	public readonly providedPasteEditKinds = [this.kind];
+
+	public readonly copyMimeTypes = [];
 	public readonly pasteMimeTypes = [COPY_MIME_TYPES];
 
 	constructor(
@@ -194,7 +200,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		return getCustomPaste(model, copiedContext, Mimes.text, new HierarchicalKind('chat.attach.text'), localize('pastedCodeAttachment', 'Pasted Code Attachment'), this.chatWidgetService);
+		return getCustomPaste(model, copiedContext, Mimes.text, this.kind, localize('pastedCodeAttachment', 'Pasted Code Attachment'), this.chatWidgetService);
 	}
 }
 

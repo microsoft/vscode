@@ -12,6 +12,16 @@ import { Schemes } from '../../util/schemes';
 import { UriList } from '../../util/uriList';
 import { resolveSnippet } from './snippets';
 
+/** Base kind for any sort of markdown link, including both path and media links */
+export const baseLinkEditKind = vscode.DocumentDropOrPasteEditKind.Empty.append('markdown', 'link');
+
+/** Kind for normal markdown links, i.e. `[text](path/to/file.md)` */
+export const linkEditKind = baseLinkEditKind.append('uri');
+
+export const imageEditKind = baseLinkEditKind.append('image');
+export const audioEditKind = baseLinkEditKind.append('audio');
+export const videoEditKind = baseLinkEditKind.append('video');
+
 enum MediaKind {
 	Image,
 	Video,
@@ -45,23 +55,71 @@ export const mediaFileExtensions = new Map<string, MediaKind>([
 	['wav', MediaKind.Audio],
 ]);
 
-export function getSnippetLabel(counter: { insertedAudioVideoCount: number; insertedImageCount: number; insertedLinkCount: number }) {
-	if (counter.insertedAudioVideoCount > 0) {
+export function getSnippetLabelAndKind(counter: { readonly insertedAudioCount: number; readonly insertedVideoCount: number; readonly insertedImageCount: number; readonly insertedLinkCount: number }): {
+	label: string;
+	kind: vscode.DocumentDropOrPasteEditKind;
+} {
+	if (counter.insertedVideoCount > 0 || counter.insertedAudioCount > 0) {
+		// Any media plus links
 		if (counter.insertedLinkCount > 0) {
-			return vscode.l10n.t('Insert Markdown Media and Links');
-		} else {
-			return vscode.l10n.t('Insert Markdown Media');
+			return {
+				label: vscode.l10n.t('Insert Markdown Media and Links'),
+				kind: baseLinkEditKind,
+			};
 		}
-	} else if (counter.insertedImageCount > 0 && counter.insertedLinkCount > 0) {
-		return vscode.l10n.t('Insert Markdown Images and Links');
+
+		// Any media plus images
+		if (counter.insertedImageCount > 0) {
+			return {
+				label: vscode.l10n.t('Insert Markdown Media and Images'),
+				kind: baseLinkEditKind,
+			};
+		}
+
+		// Audio only
+		if (counter.insertedAudioCount > 0 && !counter.insertedVideoCount) {
+			return {
+				label: vscode.l10n.t('Insert Markdown Audio'),
+				kind: audioEditKind,
+			};
+		}
+
+		// Video only
+		if (counter.insertedVideoCount > 0 && !counter.insertedAudioCount) {
+			return {
+				label: vscode.l10n.t('Insert Markdown Video'),
+				kind: videoEditKind,
+			};
+		}
+
+		// Mix of audio and video
+		return {
+			label: vscode.l10n.t('Insert Markdown Media'),
+			kind: baseLinkEditKind,
+		};
 	} else if (counter.insertedImageCount > 0) {
-		return counter.insertedImageCount > 1
-			? vscode.l10n.t('Insert Markdown Images')
-			: vscode.l10n.t('Insert Markdown Image');
+		// Mix of images and links
+		if (counter.insertedLinkCount > 0) {
+			return {
+				label: vscode.l10n.t('Insert Markdown Images and Links'),
+				kind: baseLinkEditKind,
+			};
+		}
+
+		// Just images
+		return {
+			label: counter.insertedImageCount > 1
+				? vscode.l10n.t('Insert Markdown Images')
+				: vscode.l10n.t('Insert Markdown Image'),
+			kind: imageEditKind,
+		};
 	} else {
-		return counter.insertedLinkCount > 1
-			? vscode.l10n.t('Insert Markdown Links')
-			: vscode.l10n.t('Insert Markdown Link');
+		return {
+			label: counter.insertedLinkCount > 1
+				? vscode.l10n.t('Insert Markdown Links')
+				: vscode.l10n.t('Insert Markdown Link'),
+			kind: linkEditKind,
+		};
 	}
 }
 
@@ -70,7 +128,7 @@ export function createInsertUriListEdit(
 	ranges: readonly vscode.Range[],
 	urlList: UriList,
 	options?: UriListSnippetOptions,
-): { edits: vscode.SnippetTextEdit[]; label: string } | undefined {
+): { edits: vscode.SnippetTextEdit[]; label: string; kind: vscode.DocumentDropOrPasteEditKind } | undefined {
 	if (!ranges.length || !urlList.entries.length) {
 		return;
 	}
@@ -79,7 +137,8 @@ export function createInsertUriListEdit(
 
 	let insertedLinkCount = 0;
 	let insertedImageCount = 0;
-	let insertedAudioVideoCount = 0;
+	let insertedAudioCount = 0;
+	let insertedVideoCount = 0;
 
 	// Use 1 for all empty ranges but give non-empty range unique indices starting after 1
 	let placeHolderStartIndex = 1 + urlList.entries.length;
@@ -100,15 +159,16 @@ export function createInsertUriListEdit(
 
 		insertedLinkCount += snippet.insertedLinkCount;
 		insertedImageCount += snippet.insertedImageCount;
-		insertedAudioVideoCount += snippet.insertedAudioVideoCount;
+		insertedAudioCount += snippet.insertedAudioCount;
+		insertedVideoCount += snippet.insertedVideoCount;
 
 		placeHolderStartIndex += urlList.entries.length;
 
 		edits.push(new vscode.SnippetTextEdit(range, snippet.snippet));
 	}
 
-	const label = getSnippetLabel({ insertedAudioVideoCount, insertedImageCount, insertedLinkCount });
-	return { edits, label };
+	const { label, kind } = getSnippetLabelAndKind({ insertedAudioCount, insertedVideoCount, insertedImageCount, insertedLinkCount });
+	return { edits, label, kind };
 }
 
 interface UriListSnippetOptions {
@@ -134,11 +194,12 @@ interface UriListSnippetOptions {
 }
 
 
-interface UriSnippet {
-	snippet: vscode.SnippetString;
-	insertedLinkCount: number;
-	insertedImageCount: number;
-	insertedAudioVideoCount: number;
+export interface UriSnippet {
+	readonly snippet: vscode.SnippetString;
+	readonly insertedLinkCount: number;
+	readonly insertedImageCount: number;
+	readonly insertedVideoCount: number;
+	readonly insertedAudioCount: number;
 }
 
 export function createUriListSnippet(
@@ -159,7 +220,8 @@ export function createUriListSnippet(
 
 	let insertedLinkCount = 0;
 	let insertedImageCount = 0;
-	let insertedAudioVideoCount = 0;
+	let insertedAudioCount = 0;
+	let insertedVideoCount = 0;
 
 	const snippet = new vscode.SnippetString();
 	let placeholderIndex = options?.placeholderStartIndex ?? 1;
@@ -174,7 +236,11 @@ export function createUriListSnippet(
 			const insertAsVideo = mediaFileExtensions.get(ext) === MediaKind.Video;
 			const insertAsAudio = mediaFileExtensions.get(ext) === MediaKind.Audio;
 			if (insertAsVideo || insertAsAudio) {
-				insertedAudioVideoCount++;
+				if (insertAsVideo) {
+					insertedVideoCount++;
+				} else {
+					insertedAudioCount++;
+				}
 				const mediaSnippet = insertAsVideo
 					? config.get<string>('editor.filePaste.videoSnippet', '<video controls src="${src}" title="${title}"></video>')
 					: config.get<string>('editor.filePaste.audioSnippet', '<audio controls src="${src}" title="${title}"></audio>');
@@ -201,7 +267,7 @@ export function createUriListSnippet(
 		}
 	});
 
-	return { snippet, insertedAudioVideoCount, insertedImageCount, insertedLinkCount };
+	return { snippet, insertedAudioCount, insertedVideoCount, insertedImageCount, insertedLinkCount };
 }
 
 
@@ -264,6 +330,7 @@ function needsBracketLink(mdPath: string): boolean {
 
 export interface DropOrPasteEdit {
 	readonly snippet: vscode.SnippetString;
+	readonly kind: vscode.DocumentDropOrPasteEditKind;
 	readonly label: string;
 	readonly additionalEdits: vscode.WorkspaceEdit;
 	readonly yieldTo: vscode.DocumentDropOrPasteEditKind[];
