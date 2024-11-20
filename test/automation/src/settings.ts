@@ -8,7 +8,7 @@ import { Editors } from './editors';
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
 
-const SEARCH_BOX = '.settings-editor .suggest-input-container .monaco-editor .native-edit-context';
+const SEARCH_BOX = '.settings-editor .suggest-input-container .monaco-editor textarea';
 
 export class SettingsEditor {
 	constructor(private code: Code, private editors: Editors, private editor: Editor, private quickaccess: QuickAccess) { }
@@ -71,7 +71,7 @@ export class SettingsEditor {
 		}
 		await this.code.dispatchKeybinding('Delete');
 		await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => !results || (results?.length === 1 && !results[0].textContent));
-		await this.code.waitForTypeInEditor('.settings-editor .suggest-input-container .monaco-editor .native-edit-context', query);
+		await this.code.waitForTypeInEditor('.settings-editor .suggest-input-container .monaco-editor textarea', query);
 		await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => results?.length === 1 && results[0].textContent.includes('Found'));
 	}
 }
