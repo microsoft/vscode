@@ -29,7 +29,7 @@ registerAction2(class ShowAllSymbolsAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KeyT
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyT
 			},
 			menu: {
 				id: MenuId.MenubarGoMenu,
