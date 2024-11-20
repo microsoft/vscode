@@ -154,11 +154,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		// Add the currently active editors to the working set
 		this._trackCurrentEditorsInWorkingSet();
-		this._register(this._editorService.onDidActiveEditorChange(() => {
+		this._register(this._editorService.onDidVisibleEditorsChange(() => {
 			this._trackCurrentEditorsInWorkingSet();
-		}));
-		this._register(this._editorService.onDidCloseEditor((e) => {
-			this._trackCurrentEditorsInWorkingSet(e);
 		}));
 		this._register(autorun(reader => {
 			const entries = this.entries.read(reader);
@@ -171,8 +168,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	private _trackCurrentEditorsInWorkingSet(e?: IEditorCloseEvent) {
-		const closedEditor = e?.editor.resource?.toString();
-
 		const existingTransientEntries = new ResourceSet();
 		for (const file of this._workingSet.keys()) {
 			if (this._workingSet.get(file)?.state === WorkingSetEntryState.Transient) {
@@ -191,10 +186,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 			if (isCodeEditor(activeEditorControl) && activeEditorControl.hasModel()) {
 				const uri = activeEditorControl.getModel().uri;
-				if (closedEditor === uri.toString()) {
-					// The editor group service sees recently closed editors?
-					// Continue, since we want this to be deleted from the working set
-				} else if (existingTransientEntries.has(uri)) {
+				if (existingTransientEntries.has(uri)) {
 					existingTransientEntries.delete(uri);
 				} else if (!this._workingSet.has(uri) && !this._removedTransientEntries.has(uri)) {
 					// Don't add as a transient entry if it's already part of the working set

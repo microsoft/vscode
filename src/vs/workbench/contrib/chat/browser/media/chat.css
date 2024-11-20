@@ -579,13 +579,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview > span {
+.interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview > .working-set-title {
 	color: var(--vscode-descriptionForeground);
 	font-size: 11px;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	align-content: center;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview > .working-set-title .working-set-count.file-limit-reached {
+	color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .monaco-progress-container {
