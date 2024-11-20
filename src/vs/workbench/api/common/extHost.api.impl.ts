@@ -439,7 +439,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get handle(): string | undefined {
 				checkProposedApiEnabled(extension, 'nativeWindowHandle');
-				return initData.handle;
+				return extHostWindow.nativeHandle;
 			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {

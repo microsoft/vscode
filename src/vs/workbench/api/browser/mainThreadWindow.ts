@@ -11,6 +11,7 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { ExtHostContext, ExtHostWindowShape, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol.js';
 import { IHostService } from '../../services/host/browser/host.js';
 import { IUserActivityService } from '../../services/userActivity/common/userActivityService.js';
+import { INativeHostService } from '../../../platform/native/common/native.js';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
@@ -21,6 +22,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IHostService private readonly hostService: IHostService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IUserActivityService private readonly userActivityService: IUserActivityService,
 	) {
@@ -29,17 +31,26 @@ export class MainThreadWindow implements MainThreadWindowShape {
 		Event.latch(hostService.onDidChangeFocus)
 			(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
 		userActivityService.onDidChangeIsActive(this.proxy.$onDidChangeWindowActive, this.proxy, this.disposables);
+		this.disposables.add(hostService.onDidChangeActiveWindow((id) => this.onDidChangeActiveWindow(id)));
 	}
 
 	dispose(): void {
 		this.disposables.dispose();
 	}
 
-	$getInitialState() {
-		return Promise.resolve({
+	private onDidChangeActiveWindow(id: number): void {
+		this.nativeHostService.getActiveWindowNativeHandle(id).then(nativeHandle => {
+			this.proxy.$onDidChangeActiveWindowHandle(nativeHandle);
+		});
+	}
+
+	async $getInitialState() {
+		const nativeHandle = await this.nativeHostService.getActiveWindowNativeHandle(this.nativeHostService.windowId);
+		return {
 			isFocused: this.hostService.hasFocus,
 			isActive: this.userActivityService.isActive,
-		});
+			nativeHandle
+		};
 	}
 
 	async $openUri(uriComponents: UriComponents, uriString: string | undefined, options: IOpenUriOptions): Promise<boolean> {

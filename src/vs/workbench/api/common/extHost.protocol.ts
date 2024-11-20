@@ -1702,7 +1702,7 @@ export interface IOpenUriOptions {
 }
 
 export interface MainThreadWindowShape extends IDisposable {
-	$getInitialState(): Promise<{ isFocused: boolean; isActive: boolean }>;
+	$getInitialState(): Promise<{ isFocused: boolean; isActive: boolean; nativeHandle?: string }>;
 	$openUri(uri: UriComponents, uriString: string | undefined, options: IOpenUriOptions): Promise<boolean>;
 	$asExternalUri(uri: UriComponents, options: IOpenUriOptions): Promise<UriComponents>;
 }
@@ -2596,6 +2596,7 @@ export interface ExtHostDecorationsShape {
 export interface ExtHostWindowShape {
 	$onDidChangeWindowFocus(value: boolean): void;
 	$onDidChangeWindowActive(value: boolean): void;
+	$onDidChangeActiveWindowHandle(handle: string | undefined): void;
 }
 
 export interface ExtHostLogLevelServiceShape {

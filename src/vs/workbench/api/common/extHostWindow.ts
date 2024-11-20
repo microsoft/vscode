@@ -11,6 +11,7 @@ import { createDecorator } from '../../../platform/instantiation/common/instanti
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { WindowState } from 'vscode';
 import { ExtHostWindowShape, IOpenUriOptions, MainContext, MainThreadWindowShape } from './extHost.protocol.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
 
 export class ExtHostWindow implements ExtHostWindowShape {
 
@@ -24,6 +25,7 @@ export class ExtHostWindow implements ExtHostWindowShape {
 	private readonly _onDidChangeWindowState = new Emitter<WindowState>();
 	readonly onDidChangeWindowState: Event<WindowState> = this._onDidChangeWindowState.event;
 
+	private _nativeHandle: string | undefined = this._initData.handle;
 	private _state = ExtHostWindow.InitialState;
 
 	getState(): WindowState {
@@ -40,12 +42,24 @@ export class ExtHostWindow implements ExtHostWindowShape {
 		};
 	}
 
-	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
+	constructor(
+		@IExtHostInitDataService private readonly _initData: IExtHostInitDataService,
+		@IExtHostRpcService extHostRpc: IExtHostRpcService
+	) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadWindow);
-		this._proxy.$getInitialState().then(({ isFocused, isActive }) => {
+		this._proxy.$getInitialState().then(({ isFocused, isActive, nativeHandle }) => {
 			this.onDidChangeWindowProperty('focused', isFocused);
 			this.onDidChangeWindowProperty('active', isActive);
+			this.$onDidChangeActiveWindowHandle(nativeHandle);
 		});
+	}
+
+	get nativeHandle(): string | undefined {
+		return this._nativeHandle;
+	}
+
+	$onDidChangeActiveWindowHandle(handle: string | undefined): void {
+		this._nativeHandle = handle;
 	}
 
 	$onDidChangeWindowFocus(value: boolean) {
