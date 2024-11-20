@@ -2177,6 +2177,7 @@ export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
 	cwd?: vscode.Uri;
+	pathSeparator: string;
 }
 
 export enum TaskRevealKind {

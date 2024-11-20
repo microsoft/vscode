@@ -118,5 +118,9 @@ declare module 'vscode' {
 		 * If no cwd is provided, no resources will be shown as completions.
 		 */
 		cwd?: Uri;
+		/**
+		 * The path separator to use when constructing paths.
+		 */
+		pathSeparator: string;
 	}
 }

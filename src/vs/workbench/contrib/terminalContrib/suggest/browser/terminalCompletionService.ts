@@ -59,6 +59,7 @@ export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
 	cwd?: URI;
+	pathSeparator: string;
 }
 
 
@@ -215,7 +216,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			}
 			const lastWord = promptValue.substring(0, cursorPosition).split(' ').pop();
 			const lastIndexOfDot = lastWord?.lastIndexOf(' .') ?? -1;
-			const lastIndexOfSlash = lastWord?.lastIndexOf('/') ?? -1;
+			const lastIndexOfSlash = lastWord?.lastIndexOf(resourceRequestConfig.pathSeparator) ?? -1;
 			let label;
 			if (lastIndexOfSlash > -1) {
 				label = stat.resource.fsPath.replace(cwd.fsPath, '').substring(1);
