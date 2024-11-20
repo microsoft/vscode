@@ -63,7 +63,7 @@ class NotebookChatEditorController extends Disposable {
 		const notebookModel = observableFromEvent(this.notebookEditor.onDidChangeModel, e => e);
 		const originalModel = observableValue<NotebookTextModel | undefined>('originalModel', undefined);
 		const viewModelAttached = observableFromEvent(this.notebookEditor.onDidAttachViewModel, () => !!this.notebookEditor.getViewModel());
-		const onDidChangeVisibleRanges = debouncedObservable2(observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges), 100);
+		const onDidChangeVisibleRanges = debouncedObservable2(observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges), 50);
 		const decorators = new Map<NotebookCellTextModel, NotebookCellDiffDecorator>();
 
 		let updatedCellDecoratorsOnceBefore = false;
@@ -154,32 +154,36 @@ class NotebookChatEditorController extends Disposable {
 			}
 
 			updatedCellDecoratorsOnceBefore = true;
+			const validDiffDecorators = new Set<NotebookCellDiffDecorator>();
 			diffInfo.cellDiff.forEach((diff) => {
 				if (diff.type === 'modified') {
 					const modifiedCell = modified.cells[diff.modifiedCellIndex];
 					const originalCell = original.cells[diff.originalCellIndex];
 					const editor = this.notebookEditor.codeEditors.find(([vm,]) => vm.handle === modifiedCell.handle)?.[1];
 
-					if (editor && (decorators.get(modifiedCell)?.editor !== editor ||
-						decorators.get(modifiedCell)?.modifiedCell !== modifiedCell ||
-						decorators.get(modifiedCell)?.originalCell !== originalCell)) {
-
-						decorators.get(modifiedCell)?.dispose();
-						const decorator = this.instantiationService.createInstance(NotebookCellDiffDecorator, editor, modifiedCell, originalCell);
-						decorators.set(modifiedCell, decorator);
-						this._register(editor.onDidDispose(() => {
-							decorator.dispose();
-							if (decorators.get(modifiedCell) === decorator) {
-								decorators.delete(modifiedCell);
-							}
-						}));
+					if (editor) {
+						const currentDecorator = decorators.get(modifiedCell);
+						if ((currentDecorator?.modifiedCell !== modifiedCell || currentDecorator?.originalCell !== originalCell)) {
+							currentDecorator?.dispose();
+							const decorator = this.instantiationService.createInstance(NotebookCellDiffDecorator, notebookEditor, modifiedCell, originalCell);
+							decorators.set(modifiedCell, decorator);
+							validDiffDecorators.add(decorator);
+							this._register(editor.onDidDispose(() => {
+								decorator.dispose();
+								if (decorators.get(modifiedCell) === decorator) {
+									decorators.delete(modifiedCell);
+								}
+							}));
+						} else if (currentDecorator) {
+							validDiffDecorators.add(currentDecorator);
+						}
 					}
 				}
 			});
 
-			const visibleEditors = new Set(this.notebookEditor.codeEditors.map(e => e[1]));
+			// Dispose old decorators
 			decorators.forEach((v, cell) => {
-				if (!visibleEditors.has(v.editor)) {
+				if (!validDiffDecorators.has(v)) {
 					v.dispose();
 					decorators.delete(cell);
 				}

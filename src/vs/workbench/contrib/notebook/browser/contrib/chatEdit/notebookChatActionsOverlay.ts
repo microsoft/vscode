@@ -178,7 +178,7 @@ class NextPreviousChangeActionRunner extends ActionRunner {
 		const viewModel = this.notebookEditor.getViewModel();
 		const activeCell = this.notebookEditor.activeCellAndCodeEditor;
 		const cellDiff = this.cellDiffInfo.read(undefined);
-		if (!viewModel || !activeCell || !cellDiff || !cellDiff.length) {
+		if (!viewModel || !cellDiff?.length || (!activeCell && this.focusedDiff.read(undefined))) {
 			return this.goToNextEntry();
 		}
 
