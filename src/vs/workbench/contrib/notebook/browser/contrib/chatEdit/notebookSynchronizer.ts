@@ -30,6 +30,10 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { TextModel } from '../../../../../../editor/common/model/textModel.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
+import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { TextModel } from '../../../../../../editor/common/model/textModel.js';
 
 
 export const INotebookModelSynchronizerFactory = createDecorator<INotebookModelSynchronizerFactory>('INotebookModelSynchronizerFactory');

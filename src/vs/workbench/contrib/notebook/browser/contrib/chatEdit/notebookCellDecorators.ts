@@ -32,6 +32,7 @@ import { splitLines } from '../../../../../../base/common/strings.js';
 import { DefaultLineHeight } from '../../diff/diffElementViewModel.js';
 import { INotebookOriginalCellModelFactory } from './notebookOriginalCellModelFactory.js';
 import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
+import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
 
 
 export class NotebookCellDiffDecorator extends DisposableStore {
