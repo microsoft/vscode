@@ -204,11 +204,11 @@ registerSendSequenceKeybinding(String.fromCharCode('W'.charCodeAt(0) - Constants
 	mac: { primary: KeyMod.Alt | KeyCode.Backspace }
 });
 if (isWindows) {
-	// Delete word left: ctrl+h
-	// Windows cmd.exe requires ^H to delete full word left
+	// Delete left: ctrl+h
+	// Windows cmd.exe requires ^H to delete one character left
 	registerSendSequenceKeybinding(String.fromCharCode('H'.charCodeAt(0) - Constants.CtrlLetterOffset), {
 		when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.CommandPrompt)),
-		primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+		primary: KeyCode.Backspace,
 	});
 }
 // Delete word right: alt+d [27, 100]
