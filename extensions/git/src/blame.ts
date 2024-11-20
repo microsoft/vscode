@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment } from 'vscode';
+import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command } from 'vscode';
 import { Model } from './model';
 import { dispose, fromNow, IDisposable, pathEquals } from './util';
 import { Repository } from './repository';
@@ -398,13 +398,17 @@ class GitBlameStatusBarItem {
 			return;
 		}
 
-		const statueBarItemText = blameInformation[0]
-			? typeof blameInformation[0].blameInformation === 'string'
-				? ` ${blameInformation[0].blameInformation}`
-				: ` ${blameInformation[0].blameInformation.authorName ?? ''} (${fromNow(blameInformation[0].blameInformation.date ?? new Date(), true, true)})`
-			: '';
+		if (typeof blameInformation[0].blameInformation === 'string') {
+			this._statusBarItem.text = `$(git-commit) ${blameInformation[0].blameInformation}`;
+		} else {
+			this._statusBarItem.text = `$(git-commit) ${blameInformation[0].blameInformation.authorName ?? ''} (${fromNow(blameInformation[0].blameInformation.date ?? new Date(), true, true)})`;
+			this._statusBarItem.command = {
+				title: l10n.t('View Commit'),
+				command: 'git.statusBar.viewCommit',
+				arguments: [textEditor.document.uri, blameInformation[0].blameInformation.id]
+			} satisfies Command;
+		}
 
-		this._statusBarItem.text = `$(git-commit)${statueBarItemText}`;
 		this._statusBarItem.show();
 	}
 
