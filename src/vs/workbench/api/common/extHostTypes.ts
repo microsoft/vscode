@@ -2176,7 +2176,7 @@ export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalC
 export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
-	cwd?: string;
+	cwd?: vscode.Uri;
 }
 
 export enum TaskRevealKind {

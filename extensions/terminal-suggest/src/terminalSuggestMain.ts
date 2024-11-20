@@ -165,7 +165,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			const resultItems = uniqueResults.size ? Array.from(uniqueResults.values()) : undefined;
 			if (filesRequested || foldersRequested) {
-				return new vscode.TerminalCompletionList(resultItems, { filesRequested, foldersRequested, cwd: terminal.shellIntegration?.cwd?.toString() });
+				return new vscode.TerminalCompletionList(resultItems, { filesRequested, foldersRequested, cwd: terminal.shellIntegration?.cwd });
 			}
 			return resultItems;
 		}

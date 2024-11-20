@@ -58,7 +58,7 @@ export class TerminalCompletionList<ITerminalCompletion> {
 export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
-	cwd?: string;
+	cwd?: URI;
 }
 
 
@@ -173,7 +173,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (Array.isArray(completions)) {
 				return itemsWithModifiedLabels;
 			} else if (completions.resourceRequestConfig) {
-				const resourceCompletions = await this._resolveResources(completions.resourceRequestConfig, cursorPosition);
+				const resourceCompletions = await this._resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition);
 				if (resourceCompletions) {
 					itemsWithModifiedLabels.push(...resourceCompletions);
 				}
@@ -182,22 +182,20 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return;
 		});
 
-
 		const results = await Promise.all(completionPromises);
 		return results.filter(result => !!result).flat();
 	}
 
-	private async _resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, cursorPosition: number): Promise<ITerminalCompletion[] | undefined> {
-		const cwd = resourceRequestConfig.cwd;
+	private async _resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number): Promise<ITerminalCompletion[] | undefined> {
+		const cwd = URI.revive(resourceRequestConfig.cwd);
 		const foldersRequested = resourceRequestConfig.foldersRequested ?? false;
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
 		if (!cwd || (!foldersRequested && !filesRequested)) {
 			return;
 		}
 
-		const uri = URI.parse(cwd);
 		const resourceCompletions: ITerminalCompletion[] = [];
-		const fileStat = await this._fileService.resolve(uri, { resolveSingleChildDescendants: true });
+		const fileStat = await this._fileService.resolve(cwd, { resolveSingleChildDescendants: true });
 
 		if (!fileStat || !fileStat?.children) {
 			return;
@@ -214,7 +212,19 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (kind === undefined) {
 				continue;
 			}
-			const label = '.' + stat.resource.fsPath.replace(uri.fsPath, '');
+			const promptValueBeforeCursor = promptValue.substring(0, cursorPosition);
+			const lastIndexOfDot = promptValueBeforeCursor.lastIndexOf(' .');
+			const lastIndexOfSlash = promptValueBeforeCursor.lastIndexOf('/');
+			let label;
+
+			if (lastIndexOfSlash > -1) {
+				label = stat.resource.fsPath.replace(cwd.fsPath, '').substring(1);
+			} else if (lastIndexOfDot === -1) {
+				label = '.' + stat.resource.fsPath.replace(cwd.fsPath, '');
+			} else {
+				label = stat.resource.fsPath.replace(cwd.fsPath, '');
+			}
+
 			resourceCompletions.push({
 				label,
 				kind,

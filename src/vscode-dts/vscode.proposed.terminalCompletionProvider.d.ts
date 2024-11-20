@@ -108,7 +108,6 @@ declare module 'vscode' {
 	export interface TerminalResourceRequestConfig {
 		filesRequested?: boolean;
 		foldersRequested?: boolean;
-		//tODO make this a uri
-		cwd?: string;
+		cwd?: Uri;
 	}
 }
