@@ -12,7 +12,6 @@ import { Position } from '../core/position.js';
 import { ICommand } from '../editorCommon.js';
 import { ITextModel } from '../model.js';
 import { AutoClosingOpenCharTypeOperation, AutoClosingOvertypeOperation, AutoClosingOvertypeWithInterceptorsOperation, AutoIndentOperation, CompositionOperation, EnterOperation, InterceptorElectricCharOperation, PasteOperation, shiftIndent, shouldSurroundChar, SimpleCharacterTypeOperation, SurroundSelectionOperation, TabOperation, TypeWithoutInterceptorsOperation, unshiftIndent } from './cursorTypeEditOperations.js';
-import { InputMode } from '../inputMode.js';
 import { ReplaceOvertypeCommandInComposition } from '../commands/replaceCommand.js';
 
 export class TypeOperations {
@@ -92,7 +91,7 @@ export class TypeOperations {
 
 		if (!insertedText || insertedText.length !== 1) {
 			// we're only interested in the case where a single character was inserted
-			return this._getOvertypeEdits(compositions) ?? null;
+			return this._getOvertypeEdits(config, compositions) ?? null;
 		}
 
 		const ch = insertedText;
@@ -160,15 +159,14 @@ export class TypeOperations {
 		if (autoClosingOpenCharEdits !== undefined) {
 			return autoClosingOpenCharEdits;
 		}
-		return this._getOvertypeEdits(compositions) ?? null;
+		return this._getOvertypeEdits(config, compositions) ?? null;
 	}
 
-	private static _getOvertypeEdits(compositions: CompositionOutcome[] | null): EditOperationResult | undefined {
+	private static _getOvertypeEdits(config: CursorConfiguration, compositions: CompositionOutcome[] | null): EditOperationResult | undefined {
 		if (!compositions) {
 			return undefined;
 		}
-		const inputMode = InputMode.getInputMode();
-		const isOvertypeMode = inputMode === 'overtype';
+		const isOvertypeMode = config.inputMode === 'overtype';
 		if (!isOvertypeMode) {
 			return undefined;
 		}
@@ -211,7 +209,7 @@ export class TypeOperations {
 			return interceptorElectricCharOperation;
 		}
 
-		return SimpleCharacterTypeOperation.getEdits(prevEditOperationType, selections, ch, isDoingComposition);
+		return SimpleCharacterTypeOperation.getEdits(config, prevEditOperationType, selections, ch, isDoingComposition);
 	}
 
 	public static typeWithoutInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], str: string): EditOperationResult {

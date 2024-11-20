@@ -23,7 +23,6 @@ import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from '../config/e
 import { createScopedLineTokens } from '../languages/supports.js';
 import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from '../languages/autoIndent.js';
 import { getEnterAction } from '../languages/enterAction.js';
-import { InputMode } from '../inputMode.js';
 
 export class AutoIndentOperation {
 
@@ -484,12 +483,11 @@ export class InterceptorElectricCharOperation {
 
 export class SimpleCharacterTypeOperation {
 
-	public static getEdits(prevEditOperationType: EditOperationType, selections: Selection[], ch: string, isDoingComposition: boolean): EditOperationResult {
+	public static getEdits(config: CursorConfiguration, prevEditOperationType: EditOperationType, selections: Selection[], ch: string, isDoingComposition: boolean): EditOperationResult {
 		// A simple character type
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
-			const inputMode = InputMode.getInputMode();
-			const ChosenReplaceCommand = inputMode === 'overtype' && !isDoingComposition ? ReplaceOvertypeCommand : ReplaceCommand;
+			const ChosenReplaceCommand = config.inputMode === 'overtype' && !isDoingComposition ? ReplaceOvertypeCommand : ReplaceCommand;
 			commands[i] = new ChosenReplaceCommand(selections[i], ch);
 		}
 
@@ -680,8 +678,7 @@ export class PasteOperation {
 	private static _distributedPaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string[]): EditOperationResult {
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
-			const inputMode = InputMode.getInputMode();
-			const shouldOvertypeOnPaste = config.overtypeOnPaste && inputMode === 'overtype';
+			const shouldOvertypeOnPaste = config.overtypeOnPaste && config.inputMode === 'overtype';
 			const ChosenReplaceCommand = shouldOvertypeOnPaste ? OvertypePasteCommand : ReplaceCommand;
 			commands[i] = new ChosenReplaceCommand(selections[i], text[i]);
 		}
@@ -707,8 +704,7 @@ export class PasteOperation {
 				const typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
 				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text, selection, true);
 			} else {
-				const inputMode = InputMode.getInputMode();
-				const shouldOvertypeOnPaste = config.overtypeOnPaste && inputMode === 'overtype';
+				const shouldOvertypeOnPaste = config.overtypeOnPaste && config.inputMode === 'overtype';
 				const ChosenReplaceCommand = shouldOvertypeOnPaste ? OvertypePasteCommand : ReplaceCommand;
 				commands[i] = new ChosenReplaceCommand(selection, text);
 			}
