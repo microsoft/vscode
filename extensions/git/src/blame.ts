@@ -35,30 +35,55 @@ function mapLineNumber(lineNumber: number, changes: readonly TextEditorChange[])
 	}
 
 	for (const change of changes) {
-		// Line number is before the change
+		// Line number is before the change so there is not need to process further
 		if ((change.kind === TextEditorChangeKind.Addition && lineNumber < change.modifiedStartLineNumber) ||
 			(change.kind === TextEditorChangeKind.Modification && lineNumber < change.modifiedStartLineNumber) ||
 			(change.kind === TextEditorChangeKind.Deletion && lineNumber < change.originalStartLineNumber)) {
 			break;
 		}
 
-		// Update line number
-		switch (change.kind) {
-			case TextEditorChangeKind.Addition:
-				lineNumber = lineNumber - (change.modifiedEndLineNumber - change.originalStartLineNumber);
-				break;
-			case TextEditorChangeKind.Modification:
-				if (change.originalStartLineNumber !== change.modifiedStartLineNumber || change.originalEndLineNumber !== change.modifiedEndLineNumber) {
-					lineNumber = lineNumber - (change.modifiedEndLineNumber - change.originalEndLineNumber);
-				}
-				break;
-			case TextEditorChangeKind.Deletion:
-				lineNumber = lineNumber + (change.originalEndLineNumber - change.originalStartLineNumber) + 1;
-				break;
+		// Map line number to the original line number
+		if (change.kind === TextEditorChangeKind.Addition) {
+			// Addition
+			lineNumber = lineNumber - (change.modifiedEndLineNumber - change.originalStartLineNumber);
+		} else if (change.kind === TextEditorChangeKind.Deletion) {
+			// Deletion
+			lineNumber = lineNumber + (change.originalEndLineNumber - change.originalStartLineNumber) + 1;
+		} else if (change.kind === TextEditorChangeKind.Modification) {
+			// Modification
+			const originalLineCount = change.originalEndLineNumber - change.originalStartLineNumber + 1;
+			const modifiedLineCount = change.modifiedEndLineNumber - change.modifiedStartLineNumber + 1;
+			if (originalLineCount !== modifiedLineCount) {
+				lineNumber = lineNumber - (modifiedLineCount - originalLineCount);
+			}
+		} else {
+			throw new Error('Unexpected change kind');
 		}
 	}
 
 	return lineNumber;
+}
+
+function processTextEditorChangesWithBlameInformation(blameInformation: BlameInformation[], changes: readonly TextEditorChange[]): TextEditorChange[] {
+	const [notYetCommittedBlameInformation] = blameInformation.filter(b => b.id === notCommittedYetId);
+	if (!notYetCommittedBlameInformation) {
+		return [...changes];
+	}
+
+	const changesWithBlameInformation: TextEditorChange[] = [];
+	for (const change of changes) {
+		const originalStartLineNumber = mapLineNumber(change.originalStartLineNumber, changes);
+		const originalEndLineNumber = mapLineNumber(change.originalEndLineNumber, changes);
+
+		if (notYetCommittedBlameInformation.ranges.some(range =>
+			range.startLineNumber === originalStartLineNumber && range.endLineNumber === originalEndLineNumber)) {
+			continue;
+		}
+
+		changesWithBlameInformation.push(change);
+	}
+
+	return changesWithBlameInformation;
 }
 
 interface RepositoryBlameInformation {
@@ -177,23 +202,31 @@ export class GitBlameController {
 			return;
 		}
 
-		const blameInformationCollection = await this._getBlameInformation(textEditor.document);
-		if (!blameInformationCollection) {
+		const resourceBlameInformation = await this._getBlameInformation(textEditor.document);
+		if (!resourceBlameInformation) {
 			textEditor.setDecorations(this._decorationType, []);
 			return;
 		}
 
+		// Remove the diff information that is contained in the git blame information.
+		// This is done since git blame information is the source of truth and we don't
+		// need the diff information for those ranges. The complete diff information is
+		// still used to determine whether a line is changed or not.
+		const diffInformationWithBlame = processTextEditorChangesWithBlameInformation(
+			resourceBlameInformation,
+			diffInformation.changes);
+
 		const decorations: DecorationOptions[] = [];
 		for (const lineNumber of textEditor.selections.map(s => s.active.line)) {
-			// Check if the line is in an add/edit change
+			// Check if the line is contained in the diff information
 			if (isLineChanged(lineNumber + 1, diffInformation.changes)) {
 				decorations.push(this._createDecoration(lineNumber, l10n.t('Not Committed Yet')));
 				continue;
 			}
 
-			// Recalculate the line number factoring in the diff information
-			const lineNumberWithDiff = mapLineNumber(lineNumber + 1, diffInformation.changes);
-			const blameInformation = blameInformationCollection.find(blameInformation => {
+			// Map the line number to the git blame ranges
+			const lineNumberWithDiff = mapLineNumber(lineNumber + 1, diffInformationWithBlame);
+			const blameInformation = resourceBlameInformation.find(blameInformation => {
 				return blameInformation.ranges.find(range => {
 					return lineNumberWithDiff >= range.startLineNumber && lineNumberWithDiff <= range.endLineNumber;
 				});
@@ -201,7 +234,7 @@ export class GitBlameController {
 
 			if (blameInformation) {
 				if (blameInformation.id === notCommittedYetId) {
-					decorations.push(this._createDecoration(lineNumber, l10n.t('Not Committed Yet')));
+					decorations.push(this._createDecoration(lineNumber, l10n.t('Not Committed Yet (Staged)')));
 				} else {
 					const ago = fromNow(blameInformation.date ?? Date.now(), true, true);
 					decorations.push(this._createDecoration(lineNumber, `${blameInformation.message ?? ''}, ${blameInformation.authorName ?? ''} (${ago})`));
