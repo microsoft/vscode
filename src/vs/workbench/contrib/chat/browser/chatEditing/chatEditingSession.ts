@@ -30,7 +30,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, IChatEditingSession, WorkingSetDisplayMetadata, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, IChatEditingSession, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatEditingMultiDiffSourceResolver } from './chatEditingService.js';
@@ -328,7 +328,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._entriesObs.set(entriesArr, undefined);
 	}
 
-	remove(...uris: URI[]): void {
+	remove(reason: WorkingSetEntryRemovalReason, ...uris: URI[]): void {
 		this._assertNotDisposed();
 
 		let didRemoveUris = false;
@@ -338,7 +338,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				continue;
 			}
 			didRemoveUris = this._workingSet.delete(uri) || didRemoveUris;
-			if (state.state === WorkingSetEntryState.Transient || state.state === WorkingSetEntryState.Suggested) {
+			if (reason === WorkingSetEntryRemovalReason.User && (state.state === WorkingSetEntryState.Transient || state.state === WorkingSetEntryState.Suggested)) {
 				this._removedTransientEntries.add(uri);
 			}
 		}
