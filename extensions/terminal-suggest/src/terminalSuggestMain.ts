@@ -51,8 +51,11 @@ function getBuiltinCommands(shell: string): string[] | undefined {
 				}
 				break;
 			}
+			case 'pwsh': {
+				// native pwsh completions are builtin to vscode
+				return [];
+			}
 		}
-		// native pwsh completions are builtin to vscode
 		return;
 
 	} catch (error) {
@@ -115,7 +118,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			// If no completions are found, or the completion found is '.', the prefix is a path, and neither files nor folders
 			// are going to be requested (for a specific spec's argument), show file/folder completions
-			const shouldShowResourceCompletions = (!resultItems?.length || resultItems.length === 1 && resultItems[0].label === '.') && prefix.match(/^[./\\ ]/) && !filesRequested && !foldersRequested;
+			const shouldShowResourceCompletions = (!resultItems?.length || resultItems.length === 1 && resultItems[0].label === '.') && prefix.match(/^(?:\.\.\/|[./\\ ])/) && !filesRequested && !foldersRequested;
 			if (shouldShowResourceCompletions) {
 				filesRequested = true;
 				foldersRequested = true;
