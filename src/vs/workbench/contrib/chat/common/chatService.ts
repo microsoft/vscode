@@ -14,6 +14,7 @@ import { ISelection } from '../../../../editor/common/core/selection.js';
 import { Command, Location, TextEdit } from '../../../../editor/common/languages.js';
 import { FileType } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { CellEditType, ICellDto2 } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents.js';
 import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
@@ -179,11 +180,24 @@ export interface IChatMoveMessage {
 	kind: 'move';
 }
 
+export type ICellEditReplaceOperation = {
+	editType: CellEditType.Replace;
+	index: number;
+	count: number;
+	cells: ICellDto2[];
+};
+
 export interface IChatTextEdit {
 	uri: URI;
 	edits: TextEdit[];
 	kind: 'textEdit';
 	done?: boolean;
+}
+
+export interface IChatNotebookEdit {
+	uri: URI;
+	edits: ICellEditReplaceOperation[];
+	kind: 'notebookEdit';
 }
 
 export interface IChatConfirmation {
@@ -233,6 +247,7 @@ export type IChatProgress =
 	| IChatCommandButton
 	| IChatWarningMessage
 	| IChatTextEdit
+	| IChatNotebookEdit
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation
