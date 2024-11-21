@@ -217,6 +217,7 @@ function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: { comma
 			if (!availableCommands.has(specLabel) || token.isCancellationRequested || !terminalContext.commandLine.startsWith(specLabel)) {
 				continue;
 			}
+			const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
 			if ('options' in spec && spec.options) {
 				for (const option of spec.options) {
 					const optionLabels = getLabel(option);
@@ -227,7 +228,6 @@ function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: { comma
 						if (optionLabel.startsWith(prefix) || (prefix.length > specLabel.length && prefix.trim() === specLabel)) {
 							items.push(createCompletionItem(terminalContext.cursorPosition, prefix, optionLabel, option.description, false, vscode.TerminalCompletionItemKind.Flag));
 						}
-						const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
 						const expectedText = `${specLabel} ${optionLabel} `;
 						if (!precedingText.includes(expectedText)) {
 							continue;
@@ -249,7 +249,6 @@ function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: { comma
 				}
 			}
 			if ('args' in spec && asArray(spec.args)) {
-				const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
 				const expectedText = `${specLabel} `;
 				if (!precedingText.includes(expectedText)) {
 					continue;
@@ -273,6 +272,7 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 	if (!args) {
 		return;
 	}
+
 	let items: vscode.TerminalCompletionItem[] = [];
 	let filesRequested = false;
 	let foldersRequested = false;
@@ -300,7 +300,8 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 					if (suggestionLabel && suggestionLabel.startsWith(currentPrefix.trim())) {
 						const hasSpaceBeforeCursor = terminalContext.commandLine[terminalContext.cursorPosition - 1] === ' ';
 						// prefix will be '' if there is a space before the cursor
-						items.push(createCompletionItem(terminalContext.cursorPosition, precedingText, suggestionLabel, arg.name, hasSpaceBeforeCursor, vscode.TerminalCompletionItemKind.Argument));
+						const description = typeof suggestion !== 'string' ? suggestion.description : '';
+						items.push(createCompletionItem(terminalContext.cursorPosition, precedingText, suggestionLabel, description, hasSpaceBeforeCursor, vscode.TerminalCompletionItemKind.Argument));
 					}
 				}
 			}
