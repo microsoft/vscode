@@ -803,6 +803,28 @@ export class NotebookService extends Disposable implements INotebookService {
 		return bufferToStream(bytes);
 	}
 
+	async restoreNotebookTextModelFromSnapshot(uri: URI, viewType: string, snapshot: VSBufferReadableStream): Promise<NotebookTextModel> {
+		const model = this.getNotebookTextModel(uri);
+
+		if (!model) {
+			throw new Error(`notebook for ${uri} doesn't exist`);
+		}
+
+		const info = await this.withNotebookDataProvider(model.viewType);
+
+		if (!(info instanceof SimpleNotebookProviderInfo)) {
+			throw new Error('CANNOT open file notebook with this provider');
+		}
+
+		const serializer = info.serializer;
+
+		const bytes = await streamToBuffer(snapshot);
+		const data = await info.serializer.dataToNotebook(bytes);
+		model.restoreSnapshot(data, serializer.options);
+
+		return model;
+	}
+
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined {
 		return this._models.get(uri)?.model;
 	}
