@@ -173,6 +173,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 
 					const tool: IToolData = {
 						...rawTool,
+						extensionId: extension.description.identifier,
 						inputSchema: rawTool.inputSchema,
 						id: rawTool.name,
 						icon,
