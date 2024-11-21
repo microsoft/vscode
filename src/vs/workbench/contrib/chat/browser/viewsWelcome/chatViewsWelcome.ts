@@ -17,7 +17,7 @@ export interface IChatViewsWelcomeDescriptor {
 	icon?: ThemeIcon;
 	title: string;
 	content: IMarkdownString;
-	progress?: string;
+	disableFirstLinkToButton?: boolean;
 	when: ContextKeyExpression;
 }
 

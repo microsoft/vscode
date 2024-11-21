@@ -171,12 +171,13 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				ChatContextKeys.Setup.installed.negate()
 			)!,
 			icon: defaultChat.icon,
-			progress: localize('setupChatSigningIn', "Signing in to {0}...", defaultChat.providerName),
+			disableFirstLinkToButton: true,
 			content: new MarkdownString([
 				header,
+				localize('setupChatSigningIn', "$(loading~spin) Signing in to {0}...", defaultChat.providerName),
 				footer,
 				`[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`,
-			].join('\n\n'), { isTrusted: true }),
+			].join('\n\n'), { isTrusted: true, supportThemeIcons: true }),
 		});
 
 		// Setup: Installing
@@ -184,12 +185,13 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 			title: defaultChat.chatWelcomeTitle,
 			when: ChatContextKeys.Setup.installing,
 			icon: defaultChat.icon,
-			progress: localize('setupChatInstalling', "Setting up Chat for you..."),
+			disableFirstLinkToButton: true,
 			content: new MarkdownString([
 				header,
+				localize('setupChatInstalling', "$(loading~spin) Setting up Chat for you..."),
 				footer,
 				`[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`,
-			].join('\n\n'), { isTrusted: true }),
+			].join('\n\n'), { isTrusted: true, supportThemeIcons: true }),
 		});
 	}
 
