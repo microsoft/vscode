@@ -59,15 +59,6 @@ div.chat-welcome-view {
 		font-size: 11px;
 	}
 
-	& > .chat-welcome-view-progress {
-		display: flex;
-		gap: 6px;
-		text-align: center;
-		max-width: 350px;
-		padding: 0 20px;
-		margin-top: 20px;
-	}
-
 	& > .chat-welcome-view-message {
 		text-align: center;
 		max-width: 350px;
@@ -76,6 +67,12 @@ div.chat-welcome-view {
 
 		a {
 			color: var(--vscode-textLink-foreground);
+		}
+
+		.codicon[class*='codicon-'] {
+			font-size: 13px;
+			line-height: 1.4em;
+			vertical-align: bottom;
 		}
 	}
 
