@@ -60,7 +60,6 @@ const $ = dom.$;
 export interface IChatViewState {
 	inputValue?: string;
 	inputState?: IChatInputState;
-	selectedLanguageModelId?: string;
 }
 
 export interface IChatWidgetStyles extends IChatInputStyles {
@@ -1261,8 +1260,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	getViewState(): IChatViewState {
 		return {
 			inputValue: this.getInput(),
-			inputState: this.inputPart.getViewState(),
-			selectedLanguageModelId: this.inputPart.currentLanguageModel,
+			inputState: this.inputPart.getViewState()
 		};
 	}
 
