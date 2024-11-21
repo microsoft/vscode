@@ -214,24 +214,14 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (kind === undefined) {
 				continue;
 			}
-			const lastWord = promptValue.substring(0, cursorPosition).split(' ').pop();
-			const lastIndexOfDot = lastWord?.lastIndexOf('.') ?? -1;
-			const lastIndexOfSlash = lastWord?.lastIndexOf(resourceRequestConfig.pathSeparator) ?? -1;
-			let label;
-			if (lastIndexOfSlash > -1) {
-				label = stat.resource.fsPath.replace(cwd.fsPath, '').substring(1);
-			} else if (lastIndexOfDot === -1) {
-				label = '.' + stat.resource.fsPath.replace(cwd.fsPath, '');
-			} else {
-				label = stat.resource.fsPath.replace(cwd.fsPath, '');
-			}
-
+			const lastWord = promptValue.substring(0, cursorPosition).split(' ').pop() ?? '';
+			const label = '.' + stat.resource.fsPath.replace(cwd.fsPath, '');
 			resourceCompletions.push({
 				label,
 				kind,
 				isDirectory: kind === TerminalCompletionItemKind.Folder,
 				isFile: kind === TerminalCompletionItemKind.File,
-				replacementIndex: cursorPosition,
+				replacementIndex: cursorPosition - lastWord.length,
 				replacementLength: label.length
 			});
 		}
