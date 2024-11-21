@@ -104,6 +104,12 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 			}
 		}
 
+		// Disable in-memory cache when running out of sources
+		if (process.env['VSCODE_DEV']) {
+			headers = headers || {};
+			headers['Cache-Control'] = 'no-cache';
+		}
+
 		// first check by validRoots
 		if (this.validRoots.findSubstr(path)) {
 			return callback({ path, headers });

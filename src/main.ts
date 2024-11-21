@@ -304,6 +304,11 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
 	}
 
+	// Disable http persistent disk cache when running out of sources
+	if (process.env['VSCODE_DEV']) {
+		app.commandLine.appendSwitch('disable-http-cache');
+	}
+
 	return argvConfig;
 }
 
