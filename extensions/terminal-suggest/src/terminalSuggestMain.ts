@@ -107,9 +107,9 @@ export async function activate(context: vscode.ExtensionContext) {
 				return undefined;
 			}
 
-			// If no completions are found, or the completion found is '.', the prefix is a path, and neither files nor folders
+			// If the command line is empty, no completions are found, or the completion found is '.', the prefix is a path, and neither files nor folders
 			// are going to be requested (for a specific spec's argument), show file/folder completions
-			const shouldShowResourceCompletions = (!items?.length || items.length === 1 && items[0].label === '.') && !filesRequested && !foldersRequested;
+			const shouldShowResourceCompletions = (terminalContext.commandLine.trim().length === 0 || !items?.length || items.length === 1 && items[0].label === '.') && !filesRequested && !foldersRequested;
 			if (shouldShowResourceCompletions) {
 				filesRequested = true;
 				foldersRequested = true;
@@ -120,7 +120,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			return items;
 		}
-	}, '../'));
+	}));
 }
 
 function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string[] | undefined {

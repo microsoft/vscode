@@ -196,10 +196,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return;
 		}
 
-		const resourceCompletions: ITerminalCompletion[] = [
-			{ label: '.', kind: TerminalCompletionItemKind.Folder, isDirectory: true, isFile: false, replacementIndex: cursorPosition - 1, replacementLength: 1 },
-			{ label: '..', kind: TerminalCompletionItemKind.Folder, isDirectory: true, isFile: false, replacementIndex: cursorPosition - 1, replacementLength: 2 }
-		];
+		const resourceCompletions: ITerminalCompletion[] = [];
 
 		const path = cwd.fsPath.split(resourceRequestConfig.pathSeparator).slice(0, -1).join(resourceRequestConfig.pathSeparator);
 		const parentCwd = URI.from({ scheme: cwd.scheme, path });
