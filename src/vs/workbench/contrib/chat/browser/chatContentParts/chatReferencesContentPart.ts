@@ -394,7 +394,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 							name: basenameOrAuthority(uri),
 							description: data.description ?? localize('chat.openEditor', 'Open Editor'),
 							range: 'range' in reference ? reference.range : undefined,
-						}, { icon, title: data.options?.status?.description ?? data.title, strikethrough: data.excluded });
+						}, { icon, title: data.options?.status?.description ?? data.title, italic: data.state === WorkingSetEntryState.Suggested, strikethrough: data.excluded });
 				} else {
 					templateData.label.setFile(uri, {
 						fileKind: FileKind.FILE,
