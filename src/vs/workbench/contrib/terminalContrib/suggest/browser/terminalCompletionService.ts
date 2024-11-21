@@ -198,8 +198,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		const resourceCompletions: ITerminalCompletion[] = [];
 
-		const path = cwd.fsPath.split(resourceRequestConfig.pathSeparator).slice(0, -1).join(resourceRequestConfig.pathSeparator);
-		const parentCwd = URI.from({ scheme: cwd.scheme, path });
+		const parentDirPath = cwd.fsPath.split(resourceRequestConfig.pathSeparator).slice(0, -1).join(resourceRequestConfig.pathSeparator);
+		const parentCwd = URI.from({ scheme: cwd.scheme, path: parentDirPath });
 		const dirToPrefixMap = new Map<URI, string>();
 
 		dirToPrefixMap.set(cwd, '.');
