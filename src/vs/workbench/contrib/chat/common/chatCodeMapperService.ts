@@ -12,6 +12,7 @@ import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DocumentContextItem, isLocation, TextEdit } from '../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentResult } from './chatAgents.js';
 import { IChatResponseModel } from './chatModel.js';
 import { IChatContentReference } from './chatService.js';
@@ -19,6 +20,7 @@ import { IChatContentReference } from './chatService.js';
 
 export interface ICodeMapperResponse {
 	textEdit: (resource: URI, textEdit: TextEdit[]) => void;
+	notebookEdit: (resource: URI, textEdit: ICellEditOperation[]) => void;
 }
 
 export interface ICodeMapperCodeBlock {
