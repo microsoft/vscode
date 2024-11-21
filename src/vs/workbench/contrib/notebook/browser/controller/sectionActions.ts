@@ -93,9 +93,7 @@ export class NotebookRunCellsInSection extends Action2 {
 					id: MenuId.NotebookCellTitle,
 					order: CellToolbarOrder.RunSection,
 					group: CELL_TITLE_CELL_GROUP_ID,
-					when: ContextKeyExpr.and(
-						executeSectionCondition
-					)
+					when: executeSectionCondition
 				}
 			]
 		});
