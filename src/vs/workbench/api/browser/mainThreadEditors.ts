@@ -173,8 +173,9 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 					return undefined;
 				}
 
-				const scmQuickDiffChanges = dirtyDiffModel.mapChanges.get(scmQuickDiff.label) ?? [];
-				const changes = scmQuickDiffChanges.map(index => dirtyDiffModel.changes[index].change);
+				const changes = dirtyDiffModel.changes
+					.filter(change => change.label === scmQuickDiff.label)
+					.map(change => change.change);
 
 				return {
 					original: scmQuickDiff.originalResource,
