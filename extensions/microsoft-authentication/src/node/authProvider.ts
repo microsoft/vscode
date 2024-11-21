@@ -190,7 +190,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		let result: AuthenticationResult | undefined;
 
 		try {
-			const windowHandle = env.handle ? Buffer.from(env.handle, 'base64') : undefined;
+			const windowHandle = env.nativeHandle ? Buffer.from(env.nativeHandle) : undefined;
 			result = await cachedPca.acquireTokenInteractive({
 				openBrowser: async (url: string) => { await env.openExternal(Uri.parse(url)); },
 				scopes: scopeData.scopesToSend,
@@ -232,7 +232,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			// The user wants to try the loopback client or we got an error likely due to spinning up the server
 			const loopbackClient = new UriHandlerLoopbackClient(this._uriHandler, redirectUri, this._logger);
 			try {
-				const windowHandle = env.handle ? Buffer.from(env.handle) : undefined;
+				const windowHandle = env.nativeHandle ? Buffer.from(env.nativeHandle) : undefined;
 				result = await cachedPca.acquireTokenInteractive({
 					openBrowser: (url: string) => loopbackClient.openBrowser(url),
 					scopes: scopeData.scopesToSend,

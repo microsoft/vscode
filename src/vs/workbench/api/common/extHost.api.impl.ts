@@ -437,9 +437,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'resolvers');
 				return initData.commit;
 			},
-			get handle(): string | undefined {
+			get nativeHandle(): Uint8Array | undefined {
 				checkProposedApiEnabled(extension, 'nativeWindowHandle');
-				return initData.handle;
+				return extHostWindow.nativeHandle;
 			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
