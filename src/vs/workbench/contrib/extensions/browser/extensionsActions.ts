@@ -2505,6 +2505,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
 		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
 		this._register(this.extensionFeaturesManagementService.onDidChangeAccessData(() => this.update()));
+		this._register(allowedExtensionsService.onDidChangeAllowedExtensions(() => this.update()));
 		this.update();
 	}
 

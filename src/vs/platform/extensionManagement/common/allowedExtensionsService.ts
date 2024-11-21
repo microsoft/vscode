@@ -52,9 +52,6 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 			return undefined;
 		}
 		const entries = Object.entries(value).map(([key, value]) => [key.toLowerCase(), value]);
-		if (entries.length === 0) {
-			return undefined;
-		}
 		if (entries.length === 1 && entries[0][0] === '*' && entries[0][1] === true) {
 			return undefined;
 		}

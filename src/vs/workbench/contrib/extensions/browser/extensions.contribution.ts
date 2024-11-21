@@ -269,16 +269,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				tags: ['onExp', 'usesOnlineServices']
 			},
 			[AllowedExtensionsConfigKey]: {
-				type: 'object',
+				type: ['object', 'string'],
 				description: localize('extensions.allowed', "List of extensions that are allowed."),
-				default: null,
+				default: '*',
 				scope: ConfigurationScope.APPLICATION,
 				policy: {
 					name: 'AllowedExtensions',
 					minimumVersion: '1.96',
 				},
+				additionalProperties: false,
 				patternProperties: {
 					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.\\*$': {
+						type: ['boolean', 'string'],
 						enum: [true, false, 'stable'],
 						description: localize('extension.publisher.allow.description', "Allow or disallow all extensions from the publisher."),
 						enumDescriptions: [
@@ -290,6 +292,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
 						anyOf: [
 							{
+								type: ['boolean', 'string'],
 								enum: [true, false, 'stable'],
 								description: localize('extensions.allow.description', "Allow or disallow the extension."),
 								enumDescriptions: [
