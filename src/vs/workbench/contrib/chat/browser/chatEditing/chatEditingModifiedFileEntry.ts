@@ -40,7 +40,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	public readonly entryId = `${ChatEditingModifiedFileEntry.scheme}::${++ChatEditingModifiedFileEntry.lastEntryId}`;
 
 	private readonly docSnapshot: ITextModel;
-	private readonly originalContent;
+	public readonly initialContent: string;
 	private readonly doc: ITextModel;
 	private readonly docFileEditorModel: IResolvedTextFileEditorModel;
 	private _allEditsAreFromUs: boolean = true;
@@ -121,7 +121,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
 		private _telemetryInfo: IModifiedEntryTelemetryInfo,
 		kind: ChatEditKind,
-		originalContent: string | undefined,
+		initialContent: string | undefined,
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@ILanguageService languageService: ILanguageService,
@@ -137,10 +137,10 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this.docFileEditorModel = this._register(resourceRef).object as IResolvedTextFileEditorModel;
 		this.doc = resourceRef.object.textEditorModel;
 
-		this.originalContent = originalContent ?? this.doc.getValue();
+		this.initialContent = initialContent ?? this.doc.getValue();
 		const docSnapshot = this.docSnapshot = this._register(
 			modelService.createModel(
-				createTextBufferFactoryFromSnapshot(originalContent ? stringToSnapshot(originalContent) : this.doc.createSnapshot()),
+				createTextBufferFactoryFromSnapshot(initialContent ? stringToSnapshot(initialContent) : this.doc.createSnapshot()),
 				languageService.createById(this.doc.getLanguageId()),
 				ChatEditingTextModelContentProvider.getFileURI(this.entryId, this.modifiedURI.path),
 				false
@@ -192,7 +192,6 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			telemetryInfo: this._telemetryInfo
 		};
 	}
-
 	restoreFromSnapshot(snapshot: ISnapshotEntry) {
 		this._stateObs.set(snapshot.state, undefined);
 		this.docSnapshot.setValue(snapshot.original);
@@ -200,8 +199,8 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._edit = snapshot.originalToCurrentEdit;
 	}
 
-	resetToInitialValue(value: string) {
-		this._setDocValue(value);
+	resetToInitialValue() {
+		this._setDocValue(this.initialContent);
 	}
 
 	acceptStreamingEditsStart(tx: ITransaction) {
@@ -262,7 +261,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		}
 
 		if (!this.isCurrentlyBeingModified.get()) {
-			const didResetToOriginalContent = this.doc.getValue() === this.originalContent;
+			const didResetToOriginalContent = this.doc.getValue() === this.initialContent;
 			const currentState = this._stateObs.get();
 			switch (currentState) {
 				case WorkingSetEntryState.Modified:
@@ -427,11 +426,11 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 }
 
 export interface IModifiedEntryTelemetryInfo {
-	agentId: string | undefined;
-	command: string | undefined;
-	sessionId: string;
-	requestId: string;
-	result: IChatAgentResult | undefined;
+	readonly agentId: string | undefined;
+	readonly command: string | undefined;
+	readonly sessionId: string;
+	readonly requestId: string;
+	readonly result: IChatAgentResult | undefined;
 }
 
 export interface ISnapshotEntry {

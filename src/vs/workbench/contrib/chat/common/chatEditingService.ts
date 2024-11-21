@@ -74,7 +74,6 @@ export interface IChatEditingSession {
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
-	readonly hiddenRequestIds: IObservable<readonly string[]>;
 	readonly workingSet: ResourceMap<WorkingSetDisplayMetadata>;
 	readonly isVisible: boolean;
 	addFileToWorkingSet(uri: URI, description?: string, kind?: WorkingSetEntryState.Transient | WorkingSetEntryState.Suggested): void;
