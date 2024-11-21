@@ -40,6 +40,8 @@ import { IPathService } from '../../../services/path/common/pathService.js';
 import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
 import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SIDE, DIFF_OPEN_SIDE, registerDiffEditorCommands } from './diffEditorCommands.js';
 import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editorCommandsContext.js';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -535,6 +537,35 @@ function registerOpenEditorAPICommands(): void {
 			resources: options.resources?.map(r => ({ original: { resource: URI.revive(r.originalUri) }, modified: { resource: URI.revive(r.modifiedUri) } })),
 			label: options.title,
 		});
+	});
+
+	CommandsRegistry.registerCommand('_workbench.internal.computeDirtyDiff', async (accessor: ServicesAccessor, original: UriComponents, modified: UriComponents) => {
+		const configurationService = accessor.get(IConfigurationService);
+		const editorWorkerService = accessor.get(IEditorWorkerService);
+		const textModelService = accessor.get(ITextModelService);
+
+		const originalResource = URI.revive(original);
+		const modifiedResource = URI.revive(modified);
+
+		const originalModel = await textModelService.createModelReference(originalResource);
+		const modifiedModel = await textModelService.createModelReference(modifiedResource);
+
+		const canComputeDirtyDiff = editorWorkerService.canComputeDirtyDiff(originalResource, modifiedResource);
+		if (!canComputeDirtyDiff) {
+			return undefined;
+		}
+
+		const ignoreTrimWhitespaceSetting = configurationService.getValue<'true' | 'false' | 'inherit'>('scm.diffDecorationsIgnoreTrimWhitespace');
+		const ignoreTrimWhitespace = ignoreTrimWhitespaceSetting === 'inherit'
+			? configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace')
+			: ignoreTrimWhitespaceSetting !== 'false';
+
+		const changes = await editorWorkerService.computeDirtyDiff(originalResource, modifiedResource, ignoreTrimWhitespace);
+
+		originalModel.dispose();
+		modifiedModel.dispose();
+
+		return changes;
 	});
 }
 
