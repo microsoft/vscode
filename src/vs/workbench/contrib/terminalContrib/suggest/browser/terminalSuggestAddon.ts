@@ -241,7 +241,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		await this._handleCompletionProviders(this._terminal, token, triggerCharacter);
 	}
 
-	private _sync(promptInputState: IPromptInputModelState): void {
+	private async _sync(promptInputState: IPromptInputModelState): Promise<void> {
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
 		if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
 			// If input has been added
@@ -278,14 +278,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					this.requestCompletions();
 					sent = true;
 				}
-				if (!sent) {
+				if (!sent || !this._suggestWidget?.hasCompletions()) {
 					for (const provider of this._terminalCompletionService.providers) {
 						if (!provider.triggerCharacters) {
 							continue;
 						}
 						for (const char of provider.triggerCharacters) {
 							if (prefix?.endsWith(char)) {
-								this.requestCompletions(true);
+								this.requestCompletions();
 								sent = true;
 								break;
 							}

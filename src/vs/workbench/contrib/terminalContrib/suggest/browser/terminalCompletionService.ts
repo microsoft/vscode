@@ -189,7 +189,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 
 	private async _resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number): Promise<ITerminalCompletion[] | undefined> {
-		const cwd = URI.revive(resourceRequestConfig.cwd);
+		let cwd = URI.revive(resourceRequestConfig.cwd);
 		const foldersRequested = resourceRequestConfig.foldersRequested ?? false;
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
 		if (!cwd || (!foldersRequested && !filesRequested)) {
@@ -200,6 +200,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			{ label: '.', kind: TerminalCompletionItemKind.Folder, isDirectory: true, isFile: false, replacementIndex: cursorPosition - 1, replacementLength: 1 },
 			{ label: '..', kind: TerminalCompletionItemKind.Folder, isDirectory: true, isFile: false, replacementIndex: cursorPosition - 1, replacementLength: 2 }
 		];
+
+		const lastWord = promptValue.substring(0, cursorPosition).split(' ').pop() ?? '';
+		const upADirectory = lastWord.endsWith('..' + resourceRequestConfig.pathSeparator);
+		if (upADirectory) {
+			const path = cwd.fsPath.split(resourceRequestConfig.pathSeparator).slice(0, -1).join(resourceRequestConfig.pathSeparator);
+			cwd = URI.from({ scheme: cwd.scheme, path });
+		}
 		const fileStat = await this._fileService.resolve(cwd, { resolveSingleChildDescendants: true });
 
 		if (!fileStat || !fileStat?.children) {
@@ -217,8 +224,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (kind === undefined) {
 				continue;
 			}
-			const lastWord = promptValue.substring(0, cursorPosition).split(' ').pop() ?? '';
-			const label = '.' + stat.resource.fsPath.replace(cwd.fsPath, '');
+
+			const label = upADirectory ? '..' + stat.resource.fsPath.replace(cwd.fsPath, '') : '.' + stat.resource.fsPath.replace(cwd.fsPath, '');
 			resourceCompletions.push({
 				label,
 				kind,

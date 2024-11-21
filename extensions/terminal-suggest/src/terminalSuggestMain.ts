@@ -95,7 +95,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			let filesRequested = specCompletions.filesRequested;
 			let foldersRequested = specCompletions.foldersRequested;
 			items.push(...specCompletions.items);
-
 			if (!specCompletions.specificSuggestionsProvided) {
 				for (const command of commands) {
 					if (command.startsWith(prefix)) {
@@ -108,28 +107,20 @@ export async function activate(context: vscode.ExtensionContext) {
 				return undefined;
 			}
 
-			const uniqueResults = new Map<string, vscode.TerminalCompletionItem>();
-			for (const item of items) {
-				if (!uniqueResults.has(item.label)) {
-					uniqueResults.set(item.label, item);
-				}
-			}
-			const resultItems = uniqueResults.size ? Array.from(uniqueResults.values()) : undefined;
-
 			// If no completions are found, or the completion found is '.', the prefix is a path, and neither files nor folders
 			// are going to be requested (for a specific spec's argument), show file/folder completions
-			const shouldShowResourceCompletions = (!resultItems?.length || resultItems.length === 1 && resultItems[0].label === '.') && prefix.match(/^(?:\.\.\/|[./\\ ])/) && !filesRequested && !foldersRequested;
+			const shouldShowResourceCompletions = (!items?.length || items.length === 1 && items[0].label === '.') && !filesRequested && !foldersRequested;
 			if (shouldShowResourceCompletions) {
 				filesRequested = true;
 				foldersRequested = true;
 			}
 
 			if (filesRequested || foldersRequested) {
-				return new vscode.TerminalCompletionList(resultItems, { filesRequested, foldersRequested, cwd: terminal.shellIntegration?.cwd, pathSeparator: shellPath.includes('/') ? '/' : '\\' });
+				return new vscode.TerminalCompletionList(items, { filesRequested, foldersRequested, cwd: terminal.shellIntegration?.cwd, pathSeparator: shellPath.includes('/') ? '/' : '\\' });
 			}
-			return resultItems;
+			return items;
 		}
-	}));
+	}, '../'));
 }
 
 function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string[] | undefined {
