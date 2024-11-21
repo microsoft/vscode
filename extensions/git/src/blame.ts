@@ -203,11 +203,6 @@ export class GitBlameController {
 			return undefined;
 		}
 
-		// Ensure that the text documents are opened
-		// TODO @lszomoru - this should be handled in core
-		await workspace.openTextDocument(resource.leftUri);
-		await workspace.openTextDocument(resource.rightUri);
-
 		// Get the diff information for the staged resource
 		const diffInformation: LineChange[] = await commands.executeCommand('_workbench.internal.computeDirtyDiff', resource.leftUri, resource.rightUri) ?? [];
 

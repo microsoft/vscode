@@ -41,6 +41,7 @@ import { IUntitledTextEditorService } from '../../../services/untitled/common/un
 import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SIDE, DIFF_OPEN_SIDE, registerDiffEditorCommands } from './diffEditorCommands.js';
 import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editorCommandsContext.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -539,11 +540,15 @@ function registerOpenEditorAPICommands(): void {
 	});
 
 	CommandsRegistry.registerCommand('_workbench.internal.computeDirtyDiff', async (accessor: ServicesAccessor, original: UriComponents, modified: UriComponents) => {
-		const editorWorkerService = accessor.get(IEditorWorkerService);
 		const configurationService = accessor.get(IConfigurationService);
+		const editorWorkerService = accessor.get(IEditorWorkerService);
+		const textModelService = accessor.get(ITextModelService);
 
 		const originalResource = URI.revive(original);
 		const modifiedResource = URI.revive(modified);
+
+		const originalModel = await textModelService.createModelReference(originalResource);
+		const modifiedModel = await textModelService.createModelReference(modifiedResource);
 
 		const canComputeDirtyDiff = editorWorkerService.canComputeDirtyDiff(originalResource, modifiedResource);
 		if (!canComputeDirtyDiff) {
@@ -555,7 +560,12 @@ function registerOpenEditorAPICommands(): void {
 			? configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace')
 			: ignoreTrimWhitespaceSetting !== 'false';
 
-		return editorWorkerService.computeDirtyDiff(originalResource, modifiedResource, ignoreTrimWhitespace);
+		const changes = await editorWorkerService.computeDirtyDiff(originalResource, modifiedResource, ignoreTrimWhitespace);
+
+		originalModel.dispose();
+		modifiedModel.dispose();
+
+		return changes;
 	});
 }
 
