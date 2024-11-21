@@ -7,7 +7,7 @@ import { Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { Selection, SelectionDirection } from '../core/selection.js';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../editorCommon.js';
-import { EndOfLineSequence, ITextModel } from '../model.js';
+import { ITextModel } from '../model.js';
 
 export class ReplaceCommand implements ICommand {
 
@@ -47,49 +47,13 @@ export class ReplaceOvertypeCommand implements ICommand {
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		const intialStartPosition = this._range.getStartPosition();
 		const initialEndPosition = this._range.getEndPosition();
-		const offsetDelta = this._text.length + (this._range.isEmpty() ? 0 : - 1);
-		const candidateEndPosition: Position = addPositiveDeltaToModelPosition(model, initialEndPosition, offsetDelta);
-		const candidateSecondToEndPosition = previousModelPosition(model, candidateEndPosition);
-		const endOfLine = model.getEndOfLineSequence() === EndOfLineSequence.CRLF ? '\r\n' : '\n';
-		const lastCharacterRange = Range.fromPositions(candidateSecondToEndPosition, candidateEndPosition);
-		const lastCharacter = model.getValueInRange(lastCharacterRange);
-		const endPosition = lastCharacter === endOfLine ? candidateSecondToEndPosition : candidateEndPosition;
-		const replaceRange = Range.fromPositions(intialStartPosition, endPosition);
-		builder.addTrackedEditOperation(replaceRange, this._text);
-	}
-
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		const inverseEditOperations = helper.getInverseEditOperations();
-		const srcRange = inverseEditOperations[0].range;
-		return Selection.fromPositions(srcRange.getEndPosition());
-	}
-}
-
-export class OvertypePasteCommand implements ICommand {
-
-	private readonly _range: Range;
-	private readonly _text: string;
-	public readonly insertsAutoWhitespace: boolean;
-
-	constructor(range: Range, text: string, insertsAutoWhitespace: boolean = false) {
-		this._range = range;
-		this._text = text;
-		this.insertsAutoWhitespace = insertsAutoWhitespace;
-	}
-
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		const initialStartPosition = this._range.getStartPosition();
-		const initialEndPosition = this._range.getEndPosition();
-		const endLineNumber = initialEndPosition.lineNumber;
-		const offsetDelta = this._text.length + (this._range.isEmpty() ? 0 : - 1);
-		const candidateEndPosition = addPositiveDeltaToModelPosition(model, initialEndPosition, offsetDelta);
-		let endPosition: Position;
-		if (candidateEndPosition.lineNumber > endLineNumber) {
-			endPosition = new Position(endLineNumber, model.getLineMaxColumn(endLineNumber));
-		} else {
-			endPosition = candidateEndPosition;
+		const initialEndLineNumber = initialEndPosition.lineNumber;
+		const offsetDelta = this._text.length + (this._range.isEmpty() ? 0 : -1);
+		let endPosition = addPositiveDeltaToModelPosition(model, initialEndPosition, offsetDelta);
+		if (endPosition.lineNumber > initialEndLineNumber) {
+			endPosition = new Position(initialEndLineNumber, model.getLineMaxColumn(initialEndLineNumber));
 		}
-		const replaceRange = Range.fromPositions(initialStartPosition, endPosition);
+		const replaceRange = Range.fromPositions(intialStartPosition, endPosition);
 		builder.addTrackedEditOperation(replaceRange, this._text);
 	}
 
@@ -171,7 +135,7 @@ export class ReplaceCommandWithOffsetCursorState implements ICommand {
 	}
 }
 
-export class ReplaceOvertypeCommandInComposition implements ICommand {
+export class ReplaceOvertypeCommandOnCompositionEnd implements ICommand {
 
 	private readonly _range: Range;
 
@@ -248,18 +212,4 @@ function addPositiveDeltaToModelPosition(model: ITextModel, position: Position, 
 		}
 	}
 	return endPosition ?? new Position(lineCount, model.getLineMaxColumn(lineCount));
-}
-
-function previousModelPosition(model: ITextModel, position: Position): Position {
-	let previousPosition: Position;
-	if (position.column > 1) {
-		previousPosition = new Position(position.lineNumber, position.column - 1);
-	} else {
-		if (position.lineNumber > 1) {
-			previousPosition = new Position(position.lineNumber - 1, model.getLineMaxColumn(position.lineNumber - 1));
-		} else {
-			previousPosition = new Position(1, 1);
-		}
-	}
-	return previousPosition;
 }

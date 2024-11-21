@@ -6,7 +6,7 @@
 import { CharCode } from '../../../base/common/charCode.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import * as strings from '../../../base/common/strings.js';
-import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection, ReplaceOvertypeCommand, OvertypePasteCommand, ReplaceOvertypeCommandInComposition } from '../commands/replaceCommand.js';
+import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection, ReplaceOvertypeCommand, ReplaceOvertypeCommandOnCompositionEnd } from '../commands/replaceCommand.js';
 import { ShiftCommand } from '../commands/shiftCommand.js';
 import { SurroundSelectionCommand } from '../commands/surroundSelectionCommand.js';
 import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from '../cursorCommon.js';
@@ -355,14 +355,14 @@ export class AutoClosingOpenCharTypeOperation {
 	}
 }
 
-export class CompositionOvertypeOperation {
+export class CompositionEndOvertypeOperation {
 
 	public static getEdits(config: CursorConfiguration, compositions: CompositionOutcome[]): EditOperationResult | undefined {
 		const isOvertypeMode = config.inputMode === 'overtype';
 		if (!isOvertypeMode) {
 			return undefined;
 		}
-		const commands = compositions.map(composition => new ReplaceOvertypeCommandInComposition(composition.insertedTextRange));
+		const commands = compositions.map(composition => new ReplaceOvertypeCommandOnCompositionEnd(composition.insertedTextRange));
 		return new EditOperationResult(EditOperationType.TypingOther, commands, {
 			shouldPushStackElementBefore: true,
 			shouldPushStackElementAfter: false
@@ -695,7 +695,7 @@ export class PasteOperation {
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const shouldOvertypeOnPaste = config.overtypeOnPaste && config.inputMode === 'overtype';
-			const ChosenReplaceCommand = shouldOvertypeOnPaste ? OvertypePasteCommand : ReplaceCommand;
+			const ChosenReplaceCommand = shouldOvertypeOnPaste ? ReplaceOvertypeCommand : ReplaceCommand;
 			commands[i] = new ChosenReplaceCommand(selections[i], text[i]);
 		}
 		return new EditOperationResult(EditOperationType.Other, commands, {
@@ -721,7 +721,7 @@ export class PasteOperation {
 				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text, selection, true);
 			} else {
 				const shouldOvertypeOnPaste = config.overtypeOnPaste && config.inputMode === 'overtype';
-				const ChosenReplaceCommand = shouldOvertypeOnPaste ? OvertypePasteCommand : ReplaceCommand;
+				const ChosenReplaceCommand = shouldOvertypeOnPaste ? ReplaceOvertypeCommand : ReplaceCommand;
 				commands[i] = new ChosenReplaceCommand(selection, text);
 			}
 		}

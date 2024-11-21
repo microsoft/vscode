@@ -11,7 +11,7 @@ import { Selection } from '../core/selection.js';
 import { Position } from '../core/position.js';
 import { ICommand } from '../editorCommon.js';
 import { ITextModel } from '../model.js';
-import { AutoClosingOpenCharTypeOperation, AutoClosingOvertypeOperation, AutoClosingOvertypeWithInterceptorsOperation, AutoIndentOperation, CompositionOperation, CompositionOvertypeOperation, EnterOperation, InterceptorElectricCharOperation, PasteOperation, shiftIndent, shouldSurroundChar, SimpleCharacterTypeOperation, SurroundSelectionOperation, TabOperation, TypeWithoutInterceptorsOperation, unshiftIndent } from './cursorTypeEditOperations.js';
+import { AutoClosingOpenCharTypeOperation, AutoClosingOvertypeOperation, AutoClosingOvertypeWithInterceptorsOperation, AutoIndentOperation, CompositionOperation, CompositionEndOvertypeOperation, EnterOperation, InterceptorElectricCharOperation, PasteOperation, shiftIndent, shouldSurroundChar, SimpleCharacterTypeOperation, SurroundSelectionOperation, TabOperation, TypeWithoutInterceptorsOperation, unshiftIndent } from './cursorTypeEditOperations.js';
 
 export class TypeOperations {
 
@@ -90,7 +90,7 @@ export class TypeOperations {
 
 		if (!insertedText || insertedText.length !== 1) {
 			// we're only interested in the case where a single character was inserted
-			return CompositionOvertypeOperation.getEdits(config, compositions) ?? null;
+			return CompositionEndOvertypeOperation.getEdits(config, compositions) ?? null;
 		}
 
 		const ch = insertedText;
@@ -159,7 +159,7 @@ export class TypeOperations {
 			return autoClosingOpenCharEdits;
 		}
 
-		return CompositionOvertypeOperation.getEdits(config, compositions) ?? null;
+		return CompositionEndOvertypeOperation.getEdits(config, compositions) ?? null;
 	}
 
 	public static typeWithInterceptors(isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult {
