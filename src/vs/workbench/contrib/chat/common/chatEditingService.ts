@@ -36,7 +36,7 @@ export interface IChatEditingService {
 
 	readonly editingSessionFileLimit: number;
 
-	startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession>;
+	startOrContinueEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
 	getEditingSession(resource: URI): IChatEditingSession | null;
 	createSnapshot(requestId: string): void;
 	getSnapshotUri(requestId: string, uri: URI): URI | undefined;

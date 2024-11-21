@@ -31,7 +31,6 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
-import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -186,7 +185,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		super.dispose();
 	}
 
-	async startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession> {
+	async startOrContinueEditingSession(chatSessionId: string): Promise<IChatEditingSession> {
 		const session = this._currentSessionObs.get();
 		if (session) {
 			if (session.chatSessionId === chatSessionId) {
@@ -195,10 +194,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				await session.stop();
 			}
 		}
-		return this._createEditingSession(chatSessionId, options);
+		return this._createEditingSession(chatSessionId);
 	}
 
-	private async _createEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession> {
+	private async _createEditingSession(chatSessionId: string): Promise<IChatEditingSession> {
 		if (this._currentSessionObs.get()) {
 			throw new BugIndicatingError('Cannot have more than one active editing session');
 		}
@@ -208,14 +207,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		// listen for completed responses, run the code mapper and apply the edits to this edit session
 		this._currentSessionDisposables.add(this.installAutoApplyObserver(chatSessionId));
 
-		const input = MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
-			multiDiffSource: ChatEditingMultiDiffSourceResolver.getMultiDiffSourceUri(),
-			label: localize('multiDiffEditorInput.name', "Suggested Edits")
-		}, this._instantiationService);
-
-		const editorPane = options?.silent ? undefined : await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
-
-		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, editorPane, this._editingSessionFileLimitPromise);
+		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, this._editingSessionFileLimitPromise);
 		await session.restoreState();
 
 		this._currentSessionDisposables.add(session.onDidDispose(() => {

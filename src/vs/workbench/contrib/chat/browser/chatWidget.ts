@@ -283,7 +283,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const sessionId = this._viewModel?.sessionId;
 				if (sessionId) {
 					if (sessionId !== currentEditSession?.chatSessionId) {
-						currentEditSession = await this.chatEditingService.startOrContinueEditingSession(sessionId, { silent: true });
+						currentEditSession = await this.chatEditingService.startOrContinueEditingSession(sessionId);
 					}
 				} else {
 					if (currentEditSession) {
