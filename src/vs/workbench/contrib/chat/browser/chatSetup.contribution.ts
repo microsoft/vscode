@@ -39,6 +39,8 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../common/v
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { getActiveElement } from '../../../../base/browser/dom.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -140,7 +142,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				header,
 				`[${localize('signInAndSetup', "Sign in to use {0}", defaultChat.name)}](command:${ChatSetupSignInAndInstallChatAction.ID})`,
 				footer,
-				`[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl}) | [${localize('hideSetup', "Hide")}](command:${ChatSetupHideAction.ID} "${localize('hideSetup', "Hide")}")`,
+				`[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`,
 			].join('\n\n'), { isTrusted: true }),
 		});
 
@@ -159,7 +161,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				header,
 				`[${localize('setup', "Install {0}", defaultChat.name)}](command:${ChatSetupInstallAction.ID})`,
 				footer,
-				`[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl}) | [${localize('hideSetup', "Hide")}](command:${ChatSetupHideAction.ID} "${localize('hideSetup', "Hide")}")`,
+				`[${localize('learnMore', "Learn More")}](${defaultChat.documentationUrl})`,
 			].join('\n\n'), { isTrusted: true })
 		});
 
@@ -401,8 +403,7 @@ class ChatSetupTriggerAction extends Action2 {
 	constructor() {
 		super({
 			id: ChatSetupTriggerAction.ID,
-			title: ChatSetupTriggerAction.TITLE,
-			f1: false
+			title: ChatSetupTriggerAction.TITLE
 		});
 	}
 
@@ -419,13 +420,18 @@ class ChatSetupTriggerAction extends Action2 {
 class ChatSetupHideAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.hideSetup';
-	static readonly TITLE = localize2('hideChatSetup', "Hide Chat Setup");
+	static readonly TITLE = localize2('hideChatSetup', "Hide {0}", defaultChat.name);
 
 	constructor() {
 		super({
 			id: ChatSetupHideAction.ID,
 			title: ChatSetupHideAction.TITLE,
-			f1: false
+			menu: {
+				id: MenuId.ChatCommandCenter,
+				group: 'a_first',
+				order: 1,
+				when: ChatContextKeys.Setup.installed.negate()
+			}
 		});
 	}
 
@@ -433,6 +439,18 @@ class ChatSetupHideAction extends Action2 {
 		const viewsDescriptorService = accessor.get(IViewDescriptorService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const configurationService = accessor.get(IConfigurationService);
+		const dialogService = accessor.get(IDialogService);
+
+		const { confirmed } = await dialogService.confirm({
+			message: localize('hideChatSetupConfirm', "Are you sure you want to hide {0}?", defaultChat.name),
+			detail: localize('hideChatSetupDetail', "You can restore chat controls from the 'chat.commandCenter.enabled' setting."),
+			primaryButton: localize('hideChatSetup', "Hide {0}", defaultChat.name)
+		});
+
+		if (!confirmed) {
+			return;
+		}
 
 		const location = viewsDescriptorService.getViewLocationById(ChatViewId);
 
@@ -444,6 +462,8 @@ class ChatSetupHideAction extends Action2 {
 				layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
 			}
 		}
+
+		configurationService.updateValue('chat.commandCenter.enabled', false);
 	}
 }
 
@@ -459,7 +479,7 @@ class ChatSetupInstallAction extends Action2 {
 			category: CHAT_CATEGORY,
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'a_open',
+				group: 'a_first',
 				order: 0,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.Setup.signedIn,
@@ -525,7 +545,7 @@ class ChatSetupSignInAndInstallChatAction extends Action2 {
 			category: CHAT_CATEGORY,
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'a_open',
+				group: 'a_first',
 				order: 0,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.Setup.signedIn.negate(),
