@@ -212,7 +212,7 @@ suite('Color', () => {
 				});
 
 				test('transparent', () => {
-					assert.deepStrictEqual(Color.Format.CSS.parse('transparent'), new Color(new RGBA(0, 0, 0, 0)));
+					assert.deepStrictEqual(Color.Format.CSS.parse('transparent')!.rgba, new RGBA(0, 0, 0, 0));
 				});
 
 				test('named keyword', () => {
