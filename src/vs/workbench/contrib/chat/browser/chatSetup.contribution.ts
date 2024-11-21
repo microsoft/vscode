@@ -6,7 +6,7 @@
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
@@ -47,6 +47,7 @@ const defaultChat = {
 	chatWelcomeTitle: product.defaultChatAgent?.chatWelcomeTitle ?? '',
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? '',
+	collectionDocumentationUrl: product.defaultChatAgent?.collectionDocumentationUrl ?? '',
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	providerName: product.defaultChatAgent?.providerName ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [],
@@ -102,7 +103,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		@IProductService private readonly productService: IProductService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -119,8 +120,10 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 	}
 
 	private registerChatWelcome(): void {
-		const header = localize('setupPreamble1', "{0} is your AI pair programmer that helps you write code faster and smarter.", defaultChat.name);
-		const footer = localize('setupPreamble2', "By proceeding you agree to the [Privacy Statement]({0}).", defaultChat.privacyStatementUrl);
+		const header = localize('setupPreamble1', "{0} is your AI pair programmer.", defaultChat.name);
+		const footer = this.telemetryService.telemetryLevel !== TelemetryLevel.NONE ?
+			localize({ key: 'setupPreambleWithOptOut', comment: ['{Locked="]({0})"}'] }, "{0} may use your code snippets for product improvements. Read our [privacy statement]({1}) and learn how to [opt out]({2}).", defaultChat.name, defaultChat.privacyStatementUrl, defaultChat.collectionDocumentationUrl) :
+			localize({ key: 'setupPreambleWithoutOptOut', comment: ['{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}).", defaultChat.privacyStatementUrl);
 
 		// Setup: Triggered (signed-out)
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
