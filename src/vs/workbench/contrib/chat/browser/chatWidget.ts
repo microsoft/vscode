@@ -1051,7 +1051,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					actualSize: number;
 				};
 				this.telemetryService.publicLog2<ChatEditingWorkingSetEvent, ChatEditingWorkingSetClassification>('chatEditing/workingSetSize', { originalSize: this.inputPart.attemptedWorkingSetEntriesCount, actualSize: uniqueWorkingSetEntries.size });
-				currentEditingSession?.remove(WorkingSetEntryRemovalReason.Programmatic, ...unconfirmedSuggestions);
+				currentEditingSession?.remove(WorkingSetEntryRemovalReason.User, ...unconfirmedSuggestions);
 			}
 
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {
