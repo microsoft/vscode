@@ -442,7 +442,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						this._createOrGetShellEnvDetection().setEnvironment(env, arg1 !== this._nonce);
 					} catch (e) {
 						this._logService.warn('Failed to parse environment from shell integration sequence', arg0);
-					}
+					} // TODO: issue with double quotes. Dont worry about encoding variable name. Just escape the value
 				}
 				return true;
 			}

@@ -128,7 +128,7 @@ __vsc_escape_value() {
 		# Escape backslashes, semi-colons specially, then special ASCII chars below space (0x20).
 		byte="${str:$i:1}"
 		builtin printf -v val '%d' "'$byte"
-		if  (( val < 31 )); then
+		if (( val < 31 )); then
 			builtin printf -v token '\\x%02x' "'$byte"
 		elif (( val == 92 )); then # \
 			token="\\\\"
@@ -216,6 +216,34 @@ __vsc_update_cwd() {
 	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "$__vsc_cwd")"
 }
 
+__vsc_update_env() {
+	local env_json="{"
+	local first=1
+	for var in $(compgen -v); do
+		# Check if the variable is in the environment using 'printenv'
+		if printenv "$var" >/dev/null 2>&1; then # only exported env vars are included
+			# Add comma if not the first item
+			if [ $first -eq 1 ]; then
+				first=0
+			else
+				env_json+=","
+			fi
+			# Retrieve the value without executing it, and escape it for JSON
+			env_json+="\"$var\":\""
+			value=$(printf '%s' "${!var}") # | sed 's/"/\\"/g')
+			# env_json+=$(printf '%s' "$value")
+			env_json+="$(__vsc_escape_value "$value")"
+			env_json+="\""
+			# Debugging statement
+			echo "Processed variable: $var, value: $value"
+		fi
+	done
+	env_json+="}"
+	printf '\e]633;Env;%s;%s\a' "$(env_json)" "$__vsc_nonce"
+	# Debugging statement
+	echo "Final JSON: $env_json"
+}
+
 __vsc_command_output_start() {
 	if [[ -z "${__vsc_first_prompt-}" ]]; then
 		builtin return
@@ -242,6 +270,7 @@ __vsc_command_complete() {
 		builtin printf '\e]633;D;%s\a' "$__vsc_status"
 	fi
 	__vsc_update_cwd
+	__vsc_update_env
 }
 __vsc_update_prompt() {
 	# in command execution
@@ -271,6 +300,8 @@ __vsc_precmd() {
 	fi
 	__vsc_first_prompt=1
 	__vsc_update_prompt
+
+	__vsc_update_env
 }
 
 __vsc_preexec() {
