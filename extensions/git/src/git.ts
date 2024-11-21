@@ -2207,9 +2207,16 @@ export class Repository {
 		}
 	}
 
-	async blame2(path: string): Promise<BlameInformation[] | undefined> {
+	async blame2(path: string, ref?: string): Promise<BlameInformation[] | undefined> {
 		try {
-			const args = ['blame', '--root', '--incremental', '--', sanitizePath(path)];
+			const args = ['blame', '--root', '--incremental'];
+
+			if (ref) {
+				args.push(ref);
+			}
+
+			args.push('--', sanitizePath(path));
+
 			const result = await this.exec(args);
 
 			return parseGitBlame(result.stdout.trim());
