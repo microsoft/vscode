@@ -92,9 +92,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			const specs = [codeCompletionSpec, codeInsidersCompletionSpec, cdSpec];
 			const specCompletions = await getCompletionItemsFromSpecs(specs, terminalContext, new Set(commands), prefix, token);
 
+			items.push(...specCompletions.items);
 			let filesRequested = specCompletions.filesRequested;
 			let foldersRequested = specCompletions.foldersRequested;
-			items.push(...specCompletions.items);
+
 			if (!specCompletions.specificSuggestionsProvided) {
 				for (const command of commands) {
 					if (command.startsWith(prefix)) {
