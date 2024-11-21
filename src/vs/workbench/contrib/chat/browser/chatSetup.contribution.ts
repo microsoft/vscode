@@ -6,7 +6,7 @@
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
@@ -57,6 +57,7 @@ const defaultChat = {
 	entitlementSkuKey: product.defaultChatAgent?.entitlementSkuKey ?? '',
 	entitlementSku30DTrialValue: product.defaultChatAgent?.entitlementSku30DTrialValue ?? '',
 	entitlementChatEnabled: product.defaultChatAgent?.entitlementChatEnabled ?? '',
+	entitlementSkuAlternateUrl: product.defaultChatAgent?.entitlementSkuAlternateUrl ?? ''
 };
 
 type ChatSetupEntitlementEnablementClassification = {
@@ -122,10 +123,8 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 	}
 
 	private registerChatWelcome(): void {
-		const header = localize('setupPreamble1', "{0} is your AI pair programmer.", defaultChat.name);
-		const footer = this.telemetryService.telemetryLevel !== TelemetryLevel.NONE ?
-			localize({ key: 'setupPreambleWithOptOut', comment: ['{Locked="]({0})"}'] }, "{0} may use your code snippets for product improvements. Read our [privacy statement]({1}) and learn how to [opt out]({2}).", defaultChat.name, defaultChat.privacyStatementUrl, defaultChat.collectionDocumentationUrl) :
-			localize({ key: 'setupPreambleWithoutOptOut', comment: ['{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}).", defaultChat.privacyStatementUrl);
+		const header = localize('setupHeader', "{0} is your AI pair programmer.", defaultChat.name);
+		const footer = localize({ key: 'setupFooter', comment: ['{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}).", defaultChat.privacyStatementUrl);
 
 		// Setup: Triggered (signed-out)
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
@@ -332,6 +331,7 @@ class ChatSetupRequestHelper {
 			return await requestService.request({
 				type,
 				url,
+				data: type === 'POST' ? JSON.stringify({}) : undefined,
 				headers: {
 					'Authorization': `Bearer ${session.accessToken}`
 				}
@@ -500,6 +500,7 @@ class ChatSetupInstallAction extends Action2 {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const viewsService = accessor.get(IViewsService);
 		const chatAgentService = accessor.get(IChatAgentService);
+		const instantiationService = accessor.get(IInstantiationService);
 
 		const signedIn = !!session;
 		const setupInstallingContextKey = ChatContextKeys.Setup.installing.bindTo(contextKeyService);
@@ -509,6 +510,8 @@ class ChatSetupInstallAction extends Action2 {
 		try {
 			setupInstallingContextKey.set(true);
 			showChatView(viewsService);
+
+			await instantiationService.invokeFunction(accessor => ChatSetupRequestHelper.request(accessor, defaultChat.entitlementSkuAlternateUrl, 'POST', session, CancellationToken.None));
 
 			await extensionsWorkbenchService.install(defaultChat.extensionId, {
 				enable: true,
