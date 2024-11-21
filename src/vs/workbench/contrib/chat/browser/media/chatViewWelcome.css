@@ -35,6 +35,10 @@ div.chat-welcome-view {
 	flex-direction: column;
 	align-items: center;
 
+	& > .chat-welcome-view-icon {
+		min-height: 48px;
+	}
+
 	& > .chat-welcome-view-icon .codicon {
 		font-size: 40px;
 	}

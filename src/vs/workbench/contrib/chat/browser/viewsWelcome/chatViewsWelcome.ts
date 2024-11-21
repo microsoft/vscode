@@ -17,7 +17,7 @@ export interface IChatViewsWelcomeDescriptor {
 	icon?: ThemeIcon;
 	title: string;
 	content: IMarkdownString;
-	progress?: string; // TODO@bpasero remove me if not used anymore
+	progress?: string;
 	when: ContextKeyExpression;
 }
 
