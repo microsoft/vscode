@@ -11,7 +11,6 @@ const cdSpec: Fig.Spec = {
 		template: 'folders',
 		isVariadic: true,
 
-		// Add an additional hidden suggestion so users can execute on it if they want to
 		suggestions: [
 			{
 				name: '-',
