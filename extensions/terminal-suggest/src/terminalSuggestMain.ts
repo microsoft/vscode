@@ -125,7 +125,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				foldersRequested = true;
 			}
 			if (filesRequested || foldersRequested) {
-				return new vscode.TerminalCompletionList(items, { filesRequested, foldersRequested, cwd: terminal.shellIntegration?.cwd, pathSeparator: os.platform() === 'win32' ? '\\' : '/' });
+				return new vscode.TerminalCompletionList(items, { filesRequested, foldersRequested, cwd: terminal.shellIntegration?.cwd, pathSeparator: osIsWindows() ? '\\' : '/' });
 			}
 			return items;
 		}
@@ -159,7 +159,7 @@ async function getCommandsInPath(): Promise<Set<string> | undefined> {
 	if (cachedAvailableCommands) {
 		return cachedAvailableCommands;
 	}
-	const paths = os.platform() === 'win32' ? process.env.PATH?.split(';') : process.env.PATH?.split(':');
+	const paths = osIsWindows() ? process.env.PATH?.split(';') : process.env.PATH?.split(':');
 	if (!paths) {
 		return;
 	}
@@ -321,4 +321,8 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 		}
 	}
 	return { items, filesRequested, foldersRequested, specificSuggestionsProvided: false };
+}
+
+function osIsWindows(): boolean {
+	return os.platform() === 'win32';
 }
