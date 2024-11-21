@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -219,7 +220,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				if (foldersRequested && stat.isDirectory) {
 					kind = TerminalCompletionItemKind.Folder;
 				}
-				if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === 'file')) {
+				if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === Schemas.file)) {
 					kind = TerminalCompletionItemKind.File;
 				}
 				if (kind === undefined) {
