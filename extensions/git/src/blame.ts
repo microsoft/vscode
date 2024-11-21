@@ -305,7 +305,7 @@ class GitBlameEditorDecoration {
 		}
 
 		const blameInformation = this._controller.textEditorBlameInformation.get(textEditor);
-		if (!blameInformation) {
+		if (!blameInformation || textEditor.document.uri.scheme !== 'file') {
 			textEditor.setDecorations(this._decorationType, []);
 			return;
 		}
@@ -393,7 +393,7 @@ class GitBlameStatusBarItem {
 		}
 
 		const blameInformation = this._controller.textEditorBlameInformation.get(textEditor);
-		if (!blameInformation || blameInformation.length === 0) {
+		if (!blameInformation || blameInformation.length === 0 || textEditor.document.uri.scheme !== 'file') {
 			this._statusBarItem.hide();
 			return;
 		}
