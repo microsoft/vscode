@@ -265,15 +265,11 @@ export function registerNewChatActions() {
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const chatEditingService = accessor.get(IChatEditingService);
-			const chatWidgetService = accessor.get(IChatWidgetService);
 			const currentEditingSession = chatEditingService.currentEditingSession;
 			if (!currentEditingSession) {
 				return;
 			}
-
-			const widget = chatWidgetService.getWidgetBySessionId(currentEditingSession.chatSessionId);
 			await currentEditingSession.undoInteraction();
-			widget?.viewModel?.model.disableRequests(currentEditingSession.hiddenRequestIds.get());
 		}
 	});
 
@@ -297,15 +293,11 @@ export function registerNewChatActions() {
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const chatEditingService = accessor.get(IChatEditingService);
-			const chatWidgetService = accessor.get(IChatWidgetService);
 			const currentEditingSession = chatEditingService.currentEditingSession;
 			if (!currentEditingSession) {
 				return;
 			}
-
-			const widget = chatWidgetService.getWidgetBySessionId(currentEditingSession.chatSessionId);
 			await chatEditingService.currentEditingSession?.redoInteraction();
-			widget?.viewModel?.model.disableRequests(currentEditingSession.hiddenRequestIds.get());
 		}
 	});
 
