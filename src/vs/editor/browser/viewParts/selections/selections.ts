@@ -290,6 +290,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 			const bottom = hasMultipleSelections ? (lineNumber !== firstLineNumber && lineNumber === lastLineNumber ? 1 : 0) : 0;
 
 			if (this.currentIndex < this.maxLogsIndex) {
+				console.log('_actualRenderOneSelection');
 				console.log('top ', top);
 				console.log('bottom ', bottom);
 			}

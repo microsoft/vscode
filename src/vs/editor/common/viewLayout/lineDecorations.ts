@@ -243,7 +243,6 @@ export class LineDecorationsNormalizer {
 			console.log('normalize');
 			console.log('fontsize : ', fontSize);
 			console.log('lineHeight : ', lineHeight);
-
 			const metadata = (
 				d.type === InlineDecorationType.Before
 					? LinePartMetadata.PSEUDO_BEFORE

@@ -1743,6 +1743,10 @@ declare namespace monaco.editor {
 		 */
 		glyphMargin?: IModelDecorationGlyphMarginOptions | null;
 		/**
+		 * If set, the decoration will override the line height of the lines it spans. This can only increase the line height, not decrease it.
+		 */
+		lineHeight?: number | undefined;
+		/**
 		 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 		 */
 		linesDecorationsClassName?: string | null;
@@ -1758,6 +1762,10 @@ declare namespace monaco.editor {
 		 * If set, the decoration will be rendered in the lines decorations with this CSS class name, but only for the first line in case of line wrapping.
 		 */
 		firstLineDecorationClassName?: string | null;
+		/**
+		 * Font size
+		 */
+		fontSize?: number | undefined;
 		/**
 		 * If set, the decoration will be rendered in the margin (covering its full width) with this CSS class name.
 		 */
@@ -1816,6 +1824,14 @@ declare namespace monaco.editor {
 		 * Defaults to {@link InjectedTextCursorStops.Both}.
 		*/
 		readonly cursorStops?: InjectedTextCursorStops | null;
+		/**
+		 * Line height of injected text
+		 */
+		readonly lineHeight?: number;
+		/**
+		 * Font size of injected text
+		 */
+		readonly fontSize?: number;
 	}
 
 	export enum InjectedTextCursorStops {
@@ -2250,6 +2266,7 @@ declare namespace monaco.editor {
 		 * @return An array with the decorations
 		 */
 		getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): IModelDecoration[];
+		getTextDecorationsInRange(range: IRange, ownerId?: number): IModelDecoration[];
 		/**
 		 * Gets all the decorations as an array.
 		 * @param ownerId If set, it will ignore decorations belonging to other owners.
@@ -2261,6 +2278,11 @@ declare namespace monaco.editor {
 		 * @param ownerId If set, it will ignore decorations belonging to other owners.
 		 */
 		getAllMarginDecorations(ownerId?: number): IModelDecoration[];
+		/**
+		 * Gets all decorations that apply to text.
+		 * @param ownerId If set, it will ignore decorations belonging to other owners.
+		 */
+		getAllTextDecorations(ownerId?: number): IModelDecoration[];
 		/**
 		 * Gets all the decorations that should be rendered in the overview ruler as an array.
 		 * @param ownerId If set, it will ignore decorations belonging to other owners.

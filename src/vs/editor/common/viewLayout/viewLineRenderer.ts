@@ -368,7 +368,6 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder): Rende
 					console.log('lineDecoration : ', lineDecoration);
 					console.log('lineDecoration.fontSize : ', lineDecoration.fontSize);
 					console.log('lineDecoration.lineHeight : ', lineDecoration.lineHeight);
-
 					sb.appendString(`<span class="`);
 					sb.appendString(lineDecoration.className);
 					sb.appendString(`"></span>`);
@@ -859,7 +858,6 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
  * Inline decorations are "merged" on top of tokens.
  * Special care must be taken when multiple inline decorations are at play and they overlap.
  */
-// set line height here
 function _applyInlineDecorations(lineContent: string, len: number, tokens: LinePart[], _lineDecorations: LineDecoration[]): LinePart[] { //
 	_lineDecorations.sort(LineDecoration.compare);
 	const lineDecorations = LineDecorationsNormalizer.normalize(lineContent, _lineDecorations);
@@ -961,8 +959,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 
 	for (let partIndex = 0, tokensLen = parts.length; partIndex < tokensLen; partIndex++) {
 
-		// Add font size to the line parts and add that
-		const part = parts[partIndex]; // contains line height and font size
+		const part = parts[partIndex];
 		const partEndIndex = part.endIndex;
 		const partType = part.type;
 		const partContainsRTL = part.containsRTL;
@@ -980,6 +977,8 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		sb.appendString('class="');
 		sb.appendString(partRendersWhitespaceWithWidth ? 'mtkz' : partType);
 		sb.appendASCIICharCode(CharCode.DoubleQuote);
+
+		console.log('part : ', part);
 
 		const styleStringBuilder = new StringBuilder(10000);
 		if (partLineHeight) {

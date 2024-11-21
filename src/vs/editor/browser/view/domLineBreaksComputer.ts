@@ -202,7 +202,6 @@ const enum Constants {
 	SPAN_MODULO_LIMIT = 16384
 }
 
-// --
 function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: StringBuilder, wrappingIndentLength: number, maxLogsIndex: number, currentIndex: number): [number[], number[]] {
 
 	if (wrappingIndentLength !== 0) {
@@ -303,15 +302,17 @@ function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: 
 	visibleColumns[lineContent.length] = visibleColumn;
 
 	sb.appendString('</div>');
-
 	if (currentIndex < maxLogsIndex) {
+		console.log('renderLine');
 		console.log('sb.build() : ', sb.build());
 	}
+
 	return [charOffsets, visibleColumns];
 }
 
 function readLineBreaks(range: Range, lineDomNode: HTMLDivElement, lineContent: string, charOffsets: number[], maxLogsIndex: number, currentIndex: number): number[] | null {
 	if (currentIndex < maxLogsIndex) {
+		console.log('readLineBreaks');
 		console.log('lineContent : ', lineContent);
 	}
 	if (lineContent.length <= 1) {
