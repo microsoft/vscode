@@ -4064,7 +4064,7 @@ declare namespace monaco.editor {
 		/**
 		 * Controls how the find widget search history should be stored
 		 */
-		findSearchHistory?: 'never' | 'workspace' | 'editor';
+		findSearchHistory?: 'never' | 'workspace' | 'editorGroup';
 	}
 
 	export type GoToLocationValues = 'peek' | 'gotoAndPeek' | 'goto';

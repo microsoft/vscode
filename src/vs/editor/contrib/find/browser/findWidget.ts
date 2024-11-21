@@ -189,7 +189,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		const findSearchHistoryConfig = this._codeEditor.getOption(EditorOption.find).findSearchHistory;
 		this._findWidgetSearchHistory = new FindWidgetSearchHistory(
 			this._storageService,
-			findSearchHistoryConfig === 'editor' ? this._codeEditor : undefined
+			findSearchHistoryConfig === 'editorGroup' ? this._codeEditor : undefined
 		);
 
 		this._ctrlEnterReplaceAllWarningPrompted = !!storageService.getBoolean(ctrlEnterReplaceAllWarningPromptedKey, StorageScope.PROFILE);
