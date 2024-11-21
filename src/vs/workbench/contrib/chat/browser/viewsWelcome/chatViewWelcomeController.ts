@@ -144,7 +144,7 @@ export class ChatViewWelcomePart extends Disposable {
 			title.textContent = content.title;
 			const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 			const messageResult = this._register(renderer.render(content.message));
-			const firstLink = options?.firstLinkToButton ? messageResult.element.querySelector('a') : undefined;
+			const firstLink = (options?.firstLinkToButton && !content.progress) ? messageResult.element.querySelector('a') : undefined;
 			if (firstLink) {
 				const target = firstLink.getAttribute('data-href');
 				const button = this._register(new Button(firstLink.parentElement!, defaultButtonStyles));
