@@ -109,7 +109,18 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			// If the command line is empty, no completions are found, or the completion found is '.', the prefix is a path, and neither files nor folders
 			// are going to be requested (for a specific spec's argument), show file/folder completions
-			const shouldShowResourceCompletions = (terminalContext.commandLine.trim().length === 0 || !items?.length || items.length === 1 && items[0].label === '.') && (!filesRequested && !foldersRequested);
+			const shouldShowResourceCompletions =
+				(
+					// If the command line is empty
+					terminalContext.commandLine.trim().length === 0
+					// or no completions are found
+					|| !items?.length
+					// or the completion found is '.'
+					|| items.length === 1 && items[0].label === '.'
+				)
+				// and neither files nor folders are going to be requested (for a specific spec's argument)
+				&& (!filesRequested && !foldersRequested);
+
 			if (shouldShowResourceCompletions) {
 				filesRequested = true;
 				foldersRequested = true;
