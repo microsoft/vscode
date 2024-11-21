@@ -319,13 +319,21 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		let didRemoveUris = false;
 		for (const uri of uris) {
-			const state = this._workingSet.get(uri);
-			if (state === undefined) {
-				continue;
+
+			const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
+			if (entry) {
+				entry.dispose();
+				const newEntries = this._entriesObs.get().filter(e => !isEqual(e.modifiedURI, uri));
+				this._entriesObs.set(newEntries, undefined);
+				didRemoveUris = true;
 			}
-			didRemoveUris = this._workingSet.delete(uri) || didRemoveUris;
-			if (reason === WorkingSetEntryRemovalReason.User && (state.state === WorkingSetEntryState.Transient || state.state === WorkingSetEntryState.Suggested)) {
-				this._removedTransientEntries.add(uri);
+
+			const state = this._workingSet.get(uri);
+			if (state !== undefined) {
+				didRemoveUris = this._workingSet.delete(uri) || didRemoveUris;
+				if (reason === WorkingSetEntryRemovalReason.User && (state.state === WorkingSetEntryState.Transient || state.state === WorkingSetEntryState.Suggested)) {
+					this._removedTransientEntries.add(uri);
+				}
 			}
 		}
 
