@@ -189,7 +189,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 
 	private async _resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number): Promise<ITerminalCompletion[] | undefined> {
-		let cwd = URI.revive(resourceRequestConfig.cwd);
+		const cwd = URI.revive(resourceRequestConfig.cwd);
 		const foldersRequested = resourceRequestConfig.foldersRequested ?? false;
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
 		if (!cwd || (!foldersRequested && !filesRequested)) {
@@ -201,40 +201,46 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			{ label: '..', kind: TerminalCompletionItemKind.Folder, isDirectory: true, isFile: false, replacementIndex: cursorPosition - 1, replacementLength: 2 }
 		];
 
+		const path = cwd.fsPath.split(resourceRequestConfig.pathSeparator).slice(0, -1).join(resourceRequestConfig.pathSeparator);
+		const parentCwd = URI.from({ scheme: cwd.scheme, path });
+		const dirToPrefixMap = new Map<URI, string>();
+
+		dirToPrefixMap.set(cwd, '.');
+		dirToPrefixMap.set(parentCwd, '..');
+
 		const lastWord = promptValue.substring(0, cursorPosition).split(' ').pop() ?? '';
-		const upADirectory = lastWord.endsWith('..' + resourceRequestConfig.pathSeparator);
-		if (upADirectory) {
-			const path = cwd.fsPath.split(resourceRequestConfig.pathSeparator).slice(0, -1).join(resourceRequestConfig.pathSeparator);
-			cwd = URI.from({ scheme: cwd.scheme, path });
-		}
-		const fileStat = await this._fileService.resolve(cwd, { resolveSingleChildDescendants: true });
 
-		if (!fileStat || !fileStat?.children) {
-			return;
-		}
+		for (const [dir, prefix] of dirToPrefixMap) {
+			const fileStat = await this._fileService.resolve(dir, { resolveSingleChildDescendants: true });
 
-		for (const stat of fileStat.children) {
-			let kind: TerminalCompletionItemKind | undefined;
-			if (foldersRequested && stat.isDirectory) {
-				kind = TerminalCompletionItemKind.Folder;
-			}
-			if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === 'file')) {
-				kind = TerminalCompletionItemKind.File;
-			}
-			if (kind === undefined) {
-				continue;
+			if (!fileStat || !fileStat?.children) {
+				return;
 			}
 
-			const label = upADirectory ? '..' + stat.resource.fsPath.replace(cwd.fsPath, '') : '.' + stat.resource.fsPath.replace(cwd.fsPath, '');
-			resourceCompletions.push({
-				label,
-				kind,
-				isDirectory: kind === TerminalCompletionItemKind.Folder,
-				isFile: kind === TerminalCompletionItemKind.File,
-				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: label.length
-			});
+			for (const stat of fileStat.children) {
+				let kind: TerminalCompletionItemKind | undefined;
+				if (foldersRequested && stat.isDirectory) {
+					kind = TerminalCompletionItemKind.Folder;
+				}
+				if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === 'file')) {
+					kind = TerminalCompletionItemKind.File;
+				}
+				if (kind === undefined) {
+					continue;
+				}
+
+				const label = prefix + stat.resource.fsPath.replace(cwd.fsPath, '');
+				resourceCompletions.push({
+					label,
+					kind,
+					isDirectory: kind === TerminalCompletionItemKind.Folder,
+					isFile: kind === TerminalCompletionItemKind.File,
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: label.length
+				});
+			}
 		}
+
 		return resourceCompletions.length ? resourceCompletions : undefined;
 	}
 }
