@@ -62,6 +62,12 @@ declare module 'vscode' {
 		constructor(uri: Uri, edits: TextEdit | TextEdit[]);
 	}
 
+	export class ChatResponseNotebookEditPart {
+		uri: Uri;
+		edits: NotebookEdit[];
+		constructor(uri: Uri, edits: NotebookEdit | NotebookEdit[]);
+	}
+
 	export class ChatResponseConfirmationPart {
 		title: string;
 		message: string;
@@ -172,6 +178,7 @@ declare module 'vscode' {
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
 
 		textEdit(target: Uri, isDone: true): void;
+		notebookEdit(target: Uri, edits: NotebookEdit[]): void;
 
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
 		codeblockUri(uri: Uri): void;
