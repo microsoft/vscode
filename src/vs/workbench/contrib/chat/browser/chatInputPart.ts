@@ -1099,9 +1099,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Record the number of entries that the user wanted to add to the working set
 		this._attemptedWorkingSetEntriesCount = entries.length + excludedEntries.length;
 
+		let suggestedFilesInWorkingSetCount = 0;
 		overviewFileCount.textContent = '';
 		if (entries.length === 1) {
 			overviewFileCount.textContent = ' ' + localize('chatEditingSession.oneFile', '(1 file)');
+			suggestedFilesInWorkingSetCount = entries[0].kind === 'reference' && entries[0].state === WorkingSetEntryState.Suggested ? 1 : 0;
 		} else if (entries.length >= remainingFileEntriesBudget) {
 			// The user tried to attach too many files, we have to drop anything after the limit
 			const entriesToPreserve: IChatCollapsibleListItem[] = [];
@@ -1136,9 +1138,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// so that the Add Files button remains enabled and the user can easily
 			// override the suggestions with their own manual file selections
 			entries = [...entriesToPreserve, ...newEntriesThatFit, ...suggestedFilesThatFit];
+			suggestedFilesInWorkingSetCount = suggestedFilesThatFit.length;
+		} else {
+			suggestedFilesInWorkingSetCount = entries.filter(e => e.kind === 'reference' && e.state === WorkingSetEntryState.Suggested).length;
 		}
 		if (entries.length > 1) {
-			overviewFileCount.textContent = ' ' + localize('chatEditingSession.manyFiles', '({0} files)', entries.length);
+			const fileCount = entries.length - suggestedFilesInWorkingSetCount;
+			overviewFileCount.textContent = ' ' + (fileCount === 1 ? localize('chatEditingSession.oneFile', '(1 file)') : localize('chatEditingSession.manyFiles', '({0} files)', fileCount));
 		}
 
 		if (excludedEntries.length > 0) {
