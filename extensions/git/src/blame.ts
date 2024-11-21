@@ -112,7 +112,9 @@ export class GitBlameController {
 	public readonly onDidChangeBlameInformation = this._onDidChangeBlameInformation.event;
 
 	readonly textEditorBlameInformation = new Map<TextEditor, readonly LineBlameInformation[]>();
+
 	private readonly _repositoryBlameInformation = new Map<Repository, RepositoryBlameInformation>();
+	private readonly _stagedResourceDiffInformation = new Map<Repository, Map<Uri, TextEditorChange[]>>();
 
 	private _repositoryDisposables = new Map<Repository, IDisposable[]>();
 	private _disposables: IDisposable[] = [];
@@ -134,6 +136,8 @@ export class GitBlameController {
 		const repositoryDisposables: IDisposable[] = [];
 
 		repository.onDidRunGitStatus(() => this._onDidRunGitStatus(repository), this, repositoryDisposables);
+		repository.onDidChangeRepository(e => this._onDidChangeRepository(repository, e), this, this._disposables);
+
 		this._repositoryDisposables.set(repository, repositoryDisposables);
 	}
 
@@ -161,6 +165,14 @@ export class GitBlameController {
 				this._updateTextEditorBlameInformation(textEditor);
 			}
 		}
+	}
+
+	private _onDidChangeRepository(repository: Repository, uri: Uri): void {
+		if (!/\.git\/index$/.test(uri.fsPath)) {
+			return;
+		}
+
+		this._stagedResourceDiffInformation.delete(repository);
 	}
 
 	private async _getBlameInformation(resource: Uri): Promise<BlameInformation[] | undefined> {
@@ -203,10 +215,19 @@ export class GitBlameController {
 			return undefined;
 		}
 
-		// Get the diff information for the staged resource
-		const diffInformation: LineChange[] = await commands.executeCommand('_workbench.internal.computeDirtyDiff', resource.leftUri, resource.rightUri) ?? [];
+		const diffInformationMap = this._stagedResourceDiffInformation.get(repository) ?? new Map<Uri, TextEditorChange[]>();
+		let changes = diffInformationMap.get(resource.resourceUri);
+		if (changes) {
+			return changes;
+		}
 
-		return diffInformation.map(change => {
+		// Get the diff information for the staged resource
+		const diffInformation: LineChange[] = await commands.executeCommand('_workbench.internal.computeDirtyDiff', resource.leftUri, resource.rightUri);
+		if (!diffInformation) {
+			return undefined;
+		}
+
+		changes = diffInformation.map(change => {
 			const kind = change.originalEndLineNumber === 0 ? TextEditorChangeKind.Addition :
 				change.modifiedEndLineNumber === 0 ? TextEditorChangeKind.Deletion : TextEditorChangeKind.Modification;
 
@@ -218,6 +239,10 @@ export class GitBlameController {
 				kind
 			} satisfies TextEditorChange;
 		});
+
+		this._stagedResourceDiffInformation.set(repository, diffInformationMap.set(resource.resourceUri, changes));
+
+		return changes;
 	}
 
 	@throttle
