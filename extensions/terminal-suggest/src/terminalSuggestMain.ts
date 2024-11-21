@@ -20,8 +20,7 @@ function getBuiltinCommands(shell: string): string[] | undefined {
 		if (cachedCommands) {
 			return cachedCommands;
 		}
-		// fixes a bug with file/folder completions brought about by the '.' command
-		const filter = (cmd: string) => cmd && cmd !== '.';
+		const filter = (cmd: string) => cmd;
 		const options: ExecOptionsWithStringEncoding = { encoding: 'utf-8', shell };
 		switch (shellType) {
 			case 'bash': {
@@ -114,9 +113,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			const resultItems = uniqueResults.size ? Array.from(uniqueResults.values()) : undefined;
 
-			// If no completions are found, the prefix is a path, and neither files nor folders
+			// If no completions are found, or the completion found is '.', the prefix is a path, and neither files nor folders
 			// are going to be requested (for a specific spec's argument), show file/folder completions
-			const shouldShowResourceCompletions = !resultItems?.length && prefix.match(/^[./\\ ]/) && !filesRequested && !foldersRequested;
+			const shouldShowResourceCompletions = (!resultItems?.length || resultItems.length === 1 && resultItems[0].label === '.') && prefix.match(/^[./\\ ]/) && !filesRequested && !foldersRequested;
 			if (shouldShowResourceCompletions) {
 				filesRequested = true;
 				foldersRequested = true;

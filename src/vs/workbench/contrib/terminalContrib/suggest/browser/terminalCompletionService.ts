@@ -196,7 +196,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return;
 		}
 
-		const resourceCompletions: ITerminalCompletion[] = [];
+		const resourceCompletions: ITerminalCompletion[] = [
+			{ label: '.', kind: TerminalCompletionItemKind.Folder, isDirectory: true, isFile: false, replacementIndex: cursorPosition - 1, replacementLength: 1 },
+			{ label: '..', kind: TerminalCompletionItemKind.Folder, isDirectory: true, isFile: false, replacementIndex: cursorPosition - 1, replacementLength: 2 }
+		];
 		const fileStat = await this._fileService.resolve(cwd, { resolveSingleChildDescendants: true });
 
 		if (!fileStat || !fileStat?.children) {
