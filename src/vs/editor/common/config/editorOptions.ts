@@ -248,6 +248,10 @@ export interface IEditorOptions {
 	 */
 	overtypeCursorStyle?: 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin';
 	/**
+	 *  Controls whether paste in overtype mode should overwrite or insert.
+	 */
+	overtypeOnPaste?: boolean;
+	/**
 	 * Control the width of the cursor when cursorStyle is set to 'line'
 	 */
 	cursorWidth?: number;
@@ -778,11 +782,6 @@ export interface IEditorOptions {
 	 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
 	 */
 	inlineCompletionsAccessibilityVerbose?: boolean;
-
-	/**
-	 *  Controls whether paste in overtype mode should overwrite or insert.
-	 */
-	overtypeOnPaste?: boolean;
 }
 
 /**
@@ -5381,7 +5380,6 @@ export const enum EditorOption {
 	cursorBlinking,
 	cursorSmoothCaretAnimation,
 	cursorStyle,
-	overtypeCursorStyle,
 	cursorSurroundingLines,
 	cursorSurroundingLinesStyle,
 	cursorWidth,
@@ -5437,6 +5435,7 @@ export const enum EditorOption {
 	multiCursorLimit,
 	occurrencesHighlight,
 	occurrencesHighlightDelay,
+	overtypeCursorStyle,
 	overtypeOnPaste,
 	overviewRulerBorder,
 	overviewRulerLanes,
@@ -5990,7 +5989,8 @@ export const EditorOptions = {
 		}
 	)),
 	overtypeOnPaste: register(new EditorBooleanOption(
-		EditorOption.overtypeOnPaste, 'overtypeOnPaste', true
+		EditorOption.overtypeOnPaste, 'overtypeOnPaste', true,
+		{ description: nls.localize('overtypeOnPaste', "Controls whether pasting should overtype.") }
 	)),
 	overviewRulerBorder: register(new EditorBooleanOption(
 		EditorOption.overviewRulerBorder, 'overviewRulerBorder', true,

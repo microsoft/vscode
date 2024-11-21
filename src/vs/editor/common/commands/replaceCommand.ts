@@ -181,13 +181,14 @@ export class ReplaceOvertypeCommandInComposition implements ICommand {
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		const text = model.getValueInRange(this._range);
-		const startPosition = this._range.getStartPosition();
-		let endPosition = addPositiveDeltaToModelPosition(model, startPosition, 2 * text.length);
-		if (endPosition.lineNumber > this._range.endLineNumber) {
-			endPosition = new Position(this._range.endLineNumber, model.getLineMaxColumn(this._range.endLineNumber));
+		const initialEndPosition = this._range.getEndPosition();
+		const initialEndLineNumber = initialEndPosition.lineNumber;
+		let endPosition = addPositiveDeltaToModelPosition(model, initialEndPosition, text.length);
+		if (endPosition.lineNumber > initialEndLineNumber) {
+			endPosition = new Position(initialEndLineNumber, model.getLineMaxColumn(initialEndLineNumber));
 		}
-		const replaceRange = Range.fromPositions(startPosition, endPosition);
-		builder.addTrackedEditOperation(replaceRange, text);
+		const replaceRange = Range.fromPositions(initialEndPosition, endPosition);
+		builder.addTrackedEditOperation(replaceRange, '');
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
