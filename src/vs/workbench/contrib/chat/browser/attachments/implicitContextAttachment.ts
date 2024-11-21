@@ -65,13 +65,19 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 
 		const currentFile = localize('openEditor', "Current file context");
 		const inactive = localize('enableHint', "disabled");
-		const currentFileHint = currentFile + (this.attachment.enabled ? '' : ` (${inactive})`);
-		const title = `${currentFileHint}${this.getUriLabel(file)}`;
+		const currentFileHint = new MarkdownString(currentFile + (this.attachment.enabled ? '' : ` (${inactive})`));
+
+		const title = [currentFileHint, ...this.getUriLabel(file)]
+			.map((markdown) => {
+				return markdown.value;
+			})
+			.join('\n');
+
 		label.setFile(file, {
 			fileKind: FileKind.FILE,
 			hidePath: true,
 			range,
-			title
+			title,
 		});
 		this.domNode.ariaLabel = ariaLabel;
 		this.domNode.tabIndex = 0;
@@ -132,9 +138,9 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 	 */
 	private getUriLabel(
 		file: URI,
-	): IMarkdownString | IMarkdownString[] {
+	): IMarkdownString[] {
 		const result = [new MarkdownString(
-			`'• ${this.labelService.getUriLabel(file, { relative: true })}'`,
+			`• ${this.labelService.getUriLabel(file, { relative: true })}`,
 		)];
 
 		// if file is a prompt that references other files, add them to the label

@@ -6,7 +6,6 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
-import { assertDefined } from '../../../../base/common/assertDefined.js';
 import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -15,7 +14,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { basename, extUri, isEqual } from '../../../../base/common/resources.js';
+import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -51,11 +50,11 @@ import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatInputPart, IChatInputStyles } from './chatInputPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
-import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
+import { ChatViewWelcomePart } from './viewsWelcome/chatViewWelcomeController.js';
+
 import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
-import { ChatViewWelcomePart } from './viewsWelcome/chatViewWelcomeController.js';
 
 const $ = dom.$;
 
@@ -193,11 +192,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (!this.viewModel) {
 				return { text: '', parts: [] };
 			}
-
-			assertDefined(
-				this.viewModel,
-				'View model must be defined when trying to get parsed input.',
-			);
 
 			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser)
 				.parseChatRequest(
@@ -1002,7 +996,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 
-			let attachedContext = this.inputPart.getAttachedAndImplicitContext();
+			let attachedContext = this.inputPart.getAttachedAndImplicitContext(this);
 			let workingSet: URI[] | undefined;
 			if (this.location === ChatAgentLocation.EditingSession) {
 				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
@@ -1066,29 +1060,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				};
 				this.telemetryService.publicLog2<ChatEditingWorkingSetEvent, ChatEditingWorkingSetClassification>('chatEditing/workingSetSize', { originalSize: this.inputPart.attemptedWorkingSetEntriesCount, actualSize: uniqueWorkingSetEntries.size });
 				currentEditingSession?.remove(WorkingSetEntryRemovalReason.User, ...unconfirmedSuggestions);
-			}
-
-			// factor in nested references of dynamic variables into the implicit attached context
-			const variableModel = this.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID);
-			if (variableModel) {
-				for (const variable of variableModel.variables) {
-					if (!(variable.isFile && URI.isUri(variable.data))) {
-						continue;
-					}
-
-					for (const childUri of variable.validChildReferenceUris) {
-						attachedContext.unshift({
-							id: variable.id,
-							name: basename(childUri),
-							value: childUri,
-							kind: 'implicit',
-							isSelection: false,
-							enabled: true,
-							isFile: true,
-							isDynamic: true,
-						});
-					}
-				}
 			}
 
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {

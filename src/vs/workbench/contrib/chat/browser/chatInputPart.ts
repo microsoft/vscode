@@ -146,7 +146,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._attachmentModel;
 	}
 
-	public getAttachedAndImplicitContext(): IChatRequestVariableEntry[] {
+	public getAttachedAndImplicitContext(
+		chatWidget: IChatWidget,
+	): IChatRequestVariableEntry[] {
 		const contextArr = [...this.attachmentModel.attachments];
 		if (this._implicitContext?.enabled && this._implicitContext.value) {
 			const mainEntry = this._implicitContext.toBaseEntry();
@@ -163,6 +165,31 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						};
 					});
 				contextArr.push(...childReferences);
+			}
+		}
+
+
+		// factor in nested references of dynamic variables into the implicit attached context
+		for (const part of chatWidget.parsedInput.parts) {
+			if (!(part instanceof ChatRequestDynamicVariablePart)) {
+				continue;
+			}
+
+			if (!(part.isFile && URI.isUri(part.data))) {
+				continue;
+			}
+
+			for (const childUri of part.childReferences ?? []) {
+				contextArr.push({
+					id: part.id,
+					name: basename(childUri.path),
+					value: childUri,
+					kind: 'implicit',
+					isSelection: false,
+					enabled: true,
+					isFile: true,
+					isDynamic: true,
+				});
 			}
 		}
 
@@ -596,7 +623,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const toolbarsContainer = elements.inputToolbars;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.renderAttachedContext();
-		if (this.options.enableImplicitContext) {
+
+		if (this.options.enableImplicitContext && !this._implicitContext) {
 			this._implicitContext = this._register(new ChatImplicitContext(this.fileService, this.configurationService));
 			this._register(this._implicitContext.onDidChangeValue(() => this._handleAttachedContextChange()));
 		}

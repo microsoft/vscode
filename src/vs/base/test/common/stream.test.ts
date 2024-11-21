@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { timeout } from '../../common/async.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 import { bufferToReadable, VSBuffer } from '../../common/buffer.js';
 import { CancellationTokenSource } from '../../common/cancellation.js';
 import { consumeReadable, consumeStream, isReadable, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, prefixedReadable, prefixedStream, Readable, ReadableStream, toReadable, toStream, transform } from '../../common/stream.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Stream', () => {
 

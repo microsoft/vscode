@@ -363,7 +363,7 @@ export class PromptFileReference extends Disposable {
 	/**
 	 * Get list of all valid child references as URIs.
 	 */
-	public get validChildReferenceUris(): readonly URI[] {
+	public get validFileReferenceUris(): readonly URI[] {
 		return this.validChildReferences
 			.map(child => child.uri);
 	}

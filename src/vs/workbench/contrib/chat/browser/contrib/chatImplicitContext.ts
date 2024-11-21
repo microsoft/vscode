@@ -216,7 +216,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 			return [];
 		}
 
-		return this.promptFileReference.validChildReferenceUris;
+		return this.promptFileReference.validFileReferenceUris;
 	}
 
 	/**
