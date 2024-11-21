@@ -269,9 +269,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				tags: ['onExp', 'usesOnlineServices']
 			},
 			[AllowedExtensionsConfigKey]: {
-				type: ['object', 'string'],
+				type: 'object',
 				description: localize('extensions.allowed', "List of extensions that are allowed."),
 				default: '*',
+				defaultSnippets: [{
+					body: {
+						'*': true
+					}
+				}],
 				scope: ConfigurationScope.APPLICATION,
 				policy: {
 					name: 'AllowedExtensions',
@@ -279,16 +284,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				},
 				additionalProperties: false,
 				patternProperties: {
-					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.\\*$': {
-						type: ['boolean', 'string'],
-						enum: [true, false, 'stable'],
-						description: localize('extension.publisher.allow.description', "Allow or disallow all extensions from the publisher."),
-						enumDescriptions: [
-							localize('extensions.publisher.allowed.enable.desc', "All extensions from the publisher are allowed."),
-							localize('extensions.publisher.allowed.disable.desc', "All extensions from the publisher are not allowed."),
-							localize('extensions.publisher.allowed.disable.stable.desc', "Allow only stable versions of the extensions from the publisher."),
-						],
-					},
 					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
 						anyOf: [
 							{
@@ -302,10 +297,20 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 								],
 							},
 							{
-								type: 'string',
-								description: localize('extensions.allow.versions.description', "Allow a range of versions of the extension. A version range is specified using semver version range syntax. For example: `1.2.3`, `>1.2.3`, `>=1.2.3`, `<1.2.3`, `<=1.2.3`, `~1.2.3`, `1.x`, `1.2.x`, `~1.x`, `*`. To disallow prerelease versions use `!prerelease`"),
-							}
+								type: 'array',
+								description: localize('extensions.allow.version.description', "Allow or disallow specific versions of the extension. To specifcy a platform specific version, use the format `platform@1.2.3`, e.g. `win32-x64@1.2.3`. Supported platforms are `win32-x64`, `win32-arm64`, `linux-x64`, `linux-arm64`, `linux-armhf`, `alpine-x64`, `alpine-arm64`, `darwin-x64`, `darwin-arm64`"),
+							},
 						]
+					},
+					'([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+						type: ['boolean', 'string'],
+						enum: [true, false, 'stable'],
+						description: localize('extension.publisher.allow.description', "Allow or disallow all extensions from the publisher."),
+						enumDescriptions: [
+							localize('extensions.publisher.allowed.enable.desc', "All extensions from the publisher are allowed."),
+							localize('extensions.publisher.allowed.disable.desc', "All extensions from the publisher are not allowed."),
+							localize('extensions.publisher.allowed.disable.stable.desc', "Allow only stable versions of the extensions from the publisher."),
+						],
 					},
 					'\\*': {
 						type: 'boolean',
