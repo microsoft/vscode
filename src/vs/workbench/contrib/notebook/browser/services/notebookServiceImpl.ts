@@ -794,7 +794,7 @@ export class NotebookService extends Disposable implements INotebookService {
 
 		const serializer = info.serializer;
 		const outputSizeLimit = this._configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
-		const data: NotebookData = model.createSnapshot({ context: context, outputSizeLimit: outputSizeLimit });
+		const data: NotebookData = model.createSnapshot({ context: context, outputSizeLimit: outputSizeLimit, transientOptions: serializer.options });
 		const bytes = await serializer.notebookToData(data);
 
 		if (token.isCancellationRequested) {

@@ -280,6 +280,7 @@ export interface ICell {
 export interface INotebookSnapshotOptions {
 	context: SnapshotContext;
 	outputSizeLimit: number;
+	transientOptions?: TransientOptions;
 }
 
 export interface INotebookTextModel extends INotebookTextModelLike {

@@ -444,8 +444,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	createSnapshot(options: INotebookSnapshotOptions): NotebookData {
+		const transientOptions = options.transientOptions ?? this.transientOptions;
 		const data: NotebookData = {
-			metadata: filter(this.metadata, key => !this.transientOptions.transientDocumentMetadata[key]),
+			metadata: filter(this.metadata, key => !transientOptions.transientDocumentMetadata[key]),
 			cells: [],
 		};
 
@@ -471,8 +472,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				}
 			}
 
-			cellData.outputs = !this.transientOptions.transientOutputs ? cell.outputs : [];
-			cellData.metadata = filter(cell.metadata, key => !this.transientOptions.transientCellMetadata[key]);
+			cellData.outputs = !transientOptions.transientOutputs ? cell.outputs : [];
+			cellData.metadata = filter(cell.metadata, key => !transientOptions.transientCellMetadata[key]);
 
 			data.cells.push(cellData);
 		}
