@@ -86,8 +86,8 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 			icon: Codicon.close,
 			menu: [{
 				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
-				when: ContextKeyExpr.or(ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Attached), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Suggested), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Transient)),
-				order: 0,
+				// when: ContextKeyExpr.or(ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Attached), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Suggested), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Transient)),
+				order: 5,
 				group: 'navigation'
 			}],
 		});
@@ -286,6 +286,46 @@ export class ChatEditingDiscardAllAction extends Action2 {
 	}
 }
 registerAction2(ChatEditingDiscardAllAction);
+
+export class ChatEditingRemoveAllFilesAction extends Action2 {
+	static readonly ID = 'chatEditing.removeAllFiles';
+
+	constructor() {
+		super({
+			id: ChatEditingRemoveAllFilesAction.ID,
+			title: localize('removeAll', 'Remove All'),
+			icon: Codicon.clearAll,
+			tooltip: localize('removeAllFiles', 'Remove All Files'),
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate()),
+			menu: [
+				{
+					id: MenuId.ChatEditingWidgetToolbar,
+					group: 'navigation',
+					order: 5,
+					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const chatEditingService = accessor.get(IChatEditingService);
+		const currentEditingSession = chatEditingService.currentEditingSession;
+		if (!currentEditingSession) {
+			return;
+		}
+
+		const chatWidget = accessor.get(IChatWidgetService).getWidgetBySessionId(currentEditingSession.chatSessionId);
+		const uris = [...currentEditingSession.workingSet.keys()];
+		currentEditingSession.remove(WorkingSetEntryRemovalReason.User, ...uris);
+		for (const uri of chatWidget?.attachmentModel.attachments ?? []) {
+			if (uri.isFile && URI.isUri(uri.value)) {
+				chatWidget?.attachmentModel.delete(uri.value.toString());
+			}
+		}
+	}
+}
+registerAction2(ChatEditingRemoveAllFilesAction);
 
 export class ChatEditingShowChangesAction extends Action2 {
 	static readonly ID = 'chatEditing.viewChanges';
