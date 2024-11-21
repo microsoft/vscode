@@ -42,6 +42,7 @@ import { IEnvironmentService } from '../../../../../platform/environment/common/
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { IOffsetEdit, ISingleOffsetEdit, OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IChatService } from '../../common/chatService.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
@@ -471,6 +472,16 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._sequencer.queue(() => this._acceptTextEdits(resource, textEdits, isLastEdits, responseModel));
 	}
 
+	acceptNotebookEdits(resource: URI, edits: ICellEditOperation[], isLastEdits: boolean, responseModel: IChatResponseModel): void {
+		if (this._state.get() === ChatEditingSessionState.Disposed) {
+			// we don't throw in this case because there could be a builder still connected to a disposed session
+			return;
+		}
+
+		// ensure that the edits are processed sequentially
+		this._sequencer.queue(() => this._acceptNotebookEdits(resource, edits, isLastEdits, responseModel));
+	}
+
 	resolve(): void {
 		if (this._state.get() === ChatEditingSessionState.Disposed) {
 			// we don't throw in this case because there could be a builder still connected to a disposed session
@@ -537,7 +548,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		});
 	}
 
-	private async _acceptTextEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+	private async _acceptTextEdits(resource: URI, edits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
 		if (this._filesToSkipCreating.has(resource)) {
 			return;
 		}
@@ -567,7 +578,41 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			get result() { return responseModel.result; }
 		};
 		const entry = await this._getOrCreateModifiedFileEntry(resource, telemetryInfo);
-		entry.acceptAgentEdits(textEdits, isLastEdits);
+		entry.acceptAgentEdits(edits, isLastEdits);
+		// await this._editorService.openEditor({ resource: entry.modifiedURI, options: { inactive: true } });
+	}
+
+	private async _acceptNotebookEdits(resource: URI, edits: ICellEditOperation[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {
+		// if (this._filesToSkipCreating.has(resource)) {
+		// 	return;
+		// }
+
+		// if (!this._entriesObs.get().find(e => isEqual(e.modifiedURI, resource)) && this._entriesObs.get().length >= (await this.editingSessionFileLimitPromise)) {
+		// 	// Do not create files in a single editing session that would be in excess of our limit
+		// 	return;
+		// }
+
+		// if (resource.scheme !== Schemas.untitled && !this._workspaceContextService.getWorkspaceFolder(resource) && !(await this._fileService.exists(resource))) {
+		// 	// if the file doesn't exist yet and is outside the workspace, prompt the user for a location to save it to
+		// 	const saveLocation = await this._dialogService.showSaveDialog({ title: localize('chatEditing.fileSave', '{0} wants to create a file. Choose where it should be saved.', this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName ?? 'Chat') });
+		// 	if (!saveLocation) {
+		// 		// don't ask the user to create the file again when the next text edit for this same resource streams in
+		// 		this._filesToSkipCreating.add(resource);
+		// 		return;
+		// 	}
+		// 	resource = saveLocation;
+		// }
+
+		// // Make these getters because the response result is not available when the file first starts to be edited
+		// const telemetryInfo = new class {
+		// 	get agentId() { return responseModel.agent?.id; }
+		// 	get command() { return responseModel.slashCommand?.name; }
+		// 	get sessionId() { return responseModel.session.sessionId; }
+		// 	get requestId() { return responseModel.requestId; }
+		// 	get result() { return responseModel.result; }
+		// };
+		// const entry = await this._getOrCreateModifiedFileEntry(resource, telemetryInfo);
+		// entry.acceptAgentEdits(edits, isLastEdits);
 		// await this._editorService.openEditor({ resource: entry.modifiedURI, options: { inactive: true } });
 	}
 
