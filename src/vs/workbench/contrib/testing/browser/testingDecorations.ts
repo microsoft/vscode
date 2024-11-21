@@ -1332,6 +1332,8 @@ class TestMessageDecoration implements ITestDecoration {
 	}
 }
 
+const ERROR_CONTENT_WIDGET_HEIGHT = 20;
+
 class TestErrorContentWidget extends Disposable implements IContentWidget {
 	private readonly id = generateUuid();
 
@@ -1359,6 +1361,18 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 		@ITestingPeekOpener readonly peekOpener: ITestingPeekOpener,
 	) {
 		super();
+
+		const setMarginTop = () => {
+			const lineHeight = editor.getOption(EditorOption.lineHeight);
+			this.node.root.style.marginTop = (lineHeight - ERROR_CONTENT_WIDGET_HEIGHT) / 2 + 'px';
+		};
+
+		setMarginTop();
+		this._register(editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.lineHeight)) {
+				setMarginTop();
+			}
+		}));
 
 		let text: string;
 		if (message.expected !== undefined && message.actual !== undefined) {
