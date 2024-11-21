@@ -663,6 +663,7 @@ export interface ISerializableChatRequestData {
 	isHidden: boolean;
 	responseId?: string;
 	agent?: ISerializableChatAgentData;
+	workingSet?: UriComponents[];
 	slashCommand?: IChatAgentCommand;
 	// responseErrorDetails: IChatResponseErrorDetails | undefined;
 	result?: IChatAgentResult; // Optional for backcompat
@@ -1004,7 +1005,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 				// Old messages don't have variableData, or have it in the wrong (non-array) shape
 				const variableData: IChatRequestVariableData = this.reviveVariableData(raw.variableData);
-				const request = new ChatRequestModel(this, parsedRequest, variableData, raw.timestamp ?? -1, undefined, undefined, undefined, undefined, undefined, undefined, raw.requestId);
+				const request = new ChatRequestModel(this, parsedRequest, variableData, raw.timestamp ?? -1, undefined, undefined, undefined, undefined, raw.workingSet?.map((uri) => URI.revive(uri)), undefined, raw.requestId);
 				request.isHidden = !!raw.isHidden;
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
@@ -1292,6 +1293,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					vote: r.response?.vote,
 					voteDownReason: r.response?.voteDownReason,
 					agent: agentJson,
+					workingSet: r.workingSet,
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.usedContext,
 					contentReferences: r.response?.contentReferences,
