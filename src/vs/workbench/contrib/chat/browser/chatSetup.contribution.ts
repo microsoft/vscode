@@ -426,6 +426,11 @@ class ChatSetupHideAction extends Action2 {
 		super({
 			id: ChatSetupHideAction.ID,
 			title: ChatSetupHideAction.TITLE,
+			f1: true,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.triggered,
+				ChatContextKeys.Setup.installed.negate()
+			),
 			menu: {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_first',
