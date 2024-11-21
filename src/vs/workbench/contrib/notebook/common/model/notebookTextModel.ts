@@ -480,6 +480,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return data;
 	}
 
+	restoreSnapshot(snapshot: NotebookData, transientOptions?: TransientOptions): void {
+		this.reset(snapshot.cells, snapshot.metadata, transientOptions ?? this.transientOptions);
+	}
+
 	static computeEdits(model: NotebookTextModel, cells: ICellDto2[], executingHandles: number[] = []): ICellEditOperation[] {
 		const edits: ICellEditOperation[] = [];
 		const isExecuting = (cell: NotebookCellTextModel) => executingHandles.includes(cell.handle);
