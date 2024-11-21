@@ -3,24 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqual } from '../../../../../base/common/resources.js';
-import { Disposable, dispose, IDisposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { IChatEditingService, WorkingSetEntryState } from '../../../chat/common/chatEditingService.js';
-import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
-import { INotebookEditor, INotebookEditorContribution } from '../notebookBrowser.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
-import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { Disposable, dispose, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { IChatEditingService, WorkingSetEntryState } from '../../../../chat/common/chatEditingService.js';
+import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
+import { INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { NotebookDeletedCellDecorator, NotebookInsertedCellDecorator, NotebookCellDiffDecorator } from './notebookCellDecorators.js';
-import { INotebookModelSynchronizerFactory, NotebookModelSynchronizer } from './notebookSynchronizer.js';
-import { INotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
-import { debouncedObservable2 } from '../../../../../base/common/observableInternal/utils.js';
-import { CellDiffInfo } from '../diff/notebookDiffViewModel.js';
+import { INotebookModelSynchronizerFactory, NotebookModelSynchronizer, NotebookModelSynchronizerFactory } from './notebookSynchronizer.js';
+import { INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
+import { debouncedObservable2 } from '../../../../../../base/common/observableInternal/utils.js';
+import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
 import { NotebookChatActionsOverlayController } from './notebookChatActionsOverlay.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { localize } from '../../../../../nls.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { localize } from '../../../../../../nls.js';
+import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
+import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
+import { INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory } from './notebookOriginalCellModelFactory.js';
 
 export const ctxNotebookHasEditorModification = new RawContextKey<boolean>('chat.hasNotebookEditorModifications', undefined, localize('chat.hasNotebookEditorModifications', "The current Notebook editor contains chat modifications"));
 
@@ -61,8 +63,8 @@ class NotebookChatEditorController extends Disposable {
 		const notebookModel = observableFromEvent(this.notebookEditor.onDidChangeModel, e => e);
 		const originalModel = observableValue<NotebookTextModel | undefined>('originalModel', undefined);
 		const viewModelAttached = observableFromEvent(this.notebookEditor.onDidAttachViewModel, () => !!this.notebookEditor.getViewModel());
-		const onDidChangeVisibleRanges = debouncedObservable2(observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges), 100);
-		const decorators = new Map<NotebookCellTextModel, { editor: ICodeEditor } & IDisposable>();
+		const onDidChangeVisibleRanges = debouncedObservable2(observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges), 50);
+		const decorators = new Map<NotebookCellTextModel, NotebookCellDiffDecorator>();
 
 		let updatedCellDecoratorsOnceBefore = false;
 		let updatedDeletedInsertedDecoratorsOnceBefore = false;
@@ -117,7 +119,7 @@ class NotebookChatEditorController extends Disposable {
 		}).recomputeInitiallyAndOnChange(this._store).flatten();
 
 		const notebookCellDiffInfo = notebookDiffInfo.map(d => d?.cellDiff);
-		this._register(instantiationService.createInstance(NotebookChatActionsOverlayController, notebookEditor, notebookCellDiffInfo));
+		this._register(instantiationService.createInstance(NotebookChatActionsOverlayController, notebookEditor, notebookCellDiffInfo, this.deletedCellDecorator));
 
 		this._register(autorun(r => {
 			// If we have a new entry for the file, then clear old decorators.
@@ -152,22 +154,38 @@ class NotebookChatEditorController extends Disposable {
 			}
 
 			updatedCellDecoratorsOnceBefore = true;
+			const validDiffDecorators = new Set<NotebookCellDiffDecorator>();
 			diffInfo.cellDiff.forEach((diff) => {
 				if (diff.type === 'modified') {
 					const modifiedCell = modified.cells[diff.modifiedCellIndex];
-					const originalCellValue = original.cells[diff.originalCellIndex].getValue();
+					const originalCell = original.cells[diff.originalCellIndex];
 					const editor = this.notebookEditor.codeEditors.find(([vm,]) => vm.handle === modifiedCell.handle)?.[1];
-					if (editor && decorators.get(modifiedCell)?.editor !== editor) {
-						decorators.get(modifiedCell)?.dispose();
-						const decorator = this.instantiationService.createInstance(NotebookCellDiffDecorator, editor, originalCellValue, modifiedCell.cellKind);
-						decorators.set(modifiedCell, decorator);
-						this._register(editor.onDidDispose(() => {
-							decorator.dispose();
-							if (decorators.get(modifiedCell) === decorator) {
-								decorators.delete(modifiedCell);
-							}
-						}));
+
+					if (editor) {
+						const currentDecorator = decorators.get(modifiedCell);
+						if ((currentDecorator?.modifiedCell !== modifiedCell || currentDecorator?.originalCell !== originalCell)) {
+							currentDecorator?.dispose();
+							const decorator = this.instantiationService.createInstance(NotebookCellDiffDecorator, notebookEditor, modifiedCell, originalCell);
+							decorators.set(modifiedCell, decorator);
+							validDiffDecorators.add(decorator);
+							this._register(editor.onDidDispose(() => {
+								decorator.dispose();
+								if (decorators.get(modifiedCell) === decorator) {
+									decorators.delete(modifiedCell);
+								}
+							}));
+						} else if (currentDecorator) {
+							validDiffDecorators.add(currentDecorator);
+						}
 					}
+				}
+			});
+
+			// Dispose old decorators
+			decorators.forEach((v, cell) => {
+				if (!validDiffDecorators.has(v)) {
+					v.dispose();
+					decorators.delete(cell);
 				}
 			});
 		}));
@@ -191,3 +209,8 @@ class NotebookChatEditorController extends Disposable {
 	}
 
 }
+
+registerNotebookContribution(NotebookChatEditorControllerContrib.ID, NotebookChatEditorControllerContrib);
+registerSingleton(INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory, InstantiationType.Delayed);
+registerSingleton(INotebookModelSynchronizerFactory, NotebookModelSynchronizerFactory, InstantiationType.Delayed);
+registerSingleton(INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory, InstantiationType.Delayed);

@@ -14,7 +14,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { disposeIfDisposable } from '../../../../base/common/lifecycle.js';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, ExtensionEditorTab, ExtensionRuntimeActionType, IExtensionArg, AutoUpdateConfigurationKey } from '../common/extensions.js';
 import { ExtensionsConfigurationInitialContent } from '../common/extensionsFileTemplate.js';
-import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, ExtensionManagementErrorCode } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { areSameExtensions, getExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -447,7 +447,7 @@ export class InstallAction extends ExtensionAction {
 		}
 		this.hidden = false;
 		this.class = InstallAction.CLASS;
-		if (await this.extensionsWorkbenchService.canInstall(this.extension)) {
+		if (await this.extensionsWorkbenchService.canInstall(this.extension) === true) {
 			this.enabled = true;
 			this.updateLabel();
 		}
@@ -947,7 +947,7 @@ export class UpdateAction extends ExtensionAction {
 		const canInstall = await this.extensionsWorkbenchService.canInstall(this.extension);
 		const isInstalled = this.extension.state === ExtensionState.Installed;
 
-		this.enabled = canInstall && isInstalled && this.extension.outdated;
+		this.enabled = canInstall === true && isInstalled && this.extension.outdated;
 		this.class = this.enabled ? UpdateAction.EnabledClass : UpdateAction.DisabledClass;
 	}
 
@@ -2556,18 +2556,10 @@ export class ExtensionStatusAction extends ExtensionAction {
 			}
 		}
 
-		if (this.extension.gallery && this.extension.state === ExtensionState.Uninstalled && !await this.extensionsWorkbenchService.canInstall(this.extension)) {
-			if (this.extensionManagementServerService.localExtensionManagementServer || this.extensionManagementServerService.remoteExtensionManagementServer) {
-				const targetPlatform = await (this.extensionManagementServerService.localExtensionManagementServer ? this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.getTargetPlatform() : this.extensionManagementServerService.remoteExtensionManagementServer!.extensionManagementService.getTargetPlatform());
-				const message = new MarkdownString(`${localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", this.extension.displayName || this.extension.identifier.id, this.productService.nameLong, TargetPlatformToString(targetPlatform))} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-platform-specific-extensions)`);
-				this.updateStatus({ icon: warningIcon, message }, true);
-				return;
-			}
-
-			if (this.extensionManagementServerService.webExtensionManagementServer) {
-				const productName = localize('VS Code for Web', "{0} for the Web", this.productService.nameLong);
-				const message = new MarkdownString(`${localize('not web tooltip', "The '{0}' extension is not available in {1}.", this.extension.displayName || this.extension.identifier.id, productName)} [${localize('learn why', "Learn Why")}](https://aka.ms/vscode-web-extensions-guide)`);
-				this.updateStatus({ icon: warningIcon, message }, true);
+		if (this.extension.gallery && this.extension.state === ExtensionState.Uninstalled) {
+			const result = await this.extensionsWorkbenchService.canInstall(this.extension);
+			if (result !== true) {
+				this.updateStatus({ icon: warningIcon, message: result }, true);
 				return;
 			}
 		}
