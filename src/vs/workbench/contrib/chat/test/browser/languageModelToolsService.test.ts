@@ -10,6 +10,8 @@ import { ContextKeyEqualsExpr, IContextKeyService } from '../../../../../platfor
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
 import { IToolData, IToolImpl, IToolInvocation } from '../../common/languageModelToolsService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 suite('LanguageModelToolsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -18,7 +20,9 @@ suite('LanguageModelToolsService', () => {
 	let service: LanguageModelToolsService;
 
 	setup(() => {
-		const instaService = workbenchInstantiationService();
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(new TestConfigurationService))
+		}, store);
 		contextKeyService = instaService.get(IContextKeyService);
 		service = store.add(instaService.createInstance(LanguageModelToolsService));
 	});
