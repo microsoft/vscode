@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command } from 'vscode';
+import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString } from 'vscode';
 import { Model } from './model';
 import { dispose, fromNow, IDisposable, pathEquals } from './util';
 import { Repository } from './repository';
@@ -84,6 +84,41 @@ function processTextEditorChangesWithBlameInformation(blameInformation: BlameInf
 	}
 
 	return changesWithBlameInformation;
+}
+
+function getBlameInformationHover(documentUri: Uri, blameInformation: BlameInformation | string): MarkdownString {
+	if (typeof blameInformation === 'string') {
+		return new MarkdownString(blameInformation, true);
+	}
+
+	const markdownString = new MarkdownString();
+	markdownString.supportThemeIcons = true;
+	markdownString.isTrusted = true;
+
+	if (blameInformation.authorName) {
+		markdownString.appendMarkdown(`$(account) **${blameInformation.authorName}**`);
+
+		if (blameInformation.date) {
+			const dateString = new Date(blameInformation.date).toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+			markdownString.appendMarkdown(`, $(history) ${fromNow(blameInformation.date, true, true)} (${dateString})`);
+		}
+
+		markdownString.appendMarkdown('\n\n');
+	}
+
+	markdownString.appendMarkdown(`${blameInformation.message}\n\n`);
+	markdownString.appendMarkdown(`---\n\n`);
+
+	markdownString.appendMarkdown(`[$(eye) View Commit](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformation.id]))})`);
+	markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
+	markdownString.appendMarkdown(`[$(copy) ${blameInformation.id.substring(0, 8)}](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.id))})`);
+
+	if (blameInformation.message) {
+		markdownString.appendMarkdown('&nbsp;&nbsp;');
+		markdownString.appendMarkdown(`[$(copy) Message](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.message))})`);
+	}
+
+	return markdownString;
 }
 
 interface RepositoryBlameInformation {
@@ -314,16 +349,19 @@ class GitBlameEditorDecoration {
 			const contentText = typeof blame.blameInformation === 'string'
 				? blame.blameInformation
 				: `${blame.blameInformation.message ?? ''}, ${blame.blameInformation.authorName ?? ''} (${fromNow(blame.blameInformation.date ?? Date.now(), true, true)})`;
-			return this._createDecoration(blame.lineNumber, contentText);
+			const hoverMessage = getBlameInformationHover(textEditor.document.uri, blame.blameInformation);
+
+			return this._createDecoration(blame.lineNumber, contentText, hoverMessage);
 		});
 
 		textEditor.setDecorations(this._decorationType, decorations);
 	}
 
-	private _createDecoration(lineNumber: number, contentText: string): DecorationOptions {
+	private _createDecoration(lineNumber: number, contentText: string, hoverMessage: MarkdownString): DecorationOptions {
 		const position = new Position(lineNumber, Number.MAX_SAFE_INTEGER);
 
 		return {
+			hoverMessage,
 			range: new Range(position, position),
 			renderOptions: {
 				after: {
@@ -389,6 +427,7 @@ class GitBlameStatusBarItem {
 
 		if (!this._statusBarItem) {
 			this._statusBarItem = window.createStatusBarItem('git.blame', StatusBarAlignment.Right, 200);
+			this._statusBarItem.name = l10n.t('Git Blame Information');
 			this._disposables.push(this._statusBarItem);
 		}
 
@@ -400,11 +439,14 @@ class GitBlameStatusBarItem {
 
 		if (typeof blameInformation[0].blameInformation === 'string') {
 			this._statusBarItem.text = `$(git-commit) ${blameInformation[0].blameInformation}`;
+			this._statusBarItem.tooltip = getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
+			this._statusBarItem.command = undefined;
 		} else {
 			this._statusBarItem.text = `$(git-commit) ${blameInformation[0].blameInformation.authorName ?? ''} (${fromNow(blameInformation[0].blameInformation.date ?? new Date(), true, true)})`;
+			this._statusBarItem.tooltip = getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
 			this._statusBarItem.command = {
 				title: l10n.t('View Commit'),
-				command: 'git.statusBar.viewCommit',
+				command: 'git.blameStatusBarItem.viewCommit',
 				arguments: [textEditor.document.uri, blameInformation[0].blameInformation.id]
 			} satisfies Command;
 		}

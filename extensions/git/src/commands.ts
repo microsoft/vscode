@@ -4307,7 +4307,7 @@ export class CommandCenter {
 		env.clipboard.writeText(historyItem.message);
 	}
 
-	@command('git.statusBar.viewCommit', { repository: true })
+	@command('git.blameStatusBarItem.viewCommit', { repository: true })
 	async viewStatusBarCommit(repository: Repository, historyItemId: string): Promise<void> {
 		if (!repository || !historyItemId) {
 			return;
@@ -4323,6 +4323,15 @@ export class CommandCenter {
 		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
 
 		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
+	}
+
+	@command('git.blameStatusBarItem.copyContent')
+	async blameStatusBarCopyContent(content: string): Promise<void> {
+		if (typeof content !== 'string') {
+			return;
+		}
+
+		env.clipboard.writeText(content);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
