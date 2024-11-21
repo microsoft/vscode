@@ -2266,7 +2266,6 @@ declare namespace monaco.editor {
 		 * @return An array with the decorations
 		 */
 		getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): IModelDecoration[];
-		getTextDecorationsInRange(range: IRange, ownerId?: number): IModelDecoration[];
 		/**
 		 * Gets all the decorations as an array.
 		 * @param ownerId If set, it will ignore decorations belonging to other owners.
@@ -2278,11 +2277,6 @@ declare namespace monaco.editor {
 		 * @param ownerId If set, it will ignore decorations belonging to other owners.
 		 */
 		getAllMarginDecorations(ownerId?: number): IModelDecoration[];
-		/**
-		 * Gets all decorations that apply to text.
-		 * @param ownerId If set, it will ignore decorations belonging to other owners.
-		 */
-		getAllTextDecorations(ownerId?: number): IModelDecoration[];
 		/**
 		 * Gets all the decorations that should be rendered in the overview ruler as an array.
 		 * @param ownerId If set, it will ignore decorations belonging to other owners.

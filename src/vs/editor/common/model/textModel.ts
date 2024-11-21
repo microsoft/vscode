@@ -181,9 +181,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private static readonly LARGE_FILE_LINE_COUNT_THRESHOLD = 300 * 1000; // 300K lines
 	private static readonly LARGE_FILE_HEAP_OPERATION_THRESHOLD = 256 * 1024 * 1024; // 256M characters, usually ~> 512MB memory usage
 
-	private readonly maxLogsIndex = 10;
-	private currentIndex = 0;
-
 	public static DEFAULT_CREATION_OPTIONS: model.ITextModelCreationOptions = {
 		isForSimpleWidget: false,
 		tabSize: EDITOR_MODEL_DEFAULTS.tabSize,
@@ -1778,29 +1775,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._decorationsTree.getAll(this, ownerId, false, false, true);
 	}
 
-	public getAllTextDecorations(ownerId: number = 0): model.IModelDecoration[] {
-		if (this.currentIndex < this.maxLogsIndex) {
-			console.log('getAllTextDecorations of TextModel');
-			console.log('ownerId : ', ownerId);
-		}
-		this.currentIndex++;
-		return this._decorationsTree.getAllTextDecorations(this, ownerId);
-	}
-
-	public getTextDecorationsInRange(filterRange: Range, filterOwnerId: number): model.IModelDecoration[] {
-		const startOffset = this._buffer.getOffsetAt(filterRange.startLineNumber, filterRange.startColumn);
-		const endOffset = this._buffer.getOffsetAt(filterRange.endLineNumber, filterRange.endColumn);
-
-		if (this.currentIndex < this.maxLogsIndex) {
-			console.log('getTextDecorationsInRange');
-			console.log('filterRange : ', filterRange);
-			console.log('filterOwnerId : ', filterOwnerId);
-			console.log('startOffset : ', startOffset);
-			console.log('endOffset : ', endOffset);
-		}
-		return this._decorationsTree.getTextDecorationsInInterval(this, startOffset, endOffset, filterOwnerId);
-	}
-
 	private _getDecorationsInRange(filterRange: Range, filterOwnerId: number, filterOutValidation: boolean, onlyMarginDecorations: boolean): model.IModelDecoration[] {
 		const startOffset = this._buffer.getOffsetAt(filterRange.startLineNumber, filterRange.startColumn);
 		const endOffset = this._buffer.getOffsetAt(filterRange.endLineNumber, filterRange.endColumn);
@@ -2064,9 +2038,6 @@ class DecorationsTrees {
 	 */
 	private readonly _injectedTextDecorationsTree: IntervalTree;
 
-	private readonly maxLogsIndex = 20;
-	private currentIndex = 0;
-
 	constructor() {
 		this._decorationsTree0 = new IntervalTree();
 		this._decorationsTree1 = new IntervalTree();
@@ -2105,48 +2076,10 @@ class DecorationsTrees {
 		return this._ensureNodesHaveRanges(host, result).filter((i) => i.options.showIfCollapsed || !i.range.isEmpty());
 	}
 
-	public getDecoratedTextInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): model.IModelDecoration[] {
-		if (this.currentIndex < this.maxLogsIndex) {
-			console.log('getDecoratedTextInInterval');
-			console.log('start : ', start);
-			console.log('end : ', end);
-			console.log('filterOwnerId : ', filterOwnerId);
-		}
-		const versionId = host.getVersionId();
-		const result = this._injectedTextDecorationsTree.intervalSearch(start, end, filterOwnerId, false, versionId, false).concat(this._decorationsTree0.intervalSearch(start, end, filterOwnerId, false, versionId, false));
-		return this._ensureNodesHaveRanges(host, result).filter((i) => i.options.showIfCollapsed || !i.range.isEmpty());
-	}
-
 	public getAllInjectedText(host: IDecorationsTreesHost, filterOwnerId: number): model.IModelDecoration[] {
 		const versionId = host.getVersionId();
-		// Here we search the inject text decoration tree
-		// The method below searches the injected text decoration tree as well as the simple decorations tree
 		const result = this._injectedTextDecorationsTree.search(filterOwnerId, false, versionId, false);
 		return this._ensureNodesHaveRanges(host, result).filter((i) => i.options.showIfCollapsed || !i.range.isEmpty());
-	}
-
-	public getAllTextDecorations(host: IDecorationsTreesHost, filterOwnerId: number): model.IModelDecoration[] {
-		if (this.currentIndex < this.maxLogsIndex) {
-			console.log('getAllTextDecorations of DecorationsTree');
-			console.log('filterOwnerId : ', filterOwnerId);
-		}
-		this.currentIndex++;
-		const versionId = host.getVersionId();
-		const result = this._injectedTextDecorationsTree.search(filterOwnerId, false, versionId, false).concat(this._decorationsTree0.search(filterOwnerId, true, versionId, false));
-		return this._ensureNodesHaveRanges(host, result);
-	}
-
-	public getTextDecorationsInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): model.IModelDecoration[] {
-		if (this.currentIndex < this.maxLogsIndex) {
-			console.log('getTextDecorationsInInterval');
-			console.log('start : ', start);
-			console.log('end : ', end);
-			console.log('filterOwnerId : ', filterOwnerId);
-		}
-		const versionId = host.getVersionId();
-		let result = this._decorationsTree0.intervalSearch(start, end, filterOwnerId, true, versionId, false);
-		result = result.concat(this._injectedTextDecorationsTree.intervalSearch(start, end, filterOwnerId, true, versionId, false));
-		return this._ensureNodesHaveRanges(host, result);
 	}
 
 	public getAll(host: IDecorationsTreesHost, filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean, onlyMarginDecorations: boolean): model.IModelDecoration[] {

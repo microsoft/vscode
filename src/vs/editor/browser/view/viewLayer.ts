@@ -456,7 +456,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 	private _renderUntouchedLines(ctx: IRendererContext<T>, startIndex: number, endIndex: number, deltaTop: number[], deltaLN: number): void {
 		if (this.currentIndex < this.maxLogsIndex) {
-			console.log('_renderUntouchedLines');
+			console.log('_renderUntouchedLines test');
 			console.log('startIndex ', startIndex);
 			console.log('endIndex ', endIndex);
 			console.log('deltaTop ', deltaTop);
@@ -477,7 +477,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				console.log('deltaIndex ', deltaIndex);
 				console.log('lineHeight ', lineHeight);
 			}
-			lines[i].layoutLine(lineNumber, deltaTop[deltaIndex], lineHeight);
+			lines[i].layoutLine(lineNumber, deltaTop[deltaIndex], lineHeight); // Setting the line height!
 		}
 	}
 

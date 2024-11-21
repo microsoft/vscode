@@ -16,7 +16,7 @@ export class LineDecoration {
 		public readonly endColumn: number,
 		public readonly className: string,
 		public readonly type: InlineDecorationType,
-		public readonly lineHeight?: number,
+		public readonly lineHeight?: number, // do we need this?
 		public readonly fontSize?: number,
 	) {
 	}

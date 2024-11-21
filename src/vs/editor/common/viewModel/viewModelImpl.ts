@@ -116,9 +116,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		this._cursor = this._register(new CursorsController(model, this, this.coordinatesConverter, this.cursorConfig));
 
-		this._decorations = new ViewModelDecorations(this._editorId, this.model, this._configuration, this._lines, this.coordinatesConverter);
-
-		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), scheduleAtNextAnimationFrame, this._decorations));
+		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), scheduleAtNextAnimationFrame));
 
 		this._register(this.viewLayout.onDidScroll((e) => {
 			if (e.scrollTopChanged) {
@@ -136,6 +134,20 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		this._register(this.viewLayout.onDidContentSizeChange((e) => {
 			this._eventDispatcher.emitOutgoingEvent(e);
+		}));
+
+		this._decorations = new ViewModelDecorations(this._editorId, this.model, this._configuration, this._lines, this.coordinatesConverter);
+		this._register(this._decorations.onViewModelDecorationAdded((decoration) => {
+			const decorationLineHeight = decoration.options.lineHeight;
+			if (decorationLineHeight !== undefined) {
+				const decorationRange = decoration.range;
+				for (let lineNumber = decorationRange.startLineNumber; lineNumber <= decorationRange.endLineNumber; lineNumber++) {
+					this.viewLayout.addSpecialLineHeight(lineNumber, decorationLineHeight);
+				}
+			}
+		}));
+		this._register(this._decorations.onViewModelDecorationsFlushed(() => {
+			this.viewLayout.clearSpecialLineHeights();
 		}));
 
 		this._registerModelEvents();

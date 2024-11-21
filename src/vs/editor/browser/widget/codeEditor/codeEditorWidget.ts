@@ -1345,7 +1345,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		// update all decorations
 		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
-		//
 		this.changeDecorations(accessor => this._decorationTypeKeysToIds[decorationTypeKey] = accessor.deltaDecorations(oldDecorationsIds, newModelDecorations));
 	}
 
@@ -1907,7 +1906,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return model;
 	}
 
-	//
 	private _registerDecorationType(description: string, key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void {
 		this._codeEditorService.registerDecorationType(description, key, options, parentTypeKey, this);
 	}
@@ -1916,7 +1914,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._codeEditorService.removeDecorationType(key);
 	}
 
-	//
 	private _resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions {
 		return this._codeEditorService.resolveDecorationOptions(typeKey, writable);
 	}

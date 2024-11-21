@@ -197,7 +197,7 @@ export class ViewCursor {
 
 			const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
 			const bottom = ctx.getVerticalOffsetForLineNumber(position.lineNumber + 1) - ctx.bigNumbersDelta;
-
+			// TODO
 			if (this.currentIndex < this.maxLogsIndex) {
 				console.log('_prepareRender');
 				console.log('top : ', top);

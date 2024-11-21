@@ -12,7 +12,6 @@ import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { LinesLayout } from './linesLayout.js';
 import { IEditorWhitespace, IPartialViewLinesViewportData, IViewLayout, IViewWhitespaceViewportData, IWhitespaceChangeAccessor, Viewport } from '../viewModel.js';
 import { ContentSizeChangedEvent } from '../viewModelEventDispatcher.js';
-import { ViewModelDecorations } from '../viewModel/viewModelDecorations.js';
 
 const SMOOTH_SCROLLING_TIME = 125;
 
@@ -164,7 +163,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	public readonly onDidScroll: Event<ScrollEvent>;
 	public readonly onDidContentSizeChange: Event<ContentSizeChangedEvent>;
 
-	constructor(configuration: IEditorConfiguration, lineCount: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable, decorations: ViewModelDecorations) {
+	constructor(configuration: IEditorConfiguration, lineCount: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
 		super();
 
 		this._configuration = configuration;
@@ -172,7 +171,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const padding = options.get(EditorOption.padding);
 
-		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight), padding.top, padding.bottom, decorations);
+		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight), padding.top, padding.bottom);
 		this._maxLineWidth = 0;
 		this._overlayWidgetsMinWidth = 0;
 
@@ -201,6 +200,14 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 	public onHeightMaybeChanged(): void {
 		this._updateHeight();
+	}
+
+	public addSpecialLineHeight(lineNumber: number, height: number): void {
+		this._linesLayout.addSpecialLineHeight(lineNumber, height);
+	}
+
+	public clearSpecialLineHeights(): void {
+		this._linesLayout.clearSpecialLineHeights();
 	}
 
 	private _configureSmoothScrollDuration(): void {

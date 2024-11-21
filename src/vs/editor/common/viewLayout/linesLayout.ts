@@ -5,7 +5,6 @@
 
 import { IEditorWhitespace, IPartialViewLinesViewportData, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from '../viewModel.js';
 import * as strings from '../../../base/common/strings.js';
-import { ViewModelDecorations } from '../viewModel/viewModelDecorations.js';
 
 interface IPendingChange { id: string; newAfterLineNumber: number; newHeight: number }
 interface IPendingRemove { id: string }
@@ -90,7 +89,6 @@ export class LinesLayout {
 
 	private readonly _instanceId: string;
 	private readonly _pendingChanges: PendingChanges;
-	private readonly _decorations: ViewModelDecorations;
 	private _lastWhitespaceId: number;
 	private _arr: EditorWhitespace[];
 	private _prefixSumValidIndex: number;
@@ -99,14 +97,14 @@ export class LinesLayout {
 	private _lineHeight: number;
 	private _paddingTop: number;
 	private _paddingBottom: number;
+	private _specialLineHeights = new Map<number, number>();
+
 	private readonly maxLogsIndex = 10;
 	private currentIndex = 0;
 
-	constructor(lineCount: number, lineHeight: number, paddingTop: number, paddingBottom: number, decorations: ViewModelDecorations) {
+	constructor(lineCount: number, lineHeight: number, paddingTop: number, paddingBottom: number) {
 		this._instanceId = strings.singleLetterHash(++LinesLayout.INSTANCE_COUNT);
 		this._pendingChanges = new PendingChanges();
-		this._decorations = decorations;
-		console.log('decorations : ', decorations);
 		this._lastWhitespaceId = 0;
 		this._arr = [];
 		this._prefixSumValidIndex = -1;
@@ -400,6 +398,14 @@ export class LinesLayout {
 		return this._arr[index].prefixSum;
 	}
 
+	public addSpecialLineHeight(lineNumber: number, height: number): void {
+		this._specialLineHeights.set(lineNumber, height);
+	}
+
+	public clearSpecialLineHeights(): void {
+		this._specialLineHeights.clear();
+	}
+
 	/**
 	 * Get the sum of heights for all objects.
 	 *
@@ -407,13 +413,32 @@ export class LinesLayout {
 	 */
 	public getLinesTotalHeight(): number {
 		this._checkPendingChanges();
-		const linesHeight = this._decorations.getDecorationsOffset();
-		if (this.currentIndex < this.maxLogsIndex) {
-			console.log('linesHeight : ', linesHeight);
-		}
+		const linesHeight = this._linesHeight();
 		const whitespacesHeight = this.getWhitespacesTotalHeight();
 
 		return linesHeight + whitespacesHeight + this._paddingTop + this._paddingBottom;
+	}
+
+	private _linesHeight(untilLineNumber?: number): number {
+		if (untilLineNumber === undefined) {
+			let specialLinesHeight = 0;
+			this._specialLineHeights.forEach((height) => {
+				specialLinesHeight += height;
+			});
+			const nonSpecialLinesHeight = (this._lineCount - this._specialLineHeights.size) * this._lineHeight;
+			return specialLinesHeight + nonSpecialLinesHeight;
+		} else {
+			let specialLinesHeight = 0;
+			let numberOfSpecialLines = 0;
+			this._specialLineHeights.forEach((height, lineNumber) => {
+				if (lineNumber <= untilLineNumber) {
+					specialLinesHeight += height;
+					numberOfSpecialLines++;
+				}
+			});
+			const nonSpecialLinesHeight = (untilLineNumber - numberOfSpecialLines) * this._lineHeight;
+			return specialLinesHeight + nonSpecialLinesHeight;
+		}
 	}
 
 	/**
@@ -500,11 +525,7 @@ export class LinesLayout {
 
 		let previousLinesHeight: number;
 		if (lineNumber > 1) {
-			previousLinesHeight = this._decorations.getDecorationsOffset(lineNumber);
-			if (this.currentIndex < this.maxLogsIndex) {
-				console.log('lineNumber : ', lineNumber);
-				console.log('previousLinesHeight : ', previousLinesHeight);
-			}
+			previousLinesHeight = this._linesHeight(lineNumber - 1);
 		} else {
 			previousLinesHeight = 0;
 		}
@@ -523,7 +544,7 @@ export class LinesLayout {
 	public getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones = false): number {
 		this._checkPendingChanges();
 		lineNumber = lineNumber | 0;
-		const previousLinesHeight = this._decorations.getDecorationsOffset(lineNumber);
+		const previousLinesHeight = this._linesHeight(lineNumber);
 		const previousWhitespacesHeight = this.getWhitespaceAccumulatedHeightBeforeLineNumber(lineNumber + (includeViewZones ? 1 : 0));
 		return previousLinesHeight + previousWhitespacesHeight + this._paddingTop;
 	}
@@ -596,10 +617,6 @@ export class LinesLayout {
 			return 1;
 		}
 
-		const heights = this._decorations.getDecorationsLineHeightMap();
-		if (this.currentIndex < this.maxLogsIndex) {
-			console.log('heights : ', heights);
-		}
 		const linesCount = this._lineCount | 0;
 		let minLineNumber = 1;
 		let maxLineNumber = linesCount;
@@ -607,10 +624,7 @@ export class LinesLayout {
 		while (minLineNumber < maxLineNumber) {
 			const midLineNumber = ((minLineNumber + maxLineNumber) / 2) | 0;
 
-			const lineHeight = heights[midLineNumber];
-			if (this.currentIndex < this.maxLogsIndex) {
-				console.log('lineHeight : ', lineHeight);
-			}
+			const lineHeight = this._lineHeightForLineNumber(midLineNumber);
 			const midLineNumberVerticalOffset = this.getVerticalOffsetForLineNumber(midLineNumber) | 0;
 
 			if (verticalOffset >= midLineNumberVerticalOffset + lineHeight) {
@@ -632,6 +646,16 @@ export class LinesLayout {
 		return minLineNumber;
 	}
 
+	private _lineHeightForLineNumber(lineNumber: number): number {
+		let lineHeight = 0;
+		if (this._specialLineHeights.has(lineNumber)) {
+			lineHeight = this._specialLineHeights.get(lineNumber)!;
+		} else {
+			lineHeight = this._lineHeight;
+		}
+		return lineHeight;
+	}
+
 	/**
 	 * Get all the lines and their relative vertical offsets that are positioned between `verticalOffset1` and `verticalOffset2`.
 	 *
@@ -646,10 +670,6 @@ export class LinesLayout {
 		this._checkPendingChanges();
 		verticalOffset1 = verticalOffset1 | 0;
 		verticalOffset2 = verticalOffset2 | 0;
-		const lineHeight = this._lineHeight;
-		if (this.currentIndex < this.maxLogsIndex) {
-			console.log('lineHeight : ', lineHeight);
-		}
 		// Find first line number
 		// We don't live in a perfect world, so the line number might start before or after verticalOffset1
 		const startLineNumber = this.getLineNumberAtOrAfterVerticalOffset(verticalOffset1) | 0;
@@ -681,39 +701,32 @@ export class LinesLayout {
 		if (startLineNumberVerticalOffset >= STEP_SIZE) {
 			// Compute a delta that guarantees that lines are positioned at `lineHeight` increments
 			bigNumbersDelta = Math.floor(startLineNumberVerticalOffset / STEP_SIZE) * STEP_SIZE;
-			bigNumbersDelta = Math.floor(bigNumbersDelta / lineHeight) * lineHeight;
+			bigNumbersDelta = Math.floor(bigNumbersDelta / this._lineHeight) * this._lineHeight;
 
 			currentLineRelativeOffset -= bigNumbersDelta;
 		}
 
 		const linesOffsets: number[] = [];
-		const heights = this._decorations.getDecorationsLineHeightMap();
-		if (this.currentIndex < this.maxLogsIndex) {
-			console.log('heights : ', heights);
-		}
 		const verticalCenter = verticalOffset1 + (verticalOffset2 - verticalOffset1) / 2;
 		let centeredLineNumber = -1;
 
 		// Figure out how far the lines go
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			const currentLineHeight = heights[lineNumber];
-			if (this.currentIndex < this.maxLogsIndex) {
-				console.log('currentLineHeight : ', currentLineHeight);
-			}
+			const lineHeight = this._lineHeightForLineNumber(lineNumber);
 			if (centeredLineNumber === -1) {
 				const currentLineTop = currentVerticalOffset;
-				const currentLineBottom = currentVerticalOffset + currentLineHeight;
+				const currentLineBottom = currentVerticalOffset + lineHeight;
 				if ((currentLineTop <= verticalCenter && verticalCenter < currentLineBottom) || currentLineTop > verticalCenter) {
 					centeredLineNumber = lineNumber;
 				}
 			}
 
 			// Count current line height in the vertical offsets
-			currentVerticalOffset += currentLineHeight;
+			currentVerticalOffset += lineHeight;
 			linesOffsets[lineNumber - startLineNumber] = currentLineRelativeOffset;
 
 			// Next line starts immediately after this one
-			currentLineRelativeOffset += currentLineHeight;
+			currentLineRelativeOffset += lineHeight;
 			while (currentWhitespaceAfterLineNumber === lineNumber) {
 				// Push down next line with the height of the current whitespace
 				currentLineRelativeOffset += currentWhitespaceHeight;
@@ -755,11 +768,8 @@ export class LinesLayout {
 			}
 		}
 		if (completelyVisibleStartLineNumber < completelyVisibleEndLineNumber) {
-			if (this.currentIndex < this.maxLogsIndex) {
-				console.log('endLineNumberVerticalOffset + lineHeight : ', endLineNumberVerticalOffset + lineHeight);
-				console.log('endLineNumberVerticalOffset + heights[endLineNumber] : ', endLineNumberVerticalOffset + heights[endLineNumber]);
-			}
-			if (endLineNumberVerticalOffset + heights[endLineNumber] > verticalOffset2) {
+			const endLineHeight = this._lineHeightForLineNumber(endLineNumber);
+			if (endLineNumberVerticalOffset + endLineHeight > verticalOffset2) {
 				completelyVisibleEndLineNumber--;
 			}
 		}
@@ -788,7 +798,7 @@ export class LinesLayout {
 
 		let previousLinesHeight: number;
 		if (afterLineNumber >= 1) {
-			previousLinesHeight = this._decorations.getDecorationsOffset(afterLineNumber - 1);
+			previousLinesHeight = this._linesHeight(afterLineNumber);
 		} else {
 			previousLinesHeight = 0;
 		}
