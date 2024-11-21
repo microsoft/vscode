@@ -193,23 +193,23 @@ function addPositiveOffsetToModelPosition(model: ITextModel, position: Position,
 		throw new Error('Unexpected negative delta');
 	}
 	const lineCount = model.getLineCount();
-	let endPosition: Position | undefined;
+	let endPosition = new Position(lineCount, model.getLineMaxColumn(lineCount));
 	for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
 		if (lineNumber === position.lineNumber) {
-			const futureDelta = offset - model.getLineMaxColumn(position.lineNumber) + position.column;
-			if (futureDelta <= 0) {
+			const futureOffset = offset - model.getLineMaxColumn(position.lineNumber) + position.column;
+			if (futureOffset <= 0) {
 				endPosition = new Position(position.lineNumber, position.column + offset);
 				break;
 			}
-			offset = futureDelta;
+			offset = futureOffset;
 		} else {
-			const futureDelta = offset - model.getLineMaxColumn(lineNumber);
-			if (futureDelta <= 0) {
+			const futureOffset = offset - model.getLineMaxColumn(lineNumber);
+			if (futureOffset <= 0) {
 				endPosition = new Position(lineNumber, offset);
 				break;
 			}
-			offset = futureDelta;
+			offset = futureOffset;
 		}
 	}
-	return endPosition ?? new Position(lineCount, model.getLineMaxColumn(lineCount));
+	return endPosition;
 }

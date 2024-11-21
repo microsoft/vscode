@@ -1041,7 +1041,7 @@ class CompositionState {
 				textModel.getLineContent(lineNumber),
 				lineNumber,
 				selection.startColumn - 1,
-				selection.endColumn - 1,
+				selection.endColumn - 1
 			));
 		}
 		return result;

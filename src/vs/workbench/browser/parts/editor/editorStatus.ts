@@ -329,11 +329,11 @@ class StatusInputMode extends Disposable {
 
 	constructor(@IConfigurationService private readonly configurationService: IConfigurationService) {
 		super();
-		this.registerListeners();
+		this._registerListeners();
 		InputMode.setInputMode('insert');
 	}
 
-	private registerListeners(): void {
+	private _registerListeners(): void {
 		this._register(InputMode.onDidChangeInputMode(inputMode => this._onDidChange.fire(inputMode)));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.inputMode')) {

@@ -357,10 +357,10 @@ export class AutoClosingOpenCharTypeOperation {
 
 export class CompositionEndOvertypeOperation {
 
-	public static getEdits(config: CursorConfiguration, compositions: CompositionOutcome[]): EditOperationResult | undefined {
+	public static getEdits(config: CursorConfiguration, compositions: CompositionOutcome[]): EditOperationResult | null {
 		const isOvertypeMode = config.inputMode === 'overtype';
 		if (!isOvertypeMode) {
-			return undefined;
+			return null;
 		}
 		const commands = compositions.map(composition => new ReplaceOvertypeCommandOnCompositionEnd(composition.insertedTextRange));
 		return new EditOperationResult(EditOperationType.TypingOther, commands, {

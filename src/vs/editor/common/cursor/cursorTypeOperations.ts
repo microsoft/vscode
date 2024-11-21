@@ -90,7 +90,7 @@ export class TypeOperations {
 
 		if (!insertedText || insertedText.length !== 1) {
 			// we're only interested in the case where a single character was inserted
-			return CompositionEndOvertypeOperation.getEdits(config, compositions) ?? null;
+			return CompositionEndOvertypeOperation.getEdits(config, compositions);
 		}
 
 		const ch = insertedText;
@@ -159,7 +159,7 @@ export class TypeOperations {
 			return autoClosingOpenCharEdits;
 		}
 
-		return CompositionEndOvertypeOperation.getEdits(config, compositions) ?? null;
+		return CompositionEndOvertypeOperation.getEdits(config, compositions);
 	}
 
 	public static typeWithInterceptors(isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult {
