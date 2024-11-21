@@ -9,12 +9,14 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { OffsetEdit } from '../../../../editor/common/core/offsetEdit.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IChatAgentResult } from './chatAgents.js';
 import { IChatResponseModel } from './chatModel.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
@@ -106,18 +108,70 @@ export const enum ChatEditingSessionChangeType {
 	Other,
 }
 
-export interface IModifiedFileEntry {
+
+export interface IBaseSnapshotEntry {
+	readonly resource: URI;
+	readonly snapshotUri: URI;
+	readonly originalToCurrentEdit: OffsetEdit;
+	readonly state: WorkingSetEntryState;
+	telemetryInfo: IModifiedEntryTelemetryInfo;
+}
+
+export interface ITextSnapshotEntry extends IBaseSnapshotEntry {
+	kind: 'text';
+	readonly languageId: string;
+	readonly original: string;
+	readonly current: string;
+}
+
+export interface INotebookSnapshotEntry extends IBaseSnapshotEntry {
+	kind: 'notebook';
+}
+export type ISnapshotEntry = ITextSnapshotEntry | INotebookSnapshotEntry;
+
+export interface IModifiedEntryTelemetryInfo {
+	agentId: string | undefined;
+	command: string | undefined;
+	sessionId: string;
+	requestId: string;
+	result: IChatAgentResult | undefined;
+}
+
+export interface IModifiedAnyFileEntry extends IDisposable {
+	readonly entryId: string;
 	readonly originalURI: URI;
-	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
+	readonly onDidDelete: Event<void>;
 	readonly state: IObservable<WorkingSetEntryState>;
 	readonly isCurrentlyBeingModified: IObservable<boolean>;
 	readonly rewriteRatio: IObservable<number>;
 	readonly diffInfo: IObservable<IDocumentDiff>;
 	readonly lastModifyingRequestId: string;
+	readonly telemetryInfo: IModifiedEntryTelemetryInfo;
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
+	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean): void;
+	acceptStreamingEditsStart(tx: ITransaction): void;
+	acceptStreamingEditsEnd(tx: ITransaction): void;
+	updateTelemetryInfo(telemetryInfo: IModifiedEntryTelemetryInfo): void;
 }
+
+export interface IModifiedTextFileEntry extends IModifiedAnyFileEntry {
+	readonly kind: 'text';
+	readonly originalModel: ITextModel;
+	readonly modifiedModel: ITextModel;
+	resetToInitialValue(value: string): void;
+	createSnapshot(requestId: string | undefined): ITextSnapshotEntry;
+	restoreFromSnapshot(snapshot: ITextSnapshotEntry): void;
+}
+
+export interface IModifiedNotebookFileEntry extends IModifiedAnyFileEntry {
+	readonly kind: 'notebook';
+	createSnapshot(requestId: string | undefined): INotebookSnapshotEntry;
+	restoreFromSnapshot(snapshot: INotebookSnapshotEntry): void;
+}
+
+export type IModifiedFileEntry = IModifiedTextFileEntry | IModifiedNotebookFileEntry;
 
 export interface IChatEditingSessionStream {
 	textEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
