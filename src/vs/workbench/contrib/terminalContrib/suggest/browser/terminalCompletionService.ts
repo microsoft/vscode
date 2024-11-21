@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -197,44 +198,47 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		const resourceCompletions: ITerminalCompletion[] = [];
-		const fileStat = await this._fileService.resolve(cwd, { resolveSingleChildDescendants: true });
 
-		if (!fileStat || !fileStat?.children) {
-			return;
+		const parentDirPath = cwd.fsPath.split(resourceRequestConfig.pathSeparator).slice(0, -1).join(resourceRequestConfig.pathSeparator);
+		const parentCwd = URI.from({ scheme: cwd.scheme, path: parentDirPath });
+		const dirToPrefixMap = new Map<URI, string>();
+
+		dirToPrefixMap.set(cwd, '.');
+		dirToPrefixMap.set(parentCwd, '..');
+
+		const lastWord = promptValue.substring(0, cursorPosition).split(' ').pop() ?? '';
+
+		for (const [dir, prefix] of dirToPrefixMap) {
+			const fileStat = await this._fileService.resolve(dir, { resolveSingleChildDescendants: true });
+
+			if (!fileStat || !fileStat?.children) {
+				return;
+			}
+
+			for (const stat of fileStat.children) {
+				let kind: TerminalCompletionItemKind | undefined;
+				if (foldersRequested && stat.isDirectory) {
+					kind = TerminalCompletionItemKind.Folder;
+				}
+				if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === Schemas.file)) {
+					kind = TerminalCompletionItemKind.File;
+				}
+				if (kind === undefined) {
+					continue;
+				}
+
+				const label = prefix + stat.resource.fsPath.replace(cwd.fsPath, '');
+				resourceCompletions.push({
+					label,
+					kind,
+					isDirectory: kind === TerminalCompletionItemKind.Folder,
+					isFile: kind === TerminalCompletionItemKind.File,
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: label.length
+				});
+			}
 		}
 
-		for (const stat of fileStat.children) {
-			let kind: TerminalCompletionItemKind | undefined;
-			if (foldersRequested && stat.isDirectory) {
-				kind = TerminalCompletionItemKind.Folder;
-			}
-			if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === 'file')) {
-				kind = TerminalCompletionItemKind.File;
-			}
-			if (kind === undefined) {
-				continue;
-			}
-			const lastWord = promptValue.substring(0, cursorPosition).split(' ').pop();
-			const lastIndexOfDot = lastWord?.lastIndexOf('.') ?? -1;
-			const lastIndexOfSlash = lastWord?.lastIndexOf(resourceRequestConfig.pathSeparator) ?? -1;
-			let label;
-			if (lastIndexOfSlash > -1) {
-				label = stat.resource.fsPath.replace(cwd.fsPath, '').substring(1);
-			} else if (lastIndexOfDot === -1) {
-				label = '.' + stat.resource.fsPath.replace(cwd.fsPath, '');
-			} else {
-				label = stat.resource.fsPath.replace(cwd.fsPath, '');
-			}
-
-			resourceCompletions.push({
-				label,
-				kind,
-				isDirectory: kind === TerminalCompletionItemKind.Folder,
-				isFile: kind === TerminalCompletionItemKind.File,
-				replacementIndex: cursorPosition,
-				replacementLength: label.length
-			});
-		}
 		return resourceCompletions.length ? resourceCompletions : undefined;
 	}
 }
