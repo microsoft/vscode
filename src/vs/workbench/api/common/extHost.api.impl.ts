@@ -1667,6 +1667,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TerminalShellExecutionCommandLineConfidence: extHostTypes.TerminalShellExecutionCommandLineConfidence,
 			TerminalCompletionItem: extHostTypes.TerminalCompletionItem,
 			TerminalCompletionItemKind: extHostTypes.TerminalCompletionItemKind,
+			TerminalCompletionList: extHostTypes.TerminalCompletionList,
 			TextDocumentSaveReason: extHostTypes.TextDocumentSaveReason,
 			TextEdit: extHostTypes.TextEdit,
 			SnippetTextEdit: extHostTypes.SnippetTextEdit,
