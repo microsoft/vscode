@@ -67,7 +67,7 @@ export class ViewCursors extends ViewPart {
 
 		this._isVisible = false;
 
-		this._primaryCursor = new ViewCursor(this._context, CursorPlurality.Single, this._cursorStyle);
+		this._primaryCursor = new ViewCursor(this._context, CursorPlurality.Single);
 		this._secondaryCursors = [];
 		this._renderData = [];
 
@@ -114,6 +114,7 @@ export class ViewCursors extends ViewPart {
 
 		this._readOnly = options.get(EditorOption.readOnly);
 		this._cursorBlinking = options.get(EditorOption.cursorBlinking);
+		this._cursorStyle = options.get(EditorOption.effectiveCursorStyle);
 		this._cursorSmoothCaretAnimation = options.get(EditorOption.cursorSmoothCaretAnimation);
 		this._experimentalEditContextEnabled = options.get(EditorOption.experimentalEditContextEnabled);
 
@@ -139,7 +140,7 @@ export class ViewCursors extends ViewPart {
 			// Create new cursors
 			const addCnt = secondaryPositions.length - this._secondaryCursors.length;
 			for (let i = 0; i < addCnt; i++) {
-				const newCursor = new ViewCursor(this._context, CursorPlurality.MultiSecondary, this._cursorStyle);
+				const newCursor = new ViewCursor(this._context, CursorPlurality.MultiSecondary);
 				this._domNode.domNode.insertBefore(newCursor.getDomNode().domNode, this._primaryCursor.getDomNode().domNode.nextSibling);
 				this._secondaryCursors.push(newCursor);
 			}

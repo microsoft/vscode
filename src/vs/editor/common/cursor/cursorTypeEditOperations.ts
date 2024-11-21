@@ -6,7 +6,7 @@
 import { CharCode } from '../../../base/common/charCode.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import * as strings from '../../../base/common/strings.js';
-import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection, ReplaceOvertypeCommand, OvertypePasteCommand } from '../commands/replaceCommand.js';
+import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection, ReplaceOvertypeCommand, OvertypePasteCommand, ReplaceOvertypeCommandInComposition } from '../commands/replaceCommand.js';
 import { ShiftCommand } from '../commands/shiftCommand.js';
 import { SurroundSelectionCommand } from '../commands/surroundSelectionCommand.js';
 import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from '../cursorCommon.js';
@@ -23,6 +23,7 @@ import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from '../config/e
 import { createScopedLineTokens } from '../languages/supports.js';
 import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from '../languages/autoIndent.js';
 import { getEnterAction } from '../languages/enterAction.js';
+import { CompositionOutcome } from './cursorTypeOperations.js';
 
 export class AutoIndentOperation {
 
@@ -351,6 +352,21 @@ export class AutoClosingOpenCharTypeOperation {
 		const isBeforeClosingBrace = potentialClosingBraces.some(x => lineAfter.startsWith(x.close));
 
 		return !isBeforeStartingBrace && isBeforeClosingBrace;
+	}
+}
+
+export class CompositionOvertypeOperation {
+
+	public static getEdits(config: CursorConfiguration, compositions: CompositionOutcome[]): EditOperationResult | undefined {
+		const isOvertypeMode = config.inputMode === 'overtype';
+		if (!isOvertypeMode) {
+			return undefined;
+		}
+		const commands = compositions.map(composition => new ReplaceOvertypeCommandInComposition(composition.insertedTextRange));
+		return new EditOperationResult(EditOperationType.TypingOther, commands, {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: false
+		});
 	}
 }
 

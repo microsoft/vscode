@@ -58,12 +58,12 @@ export class ViewCursor {
 	private _lastRenderedContent: string;
 	private _renderData: ViewCursorRenderData | null;
 
-	constructor(context: ViewContext, plurality: CursorPlurality, cursorStyle: TextEditorCursorStyle) {
+	constructor(context: ViewContext, plurality: CursorPlurality) {
 		this._context = context;
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 
-		this._cursorStyle = cursorStyle;
+		this._cursorStyle = options.get(EditorOption.effectiveCursorStyle);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);

@@ -11,8 +11,7 @@ import { Selection } from '../core/selection.js';
 import { Position } from '../core/position.js';
 import { ICommand } from '../editorCommon.js';
 import { ITextModel } from '../model.js';
-import { AutoClosingOpenCharTypeOperation, AutoClosingOvertypeOperation, AutoClosingOvertypeWithInterceptorsOperation, AutoIndentOperation, CompositionOperation, EnterOperation, InterceptorElectricCharOperation, PasteOperation, shiftIndent, shouldSurroundChar, SimpleCharacterTypeOperation, SurroundSelectionOperation, TabOperation, TypeWithoutInterceptorsOperation, unshiftIndent } from './cursorTypeEditOperations.js';
-import { ReplaceOvertypeCommandInComposition } from '../commands/replaceCommand.js';
+import { AutoClosingOpenCharTypeOperation, AutoClosingOvertypeOperation, AutoClosingOvertypeWithInterceptorsOperation, AutoIndentOperation, CompositionOperation, CompositionOvertypeOperation, EnterOperation, InterceptorElectricCharOperation, PasteOperation, shiftIndent, shouldSurroundChar, SimpleCharacterTypeOperation, SurroundSelectionOperation, TabOperation, TypeWithoutInterceptorsOperation, unshiftIndent } from './cursorTypeEditOperations.js';
 
 export class TypeOperations {
 
@@ -91,7 +90,7 @@ export class TypeOperations {
 
 		if (!insertedText || insertedText.length !== 1) {
 			// we're only interested in the case where a single character was inserted
-			return this._getOvertypeEdits(config, compositions) ?? null;
+			return CompositionOvertypeOperation.getEdits(config, compositions) ?? null;
 		}
 
 		const ch = insertedText;
@@ -159,22 +158,8 @@ export class TypeOperations {
 		if (autoClosingOpenCharEdits !== undefined) {
 			return autoClosingOpenCharEdits;
 		}
-		return this._getOvertypeEdits(config, compositions) ?? null;
-	}
 
-	private static _getOvertypeEdits(config: CursorConfiguration, compositions: CompositionOutcome[] | null): EditOperationResult | undefined {
-		if (!compositions) {
-			return undefined;
-		}
-		const isOvertypeMode = config.inputMode === 'overtype';
-		if (!isOvertypeMode) {
-			return undefined;
-		}
-		const commands = compositions.map(composition => new ReplaceOvertypeCommandInComposition(composition.insertedTextRange));
-		return new EditOperationResult(EditOperationType.TypingOther, commands, {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: false
-		});
+		return CompositionOvertypeOperation.getEdits(config, compositions) ?? null;
 	}
 
 	public static typeWithInterceptors(isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult {

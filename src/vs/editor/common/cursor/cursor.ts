@@ -1020,9 +1020,9 @@ export class CommandExecutor {
 class CompositionLineState {
 	constructor(
 		public readonly text: string,
+		public readonly lineNumber: number,
 		public readonly startSelectionOffset: number,
-		public readonly endSelectionOffset: number,
-		public readonly lineNumber: number
+		public readonly endSelectionOffset: number
 	) { }
 }
 
@@ -1039,9 +1039,9 @@ class CompositionState {
 			const lineNumber = selection.startLineNumber;
 			result.push(new CompositionLineState(
 				textModel.getLineContent(lineNumber),
+				lineNumber,
 				selection.startColumn - 1,
 				selection.endColumn - 1,
-				lineNumber
 			));
 		}
 		return result;
