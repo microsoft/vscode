@@ -128,10 +128,10 @@ function main([esrpCliPath, type, folderPath, pattern]) {
     process.on('exit', () => tmp.dispose());
     const key = crypto.randomBytes(32);
     const iv = crypto.randomBytes(16);
-    const encryptionDetailsPath = tmp.tmpNameSync();
-    fs.writeFileSync(encryptionDetailsPath, JSON.stringify({ key: key.toString('hex'), iv: iv.toString('hex') }));
     const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
     const encryptedToken = cipher.update(process.env['SYSTEM_ACCESSTOKEN'].trim(), 'utf8', 'hex') + cipher.final('hex');
+    const encryptionDetailsPath = tmp.tmpNameSync();
+    fs.writeFileSync(encryptionDetailsPath, JSON.stringify({ key: key.toString('hex'), iv: iv.toString('hex') }));
     const encryptedTokenPath = tmp.tmpNameSync();
     fs.writeFileSync(encryptedTokenPath, encryptedToken);
     const patternPath = tmp.tmpNameSync();
