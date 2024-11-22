@@ -11,10 +11,10 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
-import { PromptFileReference, TErrorCondition } from '../../browser/promptFileReference.js';
+import { PromptFileReference, TErrorCondition } from '../../common/promptFileReference.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { FileOpenFailed, RecursiveReference, NotPromptSnippetFile } from '../../browser/promptFileReferenceErrors.js';
+import { FileOpenFailed, RecursiveReference, NotPromptSnippetFile } from '../../common/promptFileReferenceErrors.js';
 
 /**
  * Represents a file system node.

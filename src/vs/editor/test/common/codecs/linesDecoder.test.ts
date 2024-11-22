@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TestDecoder } from './utils/testDecoder.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { newWriteableStream } from '../../../../../base/common/stream.js';
-import { Line } from '../../../../common/codecs/linesCodec/tokens/line.js';
-import { NewLine } from '../../../../common/codecs/linesCodec/tokens/newLine.js';
-import { LinesDecoder, TLineToken } from '../../../../common/codecs/linesCodec/linesDecoder.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestDecoder } from '../utils/testDecoder.js';
+import { Range } from '../../../common/core/range.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { newWriteableStream } from '../../../../base/common/stream.js';
+import { Line, NewLine } from '../../../common/codecs/linesCodec/tokens/index.js';
+import { LinesDecoder, TLineToken } from '../../../common/codecs/linesCodec/linesDecoder.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 /**
  * A reusable test utility that asserts that a `LinesDecoder` instance

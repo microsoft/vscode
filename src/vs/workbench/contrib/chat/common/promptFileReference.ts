@@ -9,8 +9,8 @@ import { extUri } from '../../../../base/common/resources.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ChatbotPromptCodec } from '../../../common/codecs/chatbotPromptCodec/chatbotPromptCodec.js';
 import { FileOpenFailed, NotPromptSnippetFile, RecursiveReference } from './promptFileReferenceErrors.js';
+import { ChatbotPromptCodec } from '../../../../editor/common/codecs/chatbotPromptCodec/chatbotPromptCodec.js';
 import { FileChangesEvent, FileChangeType, IFileService, IFileStreamContent } from '../../../../platform/files/common/files.js';
 
 /**

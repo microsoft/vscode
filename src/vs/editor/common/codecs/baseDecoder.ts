@@ -16,7 +16,10 @@ import { TStreamListenerNames } from './types/TStreamListenerEventNames.js';
  * "decoded" into a stream of well defined objects.
  * Intended to be a part of "codec" implementation rather than used directly.
  */
-export abstract class BaseDecoder<T extends NonNullable<unknown>, K extends NonNullable<unknown> = NonNullable<unknown>> extends Disposable implements ReadableStream<T> {
+export abstract class BaseDecoder<
+	T extends NonNullable<unknown>,
+	K extends NonNullable<unknown> = NonNullable<unknown>,
+> extends Disposable implements ReadableStream<T> {
 	/**
 	 * Flag that indicates if the decoder stream has ended.
 	 */

@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { randomInt } from './randomInt.js';
-import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { BaseToken } from '../../../../../common/codecs/baseToken.js';
-import { BaseDecoder } from '../../../../../common/codecs/baseDecoder.js';
-import { WriteableStream } from '../../../../../../base/common/stream.js';
-import { Line, NewLine } from '../../../../../common/codecs/linesCodec/tokens/index.js';
-import { Space, Tab, Word } from '../../../../../common/codecs/simpleCodec/tokens/index.js';
-import { FileReference } from '../../../../../common/codecs/chatbotPromptCodec/tokens/fileReference.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { randomInt } from '../../../../base/common/numbers.js';
+import { BaseToken } from '../../../common/codecs/baseToken.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { BaseDecoder } from '../../../common/codecs/baseDecoder.js';
+import { WriteableStream } from '../../../../base/common/stream.js';
+import { Line, NewLine } from '../../../common/codecs/linesCodec/tokens/index.js';
+import { Space, Tab, Word } from '../../../common/codecs/simpleCodec/tokens/index.js';
+import { FileReference } from '../../../common/codecs/chatbotPromptCodec/tokens/fileReference.js';
 
 /**
  * (pseudo)Random boolean generator.

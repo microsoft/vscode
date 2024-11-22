@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TestDecoder } from './utils/testDecoder.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { newWriteableStream } from '../../../../../base/common/stream.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { FileReference } from '../../../../common/codecs/chatbotPromptCodec/tokens/fileReference.js';
-import { ChatbotPromptDecoder, TChatbotPromptToken } from '../../../../common/codecs/chatbotPromptCodec/chatbotPromptDecoder.js';
+import { TestDecoder } from '../utils/testDecoder.js';
+import { Range } from '../../../common/core/range.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { newWriteableStream } from '../../../../base/common/stream.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { FileReference } from '../../../common/codecs/chatbotPromptCodec/tokens/fileReference.js';
+import { ChatbotPromptDecoder, TChatbotPromptToken } from '../../../common/codecs/chatbotPromptCodec/chatbotPromptDecoder.js';
 
 /**
  * A reusable test utility that asserts that a `ChatbotPromptDecoder` instance
