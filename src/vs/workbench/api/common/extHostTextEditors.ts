@@ -179,16 +179,26 @@ export class ExtHostEditors extends Disposable implements ExtHostEditorsShape {
 		const modified = URI.revive(diffInformation.modified);
 
 		const changes = diffInformation.changes.map(change => {
-			const [originalStartLineNumber, originalEndLineNumber, modifiedStartLineNumber, modifiedEndLineNumber] = change;
+			const [originalStartLineNumber, originalEndLineNumberExclusive, modifiedStartLineNumber, modifiedEndLineNumberExclusive] = change;
 
-			const kind = originalEndLineNumber === 0 ? TextEditorChangeKind.Addition :
-				modifiedEndLineNumber === 0 ? TextEditorChangeKind.Deletion : TextEditorChangeKind.Modification;
+			let kind: vscode.TextEditorChangeKind;
+			if (originalStartLineNumber === originalEndLineNumberExclusive) {
+				kind = TextEditorChangeKind.Addition;
+			} else if (modifiedStartLineNumber === modifiedEndLineNumberExclusive) {
+				kind = TextEditorChangeKind.Deletion;
+			} else {
+				kind = TextEditorChangeKind.Modification;
+			}
 
 			return {
-				originalStartLineNumber,
-				originalEndLineNumber,
-				modifiedStartLineNumber,
-				modifiedEndLineNumber,
+				original: {
+					startLineNumber: originalStartLineNumber,
+					endLineNumberExclusive: originalEndLineNumberExclusive
+				},
+				modified: {
+					startLineNumber: modifiedStartLineNumber,
+					endLineNumberExclusive: modifiedEndLineNumberExclusive
+				},
 				kind
 			} satisfies vscode.TextEditorChange;
 		});

@@ -1823,9 +1823,9 @@ export interface ITextEditorPositionData {
 
 export type ITextEditorChange = [
 	originalStartLineNumber: number,
-	originalEndLineNumber: number,
+	originalEndLineNumberExclusive: number,
 	modifiedStartLineNumber: number,
-	modifiedEndLineNumber: number
+	modifiedEndLineNumberExclusive: number
 ];
 
 export interface ITextEditorDiffInformation {
