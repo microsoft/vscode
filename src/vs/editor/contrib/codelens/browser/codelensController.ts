@@ -51,8 +51,9 @@ export class CodeLensContribution implements IEditorContribution {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICodeLensCache private readonly _codeLensCache: ICodeLensCache
 	) {
-		this._provideCodeLensDebounce = debounceService.for(_languageFeaturesService.codeLensProvider, 'CodeLensProvide', { min: 250 });
-		this._resolveCodeLensesDebounce = debounceService.for(_languageFeaturesService.codeLensProvider, 'CodeLensResolve', { min: 250, salt: 'resolve' });
+		/// MEMBRANE: reduce the debounce time to make our CodeLens appear faster
+		this._provideCodeLensDebounce = debounceService.for(_languageFeaturesService.codeLensProvider, 'CodeLensProvide', { min: 10 });
+		this._resolveCodeLensesDebounce = debounceService.for(_languageFeaturesService.codeLensProvider, 'CodeLensResolve', { min: 10, salt: 'resolve' });
 		this._resolveCodeLensesScheduler = new RunOnceScheduler(() => this._resolveCodeLensesInViewport(), this._resolveCodeLensesDebounce.default());
 
 		this._disposables.add(this._editor.onDidChangeModel(() => this._onModelChange()));

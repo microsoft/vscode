@@ -684,6 +684,8 @@ export default class BufferSyncSupport extends Disposable {
 	}
 
 	private triggerDiagnostics(delay: number = 200) {
+		/// MEMBRNAE: make intellisense and ts-plugin respond faster by reducing the artificial delay.
+		delay = 50;
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();
 		}, delay);
