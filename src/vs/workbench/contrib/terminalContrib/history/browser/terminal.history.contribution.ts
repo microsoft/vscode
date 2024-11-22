@@ -21,6 +21,7 @@ import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey
 import { clearShellFileHistory, getCommandHistory, getDirectoryHistory } from '../common/history.js';
 import { TerminalHistoryCommandId } from '../common/terminal.history.js';
 import { showRunRecentQuickPick } from './terminalRunRecentQuickPick.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 
 // #region Terminal Contributions
 
@@ -124,7 +125,8 @@ registerActiveInstanceAction({
 	}
 });
 
-registerActiveInstanceAction({
+
+registerTerminalAction({
 	id: TerminalHistoryCommandId.RunRecentCommand,
 	title: localize2('workbench.action.terminal.runRecentCommand', 'Run Recent Command...'),
 	precondition,
@@ -141,7 +143,13 @@ registerActiveInstanceAction({
 			weight: KeybindingWeight.WorkbenchContrib
 		}
 	],
-	run: async (activeInstance, c) => {
+	run: async (c, accessor) => {
+		let activeInstance = c.service.activeInstance;
+		if (!activeInstance) {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand('workbench.action.terminal.new');
+			activeInstance = c.service.activeInstance!;
+		}
 		const history = TerminalHistoryContribution.get(activeInstance);
 		if (!history) {
 			return;
