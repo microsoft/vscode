@@ -17,6 +17,7 @@ import { IMainProcessService } from '../../../../platform/ipc/common/mainProcess
 import { disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCount, hasWindow, onDidRegisterWindow } from '../../../../base/browser/dom.js';
 import { memoize } from '../../../../base/common/decorators.js';
 import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
@@ -190,6 +191,18 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	getScreenshot(): Promise<ArrayBufferLike | undefined> {
 		return this.nativeHostService.getScreenshot();
+	}
+
+	//#endregion
+
+	//#region Native Handle
+
+	private _nativeWindowHandleCache = new Map<number, Promise<VSBuffer | undefined>>();
+	async getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined> {
+		if (!this._nativeWindowHandleCache.has(windowId)) {
+			this._nativeWindowHandleCache.set(windowId, this.nativeHostService.getNativeWindowHandle(windowId));
+		}
+		return this._nativeWindowHandleCache.get(windowId)!;
 	}
 
 	//#endregion
