@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
@@ -16,7 +17,7 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
+import { ICellEditOperation, INotebookTextModel } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentResult } from './chatAgents.js';
 import { IChatResponseModel } from './chatModel.js';
 
@@ -127,21 +128,25 @@ export interface IBaseSnapshotEntry {
 
 export interface ITextSnapshotEntry extends IBaseSnapshotEntry {
 	kind: 'text';
-	readonly languageId: string;
 	readonly original: string;
 	readonly current: string;
+	readonly languageId: string;
 	readonly originalToCurrentEdit: OffsetEdit;
 	serialize(): Promise<ITextSnapshotEntryDTO>;
 }
 
 export interface INotebookSnapshotEntry extends IBaseSnapshotEntry {
 	kind: 'notebook';
+	readonly original: VSBuffer;
+	readonly current: VSBuffer;
 	serialize(): Promise<INotebookSnapshotEntryDTO>;
 }
 export type ISnapshotEntry = ITextSnapshotEntry | INotebookSnapshotEntry;
 
 export interface IBaseSnapshotEntryDTO {
 	readonly resource: string;
+	readonly originalHash: string;
+	readonly currentHash: string;
 	readonly state: WorkingSetEntryState;
 	readonly snapshotUri: string;
 	readonly telemetryInfo: IModifiedEntryTelemetryInfoDTO;
@@ -149,8 +154,6 @@ export interface IBaseSnapshotEntryDTO {
 export interface ITextSnapshotEntryDTO extends IBaseSnapshotEntryDTO {
 	readonly kind: 'text';
 	readonly languageId: string;
-	readonly originalHash: string;
-	readonly currentHash: string;
 	readonly originalToCurrentEdit: IOffsetEdit;
 }
 
@@ -204,6 +207,8 @@ export interface IModifiedTextFileEntry extends IModifiedAnyFileEntry {
 
 export interface IModifiedNotebookFileEntry extends IModifiedAnyFileEntry {
 	readonly kind: 'notebook';
+	readonly originalModel: INotebookTextModel;
+	readonly modifiedModel: INotebookTextModel;
 	acceptAgentEdits(textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean): void;
 	createSnapshot(requestId: string | undefined): INotebookSnapshotEntry;
 	restoreFromSnapshot(snapshot: INotebookSnapshotEntry): void;
