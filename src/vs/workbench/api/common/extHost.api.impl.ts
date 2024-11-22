@@ -436,10 +436,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get appCommit(): string | undefined {
 				checkProposedApiEnabled(extension, 'resolvers');
 				return initData.commit;
-			},
-			get nativeHandle(): Uint8Array | undefined {
-				checkProposedApiEnabled(extension, 'nativeWindowHandle');
-				return extHostWindow.nativeHandle;
 			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
@@ -927,6 +923,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerShareProvider(selector: vscode.DocumentSelector, provider: vscode.ShareProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'shareProvider');
 				return extHostShare.registerShareProvider(checkSelector(selector), provider);
+			},
+			get nativeHandle(): Uint8Array | undefined {
+				checkProposedApiEnabled(extension, 'nativeWindowHandle');
+				return extHostWindow.nativeHandle;
 			}
 		};
 

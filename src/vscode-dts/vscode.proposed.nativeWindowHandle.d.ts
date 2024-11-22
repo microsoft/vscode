@@ -7,10 +7,10 @@
 
 declare module 'vscode' {
 
-	export namespace env {
+	export namespace window {
 		/**
 		 * Retrieves the native window handle of the current active window.
-		 * The current active window may not be associated with this extension host.
+		 * This will be updated when the active window changes.
 		 */
 		export const nativeHandle: Uint8Array | undefined;
 	}
