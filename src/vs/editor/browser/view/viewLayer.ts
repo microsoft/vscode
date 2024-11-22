@@ -340,7 +340,8 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 	}
 
 	public renderLines(viewportData: ViewportData): void {
-
+		console.log('renderLines');
+		console.log('viewportData : ', viewportData);
 		const inp = this._linesCollection._get();
 
 		const renderer = new ViewLayerRenderer<T>(this.domNode.domNode, this._lineFactory, viewportData);
@@ -367,8 +368,6 @@ interface IRendererContext<T extends IVisibleLine> {
 class ViewLayerRenderer<T extends IVisibleLine> {
 
 	private static _ttPolicy = createTrustedTypesPolicy('editorViewLayer', { createHTML: value => value });
-	private readonly maxLogsIndex = 10;
-	private currentIndex = 0;
 
 	constructor(
 		private readonly _domNode: HTMLElement,
@@ -394,7 +393,6 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				ctx.lines[x - startLineNumber] = this._lineFactory.createLine();
 			}
 			this._finishRendering(ctx, true, deltaTop);
-			this.currentIndex++;
 			return ctx;
 		}
 
@@ -450,34 +448,16 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 		this._finishRendering(ctx, false, deltaTop);
 
-		this.currentIndex++;
 		return ctx;
 	}
 
 	private _renderUntouchedLines(ctx: IRendererContext<T>, startIndex: number, endIndex: number, deltaTop: number[], deltaLN: number): void {
-		if (this.currentIndex < this.maxLogsIndex) {
-			console.log('_renderUntouchedLines test');
-			console.log('startIndex ', startIndex);
-			console.log('endIndex ', endIndex);
-			console.log('deltaTop ', deltaTop);
-			console.log('deltaLN ', deltaLN);
-		}
 		const rendLineNumberStart = ctx.rendLineNumberStart;
 		const lines = ctx.lines;
 
 		for (let i = startIndex; i <= endIndex; i++) {
 			const lineNumber = rendLineNumberStart + i;
-			const deltaIndex = lineNumber - deltaLN;
-			const lineHeight = deltaTop[deltaIndex + 1] - deltaTop[deltaIndex];
-			if (this.currentIndex < this.maxLogsIndex) {
-				console.log('i ', i);
-				console.log('deltaTop : ', deltaTop);
-				console.log('lineNumber ', lineNumber);
-				console.log('deltaLN : ', deltaLN);
-				console.log('deltaIndex ', deltaIndex);
-				console.log('lineHeight ', lineHeight);
-			}
-			lines[i].layoutLine(lineNumber, deltaTop[deltaIndex], lineHeight); // Setting the line height!
+			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], this._lineHeight(lineNumber));
 		}
 	}
 
@@ -560,9 +540,6 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	private static readonly _sb = new StringBuilder(100000);
 
 	private _finishRendering(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, deltaTop: number[]): void {
-		if (this.currentIndex < this.maxLogsIndex) {
-			console.log('_finishRendering');
-		}
 
 		const sb = ViewLayerRenderer._sb;
 		const linesLength = ctx.linesLength;
@@ -584,13 +561,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				const lineHeight = deltaTop[i + 1] - deltaTop[i];
-				if (this.currentIndex < this.maxLogsIndex) {
-					console.log('i : ', i);
-					console.log('deltaTop : ', deltaTop);
-					console.log('lineHeight : ', lineHeight);
-				}
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], lineHeight, this._viewportData, sb);
+				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this._lineHeight(i + rendLineNumberStart), this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -620,13 +591,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				const lineHeight = deltaTop[i + 1] - deltaTop[i];
-				if (this.currentIndex < this.maxLogsIndex) {
-					console.log('i : ', i);
-					console.log('deltaTop : ', deltaTop);
-					console.log('lineHeight : ', lineHeight);
-				}
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], lineHeight, this._viewportData, sb);
+				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this._lineHeight(i + rendLineNumberStart), this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -640,5 +605,12 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				this._finishRenderingInvalidLines(ctx, sb.build(), wasInvalid);
 			}
 		}
+	}
+
+	private _lineHeight(lineNumber: number): number {
+		if (this._viewportData.specialLineHeights.has(lineNumber)) {
+			return this._viewportData.specialLineHeights.get(lineNumber)!;
+		}
+		return this._viewportData.lineHeight;
 	}
 }

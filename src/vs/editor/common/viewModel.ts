@@ -126,6 +126,8 @@ export interface IViewLayout {
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
 	getWhitespaces(): IEditorWhitespace[];
 
+	getSpecialLinesHeights(): Map<number, number>;
+
 	isAfterLines(verticalOffset: number): boolean;
 	isInTopPadding(verticalOffset: number): boolean;
 	isInBottomPadding(verticalOffset: number): boolean;
@@ -189,6 +191,11 @@ export interface IPartialViewLinesViewportData {
 	 * The height of a line.
 	 */
 	readonly lineHeight: number;
+
+	/**
+	 * The special line heights
+	 */
+	readonly specialLineHeights: Map<number, number>;
 }
 
 export interface IViewWhitespaceViewportData {
@@ -399,11 +406,6 @@ export class InlineDecoration {
 		public readonly lineHeight?: number | undefined,
 		public readonly fontSize?: number | undefined,
 	) {
-		console.log('InlineDecoration');
-		console.log('range : ', range);
-		console.log('inlineClassName : ', inlineClassName);
-		console.log('type : ', type);
-		console.log('lineHeight : ', lineHeight);
 	}
 }
 
@@ -416,12 +418,6 @@ export class SingleLineInlineDecoration {
 		public readonly lineHeight: number | undefined,
 		public readonly fontSize: number | undefined
 	) {
-		console.log('SingleLineInlineDecoration');
-		console.log('startOffset : ', startOffset);
-		console.log('endOffset : ', endOffset);
-		console.log('inlineClassName : ', inlineClassName);
-		console.log('inlineClassNameAffectsLetterSpacing : ', inlineClassNameAffectsLetterSpacing);
-		console.log('lineHeight : ', lineHeight);
 	}
 
 	toInlineDecoration(lineNumber: number): InlineDecoration {

@@ -406,6 +406,10 @@ export class LinesLayout {
 		this._specialLineHeights.clear();
 	}
 
+	public getSpecialLinesHeights(): Map<number, number> {
+		return this._specialLineHeights;
+	}
+
 	/**
 	 * Get the sum of heights for all objects.
 	 *
@@ -670,6 +674,7 @@ export class LinesLayout {
 		this._checkPendingChanges();
 		verticalOffset1 = verticalOffset1 | 0;
 		verticalOffset2 = verticalOffset2 | 0;
+
 		// Find first line number
 		// We don't live in a perfect world, so the line number might start before or after verticalOffset1
 		const startLineNumber = this.getLineNumberAtOrAfterVerticalOffset(verticalOffset1) | 0;
@@ -784,6 +789,7 @@ export class LinesLayout {
 			completelyVisibleStartLineNumber: completelyVisibleStartLineNumber,
 			completelyVisibleEndLineNumber: completelyVisibleEndLineNumber,
 			lineHeight: this._lineHeight,
+			specialLineHeights: this._specialLineHeights
 		};
 	}
 

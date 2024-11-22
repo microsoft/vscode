@@ -126,6 +126,7 @@ export class ViewOverlays extends ViewPart {
 	}
 
 	_viewOverlaysRender(ctx: RestrictedRenderingContext): void {
+		console.log('_viewOverlaysRender');
 		this._visibleLines.renderLines(ctx.viewportData);
 	}
 }

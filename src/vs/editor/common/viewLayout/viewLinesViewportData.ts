@@ -48,6 +48,8 @@ export class ViewportData {
 
 	public readonly lineHeight: number;
 
+	public readonly specialLineHeights: Map<number, number>;
+
 	constructor(
 		selections: Selection[],
 		partialData: IPartialViewLinesViewportData,
@@ -60,6 +62,7 @@ export class ViewportData {
 		this.relativeVerticalOffset = partialData.relativeVerticalOffset;
 		this.bigNumbersDelta = partialData.bigNumbersDelta | 0;
 		this.lineHeight = partialData.lineHeight | 0;
+		this.specialLineHeights = partialData.specialLineHeights;
 		this.whitespaceViewportData = whitespaceViewportData;
 
 		this._model = model;

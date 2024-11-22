@@ -602,6 +602,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 	}
 
 	public renderText(viewportData: ViewportData): void {
+		console.log('ViewLines#renderText');
 		// (1) render lines - ensures lines are in the DOM
 		this._visibleLines.renderLines(viewportData);
 		this._lastRenderedData.setCurrentVisibleRange(viewportData.visibleRange);

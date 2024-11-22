@@ -58,9 +58,6 @@ export class ViewCursor {
 	private _lastRenderedContent: string;
 	private _renderData: ViewCursorRenderData | null;
 
-	private readonly maxLogsIndex = 10;
-	private currentIndex = 0;
-
 	constructor(context: ViewContext, plurality: CursorPlurality) {
 		this._context = context;
 		const options = this._context.configuration.options;
@@ -196,17 +193,7 @@ export class ViewCursor {
 			}
 
 			const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
-			const bottom = ctx.getVerticalOffsetForLineNumber(position.lineNumber + 1) - ctx.bigNumbersDelta;
-			// TODO
-			if (this.currentIndex < this.maxLogsIndex) {
-				console.log('_prepareRender');
-				console.log('top : ', top);
-				console.log('bottom : ', bottom);
-				console.log('this._lineHeight : ', this._lineHeight);
-				console.log('bottom - top : ', bottom - top);
-			}
-			this.currentIndex++;
-			return new ViewCursorRenderData(top, left, paddingLeft, width, bottom - top, textContent, textContentClassName);
+			return new ViewCursorRenderData(top, left, paddingLeft, width, this._lineHeightFor(position.lineNumber), textContent, textContentClassName);
 		}
 
 		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(position.lineNumber, position.column, position.lineNumber, position.column + nextGrapheme.length), false);
@@ -236,7 +223,7 @@ export class ViewCursor {
 		}
 
 		let top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
-		let height = this._lineHeight;
+		let height = this._lineHeightFor(position.lineNumber);
 
 		// Underline might interfere with clicking
 		if (this._cursorStyle === TextEditorCursorStyle.Underline || this._cursorStyle === TextEditorCursorStyle.UnderlineThin) {
@@ -245,6 +232,14 @@ export class ViewCursor {
 		}
 
 		return new ViewCursorRenderData(top, range.left, 0, width, height, textContent, textContentClassName);
+	}
+
+	private _lineHeightFor(lineNumber: number): number {
+		const specialLinesHeights = this._context.viewLayout.getSpecialLinesHeights();
+		if (specialLinesHeights.has(lineNumber)) {
+			return specialLinesHeights.get(lineNumber)!;
+		}
+		return this._lineHeight;
 	}
 
 	private _getTokenClassName(position: Position): string {

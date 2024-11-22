@@ -15,9 +15,7 @@ export class LineDecoration {
 		public readonly startColumn: number,
 		public readonly endColumn: number,
 		public readonly className: string,
-		public readonly type: InlineDecorationType,
-		public readonly lineHeight?: number, // do we need this?
-		public readonly fontSize?: number,
+		public readonly type: InlineDecorationType
 	) {
 	}
 
@@ -57,7 +55,7 @@ export class LineDecoration {
 			if (dec.endColumn <= startColumn || dec.startColumn >= endColumn) {
 				continue;
 			}
-			r[rLength++] = new LineDecoration(Math.max(1, dec.startColumn - startColumn + 1), Math.min(lineLength + 1, dec.endColumn - startColumn + 1), dec.className, dec.type, dec.lineHeight, dec.fontSize);
+			r[rLength++] = new LineDecoration(Math.max(1, dec.startColumn - startColumn + 1), Math.min(lineLength + 1, dec.endColumn - startColumn + 1), dec.className, dec.type);
 		}
 		return r;
 	}
@@ -79,7 +77,6 @@ export class LineDecoration {
 				continue;
 			}
 
-			console.log('filter of LineDecoration');
 			if (range.isEmpty() && (d.type === InlineDecorationType.Regular || d.type === InlineDecorationType.RegularAffectingLetterSpacing)) {
 				// Ignore empty range decorations
 				continue;
@@ -88,7 +85,7 @@ export class LineDecoration {
 			const startColumn = (range.startLineNumber === lineNumber ? range.startColumn : minLineColumn);
 			const endColumn = (range.endLineNumber === lineNumber ? range.endColumn : maxLineColumn);
 
-			result[resultLen++] = new LineDecoration(startColumn, endColumn, d.inlineClassName, d.type, d.lineHeight, d.fontSize);
+			result[resultLen++] = new LineDecoration(startColumn, endColumn, d.inlineClassName, d.type);
 		}
 
 		return result;
@@ -126,16 +123,12 @@ export class DecorationSegment {
 	endOffset: number;
 	className: string;
 	metadata: number;
-	fontSize: number | undefined;
-	lineHeight: number | undefined;
 
-	constructor(startOffset: number, endOffset: number, className: string, metadata: number, fontSize: number | undefined, lineHeight: number | undefined) {
+	constructor(startOffset: number, endOffset: number, className: string, metadata: number) {
 		this.startOffset = startOffset;
 		this.endOffset = endOffset;
 		this.className = className;
 		this.metadata = metadata;
-		this.fontSize = fontSize;
-		this.lineHeight = lineHeight;
 	}
 }
 
@@ -143,16 +136,12 @@ class Stack {
 	public count: number;
 	private readonly stopOffsets: number[];
 	private readonly classNames: string[];
-	private readonly fontSize: (number | undefined)[];
-	private readonly lineHeights: (number | undefined)[];
 	private readonly metadata: number[];
 
 	constructor() {
 		this.stopOffsets = [];
 		this.classNames = [];
 		this.metadata = [];
-		this.fontSize = [];
-		this.lineHeights = [];
 		this.count = 0;
 	}
 
@@ -175,7 +164,7 @@ class Stack {
 			}
 
 			// Basically we are consuming the first i + 1 elements of the stack
-			result.push(new DecorationSegment(nextStartOffset, this.stopOffsets[i], this.classNames.join(' '), Stack._metadata(this.metadata), this.fontSize[i], this.lineHeights[i]));
+			result.push(new DecorationSegment(nextStartOffset, this.stopOffsets[i], this.classNames.join(' '), Stack._metadata(this.metadata)));
 			nextStartOffset = this.stopOffsets[i] + 1;
 
 			// Consume them
@@ -186,21 +175,19 @@ class Stack {
 		}
 
 		if (this.count > 0 && nextStartOffset < maxStopOffset) {
-			result.push(new DecorationSegment(nextStartOffset, maxStopOffset - 1, this.classNames.join(' '), Stack._metadata(this.metadata), undefined, undefined));
+			result.push(new DecorationSegment(nextStartOffset, maxStopOffset - 1, this.classNames.join(' '), Stack._metadata(this.metadata)));
 			nextStartOffset = maxStopOffset;
 		}
 
 		return nextStartOffset;
 	}
 
-	public insert(stopOffset: number, className: string, metadata: number, fontSize: number | undefined, lineHeight: number | undefined): void {
+	public insert(stopOffset: number, className: string, metadata: number): void {
 		if (this.count === 0 || this.stopOffsets[this.count - 1] <= stopOffset) {
 			// Insert at the end
 			this.stopOffsets.push(stopOffset);
 			this.classNames.push(className);
 			this.metadata.push(metadata);
-			this.fontSize.push(fontSize);
-			this.lineHeights.push(lineHeight);
 		} else {
 			// Find the insertion position for `stopOffset`
 			for (let i = 0; i < this.count; i++) {
@@ -208,8 +195,6 @@ class Stack {
 					this.stopOffsets.splice(i, 0, stopOffset);
 					this.classNames.splice(i, 0, className);
 					this.metadata.splice(i, 0, metadata);
-					this.fontSize.splice(i, 0, fontSize);
-					this.lineHeights.splice(i, 0, lineHeight);
 					break;
 				}
 			}
@@ -238,11 +223,6 @@ export class LineDecorationsNormalizer {
 			let startColumn = d.startColumn;
 			let endColumn = d.endColumn;
 			const className = d.className;
-			const fontSize = d.fontSize;
-			const lineHeight = d.lineHeight;
-			console.log('normalize');
-			console.log('fontsize : ', fontSize);
-			console.log('lineHeight : ', lineHeight);
 			const metadata = (
 				d.type === InlineDecorationType.Before
 					? LinePartMetadata.PSEUDO_BEFORE
@@ -274,7 +254,7 @@ export class LineDecorationsNormalizer {
 			if (stack.count === 0) {
 				nextStartOffset = currentStartOffset;
 			}
-			stack.insert(currentEndOffset, className, metadata, fontSize, lineHeight);
+			stack.insert(currentEndOffset, className, metadata);
 		}
 
 		stack.consumeLowerThan(Constants.MAX_SAFE_SMALL_INTEGER, nextStartOffset, result);

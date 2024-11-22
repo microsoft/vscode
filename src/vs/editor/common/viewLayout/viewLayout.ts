@@ -210,6 +210,10 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		this._linesLayout.clearSpecialLineHeights();
 	}
 
+	public getSpecialLinesHeights(): Map<number, number> {
+		return this._linesLayout.getSpecialLinesHeights();
+	}
+
 	private _configureSmoothScrollDuration(): void {
 		this._scrollable.setSmoothScrollDuration(this._configuration.options.get(EditorOption.smoothScrolling) ? SMOOTH_SCROLLING_TIME : 0);
 	}
@@ -412,6 +416,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		return this._linesLayout.getWhitespaceAtVerticalOffset(verticalOffset);
 	}
 	public getLinesViewportData(): IPartialViewLinesViewportData {
+		console.log('getLinesViewportData');
 		const visibleBox = this.getCurrentViewport();
 		return this._linesLayout.getLinesViewportData(visibleBox.top, visibleBox.top + visibleBox.height);
 	}
