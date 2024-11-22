@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { AccountInfo, AuthenticationResult, ServerError } from '@azure/msal-node';
-import { AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, env, EventEmitter, ExtensionContext, l10n, LogOutputChannel, Memento, SecretStorage, Uri, window } from 'vscode';
+import { AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, env, EventEmitter, ExtensionContext, l10n, LogOutputChannel, Uri, window } from 'vscode';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
 import { UriHandlerLoopbackClient } from '../common/loopbackClientAndOpener';
@@ -190,7 +190,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		let result: AuthenticationResult | undefined;
 
 		try {
-			const windowHandle = env.nativeHandle ? Buffer.from(env.nativeHandle) : undefined;
+			const windowHandle = window.nativeHandle ? Buffer.from(window.nativeHandle) : undefined;
 			result = await cachedPca.acquireTokenInteractive({
 				openBrowser: async (url: string) => { await env.openExternal(Uri.parse(url)); },
 				scopes: scopeData.scopesToSend,
@@ -232,7 +232,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			// The user wants to try the loopback client or we got an error likely due to spinning up the server
 			const loopbackClient = new UriHandlerLoopbackClient(this._uriHandler, redirectUri, this._logger);
 			try {
-				const windowHandle = env.nativeHandle ? Buffer.from(env.nativeHandle) : undefined;
+				const windowHandle = window.nativeHandle ? Buffer.from(window.nativeHandle) : undefined;
 				result = await cachedPca.acquireTokenInteractive({
 					openBrowser: (url: string) => loopbackClient.openBrowser(url),
 					scopes: scopeData.scopesToSend,
