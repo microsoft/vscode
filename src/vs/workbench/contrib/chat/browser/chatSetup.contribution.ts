@@ -539,12 +539,20 @@ class ChatSetupState {
 class ChatSetupTriggerAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.triggerSetup';
-	static readonly TITLE = localize2('triggerChatSetup', "Trigger Chat Setup");
+	static readonly TITLE = localize2('triggerChatSetup', "Setup {0}...", defaultChat.name);
 
 	constructor() {
 		super({
 			id: ChatSetupTriggerAction.ID,
-			title: ChatSetupTriggerAction.TITLE
+			title: ChatSetupTriggerAction.TITLE,
+			f1: true,
+			precondition: ChatContextKeys.Setup.installed.negate(),
+			menu: {
+				id: MenuId.ChatCommandCenter,
+				group: 'a_first',
+				order: 1,
+				when: ChatContextKeys.Setup.installed.negate()
+			}
 		});
 	}
 
@@ -568,14 +576,11 @@ class ChatSetupHideAction extends Action2 {
 			id: ChatSetupHideAction.ID,
 			title: ChatSetupHideAction.TITLE,
 			f1: true,
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.Setup.triggered,
-				ChatContextKeys.Setup.installed.negate()
-			),
+			precondition: ChatContextKeys.Setup.installed.negate(),
 			menu: {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_first',
-				order: 1,
+				order: 2,
 				when: ChatContextKeys.Setup.installed.negate()
 			}
 		});
