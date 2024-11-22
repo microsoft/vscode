@@ -11,6 +11,5 @@
 		"../../src/vscode-dts/vscode.d.ts",
 		"../../src/vscode-dts/vscode.proposed.terminalCompletionProvider.d.ts",
 		"../../terminal-suggest/src/**.ts",
-		"../../terminal-suggest/src/completions/index.d.ts"
-, "index.d.ts", "src/terminalSuggestMain.test.ts"	]
+	]
 }
