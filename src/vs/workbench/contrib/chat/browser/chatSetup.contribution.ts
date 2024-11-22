@@ -133,7 +133,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				ChatContextKeys.Setup.installed.negate()
 			)!,
 			icon: defaultChat.icon,
-			content: disposables => disposables.add(this.instantiationService.createInstance(ChatSetupWelcomeContent, this.entitlementsResolver)).element,
+			content: () => ChatSetupWelcomeContent.getInstance(this.instantiationService, this.entitlementsResolver).element,
 		});
 	}
 
@@ -306,6 +306,15 @@ interface IChatSetupWelcomeContentOptions {
 
 class ChatSetupWelcomeContent extends Disposable {
 
+	private static INSTANCE: ChatSetupWelcomeContent | undefined;
+	static getInstance(instantiationService: IInstantiationService, options: IChatSetupWelcomeContentOptions): ChatSetupWelcomeContent {
+		if (!ChatSetupWelcomeContent.INSTANCE) {
+			ChatSetupWelcomeContent.INSTANCE = instantiationService.createInstance(ChatSetupWelcomeContent, options);
+		}
+
+		return ChatSetupWelcomeContent.INSTANCE;
+	}
+
 	readonly element = $('.chat-setup-view');
 
 	constructor(
@@ -372,7 +381,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(footer, { isTrusted: true }))).element);
 	}
 
-	private createCheckBox(label: string, checked: boolean) {
+	private createCheckBox(label: string, checked: boolean): Checkbox {
 		const checkboxContainer = this.element.appendChild($('p'));
 		const checkbox = this._register(new Checkbox(label, checked, defaultCheckboxStyles));
 		checkboxContainer.appendChild(checkbox.domNode);
@@ -392,6 +401,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		if (setupRunning) {
 			button.enabled = false;
 			button.label = localize('setupChatInstalling', "$(loading~spin) Completing Setup...");
+
 			for (const checkbox of checkboxes) {
 				checkbox.disable();
 			}
@@ -400,6 +410,7 @@ class ChatSetupWelcomeContent extends Disposable {
 			button.label = this.options.entitlement === ChatEntitlement.Unknown ?
 				localize('signInAndSetup', "Sign in and Complete Setup") :
 				localize('setup', "Complete Setup");
+
 			for (const checkbox of checkboxes) {
 				checkbox.enable();
 			}
