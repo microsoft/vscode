@@ -1165,6 +1165,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.monaco-icon-label {
 		padding: 0px 3px;
 	}
+
+	.monaco-icon-label.excluded {
+		color: var(--vscode-notificationsWarningIcon-foreground)
+	}
 }
 
 .interactive-item-container .chat-notification-widget {
