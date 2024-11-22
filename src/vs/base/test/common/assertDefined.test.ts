@@ -38,18 +38,48 @@ suite('assertDefined', () => {
 		});
 	});
 
+	/**
+	 * Note! API of `assert.throws()` is different in the browser
+	 * and in Node.js, and it is not possible to use the same code
+	 * here. Therefore we had to resort to the manual try/catch.
+	 */
+	const assertThrows = (
+		testFunction: () => void,
+		errorMessage: string,
+	) => {
+		let thrownError: Error | undefined;
+
+		try {
+			testFunction();
+		} catch (e) {
+			thrownError = e as Error;
+		}
+
+		assertDefined(thrownError, 'Must throw an error.');
+		assert(
+			thrownError instanceof Error,
+			'Error must be an instance of `Error`.',
+		);
+
+		assert.strictEqual(
+			thrownError.message,
+			errorMessage,
+			'Error must have correct message.',
+		);
+	};
+
 	test('should throw if `value` is `null`', async () => {
-		const errorMessage = 'Oops something happened.';
-		assert.throws(function () {
+		const errorMessage = 'Uggh ohh!';
+		assertThrows(() => {
 			assertDefined(null, errorMessage);
-		}, new Error(errorMessage));
+		}, errorMessage);
 	});
 
 	test('should throw if `value` is `undefined`', async () => {
-		const errorMessage = 'Oops something happened.';
-		assert.throws(function () {
-			assertDefined(undefined, errorMessage);
-		}, new Error(errorMessage));
+		const errorMessage = 'Oh no!';
+		assertThrows(() => {
+			assertDefined(undefined, new Error(errorMessage));
+		}, errorMessage);
 	});
 
 	test('should throw assertion error by default', async () => {

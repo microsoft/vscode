@@ -56,6 +56,10 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 		this._register(this.decoder);
 	}
 
+	/**
+	 * Run the test sending the `inputData` data to the stream and asserting
+	 * that the decoder produces the `expectedTokens` sequence of tokens.
+	 */
 	public async run(
 		inputData: string,
 		expectedTokens: readonly T[],
@@ -73,7 +77,7 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 			}
 
 			this.stream.end();
-		}, 1);
+		}, 25);
 
 		// randomly use either the `async iterator` or the `.consume()`
 		// variants of getting tokens, they both must yield equal results
