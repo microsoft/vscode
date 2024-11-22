@@ -9,7 +9,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { FontStyle, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
 import { ensureNonNullable } from '../gpuUtils.js';
-import type { IBoundingBox, IGlyphRasterizer, IRasterizedGlyph } from './raster.js';
+import { type IBoundingBox, type IGlyphRasterizer, type IRasterizedGlyph } from './raster.js';
 
 let nextId = 0;
 
@@ -37,7 +37,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 			y: 0,
 		}
 	};
-	private _workGlyphConfig: { chars: string | undefined; metadata: number } = { chars: undefined, metadata: 0 };
+	private _workGlyphConfig: { chars: string | undefined; tokenMetadata: number; charMetadata: number } = { chars: undefined, tokenMetadata: 0, charMetadata: 0 };
 
 	constructor(
 		readonly fontSize: number,
@@ -61,7 +61,8 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	 */
 	public rasterizeGlyph(
 		chars: string,
-		metadata: number,
+		tokenMetadata: number,
+		charMetadata: number,
 		colorMap: string[],
 	): Readonly<IRasterizedGlyph> {
 		if (chars === '') {
@@ -74,17 +75,19 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		// Check if the last glyph matches the config, reuse if so. This helps avoid unnecessary
 		// work when the rasterizer is called multiple times like when the glyph doesn't fit into a
 		// page.
-		if (this._workGlyphConfig.chars === chars && this._workGlyphConfig.metadata === metadata) {
+		if (this._workGlyphConfig.chars === chars && this._workGlyphConfig.tokenMetadata === tokenMetadata && this._workGlyphConfig.charMetadata === charMetadata) {
 			return this._workGlyph;
 		}
 		this._workGlyphConfig.chars = chars;
-		this._workGlyphConfig.metadata = metadata;
-		return this._rasterizeGlyph(chars, metadata, colorMap);
+		this._workGlyphConfig.tokenMetadata = tokenMetadata;
+		this._workGlyphConfig.charMetadata = charMetadata;
+		return this._rasterizeGlyph(chars, tokenMetadata, charMetadata, colorMap);
 	}
 
 	public _rasterizeGlyph(
 		chars: string,
 		metadata: number,
+		charMetadata: number,
 		colorMap: string[],
 	): Readonly<IRasterizedGlyph> {
 		const devicePixelFontSize = Math.ceil(this.fontSize * getActiveWindow().devicePixelRatio);
@@ -114,7 +117,11 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 
 		const originX = devicePixelFontSize;
 		const originY = devicePixelFontSize;
-		this._ctx.fillStyle = colorMap[TokenMetadata.getForeground(metadata)];
+		if (charMetadata) {
+			this._ctx.fillStyle = `#${charMetadata.toString(16).padStart(8, '0')}`;
+		} else {
+			this._ctx.fillStyle = colorMap[TokenMetadata.getForeground(metadata)];
+		}
 		// TODO: This might actually be slower
 		// const textMetrics = this._ctx.measureText(chars);
 		this._ctx.textBaseline = 'top';
