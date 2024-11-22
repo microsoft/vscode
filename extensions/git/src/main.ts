@@ -27,6 +27,7 @@ import { GitPostCommitCommandsProvider } from './postCommitCommands';
 import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
 import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManager } from './diagnostics';
 import { GitBlameController } from './blame';
+import { StagedResourceQuickDiffProvider } from './repository';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -113,16 +114,12 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		cc,
 		new GitFileSystemProvider(model),
 		new GitDecorations(model),
+		new GitBlameController(model),
 		new GitTimelineProvider(model, cc),
 		new GitEditSessionIdentityProvider(model),
+		new StagedResourceQuickDiffProvider(model),
 		new TerminalShellExecutionManager(model, logger)
 	);
-
-	const blameController = new GitBlameController(model);
-	disposables.push(blameController);
-
-	const quickDiffProvider = window.registerQuickDiffProvider({ scheme: 'file' }, blameController, 'Git local changes (working tree + index)');
-	disposables.push(quickDiffProvider);
 
 	const postCommitCommandsProvider = new GitPostCommitCommandsProvider();
 	model.registerPostCommitCommandsProvider(postCommitCommandsProvider);

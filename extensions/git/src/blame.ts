@@ -63,7 +63,7 @@ interface LineBlameInformation {
 	readonly blameInformation: BlameInformation | string;
 }
 
-export class GitBlameController implements QuickDiffProvider {
+export class GitBlameController {
 	private readonly _onDidChangeBlameInformation = new EventEmitter<TextEditor>();
 	public readonly onDidChangeBlameInformation = this._onDidChangeBlameInformation.event;
 
@@ -85,25 +85,6 @@ export class GitBlameController implements QuickDiffProvider {
 		window.onDidChangeTextEditorDiffInformation(e => this._updateTextEditorBlameInformation(e.textEditor), this, this._disposables);
 
 		this._updateTextEditorBlameInformation(window.activeTextEditor);
-	}
-
-	get visible(): boolean {
-		return false;
-	}
-
-	provideOriginalResource(uri: Uri): Uri | undefined {
-		// Ignore resources outside a repository
-		const repository = this._model.getRepository(uri);
-		if (!repository) {
-			return undefined;
-		}
-
-		// Ignore resources that are not in the index group
-		if (!repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
-			return undefined;
-		}
-
-		return toGitUri(uri, 'HEAD', { replaceFileExtension: true });
 	}
 
 	getBlameInformationHover(documentUri: Uri, blameInformation: BlameInformation | string): MarkdownString {
