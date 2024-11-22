@@ -103,15 +103,6 @@ class TestPromptFileReference extends Disposable {
 		const resolvedReferences = (await rootReference.resolve(true))
 			.flatten();
 
-		assert.strictEqual(
-			resolvedReferences.length,
-			this.expectedReferences.length,
-			[
-				`Expected to resolve ${this.expectedReferences.length} references`,
-				`got ${resolvedReferences.length}.`,
-			].join(', ')
-		);
-
 		for (let i = 0; i < this.expectedReferences.length; i++) {
 			const expectedReference = this.expectedReferences[i];
 			const resolvedReference = resolvedReferences[i];
@@ -143,6 +134,15 @@ class TestPromptFileReference extends Disposable {
 				].join(', '),
 			);
 		}
+
+		assert.strictEqual(
+			resolvedReferences.length,
+			this.expectedReferences.length,
+			[
+				`Expected to resolve ${this.expectedReferences.length} references`,
+				`got ${resolvedReferences.length}.`,
+			].join(', ')
+		);
 	}
 
 	/**

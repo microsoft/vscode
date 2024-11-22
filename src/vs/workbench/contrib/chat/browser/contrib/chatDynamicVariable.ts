@@ -5,11 +5,11 @@
 
 import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { PromptFileReference } from '../../common/promptFileReference.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { Location } from '../../../../../editor/common/languages.js';
+import { PromptFileReference } from '../../common/promptFileReference.js';
 import { assertDefined } from '../../../../../base/common/assertDefined.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 
