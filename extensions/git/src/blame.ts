@@ -87,14 +87,18 @@ export class GitBlameController implements QuickDiffProvider {
 		this._updateTextEditorBlameInformation(window.activeTextEditor);
 	}
 
+	get visible(): boolean {
+		return false;
+	}
+
 	provideOriginalResource(uri: Uri): Uri | undefined {
-		// Ignore path that is not inside the current repository
+		// Ignore resources outside a repository
 		const repository = this._model.getRepository(uri);
-		if (!repository || !repository.HEAD?.commit) {
+		if (!repository) {
 			return undefined;
 		}
 
-		// Ignore path that is not insider the index group
+		// Ignore resources that are not in the index group
 		if (!repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
 			return undefined;
 		}
