@@ -614,7 +614,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return entry;
 	}
 
-	private async _createModifiedFileEntry(resource: URI, responseModel: IModifiedEntryTelemetryInfo, mustExist = false, initialContent: string | undefined): Promise<ChatEditingModifiedFileEntry> {
+	private async _createModifiedFileEntry(resource: URI, responseModel: IModifiedEntryTelemetryInfo, mustExist = false, initialContent: string | undefined): Promise<IModifiedFileEntry> {
 		try {
 			const ref = await this._textModelService.createModelReference(resource);
 
