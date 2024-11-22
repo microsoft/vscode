@@ -381,13 +381,13 @@ class ChatSetupWelcomeContent extends Disposable {
 	private updateControls(button: Button, telemetryCheckbox: Checkbox | undefined, setupRunning: boolean): void {
 		if (setupRunning) {
 			button.enabled = false;
-			button.label = localize('setupChatInstalling', "$(loading~spin) Setting up {0}...", defaultChat.name);
+			button.label = localize('setupChatInstalling', "$(loading~spin) Completing Setup...");
 			telemetryCheckbox?.disable();
 		} else {
 			button.enabled = true;
 			button.label = this.options.entitlement === ChatEntitlement.Unknown ?
-				localize('signInAndSetup', "Sign in and Setup {0}", defaultChat.name) :
-				localize('setup', "Setup {0}", defaultChat.name);
+				localize('signInAndSetup', "Sign in and Complete Setup") :
+				localize('setup', "Complete Setup");
 			telemetryCheckbox?.enable();
 		}
 	}
@@ -431,7 +431,7 @@ class ChatSetupWelcomeContent extends Disposable {
 			if (this.options.entitlement === ChatEntitlement.Unknown || this.options.entitlement === ChatEntitlement.Applicable) {
 				await this.instantiationService.invokeFunction(accessor => ChatSetupRequestHelper.request(accessor, defaultChat.entitlementSkuLimitedUrl, 'POST', {
 					public_code_suggestions: 'enabled',
-					restricted_telemetry: enableTelemetry ? 'enabled' : 'disabled'
+					restricted_telemetry: enableTelemetry ? 'disabled' : 'enabled'
 				}, session, CancellationToken.None));
 			}
 
