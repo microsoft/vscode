@@ -99,7 +99,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			if (!specCompletions.specificSuggestionsProvided) {
 				for (const command of commands) {
-					if (command.startsWith(prefix)) {
+					if (command.startsWith(prefix) && !items.find(item => item.label === command)) {
 						items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command));
 					}
 				}
@@ -225,8 +225,15 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 			continue;
 		}
 		for (const specLabel of specLabels) {
+<<<<<<< HEAD
 			if (!availableCommands.has(specLabel) || token?.isCancellationRequested || !terminalContext.commandLine.startsWith(specLabel)) {
+=======
+			if (!availableCommands.has(specLabel) || (token && token?.isCancellationRequested)) {
+>>>>>>> 6a7378d89ea (get tests to work, catch bug and fix it)
 				continue;
+			}
+			if (specLabel.startsWith(prefix)) {
+				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, specLabel));
 			}
 			const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
 			if ('options' in spec && spec.options) {

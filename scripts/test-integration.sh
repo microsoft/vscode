@@ -71,9 +71,9 @@ npm run test-extension -- -l vscode-colorize-tests
 kill_app
 
 echo
-echo "### Terminal Suggest tests"
+echo "### Terminal Suggest"
 echo
-npm run test-extension -- -l terminal-suggest-tests --enable-proposed-api=vscode.vscode-api-tests
+npm run test-extension -- -l terminal-suggest --enable-proposed-api=vscode.vscode-api-tests
 kill_app
 
 echo
