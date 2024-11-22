@@ -225,11 +225,7 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 			continue;
 		}
 		for (const specLabel of specLabels) {
-<<<<<<< HEAD
-			if (!availableCommands.has(specLabel) || token?.isCancellationRequested || !terminalContext.commandLine.startsWith(specLabel)) {
-=======
 			if (!availableCommands.has(specLabel) || (token && token?.isCancellationRequested)) {
->>>>>>> 6a7378d89ea (get tests to work, catch bug and fix it)
 				continue;
 			}
 			if (specLabel.startsWith(prefix)) {
