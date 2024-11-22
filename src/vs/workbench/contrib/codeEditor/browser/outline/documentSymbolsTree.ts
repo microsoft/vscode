@@ -8,10 +8,10 @@ import '../../../../../editor/contrib/symbolIcons/browser/symbolIcons.js'; // Th
 import * as dom from '../../../../../base/browser/dom.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
-import { ITreeNode, ITreeRenderer, ITreeFilter } from '../../../../../base/browser/ui/tree/tree.js';
+import { ITreeNode, ITreeRenderer, ITreeFilter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { createMatches, FuzzyScore } from '../../../../../base/common/filters.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { SymbolKind, SymbolKinds, SymbolTag, getAriaLabelForSymbol, symbolKindNames } from '../../../../../editor/common/languages.js';
+import { DocumentSymbol, SymbolKind, SymbolKinds, SymbolTag, getAriaLabelForSymbol, symbolKindNames } from '../../../../../editor/common/languages.js';
 import { OutlineElement, OutlineGroup, OutlineModel } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { localize } from '../../../../../nls.js';
 import { IconLabel, IIconLabelValueOptions } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
@@ -24,6 +24,11 @@ import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/
 import { IOutlineComparator, OutlineConfigKeys, OutlineTarget } from '../../../../services/outline/browser/outline.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { IDragAndDropData, DataTransfers } from '../../../../../base/browser/dnd.js';
+import { ElementsDragAndDropData } from '../../../../../base/browser/ui/list/listView.js';
+import { CodeDataTransfers } from '../../../../../platform/dnd/browser/dnd.js';
+import { withSelection } from '../../../../../platform/opener/common/opener.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -58,6 +63,66 @@ export class DocumentSymbolIdentityProvider implements IIdentityProvider<Documen
 	getId(element: DocumentSymbolItem): { toString(): string } {
 		return element.id;
 	}
+}
+
+export class DocumentSymbolDragAndDrop implements ITreeDragAndDrop<DocumentSymbolItem> {
+
+	constructor() { }
+
+	getDragURI(element: DocumentSymbolItem): string | null {
+		const resource = OutlineModel.get(element)?.uri;
+		if (!resource) {
+			return null;
+		}
+
+		if (element instanceof OutlineElement) {
+			return symbolRangeUri(resource, element.symbol).toString();
+		} else {
+			return resource.toString();
+		}
+	}
+
+	getDragLabel(elements: DocumentSymbolItem[], originalEvent: DragEvent): string | undefined {
+		// Multi select not supported
+		if (elements.length !== 1) {
+			return undefined;
+		}
+
+		const element = elements[0];
+		return element instanceof OutlineElement ? element.symbol.name : element.label;
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		const elements = (data as ElementsDragAndDropData<DocumentSymbolItem, DocumentSymbolItem[]>).elements;
+		const item = elements[0];
+		if (!item || !originalEvent.dataTransfer) {
+			return;
+		}
+
+		const resource = OutlineModel.get(item)?.uri;
+		if (!resource) {
+			return;
+		}
+
+		const outlineElements = item instanceof OutlineElement ? [item] : Array.from(item.children.values());
+		const symbolsData = outlineElements.map(oe => ({
+			name: oe.symbol.name,
+			fsPath: resource.fsPath,
+			range: oe.symbol.range,
+			kind: oe.symbol.kind
+		}));
+
+		originalEvent.dataTransfer.setData(CodeDataTransfers.SYMBOLS, JSON.stringify(symbolsData));
+		originalEvent.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(outlineElements.map(oe => symbolRangeUri(resource, oe.symbol))));
+	}
+
+	onDragOver(): boolean | ITreeDragOverReaction { return false; }
+	drop(): void { }
+	dispose(): void { }
+}
+
+function symbolRangeUri(resource: URI, symbol: DocumentSymbol): URI {
+	return withSelection(resource, symbol.range);
 }
 
 class DocumentSymbolGroupTemplate {
