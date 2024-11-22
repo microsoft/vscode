@@ -441,8 +441,7 @@ export class TextSnapshotEntry implements ITextSnapshotEntry {
 	) {
 	}
 
-	public static create(entry: IModifiedTextFileEntry, chatSessionId: string,
-		requestId: string | undefined,
+	public static create(entry: IModifiedTextFileEntry, requestId: string | undefined,
 		edit: OffsetEdit, instantiationService: IInstantiationService): TextSnapshotEntry {
 
 		return instantiationService.createInstance(TextSnapshotEntry,
