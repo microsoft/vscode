@@ -10,13 +10,13 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { ChatbotPromptCodec } from './codecs/chatPromptCodec/chatPromptCodec.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { FileOpenFailed, NotPromptSnippetFile, RecursiveReference } from './promptFileReferenceErrors.js';
+import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference } from './promptFileReferenceErrors.js';
 import { FileChangesEvent, FileChangeType, IFileService, IFileStreamContent } from '../../../../platform/files/common/files.js';
 
 /**
  * Error conditions that may happen during the file reference resolution.
  */
-export type TErrorCondition = FileOpenFailed | RecursiveReference | NotPromptSnippetFile;
+export type TErrorCondition = FileOpenFailed | RecursiveReference | NonPromptSnippetFile;
 
 /**
  * File extension for the prompt snippet files.
@@ -211,7 +211,7 @@ export class PromptFileReference extends Disposable {
 	private async getFileStream(): Promise<IFileStreamContent | null> {
 		// if URI doesn't point to a prompt snippet file, don't try to resolve it
 		if (this.uri.path.endsWith(PROMP_SNIPPET_FILE_EXTENSION) === false) {
-			this._errorCondition = new NotPromptSnippetFile(this.uri);
+			this._errorCondition = new NonPromptSnippetFile(this.uri);
 
 			return null;
 		}

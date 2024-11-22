@@ -6,7 +6,7 @@
 import { Line, NewLine } from './tokens/index.js';
 import { assert } from '../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { assertDefined } from '../../../../base/common/assertDefined.js';
+import { assertDefined } from '../../../../base/common/types.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 
 /**

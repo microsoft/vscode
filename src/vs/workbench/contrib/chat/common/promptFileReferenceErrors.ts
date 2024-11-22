@@ -113,7 +113,7 @@ export class RecursiveReference extends ResolveError {
  * Error that reflects the case when resource URI does not point to
  * a prompt snippet file, hence was not attempted to be resolved.
  */
-export class NotPromptSnippetFile extends ResolveError {
+export class NonPromptSnippetFile extends ResolveError {
 	constructor(
 		uri: URI,
 		message: string = '',

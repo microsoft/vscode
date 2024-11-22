@@ -15,7 +15,7 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { PromptFileReference, TErrorCondition } from '../../common/promptFileReference.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { FileOpenFailed, RecursiveReference, NotPromptSnippetFile } from '../../common/promptFileReferenceErrors.js';
+import { FileOpenFailed, RecursiveReference, NonPromptSnippetFile } from '../../common/promptFileReferenceErrors.js';
 
 /**
  * Represents a file system node.
@@ -259,7 +259,7 @@ suite('ChatbotPromptReference (Unix)', function () {
 				)),
 				testDisposables.add(new ExpectedReference(
 					URI.joinPath(rootUri, './folder1/some-other-folder/file.txt'),
-					new NotPromptSnippetFile(
+					new NonPromptSnippetFile(
 						URI.joinPath(rootUri, './folder1/some-other-folder/file.txt'),
 						'Ughh oh!',
 					),
@@ -277,7 +277,7 @@ suite('ChatbotPromptReference (Unix)', function () {
 				)),
 				testDisposables.add(new ExpectedReference(
 					URI.joinPath(rootUri, './folder1/some-other-folder/some-non-prompt-file.md'),
-					new NotPromptSnippetFile(
+					new NonPromptSnippetFile(
 						URI.joinPath(rootUri, './folder1/some-other-folder/some-non-prompt-file.md'),
 						'Oh no!',
 					),
@@ -416,7 +416,7 @@ suite('ChatbotPromptReference (Unix)', function () {
 				)),
 				testDisposables.add(new ExpectedReference(
 					URI.joinPath(rootUri, './file1.md'),
-					new NotPromptSnippetFile(
+					new NonPromptSnippetFile(
 						URI.joinPath(rootUri, './file1.md'),
 						'Uggh oh!',
 					),

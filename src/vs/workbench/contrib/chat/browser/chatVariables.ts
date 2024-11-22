@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assert } from '../../../../base/common/assert.js';
-import { assertDefined } from '../../../../base/common/assertDefined.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { assertDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
