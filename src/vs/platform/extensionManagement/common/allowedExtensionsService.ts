@@ -7,14 +7,22 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import * as nls from '../../../nls.js';
 import { IGalleryExtension, AllowedExtensionsConfigKey, IAllowedExtensionsService } from './extensionManagement.js';
-import { isGalleryExtension, isIExtension } from './extensionManagementUtil.js';
-import { IExtension, TargetPlatform } from '../../extensions/common/extensions.js';
+import { ExtensionType, IExtension, TargetPlatform } from '../../extensions/common/extensions.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { isBoolean, isObject, isUndefined } from '../../../base/common/types.js';
 import { Emitter } from '../../../base/common/event.js';
+
+function isGalleryExtension(extension: any): extension is IGalleryExtension {
+	return extension.type === 'gallery';
+}
+
+function isIExtension(extension: any): extension is IExtension {
+	return extension.type === ExtensionType.User || extension.type === ExtensionType.System;
+}
+
 
 const VersionRegex = /^(?<version>\d+\.\d+\.\d+(-.*)?)(@(?<platform>.+))?$/;
 
