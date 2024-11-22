@@ -206,11 +206,49 @@ class StringPolicy extends BasePolicy {
 	): StringPolicy | undefined {
 		const type = getStringProperty(settingNode, 'type');
 
-		if (type !== 'string' && type !== 'array' && type !== 'object') {
+		if (type !== 'string') {
 			return undefined;
 		}
 
 		return new StringPolicy(name, category, minimumVersion, description, moduleName);
+	}
+
+	private constructor(
+		name: string,
+		category: Category,
+		minimumVersion: string,
+		description: NlsString,
+		moduleName: string,
+	) {
+		super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
+	}
+
+	protected renderADMXElements(): string[] {
+		return [`<text id="${this.name}" valueName="${this.name}" required="true" />`];
+	}
+
+	renderADMLPresentationContents() {
+		return `<textBox refId="${this.name}"><label>${this.name}:</label></textBox>`;
+	}
+}
+
+class ObjectPolicy extends BasePolicy {
+
+	static from(
+		name: string,
+		category: Category,
+		minimumVersion: string,
+		description: NlsString,
+		moduleName: string,
+		settingNode: Parser.SyntaxNode
+	): ObjectPolicy | undefined {
+		const type = getStringProperty(settingNode, 'type');
+
+		if (type !== 'object' && type !== 'array') {
+			return undefined;
+		}
+
+		return new ObjectPolicy(name, category, minimumVersion, description, moduleName);
 	}
 
 	private constructor(
