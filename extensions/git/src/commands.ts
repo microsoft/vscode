@@ -1559,10 +1559,6 @@ export class CommandCenter {
 	async stageSelectedChanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
-		this.logger.debug('[CommandCenter][stageSelectedChanges] changes:', changes);
-		this.logger.debug('[CommandCenter][stageSelectedChanges] diffInformation.changes:', textEditor?.diffInformation?.changes);
-		this.logger.debug('[CommandCenter][stageSelectedChanges] diffInformation.isStale:', textEditor?.diffInformation?.isStale);
-
 		if (!textEditor) {
 			return;
 		}
@@ -1745,10 +1741,6 @@ export class CommandCenter {
 	async revertSelectedRanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
-		this.logger.debug('[CommandCenter][revertSelectedRanges] changes:', changes);
-		this.logger.debug('[CommandCenter][revertSelectedRanges] diffInformation.changes:', textEditor?.diffInformation?.changes);
-		this.logger.debug('[CommandCenter][revertSelectedRanges] diffInformation.isStale:', textEditor?.diffInformation?.isStale);
-
 		if (!textEditor) {
 			return;
 		}
@@ -1825,10 +1817,6 @@ export class CommandCenter {
 	@command('git.unstageSelectedRanges', { diff: true })
 	async unstageSelectedRanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
-
-		this.logger.debug('[CommandCenter][unstageSelectedRanges] changes:', changes);
-		this.logger.debug('[CommandCenter][unstageSelectedRanges] diffInformation.changes:', textEditor?.diffInformation?.changes);
-		this.logger.debug('[CommandCenter][unstageSelectedRanges] diffInformation.isStale:', textEditor?.diffInformation?.isStale);
 
 		if (!textEditor) {
 			return;

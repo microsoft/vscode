@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString, commands } from 'vscode';
+import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString, QuickDiffProvider } from 'vscode';
 import { Model } from './model';
 import { dispose, fromNow, IDisposable, pathEquals } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation } from './git';
+import { toGitUri } from './uri';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -16,23 +17,6 @@ function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber:
 
 function lineRangeLength(startLineNumber: number, endLineNumberExclusive: number): number {
 	return endLineNumberExclusive - startLineNumber;
-}
-
-function toTextEditorChange(originalStartLineNumber: number, originalEndLineNumberExclusive: number, modifiedStartLineNumber: number, modifiedEndLineNumberExclusive: number): TextEditorChange {
-	let kind: TextEditorChangeKind;
-	if (originalStartLineNumber === originalEndLineNumberExclusive) {
-		kind = TextEditorChangeKind.Addition;
-	} else if (modifiedStartLineNumber === modifiedEndLineNumberExclusive) {
-		kind = TextEditorChangeKind.Deletion;
-	} else {
-		kind = TextEditorChangeKind.Modification;
-	}
-
-	return {
-		original: { startLineNumber: originalStartLineNumber, endLineNumberExclusive: originalEndLineNumberExclusive },
-		modified: { startLineNumber: modifiedStartLineNumber, endLineNumberExclusive: modifiedEndLineNumberExclusive },
-		kind
-	};
 }
 
 function mapModifiedLineNumberToOriginalLineNumber(lineNumber: number, changes: readonly TextEditorChange[]): number {
@@ -79,14 +63,13 @@ interface LineBlameInformation {
 	readonly blameInformation: BlameInformation | string;
 }
 
-export class GitBlameController {
+export class GitBlameController implements QuickDiffProvider {
 	private readonly _onDidChangeBlameInformation = new EventEmitter<TextEditor>();
 	public readonly onDidChangeBlameInformation = this._onDidChangeBlameInformation.event;
 
 	readonly textEditorBlameInformation = new Map<TextEditor, readonly LineBlameInformation[]>();
 
 	private readonly _repositoryBlameInformation = new Map<Repository, RepositoryBlameInformation>();
-	private readonly _stagedResourceDiffInformation = new Map<Repository, Map<Uri, TextEditorChange[]>>();
 
 	private _repositoryDisposables = new Map<Repository, IDisposable[]>();
 	private _disposables: IDisposable[] = [];
@@ -102,6 +85,25 @@ export class GitBlameController {
 		window.onDidChangeTextEditorDiffInformation(e => this._updateTextEditorBlameInformation(e.textEditor), this, this._disposables);
 
 		this._updateTextEditorBlameInformation(window.activeTextEditor);
+	}
+
+	get visible(): boolean {
+		return false;
+	}
+
+	provideOriginalResource(uri: Uri): Uri | undefined {
+		// Ignore resources outside a repository
+		const repository = this._model.getRepository(uri);
+		if (!repository) {
+			return undefined;
+		}
+
+		// Ignore resources that are not in the index group
+		if (!repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
+			return undefined;
+		}
+
+		return toGitUri(uri, 'HEAD', { replaceFileExtension: true });
 	}
 
 	getBlameInformationHover(documentUri: Uri, blameInformation: BlameInformation | string): MarkdownString {
@@ -141,9 +143,7 @@ export class GitBlameController {
 
 	private _onDidOpenRepository(repository: Repository): void {
 		const repositoryDisposables: IDisposable[] = [];
-
 		repository.onDidRunGitStatus(() => this._onDidRunGitStatus(repository), this, repositoryDisposables);
-		repository.onDidChangeRepository(e => this._onDidChangeRepository(repository, e), this, this._disposables);
 
 		this._repositoryDisposables.set(repository, repositoryDisposables);
 	}
@@ -174,14 +174,6 @@ export class GitBlameController {
 		}
 	}
 
-	private _onDidChangeRepository(repository: Repository, uri: Uri): void {
-		if (!/\.git\/index$/.test(uri.fsPath)) {
-			return;
-		}
-
-		this._stagedResourceDiffInformation.delete(repository);
-	}
-
 	private async _getBlameInformation(resource: Uri): Promise<BlameInformation[] | undefined> {
 		const repository = this._model.getRepository(resource);
 		if (!repository || !repository.HEAD?.commit) {
@@ -209,76 +201,65 @@ export class GitBlameController {
 		return resourceBlameInformation;
 	}
 
-	private async _getStagedResourceDiffInformation(uri: Uri): Promise<TextEditorChange[] | undefined> {
-		const repository = this._model.getRepository(uri);
-		if (!repository) {
-			return undefined;
-		}
-
-		const [resource] = repository.indexGroup
-			.resourceStates.filter(r => pathEquals(uri.fsPath, r.resourceUri.fsPath));
-
-		if (!resource || !resource.leftUri || !resource.rightUri) {
-			return undefined;
-		}
-
-		const diffInformationMap = this._stagedResourceDiffInformation.get(repository) ?? new Map<Uri, TextEditorChange[]>();
-		let changes = diffInformationMap.get(resource.resourceUri);
-		if (changes) {
-			return changes;
-		}
-
-		// Get the diff information for the staged resource
-		const diffInformation: [number, number, number, number][] = await commands.executeCommand('_workbench.internal.computeDiff', resource.leftUri, resource.rightUri);
-		if (!diffInformation) {
-			return undefined;
-		}
-
-		changes = diffInformation.map(change => toTextEditorChange(change[0], change[1], change[2], change[3]));
-		this._stagedResourceDiffInformation.set(repository, diffInformationMap.set(resource.resourceUri, changes));
-
-		return changes;
-	}
-
 	@throttle
 	private async _updateTextEditorBlameInformation(textEditor: TextEditor | undefined): Promise<void> {
-		const diffInformation = textEditor?.diffInformation;
-		if (!diffInformation || diffInformation.isStale) {
+		if (!textEditor?.diffInformation) {
 			return;
 		}
 
+		// Working tree diff information
+		const diffInformationWorkingTree = textEditor.diffInformation
+			.filter(diff => diff.original?.scheme === 'git')
+			.find(diff => {
+				const query = JSON.parse(diff.original!.query) as { ref: string };
+				return query.ref !== 'HEAD';
+			});
+
+		// Working tree + index diff information
+		const diffInformationWorkingTreeAndIndex = textEditor.diffInformation
+			.filter(diff => diff.original?.scheme === 'git')
+			.find(diff => {
+				const query = JSON.parse(diff.original!.query) as { ref: string };
+				return query.ref === 'HEAD';
+			});
+
+		// Working tree diff information is not present or it is stale
+		if (!diffInformationWorkingTree || diffInformationWorkingTree.isStale) {
+			return;
+		}
+
+		// Working tree + index diff information is present and it is stale
+		if (diffInformationWorkingTreeAndIndex && diffInformationWorkingTreeAndIndex.isStale) {
+			return;
+		}
+
+		// For staged resources, we provide an additional "original resource" so that core can
+		// compute the diff information that contains the changes from the working tree and the
+		// index.
+		const diffInformation = diffInformationWorkingTreeAndIndex ?? diffInformationWorkingTree;
+
+		// Git blame information
 		const resourceBlameInformation = await this._getBlameInformation(textEditor.document.uri);
 		if (!resourceBlameInformation) {
 			return;
 		}
 
-		// The diff information does not contain changes that have been staged. We need
-		// to get the staged changes and if present, merge them with the diff information.
-		const diffInformationStagedResources: TextEditorChange[] = await this._getStagedResourceDiffInformation(textEditor.document.uri) ?? [];
-
-		console.log('diffInformation', diffInformation.changes);
-		console.log('diffInformationStagedResources', diffInformationStagedResources);
-
-		console.log('resourceBlameInformation', resourceBlameInformation);
-
 		const lineBlameInformation: LineBlameInformation[] = [];
 		for (const lineNumber of textEditor.selections.map(s => s.active.line)) {
-			// Check if the line is contained in the diff information
-			if (lineRangesContainLine(diffInformation.changes, lineNumber + 1)) {
+			// Check if the line is contained in the working tree diff information
+			if (lineRangesContainLine(diffInformationWorkingTree.changes, lineNumber + 1)) {
 				lineBlameInformation.push({ lineNumber, blameInformation: l10n.t('Not Committed Yet') });
 				continue;
 			}
 
-			// Check if the line is contained in the staged resources diff information
-			if (lineRangesContainLine(diffInformationStagedResources, lineNumber + 1)) {
+			// Check if the line is contained in the working tree + index diff information
+			if (lineRangesContainLine(diffInformationWorkingTreeAndIndex?.changes ?? [], lineNumber + 1)) {
 				lineBlameInformation.push({ lineNumber, blameInformation: l10n.t('Not Committed Yet (Staged)') });
 				continue;
 			}
 
-			const diffInformationAll = [...diffInformation.changes, ...diffInformationStagedResources];
-
 			// Map the line number to the git blame ranges using the diff information
-			const lineNumberWithDiff = mapModifiedLineNumberToOriginalLineNumber(lineNumber + 1, diffInformationAll);
+			const lineNumberWithDiff = mapModifiedLineNumberToOriginalLineNumber(lineNumber + 1, diffInformation.changes);
 			const blameInformation = resourceBlameInformation.find(blameInformation => {
 				return blameInformation.ranges.find(range => {
 					return lineNumberWithDiff >= range.startLineNumber && lineNumberWithDiff <= range.endLineNumber;

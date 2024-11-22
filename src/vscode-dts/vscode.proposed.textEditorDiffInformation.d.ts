@@ -34,11 +34,11 @@ declare module 'vscode' {
 
 	export interface TextEditorDiffInformationChangeEvent {
 		readonly textEditor: TextEditor;
-		readonly diffInformation: TextEditorDiffInformation | undefined;
+		readonly diffInformation: TextEditorDiffInformation[] | undefined;
 	}
 
 	export interface TextEditor {
-		readonly diffInformation: TextEditorDiffInformation | undefined;
+		readonly diffInformation: TextEditorDiffInformation[] | undefined;
 	}
 
 	export namespace window {
