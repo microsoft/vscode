@@ -582,6 +582,7 @@ suite('ExtensionsProfileScannerService', () => {
 				...manifest,
 			},
 			isValid: true,
+			preRelease: false,
 			validations: [],
 			...e
 		};

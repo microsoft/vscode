@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
 import { cloneAndChange } from '../../../base/common/objects.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { DefaultURITransformer, IURITransformer, transformAndReviveIncomingURIs } from '../../../base/common/uriIpc.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { IExtensionIdentifier, IExtensionTipsService, IGalleryExtension, ILocalExtension, IExtensionsControlManifest, isTargetPlatformCompatible, InstallOptions, UninstallOptions, Metadata, IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, InstallOperation, InstallExtensionInfo, IProductVersion, DidUpdateExtensionMetadata, UninstallExtensionInfo, TargetPlatformToString } from './extensionManagement.js';
+import {
+	IExtensionIdentifier, IExtensionTipsService, IGalleryExtension, ILocalExtension, IExtensionsControlManifest, InstallOptions,
+	UninstallOptions, Metadata, IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult,
+	UninstallExtensionEvent, InstallOperation, InstallExtensionInfo, IProductVersion, DidUpdateExtensionMetadata, UninstallExtensionInfo,
+	IAllowedExtensionsService
+} from './extensionManagement.js';
 import { ExtensionType, IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
-import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
-import { localize } from '../../../nls.js';
 import { IProductService } from '../../product/common/productService.js';
+import { CommontExtensionManagementService } from './abstractExtensionManagementService.js';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI;
 function transformIncomingURI(uri: UriComponents | undefined, transformer: IURITransformer | null): URI | undefined;
@@ -183,7 +186,7 @@ export interface ExtensionEventResult {
 	readonly applicationScoped?: boolean;
 }
 
-export class ExtensionManagementChannelClient extends Disposable implements IExtensionManagementService {
+export class ExtensionManagementChannelClient extends CommontExtensionManagementService implements IExtensionManagementService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -204,9 +207,10 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 
 	constructor(
 		private readonly channel: IChannel,
-		protected readonly productService: IProductService
+		productService: IProductService,
+		allowedExtensionsService: IAllowedExtensionsService,
 	) {
-		super();
+		super(productService, allowedExtensionsService);
 		this._register(this.channel.listen<InstallExtensionEvent>('onInstallExtension')(e => this.onInstallExtensionEvent({ ...e, source: this.isUriComponents(e.source) ? URI.revive(e.source) : e.source, profileLocation: URI.revive(e.profileLocation) })));
 		this._register(this.channel.listen<readonly InstallExtensionResult[]>('onDidInstallExtensions')(results => this.onDidInstallExtensionsEvent(results.map(e => ({ ...e, local: e.local ? transformIncomingExtension(e.local, null) : e.local, source: this.isUriComponents(e.source) ? URI.revive(e.source) : e.source, profileLocation: URI.revive(e.profileLocation) })))));
 		this._register(this.channel.listen<UninstallExtensionEvent>('onUninstallExtension')(e => this.onUninstallExtensionEvent({ ...e, profileLocation: URI.revive(e.profileLocation) })));
@@ -248,14 +252,6 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 			this._targetPlatformPromise = this.channel.call<TargetPlatform>('getTargetPlatform');
 		}
 		return this._targetPlatformPromise;
-	}
-
-	async canInstall(extension: IGalleryExtension): Promise<true | IMarkdownString> {
-		const currentTargetPlatform = await this.getTargetPlatform();
-		if (extension.allTargetPlatforms.some(targetPlatform => isTargetPlatformCompatible(targetPlatform, extension.allTargetPlatforms, currentTargetPlatform))) {
-			return true;
-		}
-		return new MarkdownString(`${localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", extension.displayName ?? extension.identifier.id, this.productService.nameLong, TargetPlatformToString(currentTargetPlatform))} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-platform-specific-extensions)`);
 	}
 
 	zip(extension: ILocalExtension): Promise<URI> {
