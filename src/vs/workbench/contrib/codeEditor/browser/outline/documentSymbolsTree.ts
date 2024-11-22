@@ -67,10 +67,10 @@ export class DocumentSymbolIdentityProvider implements IIdentityProvider<Documen
 
 export class DocumentSymbolDragAndDrop implements ITreeDragAndDrop<DocumentSymbolItem> {
 
-	constructor(private readonly _modelProvider: () => OutlineModel | undefined) { }
+	constructor() { }
 
 	getDragURI(element: DocumentSymbolItem): string | null {
-		const resource = this._modelProvider()?.uri;
+		const resource = OutlineModel.get(element)?.uri;
 		if (!resource) {
 			return null;
 		}
@@ -99,7 +99,7 @@ export class DocumentSymbolDragAndDrop implements ITreeDragAndDrop<DocumentSymbo
 			return;
 		}
 
-		const resource = this._modelProvider()?.uri;
+		const resource = OutlineModel.get(item)?.uri;
 		if (!resource) {
 			return;
 		}

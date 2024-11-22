@@ -170,7 +170,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 				: target === OutlineTarget.Breadcrumbs
 					? instantiationService.createInstance(DocumentSymbolFilter, 'breadcrumbs')
 					: undefined,
-			dnd: new DocumentSymbolDragAndDrop(() => this._outlineModel),
+			dnd: new DocumentSymbolDragAndDrop(),
 		};
 
 		this.config = {
