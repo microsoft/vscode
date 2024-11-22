@@ -33,6 +33,7 @@ import { IDirtyDiffModelService } from '../../contrib/scm/browser/diff.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, observableFromEvent } from '../../../base/common/observable.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { isITextModel } from '../../../editor/common/model.js';
+import { LineRangeMapping, lineRangeMappingFromChanges } from '../../../editor/common/diff/rangeMapping.js';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -144,7 +145,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			? observableFromEvent(this, diffEditor.onDidChangeModel, () => diffEditor.getModel())
 			: observableFromEvent(this, codeEditor.onDidChangeModel, () => codeEditor.getModel());
 
-		const editorChangesObs = derived<IObservable<{ original: URI; modified: URI; changes: IChange[] } | undefined>>(reader => {
+		const editorChangesObs = derived<IObservable<{ original: URI; modified: URI; changes: LineRangeMapping[] } | undefined>>(reader => {
 			const editorModel = editorModelObs.read(reader);
 			if (!editorModel) {
 				return constObservable(undefined);
@@ -153,10 +154,12 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			// DiffEditor
 			if (!isITextModel(editorModel)) {
 				return observableFromEvent(diffEditor.onDidUpdateDiff, () => {
+					const changes = diffEditor.getDiffComputationResult()?.changes2 ?? [];
+
 					return {
 						original: editorModel.original.uri,
 						modified: editorModel.modified.uri,
-						changes: diffEditor.getLineChanges() ?? []
+						changes: changes.map(change => change as LineRangeMapping)
 					};
 				});
 			}
@@ -177,10 +180,13 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 					.filter(change => change.label === scmQuickDiff.label)
 					.map(change => change.change);
 
+				// Convert IChange[] to LineRangeMapping[]
+				const lineRangeMapping = lineRangeMappingFromChanges(changes);
+
 				return {
 					original: scmQuickDiff.originalResource,
 					modified: editorModel.uri,
-					changes
+					changes: lineRangeMapping
 				};
 			});
 		});
@@ -201,10 +207,10 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 			const changes: ITextEditorChange[] = editorChanges.changes
 				.map(change => [
-					change.originalStartLineNumber,
-					change.originalEndLineNumber,
-					change.modifiedStartLineNumber,
-					change.modifiedEndLineNumber
+					change.original.startLineNumber,
+					change.original.endLineNumberExclusive,
+					change.modified.startLineNumber,
+					change.modified.endLineNumberExclusive
 				]);
 
 			return {
