@@ -18,7 +18,6 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
-import { timeout } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -28,7 +27,6 @@ import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { showChatView, ChatViewId } from './chat.js';
-import { IChatAgentService } from '../common/chatAgents.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import product from '../../../../platform/product/common/product.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -317,7 +315,6 @@ class ChatSetupWelcomeContent extends Disposable {
 		@IViewsService private readonly viewsService: IViewsService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IProductService private readonly productService: IProductService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService
 	) {
 		super();
 
@@ -450,8 +447,6 @@ class ChatSetupWelcomeContent extends Disposable {
 		}
 
 		this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signedIn });
-
-		await Promise.race([timeout(5000), Event.toPromise(this.chatAgentService.onDidChangeAgents)]); // reduce flicker (https://github.com/microsoft/vscode-copilot/issues/9274)
 
 		if (activeElement === getActiveElement()) {
 			(await showChatView(this.viewsService))?.focusInput();
