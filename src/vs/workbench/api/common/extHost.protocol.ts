@@ -1646,7 +1646,7 @@ export interface MainThreadSCMShape extends IDisposable {
 }
 
 export interface MainThreadQuickDiffShape extends IDisposable {
-	$registerQuickDiffProvider(handle: number, selector: IDocumentFilterDto[], label: string, rootUri: UriComponents | undefined): Promise<void>;
+	$registerQuickDiffProvider(handle: number, selector: IDocumentFilterDto[], label: string, rootUri: UriComponents | undefined, visible: boolean): Promise<void>;
 	$unregisterQuickDiffProvider(handle: number): Promise<void>;
 }
 
@@ -1848,7 +1848,7 @@ export interface ISelectionChangeEvent {
 export interface ExtHostEditorsShape {
 	$acceptEditorPropertiesChanged(id: string, props: IEditorPropertiesChangeData): void;
 	$acceptEditorPositionData(data: ITextEditorPositionData): void;
-	$acceptEditorDiffInformation(id: string, diffInformation: ITextEditorDiffInformation | undefined): void;
+	$acceptEditorDiffInformation(id: string, diffInformation: ITextEditorDiffInformation[] | undefined): void;
 }
 
 export interface IDocumentsAndEditorsDelta {

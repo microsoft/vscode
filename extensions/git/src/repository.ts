@@ -1021,7 +1021,7 @@ export class Repository implements Disposable {
 	 * Quick diff label
 	 */
 	get label(): string {
-		return l10n.t('Git local working changes');
+		return l10n.t('Git local changes (working tree)');
 	}
 
 	provideOriginalResource(uri: Uri): Uri | undefined {
