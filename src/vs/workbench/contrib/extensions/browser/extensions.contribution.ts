@@ -269,13 +269,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				tags: ['onExp', 'usesOnlineServices']
 			},
 			[AllowedExtensionsConfigKey]: {
+				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.
 				type: 'object',
 				description: localize('extensions.allowed', "List of extensions that are allowed."),
 				default: '*',
 				defaultSnippets: [{
+					body: {},
+					description: localize('extensions.allowed.none', "No extensions are allowed."),
+				}, {
 					body: {
 						'*': true
-					}
+					},
+					description: localize('extensions.allowed.all', "All extensions are allowed."),
 				}],
 				scope: ConfigurationScope.APPLICATION,
 				policy: {
