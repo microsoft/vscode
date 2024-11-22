@@ -6,7 +6,7 @@
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { Disposable, dispose, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
-import { IChatEditingService, WorkingSetEntryState } from '../../../../chat/common/chatEditingService.js';
+import { IChatEditingService, IModifiedTextFileEntry, WorkingSetEntryState } from '../../../../chat/common/chatEditingService.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -86,7 +86,7 @@ class NotebookChatEditorController extends Disposable {
 			if (!model || !session) {
 				return;
 			}
-			return session.entries.read(r).find(e => isEqual(e.modifiedURI, model.uri));
+			return session.entries.read(r).find(e => isEqual(e.modifiedURI, model.uri) && e.kind === 'text') as IModifiedTextFileEntry | undefined;
 		}).recomputeInitiallyAndOnChange(this._store);
 
 
