@@ -440,6 +440,7 @@ const PolicyTypes = [
 	IntPolicy,
 	StringEnumPolicy,
 	StringPolicy,
+	ObjectPolicy
 ];
 
 function getPolicy(
