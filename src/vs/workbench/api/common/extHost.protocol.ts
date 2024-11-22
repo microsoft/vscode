@@ -2596,6 +2596,7 @@ export interface ExtHostDecorationsShape {
 export interface ExtHostWindowShape {
 	$onDidChangeWindowFocus(value: boolean): void;
 	$onDidChangeWindowActive(value: boolean): void;
+	$onDidChangeActiveNativeWindowHandle(handle: string | undefined): void;
 }
 
 export interface ExtHostLogLevelServiceShape {
