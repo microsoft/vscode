@@ -34,24 +34,6 @@ import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/co
 import { EditorsOrder } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
-import { AdapterManager } from './debugAdapterManager.js';
-import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from './debugCommands.js';
-import { ConfigurationManager } from './debugConfigurationManager.js';
-import { DebugMemoryFileSystemProvider } from './debugMemory.js';
-import { DebugSession } from './debugSession.js';
-import { DebugTaskRunner, TaskRunResult } from './debugTaskRunner.js';
-import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_HAS_DEBUGGED, CONTEXT_IN_DEBUG_MODE, DEBUG_MEMORY_SCHEME, DEBUG_SCHEME, IAdapterManager, IBreakpoint, IBreakpointData, IBreakpointUpdateData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGlobalConfig, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID, debuggerDisabledMessage, getStateLabel } from '../common/debug.js';
-import { DebugCompoundRoot } from '../common/debugCompoundRoot.js';
-import { Breakpoint, DataBreakpoint, DebugModel, FunctionBreakpoint, IDataBreakpointOptions, IFunctionBreakpointOptions, IInstructionBreakpointOptions, InstructionBreakpoint } from '../common/debugModel.js';
-import { Source } from '../common/debugSource.js';
-import { DebugStorage } from '../common/debugStorage.js';
-import { DebugTelemetry } from '../common/debugTelemetry.js';
-import { getExtensionHostDebugSession, saveAllBeforeDebugStart } from '../common/debugUtils.js';
-import { ViewModel } from '../common/debugViewModel.js';
-import { Debugger } from '../common/debugger.js';
-import { DisassemblyViewInput } from '../common/disassemblyViewInput.js';
-import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from '../../files/common/files.js';
-import { ITestService } from '../../testing/common/testService.js';
 import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -59,6 +41,23 @@ import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from '../../files/common/files.js';
+import { ITestService } from '../../testing/common/testService.js';
+import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_HAS_DEBUGGED, CONTEXT_IN_DEBUG_MODE, DEBUG_MEMORY_SCHEME, DEBUG_SCHEME, IAdapterManager, IBreakpoint, IBreakpointData, IBreakpointUpdateData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGlobalConfig, IGuessedDebugger, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID, debuggerDisabledMessage, getStateLabel } from '../common/debug.js';
+import { DebugCompoundRoot } from '../common/debugCompoundRoot.js';
+import { Breakpoint, DataBreakpoint, DebugModel, FunctionBreakpoint, IDataBreakpointOptions, IFunctionBreakpointOptions, IInstructionBreakpointOptions, InstructionBreakpoint } from '../common/debugModel.js';
+import { Source } from '../common/debugSource.js';
+import { DebugStorage, IChosenEnvironment } from '../common/debugStorage.js';
+import { DebugTelemetry } from '../common/debugTelemetry.js';
+import { getExtensionHostDebugSession, saveAllBeforeDebugStart } from '../common/debugUtils.js';
+import { ViewModel } from '../common/debugViewModel.js';
+import { DisassemblyViewInput } from '../common/disassemblyViewInput.js';
+import { AdapterManager } from './debugAdapterManager.js';
+import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from './debugCommands.js';
+import { ConfigurationManager } from './debugConfigurationManager.js';
+import { DebugMemoryFileSystemProvider } from './debugMemory.js';
+import { DebugSession } from './debugSession.js';
+import { DebugTaskRunner, TaskRunResult } from './debugTaskRunner.js';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -89,7 +88,7 @@ export class DebugService implements IDebugService {
 	private previousState: State | undefined;
 	private sessionCancellationTokens = new Map<string, CancellationTokenSource>();
 	private activity: IDisposable | undefined;
-	private chosenEnvironments: { [key: string]: string };
+	private chosenEnvironments: Record<string, IChosenEnvironment>;
 	private haveDoneLazySetup = false;
 
 	constructor(
@@ -122,7 +121,10 @@ export class DebugService implements IDebugService {
 		this._onWillNewSession = new Emitter<IDebugSession>();
 		this._onDidEndSession = new Emitter();
 
-		this.adapterManager = this.instantiationService.createInstance(AdapterManager, { onDidNewSession: this.onDidNewSession });
+		this.adapterManager = this.instantiationService.createInstance(AdapterManager, {
+			onDidNewSession: this.onDidNewSession,
+			configurationManager: () => this.configurationManager,
+		});
 		this.disposables.add(this.adapterManager);
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.adapterManager);
 		this.disposables.add(this.configurationManager);
@@ -457,26 +459,42 @@ export class DebugService implements IDebugService {
 			type = config.type;
 		} else {
 			// a no-folder workspace has no launch.config
-			config = Object.create(null);
+			config = Object.create(null) as IConfig;
 		}
 		if (options && options.noDebug) {
-			config!.noDebug = true;
+			config.noDebug = true;
 		} else if (options && typeof options.noDebug === 'undefined' && options.parentSession && options.parentSession.configuration.noDebug) {
-			config!.noDebug = true;
+			config.noDebug = true;
 		}
 		const unresolvedConfig = deepClone(config);
 
-		let guess: Debugger | undefined;
+		let guess: IGuessedDebugger | undefined;
 		let activeEditor: EditorInput | undefined;
 		if (!type) {
 			activeEditor = this.editorService.activeEditor;
 			if (activeEditor && activeEditor.resource) {
-				type = this.chosenEnvironments[activeEditor.resource.toString()];
+				const chosen = this.chosenEnvironments[activeEditor.resource.toString()];
+				if (chosen) {
+					type = chosen.type;
+					if (chosen.dynamicLabel) {
+						const dyn = await this.configurationManager.getDynamicConfigurationsByType(chosen.type);
+						const found = dyn.find(d => d.label === chosen.dynamicLabel);
+						if (found) {
+							launch = found.launch;
+							Object.assign(config, found.config);
+						}
+					}
+				}
 			}
+
 			if (!type) {
 				guess = await this.adapterManager.guessDebugger(false);
 				if (guess) {
-					type = guess.type;
+					type = guess.debugger.type;
+					if (guess.withConfig) {
+						launch = guess.withConfig.launch;
+						Object.assign(config, guess.withConfig.config);
+					}
 				}
 			}
 		}
@@ -485,7 +503,7 @@ export class DebugService implements IDebugService {
 		const sessionId = generateUuid();
 		this.sessionCancellationTokens.set(sessionId, initCancellationToken);
 
-		const configByProviders = await this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config!, initCancellationToken.token);
+		const configByProviders = await this.configurationManager.resolveConfigurationByProviders(launch && launch.workspace ? launch.workspace.uri : undefined, type, config, initCancellationToken.token);
 		// a falsy config indicates an aborted launch
 		if (configByProviders && configByProviders.type) {
 			try {
@@ -550,7 +568,7 @@ export class DebugService implements IDebugService {
 				const result = await this.doCreateSession(sessionId, launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
 				if (result && guess && activeEditor && activeEditor.resource) {
 					// Remeber user choice of environment per active editor to make starting debugging smoother #124770
-					this.chosenEnvironments[activeEditor.resource.toString()] = guess.type;
+					this.chosenEnvironments[activeEditor.resource.toString()] = { type: guess.debugger.type, dynamicLabel: guess.withConfig?.label };
 					this.debugStorage.storeChosenEnvironments(this.chosenEnvironments);
 				}
 				return result;
