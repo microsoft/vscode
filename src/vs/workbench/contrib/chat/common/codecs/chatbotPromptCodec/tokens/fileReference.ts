@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseToken } from '../../baseToken.js';
-import { Word } from '../../simpleCodec/tokens/index.js';
-import { assert } from '../../../../../base/common/assert.js';
-import { Range } from '../../../../../editor/common/core/range.js';
+import { assert } from '../../../../../../../base/common/assert.js';
+import { Range } from '../../../../../../../editor/common/core/range.js';
+import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
+import { Word } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
+
 
 // Start sequence for a file reference token in a prompt.
 const TOKEN_START: string = '#file:';
@@ -77,8 +78,12 @@ export class FileReference extends BaseToken {
 	/**
 	 * Check if this token is equal to another one.
 	 */
-	public equals(other: FileReference): boolean {
+	public override equals<T extends BaseToken>(other: T): boolean {
 		if (!super.sameRange(other.range)) {
+			return false;
+		}
+
+		if (!(other instanceof FileReference)) {
 			return false;
 		}
 

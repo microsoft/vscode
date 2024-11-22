@@ -42,8 +42,12 @@ export class Line extends BaseToken {
 	/**
 	 * Check if this token is equal to another one.
 	 */
-	public equals(other: Line): boolean {
-		if (!super.sameRange(other.range)) {
+	public override equals<T extends BaseToken>(other: T): boolean {
+		if (!super.equals(other)) {
+			return false;
+		}
+
+		if (!(other instanceof Line)) {
 			return false;
 		}
 

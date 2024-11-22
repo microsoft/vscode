@@ -8,9 +8,9 @@ import { Emitter } from '../../../../base/common/event.js';
 import { extUri } from '../../../../base/common/resources.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Location } from '../../../../editor/common/languages.js';
+import { ChatbotPromptCodec } from './codecs/chatbotPromptCodec/chatbotPromptCodec.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { FileOpenFailed, NotPromptSnippetFile, RecursiveReference } from './promptFileReferenceErrors.js';
-import { ChatbotPromptCodec } from '../../../../editor/common/codecs/chatbotPromptCodec/chatbotPromptCodec.js';
 import { FileChangesEvent, FileChangeType, IFileService, IFileStreamContent } from '../../../../platform/files/common/files.js';
 
 /**

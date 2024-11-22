@@ -10,9 +10,6 @@ import { BaseToken } from '../../../common/codecs/baseToken.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { WriteableStream } from '../../../../base/common/stream.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
-import { Line, NewLine } from '../../../common/codecs/linesCodec/tokens/index.js';
-import { Space, Tab, Word } from '../../../common/codecs/simpleCodec/tokens/index.js';
-import { FileReference } from '../../../common/codecs/chatbotPromptCodec/tokens/fileReference.js';
 
 /**
  * (pseudo)Random boolean generator.
@@ -99,91 +96,10 @@ export class TestDecoder<T extends BaseToken, D extends BaseDecoder<T>> extends 
 			const expectedToken = expectedTokens[i];
 			const receivedtoken = receivedTokens[i];
 
-			if (expectedToken instanceof Line) {
-				assert(
-					receivedtoken instanceof Line,
-					`Token '${i}' must be a 'Line', got '${receivedtoken}'.`,
-				);
-
-				assert(
-					receivedtoken.equals(expectedToken),
-					`Expected token '${i}' to be '${expectedToken}', got '${receivedtoken}'.`,
-				);
-
-				continue;
-			}
-
-			if (expectedToken instanceof NewLine) {
-				assert(
-					receivedtoken instanceof NewLine,
-					`Token '${i}' must be a 'NewLine', got '${receivedtoken}'.`,
-				);
-
-				assert(
-					receivedtoken.equals(expectedToken),
-					`Expected token '${i}' be '${expectedToken}', got '${receivedtoken}'.`,
-				);
-
-				continue;
-			}
-
-			if (expectedToken instanceof Space) {
-				assert(
-					receivedtoken instanceof Space,
-					`Token '${i}' must be a 'Space', got '${receivedtoken}'.`,
-				);
-
-				assert(
-					receivedtoken.equals(expectedToken),
-					`Expected token '${i}' be '${expectedToken}', got '${receivedtoken}'.`,
-				);
-
-				continue;
-			}
-
-			if (expectedToken instanceof Word) {
-				assert(
-					receivedtoken instanceof Word,
-					`Token '${i}' must be a 'Word', got '${receivedtoken}'.`,
-				);
-
-				assert(
-					receivedtoken.equals(expectedToken),
-					`Expected token '${i}' be '${expectedToken}', got '${receivedtoken}'.`,
-				);
-
-				continue;
-			}
-
-			if (expectedToken instanceof Tab) {
-				assert(
-					receivedtoken instanceof Tab,
-					`Token '${i}' must be a 'Tab ', got '${receivedtoken}'.`,
-				);
-
-				assert(
-					receivedtoken.equals(expectedToken),
-					`Expected token '${i}' be '${expectedToken}', got '${receivedtoken}'.`,
-				);
-
-				continue;
-			}
-
-			if (expectedToken instanceof FileReference) {
-				assert(
-					receivedtoken instanceof FileReference,
-					`Token '${i}' must be a 'FileReference ', got '${receivedtoken}'.`,
-				);
-
-				assert(
-					receivedtoken.equals(expectedToken),
-					`Expected token '${i}' be '${expectedToken}', got '${receivedtoken}'.`,
-				);
-
-				continue;
-			}
-
-			throw new Error(`Unexpected token type for '${expectedToken}'.`);
+			assert(
+				receivedtoken.equals(expectedToken),
+				`Expected token '${i}' to be '${expectedToken}', got '${receivedtoken}'.`,
+			);
 		}
 
 		assert.strictEqual(

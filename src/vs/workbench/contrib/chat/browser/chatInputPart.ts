@@ -150,8 +150,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		chatWidget: IChatWidget,
 	): IChatRequestVariableEntry[] {
 		const contextArr = [...this.attachmentModel.attachments];
+
 		if (this._implicitContext?.enabled && this._implicitContext.value) {
 			const mainEntry = this._implicitContext.toBaseEntry();
+
+			contextArr.push(mainEntry);
 
 			// if the implicit context is a file, it can have nested
 			// file references that should be included in the context
@@ -167,7 +170,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				contextArr.push(...childReferences);
 			}
 		}
-
 
 		// factor in nested references of dynamic variables into the implicit attached context
 		for (const part of chatWidget.parsedInput.parts) {

@@ -39,13 +39,6 @@ export class Tab extends BaseToken {
 	}
 
 	/**
-	 * Check if this token is equal to another one.
-	 */
-	public equals(other: Tab): boolean {
-		return super.sameRange(other.range);
-	}
-
-	/**
 	 * Returns a string representation of the token.
 	 */
 	public override toString(): string {

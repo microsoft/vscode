@@ -51,8 +51,12 @@ export class Word extends BaseToken {
 	/**
 	 * Check if this token is equal to another one.
 	 */
-	public equals(other: Word): boolean {
-		if (!super.sameRange(other.range)) {
+	public override equals<T extends BaseToken>(other: T): boolean {
+		if (!super.equals(other)) {
+			return false;
+		}
+
+		if (!(other instanceof Word)) {
 			return false;
 		}
 
