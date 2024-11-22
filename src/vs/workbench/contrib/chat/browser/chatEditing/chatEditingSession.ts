@@ -30,7 +30,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, IChatEditingSession, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, ISnapshotEntryDTO, ITextSnapshotEntry, STORAGE_CONTENTS_FOLDER, STORAGE_STATE_FILE, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, IChatEditingSession, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, ISnapshotEntryDTO, STORAGE_CONTENTS_FOLDER, STORAGE_STATE_FILE, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatEditingMultiDiffSourceResolver } from './chatEditingService.js';
 import { ChatEditingModifiedFileEntry, TextSnapshotEntry } from './chatEditingModifiedFileEntry.js';
@@ -229,11 +229,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		for (const [file, state] of this._workingSet) {
 			workingSet.set(file, state);
 		}
-		const entries = new ResourceMap<ITextSnapshotEntry>();
+		const entries = new ResourceMap<ISnapshotEntry>();
 		for (const entry of this._entriesObs.get()) {
-			if (entry.kind !== 'notebook') {
-				entries.set(entry.modifiedURI, entry.createSnapshot(requestId));
-			}
+			entries.set(entry.modifiedURI, entry.createSnapshot(requestId));
 		}
 		return {
 			requestId,
