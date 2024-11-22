@@ -82,12 +82,13 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		this.domNode.ariaLabel = ariaLabel;
 		this.domNode.tabIndex = 0;
 
+		const hintTitle = localize('current file', 'Current file');
 		const hintElement = dom.append(
 			this.domNode,
 			dom.$(
 				'span.chat-implicit-hint',
 				undefined,
-				`Current file${this.getReferencesSuffix()}`,
+				`${hintTitle}${this.getReferencesSuffix()}`,
 			),
 		);
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));

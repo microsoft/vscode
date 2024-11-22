@@ -51,9 +51,7 @@ class InputEditorDecorations extends Disposable {
 
 		this.updateInputEditorDecorations();
 		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.updateInputEditorDecorations()));
-		this._register(this.widget.onDidChangeParsedInput(() => {
-			return this.updateInputEditorDecorations();
-		}));
+		this._register(this.widget.onDidChangeParsedInput(() => this.updateInputEditorDecorations()));
 		this._register(this.widget.onDidChangeViewModel(() => {
 			this.registerViewModelListeners();
 			this.previouslyUsedAgents.clear();
