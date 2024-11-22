@@ -106,7 +106,6 @@ export class ViewGpuContext extends Disposable {
 		this.device.then(device => {
 			if (!ViewGpuContext._atlas) {
 				ViewGpuContext._atlas = this._instantiationService.createInstance(TextureAtlas, device.limits.maxTextureDimension2D, undefined);
-				runOnChange(this.devicePixelRatio, () => ViewGpuContext.atlas.clear());
 			}
 		});
 
@@ -117,6 +116,7 @@ export class ViewGpuContext extends Disposable {
 			dprObs.set(getActiveWindow().devicePixelRatio, undefined);
 		}));
 		this.devicePixelRatio = dprObs;
+		this._register(runOnChange(this.devicePixelRatio, () => ViewGpuContext.atlas?.clear()));
 
 		const canvasDevicePixelDimensions = observableValue(this, { width: this.canvas.domNode.width, height: this.canvas.domNode.height });
 		this._register(observeDevicePixelDimensions(

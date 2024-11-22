@@ -18,7 +18,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 
 	@memoize
 	public get cacheKey(): string {
-		return `${this._fontFamily}_${this._fontSize}px`;
+		return `${this.fontFamily}_${this.fontSize}px`;
 	}
 
 	private _canvas: OffscreenCanvas;
@@ -40,12 +40,12 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	private _workGlyphConfig: { chars: string | undefined; metadata: number } = { chars: undefined, metadata: 0 };
 
 	constructor(
-		private readonly _fontSize: number,
-		private readonly _fontFamily: string,
+		readonly fontSize: number,
+		readonly fontFamily: string,
 	) {
 		super();
 
-		const devicePixelFontSize = Math.ceil(this._fontSize * getActiveWindow().devicePixelRatio);
+		const devicePixelFontSize = Math.ceil(this.fontSize * getActiveWindow().devicePixelRatio);
 		this._canvas = new OffscreenCanvas(devicePixelFontSize * 3, devicePixelFontSize * 3);
 		this._ctx = ensureNonNullable(this._canvas.getContext('2d', {
 			willReadFrequently: true
@@ -87,7 +87,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		metadata: number,
 		colorMap: string[],
 	): Readonly<IRasterizedGlyph> {
-		const devicePixelFontSize = Math.ceil(this._fontSize * getActiveWindow().devicePixelRatio);
+		const devicePixelFontSize = Math.ceil(this.fontSize * getActiveWindow().devicePixelRatio);
 		const canvasDim = devicePixelFontSize * 3;
 		if (this._canvas.width !== canvasDim) {
 			this._canvas.width = canvasDim;
@@ -105,7 +105,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		if (fontStyle & FontStyle.Bold) {
 			fontSb.appendString('bold ');
 		}
-		fontSb.appendString(`${devicePixelFontSize}px ${this._fontFamily}`);
+		fontSb.appendString(`${devicePixelFontSize}px ${this.fontFamily}`);
 		this._ctx.font = fontSb.build();
 
 		// TODO: Support FontStyle.Strikethrough and FontStyle.Underline text decorations, these

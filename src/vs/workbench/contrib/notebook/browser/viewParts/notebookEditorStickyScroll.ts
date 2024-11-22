@@ -21,7 +21,7 @@ import { foldingCollapsedIcon, foldingExpandedIcon } from '../../../../../editor
 import { MarkupCellViewModel } from '../viewModel/markupCellViewModel.js';
 import { FoldingController } from '../controller/foldingController.js';
 import { NotebookOptionsChangeEvent } from '../notebookOptions.js';
-import { NotebookSectionArgs } from '../controller/sectionActions.js';
+import { NotebookOutlineEntryArgs } from '../controller/sectionActions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotebookCellOutlineDataSourceFactory } from '../viewModel/notebookOutlineDataSourceFactory.js';
 
@@ -175,7 +175,7 @@ export class NotebookStickyScroll extends Disposable {
 			return;
 		}
 
-		const args: NotebookSectionArgs = {
+		const args: NotebookOutlineEntryArgs = {
 			outlineEntry: selectedOutlineEntry,
 			notebookEditor: this.notebookEditor,
 		};
