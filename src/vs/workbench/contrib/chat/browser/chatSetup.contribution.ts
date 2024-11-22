@@ -487,7 +487,6 @@ class ChatSetupRequestHelper {
 
 class ChatSetupState {
 
-	private static readonly CHAT_SETUP_ENABLED = 'chat.experimental.offerSetup';
 	private static readonly CHAT_SETUP_TRIGGERD = 'chat.setupTriggered';
 	private static readonly CHAT_EXTENSION_INSTALLED = 'chat.extensionInstalled';
 
@@ -498,7 +497,6 @@ class ChatSetupState {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this.updateContext();
 	}
@@ -523,11 +521,10 @@ class ChatSetupState {
 	}
 
 	private updateContext(): void {
-		const chatSetupEnabled = this.configurationService.getValue<boolean>(ChatSetupState.CHAT_SETUP_ENABLED);
 		const chatSetupTriggered = this.storageService.getBoolean(ChatSetupState.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE, false);
 		const chatInstalled = this.storageService.getBoolean(ChatSetupState.CHAT_EXTENSION_INSTALLED, StorageScope.PROFILE, false);
 
-		const showChatSetup = chatSetupEnabled && chatSetupTriggered && !chatInstalled;
+		const showChatSetup = chatSetupTriggered && !chatInstalled;
 		if (showChatSetup) {
 			// this is ugly but fixes flicker from a previous chat install
 			this.storageService.remove('chat.welcomeMessageContent.panel', StorageScope.APPLICATION);
