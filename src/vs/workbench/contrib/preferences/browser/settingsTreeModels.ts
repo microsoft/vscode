@@ -22,7 +22,6 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { AllowedExtensionsConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
