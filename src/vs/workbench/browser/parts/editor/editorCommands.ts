@@ -539,7 +539,7 @@ function registerOpenEditorAPICommands(): void {
 		});
 	});
 
-	CommandsRegistry.registerCommand('_workbench.internal.computeDirtyDiff', async (accessor: ServicesAccessor, original: UriComponents, modified: UriComponents) => {
+	CommandsRegistry.registerCommand('_workbench.internal.computeDiff', async (accessor: ServicesAccessor, original: UriComponents, modified: UriComponents) => {
 		const configurationService = accessor.get(IConfigurationService);
 		const editorWorkerService = accessor.get(IEditorWorkerService);
 		const textModelService = accessor.get(ITextModelService);
@@ -547,25 +547,27 @@ function registerOpenEditorAPICommands(): void {
 		const originalResource = URI.revive(original);
 		const modifiedResource = URI.revive(modified);
 
-		const originalModel = await textModelService.createModelReference(originalResource);
-		const modifiedModel = await textModelService.createModelReference(modifiedResource);
-
-		const canComputeDirtyDiff = editorWorkerService.canComputeDirtyDiff(originalResource, modifiedResource);
-		if (!canComputeDirtyDiff) {
-			return undefined;
-		}
+		const originalTextModel = await textModelService.createModelReference(originalResource);
+		const modifiedTextModel = await textModelService.createModelReference(modifiedResource);
 
 		const ignoreTrimWhitespaceSetting = configurationService.getValue<'true' | 'false' | 'inherit'>('scm.diffDecorationsIgnoreTrimWhitespace');
 		const ignoreTrimWhitespace = ignoreTrimWhitespaceSetting === 'inherit'
 			? configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace')
 			: ignoreTrimWhitespaceSetting !== 'false';
 
-		const changes = await editorWorkerService.computeDirtyDiff(originalResource, modifiedResource, ignoreTrimWhitespace);
+		const changes = await editorWorkerService.computeDiff(originalResource, modifiedResource, {
+			computeMoves: false,
+			ignoreTrimWhitespace,
+			maxComputationTimeMs: Number.MAX_SAFE_INTEGER
+		}, 'legacy');
 
-		originalModel.dispose();
-		modifiedModel.dispose();
+		originalTextModel.dispose();
+		modifiedTextModel.dispose();
 
-		return changes;
+		return changes?.changes.map(c => [
+			c.original.startLineNumber, c.original.endLineNumberExclusive,
+			c.modified.startLineNumber, c.modified.endLineNumberExclusive
+		]);
 	});
 }
 

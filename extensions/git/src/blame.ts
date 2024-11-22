@@ -3,56 +3,63 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString, commands, LineChange } from 'vscode';
+import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString, commands } from 'vscode';
 import { Model } from './model';
 import { dispose, fromNow, IDisposable, pathEquals } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation } from './git';
 
-function isLineChanged(lineNumber: number, changes: readonly TextEditorChange[]): boolean {
-	for (const change of changes) {
-		// If the change is a delete, skip it
-		if (change.kind === TextEditorChangeKind.Deletion) {
-			continue;
-		}
-
-		const startLineNumber = change.modifiedStartLineNumber;
-		const endLineNumber = change.modifiedEndLineNumber || startLineNumber;
-		if (lineNumber >= startLineNumber && lineNumber <= endLineNumber) {
-			return true;
-		}
-	}
-
-	return false;
+function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
+	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
 }
 
-function mapLineNumber(lineNumber: number, changes: readonly TextEditorChange[]): number {
+function lineRangeLength(startLineNumber: number, endLineNumberExclusive: number): number {
+	return endLineNumberExclusive - startLineNumber;
+}
+
+function toTextEditorChange(originalStartLineNumber: number, originalEndLineNumberExclusive: number, modifiedStartLineNumber: number, modifiedEndLineNumberExclusive: number): TextEditorChange {
+	let kind: TextEditorChangeKind;
+	if (originalStartLineNumber === originalEndLineNumberExclusive) {
+		kind = TextEditorChangeKind.Addition;
+	} else if (modifiedStartLineNumber === modifiedEndLineNumberExclusive) {
+		kind = TextEditorChangeKind.Deletion;
+	} else {
+		kind = TextEditorChangeKind.Modification;
+	}
+
+	return {
+		original: { startLineNumber: originalStartLineNumber, endLineNumberExclusive: originalEndLineNumberExclusive },
+		modified: { startLineNumber: modifiedStartLineNumber, endLineNumberExclusive: modifiedEndLineNumberExclusive },
+		kind
+	};
+}
+
+function mapModifiedLineNumberToOriginalLineNumber(lineNumber: number, changes: readonly TextEditorChange[]): number {
 	if (changes.length === 0) {
 		return lineNumber;
 	}
 
 	for (const change of changes) {
-		// Line number is before the change so there is not need to process further
-		if ((change.kind === TextEditorChangeKind.Addition && lineNumber < change.modifiedStartLineNumber) ||
-			(change.kind === TextEditorChangeKind.Modification && lineNumber < change.modifiedStartLineNumber) ||
-			(change.kind === TextEditorChangeKind.Deletion && lineNumber < change.originalStartLineNumber)) {
+		// Do not process changes after the line number
+		if (lineNumber < change.modified.startLineNumber) {
 			break;
 		}
 
 		// Map line number to the original line number
 		if (change.kind === TextEditorChangeKind.Addition) {
 			// Addition
-			lineNumber = lineNumber - (change.modifiedEndLineNumber - change.originalStartLineNumber);
+			lineNumber = lineNumber - lineRangeLength(change.modified.startLineNumber, change.modified.endLineNumberExclusive);
 		} else if (change.kind === TextEditorChangeKind.Deletion) {
 			// Deletion
-			lineNumber = lineNumber + (change.originalEndLineNumber - change.originalStartLineNumber) + 1;
+			lineNumber = lineNumber + lineRangeLength(change.original.startLineNumber, change.original.endLineNumberExclusive);
 		} else if (change.kind === TextEditorChangeKind.Modification) {
 			// Modification
-			const originalLineCount = change.originalEndLineNumber - change.originalStartLineNumber + 1;
-			const modifiedLineCount = change.modifiedEndLineNumber - change.modifiedStartLineNumber + 1;
-			if (originalLineCount !== modifiedLineCount) {
-				lineNumber = lineNumber - (modifiedLineCount - originalLineCount);
+			const originalRangeLength = lineRangeLength(change.original.startLineNumber, change.original.endLineNumberExclusive);
+			const modifiedRangeLength = lineRangeLength(change.modified.startLineNumber, change.modified.endLineNumberExclusive);
+
+			if (originalRangeLength !== modifiedRangeLength) {
+				lineNumber = lineNumber - (modifiedRangeLength - originalRangeLength);
 			}
 		} else {
 			throw new Error('Unexpected change kind');
@@ -60,41 +67,6 @@ function mapLineNumber(lineNumber: number, changes: readonly TextEditorChange[])
 	}
 
 	return lineNumber;
-}
-
-function getBlameInformationHover(documentUri: Uri, blameInformation: BlameInformation | string): MarkdownString {
-	if (typeof blameInformation === 'string') {
-		return new MarkdownString(blameInformation, true);
-	}
-
-	const markdownString = new MarkdownString();
-	markdownString.supportThemeIcons = true;
-	markdownString.isTrusted = true;
-
-	if (blameInformation.authorName) {
-		markdownString.appendMarkdown(`$(account) **${blameInformation.authorName}**`);
-
-		if (blameInformation.date) {
-			const dateString = new Date(blameInformation.date).toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
-			markdownString.appendMarkdown(`, $(history) ${fromNow(blameInformation.date, true, true)} (${dateString})`);
-		}
-
-		markdownString.appendMarkdown('\n\n');
-	}
-
-	markdownString.appendMarkdown(`${blameInformation.message}\n\n`);
-	markdownString.appendMarkdown(`---\n\n`);
-
-	markdownString.appendMarkdown(`[$(eye) View Commit](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformation.id]))})`);
-	markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
-	markdownString.appendMarkdown(`[$(copy) ${blameInformation.id.substring(0, 8)}](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.id))})`);
-
-	if (blameInformation.message) {
-		markdownString.appendMarkdown('&nbsp;&nbsp;');
-		markdownString.appendMarkdown(`[$(copy) Message](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.message))})`);
-	}
-
-	return markdownString;
 }
 
 interface RepositoryBlameInformation {
@@ -130,6 +102,41 @@ export class GitBlameController {
 		window.onDidChangeTextEditorDiffInformation(e => this._updateTextEditorBlameInformation(e.textEditor), this, this._disposables);
 
 		this._updateTextEditorBlameInformation(window.activeTextEditor);
+	}
+
+	getBlameInformationHover(documentUri: Uri, blameInformation: BlameInformation | string): MarkdownString {
+		if (typeof blameInformation === 'string') {
+			return new MarkdownString(blameInformation, true);
+		}
+
+		const markdownString = new MarkdownString();
+		markdownString.supportThemeIcons = true;
+		markdownString.isTrusted = true;
+
+		if (blameInformation.authorName) {
+			markdownString.appendMarkdown(`$(account) **${blameInformation.authorName}**`);
+
+			if (blameInformation.date) {
+				const dateString = new Date(blameInformation.date).toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+				markdownString.appendMarkdown(`, $(history) ${fromNow(blameInformation.date, true, true)} (${dateString})`);
+			}
+
+			markdownString.appendMarkdown('\n\n');
+		}
+
+		markdownString.appendMarkdown(`${blameInformation.message}\n\n`);
+		markdownString.appendMarkdown(`---\n\n`);
+
+		markdownString.appendMarkdown(`[$(eye) View Commit](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformation.id]))})`);
+		markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
+		markdownString.appendMarkdown(`[$(copy) ${blameInformation.id.substring(0, 8)}](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.id))})`);
+
+		if (blameInformation.message) {
+			markdownString.appendMarkdown('&nbsp;&nbsp;');
+			markdownString.appendMarkdown(`[$(copy) Message](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.message))})`);
+		}
+
+		return markdownString;
 	}
 
 	private _onDidOpenRepository(repository: Repository): void {
@@ -222,24 +229,12 @@ export class GitBlameController {
 		}
 
 		// Get the diff information for the staged resource
-		const diffInformation: LineChange[] = await commands.executeCommand('_workbench.internal.computeDirtyDiff', resource.leftUri, resource.rightUri);
+		const diffInformation: [number, number, number, number][] = await commands.executeCommand('_workbench.internal.computeDiff', resource.leftUri, resource.rightUri);
 		if (!diffInformation) {
 			return undefined;
 		}
 
-		changes = diffInformation.map(change => {
-			const kind = change.originalEndLineNumber === 0 ? TextEditorChangeKind.Addition :
-				change.modifiedEndLineNumber === 0 ? TextEditorChangeKind.Deletion : TextEditorChangeKind.Modification;
-
-			return {
-				originalStartLineNumber: change.originalStartLineNumber,
-				originalEndLineNumber: change.originalEndLineNumber,
-				modifiedStartLineNumber: change.modifiedStartLineNumber,
-				modifiedEndLineNumber: change.modifiedEndLineNumber,
-				kind
-			} satisfies TextEditorChange;
-		});
-
+		changes = diffInformation.map(change => toTextEditorChange(change[0], change[1], change[2], change[3]));
 		this._stagedResourceDiffInformation.set(repository, diffInformationMap.set(resource.resourceUri, changes));
 
 		return changes;
@@ -261,16 +256,21 @@ export class GitBlameController {
 		// to get the staged changes and if present, merge them with the diff information.
 		const diffInformationStagedResources: TextEditorChange[] = await this._getStagedResourceDiffInformation(textEditor.document.uri) ?? [];
 
+		console.log('diffInformation', diffInformation.changes);
+		console.log('diffInformationStagedResources', diffInformationStagedResources);
+
+		console.log('resourceBlameInformation', resourceBlameInformation);
+
 		const lineBlameInformation: LineBlameInformation[] = [];
 		for (const lineNumber of textEditor.selections.map(s => s.active.line)) {
 			// Check if the line is contained in the diff information
-			if (isLineChanged(lineNumber + 1, diffInformation.changes)) {
+			if (lineRangesContainLine(diffInformation.changes, lineNumber + 1)) {
 				lineBlameInformation.push({ lineNumber, blameInformation: l10n.t('Not Committed Yet') });
 				continue;
 			}
 
 			// Check if the line is contained in the staged resources diff information
-			if (isLineChanged(lineNumber + 1, diffInformationStagedResources)) {
+			if (lineRangesContainLine(diffInformationStagedResources, lineNumber + 1)) {
 				lineBlameInformation.push({ lineNumber, blameInformation: l10n.t('Not Committed Yet (Staged)') });
 				continue;
 			}
@@ -278,7 +278,7 @@ export class GitBlameController {
 			const diffInformationAll = [...diffInformation.changes, ...diffInformationStagedResources];
 
 			// Map the line number to the git blame ranges using the diff information
-			const lineNumberWithDiff = mapLineNumber(lineNumber + 1, diffInformationAll);
+			const lineNumberWithDiff = mapModifiedLineNumberToOriginalLineNumber(lineNumber + 1, diffInformationAll);
 			const blameInformation = resourceBlameInformation.find(blameInformation => {
 				return blameInformation.ranges.find(range => {
 					return lineNumberWithDiff >= range.startLineNumber && lineNumberWithDiff <= range.endLineNumber;
@@ -356,7 +356,7 @@ class GitBlameEditorDecoration {
 			const contentText = typeof blame.blameInformation === 'string'
 				? blame.blameInformation
 				: `${blame.blameInformation.message ?? ''}, ${blame.blameInformation.authorName ?? ''} (${fromNow(blame.blameInformation.date ?? Date.now(), true, true)})`;
-			const hoverMessage = getBlameInformationHover(textEditor.document.uri, blame.blameInformation);
+			const hoverMessage = this._controller.getBlameInformationHover(textEditor.document.uri, blame.blameInformation);
 
 			return this._createDecoration(blame.lineNumber, contentText, hoverMessage);
 		});
@@ -446,11 +446,11 @@ class GitBlameStatusBarItem {
 
 		if (typeof blameInformation[0].blameInformation === 'string') {
 			this._statusBarItem.text = `$(git-commit) ${blameInformation[0].blameInformation}`;
-			this._statusBarItem.tooltip = getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
+			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
 			this._statusBarItem.command = undefined;
 		} else {
 			this._statusBarItem.text = `$(git-commit) ${blameInformation[0].blameInformation.authorName ?? ''} (${fromNow(blameInformation[0].blameInformation.date ?? new Date(), true, true)})`;
-			this._statusBarItem.tooltip = getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
+			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
 			this._statusBarItem.command = {
 				title: l10n.t('View Commit'),
 				command: 'git.blameStatusBarItem.viewCommit',
