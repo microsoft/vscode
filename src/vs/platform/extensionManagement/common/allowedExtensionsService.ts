@@ -16,7 +16,7 @@ import { IStringDictionary } from '../../../base/common/collections.js';
 import { isBoolean, isObject, isUndefined } from '../../../base/common/types.js';
 import { Emitter } from '../../../base/common/event.js';
 
-const VersionRegex = /^(?<version>\d+\.\d+\.\d+(-.*)?)((?<platform>.+)@)?$/;
+const VersionRegex = /^(?<version>\d+\.\d+\.\d+(-.*)?)(@(?<platform>.+))?$/;
 
 type AllowedExtensionsConfigValueType = IStringDictionary<boolean | string | string[]>;
 
