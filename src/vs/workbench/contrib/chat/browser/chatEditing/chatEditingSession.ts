@@ -309,7 +309,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			if (entry.kind === 'text' && snapshotEntry.kind === 'text') {
 				entry.restoreFromSnapshot(snapshotEntry);
 			} else if (entry.kind === 'notebook' && snapshotEntry.kind === 'notebook') {
-				// 	entry.restoreFromSnapshot(snapshotEntry);
+				throw new Error('Not implemented');
 			} else {
 				throw new Error('Unexpected snapshot entry kind');
 			}
@@ -704,12 +704,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			return result;
 		};
 		const deserializeChatEditingSessionSnapshot = async (snapshot: IChatEditingSessionSnapshotDTO) => {
-			const entriesMap = new ResourceMap<ITextSnapshotEntry>();
+			const entriesMap = new ResourceMap<ISnapshotEntry>();
 			for (const entryDTO of snapshot.entries) {
 				const entry = await deserializeSnapshotEntry(entryDTO);
-				if (entry) {
-					entriesMap.set(entry.resource, entry);
-				}
+				entriesMap.set(entry.resource, entry);
 			}
 			return ({
 				requestId: snapshot.requestId,
@@ -719,7 +717,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		};
 		const deserializeSnapshotEntry = (entry: ISnapshotEntryDTO) => {
 			if (entry.kind === 'notebook') {
-				return;
+				throw new Error('Not implemented');
 			}
 			return TextSnapshotEntry.deserialize(entry, this.chatSessionId, this._instantiationService,);
 		};
