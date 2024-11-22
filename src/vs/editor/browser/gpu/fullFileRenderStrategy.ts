@@ -8,7 +8,6 @@ import { BugIndicatingError } from '../../../base/common/errors.js';
 import { MandatoryMutableDisposable } from '../../../base/common/lifecycle.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import { CursorColumns } from '../../common/core/cursorColumns.js';
-import { MetadataConsts } from '../../common/encodedTokenAttributes.js';
 import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
 import { ViewEventHandler } from '../../common/viewEventHandler.js';
 import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../common/viewEvents.js';
@@ -23,9 +22,7 @@ import { GPULifecycle } from './gpuDisposable.js';
 import { quadVertices } from './gpuUtils.js';
 import { GlyphRasterizer } from './raster/glyphRasterizer.js';
 import { ViewGpuContext } from './viewGpuContext.js';
-import { GpuCharMetadata } from './raster/raster.js';
 import { Color } from '../../../base/common/color.js';
-
 
 const enum Constants {
 	IndicesPerCell = 6,
@@ -141,7 +138,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	}
 
 	public override onDecorationsChanged(e: ViewDecorationsChangedEvent): boolean {
-		// TODO: Don't clear all lines
+		// TODO: Don't clear all cells if we can avoid it
 		this._invalidateAllLines();
 		return true;
 	}
@@ -225,14 +222,14 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	}
 
 	reset() {
+		this._invalidateAllLines();
 		for (const bufferIndex of [0, 1]) {
 			// Zero out buffer and upload to GPU to prevent stale rows from rendering
 			const buffer = new Float32Array(this._cellValueBuffers[bufferIndex]);
 			buffer.fill(0, 0, buffer.length);
 			this._device.queue.writeBuffer(this._cellBindBuffer, 0, buffer.buffer, 0, buffer.byteLength);
-			this._upToDateLines[bufferIndex].clear();
 		}
-		this._visibleObjectCount = 0;
+		this._finalRenderedLine = 0;
 	}
 
 	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): number {
@@ -279,7 +276,6 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		const queuedBufferUpdates = this._queuedBufferUpdates[this._activeDoubleBufferIndex];
 		while (queuedBufferUpdates.length) {
 			const e = queuedBufferUpdates.shift()!;
-
 			switch (e.type) {
 				case ViewEventType.ViewConfigurationChanged: {
 					// TODO: Refine the cases for when we throw away all the data
@@ -368,9 +364,8 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 					charMetadata = 0;
 
 					// TODO: We'd want to optimize pulling the decorations in order
-					// HACK: Temporary replace char to demonstrate inline decorations
 					const cellDecorations = inlineDecorations.filter(decoration => {
-						// TODO: Why does Range.containsPosition and Range.strictContainsPosition not work here?
+						// This is Range.strictContainsPosition except it's working at the cell level.
 						if (y < decoration.range.startLineNumber || y > decoration.range.endLineNumber) {
 							return false;
 						}
@@ -400,28 +395,13 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 					for (const [key, value] of inlineStyles.entries()) {
 						switch (key) {
-							case 'text-decoration-line': {
-								charMetadata |= MetadataConsts.STRIKETHROUGH_MASK;
-								break;
-							}
-							case 'text-decoration-thickness':
-							case 'text-decoration-style':
-							case 'text-decoration-color': {
-								// HACK: Ignore for now to avoid throwing
-								break;
-							}
 							case 'color': {
 								// TODO: This parsing/error handling should move into canRender so fallback to DOM works
 								const parsedColor = Color.Format.CSS.parse(value);
 								if (!parsedColor) {
-									throw new Error('Invalid color format ' + value);
+									throw new BugIndicatingError('Invalid color format ' + value);
 								}
-								const rgb = parsedColor.rgba.r << 16 | parsedColor.rgba.g << 8 | parsedColor.rgba.b;
-								charMetadata |= ((rgb << GpuCharMetadata.FOREGROUND_OFFSET) & GpuCharMetadata.FOREGROUND_MASK) >>> 0;
-								// TODO: _foreground_ opacity should not be applied to regular opacity
-								if (parsedColor.rgba.a < 1) {
-									charMetadata |= ((parsedColor.rgba.a * 0xFF << GpuCharMetadata.OPACITY_OFFSET) & GpuCharMetadata.OPACITY_MASK) >>> 0;
-								}
+								charMetadata = parsedColor.toNumber24Bit();
 								break;
 							}
 							default: throw new BugIndicatingError('Unexpected inline decoration style');

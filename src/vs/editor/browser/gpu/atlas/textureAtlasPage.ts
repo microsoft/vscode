@@ -100,7 +100,8 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			this._logService.trace('New glyph', {
 				chars,
-				metadata: tokenMetadata,
+				tokenMetadata,
+				charMetadata,
 				rasterizedGlyph,
 				glyph
 			});

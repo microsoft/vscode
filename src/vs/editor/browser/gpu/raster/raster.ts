@@ -65,11 +65,3 @@ export interface IRasterizedGlyph {
 	 */
 	originOffset: { x: number; y: number };
 }
-
-export const enum GpuCharMetadata {
-	FOREGROUND_MASK /* */ = 0b00000000_11111111_11111111_11111111,
-	OPACITY_MASK /*    */ = 0b11111111_00000000_00000000_00000000,
-
-	FOREGROUND_OFFSET = 0,
-	OPACITY_OFFSET = 24,
-}
