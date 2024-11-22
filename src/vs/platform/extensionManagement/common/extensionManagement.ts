@@ -628,6 +628,14 @@ export interface IExtensionTipsService {
 	getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
 }
 
+export const IAllowedExtensionsService = createDecorator<IAllowedExtensionsService>('IAllowedExtensionsService');
+export interface IAllowedExtensionsService {
+	readonly _serviceBrand: undefined;
+
+	readonly onDidChangeAllowedExtensions: Event<void>;
+	isAllowed(extension: IGalleryExtension | IExtension | { id: string; version?: string; prerelease?: boolean }): true | IMarkdownString;
+}
+
 export async function computeSize(location: URI, fileService: IFileService): Promise<number> {
 	const stat = await fileService.resolve(location);
 	if (stat.children) {
@@ -639,4 +647,5 @@ export async function computeSize(location: URI, fileService: IFileService): Pro
 
 export const ExtensionsLocalizedLabel = localize2('extensions', "Extensions");
 export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences');
-export const UseUnpkgResourceApi = 'extensions.gallery.useUnpkgResourceApi';
+export const UseUnpkgResourceApiConfigKey = 'extensions.gallery.useUnpkgResourceApi';
+export const AllowedExtensionsConfigKey = 'extensions.allowed';

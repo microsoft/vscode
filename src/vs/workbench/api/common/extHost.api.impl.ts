@@ -436,10 +436,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get appCommit(): string | undefined {
 				checkProposedApiEnabled(extension, 'resolvers');
 				return initData.commit;
-			},
-			get handle(): string | undefined {
-				checkProposedApiEnabled(extension, 'nativeWindowHandle');
-				return initData.handle;
 			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
@@ -927,6 +923,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerShareProvider(selector: vscode.DocumentSelector, provider: vscode.ShareProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'shareProvider');
 				return extHostShare.registerShareProvider(checkSelector(selector), provider);
+			},
+			get nativeHandle(): Uint8Array | undefined {
+				checkProposedApiEnabled(extension, 'nativeWindowHandle');
+				return extHostWindow.nativeHandle;
 			}
 		};
 
@@ -1667,6 +1667,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TerminalShellExecutionCommandLineConfidence: extHostTypes.TerminalShellExecutionCommandLineConfidence,
 			TerminalCompletionItem: extHostTypes.TerminalCompletionItem,
 			TerminalCompletionItemKind: extHostTypes.TerminalCompletionItemKind,
+			TerminalCompletionList: extHostTypes.TerminalCompletionList,
 			TextDocumentSaveReason: extHostTypes.TextDocumentSaveReason,
 			TextEdit: extHostTypes.TextEdit,
 			SnippetTextEdit: extHostTypes.SnippetTextEdit,

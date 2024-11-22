@@ -16,9 +16,8 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A list of completions.
 		 */
-		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T[]>;
+		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T[] | TerminalCompletionList<T>>;
 	}
-
 
 	export interface TerminalCompletionItem {
 		/**
@@ -79,5 +78,49 @@ declare module 'vscode' {
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
+	}
+
+	/**
+	 * Represents a collection of {@link TerminalCompletionItem completion items} to be presented
+	 * in the terminal.
+	 */
+	export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalCompletionItem> {
+
+		/**
+		 * Resources that should be shown in the completions list for the cwd of the terminal.
+		 */
+		resourceRequestConfig?: TerminalResourceRequestConfig;
+
+		/**
+		 * The completion items.
+		 */
+		items: T[];
+
+		/**
+		 * Creates a new completion list.
+		 *
+		 * @param items The completion items.
+		 * @param resourceRequestConfig Indicates which resources should be shown as completions for the cwd of the terminal.
+		 */
+		constructor(items?: T[], resourceRequestConfig?: TerminalResourceRequestConfig);
+	}
+
+	export interface TerminalResourceRequestConfig {
+		/**
+		 * Show files as completion items.
+		 */
+		filesRequested?: boolean;
+		/**
+		 * Show folders as completion items.
+		 */
+		foldersRequested?: boolean;
+		/**
+		 * If no cwd is provided, no resources will be shown as completions.
+		 */
+		cwd?: Uri;
+		/**
+		 * The path separator to use when constructing paths.
+		 */
+		pathSeparator: string;
 	}
 }

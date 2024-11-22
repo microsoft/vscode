@@ -3197,6 +3197,15 @@
           "tags": [
             "experimental"
           ]
+        },
+        "git.blame.statusBarItem.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.blameStatusBarItem.enabled%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },

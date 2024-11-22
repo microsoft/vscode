@@ -5,7 +5,6 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -22,7 +21,7 @@ import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/c
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
@@ -87,8 +86,8 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 			icon: Codicon.close,
 			menu: [{
 				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
-				when: ContextKeyExpr.or(ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Attached), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Suggested), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Transient)),
-				order: 0,
+				// when: ContextKeyExpr.or(ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Attached), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Suggested), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Transient)),
+				order: 5,
 				group: 'navigation'
 			}],
 		});
@@ -96,19 +95,12 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 
 	async runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
 		// Remove from working set
-		currentEditingSession.remove(...uris);
+		currentEditingSession.remove(WorkingSetEntryRemovalReason.User, ...uris);
 
 		// Remove from chat input part
-		const resourceSet = new ResourceSet(uris);
-		const newContext = [];
-
-		for (const context of chatWidget.input.attachmentModel.attachments) {
-			if (!URI.isUri(context.value) || !context.isFile || !resourceSet.has(context.value)) {
-				newContext.push(context);
-			}
+		for (const uri of uris) {
+			chatWidget.attachmentModel.delete(uri.toString());
 		}
-
-		chatWidget.attachmentModel.clearAndSetContext(...newContext);
 	}
 });
 
@@ -294,6 +286,46 @@ export class ChatEditingDiscardAllAction extends Action2 {
 	}
 }
 registerAction2(ChatEditingDiscardAllAction);
+
+export class ChatEditingRemoveAllFilesAction extends Action2 {
+	static readonly ID = 'chatEditing.removeAllFiles';
+
+	constructor() {
+		super({
+			id: ChatEditingRemoveAllFilesAction.ID,
+			title: localize('removeAll', 'Remove All'),
+			icon: Codicon.clearAll,
+			tooltip: localize('removeAllFiles', 'Remove All Files'),
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate()),
+			menu: [
+				{
+					id: MenuId.ChatEditingWidgetToolbar,
+					group: 'navigation',
+					order: 5,
+					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const chatEditingService = accessor.get(IChatEditingService);
+		const currentEditingSession = chatEditingService.currentEditingSession;
+		if (!currentEditingSession) {
+			return;
+		}
+
+		const chatWidget = accessor.get(IChatWidgetService).getWidgetBySessionId(currentEditingSession.chatSessionId);
+		const uris = [...currentEditingSession.workingSet.keys()];
+		currentEditingSession.remove(WorkingSetEntryRemovalReason.User, ...uris);
+		for (const uri of chatWidget?.attachmentModel.attachments ?? []) {
+			if (uri.isFile && URI.isUri(uri.value)) {
+				chatWidget?.attachmentModel.delete(uri.value.toString());
+			}
+		}
+	}
+}
+registerAction2(ChatEditingRemoveAllFilesAction);
 
 export class ChatEditingShowChangesAction extends Action2 {
 	static readonly ID = 'chatEditing.viewChanges';
