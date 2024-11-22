@@ -26,8 +26,9 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IDragAndDropData, DataTransfers } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData } from '../../../../../base/browser/ui/list/listView.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { CodeDataTransfers } from '../../../../../platform/dnd/browser/dnd.js';
+import { withSelection } from '../../../../../platform/opener/common/opener.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -75,7 +76,7 @@ export class DocumentSymbolDragAndDrop implements ITreeDragAndDrop<DocumentSymbo
 		}
 
 		if (element instanceof OutlineElement) {
-			return symbolRangeUri(element.symbol, resource);
+			return symbolRangeUri(resource, element.symbol).toString();
 		} else {
 			return resource.toString();
 		}
@@ -112,7 +113,7 @@ export class DocumentSymbolDragAndDrop implements ITreeDragAndDrop<DocumentSymbo
 		}));
 
 		originalEvent.dataTransfer.setData(CodeDataTransfers.SYMBOLS, JSON.stringify(symbolsData));
-		originalEvent.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(outlineElements.map(oe => symbolRangeUri(oe.symbol, resource))));
+		originalEvent.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(outlineElements.map(oe => symbolRangeUri(resource, oe.symbol))));
 	}
 
 	onDragOver(): boolean | ITreeDragOverReaction { return false; }
@@ -120,9 +121,8 @@ export class DocumentSymbolDragAndDrop implements ITreeDragAndDrop<DocumentSymbo
 	dispose(): void { }
 }
 
-export function symbolRangeUri(symbol: DocumentSymbol, uri: URI): string {
-	const range = symbol.range;
-	return uri.toString() + `#L${range.startLineNumber},${range.startColumn}-L${range.endLineNumber},${range.endColumn}`;
+function symbolRangeUri(resource: URI, symbol: DocumentSymbol): URI {
+	return withSelection(resource, symbol.range);
 }
 
 class DocumentSymbolGroupTemplate {

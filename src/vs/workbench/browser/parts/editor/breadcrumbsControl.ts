@@ -44,7 +44,7 @@ import { DataTransfers } from '../../../../base/browser/dnd.js';
 import { $ } from '../../../../base/browser/dom.js';
 import { OutlineElement } from '../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { CodeDataTransfers, DocumentSymbolTransferData } from '../../../../platform/dnd/browser/dnd.js';
-import { DocumentSymbol } from '../../../../editor/common/languages.js';
+import { withSelection } from '../../../../platform/opener/common/opener.js';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -103,7 +103,7 @@ class OutlineItem extends BreadcrumbsItem {
 		this._disposables.add(toDisposable(() => { renderer.disposeTemplate(template); }));
 
 		if (element instanceof OutlineElement && outline.uri) {
-			const symbolUri = symbolRangeUri(element.symbol, outline.uri);
+			const symbolUri = withSelection(outline.uri, element.symbol.range);
 			const symbolTransferData: DocumentSymbolTransferData = {
 				name: element.symbol.name,
 				fsPath: outline.uri.fsPath,
@@ -114,14 +114,9 @@ class OutlineItem extends BreadcrumbsItem {
 				[CodeDataTransfers.SYMBOLS, [symbolTransferData]],
 				[DataTransfers.RESOURCES, [symbolUri]]
 			];
-			this._disposables.add(createBreadcrumbDndObserver(container, element.symbol.name, symbolUri, dataTransfers));
+			this._disposables.add(createBreadcrumbDndObserver(container, element.symbol.name, symbolUri.toString(), dataTransfers));
 		}
 	}
-}
-
-function symbolRangeUri(symbol: DocumentSymbol, uri: URI): string {
-	const range = symbol.range;
-	return uri.toString() + `#L${range.startLineNumber},${range.startColumn}-L${range.endLineNumber},${range.endColumn}`;
 }
 
 class FileItem extends BreadcrumbsItem {

@@ -30,7 +30,7 @@ import { Registry } from '../../registry/common/platform.js';
 export const CodeDataTransfers = {
 	EDITORS: 'CodeEditors',
 	FILES: 'CodeFiles',
-	SYMBOLS: 'CodeSymbols'
+	SYMBOLS: 'application/vnd.code.symbols'
 };
 
 export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInput {
