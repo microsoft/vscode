@@ -64,34 +64,6 @@ const defaultChat = {
 	entitlementSkuLimitedUrl: product.defaultChatAgent?.entitlementSkuLimitedUrl ?? ''
 };
 
-type ChatSetupEntitlementEnablementClassification = {
-	entitled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat setup entitled' };
-	trial: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is subscribed to chat trial' };
-	owner: 'bpasero';
-	comment: 'Reporting if the user is chat setup entitled';
-};
-
-type ChatSetupEntitlementEnablementEvent = {
-	entitled: boolean;
-	trial: boolean;
-};
-
-type InstallChatClassification = {
-	owner: 'bpasero';
-	comment: 'Provides insight into chat installation.';
-	installResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the extension was installed successfully, cancelled or failed to install.' };
-	signedIn: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user did sign in prior to installing the extension.' };
-};
-type InstallChatEvent = {
-	installResult: 'installed' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn';
-	signedIn: boolean;
-};
-
-interface IChatEntitlement {
-	readonly chatEnabled?: boolean;
-	readonly chatSku30DTrial?: boolean;
-}
-
 enum ChatEntitlement {
 	Unknown = 1,
 	Applicable,
@@ -101,7 +73,7 @@ enum ChatEntitlement {
 	Blocked
 }
 
-const UNKNOWN_CHAT_ENTITLEMENT: IChatEntitlement = {};
+//#region Contribution
 
 class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
@@ -160,6 +132,29 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		this.chatSetupState.update({ chatInstalled });
 	}
 }
+
+//#endregion
+
+//#region Entitlements Resolver
+
+type ChatSetupEntitlementEnablementClassification = {
+	entitled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat setup entitled' };
+	trial: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is subscribed to chat trial' };
+	owner: 'bpasero';
+	comment: 'Reporting if the user is chat setup entitled';
+};
+
+type ChatSetupEntitlementEnablementEvent = {
+	entitled: boolean;
+	trial: boolean;
+};
+
+interface IChatEntitlement {
+	readonly chatEnabled?: boolean;
+	readonly chatSku30DTrial?: boolean;
+}
+
+const UNKNOWN_CHAT_ENTITLEMENT: IChatEntitlement = {};
 
 class ChatSetupEntitlementResolver extends Disposable {
 
@@ -295,6 +290,21 @@ class ChatSetupEntitlementResolver extends Disposable {
 		}
 	}
 }
+
+//#endregion
+
+//#region Setup Rendering
+
+type InstallChatClassification = {
+	owner: 'bpasero';
+	comment: 'Provides insight into chat installation.';
+	installResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the extension was installed successfully, cancelled or failed to install.' };
+	signedIn: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user did sign in prior to installing the extension.' };
+};
+type InstallChatEvent = {
+	installResult: 'installed' | 'cancelled' | 'failedInstall' | 'failedNotSignedIn';
+	signedIn: boolean;
+};
 
 interface IChatSetupWelcomeContentOptions {
 	readonly entitlement: ChatEntitlement;
@@ -478,6 +488,10 @@ class ChatSetupWelcomeContent extends Disposable {
 	}
 }
 
+//#endregion
+
+//#region Helpers
+
 class ChatSetupRequestHelper {
 
 	static async request(accessor: ServicesAccessor, url: string, type: 'GET', body: undefined, session: AuthenticationSession | undefined, token: CancellationToken): Promise<IRequestContext | undefined>;
@@ -563,6 +577,10 @@ class ChatSetupState {
 	}
 }
 
+//#endregion
+
+//#region Actions
+
 class ChatSetupTriggerAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.triggerSetup';
@@ -644,6 +662,8 @@ class ChatSetupHideAction extends Action2 {
 		configurationService.updateValue('chat.commandCenter.enabled', false);
 	}
 }
+
+//#endregion
 
 registerAction2(ChatSetupTriggerAction);
 registerAction2(ChatSetupHideAction);
