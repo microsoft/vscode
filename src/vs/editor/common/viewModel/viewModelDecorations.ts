@@ -12,7 +12,6 @@ import { IViewModelLines } from './viewModelLines.js';
 import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from '../viewModel.js';
 import { filterValidationDecorations } from '../config/editorOptions.js';
 import { StandardTokenType } from '../encodedTokenAttributes.js';
-import { Emitter } from '../../../base/common/event.js';
 
 export interface IDecorationsViewportData {
 	/**
@@ -38,12 +37,6 @@ export class ViewModelDecorations implements IDisposable {
 	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
 
-	private readonly _onViewModelDecorationAdded = new Emitter<ViewModelDecoration>();
-	public readonly onViewModelDecorationAdded = this._onViewModelDecorationAdded.event;
-
-	private readonly _onViewModelDecorationsFlushed = new Emitter<void>();
-	public readonly onViewModelDecorationsFlushed = this._onViewModelDecorationsFlushed.event;
-
 	constructor(editorId: number, model: ITextModel, configuration: IEditorConfiguration, linesCollection: IViewModelLines, coordinatesConverter: ICoordinatesConverter) {
 		this.editorId = editorId;
 		this.model = model;
@@ -63,25 +56,21 @@ export class ViewModelDecorations implements IDisposable {
 	public dispose(): void {
 		this._decorationsCache = Object.create(null);
 		this._clearCachedModelDecorationsResolver();
-		this._onViewModelDecorationAdded.dispose();
-		this._onViewModelDecorationsFlushed.dispose();
 	}
 
 	public reset(): void {
 		this._decorationsCache = Object.create(null);
-		this._onViewModelDecorationsFlushed.fire();
 		this._clearCachedModelDecorationsResolver();
 	}
 
 	public onModelDecorationsChanged(): void {
 		this._decorationsCache = Object.create(null);
-		this._onViewModelDecorationsFlushed.fire();
 		this._clearCachedModelDecorationsResolver();
 	}
 
 	public onLineMappingChanged(): void {
 		this._decorationsCache = Object.create(null);
-		this._onViewModelDecorationsFlushed.fire();
+
 		this._clearCachedModelDecorationsResolver();
 	}
 
@@ -103,7 +92,6 @@ export class ViewModelDecorations implements IDisposable {
 			}
 			r = new ViewModelDecoration(viewRange, options);
 			this._decorationsCache[id] = r;
-			this._onViewModelDecorationAdded.fire(r);
 		}
 		return r;
 	}

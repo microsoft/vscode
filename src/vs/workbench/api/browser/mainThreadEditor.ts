@@ -430,6 +430,7 @@ export class MainThreadTextEditor {
 	}
 
 	public setDecorationsFast(key: string, _ranges: number[]): void {
+		console.log('setDecorationsFast of MainThreadTextEditor');
 		if (!this._codeEditor) {
 			return;
 		}

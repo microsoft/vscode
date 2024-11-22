@@ -399,14 +399,17 @@ export class LinesLayout {
 	}
 
 	public addSpecialLineHeight(lineNumber: number, height: number): void {
+		console.log('addSpecialLineHeight');
 		this._specialLineHeights.set(lineNumber, height);
 	}
 
-	public clearSpecialLineHeights(): void {
-		this._specialLineHeights.clear();
+	public removeSpecialLineHeight(lineNumber: number): void {
+		console.log('clearSpecialLineHeights');
+		this._specialLineHeights.delete(lineNumber);
 	}
 
 	public getSpecialLinesHeights(): Map<number, number> {
+		console.log('getSpecialLinesHeights');
 		return this._specialLineHeights;
 	}
 

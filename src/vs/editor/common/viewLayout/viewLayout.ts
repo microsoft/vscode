@@ -206,8 +206,8 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		this._linesLayout.addSpecialLineHeight(lineNumber, height);
 	}
 
-	public clearSpecialLineHeights(): void {
-		this._linesLayout.clearSpecialLineHeights();
+	public removeSpecialLineHeight(lineNumber: number): void {
+		this._linesLayout.removeSpecialLineHeight(lineNumber);
 	}
 
 	public getSpecialLinesHeights(): Map<number, number> {

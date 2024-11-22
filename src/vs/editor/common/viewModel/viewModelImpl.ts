@@ -137,17 +137,16 @@ export class ViewModel extends Disposable implements IViewModel {
 		}));
 
 		this._decorations = new ViewModelDecorations(this._editorId, this.model, this._configuration, this._lines, this.coordinatesConverter);
-		this._register(this._decorations.onViewModelDecorationAdded((decoration) => {
-			const decorationLineHeight = decoration.options.lineHeight;
-			if (decorationLineHeight !== undefined) {
-				const decorationRange = decoration.range;
-				for (let lineNumber = decorationRange.startLineNumber; lineNumber <= decorationRange.endLineNumber; lineNumber++) {
-					this.viewLayout.addSpecialLineHeight(lineNumber, decorationLineHeight);
+		this._register(this.model.onDidChangeSpecialLineHeight((e) => {
+			e.changes.forEach((a) => {
+				const lineNumber = a.lineNumber;
+				const lineHeight = a.lineHeight;
+				if (lineHeight !== null) {
+					this.viewLayout.addSpecialLineHeight(lineNumber, lineHeight);
+				} else {
+					this.viewLayout.removeSpecialLineHeight(lineNumber);
 				}
-			}
-		}));
-		this._register(this._decorations.onViewModelDecorationsFlushed(() => {
-			this.viewLayout.clearSpecialLineHeights();
+			});
 		}));
 
 		this._registerModelEvents();
