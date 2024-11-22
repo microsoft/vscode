@@ -186,7 +186,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._contextKeyService = contextKeyService;
 		this._storageService = storageService;
 		this._notificationService = notificationService;
-		this._findWidgetSearchHistory = new FindWidgetSearchHistory(this._storageService);
+		const findSearchHistoryConfig = this._codeEditor.getOption(EditorOption.find).findSearchHistory;
+		this._findWidgetSearchHistory = new FindWidgetSearchHistory(
+			this._storageService,
+			findSearchHistoryConfig === 'editorGroup' ? this._codeEditor : undefined
+		);
 
 		this._ctrlEnterReplaceAllWarningPrompted = !!storageService.getBoolean(ctrlEnterReplaceAllWarningPromptedKey, StorageScope.PROFILE);
 
@@ -970,7 +974,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService),
 			inputBoxStyles: defaultInputBoxStyles,
 			toggleStyles: defaultToggleStyles,
-			history: findSearchHistoryConfig === 'workspace' ? this._findWidgetSearchHistory : new Set([]),
+			history: findSearchHistoryConfig === 'never' ? new Set([]) : this._findWidgetSearchHistory,
 		}, this._contextKeyService));
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);

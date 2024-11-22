@@ -5,15 +5,27 @@
 
 import { IHistory } from '../../../../base/common/history.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
 
 export class FindWidgetSearchHistory implements IHistory<string> {
-	public static readonly FIND_HISTORY_KEY = 'workbench.find.history';
+	private static readonly FIND_HISTORY_KEY = 'workbench.find.history';
+	private readonly id: string;
 	private inMemoryValues: Set<string> = new Set();
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
+		codeEditor?: ICodeEditor,
 	) {
 		this.load();
+		if (codeEditor) {
+			this.id = `${FindWidgetSearchHistory.FIND_HISTORY_KEY}.${codeEditor.getId()}`;
+			// The editor id could be re-used, so we need to clean the storage when it gets disposed
+			codeEditor.onDidDispose(() => {
+				this.clear();
+			});
+		} else {
+			this.id = FindWidgetSearchHistory.FIND_HISTORY_KEY;
+		}
 	}
 
 	delete(t: string): boolean {
@@ -50,7 +62,7 @@ export class FindWidgetSearchHistory implements IHistory<string> {
 	load() {
 		let result: [] | undefined;
 		const raw = this.storageService.get(
-			FindWidgetSearchHistory.FIND_HISTORY_KEY,
+			this.id,
 			StorageScope.WORKSPACE
 		);
 
@@ -71,7 +83,7 @@ export class FindWidgetSearchHistory implements IHistory<string> {
 		this.inMemoryValues.forEach(e => elements.push(e));
 		return new Promise<void>(resolve => {
 			this.storageService.store(
-				FindWidgetSearchHistory.FIND_HISTORY_KEY,
+				this.id,
 				JSON.stringify(elements),
 				StorageScope.WORKSPACE,
 				StorageTarget.USER,

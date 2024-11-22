@@ -34,6 +34,7 @@ import {
 	EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT,
 	ExtensionSignatureVerificationCode,
 	computeSize,
+	IAllowedExtensionsService,
 } from '../common/extensionManagement.js';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from '../common/extensionManagementUtil.js';
 import { IExtensionsProfileScannerService, IScannedProfileExtension } from '../common/extensionsProfileScannerService.js';
@@ -87,10 +88,11 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService productService: IProductService,
+		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService
 	) {
-		super(galleryService, telemetryService, uriIdentityService, logService, productService, userDataProfilesService);
+		super(galleryService, telemetryService, uriIdentityService, logService, productService, allowedExtensionsService, userDataProfilesService);
 		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
 		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner, extension => extensionLifecycle.postUninstall(extension)));
 		this.manifestCache = this._register(new ExtensionsManifestCache(userDataProfilesService, fileService, uriIdentityService, this, this.logService));
@@ -896,7 +898,7 @@ export class ExtensionsScanner extends Disposable {
 			isMachineScoped: !!extension.metadata?.isMachineScoped,
 			isPreReleaseVersion: !!extension.metadata?.isPreReleaseVersion,
 			hasPreReleaseVersion: !!extension.metadata?.hasPreReleaseVersion,
-			preRelease: !!extension.metadata?.preRelease,
+			preRelease: extension.preRelease,
 			installedTimestamp: extension.metadata?.installedTimestamp,
 			updated: !!extension.metadata?.updated,
 			pinned: !!extension.metadata?.pinned,

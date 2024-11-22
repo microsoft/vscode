@@ -50,3 +50,15 @@ span.label-detail {
 	font-style: italic;
 	color: var(--vscode-descriptionForeground);
 }
+
+span.label-added {
+	font-weight: bold;
+	padding-left: 4px;
+	color: var(--vscode-editorGutter-addedBackground);
+}
+
+span.label-removed {
+	font-weight: bold;
+	padding-left: 4px;
+	color: var(--vscode-editorGutter-deletedBackground);
+}

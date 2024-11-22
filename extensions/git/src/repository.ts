@@ -1021,7 +1021,7 @@ export class Repository implements Disposable {
 	 * Quick diff label
 	 */
 	get label(): string {
-		return l10n.t('Git local working changes');
+		return l10n.t('Git local changes (working tree)');
 	}
 
 	provideOriginalResource(uri: Uri): Uri | undefined {
@@ -1786,8 +1786,8 @@ export class Repository implements Disposable {
 		return await this.run(Operation.Blame(true), () => this.repository.blame(path));
 	}
 
-	async blame2(path: string): Promise<BlameInformation[] | undefined> {
-		return await this.run(Operation.Blame(false), () => this.repository.blame2(path));
+	async blame2(path: string, ref?: string): Promise<BlameInformation[] | undefined> {
+		return await this.run(Operation.Blame(false), () => this.repository.blame2(path, ref));
 	}
 
 	@throttle
