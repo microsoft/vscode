@@ -676,7 +676,7 @@ export namespace Color {
 					const b = parseInt(color.groups?.b ?? '0');
 					return new Color(new RGBA(r, g, b));
 				}
-				// TODO: Support more formats
+				// TODO: Support more formats as needed
 				return parseNamedKeyword(css);
 			}
 
