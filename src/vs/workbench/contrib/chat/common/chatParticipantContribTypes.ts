@@ -25,7 +25,6 @@ export interface IRawChatParticipantContribution {
 	isSticky?: boolean;
 	sampleRequest?: string;
 	commands?: IRawChatCommandContribution[];
-	defaultImplicitVariables?: string[];
 	locations?: RawChatParticipantLocation[];
 	disambiguation?: { category: string; categoryName?: string /** Deprecated */; description: string; examples: string[] }[];
 }
