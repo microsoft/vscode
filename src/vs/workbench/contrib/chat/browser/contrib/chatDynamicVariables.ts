@@ -110,7 +110,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 		// if the `prompt snippets` feature is enabled, start resolving
 		// nested file references immediatelly and subscribe to updates
-		if (ChatDynamicVariable.promptSnippetsEnabled(this.configService)) {
+		if (ChatDynamicVariable.promptSnippetsEnabled(this.configService) && variable.isPromptSnippetFile) {
 			// subscribe to variable changes
 			this._register(variable.onUpdate(() => {
 				this.updateVariableTexts();
