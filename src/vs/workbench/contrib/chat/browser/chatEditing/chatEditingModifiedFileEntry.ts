@@ -460,11 +460,11 @@ export class TextSnapshotEntry implements ITextSnapshotEntry {
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const environmentService = accessor.get(IEnvironmentService);
 			const fileService = accessor.get(IFileService);
-			const storageLocation = TextSnapshotEntry._getStorageLocation(chatSessionId, workspaceContextService, environmentService);
+			const storageLocation = getStorageLocation(chatSessionId, workspaceContextService, environmentService);
 
 			const [original, current] = await Promise.all([
-				TextSnapshotEntry.getFileContent(entry.originalHash, fileService, storageLocation),
-				TextSnapshotEntry.getFileContent(entry.currentHash, fileService, storageLocation)
+				getFileContent(entry.originalHash, fileService, storageLocation),
+				getFileContent(entry.currentHash, fileService, storageLocation)
 			]);
 
 			return instantiationService.createInstance(TextSnapshotEntry,
@@ -494,7 +494,7 @@ export class TextSnapshotEntry implements ITextSnapshotEntry {
 			telemetryInfo: { requestId: this.telemetryInfo.requestId, agentId: this.telemetryInfo.agentId, command: this.telemetryInfo.command }
 		} satisfies ITextSnapshotEntryDTO;
 
-		const storageFolder = TextSnapshotEntry._getStorageLocation(this.telemetryInfo.sessionId, this._workspaceContextService, this._environmentService);
+		const storageFolder = getStorageLocation(this.telemetryInfo.sessionId, this._workspaceContextService, this._environmentService);
 		const contentsFolder = URI.joinPath(storageFolder, STORAGE_CONTENTS_FOLDER);
 
 		await Promise.all(Array.from(fileContents.entries()).map(async ([hash, content]) => {
@@ -511,15 +511,14 @@ export class TextSnapshotEntry implements ITextSnapshotEntry {
 		shaComputer.update(content);
 		return shaComputer.digest().substring(0, 7);
 	}
-	private static _getStorageLocation(chatSessionId: string,
-		_workspaceContextService: IWorkspaceContextService,
-		_environmentService: IEnvironmentService,
-	): URI {
-		const workspaceId = _workspaceContextService.getWorkspace().id;
-		return joinPath(_environmentService.workspaceStorageHome, workspaceId, 'chatEditingSessions', chatSessionId);
-	}
-	private static getFileContent(hash: string, fileService: IFileService, storageLocation: URI) {
-		return fileService.readFile(joinPath(storageLocation, STORAGE_CONTENTS_FOLDER, hash)).then(content => content.value.toString());
-	}
+}
+
+function getStorageLocation(chatSessionId: string, workspaceContextService: IWorkspaceContextService, environmentService: IEnvironmentService): URI {
+	const workspaceId = workspaceContextService.getWorkspace().id;
+	return joinPath(environmentService.workspaceStorageHome, workspaceId, 'chatEditingSessions', chatSessionId);
+}
+
+function getFileContent(hash: string, fileService: IFileService, storageLocation: URI) {
+	return fileService.readFile(joinPath(storageLocation, STORAGE_CONTENTS_FOLDER, hash)).then(content => content.value.toString());
 }
 
