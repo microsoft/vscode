@@ -12,8 +12,10 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { basename, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { SymbolKinds } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
-import { containsDragType, extractEditorsDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
+import { CodeDataTransfers, containsDragType, DocumentSymbolTransferData, extractEditorsDropData, extractSymbolDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
 import { FileType, IFileService, IFileSystemProvider } from '../../../../platform/files/common/files.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -26,7 +28,8 @@ enum ChatDragAndDropType {
 	FILE_INTERNAL,
 	FILE_EXTERNAL,
 	FOLDER,
-	IMAGE
+	IMAGE,
+	SYMBOL
 }
 
 export class ChatDragAndDrop extends Themable {
@@ -155,6 +158,8 @@ export class ChatDragAndDrop extends Themable {
 		// This is an esstimation based on the datatransfer types/items
 		if (this.isImageDnd(e)) {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? ChatDragAndDropType.IMAGE : undefined;
+		} else if (containsDragType(e, CodeDataTransfers.SYMBOLS)) {
+			return ChatDragAndDropType.SYMBOL;
 		} else if (containsDragType(e, DataTransfers.FILES)) {
 			return ChatDragAndDropType.FILE_EXTERNAL;
 		} else if (containsDragType(e, DataTransfers.INTERNAL_URI_LIST)) {
@@ -178,6 +183,7 @@ export class ChatDragAndDrop extends Themable {
 			case ChatDragAndDropType.FILE_EXTERNAL: return localize('file', 'File');
 			case ChatDragAndDropType.FOLDER: return localize('folder', 'Folder');
 			case ChatDragAndDropType.IMAGE: return localize('image', 'Image');
+			case ChatDragAndDropType.SYMBOL: return localize('symbol', 'Symbol');
 		}
 	}
 
@@ -207,6 +213,11 @@ export class ChatDragAndDrop extends Themable {
 	private async getAttachContext(e: DragEvent): Promise<IChatRequestVariableEntry[]> {
 		if (!this.isDragEventSupported(e)) {
 			return [];
+		}
+
+		if (containsDragType(e, CodeDataTransfers.SYMBOLS)) {
+			const data = extractSymbolDropData(e);
+			return this.resolveSymbolsAttachContext(data);
 		}
 
 		const data = extractEditorsDropData(e);
@@ -243,6 +254,20 @@ export class ChatDragAndDrop extends Themable {
 		}
 
 		return getResourceAttachContext(editor.resource, stat.isDirectory);
+	}
+
+	private resolveSymbolsAttachContext(symbols: DocumentSymbolTransferData[]): IChatRequestVariableEntry[] {
+		return symbols.map(symbol => {
+			const resource = URI.file(symbol.fsPath);
+			return {
+				kind: 'symbol',
+				id: symbolId(resource, symbol.range),
+				value: { uri: resource, range: symbol.range },
+				fullName: `$(${SymbolKinds.toIcon(symbol.kind).id}) ${symbol.name}`,
+				name: symbol.name,
+				isDynamic: true
+			};
+		});
 	}
 
 	private setOverlay(target: HTMLElement, type: ChatDragAndDropType | undefined): void {
@@ -389,4 +414,15 @@ function getImageAttachContext(editor: EditorInput | IDraggedResourceEditorInput
 	}
 
 	return undefined;
+}
+
+function symbolId(resource: URI, range?: IRange): string {
+	let rangePart = '';
+	if (range) {
+		rangePart = `:${range.startLineNumber}`;
+		if (range.startLineNumber !== range.endLineNumber) {
+			rangePart += `-${range.endLineNumber}`;
+		}
+	}
+	return resource.fsPath + rangePart;
 }
