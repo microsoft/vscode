@@ -29,7 +29,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { showChatView, ChatViewId } from './chat.js';
 import { IChatAgentService } from '../common/chatAgents.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import product from '../../../../platform/product/common/product.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -97,7 +97,8 @@ enum ChatEntitlement {
 	Unknown = 1,
 	Applicable,
 	Limited,
-	Payed,
+	Trialing,
+	Paying,
 	Blocked
 }
 
@@ -105,10 +106,14 @@ const UNKNOWN_CHAT_ENTITLEMENT: IChatEntitlement = {};
 
 class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
+	private readonly chatSetupState = this.instantiationService.createInstance(ChatSetupState);
+	private readonly entitlementsResolver = this._register(this.instantiationService.createInstance(ChatSetupEntitlementResolver));
+
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super();
 
@@ -118,81 +123,22 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 		this.registerChatWelcome();
 
-		this.checkEntitlements();
 		this.checkExtensionInstallation();
 	}
 
 	private registerChatWelcome(): void {
-
-		// Setup: Triggered (signed-out)
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
 			title: defaultChat.chatWelcomeTitle,
 			when: ContextKeyExpr.and(
 				ChatContextKeys.Setup.triggered,
-				ChatContextKeys.Setup.signedIn.negate(),
 				ChatContextKeys.Setup.installed.negate()
 			)!,
 			icon: defaultChat.icon,
-			content: disposables => disposables.add(this.instantiationService.createInstance(ChatSetupWelcomeContent, {
-				entitlement: ChatEntitlement.Unknown
-			})).element,
+			content: disposables => disposables.add(this.instantiationService.createInstance(ChatSetupWelcomeContent, this.entitlementsResolver)).element,
 		});
-
-		// Setup: Triggered (signed-in)
-		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
-			title: defaultChat.chatWelcomeTitle,
-			when: ContextKeyExpr.and(
-				ChatContextKeys.Setup.triggered,
-				ChatContextKeys.Setup.signedIn,
-				ChatContextKeys.Setup.installed.negate()
-			)!,
-			icon: defaultChat.icon,
-			content: disposables => disposables.add(this.instantiationService.createInstance(ChatSetupWelcomeContent, {
-				entitlement: ChatEntitlement.Applicable
-			})).element,
-		});
-	}
-
-	private checkEntitlements(): void {
-		const entitlementsResolver = this._register(this.instantiationService.createInstance(ChatSetupEntitlementResolver));
-		entitlementsResolver.resolve();
 	}
 
 	private async checkExtensionInstallation(): Promise<void> {
-		const extensions = await this.extensionManagementService.getInstalled();
-
-		const chatInstalled = !!extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
-		this.instantiationService.createInstance(ChatSetupState).update({ chatInstalled });
-	}
-}
-
-class ChatSetupEntitlementResolver extends Disposable {
-
-	private readonly chatSetupSignedInContextKey = ChatContextKeys.Setup.signedIn.bindTo(this.contextKeyService);
-	private readonly chatSetupEntitledContextKey = ChatContextKeys.Setup.entitled.bindTo(this.contextKeyService);
-
-	private readonly chatSetupState = this.instantiationService.createInstance(ChatSetupState);
-
-	private resolvedEntitlement: IChatEntitlement | undefined = undefined;
-
-	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) {
-		super();
-	}
-
-	resolve(): void {
-		this.registerEntitlementListeners();
-		this.registerAuthListeners();
-
-		this.handleDeclaredAuthProviders();
-	}
-
-	private registerEntitlementListeners(): void {
 		this._register(this.extensionService.onDidChangeExtensions(result => {
 			for (const extension of result.removed) {
 				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
@@ -209,12 +155,48 @@ class ChatSetupEntitlementResolver extends Disposable {
 			}
 		}));
 
+		const extensions = await this.extensionManagementService.getInstalled();
+
+		const chatInstalled = !!extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
+		this.chatSetupState.update({ chatInstalled });
+	}
+}
+
+class ChatSetupEntitlementResolver extends Disposable {
+
+	private _entitlement = ChatEntitlement.Unknown;
+	get entitlement() { return this._entitlement; }
+
+	private readonly _onDidChangeEntitlement = this._register(new Emitter<ChatEntitlement>());
+	readonly onDidChangeEntitlement = this._onDidChangeEntitlement.event;
+
+	private readonly chatSetupSignedInContextKey = ChatContextKeys.Setup.signedIn.bindTo(this.contextKeyService);
+	private readonly chatSetupEntitledContextKey = ChatContextKeys.Setup.entitled.bindTo(this.contextKeyService);
+
+	private resolvedEntitlement: IChatEntitlement | undefined = undefined;
+
+	constructor(
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super();
+
+		this.registerEntitlementListeners();
+		this.registerAuthListeners();
+
+		this.handleDeclaredAuthProviders();
+	}
+
+	private registerEntitlementListeners(): void {
 		this._register(this.authenticationService.onDidChangeSessions(e => {
 			if (e.providerId === defaultChat.providerId) {
 				if (e.event.added?.length) {
 					this.resolveEntitlement(e.event.added[0]);
 				} else if (e.event.removed?.length) {
-					this.chatSetupEntitledContextKey.set(false);
+					this.resolvedEntitlement = undefined;
+					this.update({ entitled: false });
 				}
 			}
 		}));
@@ -232,7 +214,7 @@ class ChatSetupEntitlementResolver extends Disposable {
 
 		this._register(this.authenticationService.onDidChangeSessions(async ({ providerId }) => {
 			if (providerId === defaultChat.providerId) {
-				this.chatSetupSignedInContextKey.set(await this.hasProviderSessions());
+				this.update({ signedIn: await this.hasProviderSessions() });
 			}
 		}));
 	}
@@ -244,7 +226,7 @@ class ChatSetupEntitlementResolver extends Disposable {
 
 	private async handleDeclaredAuthProviders(): Promise<void> {
 		if (this.authenticationService.declaredProviders.find(p => p.id === defaultChat.providerId)) {
-			this.chatSetupSignedInContextKey.set(await this.hasProviderSessions());
+			this.update({ signedIn: await this.hasProviderSessions() });
 		}
 	}
 
@@ -254,7 +236,7 @@ class ChatSetupEntitlementResolver extends Disposable {
 		}
 
 		const entitlement = await this.doResolveEntitlement(session);
-		this.chatSetupEntitledContextKey.set(!!entitlement.chatEnabled);
+		this.update({ entitled: !!entitlement.chatEnabled });
 	}
 
 	private async doResolveEntitlement(session: AuthenticationSession): Promise<IChatEntitlement> {
@@ -298,10 +280,29 @@ class ChatSetupEntitlementResolver extends Disposable {
 
 		return this.resolvedEntitlement;
 	}
+
+	private update(context: { entitled: boolean }): void;
+	private update(context: { signedIn: boolean }): void;
+	private update(context: { entitled?: boolean; signedIn?: boolean }): void {
+		if (typeof context.entitled === 'boolean') {
+			this.chatSetupEntitledContextKey.set(context.entitled);
+		}
+
+		if (typeof context.signedIn === 'boolean') {
+			this.chatSetupSignedInContextKey.set(context.signedIn);
+
+			const entitlement = this._entitlement;
+			this._entitlement = context.signedIn ? ChatEntitlement.Applicable : ChatEntitlement.Unknown;
+			if (entitlement !== this._entitlement) {
+				this._onDidChangeEntitlement.fire(this._entitlement);
+			}
+		}
+	}
 }
 
 interface IChatSetupWelcomeContentOptions {
-	readonly entitlement: ChatEntitlement | undefined;
+	readonly entitlement: ChatEntitlement;
+	readonly onDidChangeEntitlement: Event<ChatEntitlement>;
 }
 
 class ChatSetupWelcomeContent extends Disposable {
@@ -352,18 +353,27 @@ class ChatSetupWelcomeContent extends Disposable {
 
 		// Setup Button
 		if (this.options.entitlement !== ChatEntitlement.Blocked) {
+			let setupRunning = false;
+
 			const buttonRow = this.element.appendChild($('p'));
 
 			const button = this._register(new Button(buttonRow, { ...defaultButtonStyles, supportIcons: true }));
 			this.updateControls(button, telemetryCheckbox, false);
 
 			this._register(button.onDidClick(async () => {
-				this.updateControls(button, telemetryCheckbox, true);
+				setupRunning = true;
+				this.updateControls(button, telemetryCheckbox, setupRunning);
 
-				await this.setup(telemetryCheckbox?.checked);
+				try {
+					await this.setup(telemetryCheckbox?.checked);
+				} finally {
+					setupRunning = false;
+				}
 
-				this.updateControls(button, telemetryCheckbox, false);
+				this.updateControls(button, telemetryCheckbox, setupRunning);
 			}));
+
+			this._register(this.options.onDidChangeEntitlement(() => this.updateControls(button, telemetryCheckbox, setupRunning)));
 		}
 
 		// Footer
