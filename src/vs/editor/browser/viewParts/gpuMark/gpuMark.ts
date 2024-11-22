@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveDocument } from '../../../../base/browser/dom.js';
 import * as viewEvents from '../../../common/viewEvents.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
@@ -23,7 +22,7 @@ export class GpuMarkOverlay extends DynamicViewOverlay {
 
 	private _renderResult: string[] | null;
 
-	constructor(context: ViewContext) {
+	constructor(context: ViewContext, private readonly _viewGpuContext: ViewGpuContext) {
 		super();
 		this._context = context;
 		this._renderResult = null;
@@ -78,8 +77,7 @@ export class GpuMarkOverlay extends DynamicViewOverlay {
 		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
-			// TODO: How to get the container?
-			const cannotRenderReasons = ViewGpuContext.canRenderDetailed(getActiveDocument().querySelector('.view-lines')!, options, viewportData, lineNumber);
+			const cannotRenderReasons = this._viewGpuContext.canRenderDetailed(options, viewportData, lineNumber);
 			output[lineIndex] = cannotRenderReasons.length ? `<div class="${GpuMarkOverlay.CLASS_NAME}" title="Cannot render on GPU: ${cannotRenderReasons.join(', ')}"></div>` : '';
 		}
 

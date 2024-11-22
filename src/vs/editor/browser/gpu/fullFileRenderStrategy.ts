@@ -322,7 +322,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		for (y = viewportData.startLineNumber; y <= viewportData.endLineNumber; y++) {
 
 			// Only attempt to render lines that the GPU renderer can handle
-			if (!ViewGpuContext.canRender(this._viewGpuContext.canvas.domNode, viewLineOptions, viewportData, y)) {
+			if (!this._viewGpuContext.canRender(viewLineOptions, viewportData, y)) {
 				fillStartIndex = ((y - 1) * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
 				fillEndIndex = (y * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
 				cellBuffer.fill(0, fillStartIndex, fillEndIndex);
