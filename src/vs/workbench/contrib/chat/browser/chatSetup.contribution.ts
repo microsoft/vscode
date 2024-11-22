@@ -43,6 +43,7 @@ import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -329,23 +330,16 @@ class ChatSetupWelcomeContent extends Disposable {
 
 		// SKU Limited Sign-up
 		let telemetryCheckbox: Checkbox | undefined;
+		let detectionCheckbox: Checkbox | undefined;
 		if (this.options.entitlement === ChatEntitlement.Unknown || this.options.entitlement === ChatEntitlement.Applicable) {
 			const skuHeader = localize({ key: 'skuHeader', comment: ['{Locked="]({0})"}'] }, "You are entitled to sign-up for {0} [limited access]({1}).", defaultChat.name, defaultChat.skusDocumentationUrl);
 			this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(skuHeader, { isTrusted: true }))).element);
 
-			const telemetryLabel = localize('setupLimitedCheckbox', "Allow {0} to collect usage data", defaultChat.name);
+			const telemetryLabel = localize('telemetryLabel', "Allow to collect usage data");
+			telemetryCheckbox = this.createCheckBox(telemetryLabel, false);
 
-			const telemetryCheckboxContainer = this.element.appendChild($('p'));
-			telemetryCheckbox = this._register(new Checkbox(telemetryLabel, false, defaultCheckboxStyles));
-			telemetryCheckboxContainer.appendChild(telemetryCheckbox.domNode);
-
-			const telemetryCheckboxLabelContainer = telemetryCheckboxContainer.appendChild($('div'));
-			telemetryCheckboxLabelContainer.textContent = telemetryLabel;
-			this._register(addDisposableListener(telemetryCheckboxLabelContainer, EventType.CLICK, () => {
-				if (telemetryCheckbox?.enabled) {
-					telemetryCheckbox.checked = !telemetryCheckbox.checked;
-				}
-			}));
+			const detectionLabel = localize('detectionLabel', "Allow suggestions matching public code");
+			detectionCheckbox = this.createCheckBox(detectionLabel, true);
 		}
 
 		// Setup Button
@@ -355,22 +349,22 @@ class ChatSetupWelcomeContent extends Disposable {
 			const buttonRow = this.element.appendChild($('p'));
 
 			const button = this._register(new Button(buttonRow, { ...defaultButtonStyles, supportIcons: true }));
-			this.updateControls(button, telemetryCheckbox, false);
+			this.updateControls(button, coalesce([telemetryCheckbox, detectionCheckbox]), false);
 
 			this._register(button.onDidClick(async () => {
 				setupRunning = true;
-				this.updateControls(button, telemetryCheckbox, setupRunning);
+				this.updateControls(button, coalesce([telemetryCheckbox, detectionCheckbox]), setupRunning);
 
 				try {
-					await this.setup(telemetryCheckbox?.checked);
+					await this.setup(telemetryCheckbox?.checked, detectionCheckbox?.checked);
 				} finally {
 					setupRunning = false;
 				}
 
-				this.updateControls(button, telemetryCheckbox, setupRunning);
+				this.updateControls(button, coalesce([telemetryCheckbox, detectionCheckbox]), setupRunning);
 			}));
 
-			this._register(this.options.onDidChangeEntitlement(() => this.updateControls(button, telemetryCheckbox, setupRunning)));
+			this._register(this.options.onDidChangeEntitlement(() => this.updateControls(button, coalesce([telemetryCheckbox, detectionCheckbox]), setupRunning)));
 		}
 
 		// Footer
@@ -378,21 +372,41 @@ class ChatSetupWelcomeContent extends Disposable {
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(footer, { isTrusted: true }))).element);
 	}
 
-	private updateControls(button: Button, telemetryCheckbox: Checkbox | undefined, setupRunning: boolean): void {
+	private createCheckBox(label: string, checked: boolean) {
+		const checkboxContainer = this.element.appendChild($('p'));
+		const checkbox = this._register(new Checkbox(label, checked, defaultCheckboxStyles));
+		checkboxContainer.appendChild(checkbox.domNode);
+
+		const telemetryCheckboxLabelContainer = checkboxContainer.appendChild($('div'));
+		telemetryCheckboxLabelContainer.textContent = label;
+		this._register(addDisposableListener(telemetryCheckboxLabelContainer, EventType.CLICK, () => {
+			if (checkbox?.enabled) {
+				checkbox.checked = !checkbox.checked;
+			}
+		}));
+
+		return checkbox;
+	}
+
+	private updateControls(button: Button, checkboxes: Checkbox[], setupRunning: boolean): void {
 		if (setupRunning) {
 			button.enabled = false;
 			button.label = localize('setupChatInstalling', "$(loading~spin) Completing Setup...");
-			telemetryCheckbox?.disable();
+			for (const checkbox of checkboxes) {
+				checkbox.disable();
+			}
 		} else {
 			button.enabled = true;
 			button.label = this.options.entitlement === ChatEntitlement.Unknown ?
 				localize('signInAndSetup', "Sign in and Complete Setup") :
 				localize('setup', "Complete Setup");
-			telemetryCheckbox?.enable();
+			for (const checkbox of checkboxes) {
+				checkbox.enable();
+			}
 		}
 	}
 
-	private async setup(enableTelemetry: boolean | undefined): Promise<boolean> {
+	private async setup(enableTelemetry: boolean | undefined, enableDetection: boolean | undefined): Promise<boolean> {
 		let session: AuthenticationSession | undefined;
 		if (this.options.entitlement === ChatEntitlement.Unknown) {
 			session = await this.signIn();
@@ -401,7 +415,7 @@ class ChatSetupWelcomeContent extends Disposable {
 			}
 		}
 
-		return this.install(session, enableTelemetry);
+		return this.install(session, enableTelemetry, enableDetection);
 	}
 
 	private async signIn(): Promise<AuthenticationSession | undefined> {
@@ -420,7 +434,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		return session;
 	}
 
-	private async install(session: AuthenticationSession | undefined, enableTelemetry: boolean | undefined): Promise<boolean> {
+	private async install(session: AuthenticationSession | undefined, enableTelemetry: boolean | undefined, enableDetection: boolean | undefined): Promise<boolean> {
 		const signedIn = !!session;
 		const activeElement = getActiveElement();
 
@@ -430,7 +444,7 @@ class ChatSetupWelcomeContent extends Disposable {
 
 			if (this.options.entitlement === ChatEntitlement.Unknown || this.options.entitlement === ChatEntitlement.Applicable) {
 				await this.instantiationService.invokeFunction(accessor => ChatSetupRequestHelper.request(accessor, defaultChat.entitlementSkuLimitedUrl, 'POST', {
-					public_code_suggestions: 'enabled',
+					public_code_suggestions: enableDetection ? 'enabled' : 'disabled',
 					restricted_telemetry: enableTelemetry ? 'disabled' : 'enabled'
 				}, session, CancellationToken.None));
 			}
