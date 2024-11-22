@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { fail, ok } from 'assert';
-import type { ITextureAtlasPageGlyph } from '../../../../../browser/gpu/atlas/atlas.js';
-import { TextureAtlas } from '../../../../../browser/gpu/atlas/textureAtlas.js';
-import { isNumber } from '../../../../../../base/common/types.js';
-import { ensureNonNullable } from '../../../../../browser/gpu/gpuUtils.js';
+import type { ITextureAtlasPageGlyph } from '../../../../browser/gpu/atlas/atlas.js';
+import { TextureAtlas } from '../../../../browser/gpu/atlas/textureAtlas.js';
+import { isNumber } from '../../../../../base/common/types.js';
+import { ensureNonNullable } from '../../../../browser/gpu/gpuUtils.js';
 
 export function assertIsValidGlyph(glyph: Readonly<ITextureAtlasPageGlyph> | undefined, atlasOrSource: TextureAtlas | OffscreenCanvas) {
 	if (glyph === undefined) {
