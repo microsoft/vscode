@@ -12,7 +12,7 @@ import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
 import { ViewEventHandler } from '../../common/viewEventHandler.js';
 import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../common/viewEvents.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
-import type { ViewLineRenderingData } from '../../common/viewModel.js';
+import type { InlineDecoration, ViewLineRenderingData } from '../../common/viewModel.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
 import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
 import type { ITextureAtlasPageGlyph } from './atlas/atlas.js';
@@ -233,8 +233,11 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	}
 
 	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): number {
-		// Pre-allocate variables to be shared within the loop - don't trust the JIT compiler to do
-		// this optimization to avoid additional blocking time in garbage collector
+		// IMPORTANT: This is a hot function. Variables are pre-allocated and shared within the
+		// loop. This is done so we don't need to trust the JIT compiler to do this optimization to
+		// avoid potential additional blocking time in garbage collector which is a common cause of
+		// dropped frames.
+
 		let chars = '';
 		let y = 0;
 		let x = 0;
@@ -251,6 +254,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		let charMetadata = 0;
 
 		let lineData: ViewLineRenderingData;
+		let decoration: InlineDecoration;
 		let content: string = '';
 		let fillStartIndex = 0;
 		let fillEndIndex = 0;
@@ -315,8 +319,6 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 			}
 		}
 
-		const decorations = viewportData.getDecorationsInViewport();
-
 		for (y = viewportData.startLineNumber; y <= viewportData.endLineNumber; y++) {
 
 			// Only attempt to render lines that the GPU renderer can handle
@@ -331,13 +333,9 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 			if (upToDateLines.has(y)) {
 				continue;
 			}
+
 			dirtyLineStart = Math.min(dirtyLineStart, y);
 			dirtyLineEnd = Math.max(dirtyLineEnd, y);
-
-			const inlineDecorations = decorations.filter(e => (
-				e.range.startLineNumber <= y && e.range.endLineNumber >= y &&
-				e.options.inlineClassName
-			));
 
 			lineData = viewportData.getViewLineRenderingData(y);
 			content = lineData.content;
@@ -363,48 +361,36 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 					chars = content.charAt(x);
 					charMetadata = 0;
 
-					// TODO: We'd want to optimize pulling the decorations in order
-					const cellDecorations = inlineDecorations.filter(decoration => {
-						// This is Range.strictContainsPosition except it's working at the cell level.
-						if (y < decoration.range.startLineNumber || y > decoration.range.endLineNumber) {
-							return false;
+					// Apply supported inline decoration styles to the cell metadata
+					for (decoration of lineData.inlineDecorations) {
+						// This is Range.strictContainsPosition except it works at the cell level,
+						// it's also inlined to avoid overhead.
+						if (
+							(y < decoration.range.startLineNumber || y > decoration.range.endLineNumber) ||
+							(y === decoration.range.startLineNumber && x < decoration.range.startColumn - 1) ||
+							(y === decoration.range.endLineNumber && x >= decoration.range.endColumn - 1)
+						) {
+							continue;
 						}
-						if (y === decoration.range.startLineNumber && x < decoration.range.startColumn - 1) {
-							return false;
-						}
-						if (y === decoration.range.endLineNumber && x >= decoration.range.endColumn - 1) {
-							return false;
-						}
-						return true;
-					});
 
-					// Only lines containing fully supported inline decorations should have made it
-					// this far.
-					const inlineStyles: Map<string, string> = new Map();
-					for (const decoration of cellDecorations) {
-						if (!decoration.options.inlineClassName) {
-							throw new BugIndicatingError('Unexpected inline decoration without class name');
-						}
-						const rules = ViewGpuContext.decorationCssRuleExtractor.getStyleRules(this._viewGpuContext.canvas.domNode, decoration.options.inlineClassName);
+						const rules = ViewGpuContext.decorationCssRuleExtractor.getStyleRules(this._viewGpuContext.canvas.domNode, decoration.inlineClassName);
 						for (const rule of rules) {
 							for (const r of rule.style) {
-								inlineStyles.set(r, rule.styleMap.get(r)?.toString() ?? '');
-							}
-						}
-					}
-
-					for (const [key, value] of inlineStyles.entries()) {
-						switch (key) {
-							case 'color': {
-								// TODO: This parsing/error handling should move into canRender so fallback to DOM works
-								const parsedColor = Color.Format.CSS.parse(value);
-								if (!parsedColor) {
-									throw new BugIndicatingError('Invalid color format ' + value);
+								const value = rule.styleMap.get(r)?.toString() ?? '';
+								switch (r) {
+									case 'color': {
+										// TODO: This parsing and error handling should move into canRender so fallback
+										//       to DOM works
+										const parsedColor = Color.Format.CSS.parse(value);
+										if (!parsedColor) {
+											throw new BugIndicatingError('Invalid color format ' + value);
+										}
+										charMetadata = parsedColor.toNumber24Bit();
+										break;
+									}
+									default: throw new BugIndicatingError('Unexpected inline decoration style');
 								}
-								charMetadata = parsedColor.toNumber24Bit();
-								break;
 							}
-							default: throw new BugIndicatingError('Unexpected inline decoration style');
 						}
 					}
 
