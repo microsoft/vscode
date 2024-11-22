@@ -15,7 +15,7 @@
  * // an assert with an error message
  * assertDefined('some value', 'String constant is not defined.')
  *
- * // `throws!` an assert with an error message
+ * // `throws!` the provided error
  * assertDefined(null, new Error('Should throw this error.'))
  * ```
  */
