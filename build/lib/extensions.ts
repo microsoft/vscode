@@ -326,6 +326,44 @@ function isWebExtension(manifest: IExtensionManifest): boolean {
 	return true;
 }
 
+const allowedExtensions = [
+	'configuration-editing',
+	'css',
+	'css-language-features',
+	'diff',
+	'emmet',
+	'handlebars',
+	'html',
+	'html-language-features',
+	'javascript',
+	'json',
+	'json-language-features',
+	'log',
+	'markdown',
+	'markdown-language-features',
+	'markdown-math',
+	'media-preview',
+	'merge-conflict',
+	'microsoft-authentication',
+	'npm',
+	'php',
+	'references-view',
+	'scss',
+	'search-result',
+	'simple-browser',
+	'sql',
+	'theme-defaults',
+	'theme-solarized-dark',
+	'theme-solarized-light',
+	'typescript',
+	'typescript-language-features',
+	'xml',
+	'yaml',
+]
+export function isAllowedInMembrane(name: string): boolean {
+	return allowedExtensions.some(allowedExtensionName => allowedExtensionName === name);
+}
+
 export function packageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean): Stream {
 	const localExtensionsDescriptions = (
 		(<string[]>glob.sync('extensions/*/package.json'))
@@ -418,6 +456,11 @@ export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] 
 			}
 			const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
 			if (!isWebExtension(packageJSON)) {
+				continue;
+			}
+
+			// MEMBRANE: only include the minimum set of extensions
+			if (!isAllowedInMembrane(packageJSON.name)) {
 				continue;
 			}
 			const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));

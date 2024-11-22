@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildExtensionMedia = exports.webpackExtensions = exports.translatePackageJSON = exports.scanBuiltinExtensions = exports.packageMarketplaceExtensionsStream = exports.packageLocalExtensionsStream = exports.fromGithub = exports.fromMarketplace = void 0;
+exports.buildExtensionMedia = exports.webpackExtensions = exports.translatePackageJSON = exports.scanBuiltinExtensions = exports.packageMarketplaceExtensionsStream = exports.packageLocalExtensionsStream = exports.isAllowedInMembrane = exports.fromGithub = exports.fromMarketplace = void 0;
 const es = require("event-stream");
 const fs = require("fs");
 const cp = require("child_process");
@@ -276,6 +276,44 @@ function isWebExtension(manifest) {
     }
     return true;
 }
+const allowedExtensions = [
+    'configuration-editing',
+    'css',
+    'css-language-features',
+    'diff',
+    'emmet',
+    'handlebars',
+    'html',
+    'html-language-features',
+    'javascript',
+    'json',
+    'json-language-features',
+    'log',
+    'markdown',
+    'markdown-language-features',
+    'markdown-math',
+    'media-preview',
+    'merge-conflict',
+    'microsoft-authentication',
+    'npm',
+    'php',
+    'references-view',
+    'scss',
+    'search-result',
+    'simple-browser',
+    'sql',
+    'theme-defaults',
+    'theme-solarized-dark',
+    'theme-solarized-light',
+    'typescript',
+    'typescript-language-features',
+    'xml',
+    'yaml',
+];
+function isAllowedInMembrane(name) {
+    return allowedExtensions.some(allowedExtensionName => allowedExtensionName === name);
+}
+exports.isAllowedInMembrane = isAllowedInMembrane;
 function packageLocalExtensionsStream(forWeb, disableMangle) {
     const localExtensionsDescriptions = (glob.sync('extensions/*/package.json')
         .map(manifestPath => {
@@ -340,6 +378,10 @@ function scanBuiltinExtensions(extensionsRoot, exclude = []) {
             }
             const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
             if (!isWebExtension(packageJSON)) {
+                continue;
+            }
+            // MEMBRANE: only include the minimum set of extensions
+            if (!isAllowedInMembrane(packageJSON.name)) {
                 continue;
             }
             const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));

@@ -48,6 +48,10 @@ function getMembraneOverrides() {
 function loaderConfig() {
     const result = {
         paths: {
+            // MEMBRANE: these paths are used by vscode-loader and are matched without the `.js` file extension.
+            // The longest one that matches always wins (more specific).
+            // We have to map the `.membrane` files to themselves so that they don't get picked up by the second
+            // set of rules that map the normal `.js` files to `.membrane.js`
             ...Object.fromEntries(getMembraneOverrides().map(m => [`${m}.membrane`, `out-build/${m}.membrane.js`])),
             ...Object.fromEntries(getMembraneOverrides().map(m => [`${m}`, `out-build/${m}.membrane.js`])),
             'vs': 'out-build/vs',
