@@ -34,7 +34,7 @@ export class DecorationCssRuleExtractor extends Disposable {
 		}
 
 		// Set up DOM
-		this._dummyElement.classList.add(decorationClassName);
+		this._dummyElement.className = decorationClassName;
 		canvas.appendChild(this._container);
 
 		// Get rules
@@ -43,7 +43,6 @@ export class DecorationCssRuleExtractor extends Disposable {
 
 		// Tear down DOM
 		canvas.removeChild(this._container);
-		this._dummyElement.classList.remove(decorationClassName);
 
 		return rules;
 	}
