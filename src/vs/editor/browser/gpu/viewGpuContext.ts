@@ -141,7 +141,7 @@ export class ViewGpuContext extends Disposable {
 	 * renderer. Eventually this should trend all lines, except maybe exceptional cases like
 	 * decorations that use class names.
 	 */
-	public static canRender(container: HTMLElement, options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): boolean {
+	public canRender(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): boolean {
 		const data = viewportData.getViewLineRenderingData(lineNumber);
 
 		// Check if the line has simple attributes that aren't supported
@@ -158,7 +158,7 @@ export class ViewGpuContext extends Disposable {
 		if (data.inlineDecorations.length > 0) {
 			let supported = true;
 			for (const decoration of data.inlineDecorations) {
-				const styleRules = ViewGpuContext._decorationCssRuleExtractor.getStyleRules(container, decoration.inlineClassName);
+				const styleRules = ViewGpuContext._decorationCssRuleExtractor.getStyleRules(this.canvas.domNode, decoration.inlineClassName);
 				supported &&= styleRules.every(rule => {
 					// Pseudo classes aren't supported currently
 					if (rule.selectorText.includes(':')) {
@@ -184,7 +184,7 @@ export class ViewGpuContext extends Disposable {
 	/**
 	 * Like {@link canRender} but returns detailed information about why the line cannot be rendered.
 	 */
-	public static canRenderDetailed(container: HTMLElement, options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): string[] {
+	public canRenderDetailed(options: ViewLineOptions, viewportData: ViewportData, lineNumber: number): string[] {
 		const data = viewportData.getViewLineRenderingData(lineNumber);
 		const reasons: string[] = [];
 		if (data.containsRTL) {
@@ -201,7 +201,7 @@ export class ViewGpuContext extends Disposable {
 			const problemSelectors: string[] = [];
 			const problemRules: string[] = [];
 			for (const decoration of data.inlineDecorations) {
-				const styleRules = ViewGpuContext._decorationCssRuleExtractor.getStyleRules(container, decoration.inlineClassName);
+				const styleRules = ViewGpuContext._decorationCssRuleExtractor.getStyleRules(this.canvas.domNode, decoration.inlineClassName);
 				supported &&= styleRules.every(rule => {
 					// Pseudo classes aren't supported currently
 					if (rule.selectorText.includes(':')) {
