@@ -1192,7 +1192,7 @@
           "type": "string",
           "scope": "window",
           "description": "%configuration.tsserver.useSyntaxServer%",
-          "default": "auto",
+          "default": "never",
           "enum": [
             "always",
             "never",
