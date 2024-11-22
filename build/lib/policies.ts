@@ -206,7 +206,7 @@ class StringPolicy extends BasePolicy {
 	): StringPolicy | undefined {
 		const type = getStringProperty(settingNode, 'type');
 
-		if (type !== 'string') {
+		if (type !== 'string' && type !== 'array' && type !== 'object') {
 			return undefined;
 		}
 
