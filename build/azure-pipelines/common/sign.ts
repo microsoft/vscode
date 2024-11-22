@@ -138,6 +138,16 @@ export function main([esrpCliPath, type, folderPath, pattern]: string[]) {
 	const tmp = new Temp();
 	process.on('exit', () => tmp.dispose());
 
+	const key = crypto.randomBytes(32);
+	const iv = crypto.randomBytes(16);
+	const encryptionDetailsPath = tmp.tmpNameSync();
+	fs.writeFileSync(encryptionDetailsPath, JSON.stringify({ key: key.toString('hex'), iv: iv.toString('hex') }));
+
+	const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+	const encryptedToken = cipher.update(process.env['SYSTEM_ACCESSTOKEN']!.trim(), 'utf8', 'hex') + cipher.final('hex');
+	const encryptedTokenPath = tmp.tmpNameSync();
+	fs.writeFileSync(encryptedTokenPath, encryptedToken);
+
 	const patternPath = tmp.tmpNameSync();
 	fs.writeFileSync(patternPath, pattern);
 
@@ -157,7 +167,8 @@ export function main([esrpCliPath, type, folderPath, pattern]: string[]) {
 		managedIdentityTenantId: process.env['VSCODE_ESRP_TENANT_ID'],
 		serviceConnectionId: process.env['VSCODE_ESRP_SERVICE_CONNECTION_ID'],
 		tempDirectory: os.tmpdir(),
-		systemAccessToken: process.env['SYSTEM_ACCESSTOKEN']
+		systemAccessToken: encryptedTokenPath,
+		encryptionKey: encryptionDetailsPath
 	};
 
 	const args = [
