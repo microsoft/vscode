@@ -61,6 +61,10 @@ export class ExtHostWindow implements ExtHostWindowShape {
 		return this._nativeHandle;
 	}
 
+	$onDidChangeActiveNativeWindowHandle(handle: string | undefined): void {
+		this._nativeHandle = handle ? decodeBase64(handle).buffer : undefined;
+	}
+
 	$onDidChangeWindowFocus(value: boolean) {
 		this.onDidChangeWindowProperty('focused', value);
 	}

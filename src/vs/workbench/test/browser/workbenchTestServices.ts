@@ -1570,6 +1570,8 @@ export class TestHostService implements IHostService {
 
 	async getScreenshot(): Promise<ArrayBufferLike | undefined> { return undefined; }
 
+	async getNativeWindowHandle(_windowId: number): Promise<VSBuffer | undefined> { return undefined; }
+
 	readonly colorScheme = ColorScheme.DARK;
 	onDidChangeColorScheme = Event.None;
 }
