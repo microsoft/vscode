@@ -169,7 +169,6 @@ class ChatSetupEntitlementResolver extends Disposable {
 	private readonly _onDidChangeEntitlement = this._register(new Emitter<ChatEntitlement>());
 	readonly onDidChangeEntitlement = this._onDidChangeEntitlement.event;
 
-	private readonly chatSetupSignedInContextKey = ChatContextKeys.Setup.signedIn.bindTo(this.contextKeyService);
 	private readonly chatSetupEntitledContextKey = ChatContextKeys.Setup.entitled.bindTo(this.contextKeyService);
 
 	private resolvedEntitlement: IChatEntitlement | undefined = undefined;
@@ -288,8 +287,6 @@ class ChatSetupEntitlementResolver extends Disposable {
 		}
 
 		if (typeof context.signedIn === 'boolean') {
-			this.chatSetupSignedInContextKey.set(context.signedIn);
-
 			const entitlement = this._entitlement;
 			this._entitlement = context.signedIn ? ChatEntitlement.Applicable : ChatEntitlement.Unknown;
 			if (entitlement !== this._entitlement) {
