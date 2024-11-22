@@ -463,7 +463,7 @@ class ChatSetupWelcomeContent extends Disposable {
 			if (this.options.entitlement === ChatEntitlement.Unknown || this.options.entitlement === ChatEntitlement.Applicable) {
 				await this.instantiationService.invokeFunction(accessor => ChatSetupRequestHelper.request(accessor, defaultChat.entitlementSkuLimitedUrl, 'POST', {
 					public_code_suggestions: enableDetection ? 'enabled' : 'disabled',
-					restricted_telemetry: enableTelemetry ? 'disabled' : 'enabled'
+					restricted_telemetry: enableTelemetry ? 'enabled' : 'disabled'
 				}, session, CancellationToken.None));
 			}
 
