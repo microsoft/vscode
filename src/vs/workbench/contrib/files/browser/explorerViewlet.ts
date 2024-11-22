@@ -253,8 +253,7 @@ const viewContainerRegistry = Registry.as<IViewContainersRegistry>(Extensions.Vi
  */
 export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewContainer({
 	id: VIEWLET_ID,
-	// MEMBRANE: Call it "File Explorer" so it doesn't get confused with our "Graph Explorer"
-	title: localize2('explore', "File Explorer"),
+	title: localize2('explore', "Explorer"),
 	ctorDescriptor: new SyncDescriptor(ExplorerViewPaneContainer),
 	storageId: 'workbench.explorer.views.state',
 	icon: explorerViewIcon,
@@ -263,12 +262,13 @@ export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewC
 	order: 0,
 	openCommandActionDescriptor: {
 		id: VIEWLET_ID,
-		title: localize2('explore', "File Explorer"),
+		title: localize2('explore', "Explorer"),
 		mnemonicTitle: localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"),
 		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE },
 		order: 0
 	},
-}, ViewContainerLocation.Sidebar, { isDefault: true });
+	// MEMBRANE: move explorer viewlet to panel to hide it (we are hiding panel title bar)
+}, ViewContainerLocation.Panel, { isDefault: true });
 
 const openFolder = localize('openFolder', "Open Folder");
 const addAFolder = localize('addAFolder', "add a folder");

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .part.activitybar {
-	width: 48px;
+	/* MEMBRANE: reduce size */
+	width: 36px;
 	height: 100%;
 }
 

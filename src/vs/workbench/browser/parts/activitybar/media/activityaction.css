@@ -12,7 +12,8 @@
 .monaco-workbench .activitybar > .content .composite-bar > .monaco-action-bar .action-item::after {
 	position: absolute;
 	content: '';
-	width: 48px;
+	/* MEMBRANE: reduce size */
+	width: 36px;
 	height: 2px;
 	display: none;
 	background-color: transparent;
@@ -66,8 +67,9 @@
 	z-index: 1;
 	display: flex;
 	overflow: hidden;
-	width: 48px;
-	height: 48px;
+	/* MEMBRANE: reduce size */
+	width: 36px;
+	height: 36px;
 	margin-right: 0;
 	box-sizing: border-box;
 
@@ -75,12 +77,14 @@
 
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label:not(.codicon) {
 	font-size: 15px;
-	line-height: 40px;
-	padding: 0 0 0 48px;
+	line-height: 36px;
+	/* MEMBRANE: reduce padding */
+	padding: 0 0 0 36px;
 }
 
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label.codicon {
-	font-size: 24px;
+	/* MEMBRANE: reduce icon size */
+	font-size: 18px;
 	align-items: center;
 	justify-content: center;
 }
@@ -169,16 +173,17 @@
 	left: -2px;
 }
 
+/* MEMBRANE: reduce size of badge */
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .badge-content {
 	position: absolute;
-	top: 24px;
-	right: 8px;
-	font-size: 9px;
+	top: 18px;
+	right: 6px;
+	font-size: 8px;
 	font-weight: 600;
 	min-width: 8px;
-	height: 16px;
-	line-height: 16px;
-	padding: 0 4px;
+	height: 12x;
+	line-height: 12px;
+	padding: 0 2px;
 	border-radius: 20px;
 	text-align: center;
 }

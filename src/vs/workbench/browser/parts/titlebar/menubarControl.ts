@@ -729,7 +729,8 @@ export class CustomMenubarControl extends MenubarControl {
 		return {
 			enableMnemonics: this.currentEnableMenuBarMnemonics,
 			disableAltFocus: this.currentDisableMenuBarAltFocus,
-			visibility: this.currentMenubarVisibility,
+			// MEMBRANE: hide menubar
+			visibility: 'hidden', // this.currentMenubarVisibility
 			actionRunner: this.actionRunner,
 			getKeybinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 			alwaysOnMnemonics: this.alwaysOnMnemonics,

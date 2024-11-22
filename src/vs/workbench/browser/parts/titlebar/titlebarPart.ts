@@ -393,7 +393,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.appIcon = prepend(this.leftContent, $('a.membrane-appicon'));
 		const homeIndicator = this.environmentService.options?.homeIndicator;
 		this.appIcon.setAttribute('href', homeIndicator?.href ?? 'https://membrane.io');
-		append(this.appIcon, $.SVG('svg', { viewBox: '0 0 55 55' },
+		append(this.appIcon, $.SVG('svg', { viewBox: '0 0 55 55', 'stroke-width': '1.5' },
 			$.SVG('path', { d: 'M23.41 35.93h.5l.2-.46 4.14-9.85a1425.49 1425.49 0 0 1 1.61-3.93l.32-.81a237.65 237.65 0 0 0 .02 5.2 71.5 71.5 0 0 0 .07 2.48l.3 6.66.02.71h9.08l-.05-.79-.98-16.6-.97-16.58-.04-.71h-7.99l-.2.47-7.6 19.11a49.6 49.6 0 0 0-1.35 3.68l-.4-1.17a92.1 92.1 0 0 0-.9-2.5L11.56 1.72l-.19-.47H3.26l-.05.7-1.95 33.19-.05.8H10.14l.02-.73.25-6.66a203.24 203.24 0 0 0 .1-5.67V20.67a1308.45 1308.45 0 0 0 2.05 5.35l.01.02v.02l4.06 9.41.19.45h6.59ZM39.57 35.97h5.68v5.68h-5.68z' })
 		));
 

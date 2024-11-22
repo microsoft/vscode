@@ -11,6 +11,24 @@
 	display: flex;
 }
 
+/* MEMBRANE: hide sidebar (Navigator) and panel (Logs) title */
+.monaco-workbench .part:has([id="workbench.view.extension.membraneContainer"]),
+.monaco-workbench .part:has([id="workbench.view.extension.membraneLogs"]) {
+	height: 100% !important;
+
+	.composite.title {
+		display: none;
+	}
+	.content {
+		height: 100% !important;
+	}
+}
+
+/* MEMBRANE: add top border to panel (Logs) */
+.monaco-workbench .part:has([id="workbench.view.extension.membraneLogs"]) {
+	border-top: 1px solid var(--vscode-widget-border);
+}
+
 .monaco-workbench .part > .composite.title > .title-actions {
 	flex: 1;
 	padding-left: 5px;
