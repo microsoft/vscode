@@ -14,6 +14,8 @@ import cdSpec from './completions/cd';
 let cachedAvailableCommands: Set<string> | undefined;
 let cachedBuiltinCommands: Map<string, string[]> | undefined;
 
+export const availableSpecs = [codeCompletionSpec, codeInsidersCompletionSpec, cdSpec];
+
 function getBuiltinCommands(shell: string): string[] | undefined {
 	try {
 		const shellType = path.basename(shell);
@@ -89,8 +91,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const items: vscode.TerminalCompletionItem[] = [];
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 
-			const specs = [codeCompletionSpec, codeInsidersCompletionSpec, cdSpec];
-			const specCompletions = await getCompletionItemsFromSpecs(specs, terminalContext, new Set(commands), prefix, token);
+			const specCompletions = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, new Set(commands), prefix, token);
 
 			items.push(...specCompletions.items);
 			let filesRequested = specCompletions.filesRequested;
@@ -214,7 +215,7 @@ export function asArray<T>(x: T | T[]): T[] {
 	return Array.isArray(x) ? x : [x];
 }
 
-function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: { commandLine: string; cursorPosition: number }, availableCommands: Set<string>, prefix: string, token: vscode.CancellationToken): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; specificSuggestionsProvided: boolean } {
+export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: { commandLine: string; cursorPosition: number }, availableCommands: Set<string>, prefix: string, token?: vscode.CancellationToken): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; specificSuggestionsProvided: boolean } {
 	const items: vscode.TerminalCompletionItem[] = [];
 	let filesRequested = false;
 	let foldersRequested = false;
@@ -224,7 +225,7 @@ function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: { comma
 			continue;
 		}
 		for (const specLabel of specLabels) {
-			if (!availableCommands.has(specLabel) || token.isCancellationRequested || !terminalContext.commandLine.startsWith(specLabel)) {
+			if (!availableCommands.has(specLabel) || token?.isCancellationRequested || !terminalContext.commandLine.startsWith(specLabel)) {
 				continue;
 			}
 			const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
