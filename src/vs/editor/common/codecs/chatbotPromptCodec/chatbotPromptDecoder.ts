@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseDecoder } from '../baseDecoder.js';
 import { Word } from '../simpleCodec/tokens/index.js';
 import { FileReference } from './tokens/fileReference.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
+import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 import { SimpleDecoder, TSimpleToken } from '../simpleCodec/simpleDecoder.js';
 
 /**

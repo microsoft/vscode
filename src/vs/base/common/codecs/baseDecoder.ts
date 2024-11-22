@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assert } from '../assert.js';
+import { Emitter } from '../event.js';
+import { ReadableStream } from '../stream.js';
 import { AsyncDecoder } from './asyncDecoder.js';
-import { assert } from '../../../base/common/assert.js';
-import { Emitter } from '../../../base/common/event.js';
-import { ReadableStream } from '../../../base/common/stream.js';
-import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../lifecycle.js';
 import { TStreamListenerNames } from './types/TStreamListenerEventNames.js';
 
 /**

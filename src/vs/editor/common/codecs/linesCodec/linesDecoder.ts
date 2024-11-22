@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseDecoder } from '../baseDecoder.js';
 import { Line, NewLine } from './tokens/index.js';
 import { assert } from '../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { assertDefined } from '../../../../base/common/assertDefined.js';
+import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 
 /**
  * Tokens produced by the `LinesDecoder`.

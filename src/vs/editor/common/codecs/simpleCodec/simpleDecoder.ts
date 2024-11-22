@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseDecoder } from '../baseDecoder.js';
 import { NewLine } from '../linesCodec/tokens/index.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
 import { Word, Space, Tab, } from '../simpleCodec/tokens/index.js';
 import { LinesDecoder, TLineToken } from '../linesCodec/linesDecoder.js';
+import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 
 /**
  * A token type that this decoder can handle.

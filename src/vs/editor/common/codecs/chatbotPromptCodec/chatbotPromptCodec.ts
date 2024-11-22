@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodec } from '../types/ICodec.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
+import { ICodec } from '../../../../base/common/codecs/types/ICodec.js';
 import { ChatbotPromptDecoder, TChatbotPromptToken } from './chatbotPromptDecoder.js';
 
 /**
