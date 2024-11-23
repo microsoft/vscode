@@ -56,7 +56,7 @@ const defaultChat = {
 	skusDocumentationUrl: product.defaultChatAgent?.skusDocumentationUrl ?? '',
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	providerName: product.defaultChatAgent?.providerName ?? '',
-	providerScopes: product.defaultChatAgent?.providerScopes ?? [],
+	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
 	entitlementChatEnabled: product.defaultChatAgent?.entitlementChatEnabled ?? '',
 	entitlementSkuLimitedUrl: product.defaultChatAgent?.entitlementSkuLimitedUrl ?? '',
@@ -223,16 +223,27 @@ class ChatSetupEntitlementResolver extends Disposable {
 		return ChatEntitlement.Unresolved;
 	}
 
-	private async hasProviderSessions(): Promise<boolean> {
-		const sessions = await this.authenticationService.getSessions(defaultChat.providerId);
-
-		return sessions.length > 0;
-	}
-
 	private async handleDeclaredAuthProviders(): Promise<void> {
 		if (this.authenticationService.declaredProviders.find(provider => provider.id === defaultChat.providerId)) {
 			this.update(this.toEntitlement(await this.hasProviderSessions()));
 		}
+	}
+
+	private async hasProviderSessions(): Promise<boolean> {
+		const sessions = await this.authenticationService.getSessions(defaultChat.providerId);
+		for (const session of sessions) {
+			for (const scopes of defaultChat.providerScopes) {
+				if (this.scopesMatch(session.scopes, scopes)) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	private scopesMatch(scopes: ReadonlyArray<string>, expectedScopes: string[]): boolean {
+		return scopes.length === expectedScopes.length && expectedScopes.every(scope => scopes.includes(scope));
 	}
 
 	private async resolveEntitlement(session: AuthenticationSession | undefined): Promise<void> {
@@ -449,7 +460,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		let session: AuthenticationSession | undefined;
 		try {
 			showChatView(this.viewsService);
-			session = await this.authenticationService.createSession(defaultChat.providerId, defaultChat.providerScopes);
+			session = await this.authenticationService.createSession(defaultChat.providerId, defaultChat.providerScopes[0]);
 		} catch (error) {
 			// noop
 		}
