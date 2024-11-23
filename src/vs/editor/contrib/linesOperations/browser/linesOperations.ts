@@ -1164,7 +1164,7 @@ export class SnakeCaseAction extends AbstractCaseAction {
 }
 
 export class CamelCaseAction extends AbstractCaseAction {
-	public static wordBoundary = new BackwardsCompatibleRegExp('[_\\s-]', 'gm');
+	public static wordBoundary = new BackwardsCompatibleRegExp('[_-]', 'gm');
 
 	constructor() {
 		super({
@@ -1188,8 +1188,8 @@ export class CamelCaseAction extends AbstractCaseAction {
 }
 
 export class PascalCaseAction extends AbstractCaseAction {
-	public static wordBoundary = new BackwardsCompatibleRegExp('[_\\s-]', 'gm');
-	public static wordBoundaryToMaintain = new BackwardsCompatibleRegExp('(?<=\\.)', 'gm');
+	public static nonSpaceWordBoundary = new BackwardsCompatibleRegExp('[_-]', 'gm');
+	public static wordBoundaryToMaintain = new BackwardsCompatibleRegExp('(?<=\\.)|(?<=\\s)', 'gm');
 
 	constructor() {
 		super({
@@ -1200,18 +1200,18 @@ export class PascalCaseAction extends AbstractCaseAction {
 	}
 
 	protected _modifyText(text: string, wordSeparators: string): string {
-		const wordBoundary = PascalCaseAction.wordBoundary.get();
+		const nonSpaceWordBoundary = PascalCaseAction.nonSpaceWordBoundary.get();
 		const wordBoundaryToMaintain = PascalCaseAction.wordBoundaryToMaintain.get();
 
-		if (!wordBoundary || !wordBoundaryToMaintain) {
+		if (!nonSpaceWordBoundary || !wordBoundaryToMaintain) {
 			// cannot support this
 			return text;
 		}
 
 		const wordsWithMaintainBoundaries = text.split(wordBoundaryToMaintain);
-		const words = wordsWithMaintainBoundaries.map((word: string) => word.split(wordBoundary)).flat();
-		return words.map((word: string) => word.substring(0, 1).toLocaleUpperCase() + word.substring(1))
-			.join('');
+		return wordsWithMaintainBoundaries.map(
+			(word: string) => word.split(nonSpaceWordBoundary).map(
+				(w: string) => w.substring(0, 1).toLocaleUpperCase() + w.substring(1)).join('')).join('');
 	}
 }
 
@@ -1284,7 +1284,7 @@ if (SnakeCaseAction.caseBoundary.isSupported() && SnakeCaseAction.singleLetters.
 if (CamelCaseAction.wordBoundary.isSupported()) {
 	registerEditorAction(CamelCaseAction);
 }
-if (PascalCaseAction.wordBoundary.isSupported()) {
+if (PascalCaseAction.nonSpaceWordBoundary.isSupported()) {
 	registerEditorAction(PascalCaseAction);
 }
 if (TitleCaseAction.titleBoundary.isSupported()) {

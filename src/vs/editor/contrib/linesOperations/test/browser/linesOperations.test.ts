@@ -838,14 +838,16 @@ suite('Editor Contrib - Line Operations', () => {
 				'alreadyCamel',
 				'ReTain_any_CAPitalization',
 				'my_var.test_function()',
-				'öçş_öç_şğü_ğü'
+				'öçş_öç_şğü_ğü',
+				'multi line camel case test?',
+				"here it comes-and-goes!"
 			], {}, (editor) => {
 				const model = editor.getModel()!;
 				const camelcaseAction = new CamelCaseAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 18));
 				executeAction(camelcaseAction, editor);
-				assert.strictEqual(model.getLineContent(1), 'camelFromWords');
+				assert.strictEqual(model.getLineContent(1), 'camel from words');
 
 				editor.setSelection(new Selection(2, 1, 2, 15));
 				executeAction(camelcaseAction, editor);
@@ -870,6 +872,11 @@ suite('Editor Contrib - Line Operations', () => {
 				editor.setSelection(new Selection(7, 1, 7, 14));
 				executeAction(camelcaseAction, editor);
 				assert.strictEqual(model.getLineContent(7), 'öçşÖçŞğüĞü');
+
+				editor.setSelection(new Selection(8, 1, 9, 24));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(8), 'multi line camel case test?');
+				assert.strictEqual(model.getLineContent(9), 'here it comesAndGoes!');
 			}
 		);
 
@@ -990,14 +997,16 @@ suite('Editor Contrib - Line Operations', () => {
 				'Capital_Snake_Case',
 				'parseHTML4String',
 				'Kebab-Case',
+				'multi line pascal case test?',
+				"here it comes-and-goes!"
 			], {}, (editor) => {
 				const model = editor.getModel()!;
 				const pascalCaseAction = new PascalCaseAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 12));
 				executeAction(pascalCaseAction, editor);
-				assert.strictEqual(model.getLineContent(1), 'HelloWorld');
-				assertSelection(editor, new Selection(1, 1, 1, 11));
+				assert.strictEqual(model.getLineContent(1), 'Hello World');
+				assertSelection(editor, new Selection(1, 1, 1, 12));
 
 				editor.setSelection(new Selection(2, 1, 2, 6));
 				executeAction(pascalCaseAction, editor);
@@ -1043,6 +1052,12 @@ suite('Editor Contrib - Line Operations', () => {
 				executeAction(pascalCaseAction, editor);
 				assert.strictEqual(model.getLineContent(10), 'KebabCase');
 				assertSelection(editor, new Selection(10, 1, 10, 10));
+
+				editor.setSelection(new Selection(11, 1, 12, 29));
+				executeAction(pascalCaseAction, editor);
+				assert.deepStrictEqual(model.getLineContent(11), 'Multi Line Pascal Case Test?');
+				assert.deepStrictEqual(model.getLineContent(12), 'Here It ComesAndGoes!');
+				editor.setSelection(new Selection(11, 1, 12, 21));
 			}
 		);
 	});
