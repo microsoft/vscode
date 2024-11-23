@@ -249,7 +249,7 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 						continue;
 					}
 					for (const optionLabel of optionLabels) {
-						if (optionLabel.startsWith(prefix) || (prefix.length > specLabel.length && prefix.trim() === specLabel)) {
+						if (!items.find(i => i.label === optionLabel) && optionLabel.startsWith(prefix) || (prefix.length > specLabel.length && prefix.trim() === specLabel)) {
 							items.push(createCompletionItem(terminalContext.cursorPosition, prefix, optionLabel, option.description, false, vscode.TerminalCompletionItemKind.Flag));
 						}
 						const expectedText = `${specLabel} ${optionLabel} `;
@@ -316,6 +316,9 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 				}
 
 				for (const suggestionLabel of suggestionLabels) {
+					if (items.find(i => i.label === suggestionLabel)) {
+						continue;
+					}
 					if (suggestionLabel && suggestionLabel.startsWith(currentPrefix.trim())) {
 						const hasSpaceBeforeCursor = terminalContext.commandLine[terminalContext.cursorPosition - 1] === ' ';
 						// prefix will be '' if there is a space before the cursor

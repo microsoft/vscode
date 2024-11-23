@@ -39,10 +39,16 @@ suite('Terminal Suggest', () => {
 		createTestCase('code --show-versions |', codeOptions, 'neither', availableSpecs, availableCommands);
 		createTestCase('code --category |', ['azure', 'data science', 'debuggers', 'extension packs', 'education', 'formatters', 'keymaps', 'language packs', 'linters', 'machine learning', 'notebooks', 'programming languages', 'scm providers', 'snippets', 'testing', 'themes', 'visualization', 'other'], 'neither', availableSpecs, availableCommands);
 		createTestCase('code --category a|', ['azure'], 'neither', availableSpecs, availableCommands);
+		createTestCase('code-insiders --list-extensions |', codeOptions, 'neither', availableSpecs, availableCommands);
+		createTestCase('code-insiders --show-versions |', codeOptions, 'neither', availableSpecs, availableCommands);
+		createTestCase('code-insiders --category |', ['azure', 'data science', 'debuggers', 'extension packs', 'education', 'formatters', 'keymaps', 'language packs', 'linters', 'machine learning', 'notebooks', 'programming languages', 'scm providers', 'snippets', 'testing', 'themes', 'visualization', 'other'], 'neither', availableSpecs, availableCommands);
+		createTestCase('code-insiders --category a|', ['azure'], 'neither', availableSpecs, availableCommands);
 	});
 	suite('Cursor not at the end of the line', () => {
 		createTestCase('code | --locale', codeOptions, 'neither', availableSpecs, availableCommands);
 		createTestCase('code --locale | && ls', ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'], 'neither', availableSpecs, availableCommands);
+		createTestCase('code-insiders | --locale', codeOptions, 'neither', availableSpecs, availableCommands);
+		createTestCase('code-insiders --locale | && ls', ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'], 'neither', availableSpecs, availableCommands);
 	});
 });
 
