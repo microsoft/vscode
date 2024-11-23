@@ -22,7 +22,7 @@ import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { INativeEnvironmentService } from '../../platform/environment/common/environment.js';
 import { NativeEnvironmentService } from '../../platform/environment/node/environmentService.js';
 import { ExtensionGalleryServiceWithNoStorageService } from '../../platform/extensionManagement/common/extensionGalleryService.js';
-import { IExtensionGalleryService, InstallOptions } from '../../platform/extensionManagement/common/extensionManagement.js';
+import { IAllowedExtensionsService, IExtensionGalleryService, InstallOptions } from '../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from '../../platform/extensionManagement/node/extensionSignatureVerificationService.js';
 import { ExtensionManagementCLI } from '../../platform/extensionManagement/common/extensionManagementCLI.js';
 import { IExtensionsProfileScannerService } from '../../platform/extensionManagement/common/extensionsProfileScannerService.js';
@@ -64,6 +64,7 @@ import { LoggerService } from '../../platform/log/node/loggerService.js';
 import { localize } from '../../nls.js';
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
 import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';
+import { AllowedExtensionsService } from '../../platform/extensionManagement/common/allowedExtensionsService.js';
 
 class CliMain extends Disposable {
 
@@ -205,6 +206,7 @@ class CliMain extends Disposable {
 		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService, undefined, true));
 		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService, undefined, true));
 		services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
+		services.set(IAllowedExtensionsService, new SyncDescriptor(AllowedExtensionsService, undefined, true));
 		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService, undefined, true));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService, undefined, true));
 
@@ -280,14 +282,6 @@ class CliMain extends Disposable {
 		// List Extensions
 		if (this.argv['list-extensions']) {
 			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).listExtensions(!!this.argv['show-versions'], this.argv['category'], profileLocation);
-		}
-
-		// Download Extensions
-		else if (this.argv['download-extension']) {
-			if (!this.argv['location']) {
-				throw new Error('The location argument is required to download an extension.');
-			}
-			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).downloadExtensions(this.argv['download-extension'], URI.parse(this.argv['location']));
 		}
 
 		// Install Extension

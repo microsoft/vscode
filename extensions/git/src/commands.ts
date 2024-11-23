@@ -1525,16 +1525,20 @@ export class CommandCenter {
 	}
 
 	@command('git.diff.stageHunk')
-	async diffStageHunk(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+	async diffStageHunk(changes: DiffEditorSelectionHunkToolbarContext | undefined): Promise<void> {
 		this.diffStageHunkOrSelection(changes);
 	}
 
 	@command('git.diff.stageSelection')
-	async diffStageSelection(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+	async diffStageSelection(changes: DiffEditorSelectionHunkToolbarContext | undefined): Promise<void> {
 		this.diffStageHunkOrSelection(changes);
 	}
 
-	async diffStageHunkOrSelection(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+	async diffStageHunkOrSelection(changes: DiffEditorSelectionHunkToolbarContext | undefined): Promise<void> {
+		if (!changes) {
+			return;
+		}
+
 		let modifiedUri = changes.modifiedUri;
 		if (!modifiedUri) {
 			const textEditor = window.activeTextEditor;
@@ -1562,7 +1566,7 @@ export class CommandCenter {
 		const modifiedDocument = textEditor.document;
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
 		const selectedChanges = changes
-			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
+			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
 			.filter(d => !!d) as LineChange[];
 
 		if (!selectedChanges.length) {
@@ -1811,7 +1815,7 @@ export class CommandCenter {
 	}
 
 	@command('git.unstageSelectedRanges', { diff: true })
-	async unstageSelectedRanges(diffs: LineChange[]): Promise<void> {
+	async unstageSelectedRanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -1834,9 +1838,9 @@ export class CommandCenter {
 		const originalUri = toGitUri(modifiedUri, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
-		const selectedDiffs = diffs
-			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
-			.filter(d => !!d) as LineChange[];
+		const selectedDiffs = changes
+			.map(change => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, change, range), null))
+			.filter(c => !!c) as LineChange[];
 
 		if (!selectedDiffs.length) {
 			window.showInformationMessage(l10n.t('The selection range does not contain any changes.'));
@@ -4289,6 +4293,33 @@ export class CommandCenter {
 		}
 
 		env.clipboard.writeText(historyItem.message);
+	}
+
+	@command('git.blameStatusBarItem.viewCommit', { repository: true })
+	async viewStatusBarCommit(repository: Repository, historyItemId: string): Promise<void> {
+		if (!repository || !historyItemId) {
+			return;
+		}
+
+		const commit = await repository.getCommit(historyItemId);
+		const title = `${historyItemId.substring(0, 8)} - ${commit.message}`;
+		const historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : `${historyItemId}^`;
+
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `${historyItemParentId}..${historyItemId}`, { scheme: 'git-commit', });
+
+		const changes = await repository.diffBetween(historyItemParentId, historyItemId);
+		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
+
+		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
+	}
+
+	@command('git.blameStatusBarItem.copyContent')
+	async blameStatusBarCopyContent(content: string): Promise<void> {
+		if (typeof content !== 'string') {
+			return;
+		}
+
+		env.clipboard.writeText(content);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {

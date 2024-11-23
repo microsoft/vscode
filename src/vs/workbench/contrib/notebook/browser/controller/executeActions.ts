@@ -56,6 +56,10 @@ export const executeThisCellCondition = ContextKeyExpr.and(
 	executeCondition,
 	NOTEBOOK_CELL_EXECUTING.toNegated());
 
+export const executeSectionCondition = ContextKeyExpr.and(
+	NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
+);
+
 function renderAllMarkdownCells(context: INotebookActionContext): void {
 	for (let i = 0; i < context.notebookEditor.getLength(); i++) {
 		const cell = context.notebookEditor.cellAt(i);

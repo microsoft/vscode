@@ -761,6 +761,11 @@ export interface InlineCompletion {
 	readonly command?: Command;
 
 	/**
+	 * Is called the first time an inline completion is shown.
+	*/
+	readonly shownCommand?: Command;
+
+	/**
 	 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
 	 * Defaults to `false`.
 	*/
@@ -932,9 +937,9 @@ export interface DocumentPasteEditsSession {
  */
 export interface DocumentPasteEditProvider {
 	readonly id?: string;
-	readonly copyMimeTypes?: readonly string[];
-	readonly pasteMimeTypes?: readonly string[];
-	readonly providedPasteEditKinds?: readonly HierarchicalKind[];
+	readonly copyMimeTypes: readonly string[];
+	readonly pasteMimeTypes: readonly string[];
+	readonly providedPasteEditKinds: readonly HierarchicalKind[];
 
 	prepareDocumentPaste?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer>;
 
@@ -2345,6 +2350,7 @@ export interface IInlineEdit {
 	range: IRange;
 	accepted?: Command;
 	rejected?: Command;
+	shown?: Command;
 	commands?: Command[];
 }
 

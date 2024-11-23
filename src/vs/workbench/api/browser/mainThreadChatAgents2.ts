@@ -25,7 +25,7 @@ import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { ChatInputPart } from '../../contrib/chat/browser/chatInputPart.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/contrib/chatDynamicVariables.js';
 import { ChatAgentLocation, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/chatAgents.js';
-import { IChatEditingService } from '../../contrib/chat/common/chatEditingService.js';
+import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/chatEditingService.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/chatRequestParser.js';
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatProgress, IChatService, IChatTask, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
@@ -349,8 +349,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._chatParticipantDetectionProviders.deleteAndDispose(handle);
 	}
 
-	$registerRelatedFilesProvider(handle: number): void {
+	$registerRelatedFilesProvider(handle: number, metadata: IChatRelatedFileProviderMetadata): void {
 		this._chatRelatedFilesProviders.set(handle, this._chatEditingService.registerRelatedFilesProvider(handle, {
+			description: metadata.description,
 			provideRelatedFiles: async (request, token) => {
 				return (await this._proxy.$provideRelatedFiles(handle, request, token))?.map((v) => ({ uri: URI.from(v.uri), description: v.description })) ?? [];
 			}

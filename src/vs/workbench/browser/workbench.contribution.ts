@@ -610,6 +610,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				tags: ['accessibility'],
 				enum: ['on', 'off', 'auto']
 			},
+			'workbench.navigationControl.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': isWeb ?
+					localize('navigationControlEnabledWeb', "Controls whether the navigation control in the title bar is shown.") :
+					localize({ key: 'navigationControlEnabled', comment: ['{0}, {1} is a placeholder for a setting identifier.'] }, "Controls whether the navigation control is shown in the custom title bar. This setting only has an effect when {0} is not set to {1}.", '`#window.customTitleBarVisibility#`', '`never`')
+			},
 			[LayoutSettings.LAYOUT_ACTIONS]: {
 				'type': 'boolean',
 				'default': true,

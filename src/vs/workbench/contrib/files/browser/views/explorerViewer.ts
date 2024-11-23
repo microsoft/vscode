@@ -1040,7 +1040,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				}
 			},
 			ariaLabel: localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel."),
-			inputBoxStyles: defaultInputBoxStyles
+			inputBoxStyles: defaultInputBoxStyles,
 		});
 
 		const lastDot = value.lastIndexOf('.');

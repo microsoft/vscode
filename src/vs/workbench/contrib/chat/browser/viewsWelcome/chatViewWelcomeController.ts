@@ -17,7 +17,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { spinningLoading } from '../../../../../platform/theme/common/iconRegistry.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
 
@@ -57,14 +56,15 @@ export class ChatViewWelcomeController extends Disposable {
 			return;
 		}
 
+		this.enabled = enabled;
 		this.enabledDisposables.clear();
+
 		if (!enabled) {
 			this.container.classList.toggle('chat-view-welcome-visible', false);
 			this.renderDisposables.clear();
 			return;
 		}
 
-		this.enabled = true;
 		const descriptors = chatViewsWelcomeRegistry.get();
 		if (descriptors.length) {
 			this.render(descriptors);
@@ -88,7 +88,7 @@ export class ChatViewWelcomeController extends Disposable {
 				icon: enabledDescriptor.icon,
 				title: enabledDescriptor.title,
 				message: enabledDescriptor.content,
-				progress: enabledDescriptor.progress
+				disableFirstLinkToButton: enabledDescriptor.disableFirstLinkToButton,
 			};
 			const welcomeView = this.renderDisposables.add(this.instantiationService.createInstance(ChatViewWelcomePart, content, { firstLinkToButton: true, location: this.location }));
 			this.element!.appendChild(welcomeView.element);
@@ -103,7 +103,7 @@ export interface IChatViewWelcomeContent {
 	icon?: ThemeIcon;
 	title: string;
 	message: IMarkdownString;
-	progress?: string;
+	disableFirstLinkToButton?: boolean;
 	tips?: IMarkdownString;
 }
 
@@ -134,14 +134,6 @@ export class ChatViewWelcomePart extends Disposable {
 				featureIndicator.textContent = localize('preview', 'PREVIEW');
 			}
 
-			if (content.progress) {
-				const progress = dom.append(this.element, $('.chat-welcome-view-progress'));
-				progress.appendChild(renderIcon(spinningLoading));
-
-				const progressLabel = dom.append(progress, $('span'));
-				progressLabel.textContent = content.progress;
-			}
-
 			const message = dom.append(this.element, $('.chat-welcome-view-message'));
 
 			if (content.icon) {
@@ -151,7 +143,7 @@ export class ChatViewWelcomePart extends Disposable {
 			title.textContent = content.title;
 			const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 			const messageResult = this._register(renderer.render(content.message));
-			const firstLink = options?.firstLinkToButton ? messageResult.element.querySelector('a') : undefined;
+			const firstLink = options?.firstLinkToButton && !content.disableFirstLinkToButton ? messageResult.element.querySelector('a') : undefined;
 			if (firstLink) {
 				const target = firstLink.getAttribute('data-href');
 				const button = this._register(new Button(firstLink.parentElement!, defaultButtonStyles));

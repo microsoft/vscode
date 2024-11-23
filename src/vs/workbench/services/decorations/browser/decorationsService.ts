@@ -10,7 +10,7 @@ import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js'
 import { IDisposable, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isThenable } from '../../../../base/common/async.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
-import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from '../../../../base/browser/dom.js';
+import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from '../../../../base/browser/domStylesheets.js';
 import * as cssValue from '../../../../base/browser/cssValue.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';

@@ -58,8 +58,8 @@ export function getIconsStyleSheet(themeService: IThemeService | undefined): IIc
 
 			for (const id in usedFontIds) {
 				const definition = usedFontIds[id];
-				const fontWeight = definition.weight ? css.inline`font-weight: ${css.value(definition.weight)};` : css.inline``;
-				const fontStyle = definition.style ? css.inline`font-style: ${css.value(definition.style)};` : css.inline``;
+				const fontWeight = definition.weight ? css.inline`font-weight: ${css.identValue(definition.weight)};` : css.inline``;
+				const fontStyle = definition.style ? css.inline`font-style: ${css.identValue(definition.style)};` : css.inline``;
 
 				const src = new css.Builder();
 				for (const l of definition.src) {

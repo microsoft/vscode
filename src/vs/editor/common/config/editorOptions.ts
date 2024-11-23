@@ -16,6 +16,7 @@ import { USUAL_WORD_SEPARATORS } from '../core/wordHelper.js';
 import * as nls from '../../../nls.js';
 import { AccessibilitySupport } from '../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationPropertySchema } from '../../../platform/configuration/common/configurationRegistry.js';
+import product from '../../../platform/product/common/product.js';
 
 //#region typed options
 
@@ -1655,6 +1656,10 @@ export interface IEditorFindOptions {
 	 * Controls whether the search result and diff result automatically restarts from the beginning (or the end) when no further matches can be found
 	 */
 	loop?: boolean;
+	/**
+	 * Controls how the find widget search history should be stored
+	 */
+	findSearchHistory?: 'never' | 'workspace';
 }
 
 /**
@@ -1671,7 +1676,8 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			autoFindInSelection: 'never',
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
-			loop: true
+			loop: true,
+			findSearchHistory: 'never',
 		};
 		super(
 			EditorOption.find, 'find', defaults,
@@ -1719,7 +1725,16 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 					default: defaults.loop,
 					description: nls.localize('find.loop', "Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found.")
 				},
-
+				'editor.find.history': {
+					type: 'string',
+					enum: ['never', 'workspace'],
+					default: typeof product.quality === 'string' && product.quality !== 'stable' ? 'workspace' : 'none',
+					enumDescriptions: [
+						nls.localize('editor.find.history.never', 'Do not store search history from the find widget.'),
+						nls.localize('editor.find.history.workspace', 'Store search history across the active workspace'),
+					],
+					description: nls.localize('find.history', "Controls how the find widget history should be stored")
+				}
 			}
 		);
 	}
@@ -1740,6 +1755,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
 			loop: boolean(input.loop, this.defaultValue.loop),
+			findSearchHistory: stringSet<'never' | 'workspace'>(input.findSearchHistory, this.defaultValue.findSearchHistory, ['never', 'workspace']),
 		};
 	}
 }
@@ -5734,7 +5750,7 @@ export const EditorOptions = {
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
 	experimentalEditContextEnabled: register(new EditorBooleanOption(
-		EditorOption.experimentalEditContextEnabled, 'experimentalEditContextEnabled', false,
+		EditorOption.experimentalEditContextEnabled, 'experimentalEditContextEnabled', product.quality !== 'stable',
 		{
 			description: nls.localize('experimentalEditContextEnabled', "Sets whether the new experimental edit context should be used instead of the text area."),
 			included: platform.isChrome || platform.isEdge || platform.isNative
