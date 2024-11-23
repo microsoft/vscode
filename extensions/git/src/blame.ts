@@ -271,7 +271,6 @@ class GitBlameEditorDecoration {
 
 	constructor(private readonly _controller: GitBlameController) {
 		this._decorationType = window.createTextEditorDecorationType({
-			isWholeLine: true,
 			after: {
 				color: new ThemeColor('git.blame.editorDecorationForeground')
 			}
@@ -333,7 +332,8 @@ class GitBlameEditorDecoration {
 			range: new Range(position, position),
 			renderOptions: {
 				after: {
-					contentText: `\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0${contentText}`
+					contentText: `${contentText}`,
+					margin: '0 0 0 50px'
 				}
 			},
 		};
