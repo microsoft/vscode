@@ -8,8 +8,8 @@ import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { BreadcrumbsItem, BreadcrumbsWidget, IBreadcrumbsItemEvent, IBreadcrumbsWidgetStyles } from '../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
 import { timeout } from '../../../../base/common/async.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { combinedDisposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { extUri } from '../../../../base/common/resources.js';
+import { combinedDisposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { basename, extUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import './media/breadcrumbscontrol.css';
 import { localize, localize2 } from '../../../../nls.js';
@@ -40,6 +40,11 @@ import { defaultBreadcrumbsWidgetStyles } from '../../../../platform/theme/brows
 import { Emitter } from '../../../../base/common/event.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { DataTransfers } from '../../../../base/browser/dnd.js';
+import { $ } from '../../../../base/browser/dom.js';
+import { OutlineElement } from '../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
+import { CodeDataTransfers, DocumentSymbolTransferData } from '../../../../platform/dnd/browser/dnd.js';
+import { withSelection } from '../../../../platform/opener/common/opener.js';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -96,8 +101,22 @@ class OutlineItem extends BreadcrumbsItem {
 		}, 0, template, undefined);
 
 		this._disposables.add(toDisposable(() => { renderer.disposeTemplate(template); }));
-	}
 
+		if (element instanceof OutlineElement && outline.uri) {
+			const symbolUri = withSelection(outline.uri, element.symbol.range);
+			const symbolTransferData: DocumentSymbolTransferData = {
+				name: element.symbol.name,
+				fsPath: outline.uri.fsPath,
+				range: element.symbol.range,
+				kind: element.symbol.kind
+			};
+			const dataTransfers: DataTransfer[] = [
+				[CodeDataTransfers.SYMBOLS, [symbolTransferData]],
+				[DataTransfers.RESOURCES, [symbolUri]]
+			];
+			this._disposables.add(createBreadcrumbDndObserver(container, element.symbol.name, symbolUri.toString(), dataTransfers));
+		}
+	}
 }
 
 class FileItem extends BreadcrumbsItem {
@@ -139,7 +158,51 @@ class FileItem extends BreadcrumbsItem {
 		});
 		container.classList.add(FileKind[this.element.kind].toLowerCase());
 		this._disposables.add(label);
+
+		const dataTransfers: DataTransfer[] = [
+			[CodeDataTransfers.FILES, [this.element.uri.fsPath]],
+			[DataTransfers.RESOURCES, [this.element.uri.toString()]],
+		];
+		const dndObserver = createBreadcrumbDndObserver(container, basename(this.element.uri), this.element.uri.toString(), dataTransfers);
+		this._disposables.add(dndObserver);
 	}
+}
+
+type DataTransfer = [string, any[]];
+
+function createBreadcrumbDndObserver(container: HTMLElement, label: string, textData: string, dataTransfers: DataTransfer[]): IDisposable {
+	container.draggable = true;
+
+	return new dom.DragAndDropObserver(container, {
+		onDragStart: event => {
+			if (!event.dataTransfer) {
+				return;
+			}
+
+			// Set data transfer
+			event.dataTransfer.effectAllowed = 'copyMove';
+			event.dataTransfer.setData(DataTransfers.TEXT, textData);
+			for (const [type, data] of dataTransfers) {
+				event.dataTransfer.setData(type, JSON.stringify(data));
+			}
+
+			// Create drag image and remove when dropped
+			const dragImage = $('.monaco-drag-image');
+			dragImage.textContent = label;
+
+			const getDragImageContainer = (e: HTMLElement | null) => {
+				while (e && !e.classList.contains('monaco-workbench')) {
+					e = e.parentElement;
+				}
+				return e || container.ownerDocument;
+			};
+
+			const dragContainer = getDragImageContainer(container);
+			dragContainer.appendChild(dragImage);
+			event.dataTransfer.setDragImage(dragImage, -10, -10);
+			setTimeout(() => dragImage.remove(), 0);
+		}
+	});
 }
 
 export interface IBreadcrumbsControlOptions {

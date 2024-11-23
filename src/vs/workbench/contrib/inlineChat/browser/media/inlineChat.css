@@ -336,3 +336,14 @@
 .monaco-workbench .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent:hover {
 	opacity: 1;
 }
+
+
+/* HINT */
+
+.monaco-workbench .monaco-editor .inline-chat-hint {
+	/* padding: 0 8px; */
+	cursor: pointer;
+	color: var(--vscode-editorGhostText-foreground);
+	border: 1px solid var(--vscode-editorGhostText-border);
+	border-radius: 3px;
+}

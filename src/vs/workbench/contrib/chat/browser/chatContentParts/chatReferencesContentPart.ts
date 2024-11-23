@@ -375,17 +375,18 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		} else {
 			const uri = 'uri' in reference ? reference.uri : reference;
 			arg = uri;
+			const extraClasses = data.excluded ? ['excluded'] : [];
 			if (uri.scheme === 'https' && isEqualAuthority(uri.authority, 'github.com') && uri.path.includes('/tree/')) {
 				// Parse a nicer label for GitHub URIs that point at a particular commit + file
 				const label = uri.path.split('/').slice(1, 3).join('/');
 				const description = uri.path.split('/').slice(5).join('/');
-				templateData.label.setResource({ resource: uri, name: label, description }, { icon: Codicon.github, title: data.title, strikethrough: data.excluded });
+				templateData.label.setResource({ resource: uri, name: label, description }, { icon: Codicon.github, title: data.title, strikethrough: data.excluded, extraClasses });
 			} else if (uri.scheme === this.productService.urlProtocol && isEqualAuthority(uri.authority, SETTINGS_AUTHORITY)) {
 				// a nicer label for settings URIs
 				const settingId = uri.path.substring(1);
-				templateData.label.setResource({ resource: uri, name: settingId }, { icon: Codicon.settingsGear, title: localize('setting.hover', "Open setting '{0}'", settingId), strikethrough: data.excluded });
+				templateData.label.setResource({ resource: uri, name: settingId }, { icon: Codicon.settingsGear, title: localize('setting.hover', "Open setting '{0}'", settingId), strikethrough: data.excluded, extraClasses });
 			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
-				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString(), strikethrough: data.excluded });
+				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString(), strikethrough: data.excluded, extraClasses });
 			} else {
 				if (data.state === WorkingSetEntryState.Transient || data.state === WorkingSetEntryState.Suggested) {
 					templateData.label.setResource(
@@ -394,7 +395,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 							name: basenameOrAuthority(uri),
 							description: data.description ?? localize('chat.openEditor', 'Open Editor'),
 							range: 'range' in reference ? reference.range : undefined,
-						}, { icon, title: data.options?.status?.description ?? data.title, italic: data.state === WorkingSetEntryState.Suggested, strikethrough: data.excluded });
+						}, { icon, title: data.options?.status?.description ?? data.title, italic: data.state === WorkingSetEntryState.Suggested, strikethrough: data.excluded, extraClasses });
 				} else {
 					templateData.label.setFile(uri, {
 						fileKind: FileKind.FILE,
@@ -402,7 +403,8 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 						fileDecorations: undefined,
 						range: 'range' in reference ? reference.range : undefined,
 						title: data.options?.status?.description ?? data.title,
-						strikethrough: data.excluded
+						strikethrough: data.excluded,
+						extraClasses
 					});
 				}
 			}

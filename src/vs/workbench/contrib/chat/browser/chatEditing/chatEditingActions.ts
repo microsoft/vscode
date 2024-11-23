@@ -210,7 +210,7 @@ export class ChatEditingAcceptAllAction extends Action2 {
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
 					order: 0,
-					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), ContextKeyExpr.or(hasAppliedChatEditsContextKey.negate(), ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey, ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)))))
+					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey, ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))))
 				}
 			]
 		});
@@ -247,7 +247,7 @@ export class ChatEditingDiscardAllAction extends Action2 {
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), ContextKeyExpr.or(hasAppliedChatEditsContextKey.negate(), ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), hasUndecidedChatEditingResourceContextKey)))
+					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), hasUndecidedChatEditingResourceContextKey))
 				}
 			],
 			keybinding: {
@@ -288,21 +288,21 @@ export class ChatEditingDiscardAllAction extends Action2 {
 registerAction2(ChatEditingDiscardAllAction);
 
 export class ChatEditingRemoveAllFilesAction extends Action2 {
-	static readonly ID = 'chatEditing.removeAllFiles';
+	static readonly ID = 'chatEditing.clearWorkingSet';
 
 	constructor() {
 		super({
 			id: ChatEditingRemoveAllFilesAction.ID,
-			title: localize('removeAll', 'Remove All'),
+			title: localize('clearWorkingSet', 'Clear Working Set'),
 			icon: Codicon.clearAll,
-			tooltip: localize('removeAllFiles', 'Remove All Files'),
+			tooltip: localize('clearWorkingSet', 'Clear Working Set'),
 			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate()),
 			menu: [
 				{
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
 					order: 5,
-					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))
+					when: ContextKeyExpr.and(hasAppliedChatEditsContextKey.negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))
 				}
 			]
 		});
@@ -344,7 +344,7 @@ export class ChatEditingShowChangesAction extends Action2 {
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
 					order: 4,
-					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), ContextKeyExpr.or(hasAppliedChatEditsContextKey.negate(), ContextKeyExpr.and(hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))))
+					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), ContextKeyExpr.and(hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)))
 				}
 			],
 		});

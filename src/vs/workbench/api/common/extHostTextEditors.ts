@@ -160,7 +160,7 @@ export class ExtHostEditors extends Disposable implements ExtHostEditorsShape {
 		}
 	}
 
-	$acceptEditorDiffInformation(id: string, diffInformation: ITextEditorDiffInformation | undefined): void {
+	$acceptEditorDiffInformation(id: string, diffInformation: ITextEditorDiffInformation[] | undefined): void {
 		const textEditor = this._extHostDocumentsAndEditors.getEditor(id);
 		if (!textEditor) {
 			throw new Error('unknown text editor');
@@ -175,34 +175,46 @@ export class ExtHostEditors extends Disposable implements ExtHostEditorsShape {
 			return;
 		}
 
-		const original = URI.revive(diffInformation.original);
-		const modified = URI.revive(diffInformation.modified);
-
-		const changes = diffInformation.changes.map(change => {
-			const [originalStartLineNumber, originalEndLineNumber, modifiedStartLineNumber, modifiedEndLineNumber] = change;
-
-			const kind = originalEndLineNumber === 0 ? TextEditorChangeKind.Addition :
-				modifiedEndLineNumber === 0 ? TextEditorChangeKind.Deletion : TextEditorChangeKind.Modification;
-
-			return {
-				originalStartLineNumber,
-				originalEndLineNumber,
-				modifiedStartLineNumber,
-				modifiedEndLineNumber,
-				kind
-			} satisfies vscode.TextEditorChange;
-		});
-
 		const that = this;
-		const result = Object.freeze({
-			documentVersion: diffInformation.documentVersion,
-			original,
-			modified,
-			changes,
-			get isStale(): boolean {
-				const document = that._extHostDocumentsAndEditors.getDocument(modified);
-				return document?.version !== diffInformation.documentVersion;
-			}
+		const result = diffInformation.map(diff => {
+			const original = URI.revive(diff.original);
+			const modified = URI.revive(diff.modified);
+
+			const changes = diff.changes.map(change => {
+				const [originalStartLineNumber, originalEndLineNumberExclusive, modifiedStartLineNumber, modifiedEndLineNumberExclusive] = change;
+
+				let kind: vscode.TextEditorChangeKind;
+				if (originalStartLineNumber === originalEndLineNumberExclusive) {
+					kind = TextEditorChangeKind.Addition;
+				} else if (modifiedStartLineNumber === modifiedEndLineNumberExclusive) {
+					kind = TextEditorChangeKind.Deletion;
+				} else {
+					kind = TextEditorChangeKind.Modification;
+				}
+
+				return {
+					original: {
+						startLineNumber: originalStartLineNumber,
+						endLineNumberExclusive: originalEndLineNumberExclusive
+					},
+					modified: {
+						startLineNumber: modifiedStartLineNumber,
+						endLineNumberExclusive: modifiedEndLineNumberExclusive
+					},
+					kind
+				} satisfies vscode.TextEditorChange;
+			});
+
+			return Object.freeze({
+				documentVersion: diff.documentVersion,
+				original,
+				modified,
+				changes,
+				get isStale(): boolean {
+					const document = that._extHostDocumentsAndEditors.getDocument(modified);
+					return document?.version !== diff.documentVersion;
+				}
+			});
 		});
 
 		textEditor._acceptDiffInformation(result);

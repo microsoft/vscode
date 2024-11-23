@@ -33,6 +33,8 @@ import { IDirtyDiffModelService } from '../../contrib/scm/browser/diff.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, observableFromEvent } from '../../../base/common/observable.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { isITextModel } from '../../../editor/common/model.js';
+import { LineRangeMapping, lineRangeMappingFromChanges } from '../../../editor/common/diff/rangeMapping.js';
+import { equals } from '../../../base/common/arrays.js';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -128,7 +130,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return result;
 	}
 
-	private _getTextEditorDiffInformation(textEditor: MainThreadTextEditor): IObservable<ITextEditorDiffInformation | undefined> {
+	private _getTextEditorDiffInformation(textEditor: MainThreadTextEditor): IObservable<ITextEditorDiffInformation[] | undefined> {
 		const codeEditor = textEditor.getCodeEditor();
 		if (!codeEditor) {
 			return constObservable(undefined);
@@ -144,7 +146,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			? observableFromEvent(this, diffEditor.onDidChangeModel, () => diffEditor.getModel())
 			: observableFromEvent(this, codeEditor.onDidChangeModel, () => codeEditor.getModel());
 
-		const editorChangesObs = derived<IObservable<{ original: URI; modified: URI; changes: IChange[] } | undefined>>(reader => {
+		const editorChangesObs = derived<IObservable<{ original: URI; modified: URI; lineRangeMappings: LineRangeMapping[] }[] | undefined>>(reader => {
 			const editorModel = editorModelObs.read(reader);
 			if (!editorModel) {
 				return constObservable(undefined);
@@ -153,11 +155,13 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			// DiffEditor
 			if (!isITextModel(editorModel)) {
 				return observableFromEvent(diffEditor.onDidUpdateDiff, () => {
-					return {
+					const changes = diffEditor.getDiffComputationResult()?.changes2 ?? [];
+
+					return [{
 						original: editorModel.original.uri,
 						modified: editorModel.modified.uri,
-						changes: diffEditor.getLineChanges() ?? []
-					};
+						lineRangeMappings: changes.map(change => change as LineRangeMapping)
+					}];
 				});
 			}
 
@@ -168,26 +172,25 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			}
 
 			return observableFromEvent(this, dirtyDiffModel.onDidChange, () => {
-				const scmQuickDiff = dirtyDiffModel.quickDiffs.find(diff => diff.isSCM === true);
-				if (!scmQuickDiff) {
-					return undefined;
-				}
+				return dirtyDiffModel.quickDiffs.map(quickDiff => {
+					const changes = dirtyDiffModel.changes
+						.filter(change => change.label === quickDiff.label)
+						.map(change => change.change);
 
-				const changes = dirtyDiffModel.changes
-					.filter(change => change.label === scmQuickDiff.label)
-					.map(change => change.change);
-
-				return {
-					original: scmQuickDiff.originalResource,
-					modified: editorModel.uri,
-					changes
-				};
+					// Convert IChange[] to LineRangeMapping[]
+					const lineRangeMappings = lineRangeMappingFromChanges(changes);
+					return {
+						original: quickDiff.originalResource,
+						modified: editorModel.uri,
+						lineRangeMappings
+					};
+				});
 			});
 		});
 
 		return derivedOpts({
 			owner: this,
-			equalsFn: (diff1, diff2) => isTextEditorDiffInformationEqual(this._uriIdentityService, diff1, diff2)
+			equalsFn: (diff1, diff2) => equals(diff1, diff2, (a, b) => isTextEditorDiffInformationEqual(this._uriIdentityService, a, b))
 		}, reader => {
 			const editorModel = editorModelObs.read(reader);
 			const editorChanges = editorChangesObs.read(reader).read(reader);
@@ -199,20 +202,22 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 				? editorModel.getVersionId()
 				: editorModel.modified.getVersionId();
 
-			const changes: ITextEditorChange[] = editorChanges.changes
-				.map(change => [
-					change.originalStartLineNumber,
-					change.originalEndLineNumber,
-					change.modifiedStartLineNumber,
-					change.modifiedEndLineNumber
-				]);
+			return editorChanges.map(change => {
+				const changes: ITextEditorChange[] = change.lineRangeMappings
+					.map(change => [
+						change.original.startLineNumber,
+						change.original.endLineNumberExclusive,
+						change.modified.startLineNumber,
+						change.modified.endLineNumberExclusive
+					]);
 
-			return {
-				documentVersion,
-				original: editorChanges.original,
-				modified: editorChanges.modified,
-				changes
-			};
+				return {
+					documentVersion,
+					original: change.original,
+					modified: change.modified,
+					changes
+				};
+			});
 		});
 	}
 

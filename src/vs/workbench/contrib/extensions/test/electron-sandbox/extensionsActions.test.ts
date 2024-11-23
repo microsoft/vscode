@@ -103,7 +103,7 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 		onDidChangeProfile: Event.None,
 		async getInstalled() { return []; },
 		async getInstalledWorkspaceExtensions() { return []; },
-		async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
+		async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [], publisherMapping: {} }; },
 		async updateMetadata(local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) {
 			local.identifier.uuid = metadata.id;
 			local.publisherDisplayName = metadata.publisherDisplayName!;
@@ -2650,6 +2650,6 @@ function createExtensionManagementService(installed: ILocalExtension[] = []): IP
 			return local;
 		},
 		async getTargetPlatform() { return getTargetPlatform(platform, arch); },
-		async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {}, search: [] }; },
+		async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {}, search: [], publisherMapping: {} }; },
 	};
 }

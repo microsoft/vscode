@@ -388,6 +388,9 @@ class CollapsedCodeBlock extends Disposable {
 					}
 					labelAdded.textContent = `+${addedLines}`;
 					labelRemoved.textContent = `-${removedLines}`;
+					const insertionsFragment = addedLines === 1 ? localize('chat.codeblock.insertions.one', "{0} insertion") : localize('chat.codeblock.insertions', "{0} insertions", addedLines);
+					const deletionsFragment = removedLines === 1 ? localize('chat.codeblock.deletions.one', "{0} deletion") : localize('chat.codeblock.deletions', "{0} deletions", removedLines);
+					this.element.ariaLabel = this.element.title = localize('summary', 'Edited {0}, {1}, {2}', iconText, insertionsFragment, deletionsFragment);
 				}
 			}
 		}));

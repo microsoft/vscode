@@ -105,6 +105,8 @@ export interface IProductConfiguration {
 		readonly nlsBaseUrl: string;
 	};
 
+	readonly extensionPublisherMappings?: IStringDictionary<string>;
+
 	readonly extensionRecommendations?: IStringDictionary<IExtensionRecommendations>;
 	readonly configBasedExtensionTips?: IStringDictionary<IConfigBasedExtensionTip>;
 	readonly exeBasedExtensionTips?: IStringDictionary<IExeBasedExtensionTip>;

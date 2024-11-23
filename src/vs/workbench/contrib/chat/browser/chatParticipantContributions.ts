@@ -212,25 +212,16 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						continue;
 					}
 
-					const participantsAndCommandsDisambiguation: {
+					const participantsDisambiguation: {
 						category: string;
 						description: string;
 						examples: string[];
 					}[] = [];
 
 					if (providerDescriptor.disambiguation?.length) {
-						participantsAndCommandsDisambiguation.push(...providerDescriptor.disambiguation.map((d) => ({
+						participantsDisambiguation.push(...providerDescriptor.disambiguation.map((d) => ({
 							...d, category: d.category ?? d.categoryName
 						})));
-					}
-					if (providerDescriptor.commands) {
-						for (const command of providerDescriptor.commands) {
-							if (command.disambiguation?.length) {
-								participantsAndCommandsDisambiguation.push(...command.disambiguation.map((d) => ({
-									...d, category: d.category ?? d.categoryName
-								})));
-							}
-						}
 					}
 
 					try {
@@ -256,7 +247,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 									providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
 									[ChatAgentLocation.Panel],
 								slashCommands: providerDescriptor.commands ?? [],
-								disambiguation: coalesce(participantsAndCommandsDisambiguation.flat()),
+								disambiguation: coalesce(participantsDisambiguation.flat()),
 							} satisfies IChatAgentData));
 
 						this._participantRegistrationDisposables.set(
