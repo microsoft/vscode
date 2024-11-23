@@ -35,7 +35,7 @@ import { IChatViewsWelcomeContributionRegistry, ChatViewsWelcomeExtensions } fro
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { $, addDisposableListener, EventType, getActiveElement } from '../../../../base/browser/dom.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
+import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -354,6 +354,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		@IViewsService private readonly viewsService: IViewsService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IProductService private readonly productService: IProductService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -481,10 +482,18 @@ class ChatSetupWelcomeContent extends Disposable {
 			showChatView(this.viewsService);
 
 			if (this.options.entitlement !== ChatEntitlement.Unavailable) {
-				await this.instantiationService.invokeFunction(accessor => ChatSetupRequestHelper.request(accessor, defaultChat.entitlementSkuLimitedUrl, 'POST', {
+				const body = {
 					public_code_suggestions: enableDetection ? 'enabled' : 'disabled',
 					restricted_telemetry: enableTelemetry ? 'enabled' : 'disabled'
-				}, session, CancellationToken.None));
+				};
+				this.logService.trace(`[chat setup] install: signing up to limited SKU with ${JSON.stringify(body)}`);
+
+				const response = await this.instantiationService.invokeFunction(accessor => ChatSetupRequestHelper.request(accessor, defaultChat.entitlementSkuLimitedUrl, 'POST', body, session, CancellationToken.None));
+				if (response && this.logService.getLevel() === LogLevel.Trace) {
+					this.logService.trace(`[chat setup] install: response from signing up to limited SKU ${JSON.stringify(await asText(response))}`);
+				}
+			} else {
+				this.logService.trace('[chat setup] install: not signing up to limited SKU');
 			}
 
 			await this.extensionsWorkbenchService.install(defaultChat.extensionId, {
@@ -495,6 +504,8 @@ class ChatSetupWelcomeContent extends Disposable {
 
 			installResult = 'installed';
 		} catch (error) {
+			this.logService.trace(`[chat setup] install: error ${error}`);
+
 			installResult = isCancellationError(error) ? 'cancelled' : 'failedInstall';
 		}
 
@@ -539,7 +550,7 @@ class ChatSetupRequestHelper {
 				}
 			}, token);
 		} catch (error) {
-			logService.error(error);
+			logService.error(`[chat setup] request: error ${error}`);
 
 			return undefined;
 		}
