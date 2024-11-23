@@ -32,7 +32,7 @@ export interface IMarkdownRendererOptions {
  * Markdown renderer that can render codeblocks with the editor mechanics. This
  * renderer should always be preferred.
  */
-export class MarkdownRenderer {
+export class MarkdownRenderer implements IDisposable {
 
 	private static _ttpTokenizer = createTrustedTypesPolicy('tokenizeToString', {
 		createHTML(html: string) {
