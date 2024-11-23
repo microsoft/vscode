@@ -7,6 +7,9 @@ import { deepStrictEqual, strictEqual } from 'assert';
 import 'mocha';
 import { availableSpecs, getCompletionItemsFromSpecs } from './terminalSuggestMain';
 
+
+
+
 suite('Terminal Suggest', () => {
 	const availableCommands = ['cd', 'code', 'code-insiders'];
 	suite('No available commands', () => {
@@ -14,8 +17,8 @@ suite('Terminal Suggest', () => {
 	});
 	suite('Available commands', () => {
 		createTestCase('|', availableCommands, 'neither', availableSpecs, availableCommands);
-		createTestCase('c|', ['cd', 'code', 'code-insiders'], 'neither', availableSpecs, availableCommands);
-		createTestCase('ls && c|', ['cd', 'code', 'code-insiders'], 'neither', availableSpecs, availableCommands);
+		createTestCase('c|', availableCommands, 'neither', availableSpecs, availableCommands);
+		createTestCase('ls && c|', availableCommands, 'neither', availableSpecs, availableCommands);
 		createTestCase('cd |', ['~', '-'], 'folders', availableSpecs, availableCommands);
 		createTestCase('code |', ['-', '--add', '--category', '--diff', '--disable-extension', '--disable-extensions', '--disable-gpu', '--enable-proposed-api', '--extensions-dir', '--goto', '--help', '--inspect-brk-extensions', '--inspect-extensions', '--install-extension', '--list-extensions', '--locale', '--log', '--max-memory', '--merge', '--new-window', '--pre-release', '--prof-startup', '--profile', '--reuse-window', '--show-versions', '--status', '--sync', '--telemetry', '--uninstall-extension', '--user-data-dir', '--verbose', '--version', '--wait', '-a', '-d', '-g', '-h', '-m', '-n', '-r', '-s', '-v', '-w'], 'neither', availableSpecs, availableCommands);
 		createTestCase('code --locale |', ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'], 'neither', availableSpecs, availableCommands);
