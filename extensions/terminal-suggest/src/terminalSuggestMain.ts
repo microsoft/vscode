@@ -319,7 +319,7 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 					if (items.find(i => i.label === suggestionLabel)) {
 						continue;
 					}
-					if (suggestionLabel && suggestionLabel.startsWith(currentPrefix.trim())) {
+					if (suggestionLabel && suggestionLabel.startsWith(currentPrefix.trim()) && suggestionLabel !== currentPrefix.trim()) {
 						const hasSpaceBeforeCursor = terminalContext.commandLine[terminalContext.cursorPosition - 1] === ' ';
 						// prefix will be '' if there is a space before the cursor
 						const description = typeof suggestion !== 'string' ? suggestion.description : '';
