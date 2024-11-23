@@ -91,7 +91,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			const items: vscode.TerminalCompletionItem[] = [];
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 
-			const specCompletions = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, new Set(commands), prefix, token);
+			const specCompletions = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, token);
 
 			items.push(...specCompletions.items);
 			let filesRequested = specCompletions.filesRequested;
@@ -215,7 +215,7 @@ export function asArray<T>(x: T | T[]): T[] {
 	return Array.isArray(x) ? x : [x];
 }
 
-export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: { commandLine: string; cursorPosition: number }, availableCommands: Set<string>, prefix: string, token?: vscode.CancellationToken): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; specificSuggestionsProvided: boolean } {
+export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: { commandLine: string; cursorPosition: number }, availableCommands: string[], prefix: string, token?: vscode.CancellationToken): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; specificSuggestionsProvided: boolean } {
 	const items: vscode.TerminalCompletionItem[] = [];
 	let filesRequested = false;
 	let foldersRequested = false;
@@ -225,10 +225,16 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 			continue;
 		}
 		for (const specLabel of specLabels) {
-			if (!availableCommands.has(specLabel) || (token && token?.isCancellationRequested)) {
+			if (!availableCommands.includes(specLabel) || (token && token?.isCancellationRequested)) {
 				continue;
 			}
-			if (specLabel.startsWith(prefix)) {
+			//
+			if (
+				// If the prompt is empty, show all available commands
+				!terminalContext.commandLine
+				// or the prefix matches the command
+				|| !!prefix && specLabel.startsWith(prefix)
+			) {
 				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, specLabel));
 			}
 			if (!terminalContext.commandLine.startsWith(specLabel)) {
@@ -256,13 +262,8 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 						if (!argsCompletions) {
 							continue;
 						}
-						if (argsCompletions.specificSuggestionsProvided) {
-							// prevents the list from containing a bunch of other stuff
-							return argsCompletions;
-						}
-						items.push(...argsCompletions.items);
-						filesRequested = filesRequested || argsCompletions.filesRequested;
-						foldersRequested = foldersRequested || argsCompletions.foldersRequested;
+						// return early so that we don't show the other completions
+						return argsCompletions;
 					}
 				}
 			}

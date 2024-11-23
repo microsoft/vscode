@@ -3,42 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from 'assert';
+import { deepStrictEqual, strictEqual } from 'assert';
 import 'mocha';
 import { availableSpecs, getCompletionItemsFromSpecs } from './terminalSuggestMain';
 
 suite('Terminal Suggest', () => {
-	const availableCommands = new Set(['cd', 'code', 'code-insiders', 'ls', 'pwd', 'echo']);
-	suite('|', () => {
-		createTestCase(`No available commands:`, '|', [], 'neither', availableSpecs, new Set());
-		createTestCase('Available commands', '|', ['cd', 'code', 'code-insiders'], 'neither', availableSpecs, availableCommands);
+	const availableCommands = ['cd', 'code', 'code-insiders'];
+	suite('No available commands', () => {
+		createTestCase('|', [], 'neither', availableSpecs, []);
 	});
-	suite('c|', () => {
-		createTestCase(`No available commands:`, 'c|', [], 'neither', availableSpecs, new Set());
-		createTestCase('Available commands', 'c|', ['cd', 'code', 'code-insiders'], 'neither', availableSpecs, availableCommands);
-		createTestCase('Available commands, multiple commands on the line', 'ls && c|', ['cd', 'code', 'code-insiders'], 'neither', availableSpecs, availableCommands);
+	suite('Available commands', () => {
+		createTestCase('|', availableCommands, 'neither', availableSpecs, availableCommands);
+		createTestCase('c|', ['cd', 'code', 'code-insiders'], 'neither', availableSpecs, availableCommands);
+		createTestCase('ls && c|', ['cd', 'code', 'code-insiders'], 'neither', availableSpecs, availableCommands);
+		createTestCase('cd |', ['~', '-'], 'folders', availableSpecs, availableCommands);
+		createTestCase('code |', ['-', '--add', '--category', '--diff', '--disable-extension', '--disable-extensions', '--disable-gpu', '--enable-proposed-api', '--extensions-dir', '--goto', '--help', '--inspect-brk-extensions', '--inspect-extensions', '--install-extension', '--list-extensions', '--locale', '--log', '--max-memory', '--merge', '--new-window', '--pre-release', '--prof-startup', '--profile', '--reuse-window', '--show-versions', '--status', '--sync', '--telemetry', '--uninstall-extension', '--user-data-dir', '--verbose', '--version', '--wait', '-a', '-d', '-g', '-h', '-m', '-n', '-r', '-s', '-v', '-w'], 'neither', availableSpecs, availableCommands);
+		createTestCase('code --locale |', ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'], 'neither', availableSpecs, availableCommands);
+		createTestCase('code --extensions-dir |', [], 'folders', availableSpecs, availableCommands);
+		createTestCase('code --diff |', [], 'files', availableSpecs, availableCommands);
+		createTestCase('code --diff ./file1 |', [], 'files', availableSpecs, availableCommands);
 	});
 });
 
-function createTestCase(name: string, commandLineWithCursor: string, expectedCompletionLabels: string[], resourcesRequested: 'files' | 'folders' | 'both' | 'neither', availableSpecs: Fig.Spec[], availableCommands: Set<string>): void {
+function createTestCase(commandLineWithCursor: string, expectedCompletionLabels: string[], resourcesRequested: 'files' | 'folders' | 'both' | 'neither', availableSpecs: Fig.Spec[], availableCommands: string[]): void {
 	const commandLine = commandLineWithCursor.split('|')[0];
 	const cursorPosition = commandLineWithCursor.indexOf('|');
 	const prefix = commandLine.slice(0, cursorPosition).split(' ').pop() || '';
 	const filesRequested = resourcesRequested === 'files' || resourcesRequested === 'both';
 	const foldersRequested = resourcesRequested === 'folders' || resourcesRequested === 'both';
-	test(name, function () {
+	test(commandLineWithCursor, function () {
 		const result = getCompletionItemsFromSpecs(availableSpecs, { commandLine, cursorPosition }, availableCommands, prefix);
-		assert(arraysEqual(result.items.map(i => i.label), expectedCompletionLabels));
-		assert(result.filesRequested === filesRequested);
-		assert(result.foldersRequested === foldersRequested);
+		deepStrictEqual(result.items.map(i => i.label).sort(), expectedCompletionLabels.sort());
+		strictEqual(result.filesRequested, filesRequested);
+		strictEqual(result.foldersRequested, foldersRequested);
 	});
-}
-
-function arraysEqual(a: string[], b: string[]) {
-	if (a.length !== b.length) {
-		return false;
-	}
-	const sortedA = [...a].sort();
-	const sortedB = [...b].sort();
-	return sortedA.every((value, index) => value === sortedB[index]);
 }
