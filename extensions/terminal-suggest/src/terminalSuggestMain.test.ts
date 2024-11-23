@@ -7,9 +7,6 @@ import { deepStrictEqual, strictEqual } from 'assert';
 import 'mocha';
 import { availableSpecs, getCompletionItemsFromSpecs } from './terminalSuggestMain';
 
-
-
-
 suite('Terminal Suggest', () => {
 	const availableCommands = ['cd', 'code', 'code-insiders'];
 	suite('No available commands', () => {
