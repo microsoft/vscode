@@ -227,7 +227,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					continue;
 				}
 
-				const label = prefix + stat.resource.fsPath.replace(cwd.fsPath, '');
+				const label = prefix + stat.resource.fsPath.replace(dir.fsPath, '');
 				resourceCompletions.push({
 					label,
 					kind,
