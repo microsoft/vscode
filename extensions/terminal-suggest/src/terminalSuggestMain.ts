@@ -231,6 +231,10 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 			if (specLabel.startsWith(prefix)) {
 				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, specLabel));
 			}
+			if (!terminalContext.commandLine.startsWith(specLabel)) {
+				// the spec label is not the first word in the command line, so do not provide options or args
+				continue;
+			}
 			const precedingText = terminalContext.commandLine.slice(0, terminalContext.cursorPosition + 1);
 			if ('options' in spec && spec.options) {
 				for (const option of spec.options) {
