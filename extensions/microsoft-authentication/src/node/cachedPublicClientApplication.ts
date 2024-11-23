@@ -33,7 +33,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			loggerOptions: {
 				correlationId: `${this._clientId}] [${this._authority}`,
 				loggerCallback: (level, message, containsPii) => this._loggerOptions.loggerCallback(level, message, containsPii),
-				logLevel: LogLevel.Info
+				logLevel: LogLevel.Trace
 			}
 		},
 		broker: {
