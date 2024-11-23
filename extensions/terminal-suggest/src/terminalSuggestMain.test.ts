@@ -9,6 +9,7 @@ import { availableSpecs, getCompletionItemsFromSpecs } from './terminalSuggestMa
 
 suite('Terminal Suggest', () => {
 	const availableCommands = ['cd', 'code', 'code-insiders'];
+	const codeOptions = ['-', '--add', '--category', '--diff', '--disable-extension', '--disable-extensions', '--disable-gpu', '--enable-proposed-api', '--extensions-dir', '--goto', '--help', '--inspect-brk-extensions', '--inspect-extensions', '--install-extension', '--list-extensions', '--locale', '--log', '--max-memory', '--merge', '--new-window', '--pre-release', '--prof-startup', '--profile', '--reuse-window', '--show-versions', '--status', '--sync', '--telemetry', '--uninstall-extension', '--user-data-dir', '--verbose', '--version', '--wait', '-a', '-d', '-g', '-h', '-m', '-n', '-r', '-s', '-v', '-w'];
 	suite('No available commands', () => {
 		createTestCase('|', [], 'neither', availableSpecs, []);
 	});
@@ -17,11 +18,31 @@ suite('Terminal Suggest', () => {
 		createTestCase('c|', availableCommands, 'neither', availableSpecs, availableCommands);
 		createTestCase('ls && c|', availableCommands, 'neither', availableSpecs, availableCommands);
 		createTestCase('cd |', ['~', '-'], 'folders', availableSpecs, availableCommands);
-		createTestCase('code |', ['-', '--add', '--category', '--diff', '--disable-extension', '--disable-extensions', '--disable-gpu', '--enable-proposed-api', '--extensions-dir', '--goto', '--help', '--inspect-brk-extensions', '--inspect-extensions', '--install-extension', '--list-extensions', '--locale', '--log', '--max-memory', '--merge', '--new-window', '--pre-release', '--prof-startup', '--profile', '--reuse-window', '--show-versions', '--status', '--sync', '--telemetry', '--uninstall-extension', '--user-data-dir', '--verbose', '--version', '--wait', '-a', '-d', '-g', '-h', '-m', '-n', '-r', '-s', '-v', '-w'], 'neither', availableSpecs, availableCommands);
+		createTestCase('code|', ['code', 'code-insiders'], 'neither', availableSpecs, availableCommands);
+		createTestCase('code |', codeOptions, 'neither', availableSpecs, availableCommands);
 		createTestCase('code --locale |', ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'], 'neither', availableSpecs, availableCommands);
-		createTestCase('code --extensions-dir |', [], 'folders', availableSpecs, availableCommands);
 		createTestCase('code --diff |', [], 'files', availableSpecs, availableCommands);
+		createTestCase('code -di|', codeOptions.filter(o => o.startsWith('di')), 'neither', availableSpecs, availableCommands);
 		createTestCase('code --diff ./file1 |', [], 'files', availableSpecs, availableCommands);
+		createTestCase('code --merge |', [], 'files', availableSpecs, availableCommands);
+		createTestCase('code --merge ./file1 ./file2 |', [], 'files', availableSpecs, availableCommands);
+		createTestCase('code --merge ./file1 ./file2 ./base |', [], 'files', availableSpecs, availableCommands);
+		createTestCase('code --goto |', [], 'files', availableSpecs, availableCommands);
+		createTestCase('code --user-data-dir |', [], 'folders', availableSpecs, availableCommands);
+		createTestCase('code --profile |', [], 'neither', availableSpecs, availableCommands);
+		createTestCase('code --install-extension |', [], 'neither', availableSpecs, availableCommands);
+		createTestCase('code --uninstall-extension |', [], 'neither', availableSpecs, availableCommands);
+		createTestCase('code --log |', ['critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'], 'neither', availableSpecs, availableCommands);
+		createTestCase('code --sync |', ['on', 'off'], 'neither', availableSpecs, availableCommands);
+		createTestCase('code --extensions-dir |', [], 'folders', availableSpecs, availableCommands);
+		createTestCase('code --list-extensions |', codeOptions, 'neither', availableSpecs, availableCommands);
+		createTestCase('code --show-versions |', codeOptions, 'neither', availableSpecs, availableCommands);
+		createTestCase('code --category |', ['azure', 'data science', 'debuggers', 'extension packs', 'education', 'formatters', 'keymaps', 'language packs', 'linters', 'machine learning', 'notebooks', 'programming languages', 'scm providers', 'snippets', 'testing', 'themes', 'visualization', 'other'], 'neither', availableSpecs, availableCommands);
+		createTestCase('code --category a|', ['azure'], 'neither', availableSpecs, availableCommands);
+	});
+	suite('Cursor not at the end of the line', () => {
+		createTestCase('code | --locale', codeOptions, 'neither', availableSpecs, availableCommands);
+		createTestCase('code --locale | && ls', ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'], 'neither', availableSpecs, availableCommands);
 	});
 });
 
