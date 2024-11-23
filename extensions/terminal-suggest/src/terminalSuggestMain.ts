@@ -230,11 +230,12 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 			}
 			//
 			if (
-				// If the prompt is empty, show all available commands
+				// If the prompt is empty
 				!terminalContext.commandLine
-				// or the prefix matches the command
-				|| !!prefix && specLabel.startsWith(prefix)
+				// or the prefix matches the command and the prefix is not equal to the command
+				|| !!prefix && specLabel.startsWith(prefix) && specLabel !== prefix
 			) {
+				// push it to the completion items
 				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, specLabel));
 			}
 			if (!terminalContext.commandLine.startsWith(specLabel)) {

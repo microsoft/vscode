@@ -17,7 +17,8 @@ suite('Terminal Suggest', () => {
 		createTestCase('c|', availableCommands, 'neither', availableSpecs);
 		createTestCase('ls && c|', availableCommands, 'neither', availableSpecs);
 		createTestCase('cd |', ['~', '-'], 'folders', availableSpecs);
-		createTestCase('code|', ['code', 'code-insiders'], 'neither', availableSpecs);
+		createTestCase('code|', ['code-insiders'], 'neither', availableSpecs);
+		createTestCase('code-insiders|', [], 'neither', availableSpecs);
 		createTestCase('code |', codeOptions, 'neither', availableSpecs);
 		createTestCase('code --locale |', ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'], 'neither', availableSpecs);
 		createTestCase('code --diff |', [], 'files', availableSpecs);
