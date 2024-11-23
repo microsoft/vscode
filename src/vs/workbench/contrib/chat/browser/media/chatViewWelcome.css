@@ -68,12 +68,6 @@ div.chat-welcome-view {
 		a {
 			color: var(--vscode-textLink-foreground);
 		}
-
-		.codicon[class*='codicon-'] {
-			font-size: 13px;
-			line-height: 1.4em;
-			vertical-align: bottom;
-		}
 	}
 
 	.monaco-button {

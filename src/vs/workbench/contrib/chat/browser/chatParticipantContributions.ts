@@ -312,8 +312,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.Panel }]),
 			when: ContextKeyExpr.or(
 				ChatContextKeys.Setup.triggered,
-				ChatContextKeys.Setup.signingIn,
-				ChatContextKeys.Setup.installing,
 				ChatContextKeys.Setup.installed,
 				ChatContextKeys.panelParticipantRegistered,
 				ChatContextKeys.extensionInvalid
