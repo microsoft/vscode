@@ -167,6 +167,7 @@ class ChatSetupEntitlementResolver extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -252,22 +253,27 @@ class ChatSetupEntitlementResolver extends Disposable {
 
 		const response = await this.instantiationService.invokeFunction(accessor => ChatSetupRequestHelper.request(accessor, defaultChat.entitlementUrl, 'GET', undefined, session, cts.token));
 		if (!response) {
+			this.logService.trace('[chat setup] entitlement: no response');
 			return ChatEntitlement.Unresolved;
 		}
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
+			this.logService.trace(`[chat setup] entitlement: unexpected status code ${response.res.statusCode}`);
 			return ChatEntitlement.Unresolved;
 		}
 
 		const result = await asText(response);
 		if (!result) {
+			this.logService.trace('[chat setup] entitlement: response has no content');
 			return ChatEntitlement.Unresolved;
 		}
 
 		let parsedResult: any;
 		try {
 			parsedResult = JSON.parse(result);
+			this.logService.trace(`[chat setup] entitlement: parsed result is ${JSON.stringify(parsedResult)}`);
 		} catch (err) {
+			this.logService.trace(`[chat setup] entitlement: error parsing response (${err})`);
 			return ChatEntitlement.Unresolved;
 		}
 
@@ -277,7 +283,7 @@ class ChatSetupEntitlementResolver extends Disposable {
 		const skuLimitedAvailable = Boolean(parsedResult[defaultChat.entitlementSkuLimitedEnabled]);
 		this.resolvedEntitlement = this.toEntitlement(entitled, skuLimitedAvailable);
 
-		console.log(skuLimitedAvailable, this.resolvedEntitlement);
+		this.logService.trace(`[chat setup] entitlement: resolved to ${this.resolvedEntitlement}`);
 
 		this.telemetryService.publicLog2<ChatSetupEntitlementEvent, ChatSetupEntitlementClassification>('chatInstallEntitlement', {
 			entitled,
