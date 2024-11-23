@@ -52,18 +52,19 @@ export class ChatViewWelcomeController extends Disposable {
 
 	private update(force?: boolean): void {
 		const enabled = this.delegate.shouldShowWelcome();
-		if (this.enabled === enabled || force) {
+		if (this.enabled === enabled && !force) {
 			return;
 		}
 
+		this.enabled = enabled;
 		this.enabledDisposables.clear();
+
 		if (!enabled) {
 			this.container.classList.toggle('chat-view-welcome-visible', false);
 			this.renderDisposables.clear();
 			return;
 		}
 
-		this.enabled = true;
 		const descriptors = chatViewsWelcomeRegistry.get();
 		if (descriptors.length) {
 			this.render(descriptors);
@@ -87,6 +88,7 @@ export class ChatViewWelcomeController extends Disposable {
 				icon: enabledDescriptor.icon,
 				title: enabledDescriptor.title,
 				message: enabledDescriptor.content,
+				disableFirstLinkToButton: enabledDescriptor.disableFirstLinkToButton,
 			};
 			const welcomeView = this.renderDisposables.add(this.instantiationService.createInstance(ChatViewWelcomePart, content, { firstLinkToButton: true, location: this.location }));
 			this.element!.appendChild(welcomeView.element);
@@ -101,6 +103,7 @@ export interface IChatViewWelcomeContent {
 	icon?: ThemeIcon;
 	title: string;
 	message: IMarkdownString;
+	disableFirstLinkToButton?: boolean;
 	tips?: IMarkdownString;
 }
 
@@ -123,14 +126,15 @@ export class ChatViewWelcomePart extends Disposable {
 		this.element = dom.$('.chat-welcome-view');
 
 		try {
-			const icon = dom.append(this.element!, $('.chat-welcome-view-icon'));
-			const title = dom.append(this.element!, $('.chat-welcome-view-title'));
+			const icon = dom.append(this.element, $('.chat-welcome-view-icon'));
+			const title = dom.append(this.element, $('.chat-welcome-view-title'));
 
 			if (options?.location === ChatAgentLocation.EditingSession) {
-				const featureIndicator = dom.append(this.element!, $('.chat-welcome-view-indicator'));
+				const featureIndicator = dom.append(this.element, $('.chat-welcome-view-indicator'));
 				featureIndicator.textContent = localize('preview', 'PREVIEW');
 			}
-			const message = dom.append(this.element!, $('.chat-welcome-view-message'));
+
+			const message = dom.append(this.element, $('.chat-welcome-view-message'));
 
 			if (content.icon) {
 				icon.appendChild(renderIcon(content.icon));
@@ -139,7 +143,7 @@ export class ChatViewWelcomePart extends Disposable {
 			title.textContent = content.title;
 			const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 			const messageResult = this._register(renderer.render(content.message));
-			const firstLink = options?.firstLinkToButton ? messageResult.element.querySelector('a') : undefined;
+			const firstLink = options?.firstLinkToButton && !content.disableFirstLinkToButton ? messageResult.element.querySelector('a') : undefined;
 			if (firstLink) {
 				const target = firstLink.getAttribute('data-href');
 				const button = this._register(new Button(firstLink.parentElement!, defaultButtonStyles));
@@ -155,7 +159,7 @@ export class ChatViewWelcomePart extends Disposable {
 			dom.append(message, messageResult.element);
 
 			if (content.tips) {
-				const tips = dom.append(this.element!, $('.chat-welcome-view-tips'));
+				const tips = dom.append(this.element, $('.chat-welcome-view-tips'));
 				const tipsResult = this._register(renderer.render(content.tips));
 				tips.appendChild(tipsResult.element);
 			}

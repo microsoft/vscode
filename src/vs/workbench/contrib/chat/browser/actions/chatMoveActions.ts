@@ -9,11 +9,11 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { CHAT_VIEW_ID, IChatWidgetService } from '../chat.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ChatEditor, IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { CONTEXT_CHAT_ENABLED } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -31,12 +31,13 @@ export function registerMoveActions() {
 				id: `workbench.action.chat.openInEditor`,
 				title: localize2('chat.openInEditor.label', "Open Chat in Editor"),
 				category: CHAT_CATEGORY,
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 				menu: {
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', CHAT_VIEW_ID),
-					order: 0
+					when: ContextKeyExpr.equals('view', ChatViewId),
+					order: 0,
+					group: '1_open'
 				},
 			});
 		}
@@ -53,12 +54,13 @@ export function registerMoveActions() {
 				id: `workbench.action.chat.openInNewWindow`,
 				title: localize2('chat.openInNewWindow.label', "Open Chat in New Window"),
 				category: CHAT_CATEGORY,
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 				menu: {
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', CHAT_VIEW_ID),
-					order: 0
+					when: ContextKeyExpr.equals('view', ChatViewId),
+					order: 0,
+					group: '1_open'
 				},
 			});
 		}
@@ -75,7 +77,7 @@ export function registerMoveActions() {
 				id: `workbench.action.chat.openInSidebar`,
 				title: localize2('interactiveSession.openInSidebar.label', "Open Chat in Side Bar"),
 				category: CHAT_CATEGORY,
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				f1: true,
 				menu: [{
 					id: MenuId.EditorTitle,
@@ -125,10 +127,10 @@ async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
 	let view: ChatViewPane;
 	if (chatEditor instanceof ChatEditor && chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionId) {
 		await editorService.closeEditor({ editor: chatEditor.input, groupId: editorGroupService.activeGroup.id });
-		view = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
+		view = await viewsService.openView(ChatViewId) as ChatViewPane;
 		view.loadSession(chatEditorInput.sessionId, chatEditor.getViewState());
 	} else {
-		view = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
+		view = await viewsService.openView(ChatViewId) as ChatViewPane;
 	}
 
 	view.focus();

@@ -7,8 +7,12 @@ import { DeferredPromise, RunOnceScheduler } from '../../../../base/common/async
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
+import { autorunWithStore } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize } from '../../../../nls.js';
@@ -16,6 +20,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorIdentifier, SaveReason } from '../../../common/editor.js';
@@ -23,8 +28,11 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
-import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS } from '../common/chatContextKeys.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { IChatModel } from '../common/chatModel.js';
+import { IChatService } from '../common/chatService.js';
+import { ChatEditingModifiedFileEntry } from './chatEditing/chatEditingModifiedFileEntry.js';
 
 export class ChatEditorSaving extends Disposable implements IWorkbenchContribution {
 
@@ -41,12 +49,32 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 		@ITextFileService textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
 		@IDialogService dialogService: IDialogService,
+		@IChatService private readonly _chatService: IChatService,
 		@IFilesConfigurationService private readonly _fileConfigService: IFilesConfigurationService,
 	) {
 		super();
 
-		const store = this._store.add(new DisposableStore());
+		// --- report that save happened
+		this._store.add(autorunWithStore((r, store) => {
+			const session = chatEditingService.currentEditingSessionObs.read(r);
+			if (!session) {
+				return;
+			}
+			const chatSession = this._chatService.getSession(session.chatSessionId);
+			if (!chatSession) {
+				return;
+			}
+			const entries = session.entries.read(r);
 
+			store.add(textFileService.files.onDidSave(e => {
+				const entry = entries.find(entry => isEqual(entry.modifiedURI, e.model.resource));
+				if (entry && entry.state.get() === WorkingSetEntryState.Modified) {
+					this._reportSavedWhenReady(chatSession, entry);
+				}
+			}));
+		}));
+
+		const store = this._store.add(new DisposableStore());
 
 		const update = () => {
 
@@ -155,6 +183,35 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 		update();
 	}
 
+	private _reportSaved(entry: IModifiedFileEntry) {
+		assertType(entry instanceof ChatEditingModifiedFileEntry);
+
+		this._chatService.notifyUserAction({
+			action: { kind: 'chatEditingSessionAction', uri: entry.modifiedURI, hasRemainingEdits: false, outcome: 'saved' },
+			agentId: entry.telemetryInfo.agentId,
+			command: entry.telemetryInfo.command,
+			sessionId: entry.telemetryInfo.sessionId,
+			requestId: entry.telemetryInfo.requestId,
+			result: entry.telemetryInfo.result
+		});
+	}
+
+	private _reportSavedWhenReady(session: IChatModel, entry: IModifiedFileEntry) {
+		if (!session.requestInProgress) {
+			this._reportSaved(entry);
+			return;
+		}
+		// wait until no more request is pending
+		const d = session.onDidChange(e => {
+			if (!session.requestInProgress) {
+				this._reportSaved(entry);
+				this._store.delete(d);
+				d.dispose();
+			}
+		});
+		this._store.add(d);
+	}
+
 	private _handleNewEditingSession(session: IChatEditingSession, container: DisposableStore) {
 
 		const store = new DisposableStore();
@@ -197,28 +254,33 @@ export class ChatEditingSaveAllAction extends Action2 {
 			id: ChatEditingSaveAllAction.ID,
 			title: ChatEditingSaveAllAction.LABEL,
 			tooltip: ChatEditingSaveAllAction.LABEL,
-			precondition: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			icon: Codicon.saveAll,
 			menu: [
 				{
 					when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
 					id: MenuId.EditorTitle,
-					order: 1,
+					order: 2,
 					group: 'navigation',
 				},
 				{
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
 					order: 2,
-					// Show the option to save without accepting if the user has autosave
-					// and also hasn't configured the setting to always save with generated changes
+					// Show the option to save without accepting if the user hasn't configured the setting to always save with generated changes
 					when: ContextKeyExpr.and(
-						ContextKeyExpr.or(hasUndecidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey.negate()),
-						ContextKeyExpr.notEquals('config.files.autoSave', 'off'), ContextKeyExpr.equals(`config.${ChatEditorSaving._config}`, false),
-						CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)
+						applyingChatEditsFailedContextKey.negate(),
+						hasUndecidedChatEditingResourceContextKey,
+						ContextKeyExpr.equals(`config.${ChatEditorSaving._config}`, false),
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
 					)
 				}
 			],
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyCode.KeyS,
+				when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), ChatContextKeys.inChatInput),
+				weight: KeybindingWeight.WorkbenchContrib,
+			},
 		});
 	}
 

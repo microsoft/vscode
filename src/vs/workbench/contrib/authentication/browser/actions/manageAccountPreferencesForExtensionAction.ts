@@ -8,11 +8,12 @@ import { DisposableStore, IDisposable } from '../../../../../base/common/lifecyc
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IAccountUsage, IAuthenticationUsageService } from '../../../../services/authentication/browser/authenticationUsageService.js';
-import { AuthenticationSessionAccount, IAuthenticationExtensionsService, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { AuthenticationSessionAccount, IAuthenticationExtensionsService, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../../../services/authentication/common/authentication.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 
 export class ManageAccountPreferencesForExtensionAction extends Action2 {
@@ -71,9 +72,13 @@ class ManageAccountPreferenceForExtensionActionImpl {
 			providerIdToAccounts.set(providerId, await this._authenticationService.getAccounts(providerId));
 		} else {
 			for (const providerId of this._authenticationService.getProviderIds()) {
+				if (providerId.startsWith(INTERNAL_AUTH_PROVIDER_PREFIX)) {
+					// Don't show internal providers
+					continue;
+				}
 				const accounts = await this._authenticationService.getAccounts(providerId);
 				for (const account of accounts) {
-					const usage = this._authenticationUsageService.readAccountUsages(providerId, account.label).find(u => u.extensionId === extensionId.toLowerCase());
+					const usage = this._authenticationUsageService.readAccountUsages(providerId, account.label).find(u => ExtensionIdentifier.equals(u.extensionId, extensionId));
 					if (usage) {
 						providerIds.push(providerId);
 						providerIdToAccounts.set(providerId, accounts);
@@ -113,7 +118,7 @@ class ManageAccountPreferenceForExtensionActionImpl {
 			// Get the last used scopes for the last used account. This will be used to pre-fill the scopes when adding a new account.
 			// If there's no scopes, then don't add this option.
 			const lastUsedScopes = accounts
-				.flatMap(account => this._authenticationUsageService.readAccountUsages(chosenProviderId!, account.label).find(u => u.extensionId === extensionId.toLowerCase()))
+				.flatMap(account => this._authenticationUsageService.readAccountUsages(chosenProviderId!, account.label).find(u => ExtensionIdentifier.equals(u.extensionId, extensionId)))
 				.filter((usage): usage is IAccountUsage => !!usage)
 				.sort((a, b) => b.lastUsed - a.lastUsed)?.[0]?.scopes;
 			if (lastUsedScopes) {

@@ -6,14 +6,12 @@
 import * as assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyEqualsExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
-import { IToolData, IToolImpl, IToolInvocation } from '../../common/languageModelToolsService.js';
-import { MockChatService } from '../common/mockChatService.js';
-import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
+import { IToolData, IToolImpl, IToolInvocation } from '../../common/languageModelToolsService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 suite('LanguageModelToolsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,9 +20,11 @@ suite('LanguageModelToolsService', () => {
 	let service: LanguageModelToolsService;
 
 	setup(() => {
-		const extensionService = new TestExtensionService();
-		contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
-		service = store.add(new LanguageModelToolsService(extensionService, contextKeyService, new MockChatService(), new TestDialogService()));
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(new TestConfigurationService))
+		}, store);
+		contextKeyService = instaService.get(IContextKeyService);
+		service = store.add(instaService.createInstance(LanguageModelToolsService));
 	});
 
 	test('registerToolData', () => {

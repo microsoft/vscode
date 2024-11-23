@@ -4,40 +4,51 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
-import { LineRange } from '../../../../../editor/common/core/lineRange.js';
-import { Range } from '../../../../../editor/common/core/range.js';
+import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { IIdentifiedSingleEditOperation, IModelDeltaDecoration, ITextModel, OverviewRulerLane } from '../../../../../editor/common/model.js';
+import { IModelDeltaDecoration, ITextModel, OverviewRulerLane } from '../../../../../editor/common/model.js';
 import { SingleModelEditStackElement } from '../../../../../editor/common/model/editStack.js';
 import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
+import { OffsetEdits } from '../../../../../editor/common/model/textModelOffsetEdit.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { localize } from '../../../../../nls.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { SaveReason } from '../../../../common/editor.js';
+import { IResolvedTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { IChatAgentResult } from '../../common/chatAgents.js';
-import { IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditKind, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
 export class ChatEditingModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 
 	public static readonly scheme = 'modified-file-entry';
-	static lastEntryId = 0;
+	private static lastEntryId = 0;
 	public readonly entryId = `${ChatEditingModifiedFileEntry.scheme}::${++ChatEditingModifiedFileEntry.lastEntryId}`;
 
-	public readonly docSnapshot: ITextModel;
+	private readonly docSnapshot: ITextModel;
+	public readonly initialContent: string;
 	private readonly doc: ITextModel;
+	private readonly docFileEditorModel: IResolvedTextFileEditorModel;
+	private _allEditsAreFromUs: boolean = true;
+
+	private readonly _onDidDelete = this._register(new Emitter<void>());
+	public get onDidDelete() {
+		return this._onDidDelete.event;
+	}
 
 	get originalURI(): URI {
 		return this.docSnapshot.uri;
@@ -48,7 +59,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	}
 
 	get modifiedURI(): URI {
-		return this.doc.uri;
+		return this.modifiedModel.uri;
 	}
 
 	get modifiedModel(): ITextModel {
@@ -65,8 +76,14 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		return this._isCurrentlyBeingModifiedObs;
 	}
 
+	private readonly _rewriteRatioObs = observableValue<number>(this, 0);
+	public get rewriteRatio(): IObservable<number> {
+		return this._rewriteRatioObs;
+	}
+
 	private _isFirstEditAfterStartOrSnapshot: boolean = true;
-	private _isApplyingEdits: boolean = false;
+	private _edit: OffsetEdit = OffsetEdit.empty;
+	private _isEditFromUs: boolean = false;
 	private _diffOperation: Promise<any> | undefined;
 	private _diffOperationIds: number = 0;
 
@@ -93,30 +110,39 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		return this._telemetryInfo;
 	}
 
+	readonly createdInRequestId: string | undefined;
+
 	get lastModifyingRequestId() {
 		return this._telemetryInfo.requestId;
 	}
 
 	constructor(
-		public readonly resource: URI,
 		resourceRef: IReference<IResolvedTextEditorModel>,
 		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
 		private _telemetryInfo: IModifiedEntryTelemetryInfo,
+		kind: ChatEditKind,
+		initialContent: string | undefined,
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@ILanguageService languageService: ILanguageService,
-		@IBulkEditService public readonly bulkEditService: IBulkEditService,
 		@IChatService private readonly _chatService: IChatService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
-		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService
+		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
+		if (kind === ChatEditKind.Created) {
+			this.createdInRequestId = this._telemetryInfo.requestId;
+		}
+		this.docFileEditorModel = this._register(resourceRef).object as IResolvedTextFileEditorModel;
 		this.doc = resourceRef.object.textEditorModel;
+
+		this.initialContent = initialContent ?? this.doc.getValue();
 		const docSnapshot = this.docSnapshot = this._register(
 			modelService.createModel(
-				createTextBufferFactoryFromSnapshot(this.doc.createSnapshot()),
+				createTextBufferFactoryFromSnapshot(initialContent ? stringToSnapshot(initialContent) : this.doc.createSnapshot()),
 				languageService.createById(this.doc.getLanguageId()),
-				ChatEditingTextModelContentProvider.getFileURI(this.entryId, resource.path),
+				ChatEditingTextModelContentProvider.getFileURI(this.entryId, this.modifiedURI.path),
 				false
 			)
 		);
@@ -131,9 +157,14 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			this._register(reference);
 		})();
 
-		this._register(resourceRef);
 
 		this._register(this.doc.onDidChangeContent(e => this._mirrorEdits(e)));
+		this._register(this._fileService.watch(this.modifiedURI));
+		this._register(this._fileService.onDidFilesChange(e => {
+			if (e.affects(this.modifiedURI) && kind === ChatEditKind.Created && e.gotDeleted()) {
+				this._onDidDelete.fire();
+			}
+		}));
 
 		this._register(toDisposable(() => {
 			this._clearCurrentEditLineDecoration();
@@ -156,88 +187,95 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(requestId, this.modifiedURI.path),
 			original: this.originalModel.getValue(),
 			current: this.modifiedModel.getValue(),
+			originalToCurrentEdit: this._edit,
 			state: this.state.get(),
 			telemetryInfo: this._telemetryInfo
 		};
 	}
-
 	restoreFromSnapshot(snapshot: ISnapshotEntry) {
 		this._stateObs.set(snapshot.state, undefined);
 		this.docSnapshot.setValue(snapshot.original);
 		this._setDocValue(snapshot.current);
+		this._edit = snapshot.originalToCurrentEdit;
 	}
 
-	resetToInitialValue(value: string) {
-		this._setDocValue(value);
+	resetToInitialValue() {
+		this._setDocValue(this.initialContent);
 	}
 
 	acceptStreamingEditsStart(tx: ITransaction) {
-		this._isCurrentlyBeingModifiedObs.set(false, tx);
-		this._clearCurrentEditLineDecoration();
+		this._resetEditsState(tx);
 	}
 
 	acceptStreamingEditsEnd(tx: ITransaction) {
+		this._resetEditsState(tx);
+	}
+
+	private _resetEditsState(tx: ITransaction): void {
 		this._isCurrentlyBeingModifiedObs.set(false, tx);
+		this._rewriteRatioObs.set(0, tx);
 		this._clearCurrentEditLineDecoration();
 	}
 
 	private _mirrorEdits(event: IModelContentChangedEvent) {
+		const edit = OffsetEdits.fromContentChanges(event.changes);
 
-		if (this._isApplyingEdits) {
-			// ignore edits that we are making
-			return;
-		}
+		if (this._isEditFromUs) {
+			const e_sum = this._edit;
+			const e_ai = edit;
+			this._edit = e_sum.compose(e_ai);
 
-		// mirror edits that "others" are doing into the document snapshot. this is done
-		// so that subsequent diffing will not identify these edits are changes. the logic
-		// is simple: use the diff info to transpose each edit from `doc` into `docSnapshot`
-		// but ignore edits are inside AI-changes
-		const diff = this._diffInfo.get();
-		const edits: IIdentifiedSingleEditOperation[] = [];
+		} else {
 
-		let isOverlapping = false;
+			//           e_ai
+			//   d0 ---------------> s0
+			//   |                   |
+			//   |                   |
+			//   | e_user_r          | e_user
+			//   |                   |
+			//   |                   |
+			//   v       e_ai_r      v
+			///  d1 ---------------> s1
+			//
+			// d0 - document snapshot
+			// s0 - document
+			// e_ai - ai edits
+			// e_user - user edits
+			//
 
-		for (const edit of event.changes) {
+			const e_ai = this._edit;
+			const e_user = edit;
 
-			let changeDelta = 0;
+			const e_user_r = e_user.tryRebase(e_ai.inverse(this.docSnapshot.getValue()), true);
 
-			for (const change of diff.changes) {
-				const modifiedRange = lineRangeAsRange(change.modified, this.doc);
-
-				if (modifiedRange.getEndPosition().isBefore(Range.getStartPosition(edit.range))) {
-					const originalRange = lineRangeAsRange(change.original, this.docSnapshot);
-					changeDelta -= this.docSnapshot.getValueLengthInRange(originalRange);
-					changeDelta += this.doc.getValueLengthInRange(modifiedRange);
-
-				} else if (Range.areIntersectingOrTouching(modifiedRange, edit.range)) {
-					// overlapping
-					isOverlapping = true;
-					break;
-
-				} else {
-					// changes past the edit aren't relevant
-					break;
-				}
+			if (e_user_r === undefined) {
+				// user edits overlaps/conflicts with AI edits
+				this._edit = e_ai.compose(e_user);
+			} else {
+				const edits = OffsetEdits.asEditOperations(e_user_r, this.docSnapshot);
+				this.docSnapshot.applyEdits(edits);
+				this._edit = e_ai.tryRebase(e_user_r);
 			}
 
-			if (isOverlapping) {
-				// change overlapping with AI change isn't mirrored
-				break;
+			this._allEditsAreFromUs = false;
+		}
+
+		if (!this.isCurrentlyBeingModified.get()) {
+			const didResetToOriginalContent = this.doc.getValue() === this.initialContent;
+			const currentState = this._stateObs.get();
+			switch (currentState) {
+				case WorkingSetEntryState.Modified:
+					if (didResetToOriginalContent) {
+						this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
+						break;
+					}
 			}
-
-			const offset = edit.rangeOffset - changeDelta;
-			const start = this.docSnapshot.getPositionAt(offset);
-			const end = this.docSnapshot.getPositionAt(offset + edit.rangeLength);
-			edits.push(EditOperation.replace(Range.fromPositions(start, end), edit.text));
 		}
 
-		if (!isOverlapping) {
-			this.docSnapshot.applyEdits(edits);
-		}
-		this._updateDiffInfoSeq(true);
+		this._updateDiffInfoSeq(!this._isEditFromUs);
 	}
 
-	acceptAgentEdits(textEdits: TextEdit[]): void {
+	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean): void {
 
 		// highlight edits
 		this._editDecorations = this.doc.deltaDecorations(this._editDecorations, textEdits.map(edit => {
@@ -256,25 +294,32 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			this._undoRedoService.pushElement(new SingleModelEditStackElement(label, 'chat.edit', this.doc, null));
 		}
 
-		this._applyEdits(textEdits.map(TextEdit.asEditOperation));
+		const ops = textEdits.map(TextEdit.asEditOperation);
+		this._applyEdits(ops);
 
 		transaction((tx) => {
-			this._stateObs.set(WorkingSetEntryState.Modified, tx);
-			this._isCurrentlyBeingModifiedObs.set(true, tx);
+			if (!isLastEdits) {
+				this._stateObs.set(WorkingSetEntryState.Modified, tx);
+				this._isCurrentlyBeingModifiedObs.set(true, tx);
+				const maxLineNumber = ops.reduce((max, op) => Math.max(max, op.range.endLineNumber), 0);
+				const lineCount = this.doc.getLineCount();
+				this._rewriteRatioObs.set(Math.min(1, maxLineNumber / lineCount), tx);
+			} else {
+				this._resetEditsState(tx);
+				this._updateDiffInfoSeq(true);
+				this._rewriteRatioObs.set(1, tx);
+			}
 		});
 	}
 
 	private _applyEdits(edits: ISingleEditOperation[]) {
 		// make the actual edit
-		this._isApplyingEdits = true;
+		this._isEditFromUs = true;
 		try {
 			this.doc.pushEditOperations(null, edits, () => null);
 		} finally {
-			this._isApplyingEdits = false;
+			this._isEditFromUs = false;
 		}
-
-		// trigger diff computation but only at first, when done, or when last
-		this._updateDiffInfoSeq(false);
 	}
 
 	private _updateDiffInfoSeq(fast: boolean) {
@@ -288,7 +333,12 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 	private async _updateDiffInfo(fast: boolean): Promise<void> {
 
-		const versionIdNow = this.doc.getVersionId();
+		if (this.docSnapshot.isDisposed() || this.doc.isDisposed()) {
+			return;
+		}
+
+		const docVersionNow = this.doc.getVersionId();
+		const snapshotVersionNow = this.docSnapshot.getVersionId();
 
 		const [diff] = await Promise.all([
 			this._editorWorkerService.computeDiff(
@@ -300,9 +350,15 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			timeout(fast ? 50 : 800) // DON't diff too fast
 		]);
 
-		// only update the diff if the document didn't change in the meantime
-		if (this.doc.getVersionId() === versionIdNow) {
-			this._diffInfo.set(diff ?? nullDocumentDiff, undefined);
+		if (this.docSnapshot.isDisposed() || this.doc.isDisposed()) {
+			return;
+		}
+
+		// only update the diff if the documents didn't change in the meantime
+		if (this.doc.getVersionId() === docVersionNow && this.docSnapshot.getVersionId() === snapshotVersionNow) {
+			const diff2 = diff ?? nullDocumentDiff;
+			this._diffInfo.set(diff2, undefined);
+			this._edit = OffsetEdits.fromLineRangeMapping(this.docSnapshot, this.doc, diff2.changes);
 		}
 	}
 
@@ -313,6 +369,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		}
 
 		this.docSnapshot.setValue(this.doc.createSnapshot());
+		this._edit = OffsetEdit.empty;
 		this._stateObs.set(WorkingSetEntryState.Accepted, transaction);
 		await this.collapse(transaction);
 		this._notifyAction('accepted');
@@ -324,20 +381,32 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			return;
 		}
 
-		this._setDocValue(this.docSnapshot.getValue());
-
 		this._stateObs.set(WorkingSetEntryState.Rejected, transaction);
-		await this.collapse(transaction);
 		this._notifyAction('rejected');
+		if (this.createdInRequestId === this._telemetryInfo.requestId) {
+			await this._fileService.del(this.modifiedURI);
+			this._onDidDelete.fire();
+		} else {
+			this._setDocValue(this.docSnapshot.getValue());
+			if (this._allEditsAreFromUs) {
+				// save the file after discarding so that the dirty indicator goes away
+				// and so that an intermediate saved state gets reverted
+				await this.docFileEditorModel.save({ reason: SaveReason.EXPLICIT });
+			}
+			await this.collapse(transaction);
+		}
 	}
 
 	private _setDocValue(value: string): void {
-		this.doc.pushStackElement();
-		const edit = EditOperation.replace(this.doc.getFullModelRange(), value);
+		if (this.doc.getValue() !== value) {
 
-		this._applyEdits([edit]);
+			this.doc.pushStackElement();
+			const edit = EditOperation.replace(this.doc.getFullModelRange(), value);
 
-		this.doc.pushStackElement();
+			this._applyEdits([edit]);
+
+			this.doc.pushStackElement();
+		}
 	}
 
 	async collapse(transaction: ITransaction | undefined): Promise<void> {
@@ -346,7 +415,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 	private _notifyAction(outcome: 'accepted' | 'rejected') {
 		this._chatService.notifyUserAction({
-			action: { kind: 'chatEditingSessionAction', uri: this.resource, hasRemainingEdits: false, outcome },
+			action: { kind: 'chatEditingSessionAction', uri: this.modifiedURI, hasRemainingEdits: false, outcome },
 			agentId: this._telemetryInfo.agentId,
 			command: this._telemetryInfo.command,
 			sessionId: this._telemetryInfo.sessionId,
@@ -357,11 +426,11 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 }
 
 export interface IModifiedEntryTelemetryInfo {
-	agentId: string | undefined;
-	command: string | undefined;
-	sessionId: string;
-	requestId: string;
-	result: IChatAgentResult | undefined;
+	readonly agentId: string | undefined;
+	readonly command: string | undefined;
+	readonly sessionId: string;
+	readonly requestId: string;
+	readonly result: IChatAgentResult | undefined;
 }
 
 export interface ISnapshotEntry {
@@ -370,13 +439,7 @@ export interface ISnapshotEntry {
 	readonly snapshotUri: URI;
 	readonly original: string;
 	readonly current: string;
+	readonly originalToCurrentEdit: OffsetEdit;
 	readonly state: WorkingSetEntryState;
 	telemetryInfo: IModifiedEntryTelemetryInfo;
 }
-
-export const lineRangeAsRange = (lineRange: LineRange, model: ITextModel) => {
-	return model.validateRange(lineRange.isEmpty
-		? new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, Number.MAX_SAFE_INTEGER)
-		: new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER)
-	);
-};

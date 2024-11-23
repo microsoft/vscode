@@ -5,7 +5,7 @@
 
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -24,8 +24,7 @@ class DebugEditorGpuRendererAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.debugEditorGpuRenderer',
-			label: localize('gpuDebug.label', "Developer: Debug Editor GPU Renderer"),
-			alias: 'Developer: Debug Editor GPU Renderer',
+			label: localize2('gpuDebug.label', "Developer: Debug Editor GPU Renderer"),
 			// TODO: Why doesn't `ContextKeyExpr.equals('config:editor.experimentalGpuAcceleration', 'on')` work?
 			precondition: ContextKeyExpr.true(),
 		});
@@ -116,8 +115,9 @@ class DebugEditorGpuRendererAction extends EditorAction {
 					if (codePoint !== undefined) {
 						chars = String.fromCodePoint(parseInt(codePoint, 16));
 					}
-					const metadata = 0;
-					const rasterizedGlyph = atlas.getGlyph(rasterizer, chars, metadata);
+					const tokenMetadata = 0;
+					const charMetadata = 0;
+					const rasterizedGlyph = atlas.getGlyph(rasterizer, chars, tokenMetadata, charMetadata);
 					if (!rasterizedGlyph) {
 						return;
 					}
@@ -134,7 +134,7 @@ class DebugEditorGpuRendererAction extends EditorAction {
 					const ctx = ensureNonNullable(canvas.getContext('2d'));
 					ctx.putImageData(imageData, 0, 0);
 					const blob = await canvas.convertToBlob({ type: 'image/png' });
-					const resource = URI.joinPath(folders[0].uri, `glyph_${chars}_${metadata}_${fontSize}px_${fontFamily.replaceAll(/[,\\\/\.'\s]/g, '_')}.png`);
+					const resource = URI.joinPath(folders[0].uri, `glyph_${chars}_${tokenMetadata}_${fontSize}px_${fontFamily.replaceAll(/[,\\\/\.'\s]/g, '_')}.png`);
 					await fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(await blob.arrayBuffer())));
 				});
 				break;
