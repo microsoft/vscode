@@ -12,10 +12,11 @@ import { IRange } from '../../../../../editor/common/core/range.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { PromptFileReference } from '../../common/promptFileReference.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 /**
  * Parse the `data` property of a reference as an `URI`.
- * @throws if the reference is not defined or an invalid `URI`.
+ * @throws if the `data` reference is `not defined` or an invalid `URI`.
  */
 const parseUri = (data: IDynamicVariable['data']): URI | Location => {
 	assertDefined(
@@ -48,9 +49,14 @@ const parseUri = (data: IDynamicVariable['data']): URI | Location => {
 export class ChatDynamicVariable extends PromptFileReference implements IDynamicVariable {
 	constructor(
 		private readonly reference: IDynamicVariable,
-		fileService: IFileService,
+		@IFileService fileService: IFileService,
+		@IConfigurationService configService: IConfigurationService,
 	) {
-		super(parseUri(reference.data), fileService);
+		super(
+			parseUri(reference.data),
+			fileService,
+			configService,
+		);
 	}
 
 	/**

@@ -113,15 +113,19 @@ export class PromptFileReference extends Disposable {
 		return !!this._errorCondition;
 	}
 
-	/**
-	 * @throws if provided `URI`/`Location` isn't for a prompt snippet file.
-	 */
 	constructor(
 		private readonly _uri: URI | Location,
-		private readonly fileService: IFileService,
+		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
 		super();
 		this.onFilesChanged = this.onFilesChanged.bind(this);
+
+		// make sure the variable is updated on file changes
+		// but only for the prompt snippet files
+		if (this.isPromptSnippetFile) {
+			this.addFilesystemListeners();
+		}
 	}
 
 	/**
@@ -179,7 +183,7 @@ export class PromptFileReference extends Disposable {
 	/**
 	 * Add file system event listeners for the current file reference.
 	 */
-	public addFilesystemListeners(): this {
+	private addFilesystemListeners(): this {
 		this._register(
 			this.fileService.onDidFilesChange(this.onFilesChanged),
 		);
@@ -298,6 +302,7 @@ export class PromptFileReference extends Disposable {
 			const child = new PromptFileReference(
 				childUri,
 				this.fileService,
+				this.configService,
 			);
 
 			// subscribe to child updates

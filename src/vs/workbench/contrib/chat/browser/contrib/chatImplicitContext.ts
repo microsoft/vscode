@@ -12,7 +12,6 @@ import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/b
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorsOrder } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -21,6 +20,7 @@ import { IBaseChatRequestVariableEntry, IChatRequestImplicitVariableEntry } from
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { PromptFileReference } from '../../common/promptFileReference.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
@@ -138,8 +138,8 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	private promptFileReference?: PromptFileReference;
 
 	constructor(
-		private readonly fileService: IFileService,
-		private readonly configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
 		super();
 	}
@@ -227,7 +227,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		isSelection: boolean,
 	) {
 		// if the `prompt-snippets` feature is enabled, add a chat reference object
-		if (PromptFileReference.promptSnippetsEnabled(this.configurationService)) {
+		if (PromptFileReference.promptSnippetsEnabled(this.configService)) {
 			this.addPromprFileReferenceFor(value);
 		}
 
@@ -255,13 +255,9 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		// got a new `URI` value, so remove the existing prompt file
 		// reference object(if present) and create a new one
 		this.removePromptFileReference();
-		this.promptFileReference = this._register(new PromptFileReference(
-			value,
-			this.fileService,
-		));
-
-		// subscribe to filesystem changes for the file reference
-		this.promptFileReference.addFilesystemListeners();
+		this.promptFileReference = this._register(
+			this.instantiationService.createInstance(PromptFileReference, value),
+		);
 
 		// subscribe to updates of the prompt file reference
 		this._register(

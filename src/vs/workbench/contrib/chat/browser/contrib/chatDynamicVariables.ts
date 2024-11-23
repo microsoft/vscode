@@ -15,7 +15,7 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AnythingQuickAccessProviderRunOptions, IQuickAccessOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
@@ -24,9 +24,7 @@ import { IChatWidget } from '../chat.js';
 import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
 import { IChatRequestVariableValue, IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
 import { ChatDynamicVariable } from './chatDynamicVariable.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
@@ -45,8 +43,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	constructor(
 		private readonly widget: IChatWidget,
 		@ILabelService private readonly labelService: ILabelService,
-		@IFileService private readonly fileService: IFileService,
-		@IConfigurationService private readonly configService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
@@ -102,7 +99,9 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	public addReference(ref: IDynamicVariable): void {
-		const variable = this._register(new ChatDynamicVariable(ref, this.fileService));
+		const variable = this._register(
+			this.instantiationService.createInstance(ChatDynamicVariable, ref),
+		);
 
 		this._variables.push(variable);
 		this.updateVariableDecorations();
@@ -110,15 +109,13 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 		// if the `prompt snippets` feature is enabled, start resolving
 		// nested file references immediatelly and subscribe to updates
-		if (ChatDynamicVariable.promptSnippetsEnabled(this.configService) && variable.isPromptSnippetFile) {
+		if (variable.isPromptSnippetFile) {
 			// subscribe to variable changes
 			this._register(variable.onUpdate(() => {
 				this.updateVariableTexts();
 				this.updateVariableDecorations();
 				this.widget.refreshParsedInput();
 			}));
-			// make sure the variable is updated on filesystem changes
-			variable.addFilesystemListeners();
 			// start resolving the file references
 			variable.resolve();
 		}

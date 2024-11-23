@@ -9,13 +9,17 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { NullPolicyService } from '../../../../../platform/policy/common/policy.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { PromptFileReference, TErrorCondition } from '../../common/promptFileReference.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationService } from '../../../../../platform/configuration/common/configurationService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileOpenFailed, RecursiveReference, NonPromptSnippetFile } from '../../common/promptFileReferenceErrors.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 /**
  * Represents a file system node.
@@ -47,10 +51,19 @@ class ExpectedReference extends PromptFileReference {
 		uri: URI,
 		public readonly error: TErrorCondition | undefined,
 	) {
-		const dumbFileService = new FileService(new NullLogService());
-		super(uri, dumbFileService);
+		const nullLogService = new NullLogService();
+		const nullPolicyService = new NullPolicyService();
+		const nullFileService = new FileService(nullLogService);
+		const nullConfigService = new ConfigurationService(
+			URI.file('/config.json'),
+			nullFileService,
+			nullPolicyService,
+			nullLogService,
+		);
+		super(uri, nullFileService, nullConfigService);
 
-		this._register(dumbFileService);
+		this._register(nullFileService);
+		this._register(nullConfigService);
 	}
 
 	/**
@@ -66,11 +79,12 @@ class ExpectedReference extends PromptFileReference {
  * A reusable test utility to test the `PromptFileReference` class.
  */
 class TestPromptFileReference extends Disposable {
-	private readonly fileService = this._register(new FileService(new NullLogService()));
-
 	constructor(
 		private readonly fileStructure: IFolder,
+		private readonly rootFileUri: URI,
 		private readonly expectedReferences: ExpectedReference[],
+		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
 		super();
 
@@ -94,10 +108,11 @@ class TestPromptFileReference extends Disposable {
 			this.fileStructure,
 		);
 
-		// start for the root file reference
+		// start resolving references for the specified root file
 		const rootReference = this._register(new PromptFileReference(
-			URI.file(`/${this.fileStructure.name}/file2.prompt.md`),
+			this.rootFileUri,
 			this.fileService,
+			this.configService,
 		));
 
 		// resolve the root file reference including all nested references
@@ -180,6 +195,27 @@ class TestPromptFileReference extends Disposable {
 suite('ChatbotPromptReference (Unix)', function () {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	// let parser: ChatRequestParser;
+
+	// let varService: MockObject<IChatVariablesService>;
+	let instantiationService: TestInstantiationService;
+	setup(async () => {
+		const nullPolicyService = new NullPolicyService();
+		const nullLogService = testDisposables.add(new NullLogService());
+		const nullFileService = testDisposables.add(new FileService(nullLogService));
+		const nullConfigService = testDisposables.add(new ConfigurationService(
+			URI.file('/config.json'),
+			nullFileService,
+			nullPolicyService,
+			nullLogService,
+		));
+		instantiationService = testDisposables.add(new TestInstantiationService());
+
+		instantiationService.stub(IFileService, nullFileService);
+		instantiationService.stub(ILogService, nullLogService);
+		instantiationService.stub(IConfigurationService, nullConfigService);
+	});
+
 	test('resolves nested file references', async function () {
 		if (isWindows) {
 			this.skip();
@@ -189,7 +225,7 @@ suite('ChatbotPromptReference (Unix)', function () {
 		const rootFolder = `/${rootFolderName}`;
 		const rootUri = URI.file(rootFolder);
 
-		const test = testDisposables.add(new TestPromptFileReference(
+		const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
 			/**
 			 * The file structure to be created on the disk for the test.
 			 */
@@ -241,6 +277,10 @@ suite('ChatbotPromptReference (Unix)', function () {
 					},
 				],
 			},
+			/**
+			 * The root file path to start the resolve process from.
+			 */
+			URI.file(`/${rootFolderName}/file2.prompt.md`),
 			/**
 			 * The expected references to be resolved.
 			 */
@@ -297,7 +337,7 @@ suite('ChatbotPromptReference (Unix)', function () {
 		const rootFolder = `/${rootFolderName}`;
 		const rootUri = URI.file(rootFolder);
 
-		const test = testDisposables.add(new TestPromptFileReference(
+		const test = testDisposables.add(instantiationService.createInstance(TestPromptFileReference,
 			/**
 			 * The file structure to be created on the disk for the test.
 			 */
@@ -350,6 +390,10 @@ suite('ChatbotPromptReference (Unix)', function () {
 					},
 				],
 			},
+			/**
+			 * The root file path to start the resolve process from.
+			 */
+			URI.file(`/${rootFolderName}/file2.prompt.md`),
 			/**
 			 * The expected references to be resolved.
 			 */
