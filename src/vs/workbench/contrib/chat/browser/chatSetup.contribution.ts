@@ -170,13 +170,21 @@ class ChatSetupEntitlementResolver extends Disposable {
 	) {
 		super();
 
-		this.registerEntitlementListeners();
-		this.registerAuthListeners();
+		this.registerListeners();
 
 		this.handleDeclaredAuthProviders();
 	}
 
-	private registerEntitlementListeners(): void {
+	private registerListeners(): void {
+		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => this.handleDeclaredAuthProviders()));
+		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(() => this.handleDeclaredAuthProviders()));
+
+		this._register(this.authenticationService.onDidChangeSessions(async ({ providerId }) => {
+			if (providerId === defaultChat.providerId) {
+				this.update(this.toEntitlement(await this.hasProviderSessions()));
+			}
+		}));
+
 		this._register(this.authenticationService.onDidChangeSessions(e => {
 			if (e.providerId === defaultChat.providerId) {
 				if (e.event.added?.length) {
@@ -191,17 +199,6 @@ class ChatSetupEntitlementResolver extends Disposable {
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(async e => {
 			if (e.id === defaultChat.providerId) {
 				this.resolveEntitlement((await this.authenticationService.getSessions(e.id)).at(0));
-			}
-		}));
-	}
-
-	private registerAuthListeners(): void {
-		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => this.handleDeclaredAuthProviders()));
-		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(() => this.handleDeclaredAuthProviders()));
-
-		this._register(this.authenticationService.onDidChangeSessions(async ({ providerId }) => {
-			if (providerId === defaultChat.providerId) {
-				this.update(this.toEntitlement(await this.hasProviderSessions()));
 			}
 		}));
 	}
