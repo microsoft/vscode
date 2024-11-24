@@ -291,7 +291,7 @@ class ChatSetupEntitlementResolver extends Disposable {
 		this.chatSetupEntitledContextKey.set(entitled);
 
 		const skuLimitedAvailable = Boolean(parsedResult[defaultChat.entitlementSkuLimitedEnabled]);
-		this.resolvedEntitlement = this.toEntitlement(entitled, skuLimitedAvailable);
+		this.resolvedEntitlement = this.toEntitlement(true, skuLimitedAvailable);
 
 		this.logService.trace(`[chat setup] entitlement: resolved to ${this.resolvedEntitlement}`);
 
@@ -475,7 +475,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		return session;
 	}
 
-	private async install(session: AuthenticationSession | undefined, enableTelemetry: boolean | undefined, enableDetection: boolean | undefined): Promise<boolean> {
+	private async install(session: AuthenticationSession | undefined, enableTelemetry: boolean | undefined, enableDetection: boolean | undefined): Promise<void> {
 		const signedIn = !!session;
 		const activeElement = getActiveElement();
 
@@ -516,8 +516,6 @@ class ChatSetupWelcomeContent extends Disposable {
 		if (activeElement === getActiveElement()) {
 			(await showChatView(this.viewsService))?.focusInput();
 		}
-
-		return installResult === 'installed';
 	}
 }
 
