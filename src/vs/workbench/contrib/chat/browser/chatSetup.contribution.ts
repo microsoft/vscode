@@ -594,7 +594,9 @@ class ChatSetupContextKeys {
 	update(context: { triggered?: boolean; chatInstalled?: boolean; entitled?: boolean }): void {
 		if (typeof context.chatInstalled === 'boolean') {
 			this.storageService.store(ChatSetupContextKeys.CHAT_EXTENSION_INSTALLED, context.chatInstalled, StorageScope.PROFILE, StorageTarget.MACHINE);
-			this.storageService.store(ChatSetupContextKeys.CHAT_SETUP_TRIGGERD, true, StorageScope.PROFILE, StorageTarget.MACHINE); // allows to fallback to setup view if the extension is uninstalled
+			if (context.chatInstalled) {
+				this.storageService.store(ChatSetupContextKeys.CHAT_SETUP_TRIGGERD, true, StorageScope.PROFILE, StorageTarget.MACHINE); // allows to fallback to setup view if the extension is uninstalled
+			}
 		}
 
 		if (typeof context.triggered === 'boolean') {
