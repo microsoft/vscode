@@ -59,7 +59,7 @@ const defaultChat = {
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
 	entitlementChatEnabled: product.defaultChatAgent?.entitlementChatEnabled ?? '',
 	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
-	entitlementSkuLimitedEnabled: product.defaultChatAgent?.entitlementSkuLimitedEnabled ?? '',
+	entitlementCanSignupLimited: product.defaultChatAgent?.entitlementCanSignupLimited ?? '',
 	entitlementSkuType: product.defaultChatAgent?.entitlementSkuType ?? '',
 	entitlementSkuTypeLimited: product.defaultChatAgent?.entitlementSkuTypeLimited ?? ''
 };
@@ -296,7 +296,7 @@ class ChatSetupEntitlementResolver extends Disposable {
 		}
 
 		const result = {
-			entitlement: Boolean(parsedResult[defaultChat.entitlementSkuLimitedEnabled]) ? ChatEntitlement.Available : ChatEntitlement.Unavailable,
+			entitlement: Boolean(parsedResult[defaultChat.entitlementCanSignupLimited]) ? ChatEntitlement.Available : ChatEntitlement.Unavailable,
 			entitled: Boolean(parsedResult[defaultChat.entitlementChatEnabled]),
 			limited: Boolean(parsedResult[defaultChat.entitlementSkuType] === defaultChat.entitlementSkuTypeLimited)
 		};

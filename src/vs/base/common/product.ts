@@ -320,7 +320,7 @@ export interface IDefaultChatAgent {
 	readonly entitlementUrl: string;
 	readonly entitlementChatEnabled: string;
 	readonly entitlementSignupLimitedUrl: string;
-	readonly entitlementSkuLimitedEnabled: string;
+	readonly entitlementCanSignupLimited: string;
 	readonly entitlementSkuType: string;
 	readonly entitlementSkuTypeLimited: string;
 }
