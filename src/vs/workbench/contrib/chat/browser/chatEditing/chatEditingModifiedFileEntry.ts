@@ -187,7 +187,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 	createSnapshot(requestId: string | undefined): ITextSnapshotEntry {
 		this._isFirstEditAfterStartOrSnapshot = true;
-		return TextSnapshotEntry.create(this, this._telemetryInfo.sessionId, requestId, this._edit, this.instantiationService);
+		return TextSnapshotEntry.create(this, requestId, this._edit, this.instantiationService);
 	}
 
 	restoreFromSnapshot(snapshot: ITextSnapshotEntry) {
@@ -513,7 +513,7 @@ export class TextSnapshotEntry implements ITextSnapshotEntry {
 	}
 }
 
-function getStorageLocation(chatSessionId: string, workspaceContextService: IWorkspaceContextService, environmentService: IEnvironmentService): URI {
+export function getStorageLocation(chatSessionId: string, workspaceContextService: IWorkspaceContextService, environmentService: IEnvironmentService): URI {
 	const workspaceId = workspaceContextService.getWorkspace().id;
 	return joinPath(environmentService.workspaceStorageHome, workspaceId, 'chatEditingSessions', chatSessionId);
 }

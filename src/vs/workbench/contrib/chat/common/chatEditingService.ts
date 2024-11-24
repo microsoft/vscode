@@ -201,6 +201,7 @@ export interface IModifiedTextFileEntry extends IModifiedAnyFileEntry {
 	readonly kind: 'text';
 	readonly originalModel: ITextModel;
 	readonly modifiedModel: ITextModel;
+	readonly initialContent: string;
 	createSnapshot(requestId: string | undefined): ITextSnapshotEntry;
 	restoreFromSnapshot(snapshot: ITextSnapshotEntry): void;
 }

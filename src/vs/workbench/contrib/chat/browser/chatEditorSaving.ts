@@ -12,7 +12,6 @@ import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '.
 import { ResourceSet } from '../../../../base/common/map.js';
 import { autorunWithStore } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize } from '../../../../nls.js';
@@ -32,7 +31,6 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
-import { ChatEditingModifiedFileEntry } from './chatEditing/chatEditingModifiedFileEntry.js';
 
 export class ChatEditorSaving extends Disposable implements IWorkbenchContribution {
 
