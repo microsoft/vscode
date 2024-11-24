@@ -21,7 +21,8 @@ import {
 	EXTENSION_INSTALL_SOURCE_CONTEXT,
 	DidUpdateExtensionMetadata,
 	UninstallExtensionInfo,
-	ExtensionSignatureVerificationCode
+	ExtensionSignatureVerificationCode,
+	IAllowedExtensionsService
 } from './extensionManagement.js';
 import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from './extensionManagementUtil.js';
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from '../../extensions/common/extensions.js';
@@ -57,7 +58,66 @@ export interface IUninstallExtensionTask {
 	cancel(): void;
 }
 
-export abstract class AbstractExtensionManagementService extends Disposable implements IExtensionManagementService {
+export abstract class CommontExtensionManagementService extends Disposable implements IExtensionManagementService {
+
+	_serviceBrand: undefined;
+
+	constructor(
+		@IProductService protected readonly productService: IProductService,
+		@IAllowedExtensionsService protected readonly allowedExtensionsService: IAllowedExtensionsService,
+	) {
+		super();
+	}
+
+	async canInstall(extension: IGalleryExtension): Promise<true | IMarkdownString> {
+		const allowedToInstall = this.allowedExtensionsService.isAllowed({ id: extension.identifier.id });
+		if (allowedToInstall !== true) {
+			return new MarkdownString(nls.localize('not allowed to install', "This extension cannot be installed because {0}", allowedToInstall.value));
+		}
+
+		if (!(await this.isExtensionPlatformCompatible(extension))) {
+			const productName = isWeb ? nls.localize('VS Code for Web', "{0} for the Web", this.productService.nameLong) : this.productService.nameLong;
+			const learnLink = isWeb ? 'https://aka.ms/vscode-web-extensions-guide' : 'https://aka.ms/vscode-platform-specific-extensions';
+			return new MarkdownString(`${nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.",
+				extension.displayName ?? extension.identifier.id, productName, TargetPlatformToString(await this.getTargetPlatform()))} [${nls.localize('learn why', "Learn Why")}](${learnLink})`);
+		}
+
+		return true;
+	}
+
+	protected async isExtensionPlatformCompatible(extension: IGalleryExtension): Promise<boolean> {
+		const currentTargetPlatform = await this.getTargetPlatform();
+		return extension.allTargetPlatforms.some(targetPlatform => isTargetPlatformCompatible(targetPlatform, extension.allTargetPlatforms, currentTargetPlatform));
+	}
+
+	abstract readonly onInstallExtension: Event<InstallExtensionEvent>;
+	abstract readonly onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
+	abstract readonly onUninstallExtension: Event<UninstallExtensionEvent>;
+	abstract readonly onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
+	abstract readonly onDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
+	abstract installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension>;
+	abstract installGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<InstallExtensionResult[]>;
+	abstract uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
+	abstract uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void>;
+	abstract toggleAppliationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension>;
+	abstract getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
+	abstract resetPinnedStateForAllUserExtensions(pinned: boolean): Promise<void>;
+	abstract registerParticipant(pariticipant: IExtensionManagementParticipant): void;
+	abstract getTargetPlatform(): Promise<TargetPlatform>;
+	abstract zip(extension: ILocalExtension): Promise<URI>;
+	abstract getManifest(vsix: URI): Promise<IExtensionManifest>;
+	abstract install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension>;
+	abstract installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
+	abstract installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
+	abstract getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]>;
+	abstract copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
+	abstract download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI>;
+	abstract reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
+	abstract cleanUp(): Promise<void>;
+	abstract updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI): Promise<ILocalExtension>;
+}
+
+export abstract class AbstractExtensionManagementService extends CommontExtensionManagementService implements IExtensionManagementService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -88,24 +148,17 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@ILogService protected readonly logService: ILogService,
-		@IProductService protected readonly productService: IProductService,
+		@IProductService productService: IProductService,
+		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IUserDataProfilesService protected readonly userDataProfilesService: IUserDataProfilesService,
 	) {
-		super();
+		super(productService, allowedExtensionsService);
 		this._register(toDisposable(() => {
 			this.installingExtensions.forEach(({ task }) => task.cancel());
 			this.uninstallingExtensions.forEach(promise => promise.cancel());
 			this.installingExtensions.clear();
 			this.uninstallingExtensions.clear();
 		}));
-	}
-
-	async canInstall(extension: IGalleryExtension): Promise<true | IMarkdownString> {
-		const currentTargetPlatform = await this.getTargetPlatform();
-		if (extension.allTargetPlatforms.some(targetPlatform => isTargetPlatformCompatible(targetPlatform, extension.allTargetPlatforms, currentTargetPlatform))) {
-			return true;
-		}
-		return new MarkdownString(`${nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", extension.displayName ?? extension.identifier.id, this.productService.nameLong, TargetPlatformToString(currentTargetPlatform))} [${nls.localize('learn more', "Learn More")}](https://aka.ms/vscode-platform-specific-extensions)`);
 	}
 
 	async installFromGallery(extension: IGalleryExtension, options: InstallOptions = {}): Promise<ILocalExtension> {
@@ -843,20 +896,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			return { malicious: [], deprecated: {}, search: [] };
 		}
 	}
-
-	abstract getTargetPlatform(): Promise<TargetPlatform>;
-	abstract zip(extension: ILocalExtension): Promise<URI>;
-	abstract getManifest(vsix: URI): Promise<IExtensionManifest>;
-	abstract install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension>;
-	abstract installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
-	abstract installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
-	abstract getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]>;
-	abstract copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
-	abstract download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI>;
-	abstract reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
-	abstract cleanUp(): Promise<void>;
-
-	abstract updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI): Promise<ILocalExtension>;
 
 	protected abstract getCurrentExtensionsManifestLocation(): URI;
 	protected abstract createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask;

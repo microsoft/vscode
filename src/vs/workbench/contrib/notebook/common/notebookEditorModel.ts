@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBufferReadableStream, bufferToStream, streamToBuffer } from '../../../../base/common/buffer.js';
+import { VSBufferReadableStream, streamToBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { filter } from '../../../../base/common/objects.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -19,7 +18,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorModel } from '../../../common/editor/editorModel.js';
 import { NotebookTextModel } from './model/notebookTextModel.js';
-import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData, NotebookSetting } from './notebookCommon.js';
+import { INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookSetting } from './notebookCommon.js';
 import { INotebookLoggingService } from './notebookLoggingService.js';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from './notebookService.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
@@ -294,47 +293,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	}
 
 	async snapshot(context: SnapshotContext, token: CancellationToken): Promise<VSBufferReadableStream> {
-		const serializer = await this.getNotebookSerializer();
-
-		const data: NotebookData = {
-			metadata: filter(this._notebookModel.metadata, key => !serializer.options.transientDocumentMetadata[key]),
-			cells: [],
-		};
-
-		let outputSize = 0;
-		for (const cell of this._notebookModel.cells) {
-			const cellData: ICellDto2 = {
-				cellKind: cell.cellKind,
-				language: cell.language,
-				mime: cell.mime,
-				source: cell.getValue(),
-				outputs: [],
-				internalMetadata: cell.internalMetadata
-			};
-
-			const outputSizeLimit = this._configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
-			if (context === SnapshotContext.Backup && outputSizeLimit > 0) {
-				cell.outputs.forEach(output => {
-					output.outputs.forEach(item => {
-						outputSize += item.data.byteLength;
-					});
-				});
-				if (outputSize > outputSizeLimit) {
-					throw new Error('Notebook too large to backup');
-				}
-			}
-
-			cellData.outputs = !serializer.options.transientOutputs ? cell.outputs : [];
-			cellData.metadata = filter(cell.metadata, key => !serializer.options.transientCellMetadata[key]);
-
-			data.cells.push(cellData);
-		}
-
-		const bytes = await serializer.notebookToData(data);
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		return bufferToStream(bytes);
+		return this._notebookService.createNotebookTextDocumentSnapshot(this._notebookModel.uri, context, token);
 	}
 
 	async update(stream: VSBufferReadableStream, token: CancellationToken): Promise<void> {

@@ -20,7 +20,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
-import { truncateMiddle } from '../../../../base/common/strings.js';
+import { count, truncateMiddle } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Constants } from '../../../../base/common/uint.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -360,7 +360,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	/**
 	 * Results invalidated by editor changes.
 	 */
-	private static invalidatedTests = new WeakSet<TestResultItem | ITestMessage>();
+	public static invalidatedTests = new WeakSet<TestResultItem | ITestMessage>();
 
 	/**
 	 * Gets the decorations associated with the given code editor.
@@ -455,20 +455,18 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			}
 
 			let changed = false;
-			for (const decos of [this.errorContentWidgets, this.loggedMessageDecorations]) {
-				for (const [message, deco] of decos) {
-					// invalidate decorations if either the line they're on was changed,
-					// or if the range of the test was changed. The range of the test is
-					// not always present, so check bo.
-					const invalidate = evts.some(e => e.changes.some(c =>
-						c.range.startLineNumber <= deco.line && c.range.endLineNumber >= deco.line
-						|| (deco.resultItem?.item.range && deco.resultItem.item.range.startLineNumber <= c.range.startLineNumber && deco.resultItem.item.range.endLineNumber >= c.range.endLineNumber)
-					));
+			for (const [message, deco] of this.loggedMessageDecorations) {
+				// invalidate decorations if either the line they're on was changed,
+				// or if the range of the test was changed. The range of the test is
+				// not always present, so check bo.
+				const invalidate = evts.some(e => e.changes.some(c =>
+					c.range.startLineNumber <= deco.line && c.range.endLineNumber >= deco.line
+					|| (deco.resultItem?.item.range && deco.resultItem.item.range.startLineNumber <= c.range.startLineNumber && deco.resultItem.item.range.endLineNumber >= c.range.endLineNumber)
+				));
 
-					if (invalidate) {
-						changed = true;
-						TestingDecorations.invalidatedTests.add(deco.resultItem || message);
-					}
+				if (invalidate) {
+					changed = true;
+					TestingDecorations.invalidatedTests.add(deco.resultItem || message);
 				}
 			}
 
@@ -1332,6 +1330,8 @@ class TestMessageDecoration implements ITestDecoration {
 	}
 }
 
+const ERROR_CONTENT_WIDGET_HEIGHT = 20;
+
 class TestErrorContentWidget extends Disposable implements IContentWidget {
 	private readonly id = generateUuid();
 
@@ -1352,13 +1352,25 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 
 	constructor(
 		private readonly editor: ICodeEditor,
-		private readonly position: Position,
+		private position: Position,
 		public readonly message: ITestErrorMessage,
 		public readonly resultItem: TestResultItem,
 		uri: URI,
 		@ITestingPeekOpener readonly peekOpener: ITestingPeekOpener,
 	) {
 		super();
+
+		const setMarginTop = () => {
+			const lineHeight = editor.getOption(EditorOption.lineHeight);
+			this.node.root.style.marginTop = (lineHeight - ERROR_CONTENT_WIDGET_HEIGHT) / 2 + 'px';
+		};
+
+		setMarginTop();
+		this._register(editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.lineHeight)) {
+				setMarginTop();
+			}
+		}));
 
 		let text: string;
 		if (message.expected !== undefined && message.actual !== undefined) {
@@ -1396,6 +1408,27 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 		svg.append(leftArrow);
 
 		this.node.arrow.appendChild(svg);
+
+		this._register(editor.onDidChangeModelContent(e => {
+			for (const c of e.changes) {
+				if (c.range.startLineNumber > this.line) {
+					continue;
+				}
+				if (
+					c.range.startLineNumber <= this.line && c.range.endLineNumber >= this.line
+					|| (resultItem.item.range && resultItem.item.range.startLineNumber <= c.range.startLineNumber && resultItem.item.range.endLineNumber >= c.range.endLineNumber)
+				) {
+					TestingDecorations.invalidatedTests.add(this.resultItem);
+					this.dispose(); // todo
+				}
+
+				const adjust = count(c.text, '\n') - (c.range.endLineNumber - c.range.startLineNumber);
+				if (adjust !== 0) {
+					this.position = this.position.delta(adjust);
+					this.editor.layoutContentWidget(this);
+				}
+			}
+		}));
 
 		editor.addContentWidget(this);
 		this._register(toDisposable(() => editor.removeContentWidget(this)));

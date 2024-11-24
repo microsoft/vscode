@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { IManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -20,8 +19,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IOpenerService, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
-import { IChatRequestVariableEntry, isPasteVariableEntry } from '../../common/chatModel.js';
 import { revealInSideBarCommand } from '../../../files/browser/fileActions.contribution.js';
+import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService.js';
 
 export class ChatAttachmentsContentPart extends Disposable {
@@ -126,25 +125,6 @@ export class ChatAttachmentsContentPart extends Disposable {
 				widget.style.position = 'relative';
 				if (!this.attachedContextDisposables.isDisposed) {
 					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement));
-				}
-			} else if (isPasteVariableEntry(attachment)) {
-				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
-
-				const hoverContent: IManagedHoverTooltipMarkdownString = {
-					markdown: {
-						value: `\`\`\`${attachment.language}\n${attachment.code}\n\`\`\``,
-					},
-					markdownNotSupportedFallback: attachment.code,
-				};
-
-				const classNames = ['file-icon', `${attachment.language}-lang-file-icon`];
-				label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
-				widget.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.pastedLines}`));
-
-				widget.style.position = 'relative';
-
-				if (!this.attachedContextDisposables.isDisposed) {
-					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverContent, { trapFocus: true }));
 				}
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;

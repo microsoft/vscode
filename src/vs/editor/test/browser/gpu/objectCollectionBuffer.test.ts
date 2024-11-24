@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { createObjectCollectionBuffer, type IObjectCollectionBuffer } from '../../../../browser/gpu/objectCollectionBuffer.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { createObjectCollectionBuffer, type IObjectCollectionBuffer } from '../../../browser/gpu/objectCollectionBuffer.js';
 
 suite('ObjectCollectionBuffer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
