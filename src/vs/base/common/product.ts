@@ -319,7 +319,7 @@ export interface IDefaultChatAgent {
 	readonly providerScopes: string[][];
 	readonly entitlementUrl: string;
 	readonly entitlementChatEnabled: string;
-	readonly entitlementSkuLimitedUrl: string;
+	readonly entitlementSignupLimitedUrl: string;
 	readonly entitlementSkuLimitedEnabled: string;
 	readonly entitlementSkuType: string;
 	readonly entitlementSkuTypeLimited: string;

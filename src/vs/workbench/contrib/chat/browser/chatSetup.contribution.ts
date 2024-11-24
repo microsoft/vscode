@@ -58,7 +58,7 @@ const defaultChat = {
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
 	entitlementChatEnabled: product.defaultChatAgent?.entitlementChatEnabled ?? '',
-	entitlementSkuLimitedUrl: product.defaultChatAgent?.entitlementSkuLimitedUrl ?? '',
+	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
 	entitlementSkuLimitedEnabled: product.defaultChatAgent?.entitlementSkuLimitedEnabled ?? '',
 	entitlementSkuType: product.defaultChatAgent?.entitlementSkuType ?? '',
 	entitlementSkuTypeLimited: product.defaultChatAgent?.entitlementSkuTypeLimited ?? ''
@@ -502,7 +502,7 @@ class ChatSetupWelcomeContent extends Disposable {
 				};
 				this.logService.trace(`[chat setup] install: signing up to limited SKU with ${JSON.stringify(body)}`);
 
-				const response = await this.instantiationService.invokeFunction(accessor => ChatSetupRequestHelper.request(accessor, defaultChat.entitlementSkuLimitedUrl, 'POST', body, session, CancellationToken.None));
+				const response = await this.instantiationService.invokeFunction(accessor => ChatSetupRequestHelper.request(accessor, defaultChat.entitlementSignupLimitedUrl, 'POST', body, session, CancellationToken.None));
 				if (response && this.logService.getLevel() === LogLevel.Trace) {
 					this.logService.trace(`[chat setup] install: response from signing up to limited SKU ${JSON.stringify(await asText(response))}`);
 				}
