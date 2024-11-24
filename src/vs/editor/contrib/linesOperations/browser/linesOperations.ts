@@ -1164,7 +1164,9 @@ export class SnakeCaseAction extends AbstractCaseAction {
 }
 
 export class CamelCaseAction extends AbstractCaseAction {
-	public static wordBoundary = new BackwardsCompatibleRegExp('[_-]', 'gm');
+	public static wordBoundary = new BackwardsCompatibleRegExp('[_-]|[^\\S\\n]', 'gm');
+	public static wordBoundaryToMaintain = new BackwardsCompatibleRegExp('(?<=\n)', 'gm');
+
 
 	constructor() {
 		super({
@@ -1176,20 +1178,25 @@ export class CamelCaseAction extends AbstractCaseAction {
 
 	protected _modifyText(text: string, wordSeparators: string): string {
 		const wordBoundary = CamelCaseAction.wordBoundary.get();
-		if (!wordBoundary) {
+		const wordBoundaryToMaintain = CamelCaseAction.wordBoundaryToMaintain.get();
+
+		if (!wordBoundary || !wordBoundaryToMaintain) {
 			// cannot support this
 			return text;
 		}
-		const words = text.split(wordBoundary);
-		const firstWord = words.shift();
-		return firstWord + words.map((word: string) => word.substring(0, 1).toLocaleUpperCase() + word.substring(1))
-			.join('');
+
+		const wordsWithMaintainBoundaries = text.split(wordBoundaryToMaintain);
+		return wordsWithMaintainBoundaries.map((words: string) => {
+			const w = words.split(wordBoundary);
+			const firstWord = w.shift();
+			return firstWord + w.map((word: string) => word.substring(0, 1).toLocaleUpperCase() + word.substring(1)).join('');
+		}).join('');
 	}
 }
 
 export class PascalCaseAction extends AbstractCaseAction {
-	public static nonSpaceWordBoundary = new BackwardsCompatibleRegExp('[_-]', 'gm');
-	public static wordBoundaryToMaintain = new BackwardsCompatibleRegExp('(?<=\\.)|(?<=\\s)', 'gm');
+	public static wordBoundary = new BackwardsCompatibleRegExp('[_-]|[^\\S\\n]', 'gm');
+	public static wordBoundaryToMaintain = new BackwardsCompatibleRegExp('(?<=\\.)|(?<=\n)', 'gm');
 
 	constructor() {
 		super({
@@ -1200,18 +1207,18 @@ export class PascalCaseAction extends AbstractCaseAction {
 	}
 
 	protected _modifyText(text: string, wordSeparators: string): string {
-		const nonSpaceWordBoundary = PascalCaseAction.nonSpaceWordBoundary.get();
+		const wordBoundary = PascalCaseAction.wordBoundary.get();
 		const wordBoundaryToMaintain = PascalCaseAction.wordBoundaryToMaintain.get();
 
-		if (!nonSpaceWordBoundary || !wordBoundaryToMaintain) {
+		if (!wordBoundary || !wordBoundaryToMaintain) {
 			// cannot support this
 			return text;
 		}
 
 		const wordsWithMaintainBoundaries = text.split(wordBoundaryToMaintain);
-		return wordsWithMaintainBoundaries.map(
-			(word: string) => word.split(nonSpaceWordBoundary).map(
-				(w: string) => w.substring(0, 1).toLocaleUpperCase() + w.substring(1)).join('')).join('');
+		const words = wordsWithMaintainBoundaries.map((word: string) => word.split(wordBoundary)).flat();
+		return words.map((word: string) => word.substring(0, 1).toLocaleUpperCase() + word.substring(1))
+			.join('');
 	}
 }
 
@@ -1284,7 +1291,7 @@ if (SnakeCaseAction.caseBoundary.isSupported() && SnakeCaseAction.singleLetters.
 if (CamelCaseAction.wordBoundary.isSupported()) {
 	registerEditorAction(CamelCaseAction);
 }
-if (PascalCaseAction.nonSpaceWordBoundary.isSupported()) {
+if (PascalCaseAction.wordBoundary.isSupported()) {
 	registerEditorAction(PascalCaseAction);
 }
 if (TitleCaseAction.titleBoundary.isSupported()) {
