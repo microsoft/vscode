@@ -321,4 +321,6 @@ export interface IDefaultChatAgent {
 	readonly entitlementChatEnabled: string;
 	readonly entitlementSkuLimitedUrl: string;
 	readonly entitlementSkuLimitedEnabled: string;
+	readonly entitlementSkuType: string;
+	readonly entitlementSkuTypeLimited: string;
 }

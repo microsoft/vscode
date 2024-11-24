@@ -59,7 +59,9 @@ const defaultChat = {
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
 	entitlementChatEnabled: product.defaultChatAgent?.entitlementChatEnabled ?? '',
 	entitlementSkuLimitedUrl: product.defaultChatAgent?.entitlementSkuLimitedUrl ?? '',
-	entitlementSkuLimitedEnabled: product.defaultChatAgent?.entitlementSkuLimitedEnabled ?? ''
+	entitlementSkuLimitedEnabled: product.defaultChatAgent?.entitlementSkuLimitedEnabled ?? '',
+	entitlementSkuType: product.defaultChatAgent?.entitlementSkuType ?? '',
+	entitlementSkuTypeLimited: product.defaultChatAgent?.entitlementSkuTypeLimited ?? ''
 };
 
 enum ChatEntitlement {
@@ -138,15 +140,17 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 //#region Entitlements Resolver
 
 type ChatSetupEntitlementClassification = {
-	entitled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat setup entitled' };
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating the chat entitlement state' };
+	entitled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat setup entitled' };
+	limited: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat setup limited' };
 	owner: 'bpasero';
 	comment: 'Reporting chat setup entitlements';
 };
 
 type ChatSetupEntitlementEvent = {
-	entitled: boolean;
 	entitlement: ChatEntitlement;
+	entitled: boolean;
+	limited: boolean;
 };
 
 class ChatSetupEntitlementResolver extends Disposable {
@@ -293,12 +297,13 @@ class ChatSetupEntitlementResolver extends Disposable {
 
 		const result = {
 			entitlement: Boolean(parsedResult[defaultChat.entitlementSkuLimitedEnabled]) ? ChatEntitlement.Available : ChatEntitlement.Unavailable,
-			entitled: Boolean(parsedResult[defaultChat.entitlementChatEnabled])
+			entitled: Boolean(parsedResult[defaultChat.entitlementChatEnabled]),
+			limited: Boolean(parsedResult[defaultChat.entitlementSkuType] === defaultChat.entitlementSkuTypeLimited)
 		};
 
-		this.chatSetupContextKeys.update({ entitled: result.entitled });
+		this.chatSetupContextKeys.update({ entitled: result.entitled, limited: result.limited });
 
-		this.logService.trace(`[chat setup] entitlement: resolved to ${result.entitlement}, entitled: ${result.entitled}`);
+		this.logService.trace(`[chat setup] entitlement: resolved to ${result.entitlement}, entitled: ${result.entitled}, limited: ${result.limited}`);
 		this.telemetryService.publicLog2<ChatSetupEntitlementEvent, ChatSetupEntitlementClassification>('chatInstallEntitlement', result);
 
 		return result.entitlement;
@@ -570,10 +575,12 @@ class ChatSetupContextKeys {
 	private static readonly CHAT_EXTENSION_INSTALLED = 'chat.extensionInstalled';
 
 	private readonly chatSetupEntitledContextKey = ChatContextKeys.Setup.entitled.bindTo(this.contextKeyService);
+	private readonly chatSetupLimitedContextKey = ChatContextKeys.Setup.limited.bindTo(this.contextKeyService);
 	private readonly chatSetupTriggeredContext = ChatContextKeys.Setup.triggered.bindTo(this.contextKeyService);
 	private readonly chatSetupInstalledContext = ChatContextKeys.Setup.installed.bindTo(this.contextKeyService);
 
 	private chatSetupEntitled = false;
+	private chatSetupLimited = false;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -585,8 +592,8 @@ class ChatSetupContextKeys {
 
 	update(context: { chatInstalled: boolean }): void;
 	update(context: { triggered: boolean }): void;
-	update(context: { entitled: boolean }): void;
-	update(context: { triggered?: boolean; chatInstalled?: boolean; entitled?: boolean }): void {
+	update(context: { entitled: boolean; limited: boolean }): void;
+	update(context: { triggered?: boolean; chatInstalled?: boolean; entitled?: boolean; limited?: boolean }): void {
 		if (typeof context.chatInstalled === 'boolean') {
 			this.storageService.store(ChatSetupContextKeys.CHAT_EXTENSION_INSTALLED, context.chatInstalled, StorageScope.PROFILE, StorageTarget.MACHINE);
 			if (context.chatInstalled) {
@@ -606,6 +613,10 @@ class ChatSetupContextKeys {
 			this.chatSetupEntitled = context.entitled;
 		}
 
+		if (typeof context.limited === 'boolean') {
+			this.chatSetupLimited = context.limited;
+		}
+
 		this.updateContext();
 	}
 
@@ -623,6 +634,7 @@ class ChatSetupContextKeys {
 		this.chatSetupTriggeredContext.set(showChatSetup);
 		this.chatSetupInstalledContext.set(chatInstalled);
 		this.chatSetupEntitledContextKey.set(this.chatSetupEntitled);
+		this.chatSetupLimitedContextKey.set(this.chatSetupLimited);
 	}
 }
 

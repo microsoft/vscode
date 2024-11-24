@@ -43,6 +43,7 @@ export namespace ChatContextKeys {
 
 	export const Setup = {
 		entitled: new RawContextKey<boolean>('chatSetupEntitled', false, { type: 'boolean', description: localize('chatSetupEntitled', "True when user is a chat entitled user.") }),
+		limited: new RawContextKey<boolean>('chatSetupLimited', false, { type: 'boolean', description: localize('chatSetupLimited', "True when user is a chat limited user.") }),
 		triggered: new RawContextKey<boolean>('chatSetupTriggered', false, { type: 'boolean', description: localize('chatSetupTriggered', "True when chat setup is triggered.") }),
 		installed: new RawContextKey<boolean>('chatSetupInstalled', false, { type: 'boolean', description: localize('chatSetupInstalled', "True when the chat extension is installed.") }),
 	};
