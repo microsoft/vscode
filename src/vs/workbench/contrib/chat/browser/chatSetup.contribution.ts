@@ -344,7 +344,7 @@ enum ChatSetupStep {
 	Running
 }
 
-class ChatSetupModel extends Disposable {
+class ChatSetupController extends Disposable {
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -358,7 +358,16 @@ class ChatSetupModel extends Disposable {
 		return this.entitlementResolver.entitlement;
 	}
 
-	constructor(private readonly entitlementResolver: ChatSetupEntitlementResolver) {
+	constructor(
+		private readonly entitlementResolver: ChatSetupEntitlementResolver,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IProductService private readonly productService: IProductService,
+		@ILogService private readonly logService: ILogService
+	) {
 		super();
 
 		this.registerListeners();
@@ -376,119 +385,19 @@ class ChatSetupModel extends Disposable {
 		this._step = step;
 		this._onDidChange.fire();
 	}
-}
 
-class ChatSetupWelcomeContent extends Disposable {
-
-	private static INSTANCE: ChatSetupWelcomeContent | undefined;
-	static getInstance(instantiationService: IInstantiationService, entitlementResolver: ChatSetupEntitlementResolver): ChatSetupWelcomeContent {
-		if (!ChatSetupWelcomeContent.INSTANCE) {
-			ChatSetupWelcomeContent.INSTANCE = instantiationService.createInstance(ChatSetupWelcomeContent, entitlementResolver);
-		}
-
-		return ChatSetupWelcomeContent.INSTANCE;
-	}
-
-	readonly element = $('.chat-setup-view');
-
-	private readonly model: ChatSetupModel;
-
-	constructor(
-		entitlementResolver: ChatSetupEntitlementResolver,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IViewsService private readonly viewsService: IViewsService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IProductService private readonly productService: IProductService,
-		@ILogService private readonly logService: ILogService,
-	) {
-		super();
-
-		this.model = this._register(new ChatSetupModel(entitlementResolver));
-
-		this.create();
-	}
-
-	private create(): void {
-		const markdown = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
-
-		// Header
-		this.element.appendChild($('p')).textContent = localize('setupHeader', "{0} is your AI pair programmer.", defaultChat.name);
-
-		// Limited SKU Sign-up
-		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="]({0})"}'] }, "Setup will sign you up to {0} [limited access]({1}).", defaultChat.name, defaultChat.skusDocumentationUrl);
-		const limitedSkuHeaderElement = this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true }))).element);
-
-		const telemetryLabel = localize('telemetryLabel', "Allow {0} to use my data, including Prompts, Suggestions, and Code Snippets, for product improvements", defaultChat.providerName);
-		const { container: telemetryContainer, checkbox: telemetryCheckbox } = this.createCheckBox(telemetryLabel, this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? false : false);
-
-		const detectionLabel = localize('detectionLabel', "Allow suggestions matching public code");
-		const { container: detectionContainer, checkbox: detectionCheckbox } = this.createCheckBox(detectionLabel, true);
-
-		// Setup Button
-		const buttonRow = this.element.appendChild($('p'));
-		const button = this._register(new Button(buttonRow, { ...defaultButtonStyles, supportIcons: true }));
-
-		this._register(button.onDidClick(async () => {
-			this.model.setStep(ChatSetupStep.Running);
-
-			try {
-				await this.setup(telemetryCheckbox?.checked, detectionCheckbox?.checked);
-			} finally {
-				this.model.setStep(ChatSetupStep.Initial);
-			}
-		}));
-
-		// Footer
-		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}). You can [learn more]({1}) about {2}.", defaultChat.privacyStatementUrl, defaultChat.documentationUrl, defaultChat.name);
-		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(footer, { isTrusted: true }))).element);
-
-		// Update based on model state
-		this._register(Event.runAndSubscribe(this.model.onDidChange, () => this.update([limitedSkuHeaderElement, telemetryContainer, detectionContainer], [telemetryCheckbox, detectionCheckbox], button)));
-	}
-
-	private createCheckBox(label: string, checked: boolean): { container: HTMLElement; checkbox: Checkbox } {
-		const container = this.element.appendChild($('p'));
-		const checkbox = this._register(new Checkbox(label, checked, defaultCheckboxStyles));
-		container.appendChild(checkbox.domNode);
-
-		const checkboxLabel = container.appendChild($('div'));
-		checkboxLabel.textContent = label;
-		this._register(addDisposableListener(checkboxLabel, EventType.CLICK, () => {
-			if (checkbox?.enabled) {
-				checkbox.checked = !checkbox.checked;
-			}
-		}));
-
-		return { container, checkbox };
-	}
-
-	private update(limitedContainers: HTMLElement[], checkboxes: Checkbox[], button: Button,): void {
-		if (this.model.step === ChatSetupStep.Running) {
-			button.enabled = false;
-			button.label = localize('setupChatInstalling', "$(loading~spin) Completing Setup...");
-
-			for (const checkbox of checkboxes) {
-				checkbox.disable();
-			}
-		} else {
-			setVisibility(this.model.entitlement !== ChatEntitlement.Unavailable, ...limitedContainers);
-
-			button.enabled = true;
-			button.label = this.model.entitlement === ChatEntitlement.Unknown ?
-				localize('signInAndSetup', "Sign in and Complete Setup") :
-				localize('setup', "Complete Setup");
-
-			for (const checkbox of checkboxes) {
-				checkbox.enable();
-			}
+	async setup(enableTelemetry: boolean | undefined, enableDetection: boolean | undefined): Promise<void> {
+		this.setStep(ChatSetupStep.Running);
+		try {
+			await this.doSetup(enableTelemetry, enableDetection);
+		} finally {
+			this.setStep(ChatSetupStep.Initial);
 		}
 	}
 
-	private async setup(enableTelemetry: boolean | undefined, enableDetection: boolean | undefined): Promise<void> {
+	private async doSetup(enableTelemetry: boolean | undefined, enableDetection: boolean | undefined): Promise<void> {
 		let session: AuthenticationSession | undefined;
-		if (this.model.entitlement === ChatEntitlement.Unknown) {
+		if (this.entitlement === ChatEntitlement.Unknown) {
 			session = await this.signIn();
 			if (!session) {
 				return; // user cancelled
@@ -522,7 +431,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		try {
 			showChatView(this.viewsService);
 
-			if (this.model.entitlement !== ChatEntitlement.Unavailable) {
+			if (this.entitlement !== ChatEntitlement.Unavailable) {
 				const body = {
 					public_code_suggestions: enableDetection ? 'enabled' : 'disabled',
 					restricted_telemetry: enableTelemetry ? 'enabled' : 'disabled'
@@ -554,6 +463,104 @@ class ChatSetupWelcomeContent extends Disposable {
 
 		if (activeElement === getActiveElement()) {
 			(await showChatView(this.viewsService))?.focusInput();
+		}
+	}
+}
+
+class ChatSetupWelcomeContent extends Disposable {
+
+	private static INSTANCE: ChatSetupWelcomeContent | undefined;
+	static getInstance(instantiationService: IInstantiationService, entitlementResolver: ChatSetupEntitlementResolver): ChatSetupWelcomeContent {
+		if (!ChatSetupWelcomeContent.INSTANCE) {
+			ChatSetupWelcomeContent.INSTANCE = instantiationService.createInstance(ChatSetupWelcomeContent, entitlementResolver);
+		}
+
+		return ChatSetupWelcomeContent.INSTANCE;
+	}
+
+	readonly element = $('.chat-setup-view');
+
+	private readonly controller: ChatSetupController;
+
+	constructor(
+		entitlementResolver: ChatSetupEntitlementResolver,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
+	) {
+		super();
+
+		this.controller = this._register(instantiationService.createInstance(ChatSetupController, entitlementResolver));
+
+		this.create();
+	}
+
+	private create(): void {
+		const markdown = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
+
+		// Header
+		this.element.appendChild($('p')).textContent = localize('setupHeader', "{0} is your AI pair programmer.", defaultChat.name);
+
+		// Limited SKU Sign-up
+		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="]({0})"}'] }, "Setup will sign you up to {0} [limited access]({1}).", defaultChat.name, defaultChat.skusDocumentationUrl);
+		const limitedSkuHeaderElement = this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true }))).element);
+
+		const telemetryLabel = localize('telemetryLabel', "Allow {0} to use my data, including Prompts, Suggestions, and Code Snippets, for product improvements", defaultChat.providerName);
+		const { container: telemetryContainer, checkbox: telemetryCheckbox } = this.createCheckBox(telemetryLabel, this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? false : false);
+
+		const detectionLabel = localize('detectionLabel', "Allow suggestions matching public code");
+		const { container: detectionContainer, checkbox: detectionCheckbox } = this.createCheckBox(detectionLabel, true);
+
+		// Setup Button
+		const buttonRow = this.element.appendChild($('p'));
+		const button = this._register(new Button(buttonRow, { ...defaultButtonStyles, supportIcons: true }));
+		this._register(button.onDidClick(() => this.controller.setup(telemetryCheckbox?.checked, detectionCheckbox?.checked)));
+
+		// Footer
+		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}). You can [learn more]({1}) about {2}.", defaultChat.privacyStatementUrl, defaultChat.documentationUrl, defaultChat.name);
+		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(footer, { isTrusted: true }))).element);
+
+		// Update based on model state
+		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update([limitedSkuHeaderElement, telemetryContainer, detectionContainer], [telemetryCheckbox, detectionCheckbox], button)));
+	}
+
+	private createCheckBox(label: string, checked: boolean): { container: HTMLElement; checkbox: Checkbox } {
+		const container = this.element.appendChild($('p'));
+		const checkbox = this._register(new Checkbox(label, checked, defaultCheckboxStyles));
+		container.appendChild(checkbox.domNode);
+
+		const checkboxLabel = container.appendChild($('div'));
+		checkboxLabel.textContent = label;
+		this._register(addDisposableListener(checkboxLabel, EventType.CLICK, () => {
+			if (checkbox?.enabled) {
+				checkbox.checked = !checkbox.checked;
+			}
+		}));
+
+		return { container, checkbox };
+	}
+
+	private update(limitedContainers: HTMLElement[], limitedCheckboxes: Checkbox[], button: Button): void {
+		switch (this.controller.step) {
+			case ChatSetupStep.Initial:
+				setVisibility(this.controller.entitlement !== ChatEntitlement.Unavailable, ...limitedContainers);
+
+				button.enabled = true;
+				button.label = this.controller.entitlement === ChatEntitlement.Unknown ?
+					localize('signInAndSetup', "Sign in and Complete Setup") :
+					localize('setup', "Complete Setup");
+
+				for (const checkbox of limitedCheckboxes) {
+					checkbox.enable();
+				}
+				break;
+			case ChatSetupStep.Running:
+				button.enabled = false;
+				button.label = localize('setupChatInstalling', "$(loading~spin) Completing Setup...");
+
+				for (const checkbox of limitedCheckboxes) {
+					checkbox.disable();
+				}
+				break;
 		}
 	}
 }
