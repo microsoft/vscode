@@ -17,8 +17,8 @@
     "terminalCompletionProvider"
   ],
   "scripts": {
-    "compile": "npx gulp compile-extension:npm",
-    "watch": "npx gulp watch-extension:npm"
+    "compile": "npx gulp compile-extension:terminal-suggest",
+    "watch": "npx gulp watch-extension:terminal-suggest"
   },
 
   "main": "./out/terminalSuggestMain",
