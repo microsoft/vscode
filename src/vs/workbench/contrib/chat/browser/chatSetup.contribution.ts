@@ -77,7 +77,7 @@ enum ChatEntitlement {
 
 class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
-	private readonly chatSetupContext = this.instantiationService.createInstance(ChatSetupContext);
+	private readonly chatSetupContext = this.instantiationService.createInstance(ChatSetupContextKeys);
 	private readonly entitlementsResolver = this._register(this.instantiationService.createInstance(ChatSetupEntitlementResolver));
 
 	constructor(
@@ -159,7 +159,7 @@ class ChatSetupEntitlementResolver extends Disposable {
 
 	private resolvedEntitlement: ChatEntitlement | undefined = undefined;
 
-	private readonly chatSetupContext = this.instantiationService.createInstance(ChatSetupContext);
+	private readonly chatSetupContext = this.instantiationService.createInstance(ChatSetupContextKeys);
 
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -551,7 +551,7 @@ class ChatSetupRequestHelper {
 	}
 }
 
-class ChatSetupContext {
+class ChatSetupContextKeys {
 
 	private static readonly CHAT_SETUP_TRIGGERD = 'chat.setupTriggered';
 	private static readonly CHAT_EXTENSION_INSTALLED = 'chat.extensionInstalled';
@@ -575,15 +575,15 @@ class ChatSetupContext {
 	update(context: { entitled: boolean }): void;
 	update(context: { triggered?: boolean; chatInstalled?: boolean; entitled?: boolean }): void {
 		if (typeof context.chatInstalled === 'boolean') {
-			this.storageService.store(ChatSetupContext.CHAT_EXTENSION_INSTALLED, context.chatInstalled, StorageScope.PROFILE, StorageTarget.MACHINE);
-			this.storageService.store(ChatSetupContext.CHAT_SETUP_TRIGGERD, true, StorageScope.PROFILE, StorageTarget.MACHINE); // allows to fallback to setup view if the extension is uninstalled
+			this.storageService.store(ChatSetupContextKeys.CHAT_EXTENSION_INSTALLED, context.chatInstalled, StorageScope.PROFILE, StorageTarget.MACHINE);
+			this.storageService.store(ChatSetupContextKeys.CHAT_SETUP_TRIGGERD, true, StorageScope.PROFILE, StorageTarget.MACHINE); // allows to fallback to setup view if the extension is uninstalled
 		}
 
 		if (typeof context.triggered === 'boolean') {
 			if (context.triggered) {
-				this.storageService.store(ChatSetupContext.CHAT_SETUP_TRIGGERD, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+				this.storageService.store(ChatSetupContextKeys.CHAT_SETUP_TRIGGERD, true, StorageScope.PROFILE, StorageTarget.MACHINE);
 			} else {
-				this.storageService.remove(ChatSetupContext.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE);
+				this.storageService.remove(ChatSetupContextKeys.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE);
 			}
 		}
 
@@ -595,8 +595,8 @@ class ChatSetupContext {
 	}
 
 	private updateContext(): void {
-		const chatSetupTriggered = this.storageService.getBoolean(ChatSetupContext.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE, false);
-		const chatInstalled = this.storageService.getBoolean(ChatSetupContext.CHAT_EXTENSION_INSTALLED, StorageScope.PROFILE, false);
+		const chatSetupTriggered = this.storageService.getBoolean(ChatSetupContextKeys.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE, false);
+		const chatInstalled = this.storageService.getBoolean(ChatSetupContextKeys.CHAT_EXTENSION_INSTALLED, StorageScope.PROFILE, false);
 
 		const showChatSetup = chatSetupTriggered && !chatInstalled;
 		if (showChatSetup) {
@@ -639,7 +639,7 @@ class ChatSetupTriggerAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const instantiationService = accessor.get(IInstantiationService);
 
-		instantiationService.createInstance(ChatSetupContext).update({ triggered: true });
+		instantiationService.createInstance(ChatSetupContextKeys).update({ triggered: true });
 
 		showChatView(viewsService);
 	}
@@ -684,7 +684,7 @@ class ChatSetupHideAction extends Action2 {
 
 		const location = viewsDescriptorService.getViewLocationById(ChatViewId);
 
-		instantiationService.createInstance(ChatSetupContext).update({ triggered: false });
+		instantiationService.createInstance(ChatSetupContextKeys).update({ triggered: false });
 
 		if (location === ViewContainerLocation.AuxiliaryBar) {
 			const activeContainers = viewsDescriptorService.getViewContainersByLocation(location).filter(container => viewsDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
