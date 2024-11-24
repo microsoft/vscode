@@ -7,19 +7,17 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { Disposable, IReference, ReferenceCollection } from '../../../../../../base/common/lifecycle.js';
 import { IChatEditingService, IModifiedFileEntry, WorkingSetEntryState } from '../../../../chat/common/chatEditingService.js';
 import { INotebookService } from '../../../common/notebookService.js';
-import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { bufferToReadableStream, bufferToStream, streamToBuffer, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { raceCancellation, ThrottledDelayer } from '../../../../../../base/common/async.js';
 import { CellDiffInfo, computeDiff, prettyChanges } from '../../diff/notebookDiffViewModel.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { INotebookEditorWorkerService } from '../../../common/services/notebookWorkerService.js';
 import { ChatEditingModifiedFileEntry } from '../../../../chat/browser/chatEditing/chatEditingModifiedFileEntry.js';
-import { CellEditType, ICellDto2, ICellReplaceEdit, NotebookData, NotebookSetting } from '../../../common/notebookCommon.js';
+import { CellEditType, ICellDto2, ICellReplaceEdit } from '../../../common/notebookCommon.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { EditOperation } from '../../../../../../editor/common/core/editOperation.js';
 import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
-import { filter } from '../../../../../../base/common/objects.js';
 import { INotebookEditorModelResolverService } from '../../../common/notebookEditorModelResolverService.js';
 import { SaveReason } from '../../../../../common/editor.js';
 import { IChatService } from '../../../../chat/common/chatService.js';
@@ -30,6 +28,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { TextModel } from '../../../../../../editor/common/model/textModel.js';
+import { SnapshotContext } from '../../../../../services/workingCopy/common/fileWorkingCopy.js';
 
 
 export const INotebookModelSynchronizerFactory = createDecorator<INotebookModelSynchronizerFactory>('INotebookModelSynchronizerFactory');
@@ -79,7 +78,6 @@ export class NotebookModelSynchronizer extends Disposable {
 		@IChatService chatService: IChatService,
 		@IModelService private readonly modelService: IModelService,
 		@INotebookLoggingService private readonly logService: INotebookLoggingService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
 		@INotebookEditorModelResolverService private readonly notebookModelResolverService: INotebookEditorModelResolverService,
 		@INotebookOriginalModelReferenceFactory private readonly originalModelRefFactory: INotebookOriginalModelReferenceFactory,
@@ -158,47 +156,10 @@ export class NotebookModelSynchronizer extends Disposable {
 	}
 
 	private async createSnapshot() {
-		const [serializer, ref] = await Promise.all([
-			this.getNotebookSerializer(),
-			this.notebookModelResolverService.resolve(this.model.uri)
-		]);
-
+		const ref = await this.notebookModelResolverService.resolve(this.model.uri);
 		try {
-			const data: NotebookData = {
-				metadata: filter(this.model.metadata, key => !serializer.options.transientDocumentMetadata[key]),
-				cells: [],
-			};
-
-			let outputSize = 0;
-			for (const cell of this.model.cells) {
-				const cellData: ICellDto2 = {
-					cellKind: cell.cellKind,
-					language: cell.language,
-					mime: cell.mime,
-					source: cell.getValue(),
-					outputs: [],
-					internalMetadata: cell.internalMetadata
-				};
-
-				const outputSizeLimit = this.configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
-				if (outputSizeLimit > 0) {
-					cell.outputs.forEach(output => {
-						output.outputs.forEach(item => {
-							outputSize += item.data.byteLength;
-						});
-					});
-					if (outputSize > outputSizeLimit) {
-						return;
-					}
-				}
-
-				cellData.outputs = !serializer.options.transientOutputs ? cell.outputs : [];
-				cellData.metadata = filter(cell.metadata, key => !serializer.options.transientCellMetadata[key]);
-
-				data.cells.push(cellData);
-			}
-
-			const bytes = await serializer.notebookToData(data);
+			const buffer = await this.notebookService.createNotebookTextDocumentSnapshot(this.model.uri, SnapshotContext.Backup, CancellationToken.None);
+			const bytes = await streamToBuffer(buffer);
 			this.snapshot = { bytes, dirty: ref.object.isDirty() };
 		} finally {
 			ref.dispose();
@@ -213,7 +174,7 @@ export class NotebookModelSynchronizer extends Disposable {
 		if (!this.snapshot) {
 			return;
 		}
-		await this.updateNotebook(this.snapshot.bytes, !this.snapshot.dirty);
+		await this.notebookService.restoreNotebookTextModelFromSnapshot(this.model.uri, this.model.viewType, bufferToReadableStream(this.snapshot.bytes));
 		this._diffInfo.set(undefined, undefined);
 	}
 
