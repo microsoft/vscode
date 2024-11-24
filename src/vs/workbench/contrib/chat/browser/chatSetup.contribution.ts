@@ -345,7 +345,8 @@ type InstallChatEvent = {
 
 enum ChatSetupStep {
 	Initial = 1,
-	Running
+	SigningIn,
+	Installing
 }
 
 class ChatSetupController extends Disposable {
@@ -396,32 +397,29 @@ class ChatSetupController extends Disposable {
 	}
 
 	async setup(enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
-		this.setStep(ChatSetupStep.Running);
 		try {
-			await this.doSetup(enableTelemetry, enableDetection);
+			let session: AuthenticationSession | undefined;
+
+			// Entitlement Unknown: we need to sign-in user
+			if (this.entitlement === ChatEntitlement.Unknown) {
+				this.setStep(ChatSetupStep.SigningIn);
+				session = await this.signIn();
+				if (!session) {
+					return; // user cancelled
+				}
+
+				const entitlement = await this.entitlementResolver.forceResolveEntitlement(session);
+				if (entitlement !== ChatEntitlement.Unavailable) {
+					return; // we cannot proceed with automated install because user needs to sign-up in a second step
+				}
+			}
+
+			// Entitlement known: proceed with installation
+			this.setStep(ChatSetupStep.Installing);
+			await this.install(session, enableTelemetry, enableDetection);
 		} finally {
 			this.setStep(ChatSetupStep.Initial);
 		}
-	}
-
-	private async doSetup(enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
-		let session: AuthenticationSession | undefined;
-
-		// Entitlement Unknown: we need to sign-in user
-		if (this.entitlement === ChatEntitlement.Unknown) {
-			session = await this.signIn();
-			if (!session) {
-				return; // user cancelled
-			}
-
-			const entitlement = await this.entitlementResolver.forceResolveEntitlement(session);
-			if (entitlement !== ChatEntitlement.Unavailable) {
-				return; // we cannot proceed with automated install because user needs to sign-up in a second step
-			}
-		}
-
-		// Entitlement known: proceed with installation
-		await this.install(session, enableTelemetry, enableDetection);
 	}
 
 	private async signIn(): Promise<AuthenticationSession | undefined> {
@@ -570,13 +568,14 @@ class ChatSetupWelcomeContent extends Disposable {
 					localize('signInToStartSetup', "Sign in to Start Setup") :
 					localize('startSetup', "Complete Setup");
 				break;
-			case ChatSetupStep.Running:
+			case ChatSetupStep.SigningIn:
+			case ChatSetupStep.Installing:
 				for (const checkbox of limitedCheckboxes) {
 					checkbox.disable();
 				}
 
 				button.enabled = false;
-				button.label = this.controller.entitlement === ChatEntitlement.Unknown ?
+				button.label = this.controller.step === ChatSetupStep.SigningIn ?
 					localize('setupChatSigningIn', "$(loading~spin) Signing in to {0}...", defaultChat.providerName) :
 					localize('setupChatInstalling', "$(loading~spin) Completing Setup...");
 
