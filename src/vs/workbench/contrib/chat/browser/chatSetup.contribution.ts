@@ -5,7 +5,7 @@
 
 import './media/chatViewSetup.css';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
@@ -65,7 +65,7 @@ const defaultChat = {
 enum ChatEntitlement {
 	/** Signed out */
 	Unknown = 1,
-	/** Not yet resolved */
+	/** Signed in but not yet resolved if Sign-up possible */
 	Unresolved,
 	/** Signed in and entitled to Sign-up */
 	Available,
@@ -77,8 +77,8 @@ enum ChatEntitlement {
 
 class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
-	private readonly chatSetupContext = this.instantiationService.createInstance(ChatSetupContextKeys);
-	private readonly entitlementsResolver = this._register(this.instantiationService.createInstance(ChatSetupEntitlementResolver));
+	private readonly chatSetupContextKeys = this.instantiationService.createInstance(ChatSetupContextKeys);
+	private readonly entitlementsResolver = this._register(this.instantiationService.createInstance(ChatSetupEntitlementResolver, this.chatSetupContextKeys));
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
@@ -113,14 +113,14 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		this._register(this.extensionService.onDidChangeExtensions(result => {
 			for (const extension of result.removed) {
 				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
-					this.chatSetupContext.update({ chatInstalled: false });
+					this.chatSetupContextKeys.update({ chatInstalled: false });
 					break;
 				}
 			}
 
 			for (const extension of result.added) {
 				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
-					this.chatSetupContext.update({ chatInstalled: true });
+					this.chatSetupContextKeys.update({ chatInstalled: true });
 					break;
 				}
 			}
@@ -129,7 +129,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		const extensions = await this.extensionManagementService.getInstalled();
 
 		const chatInstalled = !!extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
-		this.chatSetupContext.update({ chatInstalled });
+		this.chatSetupContextKeys.update({ chatInstalled });
 	}
 }
 
@@ -157,11 +157,11 @@ class ChatSetupEntitlementResolver extends Disposable {
 	private readonly _onDidChangeEntitlement = this._register(new Emitter<ChatEntitlement>());
 	readonly onDidChangeEntitlement = this._onDidChangeEntitlement.event;
 
-	private readonly chatSetupContext = this.instantiationService.createInstance(ChatSetupContextKeys);
-
+	private pendingResolveCts = new CancellationTokenSource();
 	private resolvedEntitlement: ChatEntitlement | undefined = undefined;
 
 	constructor(
+		private readonly chatSetupContextKeys: ChatSetupContextKeys,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -171,39 +171,67 @@ class ChatSetupEntitlementResolver extends Disposable {
 
 		this.registerListeners();
 
-		this.handleDeclaredAuthProviders();
+		this.resolve();
 	}
 
 	private registerListeners(): void {
-		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => this.handleDeclaredAuthProviders()));
-		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(() => this.handleDeclaredAuthProviders()));
-
-		this._register(this.authenticationService.onDidChangeSessions(async ({ providerId }) => {
-			if (providerId === defaultChat.providerId) {
-				this.update(this.toEntitlement(await this.hasProviderSessions()));
-			}
-		}));
+		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => this.resolve()));
 
 		this._register(this.authenticationService.onDidChangeSessions(e => {
 			if (e.providerId === defaultChat.providerId) {
-				if (e.event.added?.length) {
-					this.resolveEntitlement(e.event.added.at(0));
-				} else if (e.event.removed?.length) {
-					this.resolvedEntitlement = undefined;
-					this.update(this.toEntitlement(false));
-				}
+				this.resolve();
 			}
 		}));
 
-		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(async e => {
+		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(e => {
 			if (e.id === defaultChat.providerId) {
-				this.resolveEntitlement((await this.authenticationService.getSessions(e.id)).at(0));
+				this.resolve();
 			}
 		}));
 	}
 
-	private toEntitlement(hasSession: boolean, skuLimitedAvailable?: boolean): ChatEntitlement {
+	private async resolve(): Promise<void> {
+		this.pendingResolveCts.dispose(true);
+		const cts = this.pendingResolveCts = new CancellationTokenSource();
+
+		const session = await this.findMatchingProviderSession(cts.token);
+		if (cts.token.isCancellationRequested) {
+			return;
+		}
+
+		// Immediately signal whether we have a session or not
+		this.update(this.toEntitlement({ hasSession: !!session }));
+
+		if (session) {
+			// Afterwards resolve entitlement with a network request
+			this.resolveEntitlement(session, cts.token);
+		}
+	}
+
+	private async findMatchingProviderSession(token: CancellationToken): Promise<AuthenticationSession | undefined> {
+		const sessions = await this.authenticationService.getSessions(defaultChat.providerId);
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		for (const session of sessions) {
+			for (const scopes of defaultChat.providerScopes) {
+				if (this.scopesMatch(session.scopes, scopes)) {
+					return session;
+				}
+			}
+		}
+
+		return undefined;
+	}
+
+	private scopesMatch(scopes: ReadonlyArray<string>, expectedScopes: string[]): boolean {
+		return scopes.length === expectedScopes.length && expectedScopes.every(scope => scopes.includes(scope));
+	}
+
+	private toEntitlement({ hasSession }: { hasSession: boolean }): ChatEntitlement {
 		if (!hasSession) {
+			this.resolvedEntitlement = undefined; // reset resolved entitlement when there is no session
 			return ChatEntitlement.Unknown;
 		}
 
@@ -211,69 +239,52 @@ class ChatSetupEntitlementResolver extends Disposable {
 			return this.resolvedEntitlement;
 		}
 
-		if (typeof skuLimitedAvailable === 'boolean') {
-			return skuLimitedAvailable ? ChatEntitlement.Available : ChatEntitlement.Unavailable;
-		}
-
 		return ChatEntitlement.Unresolved;
 	}
 
-	private async handleDeclaredAuthProviders(): Promise<void> {
-		if (this.authenticationService.declaredProviders.find(provider => provider.id === defaultChat.providerId)) {
-			this.update(this.toEntitlement(await this.hasProviderSessions()));
-		}
-	}
-
-	private async hasProviderSessions(): Promise<boolean> {
-		const sessions = await this.authenticationService.getSessions(defaultChat.providerId);
-		for (const session of sessions) {
-			for (const scopes of defaultChat.providerScopes) {
-				if (this.scopesMatch(session.scopes, scopes)) {
-					return true;
-				}
-			}
-		}
-
-		return false;
-	}
-
-	private scopesMatch(scopes: ReadonlyArray<string>, expectedScopes: string[]): boolean {
-		return scopes.length === expectedScopes.length && expectedScopes.every(scope => scopes.includes(scope));
-	}
-
-	private async resolveEntitlement(session: AuthenticationSession | undefined): Promise<void> {
+	private async resolveEntitlement(session: AuthenticationSession | undefined, token: CancellationToken): Promise<void> {
 		if (typeof this.resolvedEntitlement !== 'undefined') {
 			return; // only resolve once
 		}
 
-		const { entitlement, entitled } = await this.doResolveEntitlement(session);
-		this.chatSetupContext.update({ entitled });
-		this.update(entitlement);
+		const entitlement = await this.doResolveEntitlement(session, token);
+		if (typeof entitlement === 'number' && !token.isCancellationRequested) {
+			this.update(entitlement);
+		}
 	}
 
-	private async doResolveEntitlement(session: AuthenticationSession | undefined): Promise<{ entitlement: ChatEntitlement; entitled: boolean }> {
-		if (!session) {
-			return { entitlement: ChatEntitlement.Unknown, entitled: false };
+	private async doResolveEntitlement(session: AuthenticationSession | undefined, token: CancellationToken): Promise<ChatEntitlement | undefined> {
+		if (token.isCancellationRequested) {
+			return undefined;
 		}
 
-		const cts = new CancellationTokenSource();
-		this._register(toDisposable(() => cts.dispose(true)));
+		if (!session) {
+			return ChatEntitlement.Unknown;
+		}
 
-		const response = await this.instantiationService.invokeFunction(accessor => ChatSetupRequestHelper.request(accessor, defaultChat.entitlementUrl, 'GET', undefined, session, cts.token));
+		const response = await this.instantiationService.invokeFunction(accessor => ChatSetupRequestHelper.request(accessor, defaultChat.entitlementUrl, 'GET', undefined, session, token));
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
 		if (!response) {
 			this.logService.trace('[chat setup] entitlement: no response');
-			return { entitlement: ChatEntitlement.Unresolved, entitled: false };
+			return ChatEntitlement.Unresolved;
 		}
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
 			this.logService.trace(`[chat setup] entitlement: unexpected status code ${response.res.statusCode}`);
-			return { entitlement: ChatEntitlement.Unresolved, entitled: false };
+			return ChatEntitlement.Unresolved;
 		}
 
 		const responseText = await asText(response);
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
 		if (!responseText) {
 			this.logService.trace('[chat setup] entitlement: response has no content');
-			return { entitlement: ChatEntitlement.Unresolved, entitled: false };
+			return ChatEntitlement.Unresolved;
 		}
 
 		let parsedResult: any;
@@ -282,18 +293,20 @@ class ChatSetupEntitlementResolver extends Disposable {
 			this.logService.trace(`[chat setup] entitlement: parsed result is ${JSON.stringify(parsedResult)}`);
 		} catch (err) {
 			this.logService.trace(`[chat setup] entitlement: error parsing response (${err})`);
-			return { entitlement: ChatEntitlement.Unresolved, entitled: false };
+			return ChatEntitlement.Unresolved;
 		}
 
 		const result = {
-			entitlement: this.toEntitlement(true, Boolean(parsedResult[defaultChat.entitlementSkuLimitedEnabled])),
+			entitlement: Boolean(parsedResult[defaultChat.entitlementSkuLimitedEnabled]) ? ChatEntitlement.Available : ChatEntitlement.Unavailable,
 			entitled: Boolean(parsedResult[defaultChat.entitlementChatEnabled])
 		};
+
+		this.chatSetupContextKeys.update({ entitled: result.entitled });
 
 		this.logService.trace(`[chat setup] entitlement: resolved to ${result.entitlement}, entitled: ${result.entitled}`);
 		this.telemetryService.publicLog2<ChatSetupEntitlementEvent, ChatSetupEntitlementClassification>('chatInstallEntitlement', result);
 
-		return result;
+		return result.entitlement;
 	}
 
 	private update(newEntitlement: ChatEntitlement): void {
@@ -302,6 +315,12 @@ class ChatSetupEntitlementResolver extends Disposable {
 		if (entitlement !== this._entitlement) {
 			this._onDidChangeEntitlement.fire(this._entitlement);
 		}
+	}
+
+	override dispose(): void {
+		this.pendingResolveCts.dispose(true);
+
+		super.dispose();
 	}
 }
 
