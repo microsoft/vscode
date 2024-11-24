@@ -77,7 +77,7 @@ enum ChatEntitlement {
 
 class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
-	private readonly chatSetupState = this.instantiationService.createInstance(ChatSetupState);
+	private readonly chatSetupContext = this.instantiationService.createInstance(ChatSetupContext);
 	private readonly entitlementsResolver = this._register(this.instantiationService.createInstance(ChatSetupEntitlementResolver));
 
 	constructor(
@@ -113,14 +113,14 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		this._register(this.extensionService.onDidChangeExtensions(result => {
 			for (const extension of result.removed) {
 				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
-					this.chatSetupState.update({ chatInstalled: false });
+					this.chatSetupContext.update({ chatInstalled: false });
 					break;
 				}
 			}
 
 			for (const extension of result.added) {
 				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
-					this.chatSetupState.update({ chatInstalled: true });
+					this.chatSetupContext.update({ chatInstalled: true });
 					break;
 				}
 			}
@@ -129,7 +129,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		const extensions = await this.extensionManagementService.getInstalled();
 
 		const chatInstalled = !!extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
-		this.chatSetupState.update({ chatInstalled });
+		this.chatSetupContext.update({ chatInstalled });
 	}
 }
 
@@ -557,7 +557,7 @@ class ChatSetupRequestHelper {
 	}
 }
 
-class ChatSetupState {
+class ChatSetupContext {
 
 	private static readonly CHAT_SETUP_TRIGGERD = 'chat.setupTriggered';
 	private static readonly CHAT_EXTENSION_INSTALLED = 'chat.extensionInstalled';
@@ -577,15 +577,15 @@ class ChatSetupState {
 	update(context: { chatInstalled?: boolean }): void;
 	update(context: { triggered?: boolean; chatInstalled?: boolean }): void {
 		if (typeof context.chatInstalled === 'boolean') {
-			this.storageService.store(ChatSetupState.CHAT_EXTENSION_INSTALLED, context.chatInstalled, StorageScope.PROFILE, StorageTarget.MACHINE);
-			this.storageService.store(ChatSetupState.CHAT_SETUP_TRIGGERD, true, StorageScope.PROFILE, StorageTarget.MACHINE); // allows to fallback to setup view if the extension is uninstalled
+			this.storageService.store(ChatSetupContext.CHAT_EXTENSION_INSTALLED, context.chatInstalled, StorageScope.PROFILE, StorageTarget.MACHINE);
+			this.storageService.store(ChatSetupContext.CHAT_SETUP_TRIGGERD, true, StorageScope.PROFILE, StorageTarget.MACHINE); // allows to fallback to setup view if the extension is uninstalled
 		}
 
 		if (typeof context.triggered === 'boolean') {
 			if (context.triggered) {
-				this.storageService.store(ChatSetupState.CHAT_SETUP_TRIGGERD, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+				this.storageService.store(ChatSetupContext.CHAT_SETUP_TRIGGERD, true, StorageScope.PROFILE, StorageTarget.MACHINE);
 			} else {
-				this.storageService.remove(ChatSetupState.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE);
+				this.storageService.remove(ChatSetupContext.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE);
 			}
 		}
 
@@ -593,8 +593,8 @@ class ChatSetupState {
 	}
 
 	private updateContext(): void {
-		const chatSetupTriggered = this.storageService.getBoolean(ChatSetupState.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE, false);
-		const chatInstalled = this.storageService.getBoolean(ChatSetupState.CHAT_EXTENSION_INSTALLED, StorageScope.PROFILE, false);
+		const chatSetupTriggered = this.storageService.getBoolean(ChatSetupContext.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE, false);
+		const chatInstalled = this.storageService.getBoolean(ChatSetupContext.CHAT_EXTENSION_INSTALLED, StorageScope.PROFILE, false);
 
 		const showChatSetup = chatSetupTriggered && !chatInstalled;
 		if (showChatSetup) {
@@ -636,7 +636,7 @@ class ChatSetupTriggerAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const instantiationService = accessor.get(IInstantiationService);
 
-		instantiationService.createInstance(ChatSetupState).update({ triggered: true });
+		instantiationService.createInstance(ChatSetupContext).update({ triggered: true });
 
 		showChatView(viewsService);
 	}
@@ -681,7 +681,7 @@ class ChatSetupHideAction extends Action2 {
 
 		const location = viewsDescriptorService.getViewLocationById(ChatViewId);
 
-		instantiationService.createInstance(ChatSetupState).update({ triggered: false });
+		instantiationService.createInstance(ChatSetupContext).update({ triggered: false });
 
 		if (location === ViewContainerLocation.AuxiliaryBar) {
 			const activeContainers = viewsDescriptorService.getViewContainersByLocation(location).filter(container => viewsDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
