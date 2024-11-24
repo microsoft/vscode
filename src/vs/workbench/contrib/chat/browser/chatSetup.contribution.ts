@@ -157,12 +157,11 @@ class ChatSetupEntitlementResolver extends Disposable {
 	private readonly _onDidChangeEntitlement = this._register(new Emitter<ChatEntitlement>());
 	readonly onDidChangeEntitlement = this._onDidChangeEntitlement.event;
 
-	private readonly chatSetupEntitledContextKey = ChatContextKeys.Setup.entitled.bindTo(this.contextKeyService);
-
 	private resolvedEntitlement: ChatEntitlement | undefined = undefined;
 
+	private readonly chatSetupContext = this.instantiationService.createInstance(ChatSetupContext);
+
 	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -284,13 +283,11 @@ class ChatSetupEntitlementResolver extends Disposable {
 			return ChatEntitlement.Unresolved;
 		}
 
-		const entitled = Boolean(parsedResult[defaultChat.entitlementChatEnabled]);
-		this.chatSetupEntitledContextKey.set(entitled);
-
-		const skuLimitedAvailable = Boolean(parsedResult[defaultChat.entitlementSkuLimitedEnabled]);
-		this.resolvedEntitlement = this.toEntitlement(true, skuLimitedAvailable);
-
+		this.resolvedEntitlement = this.toEntitlement(true, Boolean(parsedResult[defaultChat.entitlementSkuLimitedEnabled]));
 		this.logService.trace(`[chat setup] entitlement: resolved to ${this.resolvedEntitlement}`);
+
+		const entitled = Boolean(parsedResult[defaultChat.entitlementChatEnabled]);
+		this.chatSetupContext.update({ entitled });
 
 		this.telemetryService.publicLog2<ChatSetupEntitlementEvent, ChatSetupEntitlementClassification>('chatInstallEntitlement', {
 			entitled,
@@ -559,8 +556,11 @@ class ChatSetupContext {
 	private static readonly CHAT_SETUP_TRIGGERD = 'chat.setupTriggered';
 	private static readonly CHAT_EXTENSION_INSTALLED = 'chat.extensionInstalled';
 
+	private readonly chatSetupEntitledContextKey = ChatContextKeys.Setup.entitled.bindTo(this.contextKeyService);
 	private readonly chatSetupTriggeredContext = ChatContextKeys.Setup.triggered.bindTo(this.contextKeyService);
 	private readonly chatSetupInstalledContext = ChatContextKeys.Setup.installed.bindTo(this.contextKeyService);
+
+	private chatSetupEntitled = false;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -570,9 +570,10 @@ class ChatSetupContext {
 		this.updateContext();
 	}
 
+	update(context: { chatInstalled: boolean }): void;
 	update(context: { triggered: boolean }): void;
-	update(context: { chatInstalled?: boolean }): void;
-	update(context: { triggered?: boolean; chatInstalled?: boolean }): void {
+	update(context: { entitled: boolean }): void;
+	update(context: { triggered?: boolean; chatInstalled?: boolean; entitled?: boolean }): void {
 		if (typeof context.chatInstalled === 'boolean') {
 			this.storageService.store(ChatSetupContext.CHAT_EXTENSION_INSTALLED, context.chatInstalled, StorageScope.PROFILE, StorageTarget.MACHINE);
 			this.storageService.store(ChatSetupContext.CHAT_SETUP_TRIGGERD, true, StorageScope.PROFILE, StorageTarget.MACHINE); // allows to fallback to setup view if the extension is uninstalled
@@ -584,6 +585,10 @@ class ChatSetupContext {
 			} else {
 				this.storageService.remove(ChatSetupContext.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE);
 			}
+		}
+
+		if (typeof context.entitled === 'boolean') {
+			this.chatSetupEntitled = context.entitled;
 		}
 
 		this.updateContext();
@@ -602,6 +607,7 @@ class ChatSetupContext {
 
 		this.chatSetupTriggeredContext.set(showChatSetup);
 		this.chatSetupInstalledContext.set(chatInstalled);
+		this.chatSetupEntitledContextKey.set(this.chatSetupEntitled);
 	}
 }
 
