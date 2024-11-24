@@ -202,6 +202,9 @@ suite('ExtensionService', () => {
 				override disconnect() {
 					return Promise.resolve();
 				}
+				override start(): Promise<void> {
+					return Promise.resolve();
+				}
 				override dispose(): void {
 					order.push(`dispose ${extensionHostId}`);
 				}
