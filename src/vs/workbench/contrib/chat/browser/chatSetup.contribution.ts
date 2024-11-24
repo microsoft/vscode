@@ -157,9 +157,9 @@ class ChatSetupEntitlementResolver extends Disposable {
 	private readonly _onDidChangeEntitlement = this._register(new Emitter<ChatEntitlement>());
 	readonly onDidChangeEntitlement = this._onDidChangeEntitlement.event;
 
-	private resolvedEntitlement: ChatEntitlement | undefined = undefined;
-
 	private readonly chatSetupContext = this.instantiationService.createInstance(ChatSetupContextKeys);
+
+	private resolvedEntitlement: ChatEntitlement | undefined = undefined;
 
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -242,16 +242,18 @@ class ChatSetupEntitlementResolver extends Disposable {
 	}
 
 	private async resolveEntitlement(session: AuthenticationSession | undefined): Promise<void> {
-		if (!session) {
-			return;
+		if (typeof this.resolvedEntitlement !== 'undefined') {
+			return; // only resolve once
 		}
 
-		this.update(await this.doResolveEntitlement(session));
+		const { entitlement, entitled } = await this.doResolveEntitlement(session);
+		this.chatSetupContext.update({ entitled });
+		this.update(entitlement);
 	}
 
-	private async doResolveEntitlement(session: AuthenticationSession): Promise<ChatEntitlement> {
-		if (this.resolvedEntitlement) {
-			return this.resolvedEntitlement;
+	private async doResolveEntitlement(session: AuthenticationSession | undefined): Promise<{ entitlement: ChatEntitlement; entitled: boolean }> {
+		if (!session) {
+			return { entitlement: ChatEntitlement.Unknown, entitled: false };
 		}
 
 		const cts = new CancellationTokenSource();
@@ -260,41 +262,38 @@ class ChatSetupEntitlementResolver extends Disposable {
 		const response = await this.instantiationService.invokeFunction(accessor => ChatSetupRequestHelper.request(accessor, defaultChat.entitlementUrl, 'GET', undefined, session, cts.token));
 		if (!response) {
 			this.logService.trace('[chat setup] entitlement: no response');
-			return ChatEntitlement.Unresolved;
+			return { entitlement: ChatEntitlement.Unresolved, entitled: false };
 		}
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
 			this.logService.trace(`[chat setup] entitlement: unexpected status code ${response.res.statusCode}`);
-			return ChatEntitlement.Unresolved;
+			return { entitlement: ChatEntitlement.Unresolved, entitled: false };
 		}
 
-		const result = await asText(response);
-		if (!result) {
+		const responseText = await asText(response);
+		if (!responseText) {
 			this.logService.trace('[chat setup] entitlement: response has no content');
-			return ChatEntitlement.Unresolved;
+			return { entitlement: ChatEntitlement.Unresolved, entitled: false };
 		}
 
 		let parsedResult: any;
 		try {
-			parsedResult = JSON.parse(result);
+			parsedResult = JSON.parse(responseText);
 			this.logService.trace(`[chat setup] entitlement: parsed result is ${JSON.stringify(parsedResult)}`);
 		} catch (err) {
 			this.logService.trace(`[chat setup] entitlement: error parsing response (${err})`);
-			return ChatEntitlement.Unresolved;
+			return { entitlement: ChatEntitlement.Unresolved, entitled: false };
 		}
 
-		this.resolvedEntitlement = this.toEntitlement(true, Boolean(parsedResult[defaultChat.entitlementSkuLimitedEnabled]));
-		this.logService.trace(`[chat setup] entitlement: resolved to ${this.resolvedEntitlement}`);
+		const result = {
+			entitlement: this.toEntitlement(true, Boolean(parsedResult[defaultChat.entitlementSkuLimitedEnabled])),
+			entitled: Boolean(parsedResult[defaultChat.entitlementChatEnabled])
+		};
 
-		const entitled = Boolean(parsedResult[defaultChat.entitlementChatEnabled]);
-		this.chatSetupContext.update({ entitled });
+		this.logService.trace(`[chat setup] entitlement: resolved to ${result.entitlement}, entitled: ${result.entitled}`);
+		this.telemetryService.publicLog2<ChatSetupEntitlementEvent, ChatSetupEntitlementClassification>('chatInstallEntitlement', result);
 
-		this.telemetryService.publicLog2<ChatSetupEntitlementEvent, ChatSetupEntitlementClassification>('chatInstallEntitlement', {
-			entitled,
-			entitlement: this.resolvedEntitlement
-		});
-
-		return this.resolvedEntitlement;
+		return result;
 	}
 
 	private update(newEntitlement: ChatEntitlement): void {
