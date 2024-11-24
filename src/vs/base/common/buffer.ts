@@ -288,6 +288,10 @@ export interface VSBufferReadable extends streams.Readable<VSBuffer> { }
 
 export interface VSBufferReadableStream extends streams.ReadableStream<VSBuffer> { }
 
+export function bufferToReadableStream(buffer: VSBuffer): VSBufferReadableStream {
+	return streams.toStream<VSBuffer>(buffer, chunks => VSBuffer.concat(chunks));
+}
+
 export interface VSBufferWriteableStream extends streams.WriteableStream<VSBuffer> { }
 
 export interface VSBufferReadableBufferedStream extends streams.ReadableBufferedStream<VSBuffer> { }
