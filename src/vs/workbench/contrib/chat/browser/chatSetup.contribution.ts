@@ -447,12 +447,12 @@ class ChatSetupWelcomeContent extends Disposable {
 		}
 	}
 
-	private async setup(enableTelemetry: boolean | undefined, enableDetection: boolean | undefined): Promise<boolean> {
+	private async setup(enableTelemetry: boolean | undefined, enableDetection: boolean | undefined): Promise<void> {
 		let session: AuthenticationSession | undefined;
 		if (this.options.entitlement === ChatEntitlement.Unknown) {
 			session = await this.signIn();
 			if (!session) {
-				return false; // user cancelled
+				return; // user cancelled
 			}
 		}
 
