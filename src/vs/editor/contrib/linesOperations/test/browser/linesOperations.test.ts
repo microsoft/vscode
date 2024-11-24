@@ -847,7 +847,7 @@ suite('Editor Contrib - Line Operations', () => {
 
 				editor.setSelection(new Selection(1, 1, 1, 18));
 				executeAction(camelcaseAction, editor);
-				assert.strictEqual(model.getLineContent(1), 'camel from words');
+				assert.strictEqual(model.getLineContent(1), 'camelFromWords');
 
 				editor.setSelection(new Selection(2, 1, 2, 15));
 				executeAction(camelcaseAction, editor);
@@ -875,8 +875,8 @@ suite('Editor Contrib - Line Operations', () => {
 
 				editor.setSelection(new Selection(8, 1, 9, 24));
 				executeAction(camelcaseAction, editor);
-				assert.strictEqual(model.getLineContent(8), 'multi line camel case test?');
-				assert.strictEqual(model.getLineContent(9), 'here it comesAndGoes!');
+				assert.strictEqual(model.getLineContent(8), 'multiLineCamelCaseTest?');
+				assert.strictEqual(model.getLineContent(9), 'hereItComesAndGoes!');
 			}
 		);
 
@@ -1005,8 +1005,8 @@ suite('Editor Contrib - Line Operations', () => {
 
 				editor.setSelection(new Selection(1, 1, 1, 12));
 				executeAction(pascalCaseAction, editor);
-				assert.strictEqual(model.getLineContent(1), 'Hello World');
-				assertSelection(editor, new Selection(1, 1, 1, 12));
+				assert.strictEqual(model.getLineContent(1), 'HelloWorld');
+				assertSelection(editor, new Selection(1, 1, 1, 11));
 
 				editor.setSelection(new Selection(2, 1, 2, 6));
 				executeAction(pascalCaseAction, editor);
@@ -1055,9 +1055,9 @@ suite('Editor Contrib - Line Operations', () => {
 
 				editor.setSelection(new Selection(11, 1, 12, 29));
 				executeAction(pascalCaseAction, editor);
-				assert.deepStrictEqual(model.getLineContent(11), 'Multi Line Pascal Case Test?');
-				assert.deepStrictEqual(model.getLineContent(12), 'Here It ComesAndGoes!');
-				editor.setSelection(new Selection(11, 1, 12, 21));
+				assert.deepStrictEqual(model.getLineContent(11), 'MultiLinePascalCaseTest?');
+				assert.deepStrictEqual(model.getLineContent(12), 'HereItComesAndGoes!');
+				assertSelection(editor, new Selection(11, 1, 12, 20));
 			}
 		);
 	});
