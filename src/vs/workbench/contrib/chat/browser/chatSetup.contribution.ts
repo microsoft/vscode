@@ -247,6 +247,7 @@ class ChatSetupEntitlementResolver extends Disposable {
 
 		const entitlement = await this.doResolveEntitlement(session, token);
 		if (typeof entitlement === 'number' && !token.isCancellationRequested) {
+			this.resolvedEntitlement = entitlement;
 			this.update(entitlement);
 		}
 	}
