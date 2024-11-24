@@ -811,6 +811,12 @@ function getObjectRenderableSchemaType(schema: IJSONSchema, key: string): 'simpl
 	const { type } = schema;
 
 	if (Array.isArray(type)) {
+		if (objectSettingSupportsRemoveDefaultValue(key) && type.length === 2) {
+			if (type.includes('null') && (type.includes('string') || type.includes('boolean') || type.includes('integer') || type.includes('number'))) {
+				return 'simple';
+			}
+		}
+
 		for (const t of type) {
 			if (!isSimpleType(t)) {
 				return false;
@@ -821,12 +827,6 @@ function getObjectRenderableSchemaType(schema: IJSONSchema, key: string): 'simpl
 
 	if (isSimpleType(type)) {
 		return 'simple';
-	}
-
-	if (objectSettingSupportsRemoveDefaultValue(key) && Array.isArray(type) && type.length === 2) {
-		if (type.includes('null') && (type.includes('string') || type.includes('boolean') || type.includes('integer') || type.includes('number'))) {
-			return 'simple';
-		}
 	}
 
 	if (type === 'array') {
