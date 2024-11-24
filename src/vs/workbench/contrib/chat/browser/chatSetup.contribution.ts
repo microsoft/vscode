@@ -364,7 +364,7 @@ class ChatSetupController extends Disposable {
 
 	get canSignUpLimited(): boolean {
 		return this.entitlement === ChatEntitlement.Available || // user can sign up for limited
-			this.entitlement === ChatEntitlement.Unresolved;	 // play safe and show if unresolved
+			this.entitlement === ChatEntitlement.Unresolved;	 // user unresolved, play safe and allow
 	}
 
 	constructor(
