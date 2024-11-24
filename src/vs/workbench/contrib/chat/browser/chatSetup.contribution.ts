@@ -242,7 +242,7 @@ class ChatSetupEntitlementResolver extends Disposable {
 		return ChatEntitlement.Unresolved;
 	}
 
-	private async resolveEntitlement(session: AuthenticationSession | undefined, token: CancellationToken): Promise<void> {
+	private async resolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<void> {
 		if (typeof this.resolvedEntitlement !== 'undefined') {
 			return; // only resolve once
 		}
@@ -253,13 +253,9 @@ class ChatSetupEntitlementResolver extends Disposable {
 		}
 	}
 
-	private async doResolveEntitlement(session: AuthenticationSession | undefined, token: CancellationToken): Promise<ChatEntitlement | undefined> {
+	private async doResolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<ChatEntitlement | undefined> {
 		if (token.isCancellationRequested) {
 			return undefined;
-		}
-
-		if (!session) {
-			return ChatEntitlement.Unknown;
 		}
 
 		const response = await this.instantiationService.invokeFunction(accessor => ChatSetupRequestHelper.request(accessor, defaultChat.entitlementUrl, 'GET', undefined, session, token));
