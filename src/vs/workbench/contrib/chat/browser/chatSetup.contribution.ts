@@ -188,6 +188,12 @@ class ChatSetupEntitlementResolver extends Disposable {
 				this.resolve();
 			}
 		}));
+
+		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => {
+			if (e.id === defaultChat.providerId) {
+				this.resolve();
+			}
+		}));
 	}
 
 	private async resolve(): Promise<void> {
@@ -200,7 +206,12 @@ class ChatSetupEntitlementResolver extends Disposable {
 		}
 
 		// Immediately signal whether we have a session or not
-		this.update(this.toEntitlement({ hasSession: !!session }));
+		if (session) {
+			this.update(this.resolvedEntitlement ?? ChatEntitlement.Unresolved);
+		} else {
+			this.resolvedEntitlement = undefined; // reset resolved entitlement when there is no session
+			this.update(ChatEntitlement.Unknown);
+		}
 
 		if (session) {
 			// Afterwards resolve entitlement with a network request
@@ -227,19 +238,6 @@ class ChatSetupEntitlementResolver extends Disposable {
 
 	private scopesMatch(scopes: ReadonlyArray<string>, expectedScopes: string[]): boolean {
 		return scopes.length === expectedScopes.length && expectedScopes.every(scope => scopes.includes(scope));
-	}
-
-	private toEntitlement({ hasSession }: { hasSession: boolean }): ChatEntitlement {
-		if (!hasSession) {
-			this.resolvedEntitlement = undefined; // reset resolved entitlement when there is no session
-			return ChatEntitlement.Unknown;
-		}
-
-		if (typeof this.resolvedEntitlement !== 'undefined') {
-			return this.resolvedEntitlement;
-		}
-
-		return ChatEntitlement.Unresolved;
 	}
 
 	private async resolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<void> {
