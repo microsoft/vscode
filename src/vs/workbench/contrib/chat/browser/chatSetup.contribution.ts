@@ -317,6 +317,10 @@ class ChatSetupEntitlementResolver extends Disposable {
 		}
 	}
 
+	async forceResolveEntitlement(session: AuthenticationSession): Promise<ChatEntitlement | undefined> {
+		return this.doResolveEntitlement(session, CancellationToken.None);
+	}
+
 	override dispose(): void {
 		this.pendingResolveCts.dispose(true);
 
@@ -397,14 +401,22 @@ class ChatSetupController extends Disposable {
 
 	private async doSetup(enableTelemetry: boolean | undefined, enableDetection: boolean | undefined): Promise<void> {
 		let session: AuthenticationSession | undefined;
+
+		// Entitlement Unknown: we need to sign-in user
 		if (this.entitlement === ChatEntitlement.Unknown) {
 			session = await this.signIn();
 			if (!session) {
 				return; // user cancelled
 			}
+
+			const entitlement = await this.entitlementResolver.forceResolveEntitlement(session);
+			if (entitlement !== ChatEntitlement.Unavailable) {
+				return; // we cannot proceed with automated install because user needs to sign-up in a second step
+			}
 		}
 
-		return this.install(session, enableTelemetry, enableDetection);
+		// Entitlement Known: proceed with installation
+		await this.install(session, enableTelemetry, enableDetection);
 	}
 
 	private async signIn(): Promise<AuthenticationSession | undefined> {
@@ -431,7 +443,7 @@ class ChatSetupController extends Disposable {
 		try {
 			showChatView(this.viewsService);
 
-			if (this.entitlement !== ChatEntitlement.Unavailable) {
+			if (this.entitlement !== ChatEntitlement.Unavailable && typeof enableTelemetry === 'boolean' && typeof enableDetection === 'boolean') {
 				const body = {
 					public_code_suggestions: enableDetection ? 'enabled' : 'disabled',
 					restricted_telemetry: enableTelemetry ? 'enabled' : 'disabled'
@@ -540,26 +552,33 @@ class ChatSetupWelcomeContent extends Disposable {
 	}
 
 	private update(limitedContainers: HTMLElement[], limitedCheckboxes: Checkbox[], button: Button): void {
+		const showLimited =
+			this.controller.entitlement === ChatEntitlement.Available || // user can sign up for limited
+			this.controller.entitlement === ChatEntitlement.Unresolved;	 // user is signed in but state not resolved yet
+
 		switch (this.controller.step) {
 			case ChatSetupStep.Initial:
-				setVisibility(this.controller.entitlement !== ChatEntitlement.Unavailable, ...limitedContainers);
-
-				button.enabled = true;
-				button.label = this.controller.entitlement === ChatEntitlement.Unknown ?
-					localize('signInAndSetup', "Sign in and Complete Setup") :
-					localize('setup', "Complete Setup");
+				setVisibility(showLimited, ...limitedContainers);
 
 				for (const checkbox of limitedCheckboxes) {
 					checkbox.enable();
 				}
+
+				button.enabled = true;
+				button.label = this.controller.entitlement === ChatEntitlement.Unknown ?
+					localize('signInToStartSetup', "Sign in to Start Setup") :
+					localize('startSetup', "Complete Setup");
 				break;
 			case ChatSetupStep.Running:
-				button.enabled = false;
-				button.label = localize('setupChatInstalling', "$(loading~spin) Completing Setup...");
-
 				for (const checkbox of limitedCheckboxes) {
 					checkbox.disable();
 				}
+
+				button.enabled = false;
+				button.label = this.controller.entitlement === ChatEntitlement.Unknown ?
+					localize('setupChatSigningIn', "$(loading~spin) Awaiting Sign In...") :
+					localize('setupChatInstalling', "$(loading~spin) Completing Setup...");
+
 				break;
 		}
 	}
