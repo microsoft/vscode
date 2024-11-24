@@ -55,6 +55,7 @@ export class LazyCreateExtensionHostManager extends Disposable implements IExten
 
 	constructor(
 		extensionHost: IExtensionHost,
+		private readonly _initialActivationEvents: string[],
 		private readonly _internalExtensionService: IInternalExtensionService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService
@@ -69,7 +70,7 @@ export class LazyCreateExtensionHostManager extends Disposable implements IExten
 
 	private _createActual(reason: string): ExtensionHostManager {
 		this._logService.info(`Creating lazy extension host (${this.friendyName}). Reason: ${reason}`);
-		this._actual = this._register(this._instantiationService.createInstance(ExtensionHostManager, this._extensionHost, [], this._internalExtensionService));
+		this._actual = this._register(this._instantiationService.createInstance(ExtensionHostManager, this._extensionHost, this._initialActivationEvents, this._internalExtensionService));
 		this._register(this._actual.onDidChangeResponsiveState((e) => this._onDidChangeResponsiveState.fire(e)));
 		return this._actual;
 	}
