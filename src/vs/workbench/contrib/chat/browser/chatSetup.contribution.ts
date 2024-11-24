@@ -339,17 +339,51 @@ type InstallChatEvent = {
 	signedIn: boolean;
 };
 
-interface IChatSetupWelcomeContentOptions {
-	readonly entitlement: ChatEntitlement;
-	readonly onDidChangeEntitlement: Event<ChatEntitlement>;
+enum ChatSetupStep {
+	Initial = 1,
+	Running
+}
+
+class ChatSetupModel extends Disposable {
+
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = this._onDidChange.event;
+
+	private _step = ChatSetupStep.Initial;
+	get step(): ChatSetupStep {
+		return this._step;
+	}
+
+	get entitlement(): ChatEntitlement {
+		return this.entitlementResolver.entitlement;
+	}
+
+	constructor(private readonly entitlementResolver: ChatSetupEntitlementResolver) {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.entitlementResolver.onDidChangeEntitlement(() => this._onDidChange.fire()));
+	}
+
+	setStep(step: ChatSetupStep): void {
+		if (this._step === step) {
+			return;
+		}
+
+		this._step = step;
+		this._onDidChange.fire();
+	}
 }
 
 class ChatSetupWelcomeContent extends Disposable {
 
 	private static INSTANCE: ChatSetupWelcomeContent | undefined;
-	static getInstance(instantiationService: IInstantiationService, options: IChatSetupWelcomeContentOptions): ChatSetupWelcomeContent {
+	static getInstance(instantiationService: IInstantiationService, entitlementResolver: ChatSetupEntitlementResolver): ChatSetupWelcomeContent {
 		if (!ChatSetupWelcomeContent.INSTANCE) {
-			ChatSetupWelcomeContent.INSTANCE = instantiationService.createInstance(ChatSetupWelcomeContent, options);
+			ChatSetupWelcomeContent.INSTANCE = instantiationService.createInstance(ChatSetupWelcomeContent, entitlementResolver);
 		}
 
 		return ChatSetupWelcomeContent.INSTANCE;
@@ -357,8 +391,10 @@ class ChatSetupWelcomeContent extends Disposable {
 
 	readonly element = $('.chat-setup-view');
 
+	private readonly model: ChatSetupModel;
+
 	constructor(
-		private readonly options: IChatSetupWelcomeContentOptions,
+		entitlementResolver: ChatSetupEntitlementResolver,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -369,6 +405,8 @@ class ChatSetupWelcomeContent extends Disposable {
 	) {
 		super();
 
+		this.model = this._register(new ChatSetupModel(entitlementResolver));
+
 		this.create();
 	}
 
@@ -378,9 +416,9 @@ class ChatSetupWelcomeContent extends Disposable {
 		// Header
 		this.element.appendChild($('p')).textContent = localize('setupHeader', "{0} is your AI pair programmer.", defaultChat.name);
 
-		// SKU Limited Sign-up
-		const skuHeader = localize({ key: 'skuHeader', comment: ['{Locked="]({0})"}'] }, "Setup will sign you up to {0} [limited access]({1}).", defaultChat.name, defaultChat.skusDocumentationUrl);
-		const skuHeaderElement = this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(skuHeader, { isTrusted: true }))).element);
+		// Limited SKU Sign-up
+		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="]({0})"}'] }, "Setup will sign you up to {0} [limited access]({1}).", defaultChat.name, defaultChat.skusDocumentationUrl);
+		const limitedSkuHeaderElement = this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true }))).element);
 
 		const telemetryLabel = localize('telemetryLabel', "Allow {0} to use my data, including Prompts, Suggestions, and Code Snippets, for product improvements", defaultChat.providerName);
 		const { container: telemetryContainer, checkbox: telemetryCheckbox } = this.createCheckBox(telemetryLabel, this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? false : false);
@@ -389,38 +427,25 @@ class ChatSetupWelcomeContent extends Disposable {
 		const { container: detectionContainer, checkbox: detectionCheckbox } = this.createCheckBox(detectionLabel, true);
 
 		// Setup Button
-		let setupRunning = false;
-
 		const buttonRow = this.element.appendChild($('p'));
-
 		const button = this._register(new Button(buttonRow, { ...defaultButtonStyles, supportIcons: true }));
-		this.updateControls(button, [telemetryCheckbox, detectionCheckbox], false);
 
 		this._register(button.onDidClick(async () => {
-			setupRunning = true;
-			this.updateControls(button, [telemetryCheckbox, detectionCheckbox], setupRunning);
+			this.model.setStep(ChatSetupStep.Running);
 
 			try {
 				await this.setup(telemetryCheckbox?.checked, detectionCheckbox?.checked);
 			} finally {
-				setupRunning = false;
+				this.model.setStep(ChatSetupStep.Initial);
 			}
-
-			this.updateControls(button, [telemetryCheckbox, detectionCheckbox], setupRunning);
 		}));
 
 		// Footer
 		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}). You can [learn more]({1}) about {2}.", defaultChat.privacyStatementUrl, defaultChat.documentationUrl, defaultChat.name);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(footer, { isTrusted: true }))).element);
 
-		// Update based on entilement changes
-		this._register(this.options.onDidChangeEntitlement(() => {
-			if (setupRunning) {
-				return; // do not change when setup running
-			}
-			setVisibility(this.options.entitlement !== ChatEntitlement.Unavailable, skuHeaderElement, telemetryContainer, detectionContainer);
-			this.updateControls(button, [telemetryCheckbox, detectionCheckbox], setupRunning);
-		}));
+		// Update based on model state
+		this._register(Event.runAndSubscribe(this.model.onDidChange, () => this.update([limitedSkuHeaderElement, telemetryContainer, detectionContainer], [telemetryCheckbox, detectionCheckbox], button)));
 	}
 
 	private createCheckBox(label: string, checked: boolean): { container: HTMLElement; checkbox: Checkbox } {
@@ -428,9 +453,9 @@ class ChatSetupWelcomeContent extends Disposable {
 		const checkbox = this._register(new Checkbox(label, checked, defaultCheckboxStyles));
 		container.appendChild(checkbox.domNode);
 
-		const telemetryCheckboxLabelContainer = container.appendChild($('div'));
-		telemetryCheckboxLabelContainer.textContent = label;
-		this._register(addDisposableListener(telemetryCheckboxLabelContainer, EventType.CLICK, () => {
+		const checkboxLabel = container.appendChild($('div'));
+		checkboxLabel.textContent = label;
+		this._register(addDisposableListener(checkboxLabel, EventType.CLICK, () => {
 			if (checkbox?.enabled) {
 				checkbox.checked = !checkbox.checked;
 			}
@@ -439,8 +464,8 @@ class ChatSetupWelcomeContent extends Disposable {
 		return { container, checkbox };
 	}
 
-	private updateControls(button: Button, checkboxes: Checkbox[], setupRunning: boolean): void {
-		if (setupRunning) {
+	private update(limitedContainers: HTMLElement[], checkboxes: Checkbox[], button: Button,): void {
+		if (this.model.step === ChatSetupStep.Running) {
 			button.enabled = false;
 			button.label = localize('setupChatInstalling', "$(loading~spin) Completing Setup...");
 
@@ -448,8 +473,10 @@ class ChatSetupWelcomeContent extends Disposable {
 				checkbox.disable();
 			}
 		} else {
+			setVisibility(this.model.entitlement !== ChatEntitlement.Unavailable, ...limitedContainers);
+
 			button.enabled = true;
-			button.label = this.options.entitlement === ChatEntitlement.Unknown ?
+			button.label = this.model.entitlement === ChatEntitlement.Unknown ?
 				localize('signInAndSetup', "Sign in and Complete Setup") :
 				localize('setup', "Complete Setup");
 
@@ -461,7 +488,7 @@ class ChatSetupWelcomeContent extends Disposable {
 
 	private async setup(enableTelemetry: boolean | undefined, enableDetection: boolean | undefined): Promise<void> {
 		let session: AuthenticationSession | undefined;
-		if (this.options.entitlement === ChatEntitlement.Unknown) {
+		if (this.model.entitlement === ChatEntitlement.Unknown) {
 			session = await this.signIn();
 			if (!session) {
 				return; // user cancelled
@@ -495,7 +522,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		try {
 			showChatView(this.viewsService);
 
-			if (this.options.entitlement !== ChatEntitlement.Unavailable) {
+			if (this.model.entitlement !== ChatEntitlement.Unavailable) {
 				const body = {
 					public_code_suggestions: enableDetection ? 'enabled' : 'disabled',
 					restricted_telemetry: enableTelemetry ? 'enabled' : 'disabled'
