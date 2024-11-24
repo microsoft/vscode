@@ -577,7 +577,7 @@ class ChatSetupWelcomeContent extends Disposable {
 
 				button.enabled = false;
 				button.label = this.controller.entitlement === ChatEntitlement.Unknown ?
-					localize('setupChatSigningIn', "$(loading~spin) Awaiting Sign In...") :
+					localize('setupChatSigningIn', "$(loading~spin) Signing in to {0}...", defaultChat.providerName) :
 					localize('setupChatInstalling', "$(loading~spin) Completing Setup...");
 
 				break;
