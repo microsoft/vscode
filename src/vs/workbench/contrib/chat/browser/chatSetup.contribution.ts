@@ -362,6 +362,11 @@ class ChatSetupController extends Disposable {
 		return this.entitlementResolver.entitlement;
 	}
 
+	get canSignUpLimited(): boolean {
+		return this.entitlement === ChatEntitlement.Available || // user can sign up for limited
+			this.entitlement === ChatEntitlement.Unresolved;	 // play safe and show if unresolved
+	}
+
 	constructor(
 		private readonly entitlementResolver: ChatSetupEntitlementResolver,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -390,7 +395,7 @@ class ChatSetupController extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	async setup(enableTelemetry: boolean | undefined, enableDetection: boolean | undefined): Promise<void> {
+	async setup(enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
 		this.setStep(ChatSetupStep.Running);
 		try {
 			await this.doSetup(enableTelemetry, enableDetection);
@@ -399,7 +404,7 @@ class ChatSetupController extends Disposable {
 		}
 	}
 
-	private async doSetup(enableTelemetry: boolean | undefined, enableDetection: boolean | undefined): Promise<void> {
+	private async doSetup(enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
 		let session: AuthenticationSession | undefined;
 
 		// Entitlement Unknown: we need to sign-in user
@@ -415,7 +420,7 @@ class ChatSetupController extends Disposable {
 			}
 		}
 
-		// Entitlement Known: proceed with installation
+		// Entitlement known: proceed with installation
 		await this.install(session, enableTelemetry, enableDetection);
 	}
 
@@ -435,7 +440,7 @@ class ChatSetupController extends Disposable {
 		return session;
 	}
 
-	private async install(session: AuthenticationSession | undefined, enableTelemetry: boolean | undefined, enableDetection: boolean | undefined): Promise<void> {
+	private async install(session: AuthenticationSession | undefined, enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
 		const signedIn = !!session;
 		const activeElement = getActiveElement();
 
@@ -443,10 +448,10 @@ class ChatSetupController extends Disposable {
 		try {
 			showChatView(this.viewsService);
 
-			if (this.entitlement !== ChatEntitlement.Unavailable && typeof enableTelemetry === 'boolean' && typeof enableDetection === 'boolean') {
+			if (this.canSignUpLimited) {
 				const body = {
-					public_code_suggestions: enableDetection ? 'enabled' : 'disabled',
-					restricted_telemetry: enableTelemetry ? 'enabled' : 'disabled'
+					restricted_telemetry: enableTelemetry ? 'enabled' : 'disabled',
+					public_code_suggestions: enableDetection ? 'enabled' : 'disabled'
 				};
 				this.logService.trace(`[chat setup] install: signing up to limited SKU with ${JSON.stringify(body)}`);
 
@@ -525,7 +530,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		// Setup Button
 		const buttonRow = this.element.appendChild($('p'));
 		const button = this._register(new Button(buttonRow, { ...defaultButtonStyles, supportIcons: true }));
-		this._register(button.onDidClick(() => this.controller.setup(telemetryCheckbox?.checked, detectionCheckbox?.checked)));
+		this._register(button.onDidClick(() => this.controller.setup(telemetryCheckbox.checked, detectionCheckbox.checked)));
 
 		// Footer
 		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}). You can [learn more]({1}) about {2}.", defaultChat.privacyStatementUrl, defaultChat.documentationUrl, defaultChat.name);
@@ -552,13 +557,9 @@ class ChatSetupWelcomeContent extends Disposable {
 	}
 
 	private update(limitedContainers: HTMLElement[], limitedCheckboxes: Checkbox[], button: Button): void {
-		const showLimited =
-			this.controller.entitlement === ChatEntitlement.Available || // user can sign up for limited
-			this.controller.entitlement === ChatEntitlement.Unresolved;	 // user is signed in but state not resolved yet
-
 		switch (this.controller.step) {
 			case ChatSetupStep.Initial:
-				setVisibility(showLimited, ...limitedContainers);
+				setVisibility(this.controller.canSignUpLimited, ...limitedContainers);
 
 				for (const checkbox of limitedCheckboxes) {
 					checkbox.enable();
