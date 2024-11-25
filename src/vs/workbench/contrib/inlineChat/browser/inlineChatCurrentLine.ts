@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -29,6 +29,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 import { ChatAgentLocation, IChatAgentService } from '../../chat/common/chatAgents.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
 
 export const CTX_INLINE_CHAT_SHOWING_HINT = new RawContextKey<boolean>('inlineChatShowingHint', false, localize('inlineChatShowingHint', "Whether inline chat shows a contextual hint"));
 
@@ -157,6 +158,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 		@ICommandService commandService: ICommandService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IChatAgentService chatAgentService: IChatAgentService,
+		@IMarkerDecorationsService markerDecorationService: IMarkerDecorationsService
 	) {
 		super();
 		this._editor = editor;
@@ -182,6 +184,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 			}
 		}));
 
+		const markerSuppression = this._store.add(new MutableDisposable());
 		const decos = this._editor.createDecorationsCollection();
 
 		const modelObs = observableFromEvent(editor.onDidChangeModel, () => editor.getModel());
@@ -201,6 +204,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 
 			if (!visible || !kb || !position || ghostState !== undefined || !model) {
 				decos.clear();
+				markerSuppression.clear();
 				return;
 			}
 
@@ -234,6 +238,8 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 					}
 				}
 			}]);
+
+			markerSuppression.value = markerDecorationService.addMarkerSuppression(model.uri, model.validateRange(new Range(position.lineNumber, 1, position.lineNumber, Number.MAX_SAFE_INTEGER)));
 		}));
 	}
 
