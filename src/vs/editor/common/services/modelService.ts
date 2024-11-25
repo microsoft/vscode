@@ -189,7 +189,7 @@ export class ModelService extends Disposable implements IModelService {
 			trimAutoWhitespace: trimAutoWhitespace,
 			largeFileOptimizations: largeFileOptimizations,
 			bracketPairColorizationOptions,
-			virtualSpace,
+			virtualSpace: virtualSpace && !isForSimpleWidget,
 		};
 	}
 
