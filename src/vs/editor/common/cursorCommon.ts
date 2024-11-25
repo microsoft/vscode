@@ -272,21 +272,21 @@ export class CursorState {
 		return new PartialViewCursorState(viewState);
 	}
 
-	public static fromModelSelection(modelSelection: ISelection): PartialModelCursorState {
-		const selection = Selection.liftSelection(modelSelection);
+	public static fromModelSelection(model: ICursorSimpleModel, modelSelection: ISelection): PartialModelCursorState {
+		const start = PositionTripple.fromSelectionStart(model, modelSelection);
+		const pos = PositionTripple.fromSelectionPosition(model, modelSelection);
 		const modelState = new SingleCursorState(
-			Range.fromPositions(selection.getSelectionStart()),
-			SelectionStartKind.Simple,
-			selection.getPosition(),
-			null
+			new Range(start.lineNumber, start.column, pos.lineNumber, pos.column),
+			SelectionStartKind.Simple, start.leftoverVisibleColumns,
+			new Position(pos.lineNumber, pos.column), pos.leftoverVisibleColumns, null,
 		);
 		return CursorState.fromModelState(modelState);
 	}
 
-	public static fromModelSelections(modelSelections: readonly ISelection[]): PartialModelCursorState[] {
+	public static fromModelSelections(model: ICursorSimpleModel, modelSelections: readonly ISelection[]): PartialModelCursorState[] {
 		const states: PartialModelCursorState[] = [];
 		for (let i = 0, len = modelSelections.length; i < len; i++) {
-			states[i] = this.fromModelSelection(modelSelections[i]);
+			states[i] = this.fromModelSelection(model, modelSelections[i]);
 		}
 		return states;
 	}
@@ -330,6 +330,38 @@ export const enum SelectionStartKind {
 	Line
 }
 
+export class PositionTripple {
+	constructor(
+		public readonly lineNumber: number,
+		public readonly column: number,
+		public readonly leftoverVisibleColumns: number,
+	) { }
+
+	public static fromSelectionStart(model: ICursorSimpleModel, selection: ISelection): PositionTripple {
+		const lineNumber = selection.selectionStartLineNumber;
+		let column = selection.selectionStartColumn;
+		let leftoverVisibleColumns = 0;
+		const maxColumn = model.getLineMaxColumn(lineNumber);
+		if (column > maxColumn) {
+			leftoverVisibleColumns = column - maxColumn;
+			column = maxColumn;
+		}
+		return new PositionTripple(lineNumber, column, leftoverVisibleColumns);
+	}
+
+	public static fromSelectionPosition(model: ICursorSimpleModel, selection: ISelection): PositionTripple {
+		const lineNumber = selection.positionLineNumber;
+		let column = selection.positionColumn;
+		let leftoverVisibleColumns = 0;
+		const maxColumn = model.getLineMaxColumn(lineNumber);
+		if (column > maxColumn) {
+			leftoverVisibleColumns = column - maxColumn;
+			column = maxColumn;
+		}
+		return new PositionTripple(lineNumber, column, leftoverVisibleColumns);
+	}
+}
+
 /**
  * Represents the cursor state on either the model or on the view model.
  */
@@ -338,18 +370,54 @@ export class SingleCursorState {
 
 	public readonly selection: Selection;
 
+	// For view model, all positions are the way the user sees them. So if virtual space is turned on,
+	// column might be in virtual space.
+	//
+	// For model, positions are clipped at line length and any excess columns are stored in leftoverVisibleColumns.
+	// So code that hasn't been updated for virtual space will never see virtual space model positions.
+	//
+	// Code that's ready for virtual space can use positionInVirtualSpace() and selectionInVirtualSpace()
+	// to get model positions in virtual space.
+	//
+	// columnHint is used to preserve column during vertical movements.
+	// Without virtual space, it helps to recover from short lines.
+	// With virtual space, it helps when going through inlay hints.
+	//
+	// Example of cursor going down without columnHint:
+	//
+	//     | = cursor
+	//     x = inlay hint
+	//     . = other text
+	//
+	//     .....|.....    ...........    ...........
+	//     ...xxxxx... -> ..|xxxxx... -> ...xxxxx...
+	//     ...........    ...........    ..|........
+	//
+	// Same situation with columnHint:
+	//     .....|.....    ...........    ...........
+	//     ...xxxxx... -> ..|xxxxx... -> ...xxxxx...
+	//     ...........    ...........    .....|.....
+	//
+	// When converting between model and view model, we convert positions in virtual space
+	// to leftoverVisibleColumns and back.
+	// Column hint is not easy to convert, so it is dropped during conversions.
+
 	constructor(
 		public readonly selectionStart: Range,
 		public readonly selectionStartKind: SelectionStartKind,
+		public readonly selectionStartLeftoverVisibleColumns: number,
 		public readonly position: Position,
-		public readonly columnHint: number | null
+		public readonly leftoverVisibleColumns: number,
+		public readonly columnHint: number | null,
 	) {
 		this.selection = SingleCursorState._computeSelection(this.selectionStart, this.position);
 	}
 
 	public equals(other: SingleCursorState) {
 		return (
-			this.columnHint === other.columnHint
+			this.selectionStartLeftoverVisibleColumns === other.selectionStartLeftoverVisibleColumns
+			&& this.leftoverVisibleColumns === other.leftoverVisibleColumns
+			&& this.columnHint === other.columnHint
 			&& this.selectionStartKind === other.selectionStartKind
 			&& this.position.equals(other.position)
 			&& this.selectionStart.equalsRange(other.selectionStart)
@@ -360,24 +428,46 @@ export class SingleCursorState {
 		return (!this.selection.isEmpty() || !this.selectionStart.isEmpty());
 	}
 
-	public move(inSelectionMode: boolean, lineNumber: number, column: number, columnHint: number | null): SingleCursorState {
+	public move(inSelectionMode: boolean, lineNumber: number, column: number, leftoverVisibleColumns: number, columnHint: number | null): SingleCursorState {
 		if (inSelectionMode) {
 			// move just position
 			return new SingleCursorState(
 				this.selectionStart,
 				this.selectionStartKind,
+				this.selectionStartLeftoverVisibleColumns,
 				new Position(lineNumber, column),
-				columnHint
+				leftoverVisibleColumns,
+				columnHint,
 			);
 		} else {
 			// move everything
 			return new SingleCursorState(
 				new Range(lineNumber, column, lineNumber, column),
 				SelectionStartKind.Simple,
+				leftoverVisibleColumns,
 				new Position(lineNumber, column),
-				columnHint
+				leftoverVisibleColumns,
+				columnHint,
 			);
 		}
+	}
+
+	public selectionStartInVirtualSpace(): Position {
+		return new Position(
+			this.selection.selectionStartLineNumber,
+			this.selection.selectionStartColumn + this.selectionStartLeftoverVisibleColumns,
+		);
+	}
+
+	public positionInVirtualSpace(): Position {
+		return new Position(
+			this.position.lineNumber,
+			this.position.column + this.leftoverVisibleColumns,
+		);
+	}
+
+	public selectionInVirtualSpace(): Selection {
+		return Selection.fromPositions(this.selectionStartInVirtualSpace(), this.positionInVirtualSpace());
 	}
 
 	private static _computeSelection(selectionStart: Range, position: Position): Selection {

@@ -767,9 +767,8 @@ export class WordOperations {
 			}
 
 			return new SingleCursorState(
-				new Range(position.lineNumber, startColumn, position.lineNumber, endColumn), SelectionStartKind.Word,
-				new Position(position.lineNumber, endColumn),
-				null
+				new Range(position.lineNumber, startColumn, position.lineNumber, endColumn), SelectionStartKind.Word, 0,
+				new Position(position.lineNumber, endColumn), 0, null,
 			);
 		}
 
@@ -807,7 +806,7 @@ export class WordOperations {
 			}
 		}
 
-		return cursor.move(true, lineNumber, column, null);
+		return cursor.move(true, lineNumber, column, 0, null);
 	}
 }
 

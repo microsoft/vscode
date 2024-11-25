@@ -975,11 +975,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		const maxColumn = this.getLineMaxColumn(lineNumber);
 		if (column > maxColumn) {
-			return this._options.virtualSpace;
+			return false;
 		}
 
 		if (validationType === StringOffsetValidationType.SurrogatePairs) {
-			// !!At this point, column > 1 && column <= maxColumn
+			// !!At this point, column > 1
 			const charCodeBefore = this._buffer.getLineCharCode(lineNumber, column - 2);
 			if (strings.isHighSurrogate(charCodeBefore)) {
 				return false;
@@ -1014,7 +1014,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (validationType === StringOffsetValidationType.SurrogatePairs) {
 			// If the position would end up in the middle of a high-low surrogate pair,
 			// we move it to before the pair
-			// !!At this point, column > 1 && column < maxColumn
+			// !!At this point, column > 1
 			const charCodeBefore = this._buffer.getLineCharCode(lineNumber, column - 2);
 			if (strings.isHighSurrogate(charCodeBefore)) {
 				return new Position(lineNumber, column - 1);

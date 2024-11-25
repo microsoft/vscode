@@ -6,7 +6,7 @@
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import * as strings from '../../../base/common/strings.js';
 import { CursorCollection } from './cursorCollection.js';
-import { CursorConfiguration, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel } from '../cursorCommon.js';
+import { CursorConfiguration, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel, PositionTripple } from '../cursorCommon.js';
 import { CursorContext } from './cursorContext.js';
 import { DeleteOperations } from './cursorDeleteOperations.js';
 import { CursorChangeReason } from '../cursorEvents.js';
@@ -125,7 +125,7 @@ export class CursorsController extends Disposable {
 		const oldState = CursorModelState.from(this._model, this);
 
 		this._cursors.setStates(states);
-		this._cursors.normalize();
+		this._cursors.normalize(this._model);
 		this._columnSelectData = null;
 
 		this._validateAutoClosedActions();
@@ -161,7 +161,7 @@ export class CursorsController extends Disposable {
 
 		const result: editorCommon.ICursorState[] = [];
 
-		const selections = this._cursors.getSelections();
+		const selections = this._cursors.getSelectionsInVirtualSpace();
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 
@@ -218,7 +218,7 @@ export class CursorsController extends Disposable {
 			});
 		}
 
-		this.setStates(eventsCollector, 'restoreState', CursorChangeReason.NotSet, CursorState.fromModelSelections(desiredSelections));
+		this.setStates(eventsCollector, 'restoreState', CursorChangeReason.NotSet, CursorState.fromModelSelections(this._model, desiredSelections));
 		this.revealAll(eventsCollector, 'restoreState', false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Immediate);
 	}
 
@@ -257,13 +257,13 @@ export class CursorsController extends Disposable {
 				this._emitStateChangedIfNecessary(eventsCollector, 'model', CursorChangeReason.ContentFlush, null, false);
 			} else {
 				if (this._hasFocus && e.resultingSelection && e.resultingSelection.length > 0) {
-					const cursorState = CursorState.fromModelSelections(e.resultingSelection);
+					const cursorState = CursorState.fromModelSelections(this._model, e.resultingSelection);
 					if (this.setStates(eventsCollector, 'modelChange', e.isUndoing ? CursorChangeReason.Undo : e.isRedoing ? CursorChangeReason.Redo : CursorChangeReason.RecoverFromMarkers, cursorState)) {
 						this.revealAll(eventsCollector, 'modelChange', false, VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
 					}
 				} else {
 					const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
-					this.setStates(eventsCollector, 'modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(selectionsFromMarkers));
+					this.setStates(eventsCollector, 'modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(this._model, selectionsFromMarkers));
 				}
 			}
 		}
@@ -271,6 +271,10 @@ export class CursorsController extends Disposable {
 
 	public getSelection(): Selection {
 		return this._cursors.getPrimaryCursor().modelState.selection;
+	}
+
+	public getSelectionInVirtualSpace(): Selection {
+		return this._cursors.getPrimaryCursor().modelState.selectionInVirtualSpace();
 	}
 
 	public getTopMostViewPosition(): Position {
@@ -301,12 +305,16 @@ export class CursorsController extends Disposable {
 		return this._cursors.getSelections();
 	}
 
+	public getSelectionsInVirtualSpace(): Selection[] {
+		return this._cursors.getSelectionsInVirtualSpace();
+	}
+
 	public getPosition(): Position {
 		return this._cursors.getPrimaryCursor().modelState.position;
 	}
 
 	public setSelections(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, selections: readonly ISelection[], reason: CursorChangeReason): void {
-		this.setStates(eventsCollector, source, reason, CursorState.fromModelSelections(selections));
+		this.setStates(eventsCollector, source, reason, CursorState.fromModelSelections(this._model, selections));
 	}
 
 	public getPrevEditOperationType(): EditOperationType {
@@ -357,7 +365,7 @@ export class CursorsController extends Disposable {
 			this._model.pushStackElement();
 		}
 
-		const result = CommandExecutor.executeCommands(this._model, this._cursors.getSelections(), opResult.commands);
+		const result = CommandExecutor.executeCommands(this._model, this._cursors.getSelectionsInVirtualSpace(), opResult.commands);
 		if (result) {
 			// The commands were applied correctly
 			this._interpretCommandResult(result);
@@ -392,8 +400,8 @@ export class CursorsController extends Disposable {
 		}
 
 		this._columnSelectData = null;
-		this._cursors.setSelections(cursorState);
-		this._cursors.normalize();
+		this._cursors.setSelections(this._model, cursorState);
+		this._cursors.normalize(this._model);
 	}
 
 	// -----------------------------------------------------------------------------------------------------------
@@ -545,7 +553,7 @@ export class CursorsController extends Disposable {
 		this._executeEdit(() => {
 			if (source === 'keyboard') {
 				// composition finishes, let's check if we need to auto complete if necessary.
-				this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, compositionOutcome, this.getSelections(), this.getAutoClosedCharacters()));
+				this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, compositionOutcome, this.getSelectionsInVirtualSpace(), this.getAutoClosedCharacters()));
 			}
 		}, eventsCollector, source);
 	}
@@ -562,13 +570,13 @@ export class CursorsController extends Disposable {
 					const chr = text.substr(offset, charLength);
 
 					// Here we must interpret each typed character individually
-					this._executeEditOperation(TypeOperations.typeWithInterceptors(!!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr));
+					this._executeEditOperation(TypeOperations.typeWithInterceptors(!!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelectionsInVirtualSpace(), this.getAutoClosedCharacters(), chr));
 
 					offset += charLength;
 				}
 
 			} else {
-				this._executeEditOperation(TypeOperations.typeWithoutInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), text));
+				this._executeEditOperation(TypeOperations.typeWithoutInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelectionsInVirtualSpace(), text));
 			}
 		}, eventsCollector, source);
 	}
@@ -587,19 +595,19 @@ export class CursorsController extends Disposable {
 			return;
 		}
 		this._executeEdit(() => {
-			this._executeEditOperation(TypeOperations.compositionType(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), text, replacePrevCharCnt, replaceNextCharCnt, positionDelta));
+			this._executeEditOperation(TypeOperations.compositionType(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelectionsInVirtualSpace(), text, replacePrevCharCnt, replaceNextCharCnt, positionDelta));
 		}, eventsCollector, source);
 	}
 
 	public paste(eventsCollector: ViewModelEventsCollector, text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
 		this._executeEdit(() => {
-			this._executeEditOperation(TypeOperations.paste(this.context.cursorConfig, this._model, this.getSelections(), text, pasteOnNewLine, multicursorText || []));
+			this._executeEditOperation(TypeOperations.paste(this.context.cursorConfig, this._model, this.getSelectionsInVirtualSpace(), text, pasteOnNewLine, multicursorText || []));
 		}, eventsCollector, source, CursorChangeReason.Paste);
 	}
 
 	public cut(eventsCollector: ViewModelEventsCollector, source?: string | null | undefined): void {
 		this._executeEdit(() => {
-			this._executeEditOperation(DeleteOperations.cut(this.context.cursorConfig, this._model, this.getSelections()));
+			this._executeEditOperation(DeleteOperations.cut(this.context.cursorConfig, this._model, this.getSelectionsInVirtualSpace()));
 		}, eventsCollector, source);
 	}
 
@@ -728,6 +736,8 @@ interface IExecContext {
 	readonly selectionsBefore: Selection[];
 	readonly trackedRanges: string[];
 	readonly trackedRangesDirection: SelectionDirection[];
+	readonly tracledRamgesStartLeftover: number[];
+	readonly trackedRangesEndLeftover: number[];
 }
 
 interface ICommandData {
@@ -748,7 +758,9 @@ export class CommandExecutor {
 			model: model,
 			selectionsBefore: selectionsBefore,
 			trackedRanges: [],
-			trackedRangesDirection: []
+			trackedRangesDirection: [],
+			tracledRamgesStartLeftover: [],
+			trackedRangesEndLeftover: [],
 		};
 
 		const result = this._innerExecuteCommands(ctx, commands);
@@ -788,6 +800,33 @@ export class CommandExecutor {
 			}
 		}
 
+		// Add virtual space
+		for (let i = 0; i < filteredOperations.length; i++) {
+			const editOperation = filteredOperations[i];
+			const range = editOperation.range;
+
+			const startLineNumber = range.startLineNumber;
+			let startColumn = range.startColumn;
+			const startMaxColumn = ctx.model.getLineMaxColumn(startLineNumber);
+
+			const endLineNumber = range.endLineNumber;
+			let endColumn = range.endColumn;
+			const endMaxColumn = ctx.model.getLineMaxColumn(endLineNumber);
+
+			if (startColumn > startMaxColumn || endColumn > endMaxColumn) {
+				let spacesLen = 0;
+				if (startColumn > startMaxColumn) {
+					spacesLen = (startColumn - startMaxColumn);
+					startColumn = startMaxColumn;
+				}
+				if (endColumn > endMaxColumn) {
+					endColumn = endMaxColumn;
+				}
+				editOperation.range = new Range(startLineNumber, startColumn, endLineNumber, endColumn);
+				editOperation.text = ' '.repeat(spacesLen) + editOperation.text;
+			}
+		}
+
 		// TODO@Alex: find a better way to do this.
 		// give the hint that edit operations are tracked to the model
 		if (commandsData.hadTrackedEditOperation && filteredOperations.length > 0) {
@@ -820,10 +859,16 @@ export class CommandExecutor {
 						getTrackedSelection: (id: string) => {
 							const idx = parseInt(id, 10);
 							const range = ctx.model._getTrackedRange(ctx.trackedRanges[idx])!;
+							const startLineNumber = range.startLineNumber;
+							const startLeftover = ctx.tracledRamgesStartLeftover[idx];
+							const startColumn = range.startColumn + startLeftover;
+							const endLineNumber = range.endLineNumber;
+							const endLeftover = ctx.trackedRangesEndLeftover[idx];
+							const endColumn = range.endColumn + endLeftover + (startLineNumber === endLineNumber ? startLeftover : 0);
 							if (ctx.trackedRangesDirection[idx] === SelectionDirection.LTR) {
-								return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+								return new Selection(startLineNumber, startColumn, endLineNumber, endColumn);
 							}
-							return new Selection(range.endLineNumber, range.endColumn, range.startLineNumber, range.startColumn);
+							return new Selection(endLineNumber, endColumn, startLineNumber, startColumn);
 						}
 					});
 				} else {
@@ -915,8 +960,11 @@ export class CommandExecutor {
 
 		const trackSelection = (_selection: ISelection, trackPreviousOnEmpty?: boolean) => {
 			const selection = Selection.liftSelection(_selection);
+			const start = PositionTripple.fromSelectionStart(ctx.model, selection);
+			const pos = PositionTripple.fromSelectionPosition(ctx.model, selection);
+			const clippedSelection = new Selection(start.lineNumber, start.column, pos.lineNumber, pos.column);
 			let stickiness: TrackedRangeStickiness;
-			if (selection.isEmpty()) {
+			if (clippedSelection.isEmpty()) {
 				if (typeof trackPreviousOnEmpty === 'boolean') {
 					if (trackPreviousOnEmpty) {
 						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
@@ -925,8 +973,8 @@ export class CommandExecutor {
 					}
 				} else {
 					// Try to lock it with surrounding text
-					const maxLineColumn = ctx.model.getLineMaxColumn(selection.startLineNumber);
-					if (selection.startColumn >= maxLineColumn) {
+					const maxLineColumn = ctx.model.getLineMaxColumn(clippedSelection.startLineNumber);
+					if (clippedSelection.startColumn >= maxLineColumn) {
 						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
 					} else {
 						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
@@ -937,9 +985,25 @@ export class CommandExecutor {
 			}
 
 			const l = ctx.trackedRanges.length;
-			const id = ctx.model._setTrackedRange(null, selection, stickiness);
+			const id = ctx.model._setTrackedRange(null, clippedSelection, stickiness);
 			ctx.trackedRanges[l] = id;
-			ctx.trackedRangesDirection[l] = selection.getDirection();
+			if (selection.getDirection() === SelectionDirection.LTR) {
+				ctx.trackedRangesDirection[l] = SelectionDirection.LTR;
+				ctx.tracledRamgesStartLeftover[l] = start.leftoverVisibleColumns;
+				if (start.lineNumber === pos.lineNumber) {
+					ctx.trackedRangesEndLeftover[l] = pos.leftoverVisibleColumns - start.leftoverVisibleColumns;
+				} else {
+					ctx.trackedRangesEndLeftover[l] = pos.leftoverVisibleColumns;
+				}
+			} else {
+				ctx.trackedRangesDirection[l] = SelectionDirection.RTL;
+				ctx.tracledRamgesStartLeftover[l] = pos.leftoverVisibleColumns;
+				if (start.lineNumber === pos.lineNumber) {
+					ctx.trackedRangesEndLeftover[l] = start.leftoverVisibleColumns - pos.leftoverVisibleColumns;
+				} else {
+					ctx.trackedRangesEndLeftover[l] = start.leftoverVisibleColumns;
+				}
+			}
 			return l.toString();
 		};
 

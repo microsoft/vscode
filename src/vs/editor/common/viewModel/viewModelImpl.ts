@@ -1024,8 +1024,14 @@ export class ViewModel extends Disposable implements IViewModel {
 	public getSelection(): Selection {
 		return this._cursor.getSelection();
 	}
+	public getSelectionInVirtualSpace(): Selection {
+		return this._cursor.getSelectionInVirtualSpace();
+	}
 	public getSelections(): Selection[] {
 		return this._cursor.getSelections();
+	}
+	public getSelectionsInVirtualSpace(): Selection[] {
+		return this._cursor.getSelectionsInVirtualSpace();
 	}
 	public getPosition(): Position {
 		return this._cursor.getPrimaryCursorState().modelState.position;

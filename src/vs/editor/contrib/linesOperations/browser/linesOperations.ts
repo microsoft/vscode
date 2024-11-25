@@ -177,7 +177,7 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
 
 		const commands: ICommand[] = [];
-		const selections = editor.getSelections() || [];
+		const selections = editor.getSelectionsInVirtualSpace() || [];
 		const autoIndent = editor.getOption(EditorOption.autoIndent);
 
 		for (const selection of selections) {
@@ -396,10 +396,10 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			// See https://github.com/editorconfig/editorconfig-vscode/issues/47
 			// It is very convenient for the editor config extension to invoke this action.
 			// So, if we get a reason:'auto-save' passed in, let's preserve cursor positions.
-			cursors = (editor.getSelections() || []).map(s => new Position(s.positionLineNumber, s.positionColumn));
+			cursors = (editor.getSelectionsInVirtualSpace() || []).map(s => new Position(s.positionLineNumber, s.positionColumn));
 		}
 
-		const selection = editor.getSelection();
+		const selection = editor.getSelectionInVirtualSpace();
 		if (selection === null) {
 			return;
 		}

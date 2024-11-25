@@ -115,10 +115,11 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 
 	private _onEditorMouseDrag(mouseEvent: IEditorMouseEvent): void {
 		const target = mouseEvent.target;
+		const position = target.position?.delta(0, target.leftoverVisibleColumns);
 
 		if (this._dragSelection === null) {
-			const selections = this._editor.getSelections() || [];
-			const possibleSelections = selections.filter(selection => target.position && selection.containsPosition(target.position));
+			const selections = this._editor.getSelectionsInVirtualSpace() || [];
+			const possibleSelections = selections.filter(selection => position && selection.containsPosition(position));
 			if (possibleSelections.length === 1) {
 				this._dragSelection = possibleSelections[0];
 			} else {
@@ -136,11 +137,11 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 			});
 		}
 
-		if (target.position) {
-			if (this._dragSelection.containsPosition(target.position)) {
+		if (position) {
+			if (this._dragSelection.containsPosition(position)) {
 				this._removeDecoration();
 			} else {
-				this.showAt(target.position);
+				this.showAt(position);
 			}
 		}
 	}
@@ -156,19 +157,20 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 	}
 
 	private _onEditorMouseDrop(mouseEvent: IPartialEditorMouseEvent): void {
-		if (mouseEvent.target && (this._hitContent(mouseEvent.target) || this._hitMargin(mouseEvent.target)) && mouseEvent.target.position) {
-			const newCursorPosition = new Position(mouseEvent.target.position.lineNumber, mouseEvent.target.position.column);
+		const position = mouseEvent.target?.position?.delta(0, mouseEvent.target.leftoverVisibleColumns);
+		if (mouseEvent.target && (this._hitContent(mouseEvent.target) || this._hitMargin(mouseEvent.target)) && position) {
+			const newCursorPosition = new Position(position.lineNumber, position.column);
 
 			if (this._dragSelection === null) {
 				let newSelections: Selection[] | null = null;
 				if (mouseEvent.event.shiftKey) {
-					const primarySelection = this._editor.getSelection();
+					const primarySelection = this._editor.getSelectionInVirtualSpace();
 					if (primarySelection) {
 						const { selectionStartLineNumber, selectionStartColumn } = primarySelection;
 						newSelections = [new Selection(selectionStartLineNumber, selectionStartColumn, newCursorPosition.lineNumber, newCursorPosition.column)];
 					}
 				} else {
-					newSelections = (this._editor.getSelections() || []).map(selection => {
+					newSelections = (this._editor.getSelectionsInVirtualSpace() || []).map(selection => {
 						if (selection.containsPosition(newCursorPosition)) {
 							return new Selection(newCursorPosition.lineNumber, newCursorPosition.column, newCursorPosition.lineNumber, newCursorPosition.column);
 						} else {

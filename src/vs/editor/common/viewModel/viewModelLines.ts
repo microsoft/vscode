@@ -792,12 +792,15 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const line = this.modelLineProjections[lineIndex];
 
 		const minColumn = line.getViewLineMinColumn(this.model, lineIndex + 1, remainder);
-		const maxColumn = line.getViewLineMaxColumn(this.model, lineIndex + 1, remainder);
 		if (viewColumn < minColumn) {
 			viewColumn = minColumn;
 		}
-		if (viewColumn > maxColumn) {
-			viewColumn = maxColumn;
+		const virtualSpace = this.model.getOptions().virtualSpace;
+		if (!virtualSpace) {
+			const maxColumn = line.getViewLineMaxColumn(this.model, lineIndex + 1, remainder);
+			if (viewColumn > maxColumn) {
+				viewColumn = maxColumn;
+			}
 		}
 
 		const computedModelColumn = line.getModelColumnOfViewPosition(remainder, viewColumn);
