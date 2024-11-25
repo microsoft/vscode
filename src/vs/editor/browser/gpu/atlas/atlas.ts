@@ -31,6 +31,9 @@ export interface ITextureAtlasPageGlyph {
 	originOffsetX: number;
 	/** The y offset from {@link y} of the glyph's origin. */
 	originOffsetY: number;
+	alphabeticBaseline: number;
+	fontBoundingBoxAscent: number;
+	fontBoundingBoxDescent: number;
 }
 
 /**

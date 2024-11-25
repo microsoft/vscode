@@ -409,13 +409,17 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 					// TODO: Support non-standard character widths
 					absoluteOffsetX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);
-					absoluteOffsetY = (
-						Math.ceil((
-							// Top of line including line height
-							viewportData.relativeVerticalOffset[y - viewportData.startLineNumber] +
-							// Delta to top of line after line height
-							Math.floor((viewportData.lineHeight - this._context.configuration.options.get(EditorOption.fontSize)) / 2)
-						) * dpr)
+					absoluteOffsetY = Math.round(
+						// Top of layout box (includes line height)
+						viewportData.relativeVerticalOffset[y - viewportData.startLineNumber] * dpr +
+
+						// Delta from top of layout box (includes line height) to top of the inline box (no line height)
+						Math.floor((viewportData.lineHeight * dpr - (glyph.fontBoundingBoxAscent + glyph.fontBoundingBoxDescent)) / 2) +
+
+						// Delta from top of inline box (no line height) to top of glyph origin. If the glyph was drawn
+						// with a top baseline for example, this ends up drawing the glyph correctly using the alphabetical
+						// baseline.
+						glyph.fontBoundingBoxAscent
 					);
 
 					cellIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + x) * Constants.IndicesPerCell;
