@@ -217,9 +217,10 @@ class ChatSetupEntitlementResolver extends Disposable {
 			this.update(ChatEntitlement.Unknown);
 		}
 
-		if (session) {
+		if (session && typeof this.resolvedEntitlement === 'undefined') {
 			// Afterwards resolve entitlement with a network request
-			this.resolveEntitlement(session, cts.token);
+			// but only unless it was not already resolved before.
+			await this.resolveEntitlement(session, cts.token);
 		}
 	}
 
@@ -244,16 +245,14 @@ class ChatSetupEntitlementResolver extends Disposable {
 		return scopes.length === expectedScopes.length && expectedScopes.every(scope => scopes.includes(scope));
 	}
 
-	private async resolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<void> {
-		if (typeof this.resolvedEntitlement !== 'undefined') {
-			return; // only resolve once
-		}
-
+	private async resolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<ChatEntitlement | undefined> {
 		const entitlement = await this.doResolveEntitlement(session, token);
 		if (typeof entitlement === 'number' && !token.isCancellationRequested) {
 			this.resolvedEntitlement = entitlement;
 			this.update(entitlement);
 		}
+
+		return entitlement;
 	}
 
 	private async doResolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<ChatEntitlement | undefined> {
@@ -318,7 +317,7 @@ class ChatSetupEntitlementResolver extends Disposable {
 	}
 
 	async forceResolveEntitlement(session: AuthenticationSession): Promise<ChatEntitlement | undefined> {
-		return this.doResolveEntitlement(session, CancellationToken.None);
+		return this.resolveEntitlement(session, CancellationToken.None);
 	}
 
 	override dispose(): void {
