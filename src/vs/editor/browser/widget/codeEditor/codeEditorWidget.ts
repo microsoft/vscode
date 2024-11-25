@@ -608,9 +608,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		const position = this._modelData.model.validatePosition(rawPosition);
+		let leftoverVisibleColumns = 0;
+		if (position.lineNumber === rawPosition.lineNumber && position.column < rawPosition.column) {
+			leftoverVisibleColumns = rawPosition.column - position.column;
+		}
 		const tabSize = this._modelData.model.getOptions().tabSize;
 
-		return CursorColumns.toStatusbarColumn(this._modelData.model.getLineContent(position.lineNumber), position.column, tabSize);
+		return CursorColumns.toStatusbarColumn(this._modelData.model.getLineContent(position.lineNumber), position.column, tabSize) + leftoverVisibleColumns;
 	}
 
 	public getPosition(): Position | null {
@@ -1735,13 +1739,17 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					}
 
 					const positions: Position[] = [];
+					const positionsInVirtualSpace: Position[] = [];
 					for (let i = 0, len = e.selections.length; i < len; i++) {
 						positions[i] = e.selections[i].getPosition();
+						positionsInVirtualSpace[i] = e.selectionsInVirtualSpace[i].getPosition();
 					}
 
 					const e1: ICursorPositionChangedEvent = {
 						position: positions[0],
+						positionInVirtualSpace: positionsInVirtualSpace[0],
 						secondaryPositions: positions.slice(1),
+						secondaryPositionsInVirtualSpace: positionsInVirtualSpace.slice(1),
 						reason: e.reason,
 						source: e.source
 					};

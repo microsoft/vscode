@@ -3020,9 +3020,17 @@ declare namespace monaco.editor {
 		 */
 		readonly position: Position;
 		/**
+		 * Primary cursor's position. Column may be in virtual space.
+		 */
+		readonly positionInVirtualSpace: Position;
+		/**
 		 * Secondary cursors' position.
 		 */
 		readonly secondaryPositions: Position[];
+		/**
+		 * Secondary cursors' position. Column may be in virtual space.
+		 */
+		readonly secondaryPositionsInVirtualSpace: Position[];
 		/**
 		 * Reason.
 		 */

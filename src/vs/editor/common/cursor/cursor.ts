@@ -414,6 +414,7 @@ export class CursorsController extends Disposable {
 		}
 
 		const selections = this._cursors.getSelections();
+		const selectionsInVirtualSpace = this._cursors.getSelectionsInVirtualSpace();
 		const viewSelections = this._cursors.getViewSelections();
 
 		// Let the view get the event first.
@@ -425,8 +426,15 @@ export class CursorsController extends Disposable {
 			|| newState.cursorState.some((newCursorState, i) => !newCursorState.modelState.equals(oldState.cursorState[i].modelState))
 		) {
 			const oldSelections = oldState ? oldState.cursorState.map(s => s.modelState.selection) : null;
+			const oldSelectionsInVirtualSpace = oldState ? oldState.cursorState.map(s => s.modelState.selectionInVirtualSpace()) : null;
 			const oldModelVersionId = oldState ? oldState.modelVersionId : 0;
-			eventsCollector.emitOutgoingEvent(new CursorStateChangedEvent(oldSelections, selections, oldModelVersionId, newState.modelVersionId, source || 'keyboard', reason, reachedMaxCursorCount));
+			eventsCollector.emitOutgoingEvent(
+				new CursorStateChangedEvent(
+					oldSelections, oldSelectionsInVirtualSpace,
+					selections, selectionsInVirtualSpace,
+					oldModelVersionId, newState.modelVersionId, source || 'keyboard', reason, reachedMaxCursorCount
+				)
+			);
 		}
 
 		return true;

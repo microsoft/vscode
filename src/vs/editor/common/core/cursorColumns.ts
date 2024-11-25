@@ -40,7 +40,7 @@ export class CursorColumns {
 	 */
 	public static visibleColumnFromColumn(lineContent: string, column: number, tabSize: number): number {
 		const textLen = Math.min(column - 1, lineContent.length);
-		const extra = column - 1 - textLen;
+		const leftoverVisualColumns = column - 1 - textLen;
 		const text = lineContent.substring(0, textLen);
 		const iterator = new strings.GraphemeIterator(text);
 
@@ -52,7 +52,7 @@ export class CursorColumns {
 			result = this._nextVisibleColumn(codePoint, result, tabSize);
 		}
 
-		return result + extra;
+		return result + leftoverVisualColumns;
 	}
 
 	/**
@@ -60,9 +60,7 @@ export class CursorColumns {
 	 * @see {@link CursorColumns}
 	 */
 	public static toStatusbarColumn(lineContent: string, column: number, tabSize: number): number {
-		const toInspect = Math.min(column - 1, lineContent.length);
-		const extra = Math.max(0, column - 1 - lineContent.length);
-		const text = lineContent.substring(0, toInspect);
+		const text = lineContent.substring(0, Math.min(column - 1, lineContent.length));
 		const iterator = new strings.CodePointIterator(text);
 
 		let result = 0;
@@ -76,7 +74,7 @@ export class CursorColumns {
 			}
 		}
 
-		return result + 1 + extra;
+		return result + 1;
 	}
 
 	/**
@@ -115,8 +113,8 @@ export class CursorColumns {
 		}
 
 		// walked the entire string
-		const extra = visibleColumn - beforeVisibleColumn;
-		return lineContentLength + 1 + extra;
+		const leftoverVisualColumns = visibleColumn - beforeVisibleColumn;
+		return lineContentLength + 1 + leftoverVisualColumns;
 	}
 
 	/**
