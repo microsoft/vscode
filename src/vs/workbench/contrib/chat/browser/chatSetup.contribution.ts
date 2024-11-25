@@ -46,6 +46,8 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { Barrier, timeout } from '../../../../base/common/async.js';
 import { IChatAgentService } from '../common/chatAgents.js';
+import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
+import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -381,7 +383,8 @@ class ChatSetupController extends Disposable {
 		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IActivityService private readonly activityService: IActivityService
 	) {
 		super();
 
@@ -402,11 +405,21 @@ class ChatSetupController extends Disposable {
 	}
 
 	async setup(enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
-		return this.progressService.withProgress({
-			location: ProgressLocation.Window,
-			command: ChatSetupTriggerAction.ID,
-			title: localize('setupChatProgress', "Setting up {0}...", defaultChat.name),
-		}, () => this.doSetup(enableTelemetry, enableDetection));
+		const title = localize('setupChatProgress', "Setting up {0}...", defaultChat.name);
+		const badge = this.activityService.showViewContainerActivity(CHAT_SIDEBAR_PANEL_ID, {
+			badge: new ProgressBadge(() => title),
+			priority: 100
+		});
+
+		try {
+			await this.progressService.withProgress({
+				location: ProgressLocation.Window,
+				command: ChatSetupTriggerAction.ID,
+				title,
+			}, () => this.doSetup(enableTelemetry, enableDetection));
+		} finally {
+			badge.dispose();
+		}
 	}
 
 	private async doSetup(enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
