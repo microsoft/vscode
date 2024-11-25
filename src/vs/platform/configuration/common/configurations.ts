@@ -8,12 +8,13 @@ import { IStringDictionary } from '../../../base/common/collections.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
-import { isEmptyObject } from '../../../base/common/types.js';
+import { isEmptyObject, isString } from '../../../base/common/types.js';
 import { ConfigurationModel } from './configurationModels.js';
 import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema } from './configurationRegistry.js';
 import { ILogService, NullLogService } from '../../log/common/log.js';
-import { IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from '../../policy/common/policy.js';
+import { IPolicyService, PolicyDefinition, PolicyName } from '../../policy/common/policy.js';
 import { Registry } from '../../registry/common/platform.js';
+import { getErrorMessage } from '../../../base/common/errors.js';
 
 export class DefaultConfiguration extends Disposable {
 
@@ -122,12 +123,12 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 				continue;
 			}
 			if (config.policy) {
-				if (config.type !== 'string' && config.type !== 'number') {
+				if (config.type !== 'string' && config.type !== 'number' && config.type !== 'array' && config.type !== 'object') {
 					this.logService.warn(`Policy ${config.policy.name} has unsupported type ${config.type}`);
 					continue;
 				}
 				keys.push(key);
-				policyDefinitions[config.policy.name] = { type: config.type };
+				policyDefinitions[config.policy.name] = { type: config.type === 'number' ? 'number' : 'string' };
 			}
 		}
 
@@ -148,13 +149,22 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	private update(keys: string[], trigger: boolean): void {
 		this.logService.trace('PolicyConfiguration#update', keys);
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		const changed: [string, PolicyValue | undefined][] = [];
+		const changed: [string, any][] = [];
 		const wasEmpty = this._configurationModel.isEmpty();
 
 		for (const key of keys) {
-			const policyName = configurationProperties[key]?.policy?.name;
+			const proprety = configurationProperties[key];
+			const policyName = proprety?.policy?.name;
 			if (policyName) {
-				const policyValue = this.policyService.getPolicyValue(policyName);
+				let policyValue = this.policyService.getPolicyValue(policyName);
+				if (isString(policyValue) && proprety.type !== 'string') {
+					try {
+						policyValue = JSON.parse(policyValue);
+					} catch (e) {
+						this.logService.error(`Error parsing policy value ${policyName}:`, getErrorMessage(e));
+						continue;
+					}
+				}
 				if (wasEmpty ? policyValue !== undefined : !equals(this._configurationModel.getValue(key), policyValue)) {
 					changed.push([key, policyValue]);
 				}
