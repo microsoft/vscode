@@ -19,7 +19,7 @@ import { IWordAtPosition } from './core/wordHelper.js';
 import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelSpecialLineHeightChangedEvent } from './textModelEvents.js';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent, ModelSpecialLineFontSizeChangedEvent, ModelSpecialLineHeightChangedEvent } from './textModelEvents.js';
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
@@ -1256,6 +1256,12 @@ export interface ITextModel {
 	 * @event
 	 */
 	readonly onDidChangeSpecialLineHeight: Event<ModelSpecialLineHeightChangedEvent>;
+	/**
+	 * An event emitted when line font sizes from decorations changes
+	 * @internal
+	 * @event
+	 */
+	readonly onDidChangeSpecialLineFontSize: Event<ModelSpecialLineFontSizeChangedEvent>;
 	/**
 	 * An event emitted when the model options have changed.
 	 * @event

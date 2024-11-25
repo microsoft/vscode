@@ -22,12 +22,12 @@ export interface IVisibleLine extends ILine {
 	 * Return null if the HTML should not be touched.
 	 * Return the new HTML otherwise.
 	 */
-	renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean;
+	renderLine(lineNumber: number, deltaTop: number, lineHeight: number, fontSize: number, viewportData: ViewportData, sb: StringBuilder): boolean;
 
 	/**
 	 * Layout the line.
 	 */
-	layoutLine(lineNumber: number, deltaTop: number, lineHeight: number): void;
+	layoutLine(lineNumber: number, deltaTop: number, lineHeight: number, fontSize: number): void;
 }
 
 export interface ILine {
@@ -457,7 +457,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 		for (let i = startIndex; i <= endIndex; i++) {
 			const lineNumber = rendLineNumberStart + i;
-			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], this._lineHeight(lineNumber));
+			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], this._lineHeight(lineNumber), this._fontSize(lineNumber));
 		}
 	}
 
@@ -561,7 +561,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this._lineHeight(i + rendLineNumberStart), this._viewportData, sb);
+				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this._lineHeight(i + rendLineNumberStart), this._fontSize(i + rendLineNumberStart), this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -591,7 +591,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this._lineHeight(i + rendLineNumberStart), this._viewportData, sb);
+				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this._lineHeight(i + rendLineNumberStart), this._fontSize(i + rendLineNumberStart), this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -612,5 +612,12 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 			return this._viewportData.specialLineHeights.get(lineNumber)!;
 		}
 		return this._viewportData.lineHeight;
+	}
+
+	private _fontSize(lineNumber: number): number {
+		if (this._viewportData.specialLineFontSizes.has(lineNumber)) {
+			return this._viewportData.specialLineFontSizes.get(lineNumber)!;
+		}
+		return this._viewportData.fontSize;
 	}
 }

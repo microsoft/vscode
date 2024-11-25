@@ -171,7 +171,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const padding = options.get(EditorOption.padding);
 
-		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight), padding.top, padding.bottom);
+		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight), options.get(EditorOption.fontSize), padding.top, padding.bottom);
 		this._maxLineWidth = 0;
 		this._overlayWidgetsMinWidth = 0;
 
@@ -212,6 +212,18 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 	public getSpecialLinesHeights(): Map<number, number> {
 		return this._linesLayout.getSpecialLinesHeights();
+	}
+
+	public addSpecialLineFontSize(lineNumber: number, height: number): void {
+		this._linesLayout.addSpecialLineFontSize(lineNumber, height);
+	}
+
+	public removeSpecialLineFontSize(lineNumber: number): void {
+		this._linesLayout.removeSpecialLineFontSize(lineNumber);
+	}
+
+	public getSpecialLinesFontSizes(): Map<number, number> {
+		return this._linesLayout.getSpecialLinesFontSizes();
 	}
 
 	private _configureSmoothScrollDuration(): void {
@@ -416,7 +428,6 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		return this._linesLayout.getWhitespaceAtVerticalOffset(verticalOffset);
 	}
 	public getLinesViewportData(): IPartialViewLinesViewportData {
-		console.log('getLinesViewportData');
 		const visibleBox = this.getCurrentViewport();
 		return this._linesLayout.getLinesViewportData(visibleBox.top, visibleBox.top + visibleBox.height);
 	}

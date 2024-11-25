@@ -157,7 +157,7 @@ function renderOriginalLine(
 	const lineContent = lineTokens.getLineContent();
 	const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, mightContainNonBasicASCII);
 	const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, mightContainRTL);
-	const output = renderViewLine(new RenderLineInput( //
+	const output = renderViewLine(new RenderLineInput(
 		(options.fontInfo.isMonospace && !options.disableMonospaceOptimizations),
 		options.fontInfo.canUseHalfwidthRightwardsArrow,
 		lineContent,

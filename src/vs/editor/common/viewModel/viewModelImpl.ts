@@ -148,6 +148,17 @@ export class ViewModel extends Disposable implements IViewModel {
 				}
 			});
 		}));
+		this._register(this.model.onDidChangeSpecialLineFontSize((e) => {
+			e.changes.forEach((a) => {
+				const lineNumber = a.lineNumber;
+				const lineFontSize = a.lineFontSize;
+				if (lineFontSize !== null) {
+					this.viewLayout.addSpecialLineFontSize(lineNumber, lineFontSize);
+				} else {
+					this.viewLayout.removeSpecialLineFontSize(lineNumber);
+				}
+			});
+		}));
 
 		this._registerModelEvents();
 

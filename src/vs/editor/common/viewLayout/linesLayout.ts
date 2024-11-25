@@ -95,14 +95,16 @@ export class LinesLayout {
 	private _minWidth: number;
 	private _lineCount: number;
 	private _lineHeight: number;
+	private _fontSize: number;
 	private _paddingTop: number;
 	private _paddingBottom: number;
 	private _specialLineHeights = new Map<number, number>();
+	private _specialLineFontSizes = new Map<number, number>();
 
 	private readonly maxLogsIndex = 10;
 	private currentIndex = 0;
 
-	constructor(lineCount: number, lineHeight: number, paddingTop: number, paddingBottom: number) {
+	constructor(lineCount: number, lineHeight: number, fontSize: number, paddingTop: number, paddingBottom: number) {
 		this._instanceId = strings.singleLetterHash(++LinesLayout.INSTANCE_COUNT);
 		this._pendingChanges = new PendingChanges();
 		this._lastWhitespaceId = 0;
@@ -111,6 +113,7 @@ export class LinesLayout {
 		this._minWidth = -1; /* marker for not being computed */
 		this._lineCount = lineCount;
 		this._lineHeight = lineHeight;
+		this._fontSize = fontSize;
 		this._paddingTop = paddingTop;
 		this._paddingBottom = paddingBottom;
 	}
@@ -148,6 +151,14 @@ export class LinesLayout {
 	public setLineHeight(lineHeight: number): void {
 		this._checkPendingChanges();
 		this._lineHeight = lineHeight;
+	}
+
+	/**
+	 * Change the height of a line in pixels.
+	 */
+	public setLineFontSize(fontSize: number): void {
+		this._checkPendingChanges();
+		this._fontSize = fontSize;
 	}
 
 	/**
@@ -411,6 +422,21 @@ export class LinesLayout {
 	public getSpecialLinesHeights(): Map<number, number> {
 		console.log('getSpecialLinesHeights');
 		return this._specialLineHeights;
+	}
+
+	public addSpecialLineFontSize(lineNumber: number, height: number): void {
+		console.log('addSpecialLineFontSize');
+		this._specialLineFontSizes.set(lineNumber, height);
+	}
+
+	public removeSpecialLineFontSize(lineNumber: number): void {
+		console.log('clearSpecialLineHeights');
+		this._specialLineFontSizes.delete(lineNumber);
+	}
+
+	public getSpecialLinesFontSizes(): Map<number, number> {
+		console.log('getSpecialLinesFontSizes');
+		return this._specialLineFontSizes;
 	}
 
 	/**
@@ -792,7 +818,9 @@ export class LinesLayout {
 			completelyVisibleStartLineNumber: completelyVisibleStartLineNumber,
 			completelyVisibleEndLineNumber: completelyVisibleEndLineNumber,
 			lineHeight: this._lineHeight,
-			specialLineHeights: this._specialLineHeights
+			fontSize: this._fontSize,
+			specialLineHeights: this._specialLineHeights,
+			specialLineFontSizes: this._specialLineFontSizes
 		};
 	}
 

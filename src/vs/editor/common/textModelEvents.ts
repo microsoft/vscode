@@ -232,7 +232,9 @@ export class ModelRawLineChanged {
 
 	public readonly lineHeight: number | null;
 
-	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null, lineHeight: number | null) {
+	public readonly lineFontSize: number | null;
+
+	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null, lineHeight: number | null, lineFontSize: number | null) {
 		console.log('ModelRawLineChanged');
 		console.log('lineNumber : ', lineNumber);
 		console.log('detail : ', detail);
@@ -241,6 +243,7 @@ export class ModelRawLineChanged {
 		this.detail = detail;
 		this.injectedText = injectedText;
 		this.lineHeight = lineHeight;
+		this.lineFontSize = lineFontSize;
 	}
 }
 
@@ -381,6 +384,19 @@ export class ModelInjectedTextChangedEvent {
  * @internal
  */
 export class ModelSpecialLineHeightChangedEvent {
+
+	public readonly changes: ModelRawLineChanged[];
+
+	constructor(changes: ModelRawLineChanged[]) {
+		this.changes = changes;
+	}
+}
+
+/**
+ * An event describing a change in special line height.
+ * @internal
+ */
+export class ModelSpecialLineFontSizeChangedEvent {
 
 	public readonly changes: ModelRawLineChanged[];
 

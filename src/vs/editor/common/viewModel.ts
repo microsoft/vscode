@@ -127,6 +127,7 @@ export interface IViewLayout {
 	getWhitespaces(): IEditorWhitespace[];
 
 	getSpecialLinesHeights(): Map<number, number>;
+	getSpecialLinesFontSizes(): Map<number, number>;
 
 	isAfterLines(verticalOffset: number): boolean;
 	isInTopPadding(verticalOffset: number): boolean;
@@ -193,9 +194,19 @@ export interface IPartialViewLinesViewportData {
 	readonly lineHeight: number;
 
 	/**
+	 * The height of a line.
+	 */
+	readonly fontSize: number;
+
+	/**
 	 * The special line heights
 	 */
 	readonly specialLineHeights: Map<number, number>;
+
+	/**
+	 * The special line font sizes
+	 */
+	readonly specialLineFontSizes: Map<number, number>;
 }
 
 export interface IViewWhitespaceViewportData {
