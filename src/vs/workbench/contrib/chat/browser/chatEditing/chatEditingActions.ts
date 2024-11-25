@@ -26,6 +26,7 @@ import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
+import { EditsAttachmentModel } from '../chatAttachmentModel.js';
 
 abstract class WorkingSetAction extends Action2 {
 	run(accessor: ServicesAccessor, ...args: any[]) {
@@ -315,11 +316,16 @@ export class ChatEditingRemoveAllFilesAction extends Action2 {
 			return;
 		}
 
+		// Remove all files from working set
 		const chatWidget = accessor.get(IChatWidgetService).getWidgetBySessionId(currentEditingSession.chatSessionId);
 		const uris = [...currentEditingSession.workingSet.keys()];
 		currentEditingSession.remove(WorkingSetEntryRemovalReason.User, ...uris);
-		for (const uri of chatWidget?.attachmentModel.attachments ?? []) {
-			if (uri.isFile && URI.isUri(uri.value)) {
+
+		// Remove all file attachments
+		const attachmentModel = chatWidget?.attachmentModel as EditsAttachmentModel | undefined;
+		const fileAttachments = attachmentModel ? [...attachmentModel.excludedFileAttachments, ...attachmentModel.fileAttachments] : [];
+		for (const uri of fileAttachments) {
+			if (URI.isUri(uri.value)) {
 				chatWidget?.attachmentModel.delete(uri.value.toString());
 			}
 		}
