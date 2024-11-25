@@ -735,7 +735,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					ref.dispose();
 					return;
 				}
-				this._register(ref);
+				this._register(ref.object.textEditorModel);
 			});
 		}
 
