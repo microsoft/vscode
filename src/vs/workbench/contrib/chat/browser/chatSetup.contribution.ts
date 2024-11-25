@@ -667,10 +667,10 @@ class ChatSetupContextKeys {
 		this.updateContext();
 	}
 
-	update(context: { chatInstalled: boolean }): void;
-	update(context: { triggered: boolean }): void;
-	update(context: { entitled: boolean; limited: boolean }): void;
-	update(context: { triggered?: boolean; chatInstalled?: boolean; entitled?: boolean; limited?: boolean }): void {
+	update(context: { chatInstalled: boolean }): Promise<void>;
+	update(context: { triggered: boolean }): Promise<void>;
+	update(context: { entitled: boolean; limited: boolean }): Promise<void>;
+	update(context: { triggered?: boolean; chatInstalled?: boolean; entitled?: boolean; limited?: boolean }): Promise<void> {
 		if (typeof context.chatInstalled === 'boolean') {
 			this.storageService.store(ChatSetupContextKeys.CHAT_EXTENSION_INSTALLED, context.chatInstalled, StorageScope.PROFILE, StorageTarget.MACHINE);
 			if (context.chatInstalled) {
@@ -694,7 +694,7 @@ class ChatSetupContextKeys {
 			this.chatSetupLimited = context.limited;
 		}
 
-		this.updateContext();
+		return this.updateContext();
 	}
 
 	private async updateContext(): Promise<void> {
@@ -755,7 +755,7 @@ class ChatSetupTriggerAction extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		instantiationService.createInstance(ChatSetupContextKeys).update({ triggered: true });
+		await instantiationService.createInstance(ChatSetupContextKeys).update({ triggered: true });
 
 		showChatView(viewsService);
 
@@ -802,7 +802,7 @@ class ChatSetupHideAction extends Action2 {
 
 		const location = viewsDescriptorService.getViewLocationById(ChatViewId);
 
-		instantiationService.createInstance(ChatSetupContextKeys).update({ triggered: false });
+		await instantiationService.createInstance(ChatSetupContextKeys).update({ triggered: false });
 
 		if (location === ViewContainerLocation.AuxiliaryBar) {
 			const activeContainers = viewsDescriptorService.getViewContainersByLocation(location).filter(container => viewsDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
