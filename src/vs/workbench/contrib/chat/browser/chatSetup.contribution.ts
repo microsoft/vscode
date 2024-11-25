@@ -766,7 +766,7 @@ class ChatSetupTriggerAction extends Action2 {
 class ChatSetupHideAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.hideSetup';
-	static readonly TITLE = localize2('hideChatSetup', "Hide {0}...", defaultChat.name);
+	static readonly TITLE = localize2('hideChatSetup', "Hide {0}", defaultChat.name);
 
 	constructor() {
 		super({
@@ -776,8 +776,8 @@ class ChatSetupHideAction extends Action2 {
 			precondition: ChatContextKeys.Setup.installed.negate(),
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'z_hide',
-				order: 1,
+				group: 'z_end',
+				order: 2,
 				when: ChatContextKeys.Setup.installed.negate()
 			}
 		});
