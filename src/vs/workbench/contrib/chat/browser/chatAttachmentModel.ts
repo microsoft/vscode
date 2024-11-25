@@ -78,7 +78,7 @@ export class EditsAttachmentModel extends ChatAttachmentModel {
 	private _onFileLimitExceeded = this._register(new Emitter<void>());
 	readonly onFileLimitExceeded = this._onFileLimitExceeded.event;
 
-	private get fileAttachments() {
+	get fileAttachments() {
 		return this.attachments.filter(attachment => attachment.isFile);
 	}
 
