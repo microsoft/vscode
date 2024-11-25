@@ -157,6 +157,8 @@ export class LinesLayout {
 	 * Change the height of a line in pixels.
 	 */
 	public setLineFontSize(fontSize: number): void {
+		console.log('setLineFontSize');
+		console.log('fontSize:', fontSize);
 		this._checkPendingChanges();
 		this._fontSize = fontSize;
 	}

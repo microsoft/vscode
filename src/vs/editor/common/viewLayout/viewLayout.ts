@@ -237,6 +237,9 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		if (e.hasChanged(EditorOption.lineHeight)) {
 			this._linesLayout.setLineHeight(options.get(EditorOption.lineHeight));
 		}
+		if (e.hasChanged(EditorOption.fontSize)) {
+			this._linesLayout.setLineFontSize(options.get(EditorOption.fontSize));
+		}
 		if (e.hasChanged(EditorOption.padding)) {
 			const padding = options.get(EditorOption.padding);
 			this._linesLayout.setPadding(padding.top, padding.bottom);

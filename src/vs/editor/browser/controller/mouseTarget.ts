@@ -1087,6 +1087,9 @@ function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number)
 		const fontFamily = elWindow.getComputedStyle(el, null).getPropertyValue('font-family');
 		const font = `${fontStyle} ${fontVariant} ${fontWeight} ${fontSize}/${lineHeight} ${fontFamily}`;
 
+		console.log('shadowCaretRangeFromPoint');
+		console.log('fontSize : ', fontSize);
+
 		// And also its txt content
 		const text = (el as any).innerText;
 
@@ -1116,12 +1119,15 @@ function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number)
 				pixelCursor += step;
 			}
 		}
+		console.log('pixelCursor : ', pixelCursor);
+		console.log('offset : ', offset);
 
 		// Creates a range with the text node of the element and set the offset found
 		range.setStart(el.firstChild!, offset);
 		range.setEnd(el.firstChild!, offset);
 	}
 
+	console.log('range : ', range);
 	return range;
 }
 

@@ -99,7 +99,7 @@ export class ViewLine implements IVisibleLine {
 
 	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, fontSize: number, viewportData: ViewportData, sb: StringBuilder): boolean {
 		console.log('renderLine');
-		console.log('lineNumber', lineNumber);
+		console.log('lineNumber : ', lineNumber);
 		console.log('fontSize', fontSize);
 		if (this._options.useGpu && ViewGpuContext.canRender(this._options, viewportData, lineNumber)) {
 			this._renderedViewLine?.domNode?.domNode.remove();
@@ -220,6 +220,7 @@ export class ViewLine implements IVisibleLine {
 	}
 
 	public layoutLine(lineNumber: number, deltaTop: number, lineHeight: number): void {
+		console.log('layoutLine');
 		if (this._renderedViewLine && this._renderedViewLine.domNode) {
 			this._renderedViewLine.domNode.setTop(deltaTop);
 			this._renderedViewLine.domNode.setHeight(lineHeight);

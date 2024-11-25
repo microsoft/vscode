@@ -148,6 +148,12 @@ export class CursorsController extends Disposable {
 			revealViewRange = Range.fromPositions(viewPositions[0], viewPositions[0]);
 		}
 
+		console.log('revealAll');
+		console.log('minimalReveal : ', minimalReveal);
+		console.log('revealViewRange : ', revealViewRange);
+		console.log('revealViewSelections : ', revealViewSelections);
+		console.log('verticalType : ', verticalType);
+		console.log('revealHorizontal : ', revealHorizontal);
 		eventsCollector.emitViewEvent(new ViewRevealRangeRequestEvent(source, minimalReveal, revealViewRange, revealViewSelections, verticalType, revealHorizontal, scrollType));
 	}
 
@@ -347,7 +353,7 @@ export class CursorsController extends Disposable {
 	}
 
 	private _executeEditOperation(opResult: EditOperationResult | null): void {
-
+		console.log('_executeEditOperation');
 		if (!opResult) {
 			// Nothing to execute
 			return;
@@ -391,6 +397,7 @@ export class CursorsController extends Disposable {
 			cursorState = this._cursors.readSelectionFromMarkers();
 		}
 
+		console.log('cursorState : ', cursorState);
 		this._columnSelectData = null;
 		this._cursors.setSelections(cursorState);
 		this._cursors.normalize();
@@ -400,6 +407,7 @@ export class CursorsController extends Disposable {
 	// ----- emitting events
 
 	private _emitStateChangedIfNecessary(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, reason: CursorChangeReason, oldState: CursorModelState | null, reachedMaxCursorCount: boolean): boolean {
+		console.log('_emitStateChangedIfNecessary');
 		const newState = CursorModelState.from(this._model, this);
 		if (newState.equals(oldState)) {
 			return false;
@@ -506,6 +514,7 @@ export class CursorsController extends Disposable {
 	}
 
 	private _executeEdit(callback: () => void, eventsCollector: ViewModelEventsCollector, source: string | null | undefined, cursorChangeReason: CursorChangeReason = CursorChangeReason.NotSet): void {
+		console.log('_executeEdit');
 		if (this.context.cursorConfig.readOnly) {
 			// we cannot edit when read only...
 			return;
