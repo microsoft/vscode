@@ -85,8 +85,8 @@ export class NotebookVariablesView extends ViewPane {
 		super.renderBody(container);
 		this.element.classList.add('debug-pane');
 
-		this.tree = <WorkbenchAsyncDataTree<INotebookScope | IEmptyScope, INotebookVariableElement>>this.instantiationService.createInstance(
-			WorkbenchAsyncDataTree,
+		this.tree = this.instantiationService.createInstance(
+			WorkbenchAsyncDataTree<INotebookScope | IEmptyScope, INotebookVariableElement>,
 			'notebookVariablesTree',
 			container,
 			new NotebookVariablesDelegate(),
