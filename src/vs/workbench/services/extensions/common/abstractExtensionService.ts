@@ -814,7 +814,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	protected _doCreateExtensionHostManager(extensionHost: IExtensionHost, initialActivationEvents: string[]): IExtensionHostManager {
 		const internalExtensionService = this._acquireInternalAPI(extensionHost);
-		if (extensionHost.startup === ExtensionHostStartup.Lazy) {
+		if (extensionHost.startup === ExtensionHostStartup.LazyAutoStart) {
 			return this._instantiationService.createInstance(LazyCreateExtensionHostManager, extensionHost, initialActivationEvents, internalExtensionService);
 		}
 		return this._instantiationService.createInstance(ExtensionHostManager, extensionHost, initialActivationEvents, internalExtensionService);
