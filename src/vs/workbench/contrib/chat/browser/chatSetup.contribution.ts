@@ -519,7 +519,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		const limitedSkuHeaderElement = this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true }))).element);
 
 		const telemetryLabel = localize('telemetryLabel', "Allow {0} to use my data, including Prompts, Suggestions, and Code Snippets, for product improvements", defaultChat.providerName);
-		const { container: telemetryContainer, checkbox: telemetryCheckbox } = this.createCheckBox(telemetryLabel, this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? false : false);
+		const { container: telemetryContainer, checkbox: telemetryCheckbox } = this.createCheckBox(telemetryLabel, this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? false : true);
 
 		const detectionLabel = localize('detectionLabel', "Allow suggestions matching public code");
 		const { container: detectionContainer, checkbox: detectionCheckbox } = this.createCheckBox(detectionLabel, true);
@@ -538,15 +538,16 @@ class ChatSetupWelcomeContent extends Disposable {
 	}
 
 	private createCheckBox(label: string, checked: boolean): { container: HTMLElement; checkbox: Checkbox } {
-		const container = this.element.appendChild($('p'));
+		const container = this.element.appendChild($('p.checkbox-container'));
 		const checkbox = this._register(new Checkbox(label, checked, defaultCheckboxStyles));
 		container.appendChild(checkbox.domNode);
 
-		const checkboxLabel = container.appendChild($('div'));
+		const checkboxLabel = container.appendChild($('div.checkbox-label'));
 		checkboxLabel.textContent = label;
 		this._register(addDisposableListener(checkboxLabel, EventType.CLICK, () => {
 			if (checkbox?.enabled) {
 				checkbox.checked = !checkbox.checked;
+				checkbox.focus();
 			}
 		}));
 
