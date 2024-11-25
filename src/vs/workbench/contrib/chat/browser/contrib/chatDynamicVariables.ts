@@ -46,6 +46,9 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this.onVariablesChanged = this.onVariablesChanged.bind(this);
+
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
 			e.changes.forEach(c => {
 				// Don't mutate entries in _variables, since they will be returned from the getter
@@ -118,21 +121,25 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		);
 
 		this._variables.push(variable);
-		this.updateDecorations();
-		this.widget.refreshParsedInput();
+		this.onVariablesChanged();
 
 		// if the `prompt snippets` feature is enabled, start resolving
 		// nested file references immediatelly and subscribe to updates
 		if (variable.isPromptSnippetFile) {
 			// subscribe to variable changes
-			this._register(variable.onUpdate(() => {
-				this.updateVariableTexts();
-				this.updateDecorations();
-				this.widget.refreshParsedInput();
-			}));
+			this._register(variable.onUpdate(this.onVariablesChanged));
 			// start resolving the file references
 			variable.resolve();
 		}
+	}
+
+	/**
+	 * Function to run when a variable list or a single variable has changed.
+	 */
+	private onVariablesChanged(): void {
+		this.updateVariableTexts();
+		this.updateDecorations();
+		this.widget.refreshParsedInput();
 	}
 
 	/**
