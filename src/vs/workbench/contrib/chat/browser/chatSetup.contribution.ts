@@ -730,7 +730,7 @@ class ChatSetupTriggerAction extends Action2 {
 class ChatSetupHideAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.hideSetup';
-	static readonly TITLE = localize2('hideChatSetup', "Hide {0}", defaultChat.name);
+	static readonly TITLE = localize2('hideChatSetup', "Hide {0}...", defaultChat.name);
 
 	constructor() {
 		super({
@@ -756,8 +756,8 @@ class ChatSetupHideAction extends Action2 {
 
 		const { confirmed } = await dialogService.confirm({
 			message: localize('hideChatSetupConfirm', "Are you sure you want to hide {0}?", defaultChat.name),
-			detail: localize('hideChatSetupDetail', "You can restore chat controls from the 'chat.commandCenter.enabled' setting."),
-			primaryButton: localize('hideChatSetup', "Hide {0}", defaultChat.name)
+			detail: localize('hideChatSetupDetail', "You can restore by running the '{0}' command.", ChatSetupTriggerAction.TITLE.value),
+			primaryButton: localize('hideChatSetupButton', "Hide {0}", defaultChat.name)
 		});
 
 		if (!confirmed) {
