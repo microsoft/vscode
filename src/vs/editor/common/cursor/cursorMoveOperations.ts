@@ -182,7 +182,7 @@ export class MoveOperations {
 			const pos = cursor.position.delta(undefined, noOfColumns - 1);
 			const minColumn = model.getLineMinColumn(pos.lineNumber);
 			const maxColumn = model.getLineMaxColumn(pos.lineNumber);
-			if (virtualSpace && pos.column >= minColumn) {
+			if (virtualSpace && pos.column >= maxColumn) {
 				lineNumber = pos.lineNumber;
 				column = pos.column + 1;
 			} else {
