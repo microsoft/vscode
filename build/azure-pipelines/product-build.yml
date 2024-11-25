@@ -790,16 +790,12 @@ extends:
               name: 1es-ubuntu-22.04-x64
               os: linux
             jobs:
-              - deployment: ApproveRelease
+              - job: ApproveRelease
                 displayName: "Approve Release"
-                environment: "vscode"
                 variables:
-                  skipComponentGovernanceDetection: true
-                strategy:
-                  runOnce:
-                    deploy:
-                      steps:
-                        - checkout: none
+                  - group: VSCode
+                  - name: skipComponentGovernanceDetection
+                    value: true
 
         - ${{ if or(and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
           - stage: Release
