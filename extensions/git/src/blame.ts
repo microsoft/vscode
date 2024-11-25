@@ -52,6 +52,32 @@ function mapModifiedLineNumberToOriginalLineNumber(lineNumber: number, changes: 
 	return lineNumber;
 }
 
+type BlameInformationTemplateTokens = {
+	'commit.hash': string;
+	'commit.hash.short': string;
+	'commit.subject': string;
+	'commit.authorName': string;
+	'commit.authorEmail': string;
+	'commit.authorDate': string;
+	'commit.authorDate.ago': string;
+};
+
+function formatBlameInformation(template: string, blameInformation: BlameInformation): string {
+	const templateTokens = {
+		'commit.hash': blameInformation.hash,
+		'commit.hash.short': blameInformation.hash.substring(0, 8),
+		'commit.subject': blameInformation.subject ?? '',
+		'commit.authorName': blameInformation.authorName ?? '',
+		'commit.authorEmail': blameInformation.authorEmail ?? '',
+		'commit.authorDate': new Date(blameInformation.authorDate ?? new Date()).toLocaleString(),
+		'commit.authorDate.ago': fromNow(blameInformation.authorDate ?? new Date(), true, true)
+	} satisfies BlameInformationTemplateTokens;
+
+	return template.replace(/\$\{(.+?)\}/g, (_, token) => {
+		return token in templateTokens ? templateTokens[token as keyof BlameInformationTemplateTokens] : `\${${token}}`;
+	});
+}
+
 interface RepositoryBlameInformation {
 	readonly commit: string; /* commit used for blame information */
 	readonly blameInformation: Map<Uri, BlameInformation[]>;
@@ -282,13 +308,13 @@ class GitBlameEditorDecoration {
 	}
 
 	private _onDidChangeConfiguration(e: ConfigurationChangeEvent): void {
-		if (!e.affectsConfiguration('git.blame.editorDecoration.enabled')) {
+		if (!e.affectsConfiguration('git.blame.editorDecoration.enabled') &&
+			!e.affectsConfiguration('git.blame.editorDecoration.template')) {
 			return;
 		}
 
-		const enabled = this._isEnabled();
 		for (const textEditor of window.visibleTextEditors) {
-			if (enabled) {
+			if (this._getConfiguration().enabled) {
 				this._updateDecorations(textEditor);
 			} else {
 				textEditor.setDecorations(this._decorationType, []);
@@ -296,13 +322,17 @@ class GitBlameEditorDecoration {
 		}
 	}
 
-	private _isEnabled(): boolean {
+	private _getConfiguration(): { enabled: boolean; template: string } {
 		const config = workspace.getConfiguration('git');
-		return config.get<boolean>('blame.editorDecoration.enabled', false);
+		const enabled = config.get<boolean>('blame.editorDecoration.enabled', false);
+		const template = config.get<string>('blame.editorDecoration.template', '${commit.subject}, ${commit.authorName} (${commit.authorDate.ago})');
+
+		return { enabled, template };
 	}
 
 	private _updateDecorations(textEditor: TextEditor): void {
-		if (!this._isEnabled()) {
+		const { enabled, template } = this._getConfiguration();
+		if (!enabled) {
 			return;
 		}
 
@@ -315,7 +345,7 @@ class GitBlameEditorDecoration {
 		const decorations = blameInformation.map(blame => {
 			const contentText = typeof blame.blameInformation === 'string'
 				? blame.blameInformation
-				: `${blame.blameInformation.subject ?? ''}, ${blame.blameInformation.authorName ?? ''} (${fromNow(blame.blameInformation.authorDate ?? Date.now(), true, true)})`;
+				: formatBlameInformation(template, blame.blameInformation);
 			const hoverMessage = this._controller.getBlameInformationHover(textEditor.document.uri, blame.blameInformation);
 
 			return this._createDecoration(blame.lineNumber, contentText, hoverMessage);
@@ -357,11 +387,12 @@ class GitBlameStatusBarItem {
 	}
 
 	private _onDidChangeConfiguration(e: ConfigurationChangeEvent): void {
-		if (!e.affectsConfiguration('git.blame.statusBarItem.enabled')) {
+		if (!e.affectsConfiguration('git.blame.statusBarItem.enabled') &&
+			!e.affectsConfiguration('git.blame.statusBarItem.template')) {
 			return;
 		}
 
-		if (this._isEnabled()) {
+		if (this._getConfiguration().enabled) {
 			if (window.activeTextEditor) {
 				this._updateStatusBarItem(window.activeTextEditor);
 			}
@@ -372,7 +403,7 @@ class GitBlameStatusBarItem {
 	}
 
 	private _onDidChangeActiveTextEditor(): void {
-		if (!this._isEnabled()) {
+		if (!this._getConfiguration().enabled) {
 			return;
 		}
 
@@ -383,13 +414,17 @@ class GitBlameStatusBarItem {
 		}
 	}
 
-	private _isEnabled(): boolean {
+	private _getConfiguration(): { enabled: boolean; template: string } {
 		const config = workspace.getConfiguration('git');
-		return config.get<boolean>('blame.statusBarItem.enabled', false);
+		const enabled = config.get<boolean>('blame.statusBarItem.enabled', false);
+		const template = config.get<string>('blame.statusBarItem.template', '${commit.authorName} (${commit.authorDate.ago})');
+
+		return { enabled, template };
 	}
 
 	private _updateStatusBarItem(textEditor: TextEditor): void {
-		if (!this._isEnabled() || textEditor !== window.activeTextEditor) {
+		const { enabled, template } = this._getConfiguration();
+		if (!enabled || textEditor !== window.activeTextEditor) {
 			return;
 		}
 
@@ -410,7 +445,7 @@ class GitBlameStatusBarItem {
 			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
 			this._statusBarItem.command = undefined;
 		} else {
-			this._statusBarItem.text = `$(git-commit) ${blameInformation[0].blameInformation.authorName ?? ''} (${fromNow(blameInformation[0].blameInformation.authorDate ?? new Date(), true, true)})`;
+			this._statusBarItem.text = formatBlameInformation(template, blameInformation[0].blameInformation);
 			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
 			this._statusBarItem.command = {
 				title: l10n.t('View Commit'),
