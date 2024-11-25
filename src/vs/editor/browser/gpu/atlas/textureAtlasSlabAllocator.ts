@@ -279,7 +279,6 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 			h: glyphHeight,
 			originOffsetX: rasterizedGlyph.originOffset.x,
 			originOffsetY: rasterizedGlyph.originOffset.y,
-			alphabeticBaseline: rasterizedGlyph.alphabeticBaseline,
 			fontBoundingBoxAscent: rasterizedGlyph.fontBoundingBoxAscent,
 			fontBoundingBoxDescent: rasterizedGlyph.fontBoundingBoxDescent,
 		};

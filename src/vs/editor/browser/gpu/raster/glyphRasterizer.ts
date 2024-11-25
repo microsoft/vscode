@@ -38,7 +38,6 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 			x: 0,
 			y: 0,
 		},
-		alphabeticBaseline: 0,
 		fontBoundingBoxAscent: 0,
 		fontBoundingBoxDescent: 0,
 	};
@@ -77,7 +76,6 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 				source: this._canvas,
 				boundingBox: { top: 0, left: 0, bottom: -1, right: -1 },
 				originOffset: { x: 0, y: 0 },
-				alphabeticBaseline: 0,
 				fontBoundingBoxAscent: 0,
 				fontBoundingBoxDescent: 0,
 			};
@@ -152,8 +150,6 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		this._workGlyph.source = this._canvas;
 		this._workGlyph.originOffset.x = this._workGlyph.boundingBox.left - originX;
 		this._workGlyph.originOffset.y = this._workGlyph.boundingBox.top - originY;
-		// TODO: Clean this up, reduce duplication
-		this._workGlyph.alphabeticBaseline = this._textMetrics.alphabeticBaseline;
 		this._workGlyph.fontBoundingBoxAscent = this._textMetrics.fontBoundingBoxAscent;
 		this._workGlyph.fontBoundingBoxDescent = this._textMetrics.fontBoundingBoxDescent;
 
