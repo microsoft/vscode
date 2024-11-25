@@ -470,11 +470,20 @@ export function registerChatActions() {
 				id: LearnMoreChatAction.ID,
 				title: LearnMoreChatAction.TITLE,
 				category: CHAT_CATEGORY,
-				menu: {
-					id: MenuId.ChatCommandCenter,
-					group: 'z_learn',
-					order: 1
-				}
+				menu: [
+					{
+						id: MenuId.ChatCommandCenter,
+						group: 'z_learn',
+						order: 1,
+						when: ChatContextKeys.Setup.installed
+					},
+					{
+						id: MenuId.ChatCommandCenter,
+						group: 'a_first',
+						order: 2,
+						when: ChatContextKeys.Setup.installed.toNegated()
+					}
+				]
 			});
 		}
 
