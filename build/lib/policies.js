@@ -145,6 +145,24 @@ class StringPolicy extends BasePolicy {
         return `<textBox refId="${this.name}"><label>${this.name}:</label></textBox>`;
     }
 }
+class ObjectPolicy extends BasePolicy {
+    static from(name, category, minimumVersion, description, moduleName, settingNode) {
+        const type = getStringProperty(settingNode, 'type');
+        if (type !== 'object' && type !== 'array') {
+            return undefined;
+        }
+        return new ObjectPolicy(name, category, minimumVersion, description, moduleName);
+    }
+    constructor(name, category, minimumVersion, description, moduleName) {
+        super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
+    }
+    renderADMXElements() {
+        return [`<text id="${this.name}" valueName="${this.name}" required="true" />`];
+    }
+    renderADMLPresentationContents() {
+        return `<textBox refId="${this.name}"><label>${this.name}:</label></textBox>`;
+    }
+}
 class StringEnumPolicy extends BasePolicy {
     enum_;
     enumDescriptions;
@@ -264,6 +282,7 @@ const PolicyTypes = [
     IntPolicy,
     StringEnumPolicy,
     StringPolicy,
+    ObjectPolicy
 ];
 function getPolicy(moduleName, configurationNode, settingNode, policyNode, categories) {
     const name = getStringProperty(policyNode, 'name');
