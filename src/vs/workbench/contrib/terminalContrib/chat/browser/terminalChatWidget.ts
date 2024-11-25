@@ -223,7 +223,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	private _resetPlaceholder() {
-		this.inlineChatWidget.placeholder = this._model.value?.welcomeMessage?.title ?? localize('askAI', 'Ask AI');
+		this.inlineChatWidget.placeholder = this._model.value?.welcomeMessage?.title ?? localize('askCopilot', 'Ask Copilot');
 	}
 
 	async reveal(viewState?: IChatViewState): Promise<void> {
