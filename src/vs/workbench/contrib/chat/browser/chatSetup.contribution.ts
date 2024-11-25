@@ -43,6 +43,7 @@ import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -375,7 +376,8 @@ class ChatSetupController extends Disposable {
 		@IViewsService private readonly viewsService: IViewsService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IProductService private readonly productService: IProductService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super();
 
@@ -396,6 +398,14 @@ class ChatSetupController extends Disposable {
 	}
 
 	async setup(enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
+		return this.progressService.withProgress({
+			location: ProgressLocation.Window,
+			command: ChatSetupTriggerAction.ID,
+			title: localize('setupChatProgress', "Setting up {0}...", defaultChat.name),
+		}, () => this.doSetup(enableTelemetry, enableDetection));
+	}
+
+	private async doSetup(enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
 		try {
 			let session: AuthenticationSession | undefined;
 
