@@ -530,7 +530,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		this._register(button.onDidClick(() => this.controller.setup(telemetryCheckbox.checked, detectionCheckbox.checked)));
 
 		// Footer
-		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}). You can [learn more]({1}) about {2}.", defaultChat.privacyStatementUrl, defaultChat.documentationUrl, defaultChat.name);
+		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}). Click [here]({1}) to learn more about {2}.", defaultChat.privacyStatementUrl, defaultChat.documentationUrl, defaultChat.name);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(footer, { isTrusted: true }))).element);
 
 		// Update based on model state
