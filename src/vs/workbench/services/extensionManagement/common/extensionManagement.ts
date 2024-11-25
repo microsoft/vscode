@@ -89,13 +89,6 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>): Promise<ILocalExtension>;
 }
 
-export const extensionsConfigurationNodeBase = {
-	id: 'extensions',
-	order: 30,
-	title: localize('extensionsConfigurationTitle', "Extensions"),
-	type: 'object'
-};
-
 export const enum EnablementState {
 	DisabledByTrustRequirement,
 	DisabledByExtensionKind,
