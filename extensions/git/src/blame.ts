@@ -98,24 +98,24 @@ export class GitBlameController {
 		if (blameInformation.authorName) {
 			markdownString.appendMarkdown(`$(account) **${blameInformation.authorName}**`);
 
-			if (blameInformation.date) {
-				const dateString = new Date(blameInformation.date).toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
-				markdownString.appendMarkdown(`, $(history) ${fromNow(blameInformation.date, true, true)} (${dateString})`);
+			if (blameInformation.authorDate) {
+				const dateString = new Date(blameInformation.authorDate).toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+				markdownString.appendMarkdown(`, $(history) ${fromNow(blameInformation.authorDate, true, true)} (${dateString})`);
 			}
 
 			markdownString.appendMarkdown('\n\n');
 		}
 
-		markdownString.appendMarkdown(`${blameInformation.message}\n\n`);
+		markdownString.appendMarkdown(`${blameInformation.subject}\n\n`);
 		markdownString.appendMarkdown(`---\n\n`);
 
-		markdownString.appendMarkdown(`[$(eye) View Commit](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformation.id]))})`);
+		markdownString.appendMarkdown(`[$(eye) View Commit](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformation.hash]))})`);
 		markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
-		markdownString.appendMarkdown(`[$(copy) ${blameInformation.id.substring(0, 8)}](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.id))})`);
+		markdownString.appendMarkdown(`[$(copy) ${blameInformation.hash.substring(0, 8)}](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.hash))})`);
 
-		if (blameInformation.message) {
+		if (blameInformation.subject) {
 			markdownString.appendMarkdown('&nbsp;&nbsp;');
-			markdownString.appendMarkdown(`[$(copy) Message](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.message))})`);
+			markdownString.appendMarkdown(`[$(copy) Message](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.subject))})`);
 		}
 
 		return markdownString;
@@ -315,7 +315,7 @@ class GitBlameEditorDecoration {
 		const decorations = blameInformation.map(blame => {
 			const contentText = typeof blame.blameInformation === 'string'
 				? blame.blameInformation
-				: `${blame.blameInformation.message ?? ''}, ${blame.blameInformation.authorName ?? ''} (${fromNow(blame.blameInformation.date ?? Date.now(), true, true)})`;
+				: `${blame.blameInformation.subject ?? ''}, ${blame.blameInformation.authorName ?? ''} (${fromNow(blame.blameInformation.authorDate ?? Date.now(), true, true)})`;
 			const hoverMessage = this._controller.getBlameInformationHover(textEditor.document.uri, blame.blameInformation);
 
 			return this._createDecoration(blame.lineNumber, contentText, hoverMessage);
@@ -410,12 +410,12 @@ class GitBlameStatusBarItem {
 			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
 			this._statusBarItem.command = undefined;
 		} else {
-			this._statusBarItem.text = `$(git-commit) ${blameInformation[0].blameInformation.authorName ?? ''} (${fromNow(blameInformation[0].blameInformation.date ?? new Date(), true, true)})`;
+			this._statusBarItem.text = `$(git-commit) ${blameInformation[0].blameInformation.authorName ?? ''} (${fromNow(blameInformation[0].blameInformation.authorDate ?? new Date(), true, true)})`;
 			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
 			this._statusBarItem.command = {
 				title: l10n.t('View Commit'),
 				command: 'git.blameStatusBarItem.viewCommit',
-				arguments: [textEditor.document.uri, blameInformation[0].blameInformation.id]
+				arguments: [textEditor.document.uri, blameInformation[0].blameInformation.hash]
 			} satisfies Command;
 		}
 
