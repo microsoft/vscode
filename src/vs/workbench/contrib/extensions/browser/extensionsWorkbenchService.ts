@@ -21,7 +21,7 @@ import {
 	TargetPlatformToString,
 	IAllowedExtensionsService
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension, extensionsConfigurationNodeBase } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -1033,7 +1033,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private registerAutoRestartConfig(): void {
 		Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			.registerConfiguration({
-				...extensionsConfigurationNodeBase,
+				id: 'extensions',
+				order: 30,
+				title: nls.localize('extensionsConfigurationTitle', "Extensions"),
+				type: 'object',
 				properties: {
 					[AutoRestartConfigurationKey]: {
 						type: 'boolean',
