@@ -20,6 +20,7 @@ import { IExtensionEditorOptions } from './extensionsInput.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { Severity } from '../../../../platform/notification/common/notification.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
@@ -133,11 +134,12 @@ export interface IExtensionsWorkbenchService {
 	getExtensions(extensionInfos: IExtensionInfo[], token: CancellationToken): Promise<IExtension[]>;
 	getExtensions(extensionInfos: IExtensionInfo[], options: IExtensionQueryOptions, token: CancellationToken): Promise<IExtension[]>;
 	getResourceExtensions(locations: URI[], isWorkspaceScoped: boolean): Promise<IExtension[]>;
-	canInstall(extension: IExtension): Promise<boolean>;
+	canInstall(extension: IExtension): Promise<true | IMarkdownString>;
 	install(id: string, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
 	install(vsix: URI, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
 	install(extension: IExtension, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
 	installInServer(extension: IExtension, server: IExtensionManagementServer): Promise<void>;
+	downloadVSIX(extension: string, prerelease: boolean): Promise<void>;
 	uninstall(extension: IExtension): Promise<void>;
 	reinstall(extension: IExtension): Promise<IExtension>;
 	togglePreRelease(extension: IExtension): Promise<void>;

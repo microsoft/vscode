@@ -21,7 +21,8 @@ import { IExtensionService, isProposedApiEnabled } from '../../../services/exten
 export class PasteImageProvider implements DocumentPasteEditProvider {
 
 	public readonly kind = new HierarchicalKind('image');
-
+	public readonly copyMimeTypes = ['image/*'];
+	public readonly providedPasteEditKinds = [this.kind];
 	public readonly pasteMimeTypes = ['image/*'];
 	constructor(
 		private readonly chatWidgetService: IChatWidgetService,

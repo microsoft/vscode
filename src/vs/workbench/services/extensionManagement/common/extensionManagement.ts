@@ -9,7 +9,7 @@ import { IExtension, ExtensionType, IExtensionManifest, IExtensionIdentifier } f
 import { IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, Metadata, UninstallExtensionEvent, DidUpdateExtensionMetadata } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileAccess } from '../../../../base/common/network.js';
-import { localize } from '../../../../nls.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
 export type DidChangeProfileEvent = { readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] };
 
@@ -78,7 +78,7 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 	getInstalledWorkspaceExtensionLocations(): URI[];
 	getInstalledWorkspaceExtensions(includeInvalid: boolean): Promise<ILocalExtension[]>;
 
-	canInstall(extension: IGalleryExtension | IResourceExtension): Promise<boolean>;
+	canInstall(extension: IGalleryExtension | IResourceExtension): Promise<true | IMarkdownString>;
 
 	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallOptions): Promise<ILocalExtension>;
 	installFromLocation(location: URI): Promise<ILocalExtension>;
@@ -88,13 +88,6 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>): Promise<ILocalExtension>;
 }
 
-export const extensionsConfigurationNodeBase = {
-	id: 'extensions',
-	order: 30,
-	title: localize('extensionsConfigurationTitle', "Extensions"),
-	type: 'object'
-};
-
 export const enum EnablementState {
 	DisabledByTrustRequirement,
 	DisabledByExtensionKind,
@@ -102,6 +95,7 @@ export const enum EnablementState {
 	EnabledByEnvironment,
 	DisabledByVirtualWorkspace,
 	DisabledByInvalidExtension,
+	DisabledByAllowlist,
 	DisabledByExtensionDependency,
 	DisabledGlobally,
 	DisabledWorkspace,

@@ -19,7 +19,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
-import { ctxNotebookHasEditorModification } from '../../notebook/browser/chatEdit/notebookChatEditController.js';
+import { ctxNotebookHasEditorModification } from '../../notebook/browser/contrib/chatEdit/notebookChatEditController.js';
 
 abstract class NavigateAction extends Action2 {
 
@@ -49,7 +49,7 @@ abstract class NavigateAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor) {
+	override async run(accessor: ServicesAccessor) {
 
 		const chatEditingService = accessor.get(IChatEditingService);
 		const editorService = accessor.get(IEditorService);
@@ -95,9 +95,9 @@ abstract class NavigateAction extends Action2 {
 		}
 
 		const entry = entries[newIdx];
-		const change = entry.diffInfo.get().changes.at(0);
+		const change = entry.diffInfo.get().changes.at(this.next ? 0 : -1);
 
-		return editorService.openEditor({
+		const newEditorPane = await editorService.openEditor({
 			resource: entry.modifiedURI,
 			options: {
 				selection: change && Range.fromPositions({ lineNumber: change.original.startLineNumber, column: 1 }),
@@ -105,6 +105,12 @@ abstract class NavigateAction extends Action2 {
 				revealIfVisible: false,
 			}
 		}, ACTIVE_GROUP);
+
+
+		const newEditor = newEditorPane?.getControl();
+		if (isCodeEditor(newEditor)) {
+			ChatEditorController.get(newEditor)?.initNavigation();
+		}
 	}
 }
 
