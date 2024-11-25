@@ -27,6 +27,7 @@ import './media/inlineChat.css';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
+import { ChatAgentLocation, IChatAgentService } from '../../chat/common/chatAgents.js';
 
 export const CTX_INLINE_CHAT_SHOWING_HINT = new RawContextKey<boolean>('inlineChatShowingHint', false, localize('inlineChatShowingHint', "Whether inline chat shows a contextual hint"));
 
@@ -154,6 +155,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IChatAgentService chatAgentService: IChatAgentService,
 	) {
 		super();
 		this._editor = editor;
@@ -179,12 +181,11 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 			}
 		}));
 
-		const posObs = observableFromEvent(editor.onDidChangeCursorPosition, () => editor.getPosition());
-
 		const decos = this._editor.createDecorationsCollection();
 
+		const modelObs = observableFromEvent(editor.onDidChangeModel, () => editor.getModel());
+		const posObs = observableFromEvent(editor.onDidChangeCursorPosition, () => editor.getPosition());
 		const keyObs = observableFromEvent(keybindingService.onDidUpdateKeybindings, _ => keybindingService.lookupKeybinding(ACTION_START)?.getLabel());
-
 
 		this._store.add(autorun(r => {
 
@@ -192,31 +193,39 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 			const visible = this._visibilityObs.read(r);
 			const kb = keyObs.read(r);
 			const position = posObs.read(r);
+			const model = modelObs.read(r);
 
 			// update context key
 			this._ctxShowingHint.set(visible);
 
-			if (!visible || !kb || !position || ghostState !== undefined) {
+			if (!visible || !kb || !position || ghostState !== undefined || !model) {
 				decos.clear();
 				return;
 			}
 
-			const column = this._editor.getModel()?.getLineMaxColumn(position.lineNumber);
-			if (!column) {
-				return;
+			const isEol = model.getLineMaxColumn(position.lineNumber) === position.column;
+
+			let content: string;
+			let inlineClassName: string;
+
+			if (isEol) {
+				const agentName = chatAgentService.getDefaultAgent(ChatAgentLocation.Editor)?.fullName ?? localize('defaultTitle', "Chat");
+				content = '\u00A0' + localize('title', "{0} to continue with {1}...", kb, agentName);
+				inlineClassName = `inline-chat-hint${decos.length === 0 ? ' first' : ''}`;
+			} else {
+				content = '\u200a' + kb + '\u200a';
+				inlineClassName = 'inline-chat-hint embedded';
 			}
 
-			const range = Range.fromPositions(position);
-
 			decos.set([{
-				range,
+				range: Range.fromPositions(position),
 				options: {
 					description: 'inline-chat-hint-line',
 					showIfCollapsed: true,
 					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 					after: {
-						inlineClassName: 'inline-chat-hint',
-						content: '\u00A0' + localize('ddd', "{0} to chat", kb),
+						content,
+						inlineClassName,
 						inlineClassNameAffectsLetterSpacing: true,
 						cursorStops: InjectedTextCursorStops.Both,
 						attachedData: this
