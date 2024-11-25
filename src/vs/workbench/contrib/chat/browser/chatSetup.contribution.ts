@@ -737,8 +737,8 @@ class ChatSetupHideAction extends Action2 {
 			precondition: ChatContextKeys.Setup.installed.negate(),
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'a_first',
-				order: 2,
+				group: 'z_hide',
+				order: 1,
 				when: ChatContextKeys.Setup.installed.negate()
 			}
 		});
