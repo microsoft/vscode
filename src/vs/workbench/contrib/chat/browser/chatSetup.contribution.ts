@@ -44,6 +44,8 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { Barrier, timeout } from '../../../../base/common/async.js';
+import { IChatAgentService } from '../common/chatAgents.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -108,7 +110,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				ChatContextKeys.Setup.installed.negate()
 			)!,
 			icon: defaultChat.icon,
-			content: () => ChatSetupWelcomeContent.getInstance(this.instantiationService, this.entitlementsResolver).element,
+			content: () => ChatSetupWelcomeContent.getInstance(this.instantiationService, this.entitlementsResolver, this.chatSetupContextKeys).element,
 		});
 	}
 
@@ -370,6 +372,7 @@ class ChatSetupController extends Disposable {
 
 	constructor(
 		private readonly entitlementResolver: ChatSetupEntitlementResolver,
+		private readonly chatSetupContextKeys: ChatSetupContextKeys,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -377,7 +380,8 @@ class ChatSetupController extends Disposable {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService
 	) {
 		super();
 
@@ -470,6 +474,8 @@ class ChatSetupController extends Disposable {
 				this.logService.trace('[chat setup] install: not signing up to limited SKU');
 			}
 
+			this.chatSetupContextKeys.suspend(); // reduces flicker
+
 			await this.extensionsWorkbenchService.install(defaultChat.extensionId, {
 				enable: true,
 				isMachineScoped: false,
@@ -481,6 +487,11 @@ class ChatSetupController extends Disposable {
 			this.logService.error(`[chat setup] install: error ${error}`);
 
 			installResult = isCancellationError(error) ? 'cancelled' : 'failedInstall';
+		} finally {
+			await Promise.race([
+				timeout(5000), 												// helps prevent flicker with sign-in welcome view
+				Event.toPromise(this.chatAgentService.onDidChangeAgents)	// https://github.com/microsoft/vscode-copilot/issues/9274
+			]).finally(() => this.chatSetupContextKeys.resume());
 		}
 
 		this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signedIn });
@@ -494,9 +505,9 @@ class ChatSetupController extends Disposable {
 class ChatSetupWelcomeContent extends Disposable {
 
 	private static INSTANCE: ChatSetupWelcomeContent | undefined;
-	static getInstance(instantiationService: IInstantiationService, entitlementResolver: ChatSetupEntitlementResolver): ChatSetupWelcomeContent {
+	static getInstance(instantiationService: IInstantiationService, entitlementResolver: ChatSetupEntitlementResolver, chatSetupContextKeys: ChatSetupContextKeys): ChatSetupWelcomeContent {
 		if (!ChatSetupWelcomeContent.INSTANCE) {
-			ChatSetupWelcomeContent.INSTANCE = instantiationService.createInstance(ChatSetupWelcomeContent, entitlementResolver);
+			ChatSetupWelcomeContent.INSTANCE = instantiationService.createInstance(ChatSetupWelcomeContent, entitlementResolver, chatSetupContextKeys);
 		}
 
 		return ChatSetupWelcomeContent.INSTANCE;
@@ -508,12 +519,13 @@ class ChatSetupWelcomeContent extends Disposable {
 
 	constructor(
 		entitlementResolver: ChatSetupEntitlementResolver,
+		chatSetupContextKeys: ChatSetupContextKeys,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
-		this.controller = this._register(instantiationService.createInstance(ChatSetupController, entitlementResolver));
+		this.controller = this._register(instantiationService.createInstance(ChatSetupController, entitlementResolver, chatSetupContextKeys));
 
 		this.create();
 	}
@@ -645,6 +657,8 @@ class ChatSetupContextKeys {
 	private chatSetupEntitled = false;
 	private chatSetupLimited = false;
 
+	private contextKeyUpdateBarrier: Barrier | undefined = undefined;
+
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -683,7 +697,9 @@ class ChatSetupContextKeys {
 		this.updateContext();
 	}
 
-	private updateContext(): void {
+	private async updateContext(): Promise<void> {
+		await this.contextKeyUpdateBarrier?.wait();
+
 		const chatSetupTriggered = this.storageService.getBoolean(ChatSetupContextKeys.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE, false);
 		const chatInstalled = this.storageService.getBoolean(ChatSetupContextKeys.CHAT_EXTENSION_INSTALLED, StorageScope.PROFILE, false);
 
@@ -698,6 +714,15 @@ class ChatSetupContextKeys {
 		this.chatSetupInstalledContext.set(chatInstalled);
 		this.chatSetupEntitledContextKey.set(this.chatSetupEntitled);
 		this.chatSetupLimitedContextKey.set(this.chatSetupLimited);
+	}
+
+	suspend(): void {
+		this.contextKeyUpdateBarrier = new Barrier();
+	}
+
+	resume(): void {
+		this.contextKeyUpdateBarrier?.open();
+		this.contextKeyUpdateBarrier = undefined;
 	}
 }
 
