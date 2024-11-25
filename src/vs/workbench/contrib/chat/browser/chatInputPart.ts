@@ -38,6 +38,7 @@ import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
@@ -279,6 +280,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IMenuService private readonly menuService: IMenuService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IThemeService private readonly themeService: IThemeService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
 	) {
 		super();
 
@@ -706,7 +708,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		let inputModel = this.modelService.getModel(this.inputUri);
 		if (!inputModel) {
 			inputModel = this.modelService.createModel('', null, this.inputUri, true);
-			this._register(inputModel);
+			this.textModelResolverService.createModelReference(inputModel.uri).then(ref => {
+				if (this._store.isDisposed) {
+					ref.dispose();
+					return;
+				}
+				this._register(ref);
+			});
 		}
 
 		this.inputModel = inputModel;
