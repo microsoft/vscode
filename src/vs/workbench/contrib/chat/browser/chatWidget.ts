@@ -50,11 +50,10 @@ import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatInputPart, IChatInputStyles } from './chatInputPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
-import { ChatViewWelcomePart } from './viewsWelcome/chatViewWelcomeController.js';
-
 import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
+import { ChatViewWelcomePart } from './viewsWelcome/chatViewWelcomeController.js';
 
 const $ = dom.$;
 
@@ -193,13 +192,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return { text: '', parts: [] };
 			}
 
-			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser)
-				.parseChatRequest(
-					this.viewModel.sessionId,
-					this.getInput(),
-					this.location,
-					{ selectedAgent: this._lastSelectedAgent },
-				);
+			this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent });
 		}
 
 		return this.parsedChatRequest;
@@ -479,13 +472,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!this.viewModel) {
 			return;
 		}
-		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser)
-			.parseChatRequest(
-				this.viewModel.sessionId,
-				this.getInput(),
-				this.location,
-				{ selectedAgent: this._lastSelectedAgent },
-			);
+		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent });
 		this._onDidChangeParsedInput.fire();
 	}
 

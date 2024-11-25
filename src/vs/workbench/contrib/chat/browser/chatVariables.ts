@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from '../../../../base/common/assert.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { assertDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -26,53 +25,23 @@ interface IChatData {
 	resolver: IChatVariableResolver;
 }
 
-/**
- * Helper to run provided `jobs` in parallel and return only
- * the `successful` results in the same order as the original jobs.
- */
-const getJobResults = async (
-	jobs: Promise<IChatRequestVariableEntry | null>[],
-): Promise<IChatRequestVariableEntry[]> => {
-	return (await Promise.allSettled(jobs))
-		// filter out `failed` and `empty` results
-		.filter((result) => {
-			return result.status !== 'rejected' && result.value !== null;
-		})
-		// extract the result value
-		.map((result) => {
-			// assertions below must always be true because of the filter logic above
-			assert(
-				result.status === 'fulfilled',
-				`Failed to resolve variables: unexpected promise result status "${result.status}".`,
-			);
-			assert(
-				result.value !== null,
-				`Failed to resolve variables: promise result must not be null.`,
-			);
-
-			return result.value;
-		});
-};
-
 export class ChatVariablesService implements IChatVariablesService {
 	declare _serviceBrand: undefined;
 
-	private readonly _resolver = new Map<string, IChatData>();
+	private _resolver = new Map<string, IChatData>();
 
 	constructor(
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IViewsService private readonly viewsService: IViewsService,
-	) { }
+	) {
+	}
 
-	public async resolveVariables(
-		prompt: IParsedChatRequest,
-		attachedContextVariables: IChatRequestVariableEntry[] | undefined,
-		model: IChatModel,
-		progress: (part: IChatVariableResolverProgress) => void,
-		token: CancellationToken,
-	): Promise<IChatRequestVariableData> {
-		const resolvedVariableJobs: Promise<IChatRequestVariableEntry | null>[] = prompt.parts
-			.map(async (part) => {
+	async resolveVariables(prompt: IParsedChatRequest, attachedContextVariables: IChatRequestVariableEntry[] | undefined, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData> {
+		let resolvedVariables: IChatRequestVariableEntry[] = [];
+		const jobs: Promise<any>[] = [];
+
+		prompt.parts
+			.forEach((part, i) => {
 				if (part instanceof ChatRequestVariablePart) {
 					const data = this._resolver.get(part.variableName.toLowerCase());
 					if (data) {
@@ -84,61 +53,22 @@ export class ChatVariablesService implements IChatVariablesService {
 							}
 							progress(item);
 						};
-
-						try {
-							const value = await data.resolver(prompt.text, part.variableArg, model, variableProgressCallback, token);
-
-							if (!value) {
-								return null;
+						jobs.push(data.resolver(prompt.text, part.variableArg, model, variableProgressCallback, token).then(value => {
+							if (value) {
+								resolvedVariables[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: part.variableName, range: part.range, value, references, fullName: data.data.fullName, icon: data.data.icon };
 							}
-
-							return {
-								id: data.data.id,
-								modelDescription: data.data.modelDescription,
-								name: part.variableName,
-								range: part.range,
-								value,
-								references,
-								fullName: data.data.fullName,
-								icon: data.data.icon,
-							};
-						} catch (error) {
-							onUnexpectedExternalError(error);
-
-							throw error;
-						}
+						}).catch(onUnexpectedExternalError));
 					}
+				} else if (part instanceof ChatRequestDynamicVariablePart) {
+					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data, fullName: part.fullName, icon: part.icon, isFile: part.isFile };
+				} else if (part instanceof ChatRequestToolPart) {
+					resolvedVariables[i] = { id: part.toolId, name: part.toolName, range: part.range, value: undefined, isTool: true, icon: ThemeIcon.isThemeIcon(part.icon) ? part.icon : undefined, fullName: part.displayName };
 				}
-
-				if (part instanceof ChatRequestDynamicVariablePart) {
-					return {
-						id: part.id,
-						name: part.referenceText,
-						range: part.range,
-						value: part.data,
-						fullName: part.fullName,
-						icon: part.icon,
-						isFile: part.isFile,
-					};
-				}
-
-				if (part instanceof ChatRequestToolPart) {
-					return {
-						id: part.toolId,
-						name: part.toolName,
-						range: part.range,
-						value: undefined,
-						isTool: true,
-						icon: ThemeIcon.isThemeIcon(part.icon) ? part.icon : undefined,
-						fullName: part.displayName,
-					};
-				}
-
-				return null;
 			});
 
-		const resolvedAttachedContextJobs: Promise<IChatRequestVariableEntry | null>[] = (attachedContextVariables || [])
-			.map(async (attachment) => {
+		const resolvedAttachedContext: IChatRequestVariableEntry[] = [];
+		attachedContextVariables
+			?.forEach((attachment, i) => {
 				const data = this._resolver.get(attachment.name?.toLowerCase());
 				if (data) {
 					const references: IChatContentReference[] = [];
@@ -149,69 +79,30 @@ export class ChatVariablesService implements IChatVariablesService {
 						}
 						progress(item);
 					};
-
-					try {
-						const value = await data.resolver(prompt.text, '', model, variableProgressCallback, token);
-						if (!value) {
-							return null;
+					jobs.push(data.resolver(prompt.text, '', model, variableProgressCallback, token).then(value => {
+						if (value) {
+							resolvedAttachedContext[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: attachment.name, fullName: attachment.fullName, range: attachment.range, value, references, icon: attachment.icon };
 						}
-
-						return {
-							id: data.data.id,
-							modelDescription: data.data.modelDescription,
-							name: attachment.name,
-							fullName: attachment.fullName,
-							range: attachment.range,
-							value,
-							references,
-							icon: attachment.icon,
-						};
-					} catch (error) {
-						onUnexpectedExternalError(error);
-
-						throw error;
-					}
+					}).catch(onUnexpectedExternalError));
+				} else if (attachment.isDynamic || attachment.isTool) {
+					resolvedAttachedContext[i] = attachment;
 				}
-
-				if (attachment.isDynamic || attachment.isTool) {
-					return attachment;
-				}
-
-				return null;
 			});
 
-		// run all jobs in paralle and get results in the original order
-		// Note! the `getJobResults` call supposed to never fail, hence it's ok to do
-		// 	     `Promise.all()`, otherwise we have a logic error that would be caught here
-		const [resolvedVariables, resolvedAttachedContext] = await Promise.all(
-			[
-				getJobResults(resolvedVariableJobs),
-				getJobResults(resolvedAttachedContextJobs),
-			],
-		);
+		await Promise.allSettled(jobs);
 
-		// "reverse" resolved variables making the high index
-		// to go first so that an replacement logic is simple
-		resolvedVariables
-			.sort((left, right) => {
-				assertDefined(
-					left.range,
-					`Failed to sort resolved variables: "left" variable does not have a range.`,
-				);
+		// Make array not sparse
+		resolvedVariables = coalesce<IChatRequestVariableEntry>(resolvedVariables);
 
-				assertDefined(
-					right.range,
-					`Failed to sort resolved variables: "right" variable does not have a range.`,
-				);
+		// "reverse", high index first so that replacement is simple
+		resolvedVariables.sort((a, b) => b.range!.start - a.range!.start);
 
-				return right.range.start - left.range.start;
-			});
+		// resolvedAttachedContext is a sparse array
+		resolvedVariables.push(...coalesce(resolvedAttachedContext));
+
 
 		return {
-			variables: [
-				...resolvedVariables,
-				...resolvedAttachedContext,
-			],
+			variables: resolvedVariables,
 		};
 	}
 

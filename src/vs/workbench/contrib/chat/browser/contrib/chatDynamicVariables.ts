@@ -279,12 +279,7 @@ export class SelectAndInsertFileAction extends Action2 {
 			id: 'vscode.file',
 			isFile: true,
 			prefix: 'file',
-			range: {
-				startLineNumber: range.startLineNumber,
-				startColumn: range.startColumn,
-				endLineNumber: range.endLineNumber,
-				endColumn: range.startColumn + text.length,
-			},
+			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
 			data: resource,
 		});
 	}

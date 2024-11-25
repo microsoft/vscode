@@ -1109,31 +1109,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		// Factor file variables that are part of the user query into the working set
 		for (const part of chatWidget?.parsedInput.parts ?? []) {
-			if (!(part instanceof ChatRequestDynamicVariablePart)) {
-				continue;
-			}
-
-			if (!(part.isFile && URI.isUri(part.data) && !seenEntries.has(part.data))) {
-				continue;
-			}
-
-			entries.unshift({
-				reference: part.data,
-				state: WorkingSetEntryState.Attached,
-				kind: 'reference',
-			});
-
-			// if nested child references are found in the file represented
-			// by the dynamic variable, add them to the attached entries
-			const childReferences = part.childReferences ?? [];
-			for (const child of childReferences) {
+			if (part instanceof ChatRequestDynamicVariablePart && part.isFile && URI.isUri(part.data) && !seenEntries.has(part.data)) {
 				entries.unshift({
-					reference: child,
+					reference: part.data,
 					state: WorkingSetEntryState.Attached,
 					kind: 'reference',
 				});
-
-				seenEntries.add(child);
 			}
 		}
 		const excludedEntries: IChatCollapsibleListItem[] = [];

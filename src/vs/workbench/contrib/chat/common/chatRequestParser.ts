@@ -29,12 +29,7 @@ export class ChatRequestParser {
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 	) { }
 
-	public parseChatRequest(
-		sessionId: string,
-		message: string,
-		location: ChatAgentLocation = ChatAgentLocation.Panel,
-		context?: IChatParserContext,
-	): IParsedChatRequest {
+	public parseChatRequest(sessionId: string, message: string, location: ChatAgentLocation = ChatAgentLocation.Panel, context?: IChatParserContext): IParsedChatRequest {
 		const parts: IParsedChatRequestPart[] = [];
 		const references = this.variableService.getDynamicVariables(sessionId); // must access this list before any async calls
 
@@ -225,12 +220,7 @@ export class ChatRequestParser {
 		return;
 	}
 
-	private tryToParseDynamicVariable(
-		message: string,
-		offset: number,
-		position: IPosition,
-		references: ReadonlyArray<IDynamicVariable>,
-	): ChatRequestDynamicVariablePart | undefined {
+	private tryToParseDynamicVariable(message: string, offset: number, position: IPosition, references: ReadonlyArray<IDynamicVariable>): ChatRequestDynamicVariablePart | undefined {
 		const refAtThisPosition = references.find(r =>
 			r.range.startLineNumber === position.lineNumber &&
 			r.range.startColumn === position.column);
