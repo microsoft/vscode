@@ -10,7 +10,7 @@ declare module 'vscode' {
 		 * file. If set, then {@link TestRunProfile.loadDetailedCoverageForTest}
 		 * should also be defined in order to retrieve detailed coverage information.
 		 */
-		fromTests: TestItem[];
+		fromTests?: TestItem[]; // TODO: `from` feels weird to me. Maybe `sourceTests` or `contributingTests` or even just `tests`
 
 		constructor(
 			uri: Uri,
@@ -28,6 +28,8 @@ declare module 'vscode' {
 		 * sibling of {@link TestRunProfile.loadDetailedCoverage}, called only if
 		 * a test item is provided in {@link FileCoverage.fromTests} and only for
 		 * files where such data is reported.
+		 *
+		 * // TODO: clarify how this works with `loadDetailedCoverage`. Does it replace `loadDetailedCoverage` or will it be called in addition to it?
 		 *
 		 * The editor will call this when user asks to view coverage for a test in
 		 * a file, and the returned coverage information is used to display exactly
