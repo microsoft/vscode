@@ -63,6 +63,10 @@ export class RenderLineInput {
 	public readonly renderControlCharacters: boolean;
 	public readonly fontLigatures: boolean;
 
+	public readonly lineHeight: number;
+
+	public readonly fontSize: number;
+
 	/**
 	 * Defined only when renderWhitespace is 'selection'. Selections are non-overlapping,
 	 * and ordered by position within the line.
@@ -88,7 +92,9 @@ export class RenderLineInput {
 		renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all',
 		renderControlCharacters: boolean,
 		fontLigatures: boolean,
-		selectionsOnLine: LineRange[] | null
+		selectionsOnLine: LineRange[] | null,
+		lineHeight: number,
+		fontSize: number
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -117,6 +123,8 @@ export class RenderLineInput {
 		this.renderControlCharacters = renderControlCharacters;
 		this.fontLigatures = fontLigatures;
 		this.selectionsOnLine = selectionsOnLine && selectionsOnLine.sort((a, b) => a.startOffset < b.startOffset ? -1 : 1);
+		this.lineHeight = lineHeight;
+		this.fontSize = fontSize;
 
 		const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 		const middotDiff = Math.abs(middotWidth - spaceWidth);
@@ -172,6 +180,8 @@ export class RenderLineInput {
 			&& LineDecoration.equalsArr(this.lineDecorations, other.lineDecorations)
 			&& this.lineTokens.equals(other.lineTokens)
 			&& this.sameSelection(other.selectionsOnLine)
+			&& this.lineHeight === other.lineHeight
+			&& this.fontSize === other.fontSize
 		);
 	}
 }

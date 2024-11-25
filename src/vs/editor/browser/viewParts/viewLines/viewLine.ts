@@ -98,14 +98,19 @@ export class ViewLine implements IVisibleLine {
 	}
 
 	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, fontSize: number, viewportData: ViewportData, sb: StringBuilder): boolean {
+		console.log('renderLine');
+		console.log('lineNumber', lineNumber);
+		console.log('fontSize', fontSize);
 		if (this._options.useGpu && ViewGpuContext.canRender(this._options, viewportData, lineNumber)) {
 			this._renderedViewLine?.domNode?.domNode.remove();
 			this._renderedViewLine = null;
+			console.log('return 1');
 			return false;
 		}
 
 		if (this._isMaybeInvalid === false) {
 			// it appears that nothing relevant has changed
+			console.log('return 2');
 			return false;
 		}
 
@@ -163,11 +168,14 @@ export class ViewLine implements IVisibleLine {
 			options.renderWhitespace,
 			options.renderControlCharacters,
 			options.fontLigatures !== EditorFontLigatures.OFF,
-			selectionsOnLine
+			selectionsOnLine,
+			lineHeight,
+			fontSize
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
 			// no need to do anything, we have the same render input
+			console.log('return 3');
 			return false;
 		}
 
