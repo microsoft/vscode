@@ -543,7 +543,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.renderAttachedContext();
 	}
 
-	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
+	async render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		let elements;
 		if (this.options.renderStyle === 'compact') {
 			elements = dom.h('.interactive-input-part', [
@@ -730,13 +730,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		let inputModel = this.modelService.getModel(this.inputUri);
 		if (!inputModel) {
 			inputModel = this.modelService.createModel('', null, this.inputUri, true);
-			this.textModelResolverService.createModelReference(inputModel.uri).then(ref => {
-				if (this._store.isDisposed) {
-					ref.dispose();
-					return;
-				}
-				this._register(ref.object.textEditorModel);
-			});
+			const ref = await this.textModelResolverService.createModelReference(this.inputUri);
+			if (this._store.isDisposed) {
+				ref.dispose();
+				return;
+			}
+			inputModel = ref.object.textEditorModel;
+			this._register(inputModel);
+
+			// this.textModelResolverService.createModelReference(this.inputUri).then(ref => {
+			// 	if (this._store.isDisposed) {
+			// 		ref.dispose();
+			// 		return;
+			// 	}
+			// 	this._register(ref);
+			// });
 		}
 
 		this.inputModel = inputModel;
