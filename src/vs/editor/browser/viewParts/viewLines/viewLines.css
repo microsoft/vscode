@@ -68,8 +68,6 @@
 	top: 0;
 	bottom: 0;
 	position: absolute;
-	display: flex;
-	align-items: flex-end;
 }
 
 .monaco-editor .mtkw {
