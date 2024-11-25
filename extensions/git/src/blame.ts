@@ -5,10 +5,11 @@
 
 import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString } from 'vscode';
 import { Model } from './model';
-import { dispose, fromNow, IDisposable } from './util';
+import { dispose, fromNow, IDisposable, pathEquals } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation } from './git';
+import { fromGitUri, isGitUri } from './uri';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -79,8 +80,9 @@ function formatBlameInformation(template: string, blameInformation: BlameInforma
 }
 
 interface RepositoryBlameInformation {
-	readonly commit: string; /* commit used for blame information */
-	readonly blameInformation: Map<Uri, BlameInformation[]>;
+	readonly commit: string;
+	readonly resource: Uri;
+	readonly blameInformation: BlameInformation[];
 }
 
 interface LineBlameInformation {
@@ -94,7 +96,7 @@ export class GitBlameController {
 
 	readonly textEditorBlameInformation = new Map<TextEditor, readonly LineBlameInformation[]>();
 
-	private readonly _repositoryBlameInformation = new Map<Repository, RepositoryBlameInformation>();
+	private readonly _repositoryBlameInformation = new Map<Repository, RepositoryBlameInformation[]>();
 
 	private _repositoryDisposables = new Map<Repository, IDisposable[]>();
 	private _disposables: IDisposable[] = [];
@@ -170,41 +172,34 @@ export class GitBlameController {
 			return;
 		}
 
-		// HEAD commit changed (remove blame information for the repository)
-		if (repositoryBlameInformation.commit !== repository.HEAD?.commit) {
-			this._repositoryBlameInformation.delete(repository);
-
-			for (const textEditor of window.visibleTextEditors) {
-				this._updateTextEditorBlameInformation(textEditor);
-			}
+		for (const textEditor of window.visibleTextEditors) {
+			this._updateTextEditorBlameInformation(textEditor);
 		}
 	}
 
-	private async _getBlameInformation(resource: Uri): Promise<BlameInformation[] | undefined> {
+	private async _getBlameInformation(resource: Uri, commit: string): Promise<BlameInformation[] | undefined> {
 		const repository = this._model.getRepository(resource);
-		if (!repository || !repository.HEAD?.commit) {
+		if (!repository) {
 			return undefined;
 		}
 
-		const repositoryBlameInformation = this._repositoryBlameInformation.get(repository) ?? {
-			commit: repository.HEAD.commit,
-			blameInformation: new Map<Uri, BlameInformation[]>()
-		} satisfies RepositoryBlameInformation;
-
-		let resourceBlameInformation = repositoryBlameInformation.blameInformation.get(resource);
-		if (repositoryBlameInformation.commit === repository.HEAD.commit && resourceBlameInformation) {
-			return resourceBlameInformation;
+		const repositoryBlameInformation = this._repositoryBlameInformation.get(repository) ?? [];
+		const resourceBlameInformation = repositoryBlameInformation
+			.find(b => pathEquals(b.resource.fsPath, resource.fsPath) && b.commit === commit);
+		if (resourceBlameInformation) {
+			return resourceBlameInformation.blameInformation;
 		}
 
-		// Get blame information for the resource
-		resourceBlameInformation = await repository.blame2(resource.fsPath, repository.HEAD.commit) ?? [];
+		// Get blame information for the resource and cache it
+		const blameInformation = await repository.blame2(resource.fsPath, commit) ?? [];
 
-		this._repositoryBlameInformation.set(repository, {
-			...repositoryBlameInformation,
-			blameInformation: repositoryBlameInformation.blameInformation.set(resource, resourceBlameInformation)
-		});
+		repositoryBlameInformation.push({
+			commit, resource, blameInformation
+		} satisfies RepositoryBlameInformation);
 
-		return resourceBlameInformation;
+		this._repositoryBlameInformation.set(repository, repositoryBlameInformation);
+
+		return blameInformation;
 	}
 
 	@throttle
@@ -213,21 +208,20 @@ export class GitBlameController {
 			return;
 		}
 
+		const repository = this._model.getRepository(textEditor.document.uri);
+		if (!repository || !repository.HEAD?.commit) {
+			return;
+		}
+
 		// Working tree diff information
 		const diffInformationWorkingTree = textEditor.diffInformation
-			.filter(diff => diff.original?.scheme === 'git')
-			.find(diff => {
-				const query = JSON.parse(diff.original!.query) as { ref: string };
-				return query.ref !== 'HEAD';
-			});
+			.filter(diff => diff.original && isGitUri(diff.original))
+			.find(diff => fromGitUri(diff.original!).ref !== 'HEAD');
 
 		// Working tree + index diff information
 		const diffInformationWorkingTreeAndIndex = textEditor.diffInformation
-			.filter(diff => diff.original?.scheme === 'git')
-			.find(diff => {
-				const query = JSON.parse(diff.original!.query) as { ref: string };
-				return query.ref === 'HEAD';
-			});
+			.filter(diff => diff.original && isGitUri(diff.original))
+			.find(diff => fromGitUri(diff.original!).ref === 'HEAD');
 
 		// Working tree diff information is not present or it is stale
 		if (!diffInformationWorkingTree || diffInformationWorkingTree.isStale) {
@@ -245,7 +239,7 @@ export class GitBlameController {
 		const diffInformation = diffInformationWorkingTreeAndIndex ?? diffInformationWorkingTree;
 
 		// Git blame information
-		const resourceBlameInformation = await this._getBlameInformation(textEditor.document.uri);
+		const resourceBlameInformation = await this._getBlameInformation(textEditor.document.uri, repository.HEAD.commit);
 		if (!resourceBlameInformation) {
 			return;
 		}
