@@ -179,8 +179,6 @@ export class ViewOverlayLine implements IVisibleLine {
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');
 		sb.appendString(String(lineHeight));
-		sb.appendString('px;font-size:');
-		sb.appendString(String(fontSize));
 		sb.appendString('px;">');
 		sb.appendString(result);
 		sb.appendString('</div>');

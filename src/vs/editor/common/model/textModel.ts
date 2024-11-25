@@ -1597,6 +1597,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			console.log('lineHeightChangeEvent : ', lineHeightChangeEvent);
 			this._onDidChangeSpecialLineHeight.fire(new ModelSpecialLineHeightChangedEvent(lineHeightChangeEvent));
 		}
+		console.log('handleBeforeFireDecorationsChangedEvent');
+		console.log('specialLineFontSizes : ', specialLineFontSizes);
 		if (specialLineFontSizes && specialLineFontSizes.size > 0) {
 			const affectedLinesByLineFontSizeChange = Array.from(specialLineFontSizes);
 			const lineFontSizeChangeEvent = affectedLinesByLineFontSizeChange.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), [], null, this._getLineFontSizeForLine(lineNumber)));
@@ -2571,6 +2573,7 @@ class DidChangeDecorationsEmitter extends Disposable {
 	}
 
 	public recordLineAffectedByLineFontSizeChange(lineNumber: number): void {
+		console.log('recordLineAffectedByLineFontSizeChange lineNumber : ', lineNumber);
 		if (!this._specialLineFontSizes) {
 			this._specialLineFontSizes = new Set();
 		}
