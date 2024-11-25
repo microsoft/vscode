@@ -128,9 +128,6 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 }
 
 export class ChatImplicitContext extends Disposable implements IChatRequestImplicitVariableEntry {
-	private _onDidChangeValue = this._register(new Emitter<void>());
-	readonly onDidChangeValue = this._onDidChangeValue.event;
-
 	/**
 	 * Chat reference object for the current implicit context `URI`
 	 * allows to resolve nested file references(aka `prompt snippets`).
@@ -189,9 +186,8 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		return this._isSelection;
 	}
 
-	public set isSelection(value: boolean) {
-		this._isSelection = value;
-	}
+	private _onDidChangeValue = this._register(new Emitter<void>());
+	readonly onDidChangeValue = this._onDidChangeValue.event;
 
 	private _value: Location | URI | undefined;
 	get value() {
@@ -222,10 +218,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	/**
 	 * Set value of the implicit context or remove it if `undefined` is provided.
 	 */
-	public setValue(
-		value: Location | URI | undefined,
-		isSelection: boolean,
-	) {
+	public setValue(value: Location | URI | undefined, isSelection: boolean) {
 		// if the `prompt-snippets` feature is enabled, add a chat reference object
 		if (PromptFileReference.promptSnippetsEnabled(this.configService)) {
 			this.addPromprFileReferenceFor(value);

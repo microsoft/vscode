@@ -227,10 +227,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 	 * 				  allow passing the explicit `null` value to skip the reduce step
 	 * @param options stream options
 	 */
-	constructor(
-		private reducer: IReducer<T> | null,
-		private options?: WriteableStreamOptions,
-	) { }
+	constructor(private reducer: IReducer<T> | null, private options?: WriteableStreamOptions) { }
 
 	pause(): void {
 		if (this.state.destroyed) {

@@ -280,7 +280,7 @@ export class SelectAndInsertFileAction extends Action2 {
 			isFile: true,
 			prefix: 'file',
 			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-			data: resource,
+			data: resource
 		});
 	}
 }
@@ -351,7 +351,7 @@ export class AddDynamicVariableAction extends Action2 {
 			range: range,
 			isFile: true,
 			prefix: 'file',
-			data: variableData,
+			data: variableData
 		});
 	}
 }

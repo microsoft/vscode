@@ -29,7 +29,7 @@ export class ChatRequestParser {
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 	) { }
 
-	public parseChatRequest(sessionId: string, message: string, location: ChatAgentLocation = ChatAgentLocation.Panel, context?: IChatParserContext): IParsedChatRequest {
+	parseChatRequest(sessionId: string, message: string, location: ChatAgentLocation = ChatAgentLocation.Panel, context?: IChatParserContext): IParsedChatRequest {
 		const parts: IParsedChatRequestPart[] = [];
 		const references = this.variableService.getDynamicVariables(sessionId); // must access this list before any async calls
 

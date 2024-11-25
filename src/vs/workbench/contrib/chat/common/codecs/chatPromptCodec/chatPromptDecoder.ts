@@ -7,7 +7,7 @@ import { FileReference } from './tokens/fileReference.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { ReadableStream } from '../../../../../../base/common/stream.js';
 import { BaseDecoder } from '../../../../../../base/common/codecs/baseDecoder.js';
-import { Word } from '../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
+import { Word } from '../../../../../../editor/common/codecs/simpleCodec/tokens/word.js';
 import { SimpleDecoder, TSimpleToken } from '../../../../../../editor/common/codecs/simpleCodec/simpleDecoder.js';
 
 /**

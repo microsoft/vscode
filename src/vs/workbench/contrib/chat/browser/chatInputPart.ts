@@ -581,8 +581,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _handleAttachedContextChange() {
 		this._hasFileAttachmentContextKey.set(Boolean(this._attachmentModel.attachments.find(a => a.isFile)));
 		this.renderAttachedContext();
-
-		return this;
 	}
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {

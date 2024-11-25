@@ -7,8 +7,10 @@ import { TestDecoder } from '../utils/testDecoder.js';
 import { Range } from '../../../common/core/range.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { newWriteableStream } from '../../../../base/common/stream.js';
+import { Tab } from '../../../common/codecs/simpleCodec/tokens/tab.js';
+import { Word } from '../../../common/codecs/simpleCodec/tokens/word.js';
+import { Space } from '../../../common/codecs/simpleCodec/tokens/space.js';
 import { NewLine } from '../../../common/codecs/linesCodec/tokens/newLine.js';
-import { Word, Space, Tab } from '../../../common/codecs/simpleCodec/tokens/index.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { SimpleDecoder, TSimpleToken } from '../../../common/codecs/simpleCodec/simpleDecoder.js';
 

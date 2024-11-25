@@ -6,7 +6,7 @@
 import { assert } from '../../../../../../../base/common/assert.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
-import { Word } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
+import { Word } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/word.js';
 
 
 // Start sequence for a file reference token in a prompt.

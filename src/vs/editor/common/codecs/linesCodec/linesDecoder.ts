@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Line, NewLine } from './tokens/index.js';
+import { Line } from './tokens/line.js';
+import { NewLine } from './tokens/newLine.js';
 import { assert } from '../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { assertDefined } from '../../../../base/common/types.js';
