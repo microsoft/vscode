@@ -717,10 +717,13 @@ class ChatSetupTriggerAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		instantiationService.createInstance(ChatSetupContextKeys).update({ triggered: true });
 
 		showChatView(viewsService);
+
+		configurationService.updateValue('chat.commandCenter.enabled', true);
 	}
 }
 
