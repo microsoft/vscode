@@ -49,7 +49,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
 			e.changes.forEach(c => {
 				// Don't mutate entries in _variables, since they will be returned from the getter
-				this._variables = coalesce(this._variables.map((ref) => {
+				this._variables = coalesce(this._variables.map(ref => {
 					if (c.text === `#file:${ref.filenameWithReferences}`) {
 						return ref;
 					}
@@ -67,9 +67,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 							this.widget.refreshParsedInput();
 						}
 						return null;
-					}
-
-					if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
+					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
 						const delta = c.text.length - c.rangeLength;
 						ref.range = {
 							startLineNumber: ref.range.startLineNumber,
@@ -85,7 +83,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 				}));
 			});
 
-			this.updateVariableDecorations();
+			this.updateDecorations();
 		}));
 	}
 
@@ -95,7 +93,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		}
 
 		this._variables = s;
-		this.updateVariableDecorations();
+		this.updateDecorations();
 	}
 
 	public addReference(ref: IDynamicVariable): void {
@@ -104,7 +102,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		);
 
 		this._variables.push(variable);
-		this.updateVariableDecorations();
+		this.updateDecorations();
 		this.widget.refreshParsedInput();
 
 		// if the `prompt snippets` feature is enabled, start resolving
@@ -113,7 +111,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			// subscribe to variable changes
 			this._register(variable.onUpdate(() => {
 				this.updateVariableTexts();
-				this.updateVariableDecorations();
+				this.updateDecorations();
 				this.widget.refreshParsedInput();
 			}));
 			// start resolving the file references
@@ -148,7 +146,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		}
 	}
 
-	private updateVariableDecorations(): void {
+	private updateDecorations(): void {
 		this.widget.inputEditor.setDecorationsByType(
 			'chat',
 			dynamicVariableDecorationType,

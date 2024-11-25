@@ -821,17 +821,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Render as attachments anything that isn't a file, but still render specific ranges in a file
 			? [...this.attachmentModel.attachments.entries()].filter(([_, attachment]) => !attachment.isFile || attachment.isFile && typeof attachment.value === 'object' && !!attachment.value && 'range' in attachment.value)
 			: [...this.attachmentModel.attachments.entries()];
-		dom.setVisibility(Boolean(attachments.length) || Boolean(this._implicitContext?.value), this.attachedContextContainer);
+		dom.setVisibility(Boolean(attachments.length) || Boolean(this.implicitContext?.value), this.attachedContextContainer);
 		if (!attachments.length) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 		}
 
-		if (this._implicitContext?.value) {
-			const implicitPart = store.add(this.instantiationService.createInstance(
-				ImplicitContextAttachmentWidget,
-				this._implicitContext,
-				this._contextResourceLabels),
-			);
+		if (this.implicitContext?.value) {
+			const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels));
 			container.appendChild(implicitPart.domNode);
 		}
 

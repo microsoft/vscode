@@ -138,7 +138,7 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 }
 
 /**
- * An invocation of a dynamic reference like '#file:'.
+ * An invocation of a dynamic reference like '#file:'
  */
 export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
@@ -248,9 +248,7 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					part.editorRange,
 					(part as ChatRequestSlashCommandPart).slashCommand
 				);
-			}
-
-			if (part.kind === ChatRequestDynamicVariablePart.Kind) {
+			} else if (part.kind === ChatRequestDynamicVariablePart.Kind) {
 				const variable = (part as ChatRequestDynamicVariablePart).toDynamicVariable();
 				variable.data = revive(variable.data);
 
@@ -259,9 +257,9 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					(part as ChatRequestDynamicVariablePart).text,
 					variable,
 				);
+			} else {
+				throw new Error(`Unknown chat request part '${part.kind}'.`);
 			}
-
-			throw new Error(`Unknown chat request part '${part.kind}'.`);
 		})
 	};
 }

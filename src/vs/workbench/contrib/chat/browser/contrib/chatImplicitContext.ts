@@ -221,7 +221,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	public setValue(value: Location | URI | undefined, isSelection: boolean) {
 		// if the `prompt-snippets` feature is enabled, add a chat reference object
 		if (PromptFileReference.promptSnippetsEnabled(this.configService)) {
-			this.addPromprFileReferenceFor(value);
+			this.addPromptFileReferenceFor(value);
 		}
 
 		this._value = value;
@@ -232,7 +232,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	/**
 	 * Add a prompt file reference object for the provided `URI` value.
 	 */
-	private addPromprFileReferenceFor(
+	private addPromptFileReferenceFor(
 		value: Location | URI | undefined,
 	) {
 		// new value is `undefined` so remove the existing file reference
