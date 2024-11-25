@@ -385,9 +385,11 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean { return true; }
 	override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean { return true; }
 	override onFlushed(e: viewEvents.ViewFlushedEvent): boolean { return true; }
+
 	override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean { return true; }
 	override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean { return true; }
 	override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean { return true; }
+	override onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean { return true; }
 	override onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean { return true; }
 	override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean { return true; }
 	override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean { return true; }
