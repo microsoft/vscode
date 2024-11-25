@@ -10,7 +10,7 @@ import { EditorOption } from '../../common/config/editorOptions.js';
 import { CursorColumns } from '../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
 import { ViewEventHandler } from '../../common/viewEventHandler.js';
-import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../common/viewEvents.js';
+import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../common/viewEvents.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { InlineDecoration, ViewLineRenderingData } from '../../common/viewModel.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
@@ -41,6 +41,7 @@ const enum CellBufferInfo {
 
 type QueuedBufferEvent = (
 	ViewConfigurationChangedEvent |
+	ViewDecorationsChangedEvent |
 	ViewLinesDeletedEvent |
 	ViewZonesChangedEvent
 );
@@ -138,8 +139,10 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	}
 
 	public override onDecorationsChanged(e: ViewDecorationsChangedEvent): boolean {
+		// console.log('FullFileRenderStrategy.onDecorationsChanged');
 		// TODO: Don't clear all cells if we can avoid it
 		this._invalidateAllLines();
+		this._queueBufferUpdate(e);
 		return true;
 	}
 
@@ -147,10 +150,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		// TODO: This currently fires for the entire viewport whenever scrolling stops
 		//       https://github.com/microsoft/vscode/issues/233942
 		for (const range of e.ranges) {
-			for (let i = range.fromLineNumber; i <= range.toLineNumber; i++) {
-				this._upToDateLines[0].delete(i);
-				this._upToDateLines[1].delete(i);
-			}
+			this._invalidateLineRange(range.fromLineNumber, range.toLineNumber);
 		}
 		return true;
 	}
@@ -177,10 +177,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	}
 
 	public override onLinesChanged(e: ViewLinesChangedEvent): boolean {
-		for (let i = e.fromLineNumber; i < e.fromLineNumber + e.count; i++) {
-			this._upToDateLines[0].delete(i);
-			this._upToDateLines[1].delete(i);
-		}
+		this._invalidateLineRange(e.fromLineNumber, e.fromLineNumber + e.count);
 		return true;
 	}
 
@@ -189,6 +186,11 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		this._scrollOffsetValueBuffer[0] = (e?.scrollLeft ?? this._context.viewLayout.getCurrentScrollLeft()) * dpr;
 		this._scrollOffsetValueBuffer[1] = (e?.scrollTop ?? this._context.viewLayout.getCurrentScrollTop()) * dpr;
 		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer);
+		return true;
+	}
+
+	public override onThemeChanged(e: ViewThemeChangedEvent): boolean {
+		this._invalidateAllLines();
 		return true;
 	}
 
@@ -218,6 +220,13 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 					upToDateLines.delete(upToDateLine);
 				}
 			}
+		}
+	}
+
+	private _invalidateLineRange(fromLineNumber: number, toLineNumber: number): void {
+		for (let i = fromLineNumber; i <= toLineNumber; i++) {
+			this._upToDateLines[0].delete(i);
+			this._upToDateLines[1].delete(i);
 		}
 	}
 
@@ -286,7 +295,15 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 					cellBuffer.fill(0);
 
 					dirtyLineStart = 1;
-					dirtyLineEnd = this._finalRenderedLine;
+					dirtyLineEnd = Math.max(dirtyLineEnd, this._finalRenderedLine);
+					this._finalRenderedLine = 0;
+					break;
+				}
+				case ViewEventType.ViewDecorationsChanged: {
+					cellBuffer.fill(0);
+
+					dirtyLineStart = 1;
+					dirtyLineEnd = Math.max(dirtyLineEnd, this._finalRenderedLine);
 					this._finalRenderedLine = 0;
 					break;
 				}
@@ -302,7 +319,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 					// Update dirty lines and final rendered line
 					dirtyLineStart = Math.min(dirtyLineStart, e.fromLineNumber);
-					dirtyLineEnd = this._finalRenderedLine;
+					dirtyLineEnd = Math.max(dirtyLineEnd, this._finalRenderedLine);
 					this._finalRenderedLine -= e.toLineNumber - e.fromLineNumber + 1;
 					break;
 				}
@@ -312,7 +329,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 					cellBuffer.fill(0);
 
 					dirtyLineStart = 1;
-					dirtyLineEnd = this._finalRenderedLine;
+					dirtyLineEnd = Math.max(dirtyLineEnd, this._finalRenderedLine);
 					this._finalRenderedLine = 0;
 					break;
 				}
