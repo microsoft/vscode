@@ -89,6 +89,10 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		}));
 	}
 
+	getInputState(): any {
+		return this.variables;
+	}
+
 	setInputState(s: any): void {
 		if (!Array.isArray(s)) {
 			s = [];
@@ -191,6 +195,11 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		}
 
 		return result;
+	}
+
+	public override dispose() {
+		this.disposeVariables();
+		super.dispose();
 	}
 }
 
