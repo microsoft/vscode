@@ -9,6 +9,10 @@ import { availableSpecs, getCompletionItemsFromSpecs } from './terminalSuggestMa
 
 const availableCommands = ['cd', 'code', 'code-insiders'];
 const codeOptions = ['-', '--add', '--category', '--diff', '--disable-extension', '--disable-extensions', '--disable-gpu', '--enable-proposed-api', '--extensions-dir', '--goto', '--help', '--inspect-brk-extensions', '--inspect-extensions', '--install-extension', '--list-extensions', '--locale', '--log', '--max-memory', '--merge', '--new-window', '--pre-release', '--prof-startup', '--profile', '--reuse-window', '--show-versions', '--status', '--sync', '--telemetry', '--uninstall-extension', '--user-data-dir', '--verbose', '--version', '--wait', '-a', '-d', '-g', '-h', '-m', '-n', '-r', '-s', '-v', '-w'];
+const localeOptions = ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'];
+const categoryOptions = ['azure', 'data science', 'debuggers', 'extension packs', 'education', 'formatters', 'keymaps', 'language packs', 'linters', 'machine learning', 'notebooks', 'programming languages', 'scm providers', 'snippets', 'testing', 'themes', 'visualization', 'other'];
+const logOptions = ['critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'];
+const syncOptions = ['on', 'off'];
 
 const testSpecs: ITestSpec[] = [
 	{ input: '|', expectedCompletionLabels: availableCommands },
@@ -18,7 +22,7 @@ const testSpecs: ITestSpec[] = [
 	{ input: 'code|', expectedCompletionLabels: ['code-insiders'] },
 	{ input: 'code-insiders|', expectedCompletionLabels: [] },
 	{ input: 'code |', expectedCompletionLabels: codeOptions },
-	{ input: 'code --locale |', expectedCompletionLabels: ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'] },
+	{ input: 'code --locale |', expectedCompletionLabels: localeOptions },
 	{ input: 'code --diff |', expectedCompletionLabels: [], resourcesRequested: 'files' },
 	{ input: 'code -di|', expectedCompletionLabels: codeOptions.filter(o => o.startsWith('di')) },
 	{ input: 'code --diff ./file1 |', expectedCompletionLabels: [], resourcesRequested: 'files' },
@@ -30,22 +34,22 @@ const testSpecs: ITestSpec[] = [
 	{ input: 'code --profile |', expectedCompletionLabels: [] },
 	{ input: 'code --install-extension |', expectedCompletionLabels: [] },
 	{ input: 'code --uninstall-extension |', expectedCompletionLabels: [] },
-	{ input: 'code --log |', expectedCompletionLabels: ['critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'] },
-	{ input: 'code --sync |', expectedCompletionLabels: ['on', 'off'] },
+	{ input: 'code --log |', expectedCompletionLabels: logOptions },
+	{ input: 'code --sync |', expectedCompletionLabels: syncOptions },
 	{ input: 'code --extensions-dir |', expectedCompletionLabels: [], resourcesRequested: 'folders' },
 	{ input: 'code --list-extensions |', expectedCompletionLabels: codeOptions },
 	{ input: 'code --show-versions |', expectedCompletionLabels: codeOptions },
-	{ input: 'code --category |', expectedCompletionLabels: ['azure', 'data science', 'debuggers', 'extension packs', 'education', 'formatters', 'keymaps', 'language packs', 'linters', 'machine learning', 'notebooks', 'programming languages', 'scm providers', 'snippets', 'testing', 'themes', 'visualization', 'other'] },
-	{ input: 'code --category a|', expectedCompletionLabels: ['azure'] },
+	{ input: 'code --category |', expectedCompletionLabels: categoryOptions },
+	{ input: 'code --category a|', expectedCompletionLabels: categoryOptions.filter(c => c.startsWith('a')) },
 	{ input: 'code-insiders --list-extensions |', expectedCompletionLabels: codeOptions },
 	{ input: 'code-insiders --show-versions |', expectedCompletionLabels: codeOptions },
-	{ input: 'code-insiders --category |', expectedCompletionLabels: ['azure', 'data science', 'debuggers', 'extension packs', 'education', 'formatters', 'keymaps', 'language packs', 'linters', 'machine learning', 'notebooks', 'programming languages', 'scm providers', 'snippets', 'testing', 'themes', 'visualization', 'other'] },
-	{ input: 'code-insiders --category a|', expectedCompletionLabels: ['azure'] },
+	{ input: 'code-insiders --category |', expectedCompletionLabels: categoryOptions },
+	{ input: 'code-insiders --category a|', expectedCompletionLabels: categoryOptions.filter(c => c.startsWith('a')) },
 	{ input: 'code-insiders --category azure |', expectedCompletionLabels: [] },
 	{ input: 'code | --locale', expectedCompletionLabels: codeOptions },
-	{ input: 'code --locale | && ls', expectedCompletionLabels: ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'] },
+	{ input: 'code --locale | && ls', expectedCompletionLabels: localeOptions },
 	{ input: 'code-insiders | --locale', expectedCompletionLabels: codeOptions },
-	{ input: 'code-insiders --locale | && ls', expectedCompletionLabels: ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'] }
+	{ input: 'code-insiders --locale | && ls', expectedCompletionLabels: localeOptions }
 ];
 
 interface ITestSpec {
