@@ -753,7 +753,10 @@ class ChatSetupTriggerAction extends Action2 {
 			id: ChatSetupTriggerAction.ID,
 			title: ChatSetupTriggerAction.TITLE,
 			f1: true,
-			precondition: ChatContextKeys.Setup.installed.negate(),
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.installed.negate(),
+				ContextKeyExpr.has('config.chat.experimental.offerSetup')
+			),
 			menu: {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_first',
@@ -786,7 +789,10 @@ class ChatSetupHideAction extends Action2 {
 			id: ChatSetupHideAction.ID,
 			title: ChatSetupHideAction.TITLE,
 			f1: true,
-			precondition: ChatContextKeys.Setup.installed.negate(),
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.installed.negate(),
+				ContextKeyExpr.has('config.chat.experimental.offerSetup')
+			),
 			menu: {
 				id: MenuId.ChatCommandCenter,
 				group: 'z_end',
