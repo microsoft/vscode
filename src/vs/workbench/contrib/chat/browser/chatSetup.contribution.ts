@@ -46,12 +46,12 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
+	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	name: product.defaultChatAgent?.name ?? '',
 	icon: Codicon[product.defaultChatAgent?.icon as keyof typeof Codicon ?? 'commentDiscussion'],
 	chatWelcomeTitle: product.defaultChatAgent?.chatWelcomeTitle ?? '',
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? '',
-	collectionDocumentationUrl: product.defaultChatAgent?.collectionDocumentationUrl ?? '',
 	skusDocumentationUrl: product.defaultChatAgent?.skusDocumentationUrl ?? '',
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	providerName: product.defaultChatAgent?.providerName ?? '',
@@ -468,7 +468,7 @@ class ChatSetupController extends Disposable {
 
 			installResult = 'installed';
 		} catch (error) {
-			this.logService.trace(`[chat setup] install: error ${error}`);
+			this.logService.error(`[chat setup] install: error ${error}`);
 
 			installResult = isCancellationError(error) ? 'cancelled' : 'failedInstall';
 		}
@@ -519,7 +519,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		const limitedSkuHeaderElement = this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true }))).element);
 
 		const telemetryLabel = localize('telemetryLabel', "Allow {0} to use my data, including Prompts, Suggestions, and Code Snippets, for product improvements", defaultChat.providerName);
-		const { container: telemetryContainer, checkbox: telemetryCheckbox } = this.createCheckBox(telemetryLabel, this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? false : false);
+		const { container: telemetryContainer, checkbox: telemetryCheckbox } = this.createCheckBox(telemetryLabel, this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? false : true);
 
 		const detectionLabel = localize('detectionLabel', "Allow suggestions matching public code");
 		const { container: detectionContainer, checkbox: detectionCheckbox } = this.createCheckBox(detectionLabel, true);
@@ -530,7 +530,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		this._register(button.onDidClick(() => this.controller.setup(telemetryCheckbox.checked, detectionCheckbox.checked)));
 
 		// Footer
-		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}). You can [learn more]({1}) about {2}.", defaultChat.privacyStatementUrl, defaultChat.documentationUrl, defaultChat.name);
+		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}). Click [here]({1}) to learn more about {2}.", defaultChat.privacyStatementUrl, defaultChat.documentationUrl, defaultChat.name);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(footer, { isTrusted: true }))).element);
 
 		// Update based on model state
@@ -538,15 +538,16 @@ class ChatSetupWelcomeContent extends Disposable {
 	}
 
 	private createCheckBox(label: string, checked: boolean): { container: HTMLElement; checkbox: Checkbox } {
-		const container = this.element.appendChild($('p'));
+		const container = this.element.appendChild($('p.checkbox-container'));
 		const checkbox = this._register(new Checkbox(label, checked, defaultCheckboxStyles));
 		container.appendChild(checkbox.domNode);
 
-		const checkboxLabel = container.appendChild($('div'));
+		const checkboxLabel = container.appendChild($('div.checkbox-label'));
 		checkboxLabel.textContent = label;
 		this._register(addDisposableListener(checkboxLabel, EventType.CLICK, () => {
 			if (checkbox?.enabled) {
 				checkbox.checked = !checkbox.checked;
+				checkbox.focus();
 			}
 		}));
 
@@ -717,17 +718,20 @@ class ChatSetupTriggerAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		instantiationService.createInstance(ChatSetupContextKeys).update({ triggered: true });
 
 		showChatView(viewsService);
+
+		configurationService.updateValue('chat.commandCenter.enabled', true);
 	}
 }
 
 class ChatSetupHideAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.hideSetup';
-	static readonly TITLE = localize2('hideChatSetup', "Hide {0}", defaultChat.name);
+	static readonly TITLE = localize2('hideChatSetup', "Hide {0}...", defaultChat.name);
 
 	constructor() {
 		super({
@@ -737,8 +741,8 @@ class ChatSetupHideAction extends Action2 {
 			precondition: ChatContextKeys.Setup.installed.negate(),
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'a_first',
-				order: 2,
+				group: 'z_hide',
+				order: 1,
 				when: ChatContextKeys.Setup.installed.negate()
 			}
 		});
@@ -753,8 +757,8 @@ class ChatSetupHideAction extends Action2 {
 
 		const { confirmed } = await dialogService.confirm({
 			message: localize('hideChatSetupConfirm', "Are you sure you want to hide {0}?", defaultChat.name),
-			detail: localize('hideChatSetupDetail', "You can restore chat controls from the 'chat.commandCenter.enabled' setting."),
-			primaryButton: localize('hideChatSetup', "Hide {0}", defaultChat.name)
+			detail: localize('hideChatSetupDetail', "You can restore it by running the '{0}' command.", ChatSetupTriggerAction.TITLE.value),
+			primaryButton: localize('hideChatSetupButton', "Hide {0}", defaultChat.name)
 		});
 
 		if (!confirmed) {
