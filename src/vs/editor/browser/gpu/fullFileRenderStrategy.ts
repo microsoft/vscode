@@ -10,7 +10,7 @@ import { EditorOption } from '../../common/config/editorOptions.js';
 import { CursorColumns } from '../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
 import { ViewEventHandler } from '../../common/viewEventHandler.js';
-import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../common/viewEvents.js';
+import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../common/viewEvents.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { InlineDecoration, ViewLineRenderingData } from '../../common/viewModel.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
@@ -41,7 +41,7 @@ const enum CellBufferInfo {
 
 type QueuedBufferEvent = (
 	ViewConfigurationChangedEvent |
-	ViewDecorationsChangedEvent |
+	ViewLineMappingChangedEvent |
 	ViewLinesDeletedEvent |
 	ViewZonesChangedEvent
 );
@@ -139,10 +139,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	}
 
 	public override onDecorationsChanged(e: ViewDecorationsChangedEvent): boolean {
-		// console.log('FullFileRenderStrategy.onDecorationsChanged');
-		// TODO: Don't clear all cells if we can avoid it
 		this._invalidateAllLines();
-		this._queueBufferUpdate(e);
 		return true;
 	}
 
@@ -160,12 +157,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		//       line data up to retain some up to date lines
 		// TODO: This does not invalidate lines that are no longer in the file
 		this._invalidateLinesFrom(e.fromLineNumber);
-
-		// Queue updates that need to happen on the active buffer, not just the cache. This is
-		// deferred since the active buffer could be locked by the GPU which would block the main
-		// thread.
 		this._queueBufferUpdate(e);
-
 		return true;
 	}
 
@@ -194,12 +186,14 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		return true;
 	}
 
+	public override onLineMappingChanged(e: ViewLineMappingChangedEvent): boolean {
+		this._invalidateAllLines();
+		this._queueBufferUpdate(e);
+		return true;
+	}
+
 	public override onZonesChanged(e: ViewZonesChangedEvent): boolean {
 		this._invalidateAllLines();
-
-		// Queue updates that need to happen on the active buffer, not just the cache. This is
-		// deferred since the active buffer could be locked by the GPU which would block the main
-		// thread.
 		this._queueBufferUpdate(e);
 
 		return true;
@@ -290,16 +284,10 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		while (queuedBufferUpdates.length) {
 			const e = queuedBufferUpdates.shift()!;
 			switch (e.type) {
-				case ViewEventType.ViewConfigurationChanged: {
-					// TODO: Refine the cases for when we throw away all the data
-					cellBuffer.fill(0);
-
-					dirtyLineStart = 1;
-					dirtyLineEnd = Math.max(dirtyLineEnd, this._finalRenderedLine);
-					this._finalRenderedLine = 0;
-					break;
-				}
-				case ViewEventType.ViewDecorationsChanged: {
+				// TODO: Refine these cases so we're not throwing away everything
+				case ViewEventType.ViewConfigurationChanged:
+				case ViewEventType.ViewLineMappingChanged:
+				case ViewEventType.ViewZonesChanged: {
 					cellBuffer.fill(0);
 
 					dirtyLineStart = 1;
@@ -323,16 +311,6 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 					this._finalRenderedLine -= e.toLineNumber - e.fromLineNumber + 1;
 					break;
 				}
-				case ViewEventType.ViewZonesChanged: {
-					// TODO: We could retain render data if we know what view zones changed and how
-					// Zero out content on all lines
-					cellBuffer.fill(0);
-
-					dirtyLineStart = 1;
-					dirtyLineEnd = Math.max(dirtyLineEnd, this._finalRenderedLine);
-					this._finalRenderedLine = 0;
-					break;
-				}
 			}
 		}
 
@@ -343,6 +321,10 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 				fillStartIndex = ((y - 1) * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
 				fillEndIndex = (y * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
 				cellBuffer.fill(0, fillStartIndex, fillEndIndex);
+
+				dirtyLineStart = Math.min(dirtyLineStart, y);
+				dirtyLineEnd = Math.max(dirtyLineEnd, y);
+
 				continue;
 			}
 
@@ -491,6 +473,11 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		);
 	}
 
+	/**
+	 * Queue updates that need to happen on the active buffer, not just the cache. This will be
+	 * deferred to when the actual cell buffer is changed since the active buffer could be locked by
+	 * the GPU which would block the main thread.
+	 */
 	private _queueBufferUpdate(e: QueuedBufferEvent) {
 		this._queuedBufferUpdates[0].push(e);
 		this._queuedBufferUpdates[1].push(e);
