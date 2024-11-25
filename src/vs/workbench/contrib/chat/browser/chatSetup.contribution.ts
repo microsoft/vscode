@@ -46,12 +46,12 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
+	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	name: product.defaultChatAgent?.name ?? '',
 	icon: Codicon[product.defaultChatAgent?.icon as keyof typeof Codicon ?? 'commentDiscussion'],
 	chatWelcomeTitle: product.defaultChatAgent?.chatWelcomeTitle ?? '',
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? '',
-	collectionDocumentationUrl: product.defaultChatAgent?.collectionDocumentationUrl ?? '',
 	skusDocumentationUrl: product.defaultChatAgent?.skusDocumentationUrl ?? '',
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	providerName: product.defaultChatAgent?.providerName ?? '',
@@ -468,7 +468,7 @@ class ChatSetupController extends Disposable {
 
 			installResult = 'installed';
 		} catch (error) {
-			this.logService.trace(`[chat setup] install: error ${error}`);
+			this.logService.error(`[chat setup] install: error ${error}`);
 
 			installResult = isCancellationError(error) ? 'cancelled' : 'failedInstall';
 		}
