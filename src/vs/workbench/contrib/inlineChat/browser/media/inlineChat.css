@@ -340,9 +340,7 @@
 
 /* HINT */
 
-
 .monaco-workbench .monaco-editor .inline-chat-hint {
-	/* padding: 0 8px; */
 	cursor: pointer;
 	color: var(--vscode-editorGhostText-foreground);
 	background-image: linear-gradient(45deg, var(--vscode-editorGhostText-foreground), 95%, transparent);

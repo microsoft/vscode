@@ -28,6 +28,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 import { ChatAgentLocation, IChatAgentService } from '../../chat/common/chatAgents.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 export const CTX_INLINE_CHAT_SHOWING_HINT = new RawContextKey<boolean>('inlineChatShowingHint', false, localize('inlineChatShowingHint', "Whether inline chat shows a contextual hint"));
 
@@ -203,13 +204,13 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 				return;
 			}
 
+			const agentName = chatAgentService.getDefaultAgent(ChatAgentLocation.Editor)?.fullName ?? localize('defaultTitle', "Chat");
 			const isEol = model.getLineMaxColumn(position.lineNumber) === position.column;
 
 			let content: string;
 			let inlineClassName: string;
 
 			if (isEol) {
-				const agentName = chatAgentService.getDefaultAgent(ChatAgentLocation.Editor)?.fullName ?? localize('defaultTitle', "Chat");
 				content = '\u00A0' + localize('title', "{0} to continue with {1}...", kb, agentName);
 				inlineClassName = `inline-chat-hint${decos.length === 0 ? ' first' : ''}`;
 			} else {
@@ -223,6 +224,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 					description: 'inline-chat-hint-line',
 					showIfCollapsed: true,
 					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+					hoverMessage: new MarkdownString(localize('toolttip', "Continue this with {0}...", agentName)),
 					after: {
 						content,
 						inlineClassName,
