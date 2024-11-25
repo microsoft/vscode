@@ -473,7 +473,7 @@ export function registerChatActions() {
 				menu: [
 					{
 						id: MenuId.ChatCommandCenter,
-						group: 'y_learn',
+						group: 'z_learn',
 						order: 1,
 						when: ChatContextKeys.Setup.installed
 					},
