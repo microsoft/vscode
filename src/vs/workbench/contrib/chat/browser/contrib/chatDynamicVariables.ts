@@ -66,6 +66,8 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 							}]);
 							this.widget.refreshParsedInput();
 						}
+
+						ref.dispose();
 						return null;
 					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
 						const delta = c.text.length - c.rangeLength;
@@ -92,11 +94,21 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			s = [];
 		}
 
+		this.disposeVariables();
 		this._variables = s;
 		this.updateDecorations();
 	}
 
-	public addReference(ref: IDynamicVariable): void {
+	/**
+	 * Dispose all existing variables.
+	 */
+	public disposeVariables(): void {
+		for (const variable of this._variables) {
+			variable.dispose();
+		}
+	}
+
+	addReference(ref: IDynamicVariable): void {
 		const variable = this._register(
 			this.instantiationService.createInstance(ChatDynamicVariable, ref),
 		);
