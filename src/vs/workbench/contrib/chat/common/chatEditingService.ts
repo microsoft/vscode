@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { IObservable, ITransaction } from '../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IOffsetEdit, OffsetEdit } from '../../../../editor/common/core/offsetEdit.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
@@ -47,7 +47,7 @@ export interface IChatEditingService {
 
 	startOrContinueEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
 	getEditingSession(resource: URI): IChatEditingSession | null;
-	createSnapshot(requestId: string): void;
+	createSnapshot(requestId: string): Promise<void>;
 	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
 	restoreSnapshot(requestId: string | undefined): Promise<void>;
 
@@ -140,6 +140,10 @@ export interface INotebookSnapshotEntry extends IBaseSnapshotEntry {
 	kind: 'notebook';
 	readonly original: VSBuffer;
 	readonly current: VSBuffer;
+	/** Cell index along with edit offsets */
+	readonly originalToCurrentEdits: Map<number, OffsetEdit>;
+	/** Notebook diff info with cell indexe */
+	readonly diffInfo: { deleted: number[]; inserted: number[] };
 	serialize(): Promise<INotebookSnapshotEntryDTO>;
 }
 export type ISnapshotEntry = ITextSnapshotEntry | INotebookSnapshotEntry;
@@ -160,6 +164,9 @@ export interface ITextSnapshotEntryDTO extends IBaseSnapshotEntryDTO {
 
 export interface INotebookSnapshotEntryDTO extends IBaseSnapshotEntryDTO {
 	readonly kind: 'notebook';
+	readonly viewType: string;
+	readonly originalToCurrentEdits: Record<number, IOffsetEdit>;
+	readonly diffInfo: { deleted: number[]; inserted: number[] };
 }
 export type ISnapshotEntryDTO = ITextSnapshotEntryDTO | INotebookSnapshotEntryDTO;
 
@@ -186,12 +193,10 @@ interface IModifiedAnyFileEntry extends IDisposable {
 	readonly state: IObservable<WorkingSetEntryState>;
 	readonly isCurrentlyBeingModified: IObservable<boolean>;
 	readonly rewriteRatio: IObservable<number>;
-	readonly diffInfo: IObservable<IDocumentDiff>;
 	readonly lastModifyingRequestId: string;
 	readonly telemetryInfo: IModifiedEntryTelemetryInfo;
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
-	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean): void;
 	acceptStreamingEditsStart(tx: ITransaction): void;
 	acceptStreamingEditsEnd(tx: ITransaction): void;
 	updateTelemetryInfo(telemetryInfo: IModifiedEntryTelemetryInfo): void;
@@ -203,16 +208,31 @@ export interface IModifiedTextFileEntry extends IModifiedAnyFileEntry {
 	readonly originalModel: ITextModel;
 	readonly modifiedModel: ITextModel;
 	readonly initialContent: string;
-	createSnapshot(requestId: string | undefined): ITextSnapshotEntry;
+	readonly diffInfo: IObservable<IDocumentDiff>;
+	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean): void;
+	createSnapshot(requestId: string | undefined): Promise<ITextSnapshotEntry>;
 	restoreFromSnapshot(snapshot: ITextSnapshotEntry): void;
 }
 
+export interface INotebookChatEditDiff {
+	deleted: ISettableObservable<URI[]>;
+	inserted: ISettableObservable<URI[]>;
+	/**
+	 * Changes in each cell.
+	 */
+	cellChanges: ISettableObservable<{ cell: URI; changes: ISettableObservable<IDocumentDiff> }[]>;
+}
+
+
 export interface IModifiedNotebookFileEntry extends IModifiedAnyFileEntry {
 	readonly kind: 'notebook';
-	readonly originalModel: INotebookTextModel;
+	readonly viewType: string;
+	// readonly originalModel: INotebookTextModel;
 	readonly modifiedModel: INotebookTextModel;
-	acceptAgentEdits(textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean): void;
-	createSnapshot(requestId: string | undefined): INotebookSnapshotEntry;
+	readonly diffInfo: INotebookChatEditDiff;
+	acceptAgentCellEdits(cellUri: URI, textEdits: TextEdit[], isLastEdits: boolean): void;
+	acceptAgentNotebookEdits(edits: ICellEditOperation[]): void;
+	createSnapshot(requestId: string | undefined): Promise<INotebookSnapshotEntry>;
 	restoreFromSnapshot(snapshot: INotebookSnapshotEntry): void;
 }
 

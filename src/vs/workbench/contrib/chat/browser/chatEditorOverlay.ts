@@ -137,7 +137,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 								if (!d || d.entry === d.next) {
 									return;
 								}
-								const change = d.next.diffInfo.get().changes.at(0);
+								const change = d.next.kind === 'text' ? d.next.diffInfo.get().changes.at(0) : undefined;
 								return editorService.openEditor({
 									resource: d.next.modifiedURI,
 									options: {
@@ -215,6 +215,9 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 			let changes = 0;
 			let activeIdx = -1;
 			for (const entry of entries) {
+				if (entry.kind !== 'text') {
+					continue;
+				}
 				const diffInfo = entry.diffInfo.read(r);
 
 				if (activeIdx !== -1 || entry !== activeEntry) {

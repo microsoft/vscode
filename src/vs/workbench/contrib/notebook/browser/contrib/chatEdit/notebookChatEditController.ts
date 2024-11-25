@@ -23,6 +23,9 @@ import { localize } from '../../../../../../nls.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory } from './notebookOriginalCellModelFactory.js';
+import { ChatEditingNotebookFileSystemProviderContrib } from './chatEditingNotebookFileSytemProviders.js';
+import { registerWorkbenchContribution2 } from '../../../../../common/contributions.js';
+import { NotebookEditor } from '../../notebookEditor.js';
 
 export const ctxNotebookHasEditorModification = new RawContextKey<boolean>('chat.hasNotebookEditorModifications', undefined, localize('chat.hasNotebookEditorModifications', "The current Notebook editor contains chat modifications"));
 
@@ -223,3 +226,5 @@ registerNotebookContribution(NotebookChatEditorControllerContrib.ID, NotebookCha
 registerSingleton(INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceFactory, InstantiationType.Delayed);
 registerSingleton(INotebookModelSynchronizerFactory, NotebookModelSynchronizerFactory, InstantiationType.Delayed);
 registerSingleton(INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory, InstantiationType.Delayed);
+
+registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, { editorTypeId: NotebookEditor.ID });

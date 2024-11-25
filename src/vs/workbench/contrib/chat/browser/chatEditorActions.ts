@@ -95,7 +95,7 @@ abstract class NavigateAction extends Action2 {
 		}
 
 		const entry = entries[newIdx];
-		const change = entry.diffInfo.get().changes.at(this.next ? 0 : -1);
+		const change = entry.kind === 'text' ? entry.diffInfo.get().changes.at(this.next ? 0 : -1) : undefined;
 
 		const newEditorPane = await editorService.openEditor({
 			resource: entry.modifiedURI,

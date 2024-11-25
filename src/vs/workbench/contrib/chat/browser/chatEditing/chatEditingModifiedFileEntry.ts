@@ -185,7 +185,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._telemetryInfo = telemetryInfo;
 	}
 
-	createSnapshot(requestId: string | undefined): ITextSnapshotEntry {
+	async createSnapshot(requestId: string | undefined): Promise<ITextSnapshotEntry> {
 		this._isFirstEditAfterStartOrSnapshot = true;
 		return TextSnapshotEntry.create(this, requestId, this._edit, this.instantiationService);
 	}

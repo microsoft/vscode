@@ -3,15 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { ReadableStreamEvents } from '../../../../../base/common/stream.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { FileSystemProviderCapabilities, FileType, IFileChange, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileSystemProvider, IFileWriteOptions, IStat, IWatchOptions } from '../../../../../platform/files/common/files.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
+import { ReadableStreamEvents } from '../../../../../../base/common/stream.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { FileSystemProviderCapabilities, FileType, IFileChange, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileService, IFileSystemProvider, IFileWriteOptions, IStat, IWatchOptions } from '../../../../../../platform/files/common/files.js';
+import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+
+export class ChatEditingNotebookFileSystemProviderContrib extends Disposable implements IWorkbenchContribution {
+	static ID = 'chatEditingNotebookFileSystemProviderContribution';
+	constructor(
+		@IFileService private readonly fileService: IFileService) {
+
+		super();
+		this._register(this.fileService.registerProvider(ChatEditingNotebookFileSystemProvider.scheme, new ChatEditingNotebookFileSystemProvider()));
+	}
+}
 
 export class ChatEditingNotebookFileSystemProvider implements IFileSystemProvider {
 	public static readonly scheme = 'chat-editing-ntoebook-model';
+	private static registeredFiles = new ResourceMap<VSBuffer>();
 
 	public static getEmptyFileURI(): URI {
 		return URI.from({
@@ -35,7 +49,18 @@ export class ChatEditingNotebookFileSystemProvider implements IFileSystemProvide
 		});
 	}
 
-	public readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly | FileSystemProviderCapabilities.FileReadStream;
+	public static registerFile(resource: URI, buffer: VSBuffer): IDisposable {
+		ChatEditingNotebookFileSystemProvider.registeredFiles.set(resource, buffer);
+		return {
+			dispose() {
+				if (ChatEditingNotebookFileSystemProvider.registeredFiles.get(resource) === buffer) {
+					ChatEditingNotebookFileSystemProvider.registeredFiles.delete(resource);
+				}
+			}
+		};
+	}
+
+	public readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly;
 	readonly onDidChangeCapabilities = Event.None;
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = Event.None;
 	watch(_resource: URI, _opts: IWatchOptions): IDisposable {
@@ -64,8 +89,12 @@ export class ChatEditingNotebookFileSystemProvider implements IFileSystemProvide
 	copy?(_from: URI, _to: URI, _opts: IFileOverwriteOptions): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	readFile?(__resource: URI): Promise<Uint8Array> {
-		throw new Error('Method not implemented.');
+	async readFile(resource: URI): Promise<Uint8Array> {
+		const buffer = ChatEditingNotebookFileSystemProvider.registeredFiles.get(resource)?.buffer;
+		if (!buffer) {
+			throw new Error('File not found');
+		}
+		return buffer;
 	}
 	writeFile?(__resource: URI, _content: Uint8Array, _opts: IFileWriteOptions): Promise<void> {
 		throw new Error('Method not implemented.');
