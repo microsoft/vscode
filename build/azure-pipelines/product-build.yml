@@ -794,7 +794,7 @@ extends:
                 displayName: "Approve Release"
                 variables:
                   - group: VSCode
-                  - name: skipComponentGovernanceDetectio
+                  - name: skipComponentGovernanceDetection
                     value: true
 
         - ${{ if or(and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
