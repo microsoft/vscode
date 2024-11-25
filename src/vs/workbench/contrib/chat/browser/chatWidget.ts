@@ -60,7 +60,6 @@ const $ = dom.$;
 export interface IChatViewState {
 	inputValue?: string;
 	inputState?: IChatInputState;
-	selectedLanguageModelId?: string;
 }
 
 export interface IChatWidgetStyles extends IChatInputStyles {
@@ -284,7 +283,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const sessionId = this._viewModel?.sessionId;
 				if (sessionId) {
 					if (sessionId !== currentEditSession?.chatSessionId) {
-						currentEditSession = await this.chatEditingService.startOrContinueEditingSession(sessionId, { silent: true });
+						currentEditSession = await this.chatEditingService.startOrContinueEditingSession(sessionId);
 					}
 				} else {
 					if (currentEditSession) {
@@ -890,11 +889,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (e.kind === 'setAgent') {
 				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
 			}
-			if (e.kind === 'addRequest') {
-				if (this._location.location === ChatAgentLocation.EditingSession) {
-					this.chatEditingService.createSnapshot(e.request.id);
-				}
-			}
 		}));
 
 		if (this.tree && this.visible) {
@@ -1052,7 +1046,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					actualSize: number;
 				};
 				this.telemetryService.publicLog2<ChatEditingWorkingSetEvent, ChatEditingWorkingSetClassification>('chatEditing/workingSetSize', { originalSize: this.inputPart.attemptedWorkingSetEntriesCount, actualSize: uniqueWorkingSetEntries.size });
-				currentEditingSession?.remove(WorkingSetEntryRemovalReason.Programmatic, ...unconfirmedSuggestions);
+				currentEditingSession?.remove(WorkingSetEntryRemovalReason.User, ...unconfirmedSuggestions);
 			}
 
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {
@@ -1261,8 +1255,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	getViewState(): IChatViewState {
 		return {
 			inputValue: this.getInput(),
-			inputState: this.inputPart.getViewState(),
-			selectedLanguageModelId: this.inputPart.currentLanguageModel,
+			inputState: this.inputPart.getViewState()
 		};
 	}
 

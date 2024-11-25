@@ -1559,10 +1559,6 @@ export class CommandCenter {
 	async stageSelectedChanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
-		this.logger.debug('[CommandCenter][stageSelectedChanges] changes:', changes);
-		this.logger.debug('[CommandCenter][stageSelectedChanges] diffInformation.changes:', textEditor?.diffInformation?.changes);
-		this.logger.debug('[CommandCenter][stageSelectedChanges] diffInformation.isStale:', textEditor?.diffInformation?.isStale);
-
 		if (!textEditor) {
 			return;
 		}
@@ -1745,10 +1741,6 @@ export class CommandCenter {
 	async revertSelectedRanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
-		this.logger.debug('[CommandCenter][revertSelectedRanges] changes:', changes);
-		this.logger.debug('[CommandCenter][revertSelectedRanges] diffInformation.changes:', textEditor?.diffInformation?.changes);
-		this.logger.debug('[CommandCenter][revertSelectedRanges] diffInformation.isStale:', textEditor?.diffInformation?.isStale);
-
 		if (!textEditor) {
 			return;
 		}
@@ -1825,10 +1817,6 @@ export class CommandCenter {
 	@command('git.unstageSelectedRanges', { diff: true })
 	async unstageSelectedRanges(changes: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
-
-		this.logger.debug('[CommandCenter][unstageSelectedRanges] changes:', changes);
-		this.logger.debug('[CommandCenter][unstageSelectedRanges] diffInformation.changes:', textEditor?.diffInformation?.changes);
-		this.logger.debug('[CommandCenter][unstageSelectedRanges] diffInformation.isStale:', textEditor?.diffInformation?.isStale);
 
 		if (!textEditor) {
 			return;
@@ -4305,6 +4293,33 @@ export class CommandCenter {
 		}
 
 		env.clipboard.writeText(historyItem.message);
+	}
+
+	@command('git.blameStatusBarItem.viewCommit', { repository: true })
+	async viewStatusBarCommit(repository: Repository, historyItemId: string): Promise<void> {
+		if (!repository || !historyItemId) {
+			return;
+		}
+
+		const commit = await repository.getCommit(historyItemId);
+		const title = `${historyItemId.substring(0, 8)} - ${commit.message}`;
+		const historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : `${historyItemId}^`;
+
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `${historyItemParentId}..${historyItemId}`, { scheme: 'git-commit', });
+
+		const changes = await repository.diffBetween(historyItemParentId, historyItemId);
+		const resources = changes.map(c => toMultiFileDiffEditorUris(c, historyItemParentId, historyItemId));
+
+		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
+	}
+
+	@command('git.blameStatusBarItem.copyContent')
+	async blameStatusBarCopyContent(content: string): Promise<void> {
+		if (typeof content !== 'string') {
+			return;
+		}
+
+		env.clipboard.writeText(content);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {

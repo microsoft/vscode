@@ -29,7 +29,8 @@ import { Registry } from '../../registry/common/platform.js';
 
 export const CodeDataTransfers = {
 	EDITORS: 'CodeEditors',
-	FILES: 'CodeFiles'
+	FILES: 'CodeFiles',
+	SYMBOLS: 'application/vnd.code.symbols'
 };
 
 export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInput {
@@ -398,6 +399,31 @@ export class LocalSelectionTransfer<T> {
 			this.proto = proto;
 		}
 	}
+}
+
+export interface DocumentSymbolTransferData {
+	name: string;
+	fsPath: string;
+	range: {
+		startLineNumber: number;
+		startColumn: number;
+		endLineNumber: number;
+		endColumn: number;
+	};
+	kind: number;
+}
+
+export function extractSymbolDropData(e: DragEvent): DocumentSymbolTransferData[] {
+	const rawSymbolsData = e.dataTransfer?.getData(CodeDataTransfers.SYMBOLS);
+	if (rawSymbolsData) {
+		try {
+			return JSON.parse(rawSymbolsData);
+		} catch (error) {
+			// Invalid transfer
+		}
+	}
+
+	return [];
 }
 
 /**

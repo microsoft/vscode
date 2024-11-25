@@ -1055,11 +1055,11 @@ function parseGitChanges(repositoryRoot: string, raw: string): Change[] {
 }
 
 export interface BlameInformation {
-	readonly id: string;
-	readonly date?: number;
-	readonly message?: string;
+	readonly hash: string;
+	readonly subject?: string;
 	readonly authorName?: string;
 	readonly authorEmail?: string;
+	readonly authorDate?: number;
 	readonly ranges: {
 		readonly startLineNumber: number;
 		readonly endLineNumber: number;
@@ -1113,7 +1113,7 @@ function parseGitBlame(data: string): BlameInformation[] {
 				blameInformation.set(commitHash, existingCommit);
 			} else {
 				blameInformation.set(commitHash, {
-					id: commitHash, authorName, authorEmail, date: authorTime, message, ranges: [{ startLineNumber, endLineNumber }]
+					hash: commitHash, authorName, authorEmail, authorDate: authorTime, subject: message, ranges: [{ startLineNumber, endLineNumber }]
 				});
 			}
 
@@ -2207,9 +2207,16 @@ export class Repository {
 		}
 	}
 
-	async blame2(path: string): Promise<BlameInformation[] | undefined> {
+	async blame2(path: string, ref?: string): Promise<BlameInformation[] | undefined> {
 		try {
-			const args = ['blame', '--root', '--incremental', '--', sanitizePath(path)];
+			const args = ['blame', '--root', '--incremental'];
+
+			if (ref) {
+				args.push(ref);
+			}
+
+			args.push('--', sanitizePath(path));
+
 			const result = await this.exec(args);
 
 			return parseGitBlame(result.stdout.trim());

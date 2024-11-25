@@ -14,7 +14,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { disposeIfDisposable } from '../../../../base/common/lifecycle.js';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, ExtensionEditorTab, ExtensionRuntimeActionType, IExtensionArg, AutoUpdateConfigurationKey } from '../common/extensions.js';
 import { ExtensionsConfigurationInitialContent } from '../common/extensionsFileTemplate.js';
-import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, ExtensionManagementErrorCode } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, ExtensionManagementErrorCode, IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { areSameExtensions, getExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -411,11 +411,13 @@ export class InstallAction extends ExtensionAction {
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 	) {
 		super('extensions.install', localize('install', "Install"), InstallAction.CLASS, false);
 		this.hideOnDisabled = false;
 		this.options = { isMachineScoped: false, ...options };
 		this.update();
+		this._register(allowedExtensionsService.onDidChangeAllowedExtensions(() => this.update()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.updateLabel(), this));
 	}
 
@@ -439,7 +441,7 @@ export class InstallAction extends ExtensionAction {
 		if (this.extension.state !== ExtensionState.Uninstalled) {
 			return;
 		}
-		if (this.options.installPreReleaseVersion && !this.extension.hasPreReleaseVersion) {
+		if (this.options.installPreReleaseVersion && (!this.extension.hasPreReleaseVersion || this.allowedExtensionsService.isAllowed({ id: this.extension.identifier.id, prerelease: true }) !== true)) {
 			return;
 		}
 		if (!this.options.installPreReleaseVersion && !this.extension.hasReleaseVersion) {
@@ -1013,6 +1015,7 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(ToggleAutoUpdateForExtensionAction.ID, ToggleAutoUpdateForExtensionAction.LABEL.value, ToggleAutoUpdateForExtensionAction.DisabledClass);
@@ -1021,6 +1024,7 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 				this.update();
 			}
 		}));
+		this._register(allowedExtensionsService.onDidChangeAllowedExtensions(e => this.update()));
 		this.update();
 	}
 
@@ -1034,6 +1038,10 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 			return;
 		}
 		if (this.extension.deprecationInfo?.disallowInstall) {
+			return;
+		}
+		const extension = this.extension.local ?? this.extension.gallery;
+		if (extension && this.allowedExtensionsService.isAllowed(extension) !== true) {
 			return;
 		}
 		if (this.extensionsWorkbenchService.getAutoUpdateValue() === 'onlyEnabledExtensions' && !this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState)) {
@@ -1200,6 +1208,7 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 		const extensionIgnoredRecommendationsService = accessor.get(IExtensionIgnoredRecommendationsService);
 		const workbenchThemeService = accessor.get(IWorkbenchThemeService);
 		const authenticationUsageService = accessor.get(IAuthenticationUsageService);
+		const allowedExtensionsService = accessor.get(IAllowedExtensionsService);
 		const cksOverlay: [string, any][] = [];
 
 		if (extension) {
@@ -1241,6 +1250,8 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['extensionHasPreReleaseVersion', extension.hasPreReleaseVersion]);
 			cksOverlay.push(['extensionHasReleaseVersion', extension.hasReleaseVersion]);
 			cksOverlay.push(['extensionDisallowInstall', !!extension.deprecationInfo?.disallowInstall]);
+			cksOverlay.push(['isExtensionAllowed', allowedExtensionsService.isAllowed({ id: extension.identifier.id }) === true]);
+			cksOverlay.push(['isPreReleaseExtensionAllowed', allowedExtensionsService.isAllowed({ id: extension.identifier.id, prerelease: true }) === true]);
 			cksOverlay.push(['extensionIsUnsigned', extension.gallery && !extension.gallery.isSigned]);
 
 			const [colorThemes, fileIconThemes, productIconThemes, extensionUsesAuth] = await Promise.all([workbenchThemeService.getColorThemes(), workbenchThemeService.getFileIconThemes(), workbenchThemeService.getProductIconThemes(), authenticationUsageService.extensionUsesAuth(extension.identifier.id.toLowerCase())]);
@@ -2486,6 +2497,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IProductService private readonly productService: IProductService,
+		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 		@IWorkbenchExtensionEnablementService private readonly workbenchExtensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 	) {
@@ -2493,6 +2505,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
 		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
 		this._register(this.extensionFeaturesManagementService.onDidChangeAccessData(() => this.update()));
+		this._register(allowedExtensionsService.onDidChangeAllowedExtensions(() => this.update()));
 		this.update();
 	}
 
@@ -2568,6 +2581,13 @@ export class ExtensionStatusAction extends ExtensionAction {
 			!this.extension.server ||
 			this.extension.state !== ExtensionState.Installed
 		) {
+			return;
+		}
+
+		// Extension is disabled by its dependency
+		const result = this.allowedExtensionsService.isAllowed(this.extension.local);
+		if (result !== true) {
+			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - not allowed', "This extension is disabled because {0}", result.value)) }, true);
 			return;
 		}
 

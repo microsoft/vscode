@@ -88,7 +88,10 @@ class OpenChatGlobalAction extends Action2 {
 			title: OpenChatGlobalAction.TITLE,
 			icon: defaultChat.icon,
 			f1: true,
-			precondition: ChatContextKeys.panelParticipantRegistered,
+			precondition: ContextKeyExpr.or(
+				ChatContextKeys.Setup.installed,
+				ChatContextKeys.panelParticipantRegistered
+			),
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -467,11 +470,13 @@ export function registerChatActions() {
 				id: LearnMoreChatAction.ID,
 				title: LearnMoreChatAction.TITLE,
 				category: CHAT_CATEGORY,
-				menu: {
-					id: MenuId.ChatCommandCenter,
-					group: 'z_learn',
-					order: 1
-				}
+				menu: [
+					{
+						id: MenuId.ChatCommandCenter,
+						group: 'z_end',
+						order: 1
+					}
+				]
 			});
 		}
 
@@ -508,9 +513,10 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
 		ContextKeyExpr.or(
-			ChatContextKeys.panelParticipantRegistered,
-			ChatContextKeys.ChatSetup.entitled,
-			ContextKeyExpr.has('config.chat.experimental.offerSetup')
+			ChatContextKeys.Setup.installed,
+			ChatContextKeys.Setup.entitled,
+			ContextKeyExpr.has('config.chat.experimental.offerSetup'),
+			ChatContextKeys.panelParticipantRegistered
 		)
 	),
 	order: 10001,
@@ -525,9 +531,10 @@ registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
 			ContextKeyExpr.and(
 				ContextKeyExpr.has('config.window.commandCenter'),
 				ContextKeyExpr.or(
-					ChatContextKeys.panelParticipantRegistered,
-					ChatContextKeys.ChatSetup.entitled,
-					ContextKeyExpr.has('config.chat.experimental.offerSetup')
+					ChatContextKeys.Setup.installed,
+					ChatContextKeys.Setup.entitled,
+					ContextKeyExpr.has('config.chat.experimental.offerSetup'),
+					ChatContextKeys.panelParticipantRegistered
 				)
 			)
 		);
@@ -557,8 +564,8 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 			const chatExtensionInstalled = agentService.getAgents().some(agent => agent.isDefault);
 
 			const primaryAction = instantiationService.createInstance(MenuItemAction, {
-				id: chatExtensionInstalled ? CHAT_OPEN_ACTION_ID : 'workbench.action.chat.triggerSetup', // TODO@bpasero revisit layering of this action
-				title: OpenChatGlobalAction.TITLE,
+				id: chatExtensionInstalled ? CHAT_OPEN_ACTION_ID : 'workbench.action.chat.triggerSetup',
+				title: chatExtensionInstalled ? OpenChatGlobalAction.TITLE : localize2('triggerChatSetup', "Setup {0}...", defaultChat.name),
 				icon: defaultChat.icon,
 			}, undefined, undefined, undefined, undefined);
 

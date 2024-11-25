@@ -106,10 +106,10 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 		document: vscode.TextDocument,
 		ranges: readonly vscode.Range[],
 		dataTransfer: vscode.DataTransfer,
-		settings: {
+		settings: Readonly<{
 			insert: InsertMarkdownLink;
 			copyIntoWorkspace: CopyFilesSettings;
-		},
+		}>,
 		context: vscode.DocumentPasteEditContext | undefined,
 		token: vscode.CancellationToken,
 	): Promise<DropOrPasteEdit | undefined> {
@@ -172,7 +172,7 @@ class ResourcePasteOrDropProvider implements vscode.DocumentPasteEditProvider, v
 			}
 		}
 
-		const edit = createInsertUriListEdit(document, ranges, uriList);
+		const edit = createInsertUriListEdit(document, ranges, uriList, { linkKindHint: context?.only });
 		if (!edit) {
 			return;
 		}

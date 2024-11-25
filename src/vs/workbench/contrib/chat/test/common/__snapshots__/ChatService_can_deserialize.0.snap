@@ -57,6 +57,7 @@
       variableData: { variables: [  ] },
       response: [  ],
       responseId: undefined,
+      isHidden: false,
       result: { metadata: { metadataKey: "value" } },
       followups: undefined,
       isCanceled: false,
@@ -77,6 +78,7 @@
         slashCommands: [  ],
         disambiguation: [  ]
       },
+      workingSet: undefined,
       slashCommand: undefined,
       usedContext: {
         documents: [

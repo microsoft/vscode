@@ -85,6 +85,7 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ChatInputPart } from './chatInputPart.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
+import product from '../../../../platform/product/common/product.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -122,7 +123,7 @@ configurationRegistry.registerConfiguration({
 		'chat.commandCenter.enabled': {
 			type: 'boolean',
 			tags: ['preview'],
-			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for chat actions (requires {0}).", '`#window.commandCenter#`'),
+			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for chat actions to control {0} (requires {1}).", product.defaultChatAgent?.chatName, '`#window.commandCenter#`'),
 			default: true
 		},
 		'chat.experimental.offerSetup': {
