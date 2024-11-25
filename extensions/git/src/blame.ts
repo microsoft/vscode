@@ -52,6 +52,32 @@ function mapModifiedLineNumberToOriginalLineNumber(lineNumber: number, changes: 
 	return lineNumber;
 }
 
+type BlameInformationTemplateTokens = {
+	readonly hash: string;
+	readonly hashShort: string;
+	readonly subject: string;
+	readonly authorName: string;
+	readonly authorEmail: string;
+	readonly authorDate: string;
+	readonly authorDateAgo: string;
+};
+
+function formatBlameInformation(template: string, blameInformation: BlameInformation): string {
+	const templateTokens = {
+		hash: blameInformation.hash,
+		hashShort: blameInformation.hash.substring(0, 8),
+		subject: blameInformation.subject ?? '',
+		authorName: blameInformation.authorName ?? '',
+		authorEmail: blameInformation.authorEmail ?? '',
+		authorDate: new Date(blameInformation.authorDate ?? new Date()).toLocaleString(),
+		authorDateAgo: fromNow(blameInformation.authorDate ?? new Date(), true, true)
+	} satisfies BlameInformationTemplateTokens;
+
+	return template.replace(/\$\{(.+?)\}/g, (_, token) => {
+		return token in templateTokens ? templateTokens[token as keyof BlameInformationTemplateTokens] : `\${${token}}`;
+	});
+}
+
 interface RepositoryBlameInformation {
 	readonly commit: string; /* commit used for blame information */
 	readonly blameInformation: Map<Uri, BlameInformation[]>;
@@ -98,24 +124,24 @@ export class GitBlameController {
 		if (blameInformation.authorName) {
 			markdownString.appendMarkdown(`$(account) **${blameInformation.authorName}**`);
 
-			if (blameInformation.date) {
-				const dateString = new Date(blameInformation.date).toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
-				markdownString.appendMarkdown(`, $(history) ${fromNow(blameInformation.date, true, true)} (${dateString})`);
+			if (blameInformation.authorDate) {
+				const dateString = new Date(blameInformation.authorDate).toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+				markdownString.appendMarkdown(`, $(history) ${fromNow(blameInformation.authorDate, true, true)} (${dateString})`);
 			}
 
 			markdownString.appendMarkdown('\n\n');
 		}
 
-		markdownString.appendMarkdown(`${blameInformation.message}\n\n`);
+		markdownString.appendMarkdown(`${blameInformation.subject}\n\n`);
 		markdownString.appendMarkdown(`---\n\n`);
 
-		markdownString.appendMarkdown(`[$(eye) View Commit](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformation.id]))} "${l10n.t('View Commit')}")`);
+		markdownString.appendMarkdown(`[$(eye) View Commit](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformation.hash]))} "${l10n.t('View Commit')}")`);
 		markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
-		markdownString.appendMarkdown(`[$(copy) ${blameInformation.id.substring(0, 8)}](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.id))} "${l10n.t('Copy Commit Hash')}")`);
+		markdownString.appendMarkdown(`[$(copy) ${blameInformation.hash.substring(0, 8)}](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.hash))} "${l10n.t('Copy Commit Hash')}")`);
 
-		if (blameInformation.message) {
+		if (blameInformation.subject) {
 			markdownString.appendMarkdown('&nbsp;&nbsp;');
-			markdownString.appendMarkdown(`[$(copy) Message](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.message))} "${l10n.t('Copy Commit Message')}")`);
+			markdownString.appendMarkdown(`[$(copy) Subject](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.subject))} "${l10n.t('Copy Commit Subject')}")`);
 		}
 
 		return markdownString;
@@ -282,13 +308,13 @@ class GitBlameEditorDecoration {
 	}
 
 	private _onDidChangeConfiguration(e: ConfigurationChangeEvent): void {
-		if (!e.affectsConfiguration('git.blame.editorDecoration.enabled')) {
+		if (!e.affectsConfiguration('git.blame.editorDecoration.enabled') &&
+			!e.affectsConfiguration('git.blame.editorDecoration.template')) {
 			return;
 		}
 
-		const enabled = this._isEnabled();
 		for (const textEditor of window.visibleTextEditors) {
-			if (enabled) {
+			if (this._getConfiguration().enabled) {
 				this._updateDecorations(textEditor);
 			} else {
 				textEditor.setDecorations(this._decorationType, []);
@@ -296,13 +322,17 @@ class GitBlameEditorDecoration {
 		}
 	}
 
-	private _isEnabled(): boolean {
+	private _getConfiguration(): { enabled: boolean; template: string } {
 		const config = workspace.getConfiguration('git');
-		return config.get<boolean>('blame.editorDecoration.enabled', false);
+		const enabled = config.get<boolean>('blame.editorDecoration.enabled', false);
+		const template = config.get<string>('blame.editorDecoration.template', '${subject}, ${authorName} (${authorDateAgo})');
+
+		return { enabled, template };
 	}
 
 	private _updateDecorations(textEditor: TextEditor): void {
-		if (!this._isEnabled()) {
+		const { enabled, template } = this._getConfiguration();
+		if (!enabled) {
 			return;
 		}
 
@@ -315,7 +345,7 @@ class GitBlameEditorDecoration {
 		const decorations = blameInformation.map(blame => {
 			const contentText = typeof blame.blameInformation === 'string'
 				? blame.blameInformation
-				: `${blame.blameInformation.message ?? ''}, ${blame.blameInformation.authorName ?? ''} (${fromNow(blame.blameInformation.date ?? Date.now(), true, true)})`;
+				: formatBlameInformation(template, blame.blameInformation);
 			const hoverMessage = this._controller.getBlameInformationHover(textEditor.document.uri, blame.blameInformation);
 
 			return this._createDecoration(blame.lineNumber, contentText, hoverMessage);
@@ -357,11 +387,12 @@ class GitBlameStatusBarItem {
 	}
 
 	private _onDidChangeConfiguration(e: ConfigurationChangeEvent): void {
-		if (!e.affectsConfiguration('git.blame.statusBarItem.enabled')) {
+		if (!e.affectsConfiguration('git.blame.statusBarItem.enabled') &&
+			!e.affectsConfiguration('git.blame.statusBarItem.template')) {
 			return;
 		}
 
-		if (this._isEnabled()) {
+		if (this._getConfiguration().enabled) {
 			if (window.activeTextEditor) {
 				this._updateStatusBarItem(window.activeTextEditor);
 			}
@@ -372,7 +403,7 @@ class GitBlameStatusBarItem {
 	}
 
 	private _onDidChangeActiveTextEditor(): void {
-		if (!this._isEnabled()) {
+		if (!this._getConfiguration().enabled) {
 			return;
 		}
 
@@ -383,13 +414,17 @@ class GitBlameStatusBarItem {
 		}
 	}
 
-	private _isEnabled(): boolean {
+	private _getConfiguration(): { enabled: boolean; template: string } {
 		const config = workspace.getConfiguration('git');
-		return config.get<boolean>('blame.statusBarItem.enabled', false);
+		const enabled = config.get<boolean>('blame.statusBarItem.enabled', false);
+		const template = config.get<string>('blame.statusBarItem.template', '${authorName} (${authorDateAgo})');
+
+		return { enabled, template };
 	}
 
 	private _updateStatusBarItem(textEditor: TextEditor): void {
-		if (!this._isEnabled() || textEditor !== window.activeTextEditor) {
+		const { enabled, template } = this._getConfiguration();
+		if (!enabled || textEditor !== window.activeTextEditor) {
 			return;
 		}
 
@@ -410,12 +445,12 @@ class GitBlameStatusBarItem {
 			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
 			this._statusBarItem.command = undefined;
 		} else {
-			this._statusBarItem.text = `$(git-commit) ${blameInformation[0].blameInformation.authorName ?? ''} (${fromNow(blameInformation[0].blameInformation.date ?? new Date(), true, true)})`;
+			this._statusBarItem.text = formatBlameInformation(template, blameInformation[0].blameInformation);
 			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
 			this._statusBarItem.command = {
 				title: l10n.t('View Commit'),
 				command: 'git.blameStatusBarItem.viewCommit',
-				arguments: [textEditor.document.uri, blameInformation[0].blameInformation.id]
+				arguments: [textEditor.document.uri, blameInformation[0].blameInformation.hash]
 			} satisfies Command;
 		}
 
