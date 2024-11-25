@@ -164,7 +164,7 @@ export class ChatDragAndDrop extends Themable {
 			return ChatDragAndDropType.FILE_EXTERNAL;
 		} else if (containsDragType(e, DataTransfers.INTERNAL_URI_LIST)) {
 			return ChatDragAndDropType.FILE_INTERNAL;
-		} else if (containsDragType(e, Mimes.uriList)) {
+		} else if (containsDragType(e, Mimes.uriList, CodeDataTransfers.FILES)) {
 			return ChatDragAndDropType.FOLDER;
 		}
 
