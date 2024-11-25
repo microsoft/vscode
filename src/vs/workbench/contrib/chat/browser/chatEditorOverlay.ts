@@ -27,6 +27,7 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ctxNotebookHasEditorModification } from '../../notebook/browser/contrib/chatEdit/notebookChatEditController.js';
 import { AcceptAction, RejectAction } from './chatEditorActions.js';
+import { ChatEditorController } from './chatEditorController.js';
 
 class ChatEditorOverlayWidget implements IOverlayWidget {
 
@@ -206,16 +207,9 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 			);
 		}));
 
-
-		const editorPositionObs = observableFromEvent(this._editor.onDidChangeCursorPosition, () => this._editor.getPosition());
-
 		this._showStore.add(autorun(r => {
-			const position = editorPositionObs.read(r);
 
-			if (!position) {
-				return;
-			}
-
+			const position = ChatEditorController.get(this._editor)?.currentChange.read(r);
 			const entries = session.entries.read(r);
 
 			let changes = 0;
@@ -229,7 +223,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 
 				} else {
 					for (const change of diffInfo.changes) {
-						if (change.modified.includes(position.lineNumber)) {
+						if (position && change.modified.includes(position.lineNumber)) {
 							activeIdx = changes;
 						}
 						changes += 1;

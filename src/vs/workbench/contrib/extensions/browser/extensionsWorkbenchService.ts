@@ -21,7 +21,7 @@ import {
 	TargetPlatformToString,
 	IAllowedExtensionsService
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension, extensionsConfigurationNodeBase } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -787,6 +787,7 @@ class Extensions extends Disposable {
 	}
 
 	private async onDidInstallExtensions(results: readonly InstallExtensionResult[]): Promise<void> {
+		const extensions: Extension[] = [];
 		for (const event of results) {
 			const { local, source } = event;
 			const gallery = source && !URI.isUri(source) ? source : undefined;
@@ -809,14 +810,19 @@ class Extensions extends Disposable {
 					if (!extension.gallery) {
 						extension.gallery = gallery;
 					}
-					extension.setExtensionsControlManifest(await this.server.extensionManagementService.getExtensionsControlManifest());
 					extension.enablementState = this.extensionEnablementService.getEnablementState(local);
 				}
+				extensions.push(extension);
 			}
 			this._onChange.fire(!local || !extension ? undefined : { extension, operation: event.operation });
-			if (extension && extension.local && !extension.gallery && extension.local.source !== 'resource') {
-				await this.syncInstalledExtensionWithGallery(extension);
+		}
+
+		if (extensions.length) {
+			const manifest = await this.server.extensionManagementService.getExtensionsControlManifest();
+			for (const extension of extensions) {
+				extension.setExtensionsControlManifest(manifest);
 			}
+			this.matchInstalledExtensionsWithGallery(extensions);
 		}
 	}
 
@@ -832,7 +838,11 @@ class Extensions extends Disposable {
 		}
 	}
 
-	private async syncInstalledExtensionWithGallery(extension: Extension): Promise<void> {
+	private async matchInstalledExtensionsWithGallery(extensions: Extension[]): Promise<void> {
+		const toMatch = extensions.filter(e => e.local && !e.gallery && e.local.source !== 'resource');
+		if (!toMatch.length) {
+			return;
+		}
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
@@ -841,10 +851,13 @@ class Extensions extends Disposable {
 			comment: 'Report when a request is made to match installed extension with gallery';
 		};
 		this.telemetryService.publicLog2<{}, GalleryServiceMatchInstalledExtensionClassification>('galleryService:matchInstalledExtension');
-		const [compatible] = await this.galleryService.getExtensions([{ ...extension.identifier, preRelease: extension.local?.preRelease }], { compatible: true, targetPlatform: await this.server.extensionManagementService.getTargetPlatform() }, CancellationToken.None);
-		if (compatible) {
-			extension.gallery = compatible;
-			this._onChange.fire({ extension });
+		const galleryExtensions = await this.galleryService.getExtensions(toMatch.map(e => ({ ...e.identifier, preRelease: e.local?.preRelease })), { compatible: true, targetPlatform: await this.server.extensionManagementService.getTargetPlatform() }, CancellationToken.None);
+		for (const extension of extensions) {
+			const compatible = galleryExtensions.find(e => areSameExtensions(e.identifier, extension.identifier));
+			if (compatible) {
+				extension.gallery = compatible;
+				this._onChange.fire({ extension });
+			}
 		}
 	}
 
@@ -1020,7 +1033,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private registerAutoRestartConfig(): void {
 		Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			.registerConfiguration({
-				...extensionsConfigurationNodeBase,
+				id: 'extensions',
+				order: 30,
+				title: nls.localize('extensionsConfigurationTitle', "Extensions"),
+				type: 'object',
 				properties: {
 					[AutoRestartConfigurationKey]: {
 						type: 'boolean',
