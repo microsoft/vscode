@@ -64,4 +64,10 @@ export interface IRasterizedGlyph {
 	 * The offset to the glyph's origin (where it should be drawn to).
 	 */
 	originOffset: { x: number; y: number };
+	/**
+	 * The glyph's distance from the alphabetical baseline.
+	 */
+	alphabeticBaseline: number;
+	fontBoundingBoxAscent: number;
+	fontBoundingBoxDescent: number;
 }
