@@ -20,23 +20,23 @@ const testSpecs: ITestSpec[] = [
 	{ input: 'ls && c|', expectedCompletionLabels: availableCommands },
 	{ input: 'cd |', expectedCompletionLabels: ['~', '-'], resourcesRequested: 'folders' },
 	{ input: 'code|', expectedCompletionLabels: ['code-insiders'] },
-	{ input: 'code-insiders|', expectedCompletionLabels: [] },
+	{ input: 'code-insiders|' },
 	{ input: 'code |', expectedCompletionLabels: codeOptions },
 	{ input: 'code --locale |', expectedCompletionLabels: localeOptions },
-	{ input: 'code --diff |', expectedCompletionLabels: [], resourcesRequested: 'files' },
+	{ input: 'code --diff |', resourcesRequested: 'files' },
 	{ input: 'code -di|', expectedCompletionLabels: codeOptions.filter(o => o.startsWith('di')) },
-	{ input: 'code --diff ./file1 |', expectedCompletionLabels: [], resourcesRequested: 'files' },
-	{ input: 'code --merge |', expectedCompletionLabels: [], resourcesRequested: 'files' },
-	{ input: 'code --merge ./file1 ./file2 |', expectedCompletionLabels: [], resourcesRequested: 'files' },
-	{ input: 'code --merge ./file1 ./file2 ./base |', expectedCompletionLabels: [], resourcesRequested: 'files' },
-	{ input: 'code --goto |', expectedCompletionLabels: [], resourcesRequested: 'files' },
-	{ input: 'code --user-data-dir |', expectedCompletionLabels: [], resourcesRequested: 'folders' },
-	{ input: 'code --profile |', expectedCompletionLabels: [] },
-	{ input: 'code --install-extension |', expectedCompletionLabels: [] },
-	{ input: 'code --uninstall-extension |', expectedCompletionLabels: [] },
+	{ input: 'code --diff ./file1 |', resourcesRequested: 'files' },
+	{ input: 'code --merge |', resourcesRequested: 'files' },
+	{ input: 'code --merge ./file1 ./file2 |', resourcesRequested: 'files' },
+	{ input: 'code --merge ./file1 ./file2 ./base |', resourcesRequested: 'files' },
+	{ input: 'code --goto |', resourcesRequested: 'files' },
+	{ input: 'code --user-data-dir |', resourcesRequested: 'folders' },
+	{ input: 'code --profile |' },
+	{ input: 'code --install-extension |' },
+	{ input: 'code --uninstall-extension |' },
 	{ input: 'code --log |', expectedCompletionLabels: logOptions },
 	{ input: 'code --sync |', expectedCompletionLabels: syncOptions },
-	{ input: 'code --extensions-dir |', expectedCompletionLabels: [], resourcesRequested: 'folders' },
+	{ input: 'code --extensions-dir |', resourcesRequested: 'folders' },
 	{ input: 'code --list-extensions |', expectedCompletionLabels: codeOptions },
 	{ input: 'code --show-versions |', expectedCompletionLabels: codeOptions },
 	{ input: 'code --category |', expectedCompletionLabels: categoryOptions },
@@ -45,7 +45,7 @@ const testSpecs: ITestSpec[] = [
 	{ input: 'code-insiders --show-versions |', expectedCompletionLabels: codeOptions },
 	{ input: 'code-insiders --category |', expectedCompletionLabels: categoryOptions },
 	{ input: 'code-insiders --category a|', expectedCompletionLabels: categoryOptions.filter(c => c.startsWith('a')) },
-	{ input: 'code-insiders --category azure |', expectedCompletionLabels: [] },
+	{ input: 'code-insiders --category azure |' },
 	{ input: 'code | --locale', expectedCompletionLabels: codeOptions },
 	{ input: 'code --locale | && ls', expectedCompletionLabels: localeOptions },
 	{ input: 'code-insiders | --locale', expectedCompletionLabels: codeOptions },
@@ -54,7 +54,7 @@ const testSpecs: ITestSpec[] = [
 
 interface ITestSpec {
 	input: string;
-	expectedCompletionLabels: string[];
+	expectedCompletionLabels?: string[];
 	resourcesRequested?: 'files' | 'folders' | 'both';
 }
 
@@ -67,7 +67,7 @@ suite('Terminal Suggest', () => {
 			const filesRequested = testSpec.resourcesRequested === 'files' || testSpec.resourcesRequested === 'both';
 			const foldersRequested = testSpec.resourcesRequested === 'folders' || testSpec.resourcesRequested === 'both';
 			const result = getCompletionItemsFromSpecs(availableSpecs, { commandLine, cursorPosition }, availableCommands, prefix);
-			deepStrictEqual(result.items.map(i => i.label).sort(), testSpec.expectedCompletionLabels.sort());
+			deepStrictEqual(result.items.map(i => i.label).sort(), (testSpec.expectedCompletionLabels ?? []).sort());
 			strictEqual(result.filesRequested, filesRequested);
 			strictEqual(result.foldersRequested, foldersRequested);
 		});
