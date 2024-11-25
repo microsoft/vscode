@@ -756,7 +756,7 @@ class ChatSetupHideAction extends Action2 {
 
 		const { confirmed } = await dialogService.confirm({
 			message: localize('hideChatSetupConfirm', "Are you sure you want to hide {0}?", defaultChat.name),
-			detail: localize('hideChatSetupDetail', "You can restore by running the '{0}' command.", ChatSetupTriggerAction.TITLE.value),
+			detail: localize('hideChatSetupDetail', "You can restore it by running the '{0}' command.", ChatSetupTriggerAction.TITLE.value),
 			primaryButton: localize('hideChatSetupButton', "Hide {0}", defaultChat.name)
 		});
 
