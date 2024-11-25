@@ -3200,7 +3200,7 @@
         },
         "git.blame.editorDecoration.template": {
           "type": "string",
-          "default": "${commit.subject}, ${commit.authorName} (${commit.authorDate.ago})",
+          "default": "${subject}, ${authorName} (${authorDateAgo})",
           "markdownDescription": "%config.blameEditorDecoration.template%",
           "scope": "resource",
           "tags": [
@@ -3218,7 +3218,7 @@
         },
         "git.blame.statusBarItem.template": {
           "type": "string",
-          "default": "$(git-commit) ${commit.authorName} (${commit.authorDate.ago})",
+          "default": "$(git-commit) ${authorName} (${authorDateAgo})",
           "markdownDescription": "%config.blameStatusBarItem.template%",
           "scope": "resource",
           "tags": [

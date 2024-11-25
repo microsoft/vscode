@@ -53,24 +53,24 @@ function mapModifiedLineNumberToOriginalLineNumber(lineNumber: number, changes: 
 }
 
 type BlameInformationTemplateTokens = {
-	'commit.hash': string;
-	'commit.hash.short': string;
-	'commit.subject': string;
-	'commit.authorName': string;
-	'commit.authorEmail': string;
-	'commit.authorDate': string;
-	'commit.authorDate.ago': string;
+	readonly hash: string;
+	readonly hashShort: string;
+	readonly subject: string;
+	readonly authorName: string;
+	readonly authorEmail: string;
+	readonly authorDate: string;
+	readonly authorDateAgo: string;
 };
 
 function formatBlameInformation(template: string, blameInformation: BlameInformation): string {
 	const templateTokens = {
-		'commit.hash': blameInformation.hash,
-		'commit.hash.short': blameInformation.hash.substring(0, 8),
-		'commit.subject': blameInformation.subject ?? '',
-		'commit.authorName': blameInformation.authorName ?? '',
-		'commit.authorEmail': blameInformation.authorEmail ?? '',
-		'commit.authorDate': new Date(blameInformation.authorDate ?? new Date()).toLocaleString(),
-		'commit.authorDate.ago': fromNow(blameInformation.authorDate ?? new Date(), true, true)
+		hash: blameInformation.hash,
+		hashShort: blameInformation.hash.substring(0, 8),
+		subject: blameInformation.subject ?? '',
+		authorName: blameInformation.authorName ?? '',
+		authorEmail: blameInformation.authorEmail ?? '',
+		authorDate: new Date(blameInformation.authorDate ?? new Date()).toLocaleString(),
+		authorDateAgo: fromNow(blameInformation.authorDate ?? new Date(), true, true)
 	} satisfies BlameInformationTemplateTokens;
 
 	return template.replace(/\$\{(.+?)\}/g, (_, token) => {
@@ -325,7 +325,7 @@ class GitBlameEditorDecoration {
 	private _getConfiguration(): { enabled: boolean; template: string } {
 		const config = workspace.getConfiguration('git');
 		const enabled = config.get<boolean>('blame.editorDecoration.enabled', false);
-		const template = config.get<string>('blame.editorDecoration.template', '${commit.subject}, ${commit.authorName} (${commit.authorDate.ago})');
+		const template = config.get<string>('blame.editorDecoration.template', '${subject}, ${authorName} (${authorDateAgo})');
 
 		return { enabled, template };
 	}
@@ -417,7 +417,7 @@ class GitBlameStatusBarItem {
 	private _getConfiguration(): { enabled: boolean; template: string } {
 		const config = workspace.getConfiguration('git');
 		const enabled = config.get<boolean>('blame.statusBarItem.enabled', false);
-		const template = config.get<string>('blame.statusBarItem.template', '${commit.authorName} (${commit.authorDate.ago})');
+		const template = config.get<string>('blame.statusBarItem.template', '${authorName} (${authorDateAgo})');
 
 		return { enabled, template };
 	}
