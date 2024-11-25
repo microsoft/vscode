@@ -6,7 +6,7 @@
 import './media/chatEditorController.css';
 import { getTotalWidth } from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
@@ -53,6 +53,9 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		return controller;
 	}
 
+	private readonly _currentChange = observableValue<Position | undefined>(this, undefined);
+	readonly currentChange: IObservable<Position | undefined> = this._currentChange;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -92,6 +95,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 			const diff = entry?.diffInfo.read(r);
 			this._updateWithDiff(entry, diff);
+			this.revealNext();
 		}));
 
 		const shouldBeReadOnly = derived(this, r => {
@@ -364,6 +368,17 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		}));
 	}
 
+	initNavigation(): void {
+		const position = this._editor.getPosition();
+		if (!position) {
+			return;
+		}
+		const range = this._diffLineDecorations.getRanges().find(r => r.containsPosition(position));
+		if (range) {
+			this._currentChange.set(position, undefined);
+		}
+	}
+
 	revealNext(strict = false): boolean {
 		return this._reveal(true, strict);
 	}
@@ -405,6 +420,9 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		target = (target + decorations.length) % decorations.length;
 
 		const targetPosition = next ? decorations[target].getStartPosition() : decorations[target].getEndPosition();
+
+		this._currentChange.set(targetPosition, undefined);
+
 		this._editor.setPosition(targetPosition);
 		this._editor.revealPositionInCenter(targetPosition, ScrollType.Smooth);
 		this._editor.focus();
