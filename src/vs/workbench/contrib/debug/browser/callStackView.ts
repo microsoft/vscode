@@ -231,7 +231,7 @@ export class CallStackView extends ViewPane {
 		const treeContainer = renderViewTree(container);
 
 		this.dataSource = new CallStackDataSource(this.debugService);
-		this.tree = <WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), new CallStackCompressionDelegate(this.debugService), [
+		this.tree = this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>, 'CallStackView', treeContainer, new CallStackDelegate(), new CallStackCompressionDelegate(this.debugService), [
 			this.instantiationService.createInstance(SessionsRenderer),
 			this.instantiationService.createInstance(ThreadsRenderer),
 			this.instantiationService.createInstance(StackFramesRenderer),

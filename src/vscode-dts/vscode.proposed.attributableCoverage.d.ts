@@ -10,14 +10,14 @@ declare module 'vscode' {
 		 * file. If set, then {@link TestRunProfile.loadDetailedCoverageForTest}
 		 * should also be defined in order to retrieve detailed coverage information.
 		 */
-		fromTests: TestItem[];
+		includesTests?: TestItem[];
 
 		constructor(
 			uri: Uri,
 			statementCoverage: TestCoverageCount,
 			branchCoverage?: TestCoverageCount,
 			declarationCoverage?: TestCoverageCount,
-			fromTests?: TestItem[],
+			includesTests?: TestItem[],
 		);
 	}
 
@@ -26,12 +26,14 @@ declare module 'vscode' {
 		 * An extension-provided function that provides detailed statement and
 		 * function-level coverage for a single test in a file. This is the per-test
 		 * sibling of {@link TestRunProfile.loadDetailedCoverage}, called only if
-		 * a test item is provided in {@link FileCoverage.fromTests} and only for
-		 * files where such data is reported.
+		 * a test item is provided in {@link FileCoverage.includesTests} and only
+		 * for files where such data is reported.
 		 *
-		 * The editor will call this when user asks to view coverage for a test in
-		 * a file, and the returned coverage information is used to display exactly
-		 * what code was run by that test.
+		 * Often {@link TestRunProfile.loadDetailedCoverage} will be called first
+		 * when a user opens a file, and then this method will be called if they
+		 * drill down into specific per-test coverage information. This method
+		 * should then return coverage data only for constructs the given test item
+		 * executed during the test run.
 		 *
 		 * The {@link FileCoverage} object passed to this function is the same
 		 * instance emitted on {@link TestRun.addCoverage} calls associated with this profile.
