@@ -343,7 +343,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			if (entryOffset / GlyphStorageBufferInfo.FloatsPerEntry > TextureAtlasPage.maximumGlyphCount) {
 				throw new Error(`Attempting to write more glyphs (${entryOffset / GlyphStorageBufferInfo.FloatsPerEntry}) than the GPUBuffer can hold (${TextureAtlasPage.maximumGlyphCount})`);
 			}
-			this._device.queue.writeBuffer(this._glyphStorageBuffer[layerIndex], 0, values);
+			this._device.queue.writeBuffer(this._glyphStorageBuffer[layerIndex], 0, values, 0, GlyphStorageBufferInfo.FloatsPerEntry * TextureAtlasPage.maximumGlyphCount);
 			if (page.usedArea.right - page.usedArea.left > 0 && page.usedArea.bottom - page.usedArea.top > 0) {
 				this._device.queue.copyExternalImageToTexture(
 					{ source: page.source },
