@@ -1204,7 +1204,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			const headers = {
 				...commonHeaders,
 				'Content-Type': 'application/json',
-				'Accept': 'application/json;api-version=3.0-preview.1',
+				'Accept': 'application/json;api-version=7.2-preview',
 				'Accept-Encoding': 'gzip',
 			};
 
