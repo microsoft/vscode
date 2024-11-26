@@ -320,8 +320,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 			this._logService.trace('Updating atlas page[', layerIndex, '] from version ', this._atlasGpuTextureVersions[layerIndex], ' to version ', page.version);
 
-			// TODO: Reuse buffer instead of reconstructing each time
-			// TODO: Dynamically set buffer size
 			const entryCount = GlyphStorageBufferInfo.FloatsPerEntry * TextureAtlasPage.maximumGlyphCount;
 			const values = new Float32Array(entryCount);
 			let entryOffset = 0;
