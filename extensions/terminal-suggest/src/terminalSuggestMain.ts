@@ -117,7 +117,7 @@ function createCompletionItem(cursorPosition: number, prefix: string, label: str
 		label,
 		detail: description ?? '',
 		replacementIndex: hasSpaceBeforeCursor ? cursorPosition : cursorPosition - 1,
-		replacementLength: label.length - prefix.length,
+		replacementLength: label.length - prefix.length > 0 ? label.length - prefix.length : label.length,
 		kind: kind ?? vscode.TerminalCompletionItemKind.Method
 	};
 }
@@ -338,7 +338,7 @@ function osIsWindows(): boolean {
 }
 
 function pushDefaultResourceCompletions(terminalContext: { cursorPosition: number }, prefix: string, argCompletions: vscode.TerminalCompletionItem[], filesRequested: boolean, foldersRequested: boolean): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } {
-	const onlyFilesOrFolders = (filesRequested || foldersRequested) && !argCompletions.length;
+	const onlyFilesOrFolders = (filesRequested || foldersRequested) && !argCompletions.filter(a => !['.', '..'].includes(a.label)).length;
 	if (onlyFilesOrFolders) {
 		argCompletions.push(createCompletionItem(terminalContext.cursorPosition, prefix, '.', 'Current directory', false, vscode.TerminalCompletionItemKind.Folder));
 		argCompletions.push(createCompletionItem(terminalContext.cursorPosition, prefix, '..', 'Parent directory', false, vscode.TerminalCompletionItemKind.Folder));
