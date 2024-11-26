@@ -324,11 +324,9 @@ export class ChatEditingRemoveAllFilesAction extends Action2 {
 		// Remove all file attachments
 		const attachmentModel = chatWidget?.attachmentModel as EditsAttachmentModel | undefined;
 		const fileAttachments = attachmentModel ? [...attachmentModel.excludedFileAttachments, ...attachmentModel.fileAttachments] : [];
-		for (const uri of fileAttachments) {
-			if (URI.isUri(uri.value)) {
-				chatWidget?.attachmentModel.delete(uri.value.toString());
-			}
-		}
+
+		const attachmentIdsToRemove = fileAttachments.map(attachment => (attachment.value as URI).toString());
+		chatWidget?.attachmentModel.delete(...attachmentIdsToRemove);
 	}
 }
 registerAction2(ChatEditingRemoveAllFilesAction);

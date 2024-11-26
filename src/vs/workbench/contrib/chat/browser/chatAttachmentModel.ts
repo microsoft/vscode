@@ -33,8 +33,10 @@ export class ChatAttachmentModel extends Disposable {
 		this._onDidChangeContext.fire();
 	}
 
-	delete(variableEntryId: string) {
-		this._attachments.delete(variableEntryId);
+	delete(...variableEntryIds: string[]) {
+		for (const variableEntryId of variableEntryIds) {
+			this._attachments.delete(variableEntryId);
+		}
 		this._onDidChangeContext.fire();
 	}
 
@@ -122,13 +124,15 @@ export class EditsAttachmentModel extends ChatAttachmentModel {
 		super.clear();
 	}
 
-	override delete(variableEntryId: string) {
-		const excludedFileIndex = this._excludedFileAttachments.findIndex(attachment => attachment.id === variableEntryId);
-		if (excludedFileIndex !== -1) {
-			this._excludedFileAttachments.splice(excludedFileIndex, 1);
+	override delete(...variableEntryIds: string[]) {
+		for (const variableEntryId of variableEntryIds) {
+			const excludedFileIndex = this._excludedFileAttachments.findIndex(attachment => attachment.id === variableEntryId);
+			if (excludedFileIndex !== -1) {
+				this._excludedFileAttachments.splice(excludedFileIndex, 1);
+			}
 		}
 
-		super.delete(variableEntryId);
+		super.delete(...variableEntryIds);
 
 		if (this.fileAttachments.length < this._chatEditingService.editingSessionFileLimit) {
 			const availableFileCount = Math.max(0, this._chatEditingService.editingSessionFileLimit - this.fileAttachments.length);
