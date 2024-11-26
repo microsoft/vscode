@@ -5,7 +5,7 @@
 
 import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString } from 'vscode';
 import { Model } from './model';
-import { dispose, fromNow, IDisposable } from './util';
+import { dispose, fromNow, IDisposable, pathEquals } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation } from './git';
@@ -281,15 +281,35 @@ export class GitBlameController {
 			return;
 		}
 
+		console.log(textEditor.document.uri);
+		console.log(textEditor.diffInformation);
+
 		let allChanges: readonly TextEditorChange[];
 		let workingTreeChanges: readonly TextEditorChange[];
 		let workingTreeAndIndexChanges: readonly TextEditorChange[] | undefined;
 
 		if (isGitUri(textEditor.document.uri)) {
-			// For files that use the `git` scheme we can discard the editor diff
-			// information as this is not being used for rendering blame information.
-			workingTreeChanges = allChanges = [];
-			workingTreeAndIndexChanges = undefined;
+			const { ref } = fromGitUri(textEditor.document.uri);
+			// In most cases for files that use the `git` scheme we can discard
+			// the editor diff information as this is not being used for rendering
+			// blame information. The only exception is the right-side of the diff
+			// editor for a staged resource.
+			if (ref === '') {
+				const diffInformationWorkingTreeAndIndex = textEditor.diffInformation
+					.filter(diff => diff.original && isGitUri(diff.original))
+					.find(diff => fromGitUri(diff.original!).ref === 'HEAD');
+
+				// Working tree + index diff information is present and it is stale
+				if (diffInformationWorkingTreeAndIndex && diffInformationWorkingTreeAndIndex.isStale) {
+					return;
+				}
+
+				workingTreeChanges = [];
+				workingTreeAndIndexChanges = allChanges = diffInformationWorkingTreeAndIndex?.changes ?? [];
+			} else {
+				workingTreeChanges = allChanges = [];
+				workingTreeAndIndexChanges = undefined;
+			}
 		} else {
 			// Working tree diff information
 			const diffInformationWorkingTree = textEditor.diffInformation
@@ -326,7 +346,20 @@ export class GitBlameController {
 			commit = repository.HEAD.commit;
 		} else {
 			// Resource with the `git` scheme
-			const { ref } = fromGitUri(textEditor.document.uri);
+			const { path, ref } = fromGitUri(textEditor.document.uri);
+			const resourceFileUri = Uri.file(path);
+
+			if (ref === '~') {
+				const indexResource = repository.indexGroup.resourceStates
+					.some(r => pathEquals(r.resourceUri.fsPath, resourceFileUri.fsPath));
+				const workingTreeResource = repository.workingTreeGroup.resourceStates
+					.some(r => pathEquals(r.resourceUri.fsPath, resourceFileUri.fsPath));
+
+				if (indexResource && workingTreeResource) {
+					return;
+				}
+			}
+
 			commit = ref === 'HEAD' || ref === '~' || ref === '' ? repository.HEAD.commit : ref;
 		}
 
