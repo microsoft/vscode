@@ -747,7 +747,7 @@ class ChatSetupContextKeys {
 class ChatSetupTriggerAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.triggerSetup';
-	static readonly TITLE = localize2('triggerChatSetup', "Setup {0}...", defaultChat.name);
+	static readonly TITLE = localize2('triggerChatSetup', "Start Using {0} for AI...", defaultChat.name);
 
 	constructor() {
 		super({
