@@ -23,6 +23,7 @@ import { FloatHorizontalRange, HorizontalPosition, HorizontalRange, IViewLines, 
 import { ViewPart } from '../../view/viewPart.js';
 import { ViewLineOptions } from '../viewLines/viewLineOptions.js';
 import type * as viewEvents from '../../../common/viewEvents.js';
+import { CursorColumns } from '../../../common/core/cursorColumns.js';
 
 const enum GlyphStorageBufferInfo {
 	FloatsPerEntry = 2 + 2 + 2,
@@ -527,19 +528,27 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		// Resolve tab widths for this line
 		const lineData = viewportData.getViewLineRenderingData(lineNumber);
 		const content = lineData.content;
-		let resolvedStartColumnLeft = 0;
+		let resolvedStartColumn = 0;
 		for (let x = 0; x < startColumn - 1; x++) {
-			resolvedStartColumnLeft += content[x] === '\t' ? lineData.tabSize : 1;
+			if (content[x] === '\t') {
+				resolvedStartColumn = CursorColumns.nextRenderTabStop(resolvedStartColumn, lineData.tabSize);
+			} else {
+				resolvedStartColumn++;
+			}
 		}
-		let resolvedRangeWidth = 0;
+		let resolvedEndColumn = resolvedStartColumn;
 		for (let x = startColumn - 1; x < endColumn - 1; x++) {
-			resolvedRangeWidth += content[x] === '\t' ? lineData.tabSize : 1;
+			if (content[x] === '\t') {
+				resolvedEndColumn = CursorColumns.nextRenderTabStop(resolvedEndColumn, lineData.tabSize);
+			} else {
+				resolvedEndColumn++;
+			}
 		}
 
 		// Visible horizontal range in _scaled_ pixels
 		const result = new VisibleRanges(false, [new FloatHorizontalRange(
-			resolvedStartColumnLeft * viewLineOptions.spaceWidth,
-			resolvedRangeWidth * viewLineOptions.spaceWidth)
+			resolvedStartColumn * viewLineOptions.spaceWidth,
+			(resolvedEndColumn - resolvedStartColumn) * viewLineOptions.spaceWidth)
 		]);
 
 		return result;
@@ -580,15 +589,24 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		}
 		const lineData = this._lastViewportData.getViewLineRenderingData(lineNumber);
 		const content = lineData.content;
-		let visualColumn = Math.ceil(mouseContentHorizontalOffset / this._lastViewLineOptions.spaceWidth);
+		let visualColumnTarget = Math.round(mouseContentHorizontalOffset / this._lastViewLineOptions.spaceWidth);
 		let contentColumn = 0;
-		while (visualColumn > 0) {
-			if (visualColumn - (content[contentColumn] === '\t' ? lineData.tabSize : 1) < 0) {
+		let contentColumnWithTabStops = 0;
+		while (visualColumnTarget > 0) {
+			let columnWithTabStopsSize = 0;
+			if (content[contentColumn] === '\t') {
+				const tabStop = CursorColumns.nextRenderTabStop(contentColumnWithTabStops, lineData.tabSize);
+				columnWithTabStopsSize = tabStop - contentColumnWithTabStops;
+			} else {
+				columnWithTabStopsSize = 1;
+			}
+			if (visualColumnTarget - columnWithTabStopsSize / 2 < 0) {
 				break;
 			}
-			visualColumn -= content[contentColumn] === '\t' ? lineData.tabSize : 1;
+			visualColumnTarget -= columnWithTabStopsSize;
 			contentColumn++;
+			contentColumnWithTabStops += columnWithTabStopsSize;
 		}
-		return new Position(lineNumber, contentColumn);
+		return new Position(lineNumber, Math.floor(contentColumn) + 1);
 	}
 }
