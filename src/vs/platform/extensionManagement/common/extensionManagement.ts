@@ -477,6 +477,7 @@ export const enum ExtensionManagementErrorCode {
 }
 
 export enum ExtensionSignatureVerificationCode {
+	'NotSigned' = 'NotSigned',
 	'Success' = 'Success',
 	'RequiredArgumentMissing' = 'RequiredArgumentMissing', // A required argument is missing.
 	'InvalidArgument' = 'InvalidArgument', // An argument is invalid.
