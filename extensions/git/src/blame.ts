@@ -176,10 +176,10 @@ export class GitBlameController {
 		this._model.onDidOpenRepository(this._onDidOpenRepository, this, this._disposables);
 		this._model.onDidCloseRepository(this._onDidCloseRepository, this, this._disposables);
 
-		window.onDidChangeTextEditorSelection(e => this._updateBlameInformation(e.textEditor), this, this._disposables);
-		window.onDidChangeTextEditorDiffInformation(e => this._updateBlameInformation(e.textEditor), this, this._disposables);
+		window.onDidChangeTextEditorSelection(e => this._updateTextEditorBlameInformation(e.textEditor), this, this._disposables);
+		window.onDidChangeTextEditorDiffInformation(e => this._updateTextEditorBlameInformation(e.textEditor), this, this._disposables);
 
-		this._updateBlameInformation(window.activeTextEditor);
+		this._updateTextEditorBlameInformation(window.activeTextEditor);
 	}
 
 	getBlameInformationHover(documentUri: Uri, blameInformation: BlameInformation | string): MarkdownString {
@@ -247,7 +247,7 @@ export class GitBlameController {
 			this._repositoryBlameCache.setRepositoryHEAD(repository, repository.HEAD.commit);
 
 			for (const textEditor of window.visibleTextEditors) {
-				this._updateBlameInformation(textEditor);
+				this._updateTextEditorBlameInformation(textEditor);
 			}
 		}
 	}
