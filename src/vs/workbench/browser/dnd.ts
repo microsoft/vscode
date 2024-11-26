@@ -203,7 +203,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 	// Extract resources from URIs or Editors that
 	// can be handled by the file service
-	const resources = coalesce(resourcesOrEditors.map(resourceOrEditor => {
+	const resources = coalesce(resourcesOrEditors.map((resourceOrEditor): IResourceStat | undefined => {
 		if (URI.isUri(resourceOrEditor)) {
 			return { resource: resourceOrEditor };
 		}
@@ -216,7 +216,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 			return undefined; // editor without resource
 		}
 
-		return resourceOrEditor;
+		return { ...resourceOrEditor, resource: resourceOrEditor.selection ? withSelection(resourceOrEditor.resource, resourceOrEditor.selection) : resourceOrEditor.resource };
 	}));
 
 	const fileSystemResources = resources.filter(({ resource }) => fileService.hasProvider(resource));
@@ -270,7 +270,10 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 			editor = { resource: uri, options: selection ? { selection } : undefined };
 		} else if (!resourceOrEditor.isDirectory) {
 			editor = {
-				resource: resourceOrEditor.selection ? withSelection(resourceOrEditor.resource, resourceOrEditor.selection) : resourceOrEditor.resource,
+				resource: resourceOrEditor.resource,
+				options: {
+					selection: resourceOrEditor.selection,
+				}
 			};
 		}
 
@@ -336,7 +339,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		const uriListEntries: URI[] = [];
 		for (const editor of draggedEditors) {
 			if (editor.resource) {
-				uriListEntries.push(editor.resource);
+				uriListEntries.push(editor.options?.selection ? withSelection(editor.resource, editor.options.selection) : editor.resource);
 			} else if (isResourceDiffEditorInput(editor)) {
 				if (editor.modified.resource) {
 					uriListEntries.push(editor.modified.resource);
