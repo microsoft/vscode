@@ -271,7 +271,7 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 			// If the command line is empty
 			terminalContext.commandLine.trim().length === 0
 			// or no completions are found and the prefix is empty
-			|| !items?.length && !prefix
+			|| !items?.length
 			// or all of the items are '.' or '..' IE file paths
 			|| items.length && items.every(i => ['.', '..'].includes(i.label))
 		)
@@ -337,12 +337,15 @@ function osIsWindows(): boolean {
 	return os.platform() === 'win32';
 }
 
-function pushDefaultResourceCompletions(terminalContext: { cursorPosition: number }, prefix: string, argCompletions: vscode.TerminalCompletionItem[], filesRequested: boolean, foldersRequested: boolean): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } {
-	const onlyFilesOrFolders = (filesRequested || foldersRequested) && !argCompletions.filter(a => !['.', '..'].includes(a.label)).length;
-	if (onlyFilesOrFolders) {
-		argCompletions.push(createCompletionItem(terminalContext.cursorPosition, prefix, '.', 'Current directory', false, vscode.TerminalCompletionItemKind.Folder));
-		argCompletions.push(createCompletionItem(terminalContext.cursorPosition, prefix, '..', 'Parent directory', false, vscode.TerminalCompletionItemKind.Folder));
+function pushDefaultResourceCompletions(terminalContext: { cursorPosition: number }, prefix: string, items: vscode.TerminalCompletionItem[], filesRequested: boolean, foldersRequested: boolean): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } {
+	if (items.find(i => i.label === '.') && items.find(i => i.label === '..')) {
+		return { items, filesRequested, foldersRequested };
 	}
-	return { items: argCompletions, filesRequested, foldersRequested };
+	const onlyFilesOrFolders = (filesRequested || foldersRequested);
+	if (onlyFilesOrFolders) {
+		items.push(createCompletionItem(terminalContext.cursorPosition, prefix, '.', 'Current directory', false, vscode.TerminalCompletionItemKind.Folder));
+		items.push(createCompletionItem(terminalContext.cursorPosition, prefix, '..', 'Parent directory', false, vscode.TerminalCompletionItemKind.Folder));
+	}
+	return { items, filesRequested, foldersRequested };
 }
 
