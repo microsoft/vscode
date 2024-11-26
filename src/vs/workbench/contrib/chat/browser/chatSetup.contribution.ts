@@ -407,7 +407,7 @@ class ChatSetupController extends Disposable {
 	}
 
 	async setup(enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
-		const title = localize('setupChatProgress', "Setting up {0}...", defaultChat.name);
+		const title = localize('setupChatProgress', "Getting {0} ready...", defaultChat.name);
 		const badge = this.activityService.showViewContainerActivity(CHAT_SIDEBAR_PANEL_ID, {
 			badge: new ProgressBadge(() => title),
 			priority: 100
@@ -556,7 +556,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		const telemetryLabel = localize('telemetryLabel', "Allow {0} to use my data, including prompts, suggestions, and code snippets, for product improvements", defaultChat.providerName);
 		const { container: telemetryContainer, checkbox: telemetryCheckbox } = this.createCheckBox(telemetryLabel, this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? false : true, markdown);
 
-		const detectionLabel = localize('detectionLabel', "Allow suggestions matching public code ([learn more]({0}))", defaultChat.publicCodeMatchesUrl);
+		const detectionLabel = localize('detectionLabel', "Allow suggestions matching [public code]({0})", defaultChat.publicCodeMatchesUrl);
 		const { container: detectionContainer, checkbox: detectionCheckbox } = this.createCheckBox(detectionLabel, true, markdown);
 
 		// Setup Button
