@@ -8,7 +8,7 @@ import { CharCode } from '../../../../base/common/charCode.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, dispose, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ThreeKeyMap } from '../../../../base/common/map.js';
+import { FourKeyMap } from '../../../../base/common/map.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { MetadataConsts } from '../../../common/encodedTokenAttributes.js';
@@ -44,7 +44,7 @@ export class TextureAtlas extends Disposable {
 	 * so it is not guaranteed to be the actual page the glyph is on. But it is guaranteed that all
 	 * pages with a lower index do not contain the glyph.
 	 */
-	private readonly _glyphPageIndex: GlyphMap<number> = new ThreeKeyMap();
+	private readonly _glyphPageIndex: GlyphMap<number> = new FourKeyMap();
 
 	private readonly _onDidDeleteGlyphs = this._register(new Emitter<void>());
 	readonly onDidDeleteGlyphs = this._onDidDeleteGlyphs.event;
@@ -83,7 +83,7 @@ export class TextureAtlas extends Disposable {
 		// cells end up rendering nothing
 		// TODO: This currently means the first slab is for 0x0 glyphs and is wasted
 		const nullRasterizer = new GlyphRasterizer(1, '');
-		firstPage.getGlyph(nullRasterizer, '', 0);
+		firstPage.getGlyph(nullRasterizer, '', 0, 0);
 		nullRasterizer.dispose();
 	}
 
@@ -104,10 +104,10 @@ export class TextureAtlas extends Disposable {
 		this._onDidDeleteGlyphs.fire();
 	}
 
-	getGlyph(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
+	getGlyph(rasterizer: IGlyphRasterizer, chars: string, tokenMetadata: number, charMetadata: number): Readonly<ITextureAtlasPageGlyph> {
 		// TODO: Encode font size and family into key
 		// Ignore metadata that doesn't affect the glyph
-		metadata &= ~(MetadataConsts.LANGUAGEID_MASK | MetadataConsts.TOKEN_TYPE_MASK | MetadataConsts.BALANCED_BRACKETS_MASK);
+		tokenMetadata &= ~(MetadataConsts.LANGUAGEID_MASK | MetadataConsts.TOKEN_TYPE_MASK | MetadataConsts.BALANCED_BRACKETS_MASK);
 
 		// Warm up common glyphs
 		if (!this._warmedUpRasterizers.has(rasterizer.id)) {
@@ -116,25 +116,25 @@ export class TextureAtlas extends Disposable {
 		}
 
 		// Try get the glyph, overflowing to a new page if necessary
-		return this._tryGetGlyph(this._glyphPageIndex.get(chars, metadata, rasterizer.cacheKey) ?? 0, rasterizer, chars, metadata);
+		return this._tryGetGlyph(this._glyphPageIndex.get(chars, tokenMetadata, charMetadata, rasterizer.cacheKey) ?? 0, rasterizer, chars, tokenMetadata, charMetadata);
 	}
 
-	private _tryGetGlyph(pageIndex: number, rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
-		this._glyphPageIndex.set(chars, metadata, rasterizer.cacheKey, pageIndex);
+	private _tryGetGlyph(pageIndex: number, rasterizer: IGlyphRasterizer, chars: string, tokenMetadata: number, charMetadata: number): Readonly<ITextureAtlasPageGlyph> {
+		this._glyphPageIndex.set(chars, tokenMetadata, charMetadata, rasterizer.cacheKey, pageIndex);
 		return (
-			this._pages[pageIndex].getGlyph(rasterizer, chars, metadata)
+			this._pages[pageIndex].getGlyph(rasterizer, chars, tokenMetadata, charMetadata)
 			?? (pageIndex + 1 < this._pages.length
-				? this._tryGetGlyph(pageIndex + 1, rasterizer, chars, metadata)
+				? this._tryGetGlyph(pageIndex + 1, rasterizer, chars, tokenMetadata, charMetadata)
 				: undefined)
-			?? this._getGlyphFromNewPage(rasterizer, chars, metadata)
+			?? this._getGlyphFromNewPage(rasterizer, chars, tokenMetadata, charMetadata)
 		);
 	}
 
-	private _getGlyphFromNewPage(rasterizer: IGlyphRasterizer, chars: string, metadata: number): Readonly<ITextureAtlasPageGlyph> {
+	private _getGlyphFromNewPage(rasterizer: IGlyphRasterizer, chars: string, tokenMetadata: number, charMetadata: number): Readonly<ITextureAtlasPageGlyph> {
 		// TODO: Support more than 2 pages and the GPU texture layer limit
 		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, this._pages.length, this.pageSize, this._allocatorType));
-		this._glyphPageIndex.set(chars, metadata, rasterizer.cacheKey, this._pages.length - 1);
-		return this._pages[this._pages.length - 1].getGlyph(rasterizer, chars, metadata)!;
+		this._glyphPageIndex.set(chars, tokenMetadata, charMetadata, rasterizer.cacheKey, this._pages.length - 1);
+		return this._pages[this._pages.length - 1].getGlyph(rasterizer, chars, tokenMetadata, charMetadata)!;
 	}
 
 	public getUsagePreview(): Promise<Blob[]> {
@@ -161,7 +161,7 @@ export class TextureAtlas extends Disposable {
 		for (let code = CharCode.A; code <= CharCode.Z; code++) {
 			taskQueue.enqueue(() => {
 				for (const fgColor of colorMap.keys()) {
-					this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK);
+					this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK, 0);
 				}
 			});
 		}
@@ -169,7 +169,7 @@ export class TextureAtlas extends Disposable {
 		for (let code = CharCode.a; code <= CharCode.z; code++) {
 			taskQueue.enqueue(() => {
 				for (const fgColor of colorMap.keys()) {
-					this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK);
+					this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK, 0);
 				}
 			});
 		}
@@ -177,7 +177,7 @@ export class TextureAtlas extends Disposable {
 		for (let code = CharCode.ExclamationMark; code <= CharCode.Tilde; code++) {
 			taskQueue.enqueue(() => {
 				for (const fgColor of colorMap.keys()) {
-					this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK);
+					this.getGlyph(rasterizer, String.fromCharCode(code), (fgColor << MetadataConsts.FOREGROUND_OFFSET) & MetadataConsts.FOREGROUND_MASK, 0);
 				}
 			});
 		}

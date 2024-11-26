@@ -8,8 +8,8 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuRegistry, MenuId, registerAction2, Action2, IMenuItem, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApi, InstallOperation } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService, extensionsConfigurationNodeBase } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, AllowedExtensionsConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -122,7 +122,10 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
-		...extensionsConfigurationNodeBase,
+		id: 'extensions',
+		order: 30,
+		title: localize('extensionsConfigurationTitle', "Extensions"),
+		type: 'object',
 		properties: {
 			'extensions.autoUpdate': {
 				enum: [true, 'onlyEnabledExtensions', false,],
@@ -261,12 +264,72 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				scope: ConfigurationScope.APPLICATION,
 				included: isNative && !isLinux
 			},
-			[UseUnpkgResourceApi]: {
+			[UseUnpkgResourceApiConfigKey]: {
 				type: 'boolean',
 				description: localize('extensions.gallery.useUnpkgResourceApi', "When enabled, extensions to update are fetched from Unpkg service."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['onExp', 'usesOnlineServices']
+			},
+			[AllowedExtensionsConfigKey]: {
+				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.
+				type: 'object',
+				description: localize('extensions.allowed', "List of extensions that are allowed."),
+				default: '*',
+				defaultSnippets: [{
+					body: {},
+					description: localize('extensions.allowed.none', "No extensions are allowed."),
+				}, {
+					body: {
+						'*': true
+					},
+					description: localize('extensions.allowed.all', "All extensions are allowed."),
+				}],
+				scope: ConfigurationScope.APPLICATION,
+				policy: {
+					name: 'AllowedExtensions',
+					minimumVersion: '1.96',
+				},
+				additionalProperties: false,
+				patternProperties: {
+					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+						anyOf: [
+							{
+								type: ['boolean', 'string'],
+								enum: [true, false, 'stable'],
+								description: localize('extensions.allow.description', "Allow or disallow the extension."),
+								enumDescriptions: [
+									localize('extensions.allowed.enable.desc', "Extension is allowed."),
+									localize('extensions.allowed.disable.desc', "Extension is not allowed."),
+									localize('extensions.allowed.disable.stable.desc', "Allow only stable versions of the extension."),
+								],
+							},
+							{
+								type: 'array',
+								description: localize('extensions.allow.version.description', "Allow or disallow specific versions of the extension. To specifcy a platform specific version, use the format `platform@1.2.3`, e.g. `win32-x64@1.2.3`. Supported platforms are `win32-x64`, `win32-arm64`, `linux-x64`, `linux-arm64`, `linux-armhf`, `alpine-x64`, `alpine-arm64`, `darwin-x64`, `darwin-arm64`"),
+							},
+						]
+					},
+					'([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+						type: ['boolean', 'string'],
+						enum: [true, false, 'stable'],
+						description: localize('extension.publisher.allow.description', "Allow or disallow all extensions from the publisher."),
+						enumDescriptions: [
+							localize('extensions.publisher.allowed.enable.desc', "All extensions from the publisher are allowed."),
+							localize('extensions.publisher.allowed.disable.desc', "All extensions from the publisher are not allowed."),
+							localize('extensions.publisher.allowed.disable.stable.desc', "Allow only stable versions of the extensions from the publisher."),
+						],
+					},
+					'\\*': {
+						type: 'boolean',
+						enum: [true, false],
+						description: localize('extensions.allow.all.description', "Allow or disallow all extensions."),
+						enumDescriptions: [
+							localize('extensions.allow.all.enable', "Allow all extensions."),
+							localize('extensions.allow.all.disable', "Disallow all extensions.")
+						],
+					}
+				}
 			}
 		}
 	});
@@ -492,7 +555,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -500,10 +563,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IProductService private readonly productService: IProductService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		const hasGalleryContext = CONTEXT_HAS_GALLERY.bindTo(contextKeyService);
@@ -1315,7 +1375,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: INSTALL_ACTIONS_GROUP,
 				order: 0,
-				when: ContextKeyExpr.and(ContextKeyExpr.has('inExtensionEditor'), ContextKeyExpr.has('galleryExtensionHasPreReleaseVersion'), ContextKeyExpr.not('showPreReleaseVersion'), ContextKeyExpr.not('isBuiltinExtension'))
+				when: ContextKeyExpr.and(ContextKeyExpr.has('inExtensionEditor'), ContextKeyExpr.has('galleryExtensionHasPreReleaseVersion'), ContextKeyExpr.has('isPreReleaseExtensionAllowed'), ContextKeyExpr.not('showPreReleaseVersion'), ContextKeyExpr.not('isBuiltinExtension'))
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
 				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
@@ -1344,7 +1404,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			id: ToggleAutoUpdateForExtensionAction.ID,
 			title: ToggleAutoUpdateForExtensionAction.LABEL,
 			category: ExtensionsLocalizedLabel,
-			precondition: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'), ContextKeyExpr.equals('isExtensionEnabled', true)), ContextKeyExpr.not('extensionDisallowInstall')),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'), ContextKeyExpr.equals('isExtensionEnabled', true)), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('isExtensionAllowed')),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: UPDATE_ACTIONS_GROUP,
@@ -1398,7 +1458,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: INSTALL_ACTIONS_GROUP,
 				order: 2,
-				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.has('galleryExtensionHasPreReleaseVersion'), ContextKeyExpr.not('installedExtensionIsOptedToPreRelease'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
+				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.has('galleryExtensionHasPreReleaseVersion'), ContextKeyExpr.has('isPreReleaseExtensionAllowed'), ContextKeyExpr.not('installedExtensionIsOptedToPreRelease'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {
 				const instantiationService = accessor.get(IInstantiationService);
@@ -1480,7 +1540,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '0_install',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.not('extensionDisallowInstall'), CONTEXT_SYNC_ENABLEMENT),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.has('isExtensionAllowed'), ContextKeyExpr.not('extensionDisallowInstall'), CONTEXT_SYNC_ENABLEMENT),
 				order: 1
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
@@ -1504,7 +1564,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '0_install',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.not('extensionDisallowInstall'), CONTEXT_SYNC_ENABLEMENT),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.has('isPreReleaseExtensionAllowed'), ContextKeyExpr.not('extensionDisallowInstall'), CONTEXT_SYNC_ENABLEMENT),
 				order: 2
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
@@ -1528,7 +1588,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '0_install',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.not('extensionDisallowInstall')),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.has('isExtensionAllowed'), ContextKeyExpr.not('extensionDisallowInstall')),
 				order: 3
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
@@ -1587,27 +1647,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			run: async (accessor: ServicesAccessor, id: string) => accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: `@ext:${id}` })
 		});
 
-		const downloadVSIX = async (extensionId: string, preRelease: boolean) => {
-			const result = await this.fileDialogService.showOpenDialog({
-				title: localize('download title', "Select folder to download the VSIX"),
-				canSelectFiles: false,
-				canSelectFolders: true,
-				canSelectMany: false,
-				openLabel: localize('download', "Download"),
-			});
-
-			if (!result?.[0]) {
-				return;
-			}
-
-			const [galleryExtension] = await this.extensionGalleryService.getExtensions([{ id: extensionId, preRelease: true }], { compatible: true }, CancellationToken.None);
-			if (!galleryExtension) {
-				throw new Error(localize('not found', "Extension '{0}' not found.", extensionId));
-			}
-			await this.extensionGalleryService.download(galleryExtension, this.uriIdentityService.extUri.joinPath(result[0], `${galleryExtension.identifier.id}-${galleryExtension.version}.vsix`), InstallOperation.None);
-			this.notificationService.info(localize('download.completed', "Successfully downloaded the VSIX"));
-		};
-
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.download',
 			title: localize('download VSIX', "Download VSIX"),
@@ -1617,7 +1656,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: this.productService.quality === 'stable' ? 0 : 1
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
-				downloadVSIX(extensionId, false);
+				accessor.get(IExtensionsWorkbenchService).downloadVSIX(extensionId, false);
 			}
 		});
 
@@ -1630,7 +1669,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: this.productService.quality === 'stable' ? 1 : 0
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
-				downloadVSIX(extensionId, true);
+				accessor.get(IExtensionsWorkbenchService).downloadVSIX(extensionId, true);
 			}
 		});
 

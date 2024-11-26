@@ -115,7 +115,8 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 
 	async lookupKerberosAuthorization(urlStr: string): Promise<string | undefined> {
 		try {
-			const kerberos = await import('kerberos');
+			const importKerberos = await import('kerberos');
+			const kerberos = importKerberos.default || importKerberos;
 			const url = new URL(urlStr);
 			const spn = this.configurationService.getValue<string>('http.proxyKerberosServicePrincipal')
 				|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);

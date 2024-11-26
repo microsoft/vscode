@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Event } from '../../../base/common/event.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IPager } from '../../../base/common/paging.js';
 import { Platform } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
@@ -476,6 +477,7 @@ export const enum ExtensionManagementErrorCode {
 }
 
 export enum ExtensionSignatureVerificationCode {
+	'NotSigned' = 'NotSigned',
 	'Success' = 'Success',
 	'RequiredArgumentMissing' = 'RequiredArgumentMissing', // A required argument is missing.
 	'InvalidArgument' = 'InvalidArgument', // An argument is invalid.
@@ -562,7 +564,7 @@ export interface IExtensionManagementService {
 	zip(extension: ILocalExtension): Promise<URI>;
 	getManifest(vsix: URI): Promise<IExtensionManifest>;
 	install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension>;
-	canInstall(extension: IGalleryExtension): Promise<boolean>;
+	canInstall(extension: IGalleryExtension): Promise<true | IMarkdownString>;
 	installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension>;
 	installGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<InstallExtensionResult[]>;
 	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
@@ -627,6 +629,14 @@ export interface IExtensionTipsService {
 	getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
 }
 
+export const IAllowedExtensionsService = createDecorator<IAllowedExtensionsService>('IAllowedExtensionsService');
+export interface IAllowedExtensionsService {
+	readonly _serviceBrand: undefined;
+
+	readonly onDidChangeAllowedExtensions: Event<void>;
+	isAllowed(extension: IGalleryExtension | IExtension | { id: string; version?: string; prerelease?: boolean }): true | IMarkdownString;
+}
+
 export async function computeSize(location: URI, fileService: IFileService): Promise<number> {
 	const stat = await fileService.resolve(location);
 	if (stat.children) {
@@ -638,4 +648,5 @@ export async function computeSize(location: URI, fileService: IFileService): Pro
 
 export const ExtensionsLocalizedLabel = localize2('extensions', "Extensions");
 export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences');
-export const UseUnpkgResourceApi = 'extensions.gallery.useUnpkgResourceApi';
+export const UseUnpkgResourceApiConfigKey = 'extensions.gallery.useUnpkgResourceApi';
+export const AllowedExtensionsConfigKey = 'extensions.allowed';

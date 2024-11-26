@@ -1121,40 +1121,44 @@ class DirtyDiffDecorator extends Disposable {
 			return;
 		}
 
+		const visibleQuickDiffs = this.model.quickDiffs.filter(quickDiff => quickDiff.visible);
 		const pattern = this.configurationService.getValue<{ added: boolean; modified: boolean }>('scm.diffDecorationsGutterPattern');
-		const decorations = this.model.changes.map((labeledChange) => {
-			const change = labeledChange.change;
-			const changeType = getChangeType(change);
-			const startLineNumber = change.modifiedStartLineNumber;
-			const endLineNumber = change.modifiedEndLineNumber || startLineNumber;
 
-			switch (changeType) {
-				case ChangeType.Add:
-					return {
-						range: {
-							startLineNumber: startLineNumber, startColumn: 1,
-							endLineNumber: endLineNumber, endColumn: 1
-						},
-						options: pattern.added ? this.addedPatternOptions : this.addedOptions
-					};
-				case ChangeType.Delete:
-					return {
-						range: {
-							startLineNumber: startLineNumber, startColumn: Number.MAX_VALUE,
-							endLineNumber: startLineNumber, endColumn: Number.MAX_VALUE
-						},
-						options: this.deletedOptions
-					};
-				case ChangeType.Modify:
-					return {
-						range: {
-							startLineNumber: startLineNumber, startColumn: 1,
-							endLineNumber: endLineNumber, endColumn: 1
-						},
-						options: pattern.modified ? this.modifiedPatternOptions : this.modifiedOptions
-					};
-			}
-		});
+		const decorations = this.model.changes
+			.filter(labeledChange => visibleQuickDiffs.some(quickDiff => quickDiff.label === labeledChange.label))
+			.map((labeledChange) => {
+				const change = labeledChange.change;
+				const changeType = getChangeType(change);
+				const startLineNumber = change.modifiedStartLineNumber;
+				const endLineNumber = change.modifiedEndLineNumber || startLineNumber;
+
+				switch (changeType) {
+					case ChangeType.Add:
+						return {
+							range: {
+								startLineNumber: startLineNumber, startColumn: 1,
+								endLineNumber: endLineNumber, endColumn: 1
+							},
+							options: pattern.added ? this.addedPatternOptions : this.addedOptions
+						};
+					case ChangeType.Delete:
+						return {
+							range: {
+								startLineNumber: startLineNumber, startColumn: Number.MAX_VALUE,
+								endLineNumber: startLineNumber, endColumn: Number.MAX_VALUE
+							},
+							options: this.deletedOptions
+						};
+					case ChangeType.Modify:
+						return {
+							range: {
+								startLineNumber: startLineNumber, startColumn: 1,
+								endLineNumber: endLineNumber, endColumn: 1
+							},
+							options: pattern.modified ? this.modifiedPatternOptions : this.modifiedOptions
+						};
+				}
+			});
 
 		if (!this.decorationsCollection) {
 			this.decorationsCollection = this.codeEditor.createDecorationsCollection(decorations);
