@@ -313,6 +313,7 @@ export interface IDefaultChatAgent {
 	readonly documentationUrl: string;
 	readonly privacyStatementUrl: string;
 	readonly skusDocumentationUrl: string;
+	readonly publicCodeMatchesUrl: string;
 	readonly providerId: string;
 	readonly providerName: string;
 	readonly providerScopes: string[][];

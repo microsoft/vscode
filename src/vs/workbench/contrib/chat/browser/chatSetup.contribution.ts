@@ -58,6 +58,7 @@ const defaultChat = {
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? '',
 	skusDocumentationUrl: product.defaultChatAgent?.skusDocumentationUrl ?? '',
+	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	providerName: product.defaultChatAgent?.providerName ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
@@ -554,11 +555,11 @@ class ChatSetupWelcomeContent extends Disposable {
 		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="]({0})"}'] }, "Enjoy powerful AI features for free with the [{0}]({1}) plan.", defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
 		const limitedSkuHeaderElement = this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true }))).element);
 
-		const telemetryLabel = localize('telemetryLabel', "Allow {0} to use my data, including Prompts, Suggestions, and Code Snippets, for product improvements", defaultChat.providerName);
-		const { container: telemetryContainer, checkbox: telemetryCheckbox } = this.createCheckBox(telemetryLabel, this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? false : true);
+		const telemetryLabel = localize('telemetryLabel', "Allow {0} to use my data, including prompts, suggestions, and code snippets, for product improvements", defaultChat.providerName);
+		const { container: telemetryContainer, checkbox: telemetryCheckbox } = this.createCheckBox(telemetryLabel, this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? false : true, markdown);
 
-		const detectionLabel = localize('detectionLabel', "Allow suggestions matching public code");
-		const { container: detectionContainer, checkbox: detectionCheckbox } = this.createCheckBox(detectionLabel, true);
+		const detectionLabel = localize('detectionLabel', "Allow suggestions matching public code ([learn more]({0}))", defaultChat.publicCodeMatchesUrl);
+		const { container: detectionContainer, checkbox: detectionCheckbox } = this.createCheckBox(detectionLabel, true, markdown);
 
 		// Setup Button
 		const buttonRow = this.element.appendChild($('p'));
@@ -573,15 +574,14 @@ class ChatSetupWelcomeContent extends Disposable {
 		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update([limitedSkuHeaderElement, telemetryContainer, detectionContainer], [telemetryCheckbox, detectionCheckbox], button)));
 	}
 
-	private createCheckBox(label: string, checked: boolean): { container: HTMLElement; checkbox: Checkbox } {
+	private createCheckBox(label: string, checked: boolean, markdown: MarkdownRenderer): { container: HTMLElement; checkbox: Checkbox } {
 		const container = this.element.appendChild($('p.checkbox-container'));
 		const checkbox = this._register(new Checkbox(label, checked, defaultCheckboxStyles));
 		container.appendChild(checkbox.domNode);
 
-		const checkboxLabel = container.appendChild($('div.checkbox-label'));
-		checkboxLabel.textContent = label;
-		this._register(addDisposableListener(checkboxLabel, EventType.CLICK, () => {
-			if (checkbox?.enabled) {
+		const checkboxLabel = container.appendChild(this._register(markdown.render(new MarkdownString(label, { isTrusted: true, supportThemeIcons: true }), { inline: true, className: 'checkbox-label' })).element);
+		this._register(addDisposableListener(checkboxLabel, EventType.CLICK, e => {
+			if (checkbox?.enabled && (e.target as HTMLElement).tagName !== 'A') {
 				checkbox.checked = !checkbox.checked;
 				checkbox.focus();
 			}
