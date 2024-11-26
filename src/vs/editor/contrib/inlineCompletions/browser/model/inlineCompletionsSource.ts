@@ -34,13 +34,12 @@ export class InlineCompletionsSource extends Disposable {
 	public readonly suggestWidgetInlineCompletions = disposableObservableValue<UpToDateInlineCompletions | undefined>('suggestWidgetInlineCompletions', undefined);
 
 	private readonly _loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
-	private readonly _recordingLoggingEnabled = observableContextKey('editor.inlineSuggest.logFetch', this._contextKeyService).recomputeInitiallyAndOnChange(this._store);
-	private readonly _structuredFetchLogger = this._instantiationService.createInstance(StructuredLogger.cast<
+	private readonly _structuredFetchLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<
 		{ kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
 		| { kind: 'end'; error: any; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
 	>(),
 		'editor.inlineSuggest.logFetch.commandId'
-	);
+	));
 
 	constructor(
 		private readonly _textModel: ITextModel,
@@ -50,7 +49,6 @@ export class InlineCompletionsSource extends Disposable {
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -64,7 +62,7 @@ export class InlineCompletionsSource extends Disposable {
 		{ sourceId: string; kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
 		| { sourceId: string; kind: 'end'; error: any; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
 	) {
-		if (this._loggingEnabled.get() || this._recordingLoggingEnabled.get()) {
+		if (this._loggingEnabled.get()) {
 			this._logService.info(formatRecordableLogEntry(entry));
 		}
 		this._structuredFetchLogger.log(entry);
@@ -102,7 +100,7 @@ export class InlineCompletionsSource extends Disposable {
 			}
 
 			const requestId = InlineCompletionsSource._requestId++;
-			if (this._loggingEnabled.get() || this._recordingLoggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
+			if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
 				this._log({ sourceId: 'InlineCompletions.fetch', kind: 'start', requestId, modelUri: this._textModel.uri.toString(), modelVersion: this._textModel.getVersionId(), context: { triggerKind: context.triggerKind }, time: Date.now() });
 			}
 
@@ -122,7 +120,7 @@ export class InlineCompletionsSource extends Disposable {
 				error = e;
 				throw e;
 			} finally {
-				if (this._loggingEnabled.get() || this._recordingLoggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
+				if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
 					if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
 						error = 'canceled';
 					}
