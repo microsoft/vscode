@@ -549,8 +549,11 @@ class ChatSetupWelcomeContent extends Disposable {
 		const markdown = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
 
 		// Header
-		const header = localize({ key: 'setupHeader', comment: ['{Locked="]({0})"}'] }, "[{0}]({1}) is your AI pair programmer.\n\nEnable powerful AI features for free with the [{2}]({3}) plan.", defaultChat.name, defaultChat.documentationUrl, defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
+		const header = localize({ key: 'setupHeader', comment: ['{Locked="]({0})"}'] }, "[{0}]({1}) is your AI pair programmer. Get AI-powered code suggestions, code reviews, or use chat to ask for help with your project.", defaultChat.name, defaultChat.documentationUrl);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element);
+
+		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="]({0})"}'] }, "Enable powerful AI features for free with the [{0}]({1}) plan.", defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
+		const limitedSkuHeaderElement = this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true }))).element);
 
 		// Limited SKU Sign-up
 		const telemetryLabel = localize('telemetryLabel', "Allow {0} to use my data, including prompts, suggestions, and code snippets, for product improvements", defaultChat.providerName);
@@ -569,7 +572,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(footer, { isTrusted: true }))).element);
 
 		// Update based on model state
-		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update([telemetryContainer, detectionContainer], [telemetryCheckbox, detectionCheckbox], button)));
+		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(limitedSkuHeaderElement, [telemetryContainer, detectionContainer], [telemetryCheckbox, detectionCheckbox], button)));
 	}
 
 	private createCheckBox(label: string, checked: boolean, markdown: MarkdownRenderer): { container: HTMLElement; checkbox: Checkbox } {
@@ -588,10 +591,11 @@ class ChatSetupWelcomeContent extends Disposable {
 		return { container, checkbox };
 	}
 
-	private update(limitedContainers: HTMLElement[], limitedCheckboxes: Checkbox[], button: Button): void {
+	private update(limitedSkuHeaderElement: HTMLElement, limitedCheckboxContainers: HTMLElement[], limitedCheckboxes: Checkbox[], button: Button): void {
 		switch (this.controller.step) {
 			case ChatSetupStep.Initial:
-				setVisibility(this.controller.canSignUpLimited, ...limitedContainers);
+				setVisibility(this.controller.canSignUpLimited || this.controller.entitlement === ChatEntitlement.Unknown, limitedSkuHeaderElement);
+				setVisibility(this.controller.canSignUpLimited, ...limitedCheckboxContainers);
 
 				for (const checkbox of limitedCheckboxes) {
 					checkbox.enable();
