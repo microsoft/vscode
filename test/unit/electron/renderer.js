@@ -271,7 +271,7 @@ async function loadTests(opts) {
 			}
 		});
 
-		errors.setUnexpectedErrorHandler(err => unexpectedErrorHandler(err));
+		errors.setUnexpectedErrorHandler(onUnexpectedError);
 	});
 
 	//#endregion
