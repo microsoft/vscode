@@ -818,6 +818,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
 				});
 
+				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 				this.instantiationService.invokeFunction(accessor => hookUpResourceAttachmentInteractions(accessor, store, widget, resource));
 
 			} else if (attachment.isImage) {
