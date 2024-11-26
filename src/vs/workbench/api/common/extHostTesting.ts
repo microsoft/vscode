@@ -757,7 +757,6 @@ class TestRunTracker extends Disposable {
 
 				const includesTests = coverage instanceof FileCoverage ? coverage.includesTests : [];
 				if (includesTests.length) {
-					checkProposedApiEnabled(this.extension, 'attributableCoverage');
 					for (const test of includesTests) {
 						this.ensureTestIsKnown(test);
 					}
