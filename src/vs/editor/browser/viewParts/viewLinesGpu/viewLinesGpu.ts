@@ -52,7 +52,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 	private _vertexBuffer!: GPUBuffer;
 
-	private readonly _glyphStorageBuffer: GPUBuffer[] = [];
+	private _glyphStorageBuffer!: GPUBuffer;
 	private _atlasGpuTexture!: GPUTexture;
 	private readonly _atlasGpuTextureVersions: number[] = [];
 
@@ -190,14 +190,9 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._viewGpuContext, this._device));
 
-		this._glyphStorageBuffer[0] = this._register(GPULifecycle.createBuffer(this._device, {
+		this._glyphStorageBuffer = this._register(GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco glyph storage buffer [0]',
-			size: GlyphStorageBufferInfo.BytesPerEntry * TextureAtlasPage.maximumGlyphCount,
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		})).object;
-		this._glyphStorageBuffer[1] = this._register(GPULifecycle.createBuffer(this._device, {
-			label: 'Monaco glyph storage buffer [1]',
-			size: GlyphStorageBufferInfo.BytesPerEntry * TextureAtlasPage.maximumGlyphCount,
+			size: GlyphStorageBufferInfo.BytesPerEntry * TextureAtlasPage.maximumGlyphCount * 2,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		})).object;
 		this._atlasGpuTextureVersions[0] = 0;
@@ -281,8 +276,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			layout: this._pipeline.getBindGroupLayout(0),
 			entries: [
 				// TODO: Pass in generically as array?
-				{ binding: BindingId.GlyphInfo0, resource: { buffer: this._glyphStorageBuffer[0] } },
-				{ binding: BindingId.GlyphInfo1, resource: { buffer: this._glyphStorageBuffer[1] } },
+				{ binding: BindingId.GlyphInfo, resource: { buffer: this._glyphStorageBuffer } },
 				{
 					binding: BindingId.TextureSampler, resource: this._device.createSampler({
 						label: 'Monaco atlas sampler',
@@ -329,7 +323,8 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 			// TODO: Reuse buffer instead of reconstructing each time
 			// TODO: Dynamically set buffer size
-			const values = new Float32Array(GlyphStorageBufferInfo.FloatsPerEntry * TextureAtlasPage.maximumGlyphCount);
+			const entryCount = GlyphStorageBufferInfo.FloatsPerEntry * TextureAtlasPage.maximumGlyphCount;
+			const values = new Float32Array(entryCount);
 			let entryOffset = 0;
 			for (const glyph of page.glyphs) {
 				values[entryOffset + GlyphStorageBufferInfo.Offset_TexturePosition] = glyph.x;
@@ -343,7 +338,13 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			if (entryOffset / GlyphStorageBufferInfo.FloatsPerEntry > TextureAtlasPage.maximumGlyphCount) {
 				throw new Error(`Attempting to write more glyphs (${entryOffset / GlyphStorageBufferInfo.FloatsPerEntry}) than the GPUBuffer can hold (${TextureAtlasPage.maximumGlyphCount})`);
 			}
-			this._device.queue.writeBuffer(this._glyphStorageBuffer[layerIndex], 0, values, 0, GlyphStorageBufferInfo.FloatsPerEntry * TextureAtlasPage.maximumGlyphCount);
+			this._device.queue.writeBuffer(
+				this._glyphStorageBuffer,
+				layerIndex * GlyphStorageBufferInfo.FloatsPerEntry * TextureAtlasPage.maximumGlyphCount * Float32Array.BYTES_PER_ELEMENT,
+				values,
+				0,
+				GlyphStorageBufferInfo.FloatsPerEntry * TextureAtlasPage.maximumGlyphCount
+			);
 			if (page.usedArea.right - page.usedArea.left > 0 && page.usedArea.bottom - page.usedArea.top > 0) {
 				this._device.queue.copyExternalImageToTexture(
 					{ source: page.source },

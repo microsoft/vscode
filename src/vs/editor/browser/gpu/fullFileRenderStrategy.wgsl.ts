@@ -46,8 +46,7 @@ struct VSOutput {
 @group(0) @binding(${BindingId.ScrollOffset})            var<uniform>       scrollOffset:    ScrollOffset;
 
 // Storage buffers
-@group(0) @binding(${BindingId.GlyphInfo0})              var<storage, read> glyphInfo0:      array<GlyphInfo, ${TextureAtlasPage.maximumGlyphCount}>;
-@group(0) @binding(${BindingId.GlyphInfo1})              var<storage, read> glyphInfo1:      array<GlyphInfo, ${TextureAtlasPage.maximumGlyphCount}>;
+@group(0) @binding(${BindingId.GlyphInfo})               var<storage, read> glyphInfo:       array<array<GlyphInfo, ${TextureAtlasPage.maximumGlyphCount}>, 2>;
 @group(0) @binding(${BindingId.Cells})                   var<storage, read> cells:           array<Cell>;
 
 @vertex fn vs(
@@ -56,14 +55,7 @@ struct VSOutput {
 	@builtin(vertex_index) vertexIndex : u32
 ) -> VSOutput {
 	let cell = cells[instanceIndex];
-	// TODO: Is there a nicer way to init this?
-	var glyph = glyphInfo0[0];
-	let glyphIndex = u32(cell.glyphIndex);
-	if (u32(cell.textureIndex) == 0) {
-		glyph = glyphInfo0[glyphIndex];
-	} else {
-		glyph = glyphInfo1[glyphIndex];
-	}
+	var glyph = glyphInfo[u32(cell.textureIndex)][u32(cell.glyphIndex)];
 
 	var vsOut: VSOutput;
 	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
