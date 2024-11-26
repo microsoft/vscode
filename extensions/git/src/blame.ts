@@ -272,7 +272,7 @@ export class GitBlameController {
 
 	@throttle
 	private async _updateTextEditorBlameInformation(textEditor: TextEditor | undefined): Promise<void> {
-		if (!textEditor?.diffInformation) {
+		if (!textEditor?.diffInformation || textEditor !== window.activeTextEditor) {
 			return;
 		}
 
@@ -398,12 +398,23 @@ class GitBlameEditorDecoration {
 			return;
 		}
 
+		// Clear decorations for the other editors
+		for (const editor of window.visibleTextEditors) {
+			if (editor === textEditor) {
+				continue;
+			}
+
+			editor.setDecorations(this._decorationType, []);
+		}
+
+		// Get blame information
 		const blameInformation = this._controller.textEditorBlameInformation.get(textEditor);
 		if (!blameInformation || textEditor.document.uri.scheme !== 'file') {
 			textEditor.setDecorations(this._decorationType, []);
 			return;
 		}
 
+		// Set decorations for the editor
 		const decorations = blameInformation.map(blame => {
 			const contentText = typeof blame.blameInformation === 'string'
 				? blame.blameInformation
