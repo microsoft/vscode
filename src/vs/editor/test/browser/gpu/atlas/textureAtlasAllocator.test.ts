@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual, throws } from 'assert';
-import type { IRasterizedGlyph } from '../../../../../browser/gpu/raster/raster.js';
-import { ensureNonNullable } from '../../../../../browser/gpu/gpuUtils.js';
-import type { ITextureAtlasAllocator } from '../../../../../browser/gpu/atlas/atlas.js';
-import { TextureAtlasShelfAllocator } from '../../../../../browser/gpu/atlas/textureAtlasShelfAllocator.js';
-import { TextureAtlasSlabAllocator, type TextureAtlasSlabAllocatorOptions } from '../../../../../browser/gpu/atlas/textureAtlasSlabAllocator.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import type { IRasterizedGlyph } from '../../../../browser/gpu/raster/raster.js';
+import { ensureNonNullable } from '../../../../browser/gpu/gpuUtils.js';
+import type { ITextureAtlasAllocator } from '../../../../browser/gpu/atlas/atlas.js';
+import { TextureAtlasShelfAllocator } from '../../../../browser/gpu/atlas/textureAtlasShelfAllocator.js';
+import { TextureAtlasSlabAllocator, type TextureAtlasSlabAllocatorOptions } from '../../../../browser/gpu/atlas/textureAtlasSlabAllocator.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { assertIsValidGlyph } from './testUtil.js';
-import { BugIndicatingError } from '../../../../../../base/common/errors.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
 
 const blackArr = [0x00, 0x00, 0x00, 0xFF];
 
@@ -29,6 +29,8 @@ function createRasterizedGlyph(w: number, h: number, data: ArrayLike<number>): I
 		source,
 		boundingBox: { top: 0, left: 0, bottom: h - 1, right: w - 1 },
 		originOffset: { x: 0, y: 0 },
+		fontBoundingBoxAscent: 0,
+		fontBoundingBoxDescent: 0,
 	};
 }
 

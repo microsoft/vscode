@@ -374,6 +374,25 @@ class CollapsedCodeBlock extends Disposable {
 				iconEl.classList.add(...getIconClasses(this.modelService, this.languageService, uri, fileKind));
 				labelDetail.textContent = '';
 			}
+
+			if (!isStreaming && isComplete) {
+				const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
+				const labelRemoved = this.element.querySelector('.label-removed') ?? this.element.appendChild(dom.$('span.label-removed'));
+				const changes = modifiedEntry?.diffInfo.read(r);
+				if (changes && !changes?.identical && !changes?.quitEarly) {
+					let removedLines = 0;
+					let addedLines = 0;
+					for (const change of changes.changes) {
+						removedLines += change.original.endLineNumberExclusive - change.original.startLineNumber;
+						addedLines += change.modified.endLineNumberExclusive - change.modified.startLineNumber;
+					}
+					labelAdded.textContent = `+${addedLines}`;
+					labelRemoved.textContent = `-${removedLines}`;
+					const insertionsFragment = addedLines === 1 ? localize('chat.codeblock.insertions.one', "{0} insertion") : localize('chat.codeblock.insertions', "{0} insertions", addedLines);
+					const deletionsFragment = removedLines === 1 ? localize('chat.codeblock.deletions.one', "{0} deletion") : localize('chat.codeblock.deletions', "{0} deletions", removedLines);
+					this.element.ariaLabel = this.element.title = localize('summary', 'Edited {0}, {1}, {2}', iconText, insertionsFragment, deletionsFragment);
+				}
+			}
 		}));
 	}
 }

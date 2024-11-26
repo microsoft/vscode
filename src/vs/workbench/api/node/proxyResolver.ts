@@ -480,7 +480,8 @@ async function lookupProxyAuthorization(
 		state.kerberosRequested = true;
 
 		try {
-			const kerberos = await import('kerberos');
+			const importKerberos = await import('kerberos');
+			const kerberos = importKerberos.default || importKerberos;
 			const url = new URL(proxyURL);
 			const spn = configProvider.getConfiguration('http').get<string>('proxyKerberosServicePrincipal')
 				|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);

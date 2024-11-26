@@ -12,12 +12,17 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { basename, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { SymbolKinds } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
-import { containsDragType, extractEditorsDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
+import { CodeDataTransfers, containsDragType, DocumentSymbolTransferData, extractEditorsDropData, extractSymbolDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
 import { FileType, IFileService, IFileSystemProvider } from '../../../../platform/files/common/files.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { isUntitledResourceEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
+import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatInputStyles } from './chatInputPart.js';
@@ -26,7 +31,8 @@ enum ChatDragAndDropType {
 	FILE_INTERNAL,
 	FILE_EXTERNAL,
 	FOLDER,
-	IMAGE
+	IMAGE,
+	SYMBOL
 }
 
 export class ChatDragAndDrop extends Themable {
@@ -40,7 +46,8 @@ export class ChatDragAndDrop extends Themable {
 		private readonly styles: IChatInputStyles,
 		@IThemeService themeService: IThemeService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IFileService protected readonly fileService: IFileService
+		@IFileService protected readonly fileService: IFileService,
+		@IEditorService protected readonly editorService: IEditorService,
 	) {
 		super(themeService);
 
@@ -155,11 +162,13 @@ export class ChatDragAndDrop extends Themable {
 		// This is an esstimation based on the datatransfer types/items
 		if (this.isImageDnd(e)) {
 			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? ChatDragAndDropType.IMAGE : undefined;
+		} else if (containsDragType(e, CodeDataTransfers.SYMBOLS)) {
+			return ChatDragAndDropType.SYMBOL;
 		} else if (containsDragType(e, DataTransfers.FILES)) {
 			return ChatDragAndDropType.FILE_EXTERNAL;
 		} else if (containsDragType(e, DataTransfers.INTERNAL_URI_LIST)) {
 			return ChatDragAndDropType.FILE_INTERNAL;
-		} else if (containsDragType(e, Mimes.uriList)) {
+		} else if (containsDragType(e, Mimes.uriList, CodeDataTransfers.FILES)) {
 			return ChatDragAndDropType.FOLDER;
 		}
 
@@ -178,6 +187,7 @@ export class ChatDragAndDrop extends Themable {
 			case ChatDragAndDropType.FILE_EXTERNAL: return localize('file', 'File');
 			case ChatDragAndDropType.FOLDER: return localize('folder', 'Folder');
 			case ChatDragAndDropType.IMAGE: return localize('image', 'Image');
+			case ChatDragAndDropType.SYMBOL: return localize('symbol', 'Symbol');
 		}
 	}
 
@@ -209,6 +219,11 @@ export class ChatDragAndDrop extends Themable {
 			return [];
 		}
 
+		if (containsDragType(e, CodeDataTransfers.SYMBOLS)) {
+			const data = extractSymbolDropData(e);
+			return this.resolveSymbolsAttachContext(data);
+		}
+
 		const data = extractEditorsDropData(e);
 		return coalesce(await Promise.all(data.map(editorInput => {
 			return this.resolveAttachContext(editorInput);
@@ -227,6 +242,12 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	private async getEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
+
+		// untitled editor
+		if (isUntitledResourceEditorInput(editor)) {
+			return await this.resolveUntitledAttachContext(editor);
+		}
+
 		if (!editor.resource) {
 			return undefined;
 		}
@@ -243,6 +264,39 @@ export class ChatDragAndDrop extends Themable {
 		}
 
 		return getResourceAttachContext(editor.resource, stat.isDirectory);
+	}
+
+	private async resolveUntitledAttachContext(editor: IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
+		// If the resource is known, we can use it directly
+		if (editor.resource) {
+			return getResourceAttachContext(editor.resource, false);
+		}
+
+		// Otherwise, we need to check if the contents are already open in another editor
+		const openUntitledEditors = this.editorService.editors.filter(editor => editor instanceof UntitledTextEditorInput) as UntitledTextEditorInput[];
+		for (const canidate of openUntitledEditors) {
+			const model = await canidate.resolve();
+			const contents = model.textEditorModel?.getValue();
+			if (contents === editor.contents) {
+				return getResourceAttachContext(canidate.resource, false);
+			}
+		}
+
+		return undefined;
+	}
+
+	private resolveSymbolsAttachContext(symbols: DocumentSymbolTransferData[]): IChatRequestVariableEntry[] {
+		return symbols.map(symbol => {
+			const resource = URI.file(symbol.fsPath);
+			return {
+				kind: 'symbol',
+				id: symbolId(resource, symbol.range),
+				value: { uri: resource, range: symbol.range },
+				fullName: `$(${SymbolKinds.toIcon(symbol.kind).id}) ${symbol.name}`,
+				name: symbol.name,
+				isDynamic: true
+			};
+		});
 	}
 
 	private setOverlay(target: HTMLElement, type: ChatDragAndDropType | undefined): void {
@@ -293,9 +347,10 @@ export class EditsDragAndDrop extends ChatDragAndDrop {
 		styles: IChatInputStyles,
 		@IThemeService themeService: IThemeService,
 		@IExtensionService extensionService: IExtensionService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IEditorService editorService: IEditorService,
 	) {
-		super(attachmentModel, styles, themeService, extensionService, fileService);
+		super(attachmentModel, styles, themeService, extensionService, fileService, editorService);
 	}
 
 	protected override handleDrop(context: IChatRequestVariableEntry[]): void {
@@ -389,4 +444,15 @@ function getImageAttachContext(editor: EditorInput | IDraggedResourceEditorInput
 	}
 
 	return undefined;
+}
+
+function symbolId(resource: URI, range?: IRange): string {
+	let rangePart = '';
+	if (range) {
+		rangePart = `:${range.startLineNumber}`;
+		if (range.startLineNumber !== range.endLineNumber) {
+			rangePart += `-${range.endLineNumber}`;
+		}
+	}
+	return resource.fsPath + rangePart;
 }

@@ -29,7 +29,7 @@ import { IFilesConfigurationService } from '../../../services/filesConfiguration
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatEditingModifiedFileEntry } from './chatEditing/chatEditingModifiedFileEntry.js';
@@ -270,7 +270,7 @@ export class ChatEditingSaveAllAction extends Action2 {
 					// Show the option to save without accepting if the user hasn't configured the setting to always save with generated changes
 					when: ContextKeyExpr.and(
 						applyingChatEditsFailedContextKey.negate(),
-						ContextKeyExpr.or(hasUndecidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey.negate()),
+						hasUndecidedChatEditingResourceContextKey,
 						ContextKeyExpr.equals(`config.${ChatEditorSaving._config}`, false),
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
 					)

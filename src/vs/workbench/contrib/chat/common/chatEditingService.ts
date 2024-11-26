@@ -36,7 +36,7 @@ export interface IChatEditingService {
 
 	readonly editingSessionFileLimit: number;
 
-	startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession>;
+	startOrContinueEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
 	getEditingSession(resource: URI): IChatEditingSession | null;
 	createSnapshot(requestId: string): void;
 	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
@@ -74,12 +74,11 @@ export interface IChatEditingSession {
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
-	readonly hiddenRequestIds: IObservable<readonly string[]>;
 	readonly workingSet: ResourceMap<WorkingSetDisplayMetadata>;
 	readonly isVisible: boolean;
 	addFileToWorkingSet(uri: URI, description?: string, kind?: WorkingSetEntryState.Transient | WorkingSetEntryState.Suggested): void;
 	show(): Promise<void>;
-	remove(...uris: URI[]): void;
+	remove(reason: WorkingSetEntryRemovalReason, ...uris: URI[]): void;
 	accept(...uris: URI[]): Promise<void>;
 	reject(...uris: URI[]): Promise<void>;
 	/**
@@ -89,6 +88,11 @@ export interface IChatEditingSession {
 
 	undoInteraction(): Promise<void>;
 	redoInteraction(): Promise<void>;
+}
+
+export const enum WorkingSetEntryRemovalReason {
+	User,
+	Programmatic
 }
 
 export const enum WorkingSetEntryState {

@@ -137,6 +137,11 @@ export class NotebookVariablesView extends ViewPane {
 		});
 	}
 
+	override focus(): void {
+		super.focus();
+		this.tree?.domFocus();
+	}
+
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.tree?.layout(height, width);

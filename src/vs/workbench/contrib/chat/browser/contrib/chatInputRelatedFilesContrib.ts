@@ -10,7 +10,7 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ChatEditingSessionChangeType, IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditingSessionChangeType, IChatEditingService, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatWidgetService } from '../chat.js';
 
 export class ChatRelatedFilesContribution extends Disposable implements IWorkbenchContribution {
@@ -57,7 +57,7 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 					}
 
 					const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
-					if (!currentEditingSession || currentEditingSession.chatSessionId !== widget.viewModel?.sessionId || currentEditingSession.entries.get()) {
+					if (!currentEditingSession || currentEditingSession.chatSessionId !== widget.viewModel?.sessionId || currentEditingSession.entries.get().length) {
 						return; // Might have disposed while we were calculating
 					}
 
@@ -80,7 +80,7 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 							existingSuggestedEntriesToRemove.push(entry[0]);
 						}
 					}
-					currentEditingSession?.remove(...existingSuggestedEntriesToRemove);
+					currentEditingSession?.remove(WorkingSetEntryRemovalReason.Programmatic, ...existingSuggestedEntriesToRemove);
 
 					// Add the new related file suggestions to the working set
 					for (const file of newSuggestions) {

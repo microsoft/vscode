@@ -21,7 +21,8 @@ import { IExtensionService, isProposedApiEnabled } from '../../../services/exten
 export class PasteImageProvider implements DocumentPasteEditProvider {
 
 	public readonly kind = new HierarchicalKind('image');
-
+	public readonly copyMimeTypes = ['image/*'];
+	public readonly providedPasteEditKinds = [this.kind];
 	public readonly pasteMimeTypes = ['image/*'];
 	constructor(
 		private readonly chatWidgetService: IChatWidgetService,
@@ -78,6 +79,12 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		const imageContext = await getImageAttachContext(currClipboard, mimeType, token, tempDisplayName);
 
 		if (token.isCancellationRequested || !imageContext) {
+			return;
+		}
+
+		// Make sure to attach only new contexts
+		const currentContextIds = widget.attachmentModel.getAttachmentIDs();
+		if (currentContextIds.has(imageContext.id)) {
 			return;
 		}
 

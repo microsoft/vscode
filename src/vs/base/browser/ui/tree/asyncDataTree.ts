@@ -537,12 +537,12 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	readonly onDidChangeFindOpenState: Event<boolean>;
 	get onDidChangeStickyScrollFocused(): Event<boolean> { return this.tree.onDidChangeStickyScrollFocused; }
 
-	get findMode(): TreeFindMode { return this.tree.findMode; }
-	set findMode(mode: TreeFindMode) { this.tree.findMode = mode; }
+	get findMode(): TreeFindMode { return this.findController ? this.findController.mode : this.tree.findMode; }
+	set findMode(mode: TreeFindMode) { this.findController ? this.findController.mode = mode : this.tree.findMode = mode; }
 	readonly onDidChangeFindMode: Event<TreeFindMode>;
 
-	get findMatchType(): TreeFindMatchType { return this.tree.findMatchType; }
-	set findMatchType(matchType: TreeFindMatchType) { this.tree.findMatchType = matchType; }
+	get findMatchType(): TreeFindMatchType { return this.findController ? this.findController.matchType : this.tree.findMatchType; }
+	set findMatchType(matchType: TreeFindMatchType) { this.findController ? this.findController.matchType = matchType : this.tree.findMatchType = matchType; }
 	readonly onDidChangeFindMatchType: Event<TreeFindMatchType>;
 
 	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) {
@@ -601,8 +601,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			this.findController = this.disposables.add(new AsyncFindController(this.tree, options.findProvider!, findFilter!, this.tree.options.contextViewProvider!, findOptions));
 
 			this.onDidChangeFindOpenState = this.findController!.onDidChangeOpenState;
-			this.onDidChangeFindMode = Event.None;
-			this.onDidChangeFindMatchType = Event.None;
+			this.onDidChangeFindMode = this.findController!.onDidChangeMode;
+			this.onDidChangeFindMatchType = this.findController!.onDidChangeMatchType;
 		} else {
 			this.onDidChangeFindOpenState = this.tree.onDidChangeFindOpenState;
 			this.onDidChangeFindMode = this.tree.onDidChangeFindMode;

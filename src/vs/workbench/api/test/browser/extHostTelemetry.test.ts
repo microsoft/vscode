@@ -66,6 +66,7 @@ suite('ExtHostTelemetry', function () {
 		engines: { vscode: '*' },
 		extensionLocation: URI.parse('fake'),
 		enabledApiProposals: undefined,
+		preRelease: false,
 	};
 
 	const createExtHostTelemetry = () => {

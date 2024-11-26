@@ -24,7 +24,7 @@ import { localize } from '../../../../nls.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InlineChatAccessibilityHelp } from './inlineChatAccessibilityHelp.js';
-import { InlineChatExansionContextKey, InlineChatExpandLineAction } from './inlineChatCurrentLine.js';
+import { InlineChatExpandLineAction, InlineChatHintsController, HideInlineChatHintAction, ShowInlineChatHintAction } from './inlineChatCurrentLine.js';
 
 
 // --- browser
@@ -34,8 +34,10 @@ registerSingleton(IInlineChatSavingService, InlineChatSavingServiceImpl, Instant
 
 registerEditorContribution(INLINE_CHAT_ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 
-registerEditorContribution(InlineChatExansionContextKey.Id, InlineChatExansionContextKey, EditorContributionInstantiation.BeforeFirstInteraction);
 registerAction2(InlineChatExpandLineAction);
+registerAction2(ShowInlineChatHintAction);
+registerAction2(HideInlineChatHintAction);
+registerEditorContribution(InlineChatHintsController.ID, InlineChatHintsController, EditorContributionInstantiation.Lazy);
 
 // --- MENU special ---
 
