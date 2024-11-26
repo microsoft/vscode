@@ -17,6 +17,7 @@ import { EndOfLinePreference } from '../../../../common/model.js';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent } from '../../../../common/viewEvents.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { applyFontInfo } from '../../../config/domFontInfo.js';
+import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { RestrictedRenderingContext, RenderingContext } from '../../../view/renderingContext.js';
 import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy, ScreenReaderContentState } from '../screenReaderUtils.js';
 
@@ -103,7 +104,20 @@ export class ScreenReaderSupport {
 		this._domNode.domNode.scrollTop = numberOfLinesOfContentBeforeSelection * this._lineHeight;
 	}
 
-	public setAriaOptions(): void { }
+	public setAriaOptions(options: IEditorAriaOptions): void {
+		if (options.activeDescendant) {
+			this._domNode.setAttribute('aria-haspopup', 'true');
+			this._domNode.setAttribute('aria-autocomplete', 'list');
+			this._domNode.setAttribute('aria-activedescendant', options.activeDescendant);
+		} else {
+			this._domNode.setAttribute('aria-haspopup', 'false');
+			this._domNode.setAttribute('aria-autocomplete', 'both');
+			this._domNode.removeAttribute('aria-activedescendant');
+		}
+		if (options.role) {
+			this._domNode.setAttribute('role', options.role);
+		}
+	}
 
 	public writeScreenReaderContent(): void {
 		const focusedElement = getActiveWindow().document.activeElement;

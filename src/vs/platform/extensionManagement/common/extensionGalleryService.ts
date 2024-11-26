@@ -782,7 +782,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 							preRelease: !!extensionInfo.preRelease,
 							compatible: !!options.compatible
 						});
-					if (!options.compatible || this.allowedExtensionsService.isAllowed({ id: extensionInfo.id }) === true) {
+					if (!options.compatible || this.allowedExtensionsService.isAllowed({ id: extensionInfo.id, publisherDisplayName: rawGalleryExtension.publisher.displayName }) === true) {
 						toQuery.push(extensionInfo);
 					}
 				}
@@ -806,7 +806,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		if (await this.isExtensionCompatible(extension, includePreRelease, targetPlatform)) {
 			return extension;
 		}
-		if (this.allowedExtensionsService.isAllowed({ id: extension.identifier.id }) !== true) {
+		if (this.allowedExtensionsService.isAllowed({ id: extension.identifier.id, publisherDisplayName: extension.publisherDisplayName }) !== true) {
 			return null;
 		}
 		const query = new Query()
@@ -861,7 +861,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		return areApiProposalsCompatible(enabledApiProposals);
 	}
 
-	private async isValidVersion(extension: string, rawGalleryExtensionVersion: IRawGalleryExtensionVersion, versionType: 'release' | 'prerelease' | 'any', compatible: boolean, allTargetPlatforms: TargetPlatform[], targetPlatform: TargetPlatform, productVersion: IProductVersion = { version: this.productService.version, date: this.productService.date }): Promise<boolean> {
+	private async isValidVersion(extension: string, rawGalleryExtensionVersion: IRawGalleryExtensionVersion, publisherDisplayName: string, versionType: 'release' | 'prerelease' | 'any', compatible: boolean, allTargetPlatforms: TargetPlatform[], targetPlatform: TargetPlatform, productVersion: IProductVersion = { version: this.productService.version, date: this.productService.date }): Promise<boolean> {
 		const targetPlatformForExtension = getTargetPlatformForExtensionVersion(rawGalleryExtensionVersion);
 		if (!isTargetPlatformCompatible(targetPlatformForExtension, allTargetPlatforms, targetPlatform)) {
 			return false;
@@ -872,7 +872,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		}
 
 		if (compatible) {
-			if (this.allowedExtensionsService.isAllowed({ id: extension, version: rawGalleryExtensionVersion.version, prerelease: versionType === 'any' ? undefined : isPreReleaseVersion(rawGalleryExtensionVersion), targetPlatform: targetPlatformForExtension }) !== true) {
+			if (this.allowedExtensionsService.isAllowed({ id: extension, publisherDisplayName, version: rawGalleryExtensionVersion.version, prerelease: versionType === 'any' ? undefined : isPreReleaseVersion(rawGalleryExtensionVersion), targetPlatform: targetPlatformForExtension }) !== true) {
 				return false;
 			}
 			try {
@@ -1015,7 +1015,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				 * Skip if the extension is not allowed.
 				 * All versions are not needed in this case
 				 */
-				if (this.allowedExtensionsService.isAllowed({ id: extensionIdentifier.id }) !== true) {
+				if (this.allowedExtensionsService.isAllowed({ id: extensionIdentifier.id, publisherDisplayName: rawGalleryExtension.publisher.displayName }) !== true) {
 					continue;
 				}
 			}
@@ -1081,6 +1081,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			if (await this.isValidVersion(
 				extensionIdentifier.id,
 				rawGalleryExtensionVersion,
+				rawGalleryExtension.publisher.displayName,
 				includePreRelease ? 'any' : 'release',
 				criteria.compatible,
 				allTargetPlatforms,
@@ -1204,7 +1205,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			const headers = {
 				...commonHeaders,
 				'Content-Type': 'application/json',
-				'Accept': 'application/json;api-version=3.0-preview.1',
+				'Accept': 'application/json;api-version=7.2-preview',
 				'Accept-Encoding': 'gzip',
 			};
 
@@ -1416,7 +1417,9 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				if (
 					(await this.isValidVersion(
 						extensionIdentifier.id,
-						version, includePreRelease ? 'any' : 'release',
+						version,
+						galleryExtensions[0].publisher.displayName,
+						includePreRelease ? 'any' : 'release',
 						true,
 						allTargetPlatforms,
 						targetPlatform))

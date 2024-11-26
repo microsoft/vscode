@@ -23,12 +23,16 @@
 		padding: 4px 7px;
 	}
 
-	p.checkbox-container {
+	.checkbox-container {
 		display: flex;
 	}
 
-	div.checkbox-label {
+	.checkbox-label {
 		flex-basis: fit-content;
 		cursor: pointer;
+	}
+
+	.checkbox-label p {
+		display: inline;
 	}
 }

@@ -95,7 +95,10 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 			const diff = entry?.diffInfo.read(r);
 			this._updateWithDiff(entry, diff);
-			this.revealNext();
+			this.initNavigation();
+			if (this._currentChange.get() === undefined) {
+				this.revealNext();
+			}
 		}));
 
 		const shouldBeReadOnly = derived(this, r => {
@@ -370,10 +373,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	initNavigation(): void {
 		const position = this._editor.getPosition();
-		if (!position) {
-			return;
-		}
-		const range = this._diffLineDecorations.getRanges().find(r => r.containsPosition(position));
+		const range = position && this._diffLineDecorations.getRanges().find(r => r.containsPosition(position));
 		if (range) {
 			this._currentChange.set(position, undefined);
 		}

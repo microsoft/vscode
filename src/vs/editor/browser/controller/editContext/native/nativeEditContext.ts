@@ -29,6 +29,7 @@ import { IDisposable, MutableDisposable } from '../../../../../base/common/lifec
 import { EditContext } from './editContextFactory.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { NativeEditContextRegistry } from './nativeEditContextRegistry.js';
+import { IEditorAriaOptions } from '../../../editorBrowser.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -171,8 +172,8 @@ export class NativeEditContext extends AbstractEditContext {
 		super.dispose();
 	}
 
-	public setAriaOptions(): void {
-		this._screenReaderSupport.setAriaOptions();
+	public setAriaOptions(options: IEditorAriaOptions): void {
+		this._screenReaderSupport.setAriaOptions(options);
 	}
 
 	/* Last rendered data needed for correct hit-testing and determining the mouse position.
