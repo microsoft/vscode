@@ -67,9 +67,9 @@ import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionSer
 import { TestWorkerService } from './testWorkerService.js';
 import { ILanguageModelsService, LanguageModelsService } from '../../../chat/common/languageModels.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
-import { ChatInputBoxContentProvider } from '../../../chat/browser/chat.contribution.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
+import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
 
 suite('InteractiveChatController', function () {
 
