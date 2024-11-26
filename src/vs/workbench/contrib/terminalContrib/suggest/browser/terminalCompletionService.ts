@@ -201,14 +201,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		const parentDirPath = cwd.fsPath.split(resourceRequestConfig.pathSeparator).slice(0, -1).join(resourceRequestConfig.pathSeparator);
 		const parentCwd = URI.from({ scheme: cwd.scheme, path: parentDirPath });
-		const homeDir = cwd.with({ path: '' });
 		const dirToPrefixMap = new Map<URI, string>();
+
 		dirToPrefixMap.set(cwd, '.');
-		const isHomeDirectory = cwd.fsPath === parentCwd.fsPath;
-		if (!isHomeDirectory) {
-			dirToPrefixMap.set(parentCwd, '..');
-			dirToPrefixMap.set(homeDir, '~');
-		}
+		dirToPrefixMap.set(parentCwd, '..');
 
 		const lastWord = promptValue.substring(0, cursorPosition).split(' ').pop() ?? '';
 
@@ -231,20 +227,15 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					continue;
 				}
 
-				let label = prefix + stat.resource.fsPath.replace(dir.fsPath, '');
-				if (prefix === '~') {
-					label = prefix + resourceRequestConfig.pathSeparator + stat.resource.fsPath.replace(dir.fsPath, '');
-				}
-				if (await this._fileService.exists(stat.resource)) {
-					resourceCompletions.push({
-						label,
-						kind,
-						isDirectory: kind === TerminalCompletionItemKind.Folder,
-						isFile: kind === TerminalCompletionItemKind.File,
-						replacementIndex: cursorPosition - lastWord.length,
-						replacementLength: label.length
-					});
-				}
+				const label = prefix + stat.resource.fsPath.replace(dir.fsPath, '');
+				resourceCompletions.push({
+					label,
+					kind,
+					isDirectory: kind === TerminalCompletionItemKind.Folder,
+					isFile: kind === TerminalCompletionItemKind.File,
+					replacementIndex: cursorPosition - lastWord.length,
+					replacementLength: label.length
+				});
 			}
 		}
 
