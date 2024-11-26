@@ -67,6 +67,9 @@ import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionSer
 import { TestWorkerService } from './testWorkerService.js';
 import { ILanguageModelsService, LanguageModelsService } from '../../../chat/common/languageModels.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
+import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
 
 suite('InteractiveChatController', function () {
 
@@ -193,6 +196,7 @@ suite('InteractiveChatController', function () {
 			}],
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
 			[ILanguageModelsService, new SyncDescriptor(LanguageModelsService)],
+			[ITextModelService, new SyncDescriptor(TextModelResolverService)],
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));
@@ -209,6 +213,8 @@ suite('InteractiveChatController', function () {
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
 
 		store.add(instaService.get(ILanguageModelsService) as LanguageModelsService);
+
+		store.add(instaService.createInstance(ChatInputBoxContentProvider));
 
 		model = store.add(instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null));
 		model.setEOL(EndOfLineSequence.LF);
