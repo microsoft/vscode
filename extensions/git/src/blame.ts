@@ -281,9 +281,6 @@ export class GitBlameController {
 			return;
 		}
 
-		console.log(textEditor.document.uri);
-		console.log(textEditor.diffInformation);
-
 		let allChanges: readonly TextEditorChange[];
 		let workingTreeChanges: readonly TextEditorChange[];
 		let workingTreeAndIndexChanges: readonly TextEditorChange[] | undefined;
@@ -318,7 +315,7 @@ export class GitBlameController {
 			// Working tree diff information
 			const diffInformationWorkingTree = textEditor.diffInformation
 				.filter(diff => diff.original && isGitUri(diff.original))
-				.find(diff => fromGitUri(diff.original!).ref !== 'HEAD');
+				.find(diff => fromGitUri(diff.original!).ref === '');
 
 			// Working tree diff information is not present or it is stale
 			if (!diffInformationWorkingTree || diffInformationWorkingTree.isStale) {
