@@ -696,7 +696,7 @@ class TestRunTracker extends Disposable {
 			if (index === -1) {
 				return []; // ??
 			}
-			testItem = report.fromTests[index];
+			testItem = report.includesTests[index];
 		}
 
 		const details = testItem
@@ -755,10 +755,10 @@ class TestRunTracker extends Disposable {
 					return;
 				}
 
-				const fromTests = coverage instanceof FileCoverage ? coverage.fromTests : [];
-				if (fromTests.length) {
+				const includesTests = coverage instanceof FileCoverage ? coverage.includesTests : [];
+				if (includesTests.length) {
 					checkProposedApiEnabled(this.extension, 'attributableCoverage');
-					for (const test of fromTests) {
+					for (const test of includesTests) {
 						this.ensureTestIsKnown(test);
 					}
 				}
@@ -769,7 +769,7 @@ class TestRunTracker extends Disposable {
 				// it's been reported if it's rehomed under a different parent. Record its
 				// ID at the time when the coverage report is generated so we can reference
 				// it later if needeed.
-				this.publishedCoverage.set(id, { report: coverage, extIds: fromTests.map(t => TestId.fromExtHostTestItem(t, ctrlId).toString()) });
+				this.publishedCoverage.set(id, { report: coverage, extIds: includesTests.map(t => TestId.fromExtHostTestItem(t, ctrlId).toString()) });
 				this.proxy.$appendCoverage(runId, taskId, Convert.TestCoverage.fromFile(ctrlId, id, coverage));
 			},
 			//#region state mutation
