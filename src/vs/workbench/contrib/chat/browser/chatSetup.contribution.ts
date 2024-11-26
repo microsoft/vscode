@@ -43,15 +43,20 @@ import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { Barrier, timeout } from '../../../../base/common/async.js';
+import { IChatAgentService } from '../common/chatAgents.js';
+import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
+import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
+	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
 	name: product.defaultChatAgent?.name ?? '',
 	icon: Codicon[product.defaultChatAgent?.icon as keyof typeof Codicon ?? 'commentDiscussion'],
 	chatWelcomeTitle: product.defaultChatAgent?.chatWelcomeTitle ?? '',
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? '',
-	collectionDocumentationUrl: product.defaultChatAgent?.collectionDocumentationUrl ?? '',
 	skusDocumentationUrl: product.defaultChatAgent?.skusDocumentationUrl ?? '',
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	providerName: product.defaultChatAgent?.providerName ?? '',
@@ -107,7 +112,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				ChatContextKeys.Setup.installed.negate()
 			)!,
 			icon: defaultChat.icon,
-			content: () => ChatSetupWelcomeContent.getInstance(this.instantiationService, this.entitlementsResolver).element,
+			content: () => ChatSetupWelcomeContent.getInstance(this.instantiationService, this.entitlementsResolver, this.chatSetupContextKeys).element,
 		});
 	}
 
@@ -369,13 +374,17 @@ class ChatSetupController extends Disposable {
 
 	constructor(
 		private readonly entitlementResolver: ChatSetupEntitlementResolver,
+		private readonly chatSetupContextKeys: ChatSetupContextKeys,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IProductService private readonly productService: IProductService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IProgressService private readonly progressService: IProgressService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IActivityService private readonly activityService: IActivityService
 	) {
 		super();
 
@@ -396,6 +405,24 @@ class ChatSetupController extends Disposable {
 	}
 
 	async setup(enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
+		const title = localize('setupChatProgress', "Setting up {0}...", defaultChat.name);
+		const badge = this.activityService.showViewContainerActivity(CHAT_SIDEBAR_PANEL_ID, {
+			badge: new ProgressBadge(() => title),
+			priority: 100
+		});
+
+		try {
+			await this.progressService.withProgress({
+				location: ProgressLocation.Window,
+				command: ChatSetupTriggerAction.ID,
+				title,
+			}, () => this.doSetup(enableTelemetry, enableDetection));
+		} finally {
+			badge.dispose();
+		}
+	}
+
+	private async doSetup(enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
 		try {
 			let session: AuthenticationSession | undefined;
 
@@ -460,6 +487,8 @@ class ChatSetupController extends Disposable {
 				this.logService.trace('[chat setup] install: not signing up to limited SKU');
 			}
 
+			this.chatSetupContextKeys.suspend(); // reduces flicker
+
 			await this.extensionsWorkbenchService.install(defaultChat.extensionId, {
 				enable: true,
 				isMachineScoped: false,
@@ -468,9 +497,14 @@ class ChatSetupController extends Disposable {
 
 			installResult = 'installed';
 		} catch (error) {
-			this.logService.trace(`[chat setup] install: error ${error}`);
+			this.logService.error(`[chat setup] install: error ${error}`);
 
 			installResult = isCancellationError(error) ? 'cancelled' : 'failedInstall';
+		} finally {
+			await Promise.race([
+				timeout(5000), 												// helps prevent flicker with sign-in welcome view
+				Event.toPromise(this.chatAgentService.onDidChangeAgents)	// https://github.com/microsoft/vscode-copilot/issues/9274
+			]).finally(() => this.chatSetupContextKeys.resume());
 		}
 
 		this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signedIn });
@@ -484,9 +518,9 @@ class ChatSetupController extends Disposable {
 class ChatSetupWelcomeContent extends Disposable {
 
 	private static INSTANCE: ChatSetupWelcomeContent | undefined;
-	static getInstance(instantiationService: IInstantiationService, entitlementResolver: ChatSetupEntitlementResolver): ChatSetupWelcomeContent {
+	static getInstance(instantiationService: IInstantiationService, entitlementResolver: ChatSetupEntitlementResolver, chatSetupContextKeys: ChatSetupContextKeys): ChatSetupWelcomeContent {
 		if (!ChatSetupWelcomeContent.INSTANCE) {
-			ChatSetupWelcomeContent.INSTANCE = instantiationService.createInstance(ChatSetupWelcomeContent, entitlementResolver);
+			ChatSetupWelcomeContent.INSTANCE = instantiationService.createInstance(ChatSetupWelcomeContent, entitlementResolver, chatSetupContextKeys);
 		}
 
 		return ChatSetupWelcomeContent.INSTANCE;
@@ -498,12 +532,13 @@ class ChatSetupWelcomeContent extends Disposable {
 
 	constructor(
 		entitlementResolver: ChatSetupEntitlementResolver,
+		chatSetupContextKeys: ChatSetupContextKeys,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
-		this.controller = this._register(instantiationService.createInstance(ChatSetupController, entitlementResolver));
+		this.controller = this._register(instantiationService.createInstance(ChatSetupController, entitlementResolver, chatSetupContextKeys));
 
 		this.create();
 	}
@@ -519,7 +554,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		const limitedSkuHeaderElement = this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true }))).element);
 
 		const telemetryLabel = localize('telemetryLabel', "Allow {0} to use my data, including Prompts, Suggestions, and Code Snippets, for product improvements", defaultChat.providerName);
-		const { container: telemetryContainer, checkbox: telemetryCheckbox } = this.createCheckBox(telemetryLabel, this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? false : false);
+		const { container: telemetryContainer, checkbox: telemetryCheckbox } = this.createCheckBox(telemetryLabel, this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? false : true);
 
 		const detectionLabel = localize('detectionLabel', "Allow suggestions matching public code");
 		const { container: detectionContainer, checkbox: detectionCheckbox } = this.createCheckBox(detectionLabel, true);
@@ -530,7 +565,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		this._register(button.onDidClick(() => this.controller.setup(telemetryCheckbox.checked, detectionCheckbox.checked)));
 
 		// Footer
-		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}). You can [learn more]({1}) about {2}.", defaultChat.privacyStatementUrl, defaultChat.documentationUrl, defaultChat.name);
+		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}). Click [here]({1}) to learn more about {2}.", defaultChat.privacyStatementUrl, defaultChat.documentationUrl, defaultChat.name);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(footer, { isTrusted: true }))).element);
 
 		// Update based on model state
@@ -538,15 +573,16 @@ class ChatSetupWelcomeContent extends Disposable {
 	}
 
 	private createCheckBox(label: string, checked: boolean): { container: HTMLElement; checkbox: Checkbox } {
-		const container = this.element.appendChild($('p'));
+		const container = this.element.appendChild($('p.checkbox-container'));
 		const checkbox = this._register(new Checkbox(label, checked, defaultCheckboxStyles));
 		container.appendChild(checkbox.domNode);
 
-		const checkboxLabel = container.appendChild($('div'));
+		const checkboxLabel = container.appendChild($('div.checkbox-label'));
 		checkboxLabel.textContent = label;
 		this._register(addDisposableListener(checkboxLabel, EventType.CLICK, () => {
 			if (checkbox?.enabled) {
 				checkbox.checked = !checkbox.checked;
+				checkbox.focus();
 			}
 		}));
 
@@ -634,6 +670,8 @@ class ChatSetupContextKeys {
 	private chatSetupEntitled = false;
 	private chatSetupLimited = false;
 
+	private contextKeyUpdateBarrier: Barrier | undefined = undefined;
+
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -642,10 +680,10 @@ class ChatSetupContextKeys {
 		this.updateContext();
 	}
 
-	update(context: { chatInstalled: boolean }): void;
-	update(context: { triggered: boolean }): void;
-	update(context: { entitled: boolean; limited: boolean }): void;
-	update(context: { triggered?: boolean; chatInstalled?: boolean; entitled?: boolean; limited?: boolean }): void {
+	update(context: { chatInstalled: boolean }): Promise<void>;
+	update(context: { triggered: boolean }): Promise<void>;
+	update(context: { entitled: boolean; limited: boolean }): Promise<void>;
+	update(context: { triggered?: boolean; chatInstalled?: boolean; entitled?: boolean; limited?: boolean }): Promise<void> {
 		if (typeof context.chatInstalled === 'boolean') {
 			this.storageService.store(ChatSetupContextKeys.CHAT_EXTENSION_INSTALLED, context.chatInstalled, StorageScope.PROFILE, StorageTarget.MACHINE);
 			if (context.chatInstalled) {
@@ -669,10 +707,12 @@ class ChatSetupContextKeys {
 			this.chatSetupLimited = context.limited;
 		}
 
-		this.updateContext();
+		return this.updateContext();
 	}
 
-	private updateContext(): void {
+	private async updateContext(): Promise<void> {
+		await this.contextKeyUpdateBarrier?.wait();
+
 		const chatSetupTriggered = this.storageService.getBoolean(ChatSetupContextKeys.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE, false);
 		const chatInstalled = this.storageService.getBoolean(ChatSetupContextKeys.CHAT_EXTENSION_INSTALLED, StorageScope.PROFILE, false);
 
@@ -687,6 +727,15 @@ class ChatSetupContextKeys {
 		this.chatSetupInstalledContext.set(chatInstalled);
 		this.chatSetupEntitledContextKey.set(this.chatSetupEntitled);
 		this.chatSetupLimitedContextKey.set(this.chatSetupLimited);
+	}
+
+	suspend(): void {
+		this.contextKeyUpdateBarrier = new Barrier();
+	}
+
+	resume(): void {
+		this.contextKeyUpdateBarrier?.open();
+		this.contextKeyUpdateBarrier = undefined;
 	}
 }
 
@@ -704,7 +753,10 @@ class ChatSetupTriggerAction extends Action2 {
 			id: ChatSetupTriggerAction.ID,
 			title: ChatSetupTriggerAction.TITLE,
 			f1: true,
-			precondition: ChatContextKeys.Setup.installed.negate(),
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.installed.negate(),
+				ContextKeyExpr.has('config.chat.experimental.offerSetup')
+			),
 			menu: {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_first',
@@ -717,10 +769,13 @@ class ChatSetupTriggerAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const instantiationService = accessor.get(IInstantiationService);
+		const configurationService = accessor.get(IConfigurationService);
 
-		instantiationService.createInstance(ChatSetupContextKeys).update({ triggered: true });
+		await instantiationService.createInstance(ChatSetupContextKeys).update({ triggered: true });
 
 		showChatView(viewsService);
+
+		configurationService.updateValue('chat.commandCenter.enabled', true);
 	}
 }
 
@@ -734,10 +789,13 @@ class ChatSetupHideAction extends Action2 {
 			id: ChatSetupHideAction.ID,
 			title: ChatSetupHideAction.TITLE,
 			f1: true,
-			precondition: ChatContextKeys.Setup.installed.negate(),
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.installed.negate(),
+				ContextKeyExpr.has('config.chat.experimental.offerSetup')
+			),
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'a_first',
+				group: 'z_end',
 				order: 2,
 				when: ChatContextKeys.Setup.installed.negate()
 			}
@@ -753,8 +811,8 @@ class ChatSetupHideAction extends Action2 {
 
 		const { confirmed } = await dialogService.confirm({
 			message: localize('hideChatSetupConfirm', "Are you sure you want to hide {0}?", defaultChat.name),
-			detail: localize('hideChatSetupDetail', "You can restore chat controls from the 'chat.commandCenter.enabled' setting."),
-			primaryButton: localize('hideChatSetup', "Hide {0}", defaultChat.name)
+			detail: localize('hideChatSetupDetail', "You can restore it by running the '{0}' command.", ChatSetupTriggerAction.TITLE.value),
+			primaryButton: localize('hideChatSetupButton', "Hide {0}", defaultChat.name)
 		});
 
 		if (!confirmed) {
@@ -763,7 +821,7 @@ class ChatSetupHideAction extends Action2 {
 
 		const location = viewsDescriptorService.getViewLocationById(ChatViewId);
 
-		instantiationService.createInstance(ChatSetupContextKeys).update({ triggered: false });
+		await instantiationService.createInstance(ChatSetupContextKeys).update({ triggered: false });
 
 		if (location === ViewContainerLocation.AuxiliaryBar) {
 			const activeContainers = viewsDescriptorService.getViewContainersByLocation(location).filter(container => viewsDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);

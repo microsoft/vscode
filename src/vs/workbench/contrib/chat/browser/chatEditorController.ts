@@ -5,9 +5,8 @@
 
 import './media/chatEditorController.css';
 import { getTotalWidth } from '../../../../base/browser/dom.js';
-import { binarySearch, coalesceInPlace } from '../../../../base/common/arrays.js';
 import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
@@ -39,7 +38,10 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	public static readonly ID = 'editor.contrib.chatEditorController';
 
-	private readonly _decorations = this._editor.createDecorationsCollection();
+	private static _diffLineDecorationData = ModelDecorationOptions.register({ description: 'diff-line-decoration' });
+
+	private readonly _diffLineDecorations = this._editor.createDecorationsCollection(); // tracks the line range w/o visuals (used for navigate)
+	private readonly _diffVisualDecorations = this._editor.createDecorationsCollection(); // tracks the real diff with character level inserts
 	private readonly _diffHunksRenderStore = this._register(new DisposableStore());
 	private readonly _diffHunkWidgets: DiffHunkWidget[] = [];
 
@@ -50,6 +52,9 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		const controller = editor.getContribution<ChatEditorController>(ChatEditorController.ID);
 		return controller;
 	}
+
+	private readonly _currentChange = observableValue<Position | undefined>(this, undefined);
+	readonly currentChange: IObservable<Position | undefined> = this._currentChange;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -90,6 +95,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 			const diff = entry?.diffInfo.read(r);
 			this._updateWithDiff(entry, diff);
+			this.revealNext();
 		}));
 
 		const shouldBeReadOnly = derived(this, r => {
@@ -140,7 +146,8 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		});
 		this._viewZones = [];
 		this._diffHunksRenderStore.clear();
-		this._decorations.clear();
+		this._diffVisualDecorations.clear();
+		this._diffLineDecorations.clear();
 		this._ctxHasEditorModification.reset();
 	}
 
@@ -181,13 +188,15 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				viewZoneChangeAccessor.removeZone(id);
 			}
 			this._viewZones = [];
-			const modifiedDecorations: IModelDeltaDecoration[] = [];
+			const modifiedVisualDecorations: IModelDeltaDecoration[] = [];
+			const modifiedLineDecorations: IModelDeltaDecoration[] = [];
 			const mightContainNonBasicASCII = originalModel.mightContainNonBasicASCII();
 			const mightContainRTL = originalModel.mightContainRTL();
 			const renderOptions = RenderOptions.fromEditor(this._editor);
 			const editorLineCount = this._editor.getModel()?.getLineCount();
 
 			for (const diffEntry of diff.changes) {
+
 				const originalRange = diffEntry.original;
 				originalModel.tokenization.forceTokenization(Math.max(1, originalRange.endLineNumberExclusive - 1));
 				const source = new LineSource(
@@ -206,7 +215,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 					// If the original range is empty, the start line number is 1 and the new range spans the entire file, don't draw an Added decoration
 					if (!(i.originalRange.isEmpty() && i.originalRange.startLineNumber === 1 && i.modifiedRange.endLineNumber === editorLineCount) && !i.modifiedRange.isEmpty()) {
-						modifiedDecorations.push({
+						modifiedVisualDecorations.push({
 							range: i.modifiedRange, options: chatDiffAddDecoration
 						});
 					}
@@ -217,7 +226,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				const isCreatedContent = decorations.length === 1 && decorations[0].range.isEmpty() && diffEntry.original.startLineNumber === 1;
 
 				if (!diffEntry.modified.isEmpty && !(isCreatedContent && (diffEntry.modified.endLineNumberExclusive - 1) === editorLineCount)) {
-					modifiedDecorations.push({
+					modifiedVisualDecorations.push({
 						range: diffEntry.modified.toInclusiveRange()!,
 						options: chatDiffWholeLineAddDecoration
 					});
@@ -225,19 +234,19 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 				if (diffEntry.original.isEmpty) {
 					// insertion
-					modifiedDecorations.push({
+					modifiedVisualDecorations.push({
 						range: diffEntry.modified.toInclusiveRange()!,
 						options: addedDecoration
 					});
 				} else if (diffEntry.modified.isEmpty) {
 					// deletion
-					modifiedDecorations.push({
+					modifiedVisualDecorations.push({
 						range: new Range(diffEntry.modified.startLineNumber - 1, 1, diffEntry.modified.startLineNumber, 1),
 						options: deletedDecoration
 					});
 				} else {
 					// modification
-					modifiedDecorations.push({
+					modifiedVisualDecorations.push({
 						range: diffEntry.modified.toInclusiveRange()!,
 						options: modifiedDecoration
 					});
@@ -275,9 +284,16 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 						stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 					}
 				});
+
+				// Add line decorations for diff navigation
+				modifiedLineDecorations.push({
+					range: diffEntry.modified.toInclusiveRange() ?? new Range(diffEntry.modified.startLineNumber, 1, diffEntry.modified.startLineNumber, Number.MAX_SAFE_INTEGER),
+					options: ChatEditorController._diffLineDecorationData
+				});
 			}
 
-			this._decorations.set(modifiedDecorations);
+			this._diffVisualDecorations.set(modifiedVisualDecorations);
+			this._diffLineDecorations.set(modifiedLineDecorations);
 		});
 
 		const diffHunkDecoCollection = this._editor.createDecorationsCollection(diffHunkDecorations);
@@ -352,6 +368,17 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		}));
 	}
 
+	initNavigation(): void {
+		const position = this._editor.getPosition();
+		if (!position) {
+			return;
+		}
+		const range = this._diffLineDecorations.getRanges().find(r => r.containsPosition(position));
+		if (range) {
+			this._currentChange.set(position, undefined);
+		}
+	}
+
 	revealNext(strict = false): boolean {
 		return this._reveal(true, strict);
 	}
@@ -366,39 +393,24 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			return false;
 		}
 
-		const decorations: (Range | undefined)[] = this._decorations
+		const decorations = this._diffLineDecorations
 			.getRanges()
 			.sort((a, b) => Range.compareRangesUsingStarts(a, b));
-
-		// TODO@jrieken this is slow and should be done smarter, e.g being able to read
-		// only whole range decorations because the goal is to go from change to change, skipping
-		// over word level changes
-		for (let i = 0; i < decorations.length; i++) {
-			const decoration = decorations[i];
-			for (let j = 0; j < decorations.length; j++) {
-				if (i !== j && decoration && decorations[j]?.containsRange(decoration)) {
-					decorations[i] = undefined;
-					break;
-				}
-			}
-		}
-
-		coalesceInPlace(decorations);
 
 		if (decorations.length === 0) {
 			return false;
 		}
 
-		let idx = binarySearch(decorations, Range.fromPositions(position), Range.compareRangesUsingStarts);
-		if (idx < 0) {
-			idx = ~idx;
-		}
-
-		let target: number;
-		if (decorations[idx]?.containsPosition(position)) {
-			target = idx + (next ? 1 : -1);
-		} else {
-			target = next ? idx : idx - 1;
+		let target: number = -1;
+		for (let i = 0; i < decorations.length; i++) {
+			const range = decorations[i];
+			if (range.containsPosition(position)) {
+				target = i + (next ? 1 : -1);
+				break;
+			} else if (Position.isBefore(position, range.getStartPosition())) {
+				target = next ? i : i - 1;
+				break;
+			}
 		}
 
 		if (strict && (target < 0 || target >= decorations.length)) {
@@ -407,7 +419,10 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 		target = (target + decorations.length) % decorations.length;
 
-		const targetPosition = decorations[target].getStartPosition();
+		const targetPosition = next ? decorations[target].getStartPosition() : decorations[target].getEndPosition();
+
+		this._currentChange.set(targetPosition, undefined);
+
 		this._editor.setPosition(targetPosition);
 		this._editor.revealPositionInCenter(targetPosition, ScrollType.Smooth);
 		this._editor.focus();

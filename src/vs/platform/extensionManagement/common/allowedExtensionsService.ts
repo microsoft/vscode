@@ -118,7 +118,7 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 				}
 				return false;
 			})) {
-				return extensionReason;
+				return new MarkdownString(nls.localize('specific version of extension not allowed', "the version {0} of this extension is not in the [allowed list]({1})", version, settingsCommandLink));
 			}
 			return true;
 		}

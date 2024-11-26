@@ -22,4 +22,13 @@
 		width: 100%;
 		padding: 4px 7px;
 	}
+
+	p.checkbox-container {
+		display: flex;
+	}
+
+	div.checkbox-label {
+		flex-basis: fit-content;
+		cursor: pointer;
+	}
 }

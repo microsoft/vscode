@@ -152,6 +152,11 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 				throw new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", extensionId, this.productService.version));
 			}
 
+			const allowedToInstall = this.allowedExtensionsService.isAllowed({ id: extensionId, version: manifest.version });
+			if (allowedToInstall !== true) {
+				throw new Error(nls.localize('notAllowed', "This extension cannot be installed because {0}", allowedToInstall.value));
+			}
+
 			const results = await this.installExtensions([{ manifest, extension: location, options }]);
 			const result = results.find(({ identifier }) => areSameExtensions(identifier, { id: extensionId }));
 			if (result?.local) {
@@ -363,16 +368,12 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		}
 		const { location, verificationStatus } = await this.extensionsDownloader.download(extension, operation, verifySignature, clientTargetPlatform);
 
-		if (verificationStatus !== ExtensionSignatureVerificationCode.Success && verifySignature && this.environmentService.isBuilt && !isLinux) {
+		if (verificationStatus !== ExtensionSignatureVerificationCode.Success && verificationStatus !== ExtensionSignatureVerificationCode.NotSigned && verifySignature && this.environmentService.isBuilt && !isLinux) {
 			try {
 				await this.extensionsDownloader.delete(location);
 			} catch (e) {
 				/* Ignore */
 				this.logService.warn(`Error while deleting the downloaded file`, location.toString(), getErrorMessage(e));
-			}
-
-			if (!extension.isSigned) {
-				throw new ExtensionManagementError(nls.localize('not signed', "Extension is not signed."), ExtensionManagementErrorCode.PackageNotSigned);
 			}
 
 			if (!verificationStatus) {

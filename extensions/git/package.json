@@ -3198,10 +3198,28 @@
             "experimental"
           ]
         },
+        "git.blame.editorDecoration.template": {
+          "type": "string",
+          "default": "${subject}, ${authorName} (${authorDateAgo})",
+          "markdownDescription": "%config.blameEditorDecoration.template%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
         "git.blame.statusBarItem.enabled": {
           "type": "boolean",
           "default": false,
           "markdownDescription": "%config.blameStatusBarItem.enabled%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "git.blame.statusBarItem.template": {
+          "type": "string",
+          "default": "$(git-commit) ${authorName} (${authorDateAgo})",
+          "markdownDescription": "%config.blameStatusBarItem.template%",
           "scope": "resource",
           "tags": [
             "experimental"

@@ -24,6 +24,8 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	private _canvas: OffscreenCanvas;
 	private _ctx: OffscreenCanvasRenderingContext2D;
 
+	private readonly _textMetrics: TextMetrics;
+
 	private _workGlyph: IRasterizedGlyph = {
 		source: null!,
 		boundingBox: {
@@ -35,7 +37,9 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		originOffset: {
 			x: 0,
 			y: 0,
-		}
+		},
+		fontBoundingBoxAscent: 0,
+		fontBoundingBoxDescent: 0,
 	};
 	private _workGlyphConfig: { chars: string | undefined; tokenMetadata: number; charMetadata: number } = { chars: undefined, tokenMetadata: 0, charMetadata: 0 };
 
@@ -52,6 +56,8 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		}));
 		this._ctx.textBaseline = 'top';
 		this._ctx.fillStyle = '#FFFFFF';
+		this._ctx.font = `${devicePixelFontSize}px ${this.fontFamily}`;
+		this._textMetrics = this._ctx.measureText('A');
 	}
 
 	// TODO: Support drawing multiple fonts and sizes
@@ -69,7 +75,9 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 			return {
 				source: this._canvas,
 				boundingBox: { top: 0, left: 0, bottom: -1, right: -1 },
-				originOffset: { x: 0, y: 0 }
+				originOffset: { x: 0, y: 0 },
+				fontBoundingBoxAscent: 0,
+				fontBoundingBoxDescent: 0,
 			};
 		}
 		// Check if the last glyph matches the config, reuse if so. This helps avoid unnecessary
@@ -122,9 +130,8 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		} else {
 			this._ctx.fillStyle = colorMap[TokenMetadata.getForeground(metadata)];
 		}
-		// TODO: This might actually be slower
-		// const textMetrics = this._ctx.measureText(chars);
 		this._ctx.textBaseline = 'top';
+
 		this._ctx.fillText(chars, originX, originY);
 
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);
@@ -143,6 +150,9 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		this._workGlyph.source = this._canvas;
 		this._workGlyph.originOffset.x = this._workGlyph.boundingBox.left - originX;
 		this._workGlyph.originOffset.y = this._workGlyph.boundingBox.top - originY;
+		this._workGlyph.fontBoundingBoxAscent = this._textMetrics.fontBoundingBoxAscent;
+		this._workGlyph.fontBoundingBoxDescent = this._textMetrics.fontBoundingBoxDescent;
+
 		// const result2: IRasterizedGlyph = {
 		// 	source: this._canvas,
 		// 	boundingBox: {
