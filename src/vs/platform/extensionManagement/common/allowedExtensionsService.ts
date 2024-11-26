@@ -33,7 +33,7 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 	_serviceBrand: undefined;
 
 	private allowedExtensions: AllowedExtensionsConfigValueType | undefined;
-	private readonly publisherMappings: IStringDictionary<string> = {};
+	private readonly publisherOrgs: string[];
 
 	private _onDidChangeAllowedExtensions = this._register(new Emitter<void>());
 	readonly onDidChangeAllowedExtensions = this._onDidChangeAllowedExtensions.event;
@@ -43,9 +43,7 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 		@IConfigurationService protected readonly configurationService: IConfigurationService
 	) {
 		super();
-		for (const key in productService.extensionPublisherMappings) {
-			this.publisherMappings[key.toLowerCase()] = productService.extensionPublisherMappings[key].toLowerCase();
-		}
+		this.publisherOrgs = productService.extensionPublisherOrgs?.map(p => p.toLowerCase()) ?? [];
 		this.allowedExtensions = this.getAllowedExtensionsValue();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AllowedExtensionsConfigKey)) {
@@ -67,24 +65,26 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 		return Object.fromEntries(entries);
 	}
 
-	isAllowed(extension: IGalleryExtension | IExtension | { id: string; version?: string; prerelease?: boolean; targetPlatform?: TargetPlatform }): true | IMarkdownString {
+	isAllowed(extension: IGalleryExtension | IExtension | { id: string; publisherDisplayName: string | undefined; version?: string; prerelease?: boolean; targetPlatform?: TargetPlatform }): true | IMarkdownString {
 		if (!this.allowedExtensions) {
 			return true;
 		}
 
-		let id: string, version: string, targetPlatform: TargetPlatform, prerelease: boolean, publisher: string;
+		let id: string, version: string, targetPlatform: TargetPlatform, prerelease: boolean, publisher: string, publisherDisplayName: string | undefined;
 
 		if (isGalleryExtension(extension)) {
 			id = extension.identifier.id.toLowerCase();
 			version = extension.version;
 			prerelease = extension.properties.isPreReleaseVersion;
 			publisher = extension.publisher.toLowerCase();
+			publisherDisplayName = extension.publisherDisplayName.toLowerCase();
 			targetPlatform = extension.properties.targetPlatform;
 		} else if (isIExtension(extension)) {
 			id = extension.identifier.id.toLowerCase();
 			version = extension.manifest.version;
 			prerelease = extension.preRelease;
 			publisher = extension.manifest.publisher.toLowerCase();
+			publisherDisplayName = extension.publisherDisplayName?.toLowerCase();
 			targetPlatform = extension.targetPlatform;
 		} else {
 			id = extension.id.toLowerCase();
@@ -92,6 +92,7 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 			targetPlatform = extension.targetPlatform ?? TargetPlatform.UNIVERSAL;
 			prerelease = extension.prerelease ?? false;
 			publisher = extension.id.substring(0, extension.id.indexOf('.')).toLowerCase();
+			publisherDisplayName = extension.publisherDisplayName?.toLowerCase();
 		}
 
 		const settingsCommandLink = URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify({ query: `@id:${AllowedExtensionsConfigKey}` }))}`).toString();
@@ -123,14 +124,14 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 			return true;
 		}
 
-		publisher = (this.publisherMappings[publisher])?.toLowerCase() ?? publisher;
-		const publisherValue = this.allowedExtensions[publisher];
+		const publisherKey = publisherDisplayName && this.publisherOrgs.includes(publisherDisplayName) ? publisherDisplayName : publisher;
+		const publisherValue = this.allowedExtensions[publisherKey];
 		if (!isUndefined(publisherValue)) {
 			if (isBoolean(publisherValue)) {
-				return publisherValue ? true : new MarkdownString(nls.localize('publisher not allowed', "the extensions from this publisher are not in the [allowed list]({1})", publisher, settingsCommandLink));
+				return publisherValue ? true : new MarkdownString(nls.localize('publisher not allowed', "the extensions from this publisher are not in the [allowed list]({1})", publisherKey, settingsCommandLink));
 			}
 			if (publisherValue === 'release' && prerelease) {
-				return new MarkdownString(nls.localize('prerelease versions from this publisher not allowed', "the pre-release versions from this publisher are not in the [allowed list]({1})", publisher, settingsCommandLink));
+				return new MarkdownString(nls.localize('prerelease versions from this publisher not allowed', "the pre-release versions from this publisher are not in the [allowed list]({1})", publisherKey, settingsCommandLink));
 			}
 			return true;
 		}
