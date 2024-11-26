@@ -730,22 +730,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		let inputModel = this.modelService.getModel(this.inputUri);
 		if (!inputModel) {
 			inputModel = this.modelService.createModel('', null, this.inputUri, true);
-			const ref = await this.textModelResolverService.createModelReference(this.inputUri);
+		}
+
+		this.textModelResolverService.createModelReference(this.inputUri).then(ref => {
+			// make sure to hold a reference so that the model doesn't get disposed by the text model service
 			if (this._store.isDisposed) {
 				ref.dispose();
 				return;
 			}
-			inputModel = ref.object.textEditorModel;
-			this._register(inputModel);
-
-			// this.textModelResolverService.createModelReference(this.inputUri).then(ref => {
-			// 	if (this._store.isDisposed) {
-			// 		ref.dispose();
-			// 		return;
-			// 	}
-			// 	this._register(ref);
-			// });
-		}
+			this._register(ref);
+		});
 
 		this.inputModel = inputModel;
 		this.inputModel.updateOptions({ bracketColorizationOptions: { enabled: false, independentColorPoolPerBracketType: false } });

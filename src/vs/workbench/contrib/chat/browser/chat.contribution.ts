@@ -190,9 +190,6 @@ class ChatResolverContribution extends Disposable {
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ITextModelService private readonly textModelService: ITextModelService,
-		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		super();
 
@@ -213,19 +210,18 @@ class ChatResolverContribution extends Disposable {
 				}
 			}
 		));
-
-		this._register(new ChatInputBoxContentProvider(this.textModelService, this.modelService, this.languageService));
 	}
 }
 
 AccessibleViewRegistry.register(new ChatResponseAccessibleView());
 AccessibleViewRegistry.register(new PanelChatAccessibilityHelp());
 AccessibleViewRegistry.register(new QuickChatAccessibilityHelp());
-class ChatInputBoxContentProvider extends Disposable implements ITextModelContentProvider {
+
+export class ChatInputBoxContentProvider extends Disposable implements ITextModelContentProvider {
 	constructor(
-		textModelService: ITextModelService,
-		private readonly modelService: IModelService,
-		private readonly languageService: ILanguageService,
+		@ITextModelService textModelService: ITextModelService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 		this._register(textModelService.registerTextModelContentProvider(ChatInputPart.INPUT_SCHEME, this));
@@ -239,6 +235,8 @@ class ChatInputBoxContentProvider extends Disposable implements ITextModelConten
 		return this.modelService.createModel('', this.languageService.createById('chatinput'), resource);
 	}
 }
+
+registerEditorFeature(ChatInputBoxContentProvider);
 
 class ChatSlashStaticSlashCommandsContribution extends Disposable {
 
