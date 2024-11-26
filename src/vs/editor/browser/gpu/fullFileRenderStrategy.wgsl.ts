@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TextureAtlas } from './atlas/textureAtlas.js';
 import { TextureAtlasPage } from './atlas/textureAtlasPage.js';
 import { BindingId } from './gpu.js';
 
@@ -46,7 +47,7 @@ struct VSOutput {
 @group(0) @binding(${BindingId.ScrollOffset})            var<uniform>       scrollOffset:    ScrollOffset;
 
 // Storage buffers
-@group(0) @binding(${BindingId.GlyphInfo})               var<storage, read> glyphInfo:       array<array<GlyphInfo, ${TextureAtlasPage.maximumGlyphCount}>, 2>;
+@group(0) @binding(${BindingId.GlyphInfo})               var<storage, read> glyphInfo:       array<array<GlyphInfo, ${TextureAtlasPage.maximumGlyphCount}>, ${TextureAtlas.maximumPageCount}>;
 @group(0) @binding(${BindingId.Cells})                   var<storage, read> cells:           array<Cell>;
 
 @vertex fn vs(

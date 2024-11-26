@@ -24,6 +24,7 @@ import { ViewPart } from '../../view/viewPart.js';
 import { ViewLineOptions } from '../viewLines/viewLineOptions.js';
 import type * as viewEvents from '../../../common/viewEvents.js';
 import { CursorColumns } from '../../../common/core/cursorColumns.js';
+import { TextureAtlas } from '../../gpu/atlas/textureAtlas.js';
 
 const enum GlyphStorageBufferInfo {
 	FloatsPerEntry = 2 + 2 + 2,
@@ -191,8 +192,8 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._viewGpuContext, this._device));
 
 		this._glyphStorageBuffer = this._register(GPULifecycle.createBuffer(this._device, {
-			label: 'Monaco glyph storage buffer [0]',
-			size: GlyphStorageBufferInfo.BytesPerEntry * TextureAtlasPage.maximumGlyphCount * 2,
+			label: 'Monaco glyph storage buffer',
+			size: TextureAtlas.maximumPageCount * (TextureAtlasPage.maximumGlyphCount * GlyphStorageBufferInfo.BytesPerEntry),
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		})).object;
 		this._atlasGpuTextureVersions[0] = 0;
@@ -200,8 +201,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		this._atlasGpuTexture = this._register(GPULifecycle.createTexture(this._device, {
 			label: 'Monaco atlas texture',
 			format: 'rgba8unorm',
-			// TODO: Dynamically grow/shrink layer count
-			size: { width: atlas.pageSize, height: atlas.pageSize, depthOrArrayLayers: 2 },
+			size: { width: atlas.pageSize, height: atlas.pageSize, depthOrArrayLayers: TextureAtlas.maximumPageCount },
 			dimension: '2d',
 			usage: GPUTextureUsage.TEXTURE_BINDING |
 				GPUTextureUsage.COPY_DST |
@@ -308,9 +308,8 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 	private _updateAtlasStorageBufferAndTexture() {
 		for (const [layerIndex, page] of ViewGpuContext.atlas.pages.entries()) {
-			if (layerIndex >= 2) {
-				// TODO: Support arbitrary number of layers
-				console.log(`Attempt to upload atlas page [${layerIndex}], only 2 are supported currently`);
+			if (layerIndex >= TextureAtlas.maximumPageCount) {
+				console.log(`Attempt to upload atlas page [${layerIndex}], only ${TextureAtlas.maximumPageCount} are supported currently`);
 				continue;
 			}
 
