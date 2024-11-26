@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalExtension, IGalleryExtension, InstallOptions, UninstallOptions, Metadata, InstallExtensionResult, InstallExtensionInfo, IProductVersion, UninstallExtensionInfo, DidUninstallExtensionEvent, DidUpdateExtensionMetadata, InstallExtensionEvent, UninstallExtensionEvent } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ILocalExtension, IGalleryExtension, InstallOptions, UninstallOptions, Metadata, InstallExtensionResult, InstallExtensionInfo, IProductVersion, UninstallExtensionInfo, DidUninstallExtensionEvent, DidUpdateExtensionMetadata, InstallExtensionEvent, UninstallExtensionEvent, IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ExtensionIdentifier, ExtensionType, IExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { ExtensionManagementChannelClient as BaseExtensionManagementChannelClient } from '../../../../platform/extensionManagement/common/extensionManagementIpc.js';
@@ -14,6 +14,7 @@ import { delta } from '../../../../base/common/arrays.js';
 import { compare } from '../../../../base/common/strings.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { DidChangeProfileEvent, IProfileAwareExtensionManagementService } from './extensionManagement.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 export abstract class ProfileAwareExtensionManagementChannelClient extends BaseExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
 
@@ -30,10 +31,12 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 	get onProfileAwareDidUpdateExtensionMetadata() { return this._onDidProfileAwareUpdateExtensionMetadata.event; }
 
 	constructor(channel: IChannel,
+		productService: IProductService,
+		allowedExtensionsService: IAllowedExtensionsService,
 		protected readonly userDataProfileService: IUserDataProfileService,
 		protected readonly uriIdentityService: IUriIdentityService,
 	) {
-		super(channel);
+		super(channel, productService, allowedExtensionsService);
 		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
 			if (!this.uriIdentityService.extUri.isEqual(e.previous.extensionsResource, e.profile.extensionsResource)) {
 				e.join(this.whenProfileChanged(e));

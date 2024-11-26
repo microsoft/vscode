@@ -119,10 +119,15 @@ export const testingCoverCountBadgeBackground = registerColor('testing.coverCoun
 export const testingCoverCountBadgeForeground = registerColor('testing.coverCountBadgeForeground', badgeForeground, localize('testing.coverCountBadgeForeground', 'Foreground for the badge indicating execution count'));
 
 
-registerColor(
+const messageBadgeBackground = registerColor(
 	'testing.message.error.badgeBackground',
 	activityErrorBadgeBackground,
-	localize('testing.message.error.badgeBackground', 'Text color of test error messages shown inline in the editor.')
+	localize('testing.message.error.badgeBackground', 'Background color of test error messages shown inline in the editor.')
+);
+registerColor(
+	'testing.message.error.badgeBorder',
+	messageBadgeBackground,
+	localize('testing.message.error.badgeBorder', 'Border color of test error messages shown inline in the editor.')
 );
 registerColor(
 	'testing.message.error.badgeForeground',

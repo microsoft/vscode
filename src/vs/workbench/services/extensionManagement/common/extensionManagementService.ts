@@ -42,6 +42,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 
 function isGalleryExtension(extension: IResourceExtension | IGalleryExtension): extension is IGalleryExtension {
 	return extension.type === 'gallery';
@@ -365,36 +366,36 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return Promise.reject('No Servers');
 	}
 
-	async canInstall(extension: IGalleryExtension | IResourceExtension): Promise<boolean> {
+	async canInstall(extension: IGalleryExtension | IResourceExtension): Promise<true | IMarkdownString> {
 		if (isGalleryExtension(extension)) {
 			return this.canInstallGalleryExtension(extension);
 		}
 		return this.canInstallResourceExtension(extension);
 	}
 
-	private async canInstallGalleryExtension(gallery: IGalleryExtension): Promise<boolean> {
+	private async canInstallGalleryExtension(gallery: IGalleryExtension): Promise<true | IMarkdownString> {
 		if (this.extensionManagementServerService.localExtensionManagementServer
-			&& await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.canInstall(gallery)) {
+			&& await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.canInstall(gallery) === true) {
 			return true;
 		}
 		const manifest = await this.extensionGalleryService.getManifest(gallery, CancellationToken.None);
 		if (!manifest) {
-			return false;
+			return new MarkdownString().appendText(localize('manifest is not found', "Manifest is not found"));
 		}
 		if (this.extensionManagementServerService.remoteExtensionManagementServer
-			&& await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.canInstall(gallery)
+			&& await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.canInstall(gallery) === true
 			&& this.extensionManifestPropertiesService.canExecuteOnWorkspace(manifest)) {
 			return true;
 		}
 		if (this.extensionManagementServerService.webExtensionManagementServer
-			&& await this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.canInstall(gallery)
+			&& await this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.canInstall(gallery) === true
 			&& this.extensionManifestPropertiesService.canExecuteOnWeb(manifest)) {
 			return true;
 		}
-		return false;
+		return new MarkdownString().appendText(localize('cannot be installed', "Cannot install the '{0}' extension because it is not available in this setup.", gallery.displayName || gallery.name));
 	}
 
-	private canInstallResourceExtension(extension: IResourceExtension): boolean {
+	private async canInstallResourceExtension(extension: IResourceExtension): Promise<true | IMarkdownString> {
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
 			return true;
 		}
@@ -404,7 +405,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		if (this.extensionManagementServerService.webExtensionManagementServer && this.extensionManifestPropertiesService.canExecuteOnWeb(extension.manifest)) {
 			return true;
 		}
-		return false;
+		return new MarkdownString().appendText(localize('cannot be installed', "Cannot install the '{0}' extension because it is not available in this setup.", extension.manifest.displayName ?? extension.identifier.id));
 	}
 
 	async updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
@@ -434,7 +435,9 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			try {
 				const servers = await this.validateAndGetExtensionManagementServersToInstall(extension, options);
 				if (!options.isMachineScoped && this.isExtensionsSyncEnabled()) {
-					if (this.extensionManagementServerService.localExtensionManagementServer && !servers.includes(this.extensionManagementServerService.localExtensionManagementServer) && (await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.canInstall(extension))) {
+					if (this.extensionManagementServerService.localExtensionManagementServer
+						&& !servers.includes(this.extensionManagementServerService.localExtensionManagementServer)
+						&& await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.canInstall(extension) === true) {
 						servers.push(this.extensionManagementServerService.localExtensionManagementServer);
 					}
 				}
@@ -473,7 +476,9 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 
 		if (!installOptions.isMachineScoped && this.isExtensionsSyncEnabled()) {
-			if (this.extensionManagementServerService.localExtensionManagementServer && !servers.includes(this.extensionManagementServerService.localExtensionManagementServer) && (await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.canInstall(gallery))) {
+			if (this.extensionManagementServerService.localExtensionManagementServer
+				&& !servers.includes(this.extensionManagementServerService.localExtensionManagementServer)
+				&& await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.canInstall(gallery) === true) {
 				servers.push(this.extensionManagementServerService.localExtensionManagementServer);
 			}
 		}
@@ -754,7 +759,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		if (manifest.extensionPack?.length) {
 			const extensions = await this.extensionGalleryService.getExtensions(manifest.extensionPack.map(id => ({ id })), CancellationToken.None);
 			for (const extension of extensions) {
-				if (!(await this.servers[0].extensionManagementService.canInstall(extension))) {
+				if (await this.servers[0].extensionManagementService.canInstall(extension) !== true) {
 					nonWebExtensions.push(extension);
 				}
 			}

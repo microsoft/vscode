@@ -436,7 +436,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get appCommit(): string | undefined {
 				checkProposedApiEnabled(extension, 'resolvers');
 				return initData.commit;
-			},
+			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
 			// allow to patch env-function when running tests
@@ -719,6 +719,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeTextEditorViewColumn(listener, thisArg?, disposables?) {
 				return _asExtensionEvent(extHostEditors.onDidChangeTextEditorViewColumn)(listener, thisArg, disposables);
 			},
+			onDidChangeTextEditorDiffInformation(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'textEditorDiffInformation');
+				return _asExtensionEvent(extHostEditors.onDidChangeTextEditorDiffInformation)(listener, thisArg, disposables);
+			},
 			onDidCloseTerminal(listener, thisArg?, disposables?) {
 				return _asExtensionEvent(extHostTerminalService.onDidCloseTerminal)(listener, thisArg, disposables);
 			},
@@ -835,6 +839,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerTerminalProfileProvider(id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable {
 				return extHostTerminalService.registerProfileProvider(extension, id, provider);
 			},
+			registerTerminalCompletionProvider(provider: vscode.TerminalCompletionProvider<vscode.TerminalCompletionItem>, ...triggerCharacters: string[]): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'terminalCompletionProvider');
+				return extHostTerminalService.registerTerminalCompletionProvider(extension, provider, ...triggerCharacters);
+			},
 			registerTerminalQuickFixProvider(id: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'terminalQuickFixProvider');
 				return extHostTerminalService.registerTerminalQuickFixProvider(id, extension.identifier.value, provider);
@@ -915,6 +923,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerShareProvider(selector: vscode.DocumentSelector, provider: vscode.ShareProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'shareProvider');
 				return extHostShare.registerShareProvider(checkSelector(selector), provider);
+			},
+			get nativeHandle(): Uint8Array | undefined {
+				checkProposedApiEnabled(extension, 'nativeWindowHandle');
+				return extHostWindow.nativeHandle;
 			}
 		};
 
@@ -1446,6 +1458,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
 				return extHostChatAgents2.registerChatParticipantDetectionProvider(extension, provider);
 			},
+			registerRelatedFilesProvider(provider: vscode.ChatRelatedFilesProvider, metadata: vscode.ChatRelatedFilesProviderMetadata) {
+				checkProposedApiEnabled(extension, 'chatEditing');
+				return extHostChatAgents2.registerRelatedFilesProvider(extension, provider, metadata);
+			}
 		};
 
 		// namespace: lm
@@ -1649,10 +1665,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TerminalProfile: extHostTypes.TerminalProfile,
 			TerminalExitReason: extHostTypes.TerminalExitReason,
 			TerminalShellExecutionCommandLineConfidence: extHostTypes.TerminalShellExecutionCommandLineConfidence,
+			TerminalCompletionItem: extHostTypes.TerminalCompletionItem,
+			TerminalCompletionItemKind: extHostTypes.TerminalCompletionItemKind,
+			TerminalCompletionList: extHostTypes.TerminalCompletionList,
 			TextDocumentSaveReason: extHostTypes.TextDocumentSaveReason,
 			TextEdit: extHostTypes.TextEdit,
 			SnippetTextEdit: extHostTypes.SnippetTextEdit,
 			TextEditorCursorStyle: TextEditorCursorStyle,
+			TextEditorChangeKind: extHostTypes.TextEditorChangeKind,
 			TextEditorLineNumbersStyle: extHostTypes.TextEditorLineNumbersStyle,
 			TextEditorRevealType: extHostTypes.TextEditorRevealType,
 			TextEditorSelectionChangeKind: extHostTypes.TextEditorSelectionChangeKind,
@@ -1692,6 +1712,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookEditorRevealType: extHostTypes.NotebookEditorRevealType,
 			NotebookCellOutput: extHostTypes.NotebookCellOutput,
 			NotebookCellOutputItem: extHostTypes.NotebookCellOutputItem,
+			CellErrorStackFrame: extHostTypes.CellErrorStackFrame,
 			NotebookCellStatusBarItem: extHostTypes.NotebookCellStatusBarItem,
 			NotebookControllerAffinity: extHostTypes.NotebookControllerAffinity,
 			NotebookControllerAffinity2: extHostTypes.NotebookControllerAffinity2,

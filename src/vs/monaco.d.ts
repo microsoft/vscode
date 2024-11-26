@@ -4070,6 +4070,10 @@ declare namespace monaco.editor {
 		 * Controls whether the search result and diff result automatically restarts from the beginning (or the end) when no further matches can be found
 		 */
 		loop?: boolean;
+		/**
+		 * Controls how the find widget search history should be stored
+		 */
+		findSearchHistory?: 'never' | 'workspace';
 	}
 
 	export type GoToLocationValues = 'peek' | 'gotoAndPeek' | 'goto';
@@ -5403,7 +5407,21 @@ declare namespace monaco.editor {
 		 * widget. Is being invoked with the selected position preference
 		 * or `null` if not rendered.
 		 */
-		afterRender?(position: ContentWidgetPositionPreference | null): void;
+		afterRender?(position: ContentWidgetPositionPreference | null, coordinate: IContentWidgetRenderedCoordinate | null): void;
+	}
+
+	/**
+	 * Coordinatees passed in {@link IContentWidget.afterRender}
+	 */
+	export interface IContentWidgetRenderedCoordinate {
+		/**
+		 * Top position relative to the editor content.
+		 */
+		readonly top: number;
+		/**
+		 * Left position relative to the editor content.
+		 */
+		readonly left: number;
 	}
 
 	/**
@@ -6078,10 +6096,6 @@ declare namespace monaco.editor {
 		 * Returns the editor's container dom node
 		 */
 		getContainerDomNode(): HTMLElement;
-		/**
-		 * Return this editor's text area dom node
-		 */
-		getTextAreaDomNode(): HTMLTextAreaElement | undefined;
 		/**
 		 * Returns the editor's dom node
 		 */
@@ -7252,6 +7266,10 @@ declare namespace monaco.languages {
 		readonly range?: IRange;
 		readonly command?: Command;
 		/**
+		 * Is called the first time an inline completion is shown.
+		*/
+		readonly shownCommand?: Command;
+		/**
 		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
 		 * Defaults to `false`.
 		*/
@@ -8139,6 +8157,7 @@ declare namespace monaco.languages {
 		range: IRange;
 		accepted?: Command;
 		rejected?: Command;
+		shown?: Command;
 		commands?: Command[];
 	}
 

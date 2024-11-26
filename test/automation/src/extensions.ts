@@ -5,11 +5,11 @@
 
 import { Viewlet } from './viewlet';
 import { Code } from './code';
-import path = require('path');
-import fs = require('fs');
 import { ncp } from 'ncp';
 import { promisify } from 'util';
 import { Commands } from './workbench';
+import path = require('path');
+import fs = require('fs');
 
 
 export class Extensions extends Viewlet {

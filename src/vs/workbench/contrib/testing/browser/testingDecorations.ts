@@ -15,17 +15,17 @@ import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlCon
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableMap, DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
-import { truncate, truncateMiddle } from '../../../../base/common/strings.js';
+import { count, truncateMiddle } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Constants } from '../../../../base/common/uint.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IContentWidgetRenderedCoordinate, IEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { overviewRulerError, overviewRulerInfo } from '../../../../editor/common/core/editorColorRegistry.js';
@@ -88,11 +88,9 @@ interface ITestDecoration extends IPublicTestDecoration {
 /** Value for saved decorations, providing fast accessors for the hot 'syncDecorations' path */
 class CachedDecorations {
 	private readonly runByIdKey = new Map<string, RunTestDecoration>();
-	private readonly messages = new Map<ITestMessage, TestMessageDecoration>();
-	private readonly errors = new Map<ITestMessage, TestErrorContentWidget>();
 
 	public get size() {
-		return this.runByIdKey.size + this.messages.size + this.errors.size;
+		return this.runByIdKey.size;
 	}
 
 	/** Gets a test run decoration that contains exactly the given test IDs */
@@ -100,42 +98,6 @@ class CachedDecorations {
 		const key = testIds.sort().join('\0\0');
 		return this.runByIdKey.get(key);
 	}
-
-	/** Gets the decoration that corresponds to the given test message */
-	public getMessage(message: ITestMessage) {
-		return this.messages.get(message);
-	}
-
-	/** Removes the decoration for the given test messsage */
-	public removeMessage(message: ITestMessage) {
-		this.messages.delete(message);
-	}
-
-	/** Adds a new test message decoration */
-	public addMessage(d: TestMessageDecoration) {
-		this.messages.set(d.testMessage, d);
-	}
-
-	/** Gets the decoration that corresponds to the given test message */
-	public getError(message: ITestMessage) {
-		return this.errors.get(message);
-	}
-
-	/** Removes the decoration for the given test messsage */
-	public removeError(message: ITestMessage) {
-		this.errors.delete(message);
-	}
-
-	/** Adds a new test error decoration */
-	public addError(d: TestErrorContentWidget) {
-		this.errors.set(d.message, d);
-	}
-
-	/** Gets error decorations */
-	public getErrors() {
-		return this.errors.values();
-	}
-
 	/** Adds a new test run decroation */
 	public addTest(d: RunTestDecoration) {
 		const key = d.testIds.sort().join('\0\0');
@@ -149,20 +111,12 @@ class CachedDecorations {
 				return d;
 			}
 		}
-		for (const d of this.messages.values()) {
-			if (d.id === decorationId) {
-				return d;
-			}
-		}
 		return undefined;
 	}
 
 	/** Iterate over all decorations */
 	*[Symbol.iterator](): IterableIterator<ITestDecoration> {
 		for (const d of this.runByIdKey.values()) {
-			yield d;
-		}
-		for (const d of this.messages.values()) {
 			yield d;
 		}
 	}
@@ -406,7 +360,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	/**
 	 * Results invalidated by editor changes.
 	 */
-	private static invalidatedTests = new WeakSet<TestResultItem | ITestMessage>();
+	public static invalidatedTests = new WeakSet<TestResultItem | ITestMessage>();
 
 	/**
 	 * Gets the decorations associated with the given code editor.
@@ -501,20 +455,18 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			}
 
 			let changed = false;
-			for (const decos of [this.errorContentWidgets, this.loggedMessageDecorations]) {
-				for (const [message, deco] of decos) {
-					// invalidate decorations if either the line they're on was changed,
-					// or if the range of the test was changed. The range of the test is
-					// not always present, so check bo.
-					const invalidate = evts.some(e => e.changes.some(c =>
-						c.range.startLineNumber <= deco.line && c.range.endLineNumber >= deco.line
-						|| (deco.resultItem?.item.range && deco.resultItem.item.range.startLineNumber <= c.range.startLineNumber && deco.resultItem.item.range.endLineNumber >= c.range.endLineNumber)
-					));
+			for (const [message, deco] of this.loggedMessageDecorations) {
+				// invalidate decorations if either the line they're on was changed,
+				// or if the range of the test was changed. The range of the test is
+				// not always present, so check bo.
+				const invalidate = evts.some(e => e.changes.some(c =>
+					c.range.startLineNumber <= deco.line && c.range.endLineNumber >= deco.line
+					|| (deco.resultItem?.item.range && deco.resultItem.item.range.startLineNumber <= c.range.startLineNumber && deco.resultItem.item.range.endLineNumber >= c.range.endLineNumber)
+				));
 
-					if (invalidate) {
-						changed = true;
-						TestingDecorations.invalidatedTests.add(deco.resultItem || message);
-					}
+				if (invalidate) {
+					changed = true;
+					TestingDecorations.invalidatedTests.add(deco.resultItem || message);
 				}
 			}
 
@@ -587,9 +539,6 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	}
 
 	private clearResults() {
-		for (const widget of this.errorContentWidgets.values()) {
-			this.editor.removeContentWidget(widget);
-		}
 		this.errorContentWidgets.clearAndDisposeAll();
 	}
 
@@ -605,9 +554,8 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			this.applyContentWidgetsFromResult(this.results.results[0], uriStr, seen, seenLines);
 		}
 
-		for (const [message, widget] of this.errorContentWidgets) {
+		for (const message of this.errorContentWidgets.keys()) {
 			if (!seen.has(message)) {
-				this.editor.removeContentWidget(widget);
 				this.errorContentWidgets.deleteAndDispose(message);
 			}
 		}
@@ -652,7 +600,6 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 								testExtId: test.item.extId,
 							})
 						);
-						this.editor.addContentWidget(deco);
 						this.errorContentWidgets.set(m, deco);
 					}
 					seen.add(m);
@@ -1383,6 +1330,8 @@ class TestMessageDecoration implements ITestDecoration {
 	}
 }
 
+const ERROR_CONTENT_WIDGET_HEIGHT = 20;
+
 class TestErrorContentWidget extends Disposable implements IContentWidget {
 	private readonly id = generateUuid();
 
@@ -1390,9 +1339,11 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 	public readonly allowEditorOverflow = false;
 
 	private readonly node = dom.h('div.test-error-content-widget', [
-		dom.h('div.arrow@arrow'),
-		dom.h(`span${ThemeIcon.asCSSSelector(testingStatesToIcons.get(TestResultState.Failed)!)}`),
-		dom.h('span@name'),
+		dom.h('div.inner@inner', [
+			dom.h('div.arrow@arrow'),
+			dom.h(`span${ThemeIcon.asCSSSelector(testingStatesToIcons.get(TestResultState.Failed)!)}`),
+			dom.h('span.content@name'),
+		]),
 	]);
 
 	public get line() {
@@ -1400,8 +1351,8 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 	}
 
 	constructor(
-		editor: ICodeEditor,
-		private readonly position: Position,
+		private readonly editor: ICodeEditor,
+		private position: Position,
 		public readonly message: ITestErrorMessage,
 		public readonly resultItem: TestResultItem,
 		uri: URI,
@@ -1409,11 +1360,25 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 	) {
 		super();
 
+		const setMarginTop = () => {
+			const lineHeight = editor.getOption(EditorOption.lineHeight);
+			this.node.root.style.marginTop = (lineHeight - ERROR_CONTENT_WIDGET_HEIGHT) / 2 + 'px';
+		};
+
+		setMarginTop();
+		this._register(editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.lineHeight)) {
+				setMarginTop();
+			}
+		}));
+
 		let text: string;
 		if (message.expected !== undefined && message.actual !== undefined) {
 			text = `${truncateMiddle(message.actual, 15)} != ${truncateMiddle(message.expected, 15)}`;
 		} else {
-			text = truncate(renderStringAsPlaintext(message.message), 30);
+			const msg = renderStringAsPlaintext(message.message);
+			const lf = msg.indexOf('\n');
+			text = lf === -1 ? msg : msg.slice(0, lf);
 		}
 
 		this.node.root.addEventListener('click', e => {
@@ -1433,16 +1398,40 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 		this.node.name.innerText = text || 'Test Failed';
 
 		const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-		svg.setAttribute('width', '10');
+		svg.setAttribute('width', '15');
 		svg.setAttribute('height', '10');
 		svg.setAttribute('preserveAspectRatio', 'none');
-		svg.setAttribute('viewBox', '0 0 10 10');
+		svg.setAttribute('viewBox', '0 0 15 10');
 
 		const leftArrow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-		leftArrow.setAttribute('d', 'M10 0 L0 5 L10 10 Z');
+		leftArrow.setAttribute('d', 'M15 0 L10 0 L0 5 L10 10 L15 10 Z');
 		svg.append(leftArrow);
 
 		this.node.arrow.appendChild(svg);
+
+		this._register(editor.onDidChangeModelContent(e => {
+			for (const c of e.changes) {
+				if (c.range.startLineNumber > this.line) {
+					continue;
+				}
+				if (
+					c.range.startLineNumber <= this.line && c.range.endLineNumber >= this.line
+					|| (resultItem.item.range && resultItem.item.range.startLineNumber <= c.range.startLineNumber && resultItem.item.range.endLineNumber >= c.range.endLineNumber)
+				) {
+					TestingDecorations.invalidatedTests.add(this.resultItem);
+					this.dispose(); // todo
+				}
+
+				const adjust = count(c.text, '\n') - (c.range.endLineNumber - c.range.startLineNumber);
+				if (adjust !== 0) {
+					this.position = this.position.delta(adjust);
+					this.editor.layoutContentWidget(this);
+				}
+			}
+		}));
+
+		editor.addContentWidget(this);
+		this._register(toDisposable(() => editor.removeContentWidget(this)));
 	}
 
 	public getId(): string {
@@ -1458,5 +1447,13 @@ class TestErrorContentWidget extends Disposable implements IContentWidget {
 			position: this.position,
 			preference: [ContentWidgetPositionPreference.EXACT],
 		};
+	}
+
+	afterRender(_position: ContentWidgetPositionPreference | null, coordinate: IContentWidgetRenderedCoordinate | null): void {
+		if (coordinate) {
+			const { verticalScrollbarWidth } = this.editor.getLayoutInfo();
+			const scrollWidth = this.editor.getScrollWidth();
+			this.node.inner.style.maxWidth = `${scrollWidth - verticalScrollbarWidth - coordinate.left - 20}px`;
+		}
 	}
 }
