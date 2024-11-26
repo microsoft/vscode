@@ -1220,7 +1220,7 @@ class SettingComplexObjectRenderer extends SettingComplexRenderer implements ITr
 		const objectSettingWidget = common.toDispose.add(this._instantiationService.createInstance(ObjectSettingDropdownWidget, common.controlElement));
 		objectSettingWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 
-		const openSettingsButton = DOM.append(common.controlElement, $('a.edit-in-settings-button'));
+		const openSettingsButton = DOM.append(DOM.append(common.controlElement, $('.complex-object-edit-in-settings-button-container')), $('a.complex-object.edit-in-settings-button'));
 		openSettingsButton.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 		openSettingsButton.role = 'button';
 
@@ -1240,7 +1240,6 @@ class SettingComplexObjectRenderer extends SettingComplexRenderer implements ITr
 	}
 
 	protected override renderValue(dataElement: SettingsTreeSettingElement, template: ISettingComplexObjectItemTemplate, onChange: (value: string) => void): void {
-		template.objectSettingWidget.domNode.classList.remove('hide');
 		const items = getObjectDisplayValue(dataElement);
 		template.objectSettingWidget.setValue(items, {
 			settingKey: dataElement.setting.key,
