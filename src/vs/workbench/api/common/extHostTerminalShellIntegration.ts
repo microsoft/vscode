@@ -29,6 +29,8 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 
 	protected _proxy: MainThreadTerminalShellIntegrationShape;
 
+	private _initialCwd: URI | undefined;
+
 	private _activeShellIntegrations: Map</*instanceId*/number, InternalTerminalShellIntegration> = new Map();
 
 	protected readonly _onDidChangeTerminalShellIntegration = new Emitter<vscode.TerminalShellIntegrationChangeEvent>();
@@ -92,6 +94,9 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		if (!shellIntegration) {
 			shellIntegration = new InternalTerminalShellIntegration(terminal.value, this._onDidStartTerminalShellExecution);
 			this._activeShellIntegrations.set(instanceId, shellIntegration);
+			if (this._initialCwd) {
+				this._activeShellIntegrations.get(instanceId)?.setCwd(this._initialCwd);
+			}
 			shellIntegration.store.add(terminal.onWillDispose(() => this._activeShellIntegrations.get(instanceId)?.dispose()));
 			shellIntegration.store.add(shellIntegration.onDidRequestShellExecution(commandLine => this._proxy.$executeCommand(instanceId, commandLine)));
 			shellIntegration.store.add(shellIntegration.onDidRequestEndExecution(e => this._onDidEndTerminalShellExecution.fire(e)));
@@ -132,7 +137,13 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 	}
 
 	public $cwdChange(instanceId: number, cwd: UriComponents | undefined): void {
-		this._activeShellIntegrations.get(instanceId)?.setCwd(URI.revive(cwd));
+		const activeShellIntegration = this._activeShellIntegrations.get(instanceId);
+		const revivedCwd = URI.revive(cwd);
+		if (!activeShellIntegration) {
+			this._initialCwd = revivedCwd;
+		} else {
+			this._activeShellIntegrations.get(instanceId)?.setCwd(revivedCwd);
+		}
 	}
 
 	public $closeTerminal(instanceId: number): void {
