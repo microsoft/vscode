@@ -35,6 +35,7 @@ import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIde
 import { isITextModel } from '../../../editor/common/model.js';
 import { LineRangeMapping, lineRangeMappingFromChanges } from '../../../editor/common/diff/rangeMapping.js';
 import { equals } from '../../../base/common/arrays.js';
+import { Event } from '../../../base/common/event.js';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -152,27 +153,40 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 				return constObservable(undefined);
 			}
 
-			// DiffEditor
-			if (!isITextModel(editorModel)) {
-				return observableFromEvent(diffEditor.onDidUpdateDiff, () => {
-					const changes = diffEditor.getDiffComputationResult()?.changes2 ?? [];
+			const editorModelUri = isITextModel(editorModel)
+				? editorModel.uri
+				: editorModel.modified.uri;
 
-					return [{
-						original: editorModel.original.uri,
-						modified: editorModel.modified.uri,
-						lineRangeMappings: changes.map(change => change as LineRangeMapping)
-					}];
-				});
-			}
-
-			// TextEditor
-			const dirtyDiffModel = this._dirtyDiffModelService.getOrCreateModel(editorModel.uri);
+			// DirtyDiffModel - we create a dirty diff model for both the text editor and the
+			// diff editor so that we can provide multiple "original resources" to diff with
+			// the modified resource.
+			const dirtyDiffModel = this._dirtyDiffModelService.getOrCreateModel(editorModelUri);
 			if (!dirtyDiffModel) {
 				return constObservable(undefined);
 			}
 
-			return observableFromEvent(this, dirtyDiffModel.onDidChange, () => {
-				return dirtyDiffModel.quickDiffs.map(quickDiff => {
+			// TextEditor
+			if (isITextModel(editorModel)) {
+				return observableFromEvent(this, dirtyDiffModel.onDidChange, () => {
+					return dirtyDiffModel.quickDiffs.map(quickDiff => {
+						const changes = dirtyDiffModel.changes
+							.filter(change => change.label === quickDiff.label)
+							.map(change => change.change);
+
+						// Convert IChange[] to LineRangeMapping[]
+						const lineRangeMappings = lineRangeMappingFromChanges(changes);
+						return {
+							original: quickDiff.originalResource,
+							modified: editorModel.uri,
+							lineRangeMappings
+						};
+					});
+				});
+			}
+
+			// DiffEditor
+			return observableFromEvent(Event.any(dirtyDiffModel.onDidChange, diffEditor.onDidUpdateDiff), () => {
+				const dirtyDiffInformation = dirtyDiffModel.quickDiffs.map(quickDiff => {
 					const changes = dirtyDiffModel.changes
 						.filter(change => change.label === quickDiff.label)
 						.map(change => change.change);
@@ -181,10 +195,19 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 					const lineRangeMappings = lineRangeMappingFromChanges(changes);
 					return {
 						original: quickDiff.originalResource,
-						modified: editorModel.uri,
+						modified: editorModel.modified.uri,
 						lineRangeMappings
 					};
 				});
+
+				const diffChanges = diffEditor.getDiffComputationResult()?.changes2 ?? [];
+				const diffInformation = [{
+					original: editorModel.original.uri,
+					modified: editorModel.modified.uri,
+					lineRangeMappings: diffChanges.map(change => change as LineRangeMapping)
+				}];
+
+				return [...dirtyDiffInformation, ...diffInformation];
 			});
 		});
 
