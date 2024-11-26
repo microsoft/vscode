@@ -441,7 +441,7 @@ export class InstallAction extends ExtensionAction {
 		if (this.extension.state !== ExtensionState.Uninstalled) {
 			return;
 		}
-		if (this.options.installPreReleaseVersion && (!this.extension.hasPreReleaseVersion || this.allowedExtensionsService.isAllowed({ id: this.extension.identifier.id, prerelease: true }) !== true)) {
+		if (this.options.installPreReleaseVersion && (!this.extension.hasPreReleaseVersion || this.allowedExtensionsService.isAllowed({ id: this.extension.identifier.id, publisherDisplayName: this.extension.publisherDisplayName, prerelease: true }) !== true)) {
 			return;
 		}
 		if (!this.options.installPreReleaseVersion && !this.extension.hasReleaseVersion) {
@@ -1040,6 +1040,7 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 		if (this.extension.deprecationInfo?.disallowInstall) {
 			return;
 		}
+
 		const extension = this.extension.local ?? this.extension.gallery;
 		if (extension && this.allowedExtensionsService.isAllowed(extension) !== true) {
 			return;
@@ -1250,8 +1251,8 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['extensionHasPreReleaseVersion', extension.hasPreReleaseVersion]);
 			cksOverlay.push(['extensionHasReleaseVersion', extension.hasReleaseVersion]);
 			cksOverlay.push(['extensionDisallowInstall', !!extension.deprecationInfo?.disallowInstall]);
-			cksOverlay.push(['isExtensionAllowed', allowedExtensionsService.isAllowed({ id: extension.identifier.id }) === true]);
-			cksOverlay.push(['isPreReleaseExtensionAllowed', allowedExtensionsService.isAllowed({ id: extension.identifier.id, prerelease: true }) === true]);
+			cksOverlay.push(['isExtensionAllowed', allowedExtensionsService.isAllowed({ id: extension.identifier.id, publisherDisplayName: extension.publisherDisplayName }) === true]);
+			cksOverlay.push(['isPreReleaseExtensionAllowed', allowedExtensionsService.isAllowed({ id: extension.identifier.id, publisherDisplayName: extension.publisherDisplayName, prerelease: true }) === true]);
 			cksOverlay.push(['extensionIsUnsigned', extension.gallery && !extension.gallery.isSigned]);
 
 			const [colorThemes, fileIconThemes, productIconThemes, extensionUsesAuth] = await Promise.all([workbenchThemeService.getColorThemes(), workbenchThemeService.getFileIconThemes(), workbenchThemeService.getProductIconThemes(), authenticationUsageService.extensionUsesAuth(extension.identifier.id.toLowerCase())]);

@@ -11,6 +11,7 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -39,6 +40,7 @@ import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
@@ -78,7 +80,7 @@ import { revealInSideBarCommand } from '../../files/browser/fileActions.contribu
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
-import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatRequestVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
 import { ChatRequestDynamicVariablePart } from '../common/chatParserTypes.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
@@ -282,6 +284,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IMenuService private readonly menuService: IMenuService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IThemeService private readonly themeService: IThemeService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
@@ -727,8 +730,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		let inputModel = this.modelService.getModel(this.inputUri);
 		if (!inputModel) {
 			inputModel = this.modelService.createModel('', null, this.inputUri, true);
-			this._register(inputModel);
 		}
+
+		this.textModelResolverService.createModelReference(this.inputUri).then(ref => {
+			// make sure to hold a reference so that the model doesn't get disposed by the text model service
+			if (this._store.isDisposed) {
+				ref.dispose();
+				return;
+			}
+			this._register(ref);
+		});
 
 		this.inputModel = inputModel;
 		this.inputModel.updateOptions({ bracketColorizationOptions: { enabled: false, independentColorPoolPerBracketType: false } });
@@ -864,6 +875,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
 					resolve();
 				}));
+			} else if (isPasteVariableEntry(attachment)) {
+				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+
+				const hoverContent: IManagedHoverTooltipMarkdownString = {
+					markdown: {
+						value: `\`\`\`${attachment.language}\n${attachment.code}\n\`\`\``,
+					},
+					markdownNotSupportedFallback: attachment.code,
+				};
+
+				const classNames = ['file-icon', `${attachment.language}-lang-file-icon`];
+				label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
+				widget.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.pastedLines}`));
+
+				widget.style.position = 'relative';
+				store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverContent, { trapFocus: true }));
+				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
