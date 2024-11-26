@@ -600,7 +600,7 @@ class ChatSetupWelcomeContent extends Disposable {
 				button.enabled = true;
 				button.label = this.controller.entitlement === ChatEntitlement.Unknown ?
 					localize('signInToStartSetup', "Sign in to {0}", defaultChat.providerName) :
-					localize('startSetup', "Complete Setup");
+					localize('startSetup', "Start Using {0}", defaultChat.name);
 				break;
 			case ChatSetupStep.SigningIn:
 			case ChatSetupStep.Installing:
@@ -611,7 +611,7 @@ class ChatSetupWelcomeContent extends Disposable {
 				button.enabled = false;
 				button.label = this.controller.step === ChatSetupStep.SigningIn ?
 					localize('setupChatSigningIn', "$(loading~spin) Signing in to {0}...", defaultChat.providerName) :
-					localize('setupChatInstalling', "$(loading~spin) Completing Setup...");
+					localize('setupChatInstalling', "$(loading~spin) Getting {0} ready...", defaultChat.name);
 
 				break;
 		}
