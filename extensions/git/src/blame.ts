@@ -5,7 +5,7 @@
 
 import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString } from 'vscode';
 import { Model } from './model';
-import { dispose, fromNow, IDisposable, pathEquals } from './util';
+import { dispose, fromNow, IDisposable } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation } from './git';
@@ -80,14 +80,82 @@ function formatBlameInformation(template: string, blameInformation: BlameInforma
 }
 
 interface RepositoryBlameInformation {
-	readonly commit: string;
-	readonly resource: Uri;
-	readonly blameInformation: BlameInformation[];
+	/**
+	 * Track the current HEAD of the repository so that we can clear cache entries
+	 */
+	HEAD: string;
+
+	/**
+	 * Outer map - maps resource scheme to resource blame information. Using the uri
+	 * scheme as the key so that we can easily delete the cache entries for the "file"
+	 * scheme as those entries are outdated when the HEAD of the repository changes.
+	 *
+	 * Inner map - maps commit + resource to blame information.
+	 */
+	readonly blameInformation: Map<string, Map<string, BlameInformation[]>>;
 }
 
 interface LineBlameInformation {
 	readonly lineNumber: number;
 	readonly blameInformation: BlameInformation | string;
+}
+
+class GitBlameInformationCache {
+	private readonly _cache = new Map<Repository, RepositoryBlameInformation>();
+
+	getRepositoryHEAD(repository: Repository): string | undefined {
+		return this._cache.get(repository)?.HEAD;
+	}
+
+	setRepositoryHEAD(repository: Repository, commit: string): void {
+		const repositoryBlameInformation = this._cache.get(repository) ?? {
+			HEAD: commit,
+			blameInformation: new Map<string, Map<string, BlameInformation[]>>()
+		} satisfies RepositoryBlameInformation;
+
+		this._cache.set(repository, {
+			...repositoryBlameInformation,
+			HEAD: commit
+		} satisfies RepositoryBlameInformation);
+	}
+
+	deleteBlameInformation(repository: Repository, scheme?: string): boolean {
+		if (scheme === undefined) {
+			return this._cache.delete(repository);
+		}
+
+		return this._cache.get(repository)?.blameInformation.delete(scheme) === true;
+	}
+
+	getBlameInformation(repository: Repository, resource: Uri, commit: string): BlameInformation[] | undefined {
+		const blameInformationKey = this._getBlameInformationKey(resource, commit);
+		return this._cache.get(repository)?.blameInformation.get(resource.scheme)?.get(blameInformationKey);
+	}
+
+	setBlameInformation(repository: Repository, resource: Uri, commit: string, blameInformation: BlameInformation[]): void {
+		if (!repository.HEAD?.commit) {
+			return;
+		}
+
+		if (!this._cache.has(repository)) {
+			this._cache.set(repository, {
+				HEAD: repository.HEAD.commit,
+				blameInformation: new Map<string, Map<string, BlameInformation[]>>()
+			} satisfies RepositoryBlameInformation);
+		}
+
+		const repositoryBlameInformation = this._cache.get(repository)!;
+		if (!repositoryBlameInformation.blameInformation.has(resource.scheme)) {
+			repositoryBlameInformation.blameInformation.set(resource.scheme, new Map<string, BlameInformation[]>());
+		}
+
+		const resourceSchemeBlameInformation = repositoryBlameInformation.blameInformation.get(resource.scheme)!;
+		resourceSchemeBlameInformation.set(this._getBlameInformationKey(resource, commit), blameInformation);
+	}
+
+	private _getBlameInformationKey(resource: Uri, commit: string): string {
+		return `${commit}:${resource.toString()}`;
+	}
 }
 
 export class GitBlameController {
@@ -96,7 +164,7 @@ export class GitBlameController {
 
 	readonly textEditorBlameInformation = new Map<TextEditor, readonly LineBlameInformation[]>();
 
-	private readonly _repositoryBlameInformation = new Map<Repository, RepositoryBlameInformation[]>();
+	private readonly _repositoryBlameCache = new GitBlameInformationCache();
 
 	private _repositoryDisposables = new Map<Repository, IDisposable[]>();
 	private _disposables: IDisposable[] = [];
@@ -163,17 +231,24 @@ export class GitBlameController {
 		}
 
 		this._repositoryDisposables.delete(repository);
-		this._repositoryBlameInformation.delete(repository);
+		this._repositoryBlameCache.deleteBlameInformation(repository);
 	}
 
 	private _onDidRunGitStatus(repository: Repository): void {
-		const repositoryBlameInformation = this._repositoryBlameInformation.get(repository);
-		if (!repositoryBlameInformation) {
+		const repositoryHEAD = this._repositoryBlameCache.getRepositoryHEAD(repository);
+		if (!repositoryHEAD || !repository.HEAD?.commit) {
 			return;
 		}
 
-		for (const textEditor of window.visibleTextEditors) {
-			this._updateTextEditorBlameInformation(textEditor);
+		// If the HEAD of the repository changed we can remove the cache
+		// entries for the "file" scheme as those entries are outdated.
+		if (repositoryHEAD !== repository.HEAD.commit) {
+			this._repositoryBlameCache.deleteBlameInformation(repository, 'file');
+			this._repositoryBlameCache.setRepositoryHEAD(repository, repository.HEAD.commit);
+
+			for (const textEditor of window.visibleTextEditors) {
+				this._updateTextEditorBlameInformation(textEditor);
+			}
 		}
 	}
 
@@ -183,21 +258,14 @@ export class GitBlameController {
 			return undefined;
 		}
 
-		const repositoryBlameInformation = this._repositoryBlameInformation.get(repository) ?? [];
-		const resourceBlameInformation = repositoryBlameInformation
-			.find(b => pathEquals(b.resource.fsPath, resource.fsPath) && b.commit === commit);
+		const resourceBlameInformation = this._repositoryBlameCache.getBlameInformation(repository, resource, commit);
 		if (resourceBlameInformation) {
-			return resourceBlameInformation.blameInformation;
+			return resourceBlameInformation;
 		}
 
 		// Get blame information for the resource and cache it
 		const blameInformation = await repository.blame2(resource.fsPath, commit) ?? [];
-
-		repositoryBlameInformation.push({
-			commit, resource, blameInformation
-		} satisfies RepositoryBlameInformation);
-
-		this._repositoryBlameInformation.set(repository, repositoryBlameInformation);
+		this._repositoryBlameCache.setBlameInformation(repository, resource, commit, blameInformation);
 
 		return blameInformation;
 	}
