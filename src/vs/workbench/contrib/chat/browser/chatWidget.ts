@@ -10,6 +10,7 @@ import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { FuzzyScore } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
@@ -133,7 +134,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private contribs: ReadonlyArray<IChatWidgetContrib> = [];
 
-	private tree!: WorkbenchObjectTree<ChatTreeItem>;
+	private tree!: WorkbenchObjectTree<ChatTreeItem, FuzzyScore>;
 	private renderer!: ChatListItemRenderer;
 	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
 	private lastItem: ChatTreeItem | undefined;
@@ -652,8 +653,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
-		this.tree = this._register(<WorkbenchObjectTree<ChatTreeItem>>scopedInstantiationService.createInstance(
-			WorkbenchObjectTree,
+		this.tree = this._register(scopedInstantiationService.createInstance(
+			WorkbenchObjectTree<ChatTreeItem, FuzzyScore>,
 			'Chat',
 			listContainer,
 			delegate,

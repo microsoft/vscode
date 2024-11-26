@@ -59,9 +59,10 @@ import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
 import { registerChatEditorActions } from './chatEditorActions.js';
 import { ChatEditorController } from './chatEditorController.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from './chatEditorInput.js';
+import { ChatInputBoxContentProvider } from './chatEdinputInputContentProvider.js';
 import { ChatEditorSaving } from './chatEditorSaving.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './chatMarkdownDecorationsRenderer.js';
-import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipantContributions.js';
+import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
 import { ChatPasteProvidersFeature } from './chatPasteProviders.js';
 import { QuickChatService } from './chatQuick.js';
 import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
@@ -73,7 +74,7 @@ import './contrib/chatInputEditorContrib.js';
 import './contrib/chatInputEditorHover.js';
 import { ChatImplicitContextContribution } from './contrib/chatImplicitContext.js';
 import { LanguageModelToolsService } from './languageModelToolsService.js';
-import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeContributions.js';
+import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
@@ -210,6 +211,8 @@ class ChatResolverContribution extends Disposable {
 AccessibleViewRegistry.register(new ChatResponseAccessibleView());
 AccessibleViewRegistry.register(new PanelChatAccessibilityHelp());
 AccessibleViewRegistry.register(new QuickChatAccessibilityHelp());
+
+registerEditorFeature(ChatInputBoxContentProvider);
 
 class ChatSlashStaticSlashCommandsContribution extends Disposable {
 

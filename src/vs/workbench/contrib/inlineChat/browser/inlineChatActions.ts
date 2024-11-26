@@ -14,7 +14,7 @@ import { InlineChatController, InlineChatRunOptions } from './inlineChatControll
 import { ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_EDIT_MODE, EditMode, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatResponseType, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, MENU_INLINE_CHAT_ZONE, ACTION_DISCARD_CHANGES, CTX_INLINE_CHAT_POSSIBLE, ACTION_START } from '../common/inlineChat.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IAction2Options, MenuId } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -45,7 +45,7 @@ export function setHoldForSpeech(holdForSpeech: IHoldForSpeech) {
 	_holdForSpeech = holdForSpeech;
 }
 
-export class StartSessionAction extends EditorAction2 {
+export class StartSessionAction extends Action2 {
 
 	constructor() {
 		super({
@@ -56,7 +56,8 @@ export class StartSessionAction extends EditorAction2 {
 			precondition: ContextKeyExpr.and(
 				CTX_INLINE_CHAT_HAS_AGENT,
 				CTX_INLINE_CHAT_POSSIBLE,
-				EditorContextKeys.writable
+				EditorContextKeys.writable,
+				EditorContextKeys.editorSimpleInput.negate()
 			),
 			keybinding: {
 				when: EditorContextKeys.focus,
@@ -72,9 +73,28 @@ export class StartSessionAction extends EditorAction2 {
 			}
 		});
 	}
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const editor = codeEditorService.getActiveCodeEditor();
+		if (!editor || editor.isSimpleWidget) {
+			// well, at least we tried...
+			return;
+		}
 
+		// precondition does hold
+		return editor.invokeWithinContext((editorAccessor) => {
+			const kbService = editorAccessor.get(IContextKeyService);
+			const logService = editorAccessor.get(ILogService);
+			const enabled = kbService.contextMatchesRules(this.desc.precondition ?? undefined);
+			if (!enabled) {
+				logService.debug(`[EditorAction2] NOT running command because its precondition is FALSE`, this.desc.id, this.desc.precondition?.serialize());
+				return;
+			}
+			return this._runEditorCommand(editorAccessor, editor, ...args);
+		});
+	}
 
-	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+	private _runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
 
 		const ctrl = InlineChatController.get(editor);
 		if (!ctrl) {

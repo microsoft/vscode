@@ -90,7 +90,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
 		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
 
-		this._glyphRasterizer = this._register(new MandatoryMutableDisposable(new GlyphRasterizer(fontSize, fontFamily)));
+		this._glyphRasterizer = this._register(new MandatoryMutableDisposable(new GlyphRasterizer(fontSize, fontFamily, this._viewGpuContext.devicePixelRatio.get())));
 
 		const bufferSize = this._viewGpuContext.maxGpuLines * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
@@ -128,11 +128,13 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
 		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
+		const devicePixelRatio = this._viewGpuContext.devicePixelRatio.get();
 		if (
 			this._glyphRasterizer.value.fontFamily !== fontFamily ||
-			this._glyphRasterizer.value.fontSize !== fontSize
+			this._glyphRasterizer.value.fontSize !== fontSize ||
+			this._glyphRasterizer.value.devicePixelRatio !== devicePixelRatio
 		) {
-			this._glyphRasterizer.value = new GlyphRasterizer(fontSize, fontFamily);
+			this._glyphRasterizer.value = new GlyphRasterizer(fontSize, fontFamily, devicePixelRatio);
 		}
 
 		return true;

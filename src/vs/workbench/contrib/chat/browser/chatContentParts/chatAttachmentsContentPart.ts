@@ -4,23 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { IManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
+import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { FileKind, IFileService } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
+import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { revealInSideBarCommand } from '../../../files/browser/fileActions.contribution.js';
-import { IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { IChatRequestVariableEntry, isPasteVariableEntry } from '../../common/chatModel.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService.js';
 
 export class ChatAttachmentsContentPart extends Disposable {
@@ -39,7 +50,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IFileService private readonly fileService: IFileService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 
@@ -96,6 +107,8 @@ export class ChatAttachmentsContentPart extends Disposable {
 					icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
 				});
 
+				this.instantiationService.invokeFunction(accessor => hookUpResourceAttachmentInteractions(accessor, this.attachedContextDisposables, widget, resource));
+
 			} else if (attachment.isImage) {
 				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 
@@ -125,6 +138,25 @@ export class ChatAttachmentsContentPart extends Disposable {
 				widget.style.position = 'relative';
 				if (!this.attachedContextDisposables.isDisposed) {
 					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement));
+				}
+			} else if (isPasteVariableEntry(attachment)) {
+				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+
+				const hoverContent: IManagedHoverTooltipMarkdownString = {
+					markdown: {
+						value: `\`\`\`${attachment.language}\n${attachment.code}\n\`\`\``,
+					},
+					markdownNotSupportedFallback: attachment.code,
+				};
+
+				const classNames = ['file-icon', `${attachment.language}-lang-file-icon`];
+				label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
+				widget.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.pastedLines}`));
+
+				widget.style.position = 'relative';
+
+				if (!this.attachedContextDisposables.isDisposed) {
+					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverContent, { trapFocus: true }));
 				}
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
@@ -201,4 +233,41 @@ export class ChatAttachmentsContentPart extends Disposable {
 		// Update hover image
 		hoverElement.appendChild(img);
 	}
+}
+
+export function hookUpResourceAttachmentInteractions(accessor: ServicesAccessor, store: DisposableStore, widget: HTMLElement, resource: URI): void {
+	const fileService = accessor.get(IFileService);
+	const languageService = accessor.get(ILanguageService);
+	const modelService = accessor.get(IModelService);
+	const contextKeyService = accessor.get(IContextKeyService);
+	const instantiationService = accessor.get(IInstantiationService);
+	const contextMenuService = accessor.get(IContextMenuService);
+	const menuService = accessor.get(IMenuService);
+
+	// Context
+	const scopedContextKeyService = store.add(contextKeyService.createScoped(widget));
+	const resourceContextKey = store.add(new ResourceContextKey(scopedContextKeyService, fileService, languageService, modelService));
+	resourceContextKey.set(resource);
+
+	// Drag and drop
+	widget.draggable = true;
+	store.add(dom.addDisposableListener(widget, 'dragstart', e => {
+		instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [resource], e));
+		e.dataTransfer?.setDragImage(widget, 0, 0);
+	}));
+
+	// Context menu
+	store.add(dom.addDisposableListener(widget, dom.EventType.CONTEXT_MENU, domEvent => {
+		const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
+		dom.EventHelper.stop(domEvent, true);
+
+		contextMenuService.showContextMenu({
+			contextKeyService: scopedContextKeyService,
+			getAnchor: () => event,
+			getActions: () => {
+				const menu = menuService.getMenuActions(MenuId.ChatInputResourceAttachmentContext, scopedContextKeyService, { arg: resource });
+				return getFlatContextMenuActions(menu);
+			},
+		});
+	}));
 }

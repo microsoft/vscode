@@ -9,49 +9,53 @@ import { availableSpecs, getCompletionItemsFromSpecs } from './terminalSuggestMa
 
 const availableCommands = ['cd', 'code', 'code-insiders'];
 const codeOptions = ['-', '--add', '--category', '--diff', '--disable-extension', '--disable-extensions', '--disable-gpu', '--enable-proposed-api', '--extensions-dir', '--goto', '--help', '--inspect-brk-extensions', '--inspect-extensions', '--install-extension', '--list-extensions', '--locale', '--log', '--max-memory', '--merge', '--new-window', '--pre-release', '--prof-startup', '--profile', '--reuse-window', '--show-versions', '--status', '--sync', '--telemetry', '--uninstall-extension', '--user-data-dir', '--verbose', '--version', '--wait', '-a', '-d', '-g', '-h', '-m', '-n', '-r', '-s', '-v', '-w'];
+const localeOptions = ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'];
+const categoryOptions = ['azure', 'data science', 'debuggers', 'extension packs', 'education', 'formatters', 'keymaps', 'language packs', 'linters', 'machine learning', 'notebooks', 'programming languages', 'scm providers', 'snippets', 'testing', 'themes', 'visualization', 'other'];
+const logOptions = ['critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'];
+const syncOptions = ['on', 'off'];
 
 const testSpecs: ITestSpec[] = [
-	{ input: '|', expectedCompletionLabels: availableCommands, resourcesRequested: 'neither' },
-	{ input: 'c|', expectedCompletionLabels: availableCommands, resourcesRequested: 'neither' },
-	{ input: 'ls && c|', expectedCompletionLabels: availableCommands, resourcesRequested: 'neither' },
+	{ input: '|', expectedCompletionLabels: availableCommands },
+	{ input: 'c|', expectedCompletionLabels: availableCommands },
+	{ input: 'ls && c|', expectedCompletionLabels: availableCommands },
 	{ input: 'cd |', expectedCompletionLabels: ['~', '-'], resourcesRequested: 'folders' },
-	{ input: 'code|', expectedCompletionLabels: ['code-insiders'], resourcesRequested: 'neither' },
-	{ input: 'code-insiders|', expectedCompletionLabels: [], resourcesRequested: 'neither' },
-	{ input: 'code |', expectedCompletionLabels: codeOptions, resourcesRequested: 'neither' },
-	{ input: 'code --locale |', expectedCompletionLabels: ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'], resourcesRequested: 'neither' },
-	{ input: 'code --diff |', expectedCompletionLabels: [], resourcesRequested: 'files' },
-	{ input: 'code -di|', expectedCompletionLabels: codeOptions.filter(o => o.startsWith('di')), resourcesRequested: 'neither' },
-	{ input: 'code --diff ./file1 |', expectedCompletionLabels: [], resourcesRequested: 'files' },
-	{ input: 'code --merge |', expectedCompletionLabels: [], resourcesRequested: 'files' },
-	{ input: 'code --merge ./file1 ./file2 |', expectedCompletionLabels: [], resourcesRequested: 'files' },
-	{ input: 'code --merge ./file1 ./file2 ./base |', expectedCompletionLabels: [], resourcesRequested: 'files' },
-	{ input: 'code --goto |', expectedCompletionLabels: [], resourcesRequested: 'files' },
-	{ input: 'code --user-data-dir |', expectedCompletionLabels: [], resourcesRequested: 'folders' },
-	{ input: 'code --profile |', expectedCompletionLabels: [], resourcesRequested: 'neither' },
-	{ input: 'code --install-extension |', expectedCompletionLabels: [], resourcesRequested: 'neither' },
-	{ input: 'code --uninstall-extension |', expectedCompletionLabels: [], resourcesRequested: 'neither' },
-	{ input: 'code --log |', expectedCompletionLabels: ['critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'], resourcesRequested: 'neither' },
-	{ input: 'code --sync |', expectedCompletionLabels: ['on', 'off'], resourcesRequested: 'neither' },
-	{ input: 'code --extensions-dir |', expectedCompletionLabels: [], resourcesRequested: 'folders' },
-	{ input: 'code --list-extensions |', expectedCompletionLabels: codeOptions, resourcesRequested: 'neither' },
-	{ input: 'code --show-versions |', expectedCompletionLabels: codeOptions, resourcesRequested: 'neither' },
-	{ input: 'code --category |', expectedCompletionLabels: ['azure', 'data science', 'debuggers', 'extension packs', 'education', 'formatters', 'keymaps', 'language packs', 'linters', 'machine learning', 'notebooks', 'programming languages', 'scm providers', 'snippets', 'testing', 'themes', 'visualization', 'other'], resourcesRequested: 'neither' },
-	{ input: 'code --category a|', expectedCompletionLabels: ['azure'], resourcesRequested: 'neither' },
-	{ input: 'code-insiders --list-extensions |', expectedCompletionLabels: codeOptions, resourcesRequested: 'neither' },
-	{ input: 'code-insiders --show-versions |', expectedCompletionLabels: codeOptions, resourcesRequested: 'neither' },
-	{ input: 'code-insiders --category |', expectedCompletionLabels: ['azure', 'data science', 'debuggers', 'extension packs', 'education', 'formatters', 'keymaps', 'language packs', 'linters', 'machine learning', 'notebooks', 'programming languages', 'scm providers', 'snippets', 'testing', 'themes', 'visualization', 'other'], resourcesRequested: 'neither' },
-	{ input: 'code-insiders --category a|', expectedCompletionLabels: ['azure'], resourcesRequested: 'neither' },
-	{ input: 'code-insiders --category azure |', expectedCompletionLabels: [], resourcesRequested: 'neither' },
-	{ input: 'code | --locale', expectedCompletionLabels: codeOptions, resourcesRequested: 'neither' },
-	{ input: 'code --locale | && ls', expectedCompletionLabels: ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'], resourcesRequested: 'neither' },
-	{ input: 'code-insiders | --locale', expectedCompletionLabels: codeOptions, resourcesRequested: 'neither' },
-	{ input: 'code-insiders --locale | && ls', expectedCompletionLabels: ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'], resourcesRequested: 'neither' }
+	{ input: 'code|', expectedCompletionLabels: ['code-insiders'] },
+	{ input: 'code-insiders|' },
+	{ input: 'code |', expectedCompletionLabels: codeOptions },
+	{ input: 'code --locale |', expectedCompletionLabels: localeOptions },
+	{ input: 'code --diff |', resourcesRequested: 'files' },
+	{ input: 'code -di|', expectedCompletionLabels: codeOptions.filter(o => o.startsWith('di')) },
+	{ input: 'code --diff ./file1 |', resourcesRequested: 'files' },
+	{ input: 'code --merge |', resourcesRequested: 'files' },
+	{ input: 'code --merge ./file1 ./file2 |', resourcesRequested: 'files' },
+	{ input: 'code --merge ./file1 ./file2 ./base |', resourcesRequested: 'files' },
+	{ input: 'code --goto |', resourcesRequested: 'files' },
+	{ input: 'code --user-data-dir |', resourcesRequested: 'folders' },
+	{ input: 'code --profile |' },
+	{ input: 'code --install-extension |' },
+	{ input: 'code --uninstall-extension |' },
+	{ input: 'code --log |', expectedCompletionLabels: logOptions },
+	{ input: 'code --sync |', expectedCompletionLabels: syncOptions },
+	{ input: 'code --extensions-dir |', resourcesRequested: 'folders' },
+	{ input: 'code --list-extensions |', expectedCompletionLabels: codeOptions },
+	{ input: 'code --show-versions |', expectedCompletionLabels: codeOptions },
+	{ input: 'code --category |', expectedCompletionLabels: categoryOptions },
+	{ input: 'code --category a|', expectedCompletionLabels: categoryOptions.filter(c => c.startsWith('a')) },
+	{ input: 'code-insiders --list-extensions |', expectedCompletionLabels: codeOptions },
+	{ input: 'code-insiders --show-versions |', expectedCompletionLabels: codeOptions },
+	{ input: 'code-insiders --category |', expectedCompletionLabels: categoryOptions },
+	{ input: 'code-insiders --category a|', expectedCompletionLabels: categoryOptions.filter(c => c.startsWith('a')) },
+	{ input: 'code-insiders --category azure |' },
+	{ input: 'code | --locale', expectedCompletionLabels: codeOptions },
+	{ input: 'code --locale | && ls', expectedCompletionLabels: localeOptions },
+	{ input: 'code-insiders | --locale', expectedCompletionLabels: codeOptions },
+	{ input: 'code-insiders --locale | && ls', expectedCompletionLabels: localeOptions }
 ];
 
 interface ITestSpec {
 	input: string;
-	expectedCompletionLabels: string[];
-	resourcesRequested: 'files' | 'folders' | 'both' | 'neither';
+	expectedCompletionLabels?: string[];
+	resourcesRequested?: 'files' | 'folders' | 'both';
 }
 
 suite('Terminal Suggest', () => {
@@ -63,7 +67,7 @@ suite('Terminal Suggest', () => {
 			const filesRequested = testSpec.resourcesRequested === 'files' || testSpec.resourcesRequested === 'both';
 			const foldersRequested = testSpec.resourcesRequested === 'folders' || testSpec.resourcesRequested === 'both';
 			const result = getCompletionItemsFromSpecs(availableSpecs, { commandLine, cursorPosition }, availableCommands, prefix);
-			deepStrictEqual(result.items.map(i => i.label).sort(), testSpec.expectedCompletionLabels.sort());
+			deepStrictEqual(result.items.map(i => i.label).sort(), (testSpec.expectedCompletionLabels ?? []).sort());
 			strictEqual(result.filesRequested, filesRequested);
 			strictEqual(result.foldersRequested, foldersRequested);
 		});

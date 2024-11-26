@@ -70,7 +70,7 @@ export abstract class CommontExtensionManagementService extends Disposable imple
 	}
 
 	async canInstall(extension: IGalleryExtension): Promise<true | IMarkdownString> {
-		const allowedToInstall = this.allowedExtensionsService.isAllowed({ id: extension.identifier.id });
+		const allowedToInstall = this.allowedExtensionsService.isAllowed({ id: extension.identifier.id, publisherDisplayName: extension.publisherDisplayName });
 		if (allowedToInstall !== true) {
 			return new MarkdownString(nls.localize('not allowed to install', "This extension cannot be installed because {0}", allowedToInstall.value));
 		}
