@@ -106,6 +106,8 @@ export const enum TestCommandId {
 	SelectDefaultTestProfiles = 'testing.selectDefaultTestProfiles',
 	ShowMostRecentOutputAction = 'testing.showMostRecentOutput',
 	StartContinousRun = 'testing.startContinuousRun',
+	StartContinousRunFromExtension = 'testing.startContinuousRunFromExtension',
+	StopContinousRunFromExtension = 'testing.stopContinuousRunFromExtension',
 	StopContinousRun = 'testing.stopContinuousRun',
 	TestingSortByDurationAction = 'testing.sortByDuration',
 	TestingSortByLocationAction = 'testing.sortByLocation',

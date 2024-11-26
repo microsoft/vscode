@@ -78,6 +78,12 @@ export interface ITestRunProfile {
 	supportsContinuousRun: boolean;
 }
 
+export interface ITestRunProfileReference {
+	controllerId: string;
+	profileId: number;
+	group: TestRunProfileBitset;
+}
+
 /**
  * A fully-resolved request to run tests, passsed between the main thread
  * and extension host.

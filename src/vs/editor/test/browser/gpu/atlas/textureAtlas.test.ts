@@ -56,6 +56,8 @@ class TestGlyphRasterizer implements IGlyphRasterizer {
 			source: canvas,
 			boundingBox: { top: 0, left: 0, bottom: h - 1, right: w - 1 },
 			originOffset: { x: 0, y: 0 },
+			fontBoundingBoxAscent: 0,
+			fontBoundingBoxDescent: 0,
 		};
 	}
 }
