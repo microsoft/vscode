@@ -96,7 +96,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 			return result.items;
 		}
-	}));
+	}, '/', '\\'));
 }
 
 function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string[] | undefined {
@@ -112,11 +112,11 @@ function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string[] 
 	return spec.name;
 }
 
-function createCompletionItem(cursorPosition: number, prefix: string, label: string, description?: string, hasSpaceBeforeCursor?: boolean, kind?: vscode.TerminalCompletionItemKind): vscode.TerminalCompletionItem {
+function createCompletionItem(commandLine: string, cursorPosition: number, prefix: string, label: string, description?: string, kind?: vscode.TerminalCompletionItemKind): vscode.TerminalCompletionItem {
 	return {
 		label,
 		detail: description ?? '',
-		replacementIndex: hasSpaceBeforeCursor ? cursorPosition : cursorPosition - 1,
+		replacementIndex: commandLine[cursorPosition - 1] === ' ' ? cursorPosition : cursorPosition - 1,
 		replacementLength: label.length - prefix.length > 0 ? label.length - prefix.length : label.length,
 		kind: kind ?? vscode.TerminalCompletionItemKind.Method
 	};
@@ -200,10 +200,10 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 				// If the prompt is empty
 				!terminalContext.commandLine
 				// or the prefix matches the command and the prefix is not equal to the command
-				|| !!prefix && specLabel.startsWith(prefix) && specLabel !== prefix
+				|| !!prefix && specLabel.startsWith(prefix)
 			) {
 				// push it to the completion items
-				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, specLabel));
+				items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, specLabel));
 			}
 			if (!terminalContext.commandLine.startsWith(specLabel)) {
 				// the spec label is not the first word in the command line, so do not provide options or args
@@ -218,7 +218,7 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 					}
 					for (const optionLabel of optionLabels) {
 						if (!items.find(i => i.label === optionLabel) && optionLabel.startsWith(prefix) || (prefix.length > specLabel.length && prefix.trim() === specLabel)) {
-							items.push(createCompletionItem(terminalContext.cursorPosition, prefix, optionLabel, option.description, false, vscode.TerminalCompletionItemKind.Flag));
+							items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, optionLabel, option.description, vscode.TerminalCompletionItemKind.Flag));
 						}
 						const expectedText = `${specLabel} ${optionLabel} `;
 						if (!precedingText.includes(expectedText)) {
@@ -234,6 +234,7 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 						const argCompletions = argsCompletions.items;
 						foldersRequested = foldersRequested || argsCompletions.foldersRequested;
 						filesRequested = filesRequested || argsCompletions.filesRequested;
+						specificSuggestionsProvided = argsCompletions.specificSuggestionsProvided;
 						return pushDefaultResourceCompletions(terminalContext, prefix, argCompletions, filesRequested, foldersRequested);
 					}
 				}
@@ -250,18 +251,19 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 					continue;
 				}
 				items.push(...argsCompletions.items);
-				specificSuggestionsProvided = true;
+				specificSuggestionsProvided = argsCompletions.specificSuggestionsProvided;
 				filesRequested = filesRequested || argsCompletions.filesRequested;
 				foldersRequested = foldersRequested || argsCompletions.foldersRequested;
 			}
 		}
 	}
 
+	const commandOnLine = terminalContext.commandLine.split(' ')[0];
 	if (!specificSuggestionsProvided) {
 		// Include builitin/available commands in the results
 		for (const command of availableCommands) {
-			if (command.startsWith(prefix) && !items.find(item => item.label === command)) {
-				items.push(createCompletionItem(terminalContext.cursorPosition, prefix, command));
+			if (command.startsWith(commandOnLine) && !items.find(item => item.label === command)) {
+				items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, command));
 			}
 		}
 	}
@@ -317,11 +319,9 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 					if (items.find(i => i.label === suggestionLabel)) {
 						continue;
 					}
-					if (suggestionLabel && suggestionLabel.startsWith(currentPrefix.trim()) && suggestionLabel !== currentPrefix.trim()) {
-						const hasSpaceBeforeCursor = terminalContext.commandLine[terminalContext.cursorPosition - 1] === ' ';
-						// prefix will be '' if there is a space before the cursor
+					if (suggestionLabel && suggestionLabel.startsWith(currentPrefix.trim())) {
 						const description = typeof suggestion !== 'string' ? suggestion.description : '';
-						items.push(createCompletionItem(terminalContext.cursorPosition, precedingText, suggestionLabel, description, hasSpaceBeforeCursor, vscode.TerminalCompletionItemKind.Argument));
+						items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, precedingText, suggestionLabel, description, vscode.TerminalCompletionItemKind.Argument));
 					}
 				}
 			}
@@ -337,14 +337,14 @@ function osIsWindows(): boolean {
 	return os.platform() === 'win32';
 }
 
-function pushDefaultResourceCompletions(terminalContext: { cursorPosition: number }, prefix: string, items: vscode.TerminalCompletionItem[], filesRequested: boolean, foldersRequested: boolean): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } {
+function pushDefaultResourceCompletions(terminalContext: { commandLine: string; cursorPosition: number }, prefix: string, items: vscode.TerminalCompletionItem[], filesRequested: boolean, foldersRequested: boolean): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } {
 	if (items.find(i => i.label === '.') && items.find(i => i.label === '..')) {
 		return { items, filesRequested, foldersRequested };
 	}
 	const onlyFilesOrFolders = (filesRequested || foldersRequested);
 	if (onlyFilesOrFolders) {
-		items.push(createCompletionItem(terminalContext.cursorPosition, prefix, '.', 'Current directory', false, vscode.TerminalCompletionItemKind.Folder));
-		items.push(createCompletionItem(terminalContext.cursorPosition, prefix, '..', 'Parent directory', false, vscode.TerminalCompletionItemKind.Folder));
+		items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, '.', 'Current directory', vscode.TerminalCompletionItemKind.Folder));
+		items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, '..', 'Parent directory', vscode.TerminalCompletionItemKind.Folder));
 	}
 	return { items, filesRequested, foldersRequested };
 }
