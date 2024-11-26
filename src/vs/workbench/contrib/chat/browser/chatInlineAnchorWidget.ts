@@ -30,6 +30,7 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { fillInSymbolsDragData, IResourceStat } from '../../../../platform/dnd/browser/dnd.js';
 import { ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -225,7 +226,20 @@ export class InlineAnchorWidget extends Disposable {
 		// Drag and drop
 		element.draggable = true;
 		this._register(dom.addDisposableListener(element, 'dragstart', e => {
-			instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [location.uri], e));
+			const stat: IResourceStat = {
+				resource: location.uri,
+				selection: location.range,
+			};
+			instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [stat], e));
+
+			if (this.data.kind === 'symbol') {
+				fillInSymbolsDragData([{
+					name: this.data.symbol.name,
+					fsPath: this.data.symbol.location.uri.fsPath,
+					range: this.data.symbol.location.range,
+					kind: this.data.symbol.kind
+				}], e);
+			}
 
 			e.dataTransfer?.setDragImage(element, 0, 0);
 		}));

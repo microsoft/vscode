@@ -23,7 +23,7 @@ import { CodeDataTransfers, Extensions, IDragAndDropContributionRegistry, IDragg
 import { IFileService } from '../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../platform/label/common/label.js';
-import { extractSelection } from '../../platform/opener/common/opener.js';
+import { extractSelection, withSelection } from '../../platform/opener/common/opener.js';
 import { Registry } from '../../platform/registry/common/platform.js';
 import { IWindowOpenable } from '../../platform/window/common/window.js';
 import { IWorkspaceContextService, hasWorkspaceFileExtension, isTemporaryWorkspace } from '../../platform/workspace/common/workspace.js';
@@ -269,7 +269,9 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 			const { selection, uri } = extractSelection(resourceOrEditor);
 			editor = { resource: uri, options: selection ? { selection } : undefined };
 		} else if (!resourceOrEditor.isDirectory) {
-			editor = { resource: resourceOrEditor.resource };
+			editor = {
+				resource: resourceOrEditor.selection ? withSelection(resourceOrEditor.resource, resourceOrEditor.selection) : resourceOrEditor.resource,
+			};
 		}
 
 		if (!editor) {
