@@ -5,7 +5,7 @@
 
 import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString } from 'vscode';
 import { Model } from './model';
-import { dispose, fromNow, IDisposable, pathEquals } from './util';
+import { dispose, fromNow, IDisposable } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation } from './git';
@@ -290,11 +290,16 @@ export class GitBlameController {
 
 		if (isGitUri(textEditor.document.uri)) {
 			const { ref } = fromGitUri(textEditor.document.uri);
-			// In most cases for files that use the `git` scheme we can discard
-			// the editor diff information as this is not being used for rendering
-			// blame information. The only exception is the right-side of the diff
-			// editor for a staged resource.
-			if (ref === '') {
+
+			// For the following scenarios we can discard the diff information
+			// 1) Commit - Resource in the multi-file diff editor when viewing the details of a commit.
+			// 2) HEAD   - Resource on the left-hand side of the diff editor when viewing a resource from the index.
+			// 3) ~      - Resource on the left-hand side of the diff editor when viewing a resource from the working tree.
+			if (/^[0-9a-f]{40}$/i.test(ref) || ref === 'HEAD' || ref === '~') {
+				workingTreeChanges = allChanges = [];
+				workingTreeAndIndexChanges = undefined;
+			} else if (ref === '') {
+				// Resource on the right-hand side of the diff editor when viewing a resource from the index.
 				const diffInformationWorkingTreeAndIndex = textEditor.diffInformation
 					.filter(diff => diff.original && isGitUri(diff.original))
 					.find(diff => fromGitUri(diff.original!).ref === 'HEAD');
@@ -307,8 +312,7 @@ export class GitBlameController {
 				workingTreeChanges = [];
 				workingTreeAndIndexChanges = allChanges = diffInformationWorkingTreeAndIndex?.changes ?? [];
 			} else {
-				workingTreeChanges = allChanges = [];
-				workingTreeAndIndexChanges = undefined;
+				throw new Error(`Unexpected ref: ${ref}`);
 			}
 		} else {
 			// Working tree diff information
@@ -316,15 +320,15 @@ export class GitBlameController {
 				.filter(diff => diff.original && isGitUri(diff.original))
 				.find(diff => fromGitUri(diff.original!).ref !== 'HEAD');
 
-			// Working tree + index diff information
-			const diffInformationWorkingTreeAndIndex = textEditor.diffInformation
-				.filter(diff => diff.original && isGitUri(diff.original))
-				.find(diff => fromGitUri(diff.original!).ref === 'HEAD');
-
 			// Working tree diff information is not present or it is stale
 			if (!diffInformationWorkingTree || diffInformationWorkingTree.isStale) {
 				return;
 			}
+
+			// Working tree + index diff information
+			const diffInformationWorkingTreeAndIndex = textEditor.diffInformation
+				.filter(diff => diff.original && isGitUri(diff.original))
+				.find(diff => fromGitUri(diff.original!).ref === 'HEAD');
 
 			// Working tree + index diff information is present and it is stale
 			if (diffInformationWorkingTreeAndIndex && diffInformationWorkingTreeAndIndex.isStale) {
@@ -346,21 +350,8 @@ export class GitBlameController {
 			commit = repository.HEAD.commit;
 		} else {
 			// Resource with the `git` scheme
-			const { path, ref } = fromGitUri(textEditor.document.uri);
-			const resourceFileUri = Uri.file(path);
-
-			if (ref === '~') {
-				const indexResource = repository.indexGroup.resourceStates
-					.some(r => pathEquals(r.resourceUri.fsPath, resourceFileUri.fsPath));
-				const workingTreeResource = repository.workingTreeGroup.resourceStates
-					.some(r => pathEquals(r.resourceUri.fsPath, resourceFileUri.fsPath));
-
-				if (indexResource && workingTreeResource) {
-					return;
-				}
-			}
-
-			commit = ref === 'HEAD' || ref === '~' || ref === '' ? repository.HEAD.commit : ref;
+			const { ref } = fromGitUri(textEditor.document.uri);
+			commit = /^[0-9a-f]{40}$/i.test(ref) ? ref : repository.HEAD.commit;
 		}
 
 		// Git blame information
