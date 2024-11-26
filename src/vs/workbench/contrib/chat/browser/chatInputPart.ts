@@ -543,7 +543,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.renderAttachedContext();
 	}
 
-	async render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
+	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		let elements;
 		if (this.options.renderStyle === 'compact') {
 			elements = dom.h('.interactive-input-part', [
