@@ -322,7 +322,6 @@ export function registerNewChatActions() {
 					order: 1
 				}, {
 					id: MenuId.ChatCommandCenter,
-					when: ChatContextKeys.editingParticipantRegistered,
 					group: 'a_open',
 					order: 2
 				}, {

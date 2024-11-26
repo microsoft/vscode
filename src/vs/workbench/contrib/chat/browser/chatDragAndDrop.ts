@@ -18,8 +18,11 @@ import { localize } from '../../../../nls.js';
 import { CodeDataTransfers, containsDragType, DocumentSymbolTransferData, extractEditorsDropData, extractSymbolDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
 import { FileType, IFileService, IFileSystemProvider } from '../../../../platform/files/common/files.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { isUntitledResourceEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
+import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatInputStyles } from './chatInputPart.js';
@@ -43,7 +46,8 @@ export class ChatDragAndDrop extends Themable {
 		private readonly styles: IChatInputStyles,
 		@IThemeService themeService: IThemeService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IFileService protected readonly fileService: IFileService
+		@IFileService protected readonly fileService: IFileService,
+		@IEditorService protected readonly editorService: IEditorService,
 	) {
 		super(themeService);
 
@@ -164,7 +168,7 @@ export class ChatDragAndDrop extends Themable {
 			return ChatDragAndDropType.FILE_EXTERNAL;
 		} else if (containsDragType(e, DataTransfers.INTERNAL_URI_LIST)) {
 			return ChatDragAndDropType.FILE_INTERNAL;
-		} else if (containsDragType(e, Mimes.uriList)) {
+		} else if (containsDragType(e, Mimes.uriList, CodeDataTransfers.FILES)) {
 			return ChatDragAndDropType.FOLDER;
 		}
 
@@ -238,6 +242,12 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	private async getEditorAttachContext(editor: EditorInput | IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
+
+		// untitled editor
+		if (isUntitledResourceEditorInput(editor)) {
+			return await this.resolveUntitledAttachContext(editor);
+		}
+
 		if (!editor.resource) {
 			return undefined;
 		}
@@ -254,6 +264,25 @@ export class ChatDragAndDrop extends Themable {
 		}
 
 		return getResourceAttachContext(editor.resource, stat.isDirectory);
+	}
+
+	private async resolveUntitledAttachContext(editor: IDraggedResourceEditorInput): Promise<IChatRequestVariableEntry | undefined> {
+		// If the resource is known, we can use it directly
+		if (editor.resource) {
+			return getResourceAttachContext(editor.resource, false);
+		}
+
+		// Otherwise, we need to check if the contents are already open in another editor
+		const openUntitledEditors = this.editorService.editors.filter(editor => editor instanceof UntitledTextEditorInput) as UntitledTextEditorInput[];
+		for (const canidate of openUntitledEditors) {
+			const model = await canidate.resolve();
+			const contents = model.textEditorModel?.getValue();
+			if (contents === editor.contents) {
+				return getResourceAttachContext(canidate.resource, false);
+			}
+		}
+
+		return undefined;
 	}
 
 	private resolveSymbolsAttachContext(symbols: DocumentSymbolTransferData[]): IChatRequestVariableEntry[] {
@@ -318,9 +347,10 @@ export class EditsDragAndDrop extends ChatDragAndDrop {
 		styles: IChatInputStyles,
 		@IThemeService themeService: IThemeService,
 		@IExtensionService extensionService: IExtensionService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IEditorService editorService: IEditorService,
 	) {
-		super(attachmentModel, styles, themeService, extensionService, fileService);
+		super(attachmentModel, styles, themeService, extensionService, fileService, editorService);
 	}
 
 	protected override handleDrop(context: IChatRequestVariableEntry[]): void {

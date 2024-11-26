@@ -825,6 +825,7 @@
 		"--dropdown-padding-bottom",
 		"--dropdown-padding-top",
 		"--inline-chat-frame-progress",
+		"--inline-chat-hint-progress",
 		"--insert-border-color",
 		"--last-tab-margin-right",
 		"--monaco-monospace-font",

@@ -470,11 +470,13 @@ export function registerChatActions() {
 				id: LearnMoreChatAction.ID,
 				title: LearnMoreChatAction.TITLE,
 				category: CHAT_CATEGORY,
-				menu: {
-					id: MenuId.ChatCommandCenter,
-					group: 'z_learn',
-					order: 1
-				}
+				menu: [
+					{
+						id: MenuId.ChatCommandCenter,
+						group: 'z_end',
+						order: 1
+					}
+				]
 			});
 		}
 

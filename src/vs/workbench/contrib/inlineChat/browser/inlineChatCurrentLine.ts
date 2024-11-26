@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -27,6 +27,9 @@ import './media/inlineChat.css';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
+import { ChatAgentLocation, IChatAgentService } from '../../chat/common/chatAgents.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
 
 export const CTX_INLINE_CHAT_SHOWING_HINT = new RawContextKey<boolean>('inlineChatShowingHint', false, localize('inlineChatShowingHint', "Whether inline chat shows a contextual hint"));
 
@@ -154,6 +157,8 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IChatAgentService chatAgentService: IChatAgentService,
+		@IMarkerDecorationsService markerDecorationService: IMarkerDecorationsService
 	) {
 		super();
 		this._editor = editor;
@@ -179,12 +184,12 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 			}
 		}));
 
-		const posObs = observableFromEvent(editor.onDidChangeCursorPosition, () => editor.getPosition());
-
+		const markerSuppression = this._store.add(new MutableDisposable());
 		const decos = this._editor.createDecorationsCollection();
 
+		const modelObs = observableFromEvent(editor.onDidChangeModel, () => editor.getModel());
+		const posObs = observableFromEvent(editor.onDidChangeCursorPosition, () => editor.getPosition());
 		const keyObs = observableFromEvent(keybindingService.onDidUpdateKeybindings, _ => keybindingService.lookupKeybinding(ACTION_START)?.getLabel());
-
 
 		this._store.add(autorun(r => {
 
@@ -192,37 +197,49 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 			const visible = this._visibilityObs.read(r);
 			const kb = keyObs.read(r);
 			const position = posObs.read(r);
+			const model = modelObs.read(r);
 
 			// update context key
 			this._ctxShowingHint.set(visible);
 
-			if (!visible || !kb || !position || ghostState !== undefined) {
+			if (!visible || !kb || !position || ghostState !== undefined || !model) {
 				decos.clear();
+				markerSuppression.clear();
 				return;
 			}
 
-			const column = this._editor.getModel()?.getLineMaxColumn(position.lineNumber);
-			if (!column) {
-				return;
-			}
+			const agentName = chatAgentService.getDefaultAgent(ChatAgentLocation.Editor)?.fullName ?? localize('defaultTitle', "Chat");
+			const isEol = model.getLineMaxColumn(position.lineNumber) === position.column;
 
-			const range = Range.fromPositions(position);
+			let content: string;
+			let inlineClassName: string;
+
+			if (isEol) {
+				content = '\u00A0' + localize('title', "{0} to continue with {1}...", kb, agentName);
+				inlineClassName = `inline-chat-hint${decos.length === 0 ? ' first' : ''}`;
+			} else {
+				content = '\u200a' + kb + '\u200a';
+				inlineClassName = 'inline-chat-hint embedded';
+			}
 
 			decos.set([{
-				range,
+				range: Range.fromPositions(position),
 				options: {
 					description: 'inline-chat-hint-line',
 					showIfCollapsed: true,
 					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+					hoverMessage: new MarkdownString(localize('toolttip', "Continue this with {0}...", agentName)),
 					after: {
-						inlineClassName: 'inline-chat-hint',
-						content: '\u00A0' + localize('ddd', "{0} to chat", kb),
+						content,
+						inlineClassName,
 						inlineClassNameAffectsLetterSpacing: true,
 						cursorStops: InjectedTextCursorStops.Both,
 						attachedData: this
 					}
 				}
 			}]);
+
+			markerSuppression.value = markerDecorationService.addMarkerSuppression(model.uri, model.validateRange(new Range(position.lineNumber, 1, position.lineNumber, Number.MAX_SAFE_INTEGER)));
 		}));
 	}
 

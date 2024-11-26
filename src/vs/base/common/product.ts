@@ -312,13 +312,14 @@ export interface IDefaultChatAgent {
 	readonly chatWelcomeTitle: string;
 	readonly documentationUrl: string;
 	readonly privacyStatementUrl: string;
-	readonly collectionDocumentationUrl: string;
 	readonly skusDocumentationUrl: string;
 	readonly providerId: string;
 	readonly providerName: string;
 	readonly providerScopes: string[][];
 	readonly entitlementUrl: string;
 	readonly entitlementChatEnabled: string;
-	readonly entitlementSkuLimitedUrl: string;
-	readonly entitlementSkuLimitedEnabled: string;
+	readonly entitlementSignupLimitedUrl: string;
+	readonly entitlementCanSignupLimited: string;
+	readonly entitlementSkuType: string;
+	readonly entitlementSkuTypeLimited: string;
 }

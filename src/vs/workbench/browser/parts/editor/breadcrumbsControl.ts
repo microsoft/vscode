@@ -112,9 +112,10 @@ class OutlineItem extends BreadcrumbsItem {
 			};
 			const dataTransfers: DataTransfer[] = [
 				[CodeDataTransfers.SYMBOLS, [symbolTransferData]],
-				[DataTransfers.RESOURCES, [symbolUri]]
+				[DataTransfers.RESOURCES, [symbolUri.toString()]]
 			];
-			this._disposables.add(createBreadcrumbDndObserver(container, element.symbol.name, symbolUri.toString(), dataTransfers));
+			const textData = symbolUri.fsPath + (symbolUri.fragment ? '#' + symbolUri.fragment : '');
+			this._disposables.add(createBreadcrumbDndObserver(container, element.symbol.name, textData, dataTransfers));
 		}
 	}
 }
@@ -163,7 +164,7 @@ class FileItem extends BreadcrumbsItem {
 			[CodeDataTransfers.FILES, [this.element.uri.fsPath]],
 			[DataTransfers.RESOURCES, [this.element.uri.toString()]],
 		];
-		const dndObserver = createBreadcrumbDndObserver(container, basename(this.element.uri), this.element.uri.toString(), dataTransfers);
+		const dndObserver = createBreadcrumbDndObserver(container, basename(this.element.uri), this.element.uri.fsPath, dataTransfers);
 		this._disposables.add(dndObserver);
 	}
 }

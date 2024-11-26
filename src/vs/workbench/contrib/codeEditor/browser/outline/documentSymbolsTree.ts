@@ -76,9 +76,10 @@ export class DocumentSymbolDragAndDrop implements ITreeDragAndDrop<DocumentSymbo
 		}
 
 		if (element instanceof OutlineElement) {
-			return symbolRangeUri(resource, element.symbol).toString();
+			const symbolUri = symbolRangeUri(resource, element.symbol);
+			return symbolUri.fsPath + (symbolUri.fragment ? '#' + symbolUri.fragment : '');
 		} else {
-			return resource.toString();
+			return resource.fsPath;
 		}
 	}
 
@@ -113,7 +114,7 @@ export class DocumentSymbolDragAndDrop implements ITreeDragAndDrop<DocumentSymbo
 		}));
 
 		originalEvent.dataTransfer.setData(CodeDataTransfers.SYMBOLS, JSON.stringify(symbolsData));
-		originalEvent.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(outlineElements.map(oe => symbolRangeUri(resource, oe.symbol))));
+		originalEvent.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(outlineElements.map(oe => symbolRangeUri(resource, oe.symbol).toString())));
 	}
 
 	onDragOver(): boolean | ITreeDragOverReaction { return false; }
