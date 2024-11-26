@@ -271,8 +271,8 @@ export class GitBlameController {
 	}
 
 	@throttle
-	private async _updateBlameInformation(textEditor: TextEditor | undefined): Promise<void> {
-		if (!textEditor?.diffInformation) {
+	private async _updateTextEditorBlameInformation(textEditor: TextEditor | undefined): Promise<void> {
+		if (!textEditor?.diffInformation || textEditor !== window.activeTextEditor) {
 			return;
 		}
 
@@ -422,18 +422,29 @@ class GitBlameEditorDecoration {
 			return;
 		}
 
+		// Clear decorations for the other editors
+		for (const editor of window.visibleTextEditors) {
+			if (editor === textEditor) {
+				continue;
+			}
+
+			editor.setDecorations(this._decorationType, []);
+		}
+
 		// Only support resources with `file` and `git` schemes
 		if (textEditor.document.uri.scheme !== 'file' && !isGitUri(textEditor.document.uri)) {
 			textEditor.setDecorations(this._decorationType, []);
 			return;
 		}
 
+		// Get blame information
 		const blameInformation = this._controller.textEditorBlameInformation.get(textEditor);
 		if (!blameInformation) {
 			textEditor.setDecorations(this._decorationType, []);
 			return;
 		}
 
+		// Set decorations for the editor
 		const decorations = blameInformation.map(blame => {
 			const contentText = typeof blame.blameInformation === 'string'
 				? blame.blameInformation
