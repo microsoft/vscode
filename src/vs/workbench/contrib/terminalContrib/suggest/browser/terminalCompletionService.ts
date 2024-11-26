@@ -201,10 +201,17 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		const parentDirPath = cwd.fsPath.split(resourceRequestConfig.pathSeparator).slice(0, -1).join(resourceRequestConfig.pathSeparator);
 		const parentCwd = URI.from({ scheme: cwd.scheme, path: parentDirPath });
+		const grandParentDirPath = parentCwd.fsPath.split(resourceRequestConfig.pathSeparator).slice(0, -1).join(resourceRequestConfig.pathSeparator);
+		const grandParentCwd = URI.from({ scheme: cwd.scheme, path: grandParentDirPath });
 		const dirToPrefixMap = new Map<URI, string>();
 
 		dirToPrefixMap.set(cwd, '.');
-		dirToPrefixMap.set(parentCwd, '..');
+		if (cwd !== parentCwd) {
+			dirToPrefixMap.set(parentCwd, '..');
+		}
+		if (parentCwd !== grandParentCwd) {
+			dirToPrefixMap.set(grandParentCwd, '..' + resourceRequestConfig.pathSeparator + '..');
+		}
 
 		const lastWord = promptValue.substring(0, cursorPosition).split(' ').pop() ?? '';
 
@@ -226,12 +233,12 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				if (kind === undefined) {
 					continue;
 				}
-
-				const label = prefix + stat.resource.fsPath.replace(dir.fsPath, '');
+				const isDirectory = kind === TerminalCompletionItemKind.Folder;
+				const label = isDirectory ? prefix + stat.resource.fsPath.replace(dir.fsPath, '') + resourceRequestConfig.pathSeparator : prefix + stat.resource.fsPath.replace(dir.fsPath, '');
 				resourceCompletions.push({
 					label,
 					kind,
-					isDirectory: kind === TerminalCompletionItemKind.Folder,
+					isDirectory,
 					isFile: kind === TerminalCompletionItemKind.File,
 					replacementIndex: cursorPosition - lastWord.length,
 					replacementLength: label.length
