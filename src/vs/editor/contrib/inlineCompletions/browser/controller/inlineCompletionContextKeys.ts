@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable, autorun } from '../../../../../base/common/observable.js';
-import { firstNonWhitespaceIndex } from '../../../../../base/common/strings.js';
-import { CursorColumns } from '../../../../common/core/cursorColumns.js';
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import { RawContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -59,34 +57,9 @@ export class InlineCompletionContextKeys extends Disposable {
 		this._register(autorun(reader => {
 			/** @description update context key: inlineCompletionSuggestsIndentation, inlineCompletionSuggestsIndentationLessThanTabSize */
 			const model = this.model.read(reader);
-
-			let startsWithIndentation = false;
-			let startsWithIndentationLessThanTabSize = true;
-
-			const ghostText = model?.primaryGhostText.read(reader);
-			if (!!model?.selectedSuggestItem && ghostText && ghostText.parts.length > 0) {
-				const { column, lines } = ghostText.parts[0];
-
-				const firstLine = lines[0];
-
-				const indentationEndColumn = model.textModel.getLineIndentColumn(ghostText.lineNumber);
-				const inIndentation = column <= indentationEndColumn;
-
-				if (inIndentation) {
-					let firstNonWsIdx = firstNonWhitespaceIndex(firstLine);
-					if (firstNonWsIdx === -1) {
-						firstNonWsIdx = firstLine.length - 1;
-					}
-					startsWithIndentation = firstNonWsIdx > 0;
-
-					const tabSize = model.textModel.getOptions().tabSize;
-					const visibleColumnIndentation = CursorColumns.visibleColumnFromColumn(firstLine, firstNonWsIdx + 1, tabSize);
-					startsWithIndentationLessThanTabSize = visibleColumnIndentation < tabSize;
-				}
-			}
-
-			this.inlineCompletionSuggestsIndentation.set(startsWithIndentation);
-			this.inlineCompletionSuggestsIndentationLessThanTabSize.set(startsWithIndentationLessThanTabSize);
+			const result = model?.getIndentationInfo(reader);
+			this.inlineCompletionSuggestsIndentation.set(result?.startsWithIndentation ?? false);
+			this.inlineCompletionSuggestsIndentationLessThanTabSize.set(result?.startsWithIndentationLessThanTabSize ?? true);
 		}));
 	}
 }

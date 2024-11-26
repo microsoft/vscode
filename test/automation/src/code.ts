@@ -12,7 +12,6 @@ import { launch as launchPlaywrightBrowser } from './playwrightBrowser';
 import { PlaywrightDriver } from './playwrightDriver';
 import { launch as launchPlaywrightElectron } from './playwrightElectron';
 import { teardown } from './processes';
-import { Quality } from './application';
 
 export interface LaunchOptions {
 	codePath?: string;
@@ -29,7 +28,6 @@ export interface LaunchOptions {
 	readonly tracing?: boolean;
 	readonly headless?: boolean;
 	readonly browser?: 'chromium' | 'webkit' | 'firefox';
-	readonly quality: Quality;
 }
 
 interface ICodeInstance {
@@ -79,7 +77,7 @@ export async function launch(options: LaunchOptions): Promise<Code> {
 		const { serverProcess, driver } = await measureAndLog(() => launchPlaywrightBrowser(options), 'launch playwright (browser)', options.logger);
 		registerInstance(serverProcess, options.logger, 'server');
 
-		return new Code(driver, options.logger, serverProcess, options.quality);
+		return new Code(driver, options.logger, serverProcess);
 	}
 
 	// Electron smoke tests (playwright)
@@ -87,7 +85,7 @@ export async function launch(options: LaunchOptions): Promise<Code> {
 		const { electronProcess, driver } = await measureAndLog(() => launchPlaywrightElectron(options), 'launch playwright (electron)', options.logger);
 		registerInstance(electronProcess, options.logger, 'electron');
 
-		return new Code(driver, options.logger, electronProcess, options.quality);
+		return new Code(driver, options.logger, electronProcess);
 	}
 }
 
@@ -98,8 +96,7 @@ export class Code {
 	constructor(
 		driver: PlaywrightDriver,
 		readonly logger: Logger,
-		private readonly mainProcess: cp.ChildProcess,
-		readonly quality: Quality
+		private readonly mainProcess: cp.ChildProcess
 	) {
 		this.driver = new Proxy(driver, {
 			get(target, prop) {
