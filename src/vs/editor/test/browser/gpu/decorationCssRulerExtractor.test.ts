@@ -80,4 +80,15 @@ suite('DecorationCssRulerExtractor', () => {
 			`.${testClassName}:hover { opacity: 1; }`,
 		]);
 	});
+
+	test('should not pick up styles from selectors where the prefix is the class', () => {
+		addStyleElement([
+			`.${testClassName} { color: red; }`,
+			`.${testClassName}-ignoreme { opacity: 1; }`,
+			`.${testClassName}fake { opacity: 1; }`,
+		].join('\n'));
+		assertStyles(testClassName, [
+			`.${testClassName} { color: red; }`,
+		]);
+	});
 });
