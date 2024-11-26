@@ -549,14 +549,14 @@ class ChatSetupWelcomeContent extends Disposable {
 		const markdown = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
 
 		// Header
-		const header = localize({ key: 'setupHeader', comment: ['{Locked="]({0})"}'] }, "{0} is your AI pair programmer.\n\nEnjoy powerful AI features for free with the [{1}]({2}) plan.", defaultChat.name, defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
+		const header = localize({ key: 'setupHeader', comment: ['{Locked="]({0})"}'] }, "[{0}]({1}) is your AI pair programmer.\n\nEnable powerful AI features for free with the [{2}]({3}) plan.", defaultChat.name, defaultChat.documentationUrl, defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element);
 
 		// Limited SKU Sign-up
 		const telemetryLabel = localize('telemetryLabel', "Allow {0} to use my data, including prompts, suggestions, and code snippets, for product improvements", defaultChat.providerName);
 		const { container: telemetryContainer, checkbox: telemetryCheckbox } = this.createCheckBox(telemetryLabel, this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? false : true, markdown);
 
-		const detectionLabel = localize('detectionLabel', "Allow suggestions matching [public code]({0})", defaultChat.publicCodeMatchesUrl);
+		const detectionLabel = localize('detectionLabel', "Allow code suggestions that [match public code]({0})", defaultChat.publicCodeMatchesUrl);
 		const { container: detectionContainer, checkbox: detectionCheckbox } = this.createCheckBox(detectionLabel, true, markdown);
 
 		// Setup Button
@@ -565,7 +565,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		this._register(button.onDidClick(() => this.controller.setup(telemetryCheckbox.checked, detectionCheckbox.checked)));
 
 		// Footer
-		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}).\n\nClick [here]({1}) to learn more about {2}.", defaultChat.privacyStatementUrl, defaultChat.documentationUrl, defaultChat.name);
+		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}).", defaultChat.privacyStatementUrl);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(footer, { isTrusted: true }))).element);
 
 		// Update based on model state
@@ -745,7 +745,7 @@ class ChatSetupContextKeys {
 class ChatSetupTriggerAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.triggerSetup';
-	static readonly TITLE = localize2('triggerChatSetup', "Start Using {0} for AI...", defaultChat.name);
+	static readonly TITLE = localize2('triggerChatSetup', "Use AI features with {0}...", defaultChat.name);
 
 	constructor() {
 		super({
