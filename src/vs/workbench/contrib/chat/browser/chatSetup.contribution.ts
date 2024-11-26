@@ -598,9 +598,10 @@ class ChatSetupWelcomeContent extends Disposable {
 				}
 
 				button.enabled = true;
-				button.label = this.controller.entitlement === ChatEntitlement.Unknown ?
-					localize('signInToStartSetup', "Sign in to {0}", defaultChat.providerName) :
-					localize('startSetup', "Start Using {0}", defaultChat.name);
+				button.label = this.controller.canSignUpLimited ?
+					localize('startSetupLimited', "Start Using {0}", defaultChat.entitlementSkuTypeLimitedName) : this.controller.entitlement === ChatEntitlement.Unknown ?
+						localize('signInToStartSetup', "Sign in to Start") :
+						localize('startSetupLimited', "Start Using {0}", defaultChat.name);
 				break;
 			case ChatSetupStep.SigningIn:
 			case ChatSetupStep.Installing:
