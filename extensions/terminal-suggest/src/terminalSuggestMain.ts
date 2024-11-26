@@ -231,7 +231,10 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 							continue;
 						}
 						specificSuggestionsProvided = true;
-						return argsCompletions;
+						const argCompletions = argsCompletions.items;
+						foldersRequested = foldersRequested || argsCompletions.foldersRequested;
+						filesRequested = filesRequested || argsCompletions.filesRequested;
+						return pushDefaultResourceCompletions(terminalContext, prefix, argCompletions, filesRequested, foldersRequested);
 					}
 				}
 			}
@@ -279,8 +282,7 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 		filesRequested = true;
 		foldersRequested = true;
 	}
-
-	return { items, filesRequested, foldersRequested };
+	return pushDefaultResourceCompletions(terminalContext, prefix, items, filesRequested, foldersRequested);
 }
 
 function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined, currentPrefix: string, terminalContext: { commandLine: string; cursorPosition: number }, precedingText: string): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; specificSuggestionsProvided: boolean } | undefined {
@@ -334,3 +336,13 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 function osIsWindows(): boolean {
 	return os.platform() === 'win32';
 }
+
+function pushDefaultResourceCompletions(terminalContext: { cursorPosition: number }, prefix: string, argCompletions: vscode.TerminalCompletionItem[], filesRequested: boolean, foldersRequested: boolean): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } {
+	const onlyFilesOrFolders = (filesRequested || foldersRequested) && !argCompletions.length;
+	if (onlyFilesOrFolders) {
+		argCompletions.push(createCompletionItem(terminalContext.cursorPosition, prefix, '.', 'Current directory', false, vscode.TerminalCompletionItemKind.Folder));
+		argCompletions.push(createCompletionItem(terminalContext.cursorPosition, prefix, '..', 'Parent directory', false, vscode.TerminalCompletionItemKind.Folder));
+	}
+	return { items: argCompletions, filesRequested, foldersRequested };
+}
+
