@@ -456,9 +456,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const completion = suggestion.item.completion;
 		let completionText = completion.label;
 		if ((completion.isDirectory || completion.isFile) && completionText.includes(' ')) {
-			// Wrap files or folders in quotes if they contain spaces so they're
-			// valid paths
-			completionText = `"${completionText}"`;
+			// Escape spaces in files or folders so they're valid paths
+			completionText = completionText.replaceAll(' ', '\\ ');
 		}
 		let runOnEnter = false;
 		if (respectRunOnEnter) {
