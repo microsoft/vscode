@@ -92,9 +92,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			const result = getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, token);
 			if (result.filesRequested || result.foldersRequested) {
-				console.log('shell integration path ' + terminal.shellIntegration?.cwd?.path);
 				const cwd = await resolveCwdFromPrefix(prefix, terminal.shellIntegration?.cwd) ?? terminal.shellIntegration?.cwd;
-				console.log('new path ' + cwd?.path);
 				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, cwd, pathSeparator: osIsWindows() ? '\\' : '/' });
 			}
 			return result.items;
@@ -214,7 +212,6 @@ export function asArray<T>(x: T | T[]): T[] {
 }
 
 export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: { commandLine: string; cursorPosition: number }, availableCommands: string[], prefix: string, token?: vscode.CancellationToken): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } {
-	console.log('requesting');
 	const items: vscode.TerminalCompletionItem[] = [];
 	let filesRequested = false;
 	let foldersRequested = false;
