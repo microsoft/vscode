@@ -90,10 +90,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			const prefix = getPrefix(terminalContext.commandLine, terminalContext.cursorPosition);
 
-			const result = getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, token);
-			if (result.filesRequested || result.foldersRequested) {
-				const cwd = await resolveCwdFromPrefix(prefix, terminal.shellIntegration?.cwd) ?? terminal.shellIntegration?.cwd;
-				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, cwd, pathSeparator: osIsWindows() ? '\\' : '/' });
+			const result = await getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, terminal.shellIntegration?.cwd, token);
+			if (result.cwd && (result.filesRequested || result.foldersRequested)) {
+				// const cwd = resolveCwdFromPrefix(prefix, terminal.shellIntegration?.cwd) ?? terminal.shellIntegration?.cwd;
+				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, cwd: result.cwd, pathSeparator: osIsWindows() ? '\\' : '/' });
 			}
 			return result.items;
 		}
@@ -112,10 +112,16 @@ export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.U
 		return;
 	}
 	try {
-		// Resolve the absolute path of the prefix
-		const resolvedPath = path.resolve(currentCwd?.fsPath, prefix);
+		// Get the nearest folder path from the prefix. This ignores everything after the `/` as
+		// they are what triggers changes in the directory.
+		// TODO: Support `\` on relevant shells
+		const lastSlashIndex = prefix.lastIndexOf('/');
+		const relativeFolder = lastSlashIndex === -1 ? '' : prefix.slice(0, lastSlashIndex);
 
+		// Resolve the absolute path of the prefix
+		const resolvedPath = path.resolve(currentCwd?.fsPath, relativeFolder);
 		const stat = await fs.stat(resolvedPath);
+
 		// Check if the resolved path exists and is a directory
 		if (stat.isDirectory()) {
 			return currentCwd.with({ path: resolvedPath });
@@ -211,7 +217,7 @@ export function asArray<T>(x: T | T[]): T[] {
 	return Array.isArray(x) ? x : [x];
 }
 
-export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: { commandLine: string; cursorPosition: number }, availableCommands: string[], prefix: string, token?: vscode.CancellationToken): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } {
+export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: { commandLine: string; cursorPosition: number }, availableCommands: string[], prefix: string, shellIntegrationCwd?: vscode.Uri, token?: vscode.CancellationToken): Promise<{ items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; cwd?: vscode.Uri }> {
 	const items: vscode.TerminalCompletionItem[] = [];
 	let filesRequested = false;
 	let foldersRequested = false;
@@ -264,8 +270,12 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 						const argCompletions = argsCompletions.items;
 						foldersRequested = foldersRequested || argsCompletions.foldersRequested;
 						filesRequested = filesRequested || argsCompletions.filesRequested;
+						let cwd: vscode.Uri | undefined;
+						if (shellIntegrationCwd && filesRequested || foldersRequested) {
+							cwd = await resolveCwdFromPrefix(prefix, shellIntegrationCwd) ?? shellIntegrationCwd;
+						}
 						specificSuggestionsProvided = argsCompletions.specificSuggestionsProvided;
-						return { items: argCompletions, filesRequested, foldersRequested };
+						return { items: argCompletions, filesRequested, foldersRequested, cwd };
 					}
 				}
 			}
@@ -313,7 +323,11 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 		filesRequested = true;
 		foldersRequested = true;
 	}
-	return { items, filesRequested, foldersRequested };
+	let cwd: vscode.Uri | undefined;
+	if (shellIntegrationCwd && filesRequested || foldersRequested) {
+		cwd = await resolveCwdFromPrefix(prefix, shellIntegrationCwd) ?? shellIntegrationCwd;
+	}
+	return { items, filesRequested, foldersRequested, cwd };
 }
 
 function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined, currentPrefix: string, terminalContext: { commandLine: string; cursorPosition: number }, precedingText: string): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; specificSuggestionsProvided: boolean } | undefined {

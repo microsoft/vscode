@@ -3,12 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as vscode from 'vscode';
 import { deepStrictEqual, strictEqual } from 'assert';
 import 'mocha';
 import { asArray, getCompletionItemsFromSpecs } from './terminalSuggestMain';
 import cdSpec from './completions/cd';
 import codeCompletionSpec from './completions/code';
 import codeInsidersCompletionSpec from './completions/code-insiders';
+import type { Uri } from 'vscode';
+import { basename } from 'path';
+
+const fixtureDir = vscode.Uri.joinPath(vscode.Uri.file(__dirname), '../fixtures');
+const testCwdParent = vscode.Uri.joinPath(fixtureDir, 'parent');
+const testCwd = vscode.Uri.joinPath(fixtureDir, 'parent/home');
+const testCwdChild = vscode.Uri.joinPath(fixtureDir, 'parent/home/child');
 
 interface ISuiteSpec {
 	name: string;
@@ -21,7 +29,10 @@ interface ISuiteSpec {
 
 interface ITestSpec2 {
 	input: string;
-	expectedResourceRequests?: 'files' | 'folders' | 'both';
+	expectedResourceRequests?: {
+		type: 'files' | 'folders' | 'both';
+		cwd: Uri;
+	};
 	expectedCompletions?: string[];
 }
 
@@ -44,20 +55,20 @@ function createCodeTestSpecs(executable: string): ITestSpec2[] {
 		// Basic arguments
 		{ input: `${executable} |`, expectedCompletions: codeOptions },
 		{ input: `${executable} --locale |`, expectedCompletions: localeOptions },
-		{ input: `${executable} --diff |`, expectedResourceRequests: 'files' },
-		{ input: `${executable} -di|`, expectedCompletions: codeOptions.filter(o => o.startsWith('di')), expectedResourceRequests: 'both' },
-		{ input: `${executable} --diff ./file1 |`, expectedResourceRequests: 'files' },
-		{ input: `${executable} --merge |`, expectedResourceRequests: 'files' },
-		{ input: `${executable} --merge ./file1 ./file2 |`, expectedResourceRequests: 'files' },
-		{ input: `${executable} --merge ./file1 ./file2 ./base |`, expectedResourceRequests: 'files' },
-		{ input: `${executable} --goto |`, expectedResourceRequests: 'files' },
-		{ input: `${executable} --user-data-dir |`, expectedResourceRequests: 'folders' },
+		{ input: `${executable} --diff |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
+		{ input: `${executable} -di|`, expectedCompletions: codeOptions.filter(o => o.startsWith('di')), expectedResourceRequests: { type: 'both', cwd: testCwd } },
+		{ input: `${executable} --diff ./file1 |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
+		{ input: `${executable} --merge |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
+		{ input: `${executable} --merge ./file1 ./file2 |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
+		{ input: `${executable} --merge ./file1 ./file2 ./base |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
+		{ input: `${executable} --goto |`, expectedResourceRequests: { type: 'files', cwd: testCwd } },
+		{ input: `${executable} --user-data-dir |`, expectedResourceRequests: { type: 'folders', cwd: testCwd } },
 		{ input: `${executable} --profile |` },
 		{ input: `${executable} --install-extension |` },
 		{ input: `${executable} --uninstall-extension |` },
 		{ input: `${executable} --log |`, expectedCompletions: logOptions },
 		{ input: `${executable} --sync |`, expectedCompletions: syncOptions },
-		{ input: `${executable} --extensions-dir |`, expectedResourceRequests: 'folders' },
+		{ input: `${executable} --extensions-dir |`, expectedResourceRequests: { type: 'folders', cwd: testCwd } },
 		{ input: `${executable} --list-extensions |`, expectedCompletions: codeOptions },
 		{ input: `${executable} --show-versions |`, expectedCompletions: codeOptions },
 		{ input: `${executable} --category |`, expectedCompletions: categoryOptions },
@@ -81,20 +92,23 @@ const testSpecs2: ISuiteSpec[] = [
 			{ input: 'cd|', expectedCompletions: ['cd'] },
 
 			// Basic arguments
-			{ input: 'cd |', expectedCompletions: ['~', '-'], expectedResourceRequests: 'folders' },
-			{ input: 'cd -|', expectedCompletions: ['-'], expectedResourceRequests: 'folders' },
-			{ input: 'cd ~|', expectedCompletions: ['~'], expectedResourceRequests: 'folders' },
+			{ input: 'cd |', expectedCompletions: ['~', '-'], expectedResourceRequests: { type: 'folders', cwd: testCwd } },
+			{ input: 'cd -|', expectedCompletions: ['-'], expectedResourceRequests: { type: 'folders', cwd: testCwd } },
+			{ input: 'cd ~|', expectedCompletions: ['~'], expectedResourceRequests: { type: 'folders', cwd: testCwd } },
 
 			// Relative paths
-			{ input: 'cd s|', expectedResourceRequests: 'folders' },
-			{ input: 'cd src|', expectedResourceRequests: 'folders' },
-			{ input: 'cd src/|', expectedResourceRequests: 'folders' },
-			{ input: 'cd .|', expectedResourceRequests: 'folders' },
-			{ input: 'cd ./|', expectedResourceRequests: 'folders' },
-			{ input: 'cd ./src|', expectedResourceRequests: 'folders' },
-			{ input: 'cd ..|', expectedResourceRequests: 'folders' },
-			{ input: 'cd ../|', expectedResourceRequests: 'folders' },
-			{ input: 'cd ../sibling|', expectedResourceRequests: 'folders' },
+			{ input: 'cd s|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
+			{ input: 'cd src|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
+			{ input: 'cd src/|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
+			{ input: 'cd .|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
+			{ input: 'cd ./|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
+			{ input: 'cd ./src|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
+			{ input: 'cd ..|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
+
+			// Relative directories (changes cwd due to /)
+			{ input: 'cd child/|', expectedResourceRequests: { type: 'folders', cwd: testCwdChild } },
+			{ input: 'cd ../|', expectedResourceRequests: { type: 'folders', cwd: testCwdParent } },
+			{ input: 'cd ../sibling|', expectedResourceRequests: { type: 'folders', cwd: testCwdParent } },
 		]
 	},
 	{
@@ -118,18 +132,25 @@ suite('Terminal Suggest', () => {
 			const availableCommands = asArray(suiteSpec.availableCommands);
 			for (const testSpec of suiteSpec.testSpecs) {
 				let expectedString = testSpec.expectedCompletions ? `[${testSpec.expectedCompletions.map(e => `'${e}'`).join(', ')}]` : '[]';
-				expectedString += testSpec.expectedResourceRequests ? ` + ${testSpec.expectedResourceRequests}` : '';
-				test(`'${testSpec.input}' -> ${expectedString}`, () => {
+				if (testSpec.expectedResourceRequests) {
+					expectedString += ` + ${testSpec.expectedResourceRequests.type}`;
+					if (testSpec.expectedResourceRequests.cwd.fsPath !== testCwd.fsPath) {
+						expectedString += ` @ ${basename(testSpec.expectedResourceRequests.cwd.fsPath)}/`;
+					}
+				}
+				test(`'${testSpec.input}' -> ${expectedString}`, async () => {
 					const commandLine = testSpec.input.split('|')[0];
 					const cursorPosition = testSpec.input.indexOf('|');
 					const prefix = commandLine.slice(0, cursorPosition).split(' ').at(-1) || '';
-					const filesRequested = testSpec.expectedResourceRequests === 'files' || testSpec.expectedResourceRequests === 'both';
-					const foldersRequested = testSpec.expectedResourceRequests === 'folders' || testSpec.expectedResourceRequests === 'both';
-
-					const result = getCompletionItemsFromSpecs(completionSpecs, { commandLine, cursorPosition }, availableCommands, prefix);
+					const filesRequested = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
+					const foldersRequested = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
+					const result = await getCompletionItemsFromSpecs(completionSpecs, { commandLine, cursorPosition }, availableCommands, prefix, testCwd);
 					deepStrictEqual(result.items.map(i => i.label).sort(), (testSpec.expectedCompletions ?? []).sort());
 					strictEqual(result.filesRequested, filesRequested);
 					strictEqual(result.foldersRequested, foldersRequested);
+					if (testSpec.expectedResourceRequests?.cwd) {
+						strictEqual(result.cwd?.fsPath, testSpec.expectedResourceRequests.cwd.fsPath);
+					}
 				});
 			}
 		});
