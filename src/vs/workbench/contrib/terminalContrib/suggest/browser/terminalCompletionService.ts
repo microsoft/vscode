@@ -199,7 +199,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		const resourceCompletions: ITerminalCompletion[] = [];
-		let path;
 		const endsWithSpace = promptValue.substring(0, cursorPosition).endsWith(' ');
 		let lastWord;
 		if (endsWithSpace) {
@@ -207,12 +206,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		} else {
 			lastWord = promptValue.substring(0, cursorPosition).trim().split(' ').at(-1) ?? '';
 		}
-		if (lastWord.includes(basename(cwd.fsPath)) || lastWord === '..' + resourceRequestConfig.pathSeparator || lastWord === '.' + resourceRequestConfig.pathSeparator) {
-			path = lastWord;
+		const pathStartsWithSlash = /^(\.\/|\.\.\/)/.test(lastWord);
+		if (pathStartsWithSlash) {
 			lastWord = '';
 		}
-		const prefix = path?.startsWith('..') ? '..' : '.';
-
 
 		// This breaks folder completions because has a different replacement index
 		// which results in replacement index being set to 0
@@ -251,13 +248,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				continue;
 			}
 			const isDirectory = kind === TerminalCompletionItemKind.Folder;
-			const pathStartsWithSlash = path?.startsWith('.' + resourceRequestConfig.pathSeparator) || path?.startsWith('..' + resourceRequestConfig.pathSeparator);
 			let label;
 			if (pathStartsWithSlash) {
 				label = isDirectory ? stat.resource.fsPath.replace(cwd.fsPath, '').substring(1) + resourceRequestConfig.pathSeparator : stat.resource.fsPath.replace(cwd.fsPath, '').substring(1).replace(cwd.fsPath, '');
 			} else {
-				label = isDirectory ? prefix + stat.resource.fsPath.replace(cwd.fsPath, '') + resourceRequestConfig.pathSeparator : prefix + stat.resource.fsPath.replace(cwd.fsPath, '');
+				label = isDirectory ? lastWord + stat.resource.fsPath.replace(cwd.fsPath, '') + resourceRequestConfig.pathSeparator : lastWord + stat.resource.fsPath.replace(cwd.fsPath, '');
 			}
+			label = isDirectory ? stat.resource.fsPath.replace(cwd.fsPath, '').substring(1) + resourceRequestConfig.pathSeparator : stat.resource.fsPath.replace(cwd.fsPath, '').substring(1).replace(cwd.fsPath, '');
 			resourceCompletions.push({
 				label,
 				kind,
