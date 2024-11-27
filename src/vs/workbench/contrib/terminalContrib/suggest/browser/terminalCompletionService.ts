@@ -5,6 +5,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { basename } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -76,7 +77,7 @@ export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	readonly providers: IterableIterator<ITerminalCompletionProvider>;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider, ...triggerCharacters: string[]): IDisposable;
-	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean): Promise<ITerminalCompletion[] | undefined>;
+	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean): Promise<ITerminalCompletion[] | undefined>;
 }
 
 export class TerminalCompletionService extends Disposable implements ITerminalCompletionService {
@@ -121,7 +122,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		});
 	}
 
-	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean): Promise<ITerminalCompletion[] | undefined> {
+	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean): Promise<ITerminalCompletion[] | undefined> {
 		if (!this._providers || !this._providers.values) {
 			return undefined;
 		}
@@ -146,7 +147,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			providers = [...this._providers.values()].flatMap(providerMap => [...providerMap.values()]);
 		}
 
-		if (!extensionCompletionsEnabled) {
+		if (!extensionCompletionsEnabled || skipExtensionCompletions) {
 			providers = providers.filter(p => p.isBuiltin);
 		}
 
@@ -200,17 +201,44 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const resourceCompletions: ITerminalCompletion[] = [];
 
 		const parentDirPath = cwd.fsPath.split(resourceRequestConfig.pathSeparator).slice(0, -1).join(resourceRequestConfig.pathSeparator);
-		const parentCwd = URI.from({ scheme: cwd.scheme, path: parentDirPath });
 		const dirToPrefixMap = new Map<URI, string>();
 
 		dirToPrefixMap.set(cwd, '.');
-		dirToPrefixMap.set(parentCwd, '..');
+		dirToPrefixMap.set(cwd.with({ path: parentDirPath }), '..');
 
-		const lastWord = promptValue.substring(0, cursorPosition).split(' ').pop() ?? '';
+		const endsWithSpace = promptValue.substring(0, cursorPosition).endsWith(' ');
+		let lastWord;
+		if (endsWithSpace) {
+			lastWord = '';
+		} else {
+			lastWord = promptValue.substring(0, cursorPosition).trim().split(' ').pop() ?? '';
+		}
+		if (lastWord.includes(basename(cwd.fsPath))) {
+			lastWord = '';
+		}
+
+		// This breaks folder completions because has a different replacement index
+		// which results in replacement index being set to 0
+		// const includeDirs = endsWithSpace || lastWord.match(/.*[\\\/]/);
+		// if (includeDirs) {
+		// 	resourceCompletions.push({
+		// 		label: '.' + resourceRequestConfig.pathSeparator,
+		// 		kind: TerminalCompletionItemKind.Folder,
+		// 		isDirectory: true,
+		// 		replacementIndex: cursorPosition,
+		// 		replacementLength: 2
+		// 	});
+		// 	resourceCompletions.push({
+		// 		label: '..' + resourceRequestConfig.pathSeparator,
+		// 		kind: TerminalCompletionItemKind.Folder,
+		// 		isDirectory: true,
+		// 		replacementIndex: cursorPosition,
+		// 		replacementLength: 3
+		// 	});
+		// }
 
 		for (const [dir, prefix] of dirToPrefixMap) {
 			const fileStat = await this._fileService.resolve(dir, { resolveSingleChildDescendants: true });
-
 			if (!fileStat || !fileStat?.children) {
 				return;
 			}
@@ -226,12 +254,12 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				if (kind === undefined) {
 					continue;
 				}
-
-				const label = prefix + stat.resource.fsPath.replace(dir.fsPath, '');
+				const isDirectory = kind === TerminalCompletionItemKind.Folder;
+				const label = isDirectory ? prefix + stat.resource.fsPath.replace(dir.fsPath, '') + resourceRequestConfig.pathSeparator : prefix + stat.resource.fsPath.replace(dir.fsPath, '');
 				resourceCompletions.push({
 					label,
 					kind,
-					isDirectory: kind === TerminalCompletionItemKind.Folder,
+					isDirectory,
 					isFile: kind === TerminalCompletionItemKind.File,
 					replacementIndex: cursorPosition - lastWord.length,
 					replacementLength: label.length
