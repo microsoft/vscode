@@ -149,7 +149,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// completions being requested again right after accepting a completion
 		if (this._lastUserDataTimestamp < SuggestAddon.lastAcceptedCompletionTimestamp) {
 			doNotRequestExtensionCompletions = true;
-			return;
 		}
 
 		const enableExtensionCompletions = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enableExtensionCompletions;
