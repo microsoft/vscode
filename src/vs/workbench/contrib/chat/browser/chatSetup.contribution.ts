@@ -63,6 +63,7 @@ const defaultChat = {
 	providerName: product.defaultChatAgent?.providerName ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
+	entitlementChatEnabled: product.defaultChatAgent?.entitlementChatEnabled ?? '',
 	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
 	entitlementCanSignupLimited: product.defaultChatAgent?.entitlementCanSignupLimited ?? '',
 	entitlementSkuType: product.defaultChatAgent?.entitlementSkuType ?? '',
@@ -153,6 +154,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 type ChatSetupEntitlementClassification = {
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating the chat entitlement state' };
+	entitled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat setup entitled' };
 	limited: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat setup limited' };
 	owner: 'bpasero';
 	comment: 'Reporting chat setup entitlements';
@@ -160,11 +162,13 @@ type ChatSetupEntitlementClassification = {
 
 type ChatSetupEntitlementEvent = {
 	entitlement: ChatEntitlement;
+	entitled: boolean;
 	limited: boolean;
 };
 
 interface IResolvedEntitlements {
 	readonly entitlement: ChatEntitlement;
+	readonly entitled: boolean;
 	readonly limited: boolean;
 }
 
@@ -226,7 +230,7 @@ class ChatSetupEntitlementResolver extends Disposable {
 
 		// Immediately signal whether we have a session or not
 		if (session) {
-			this.update(this.resolvedEntitlements?.entitlement ?? ChatEntitlement.Unresolved, this.resolvedEntitlements?.limited);
+			this.update(this.resolvedEntitlements?.entitlement ?? ChatEntitlement.Unresolved, this.resolvedEntitlements?.limited, this.resolvedEntitlements?.entitled);
 		} else {
 			this.resolvedEntitlements = undefined; // reset resolved entitlement when there is no session
 			this.update(ChatEntitlement.Unknown);
@@ -264,7 +268,7 @@ class ChatSetupEntitlementResolver extends Disposable {
 		const result = await this.doResolveEntitlement(session, token);
 		if (typeof result?.entitlement === 'number' && !token.isCancellationRequested) {
 			this.resolvedEntitlements = result;
-			this.update(result.entitlement, result.limited);
+			this.update(result.entitlement, result.limited, result.entitled);
 		}
 
 		return result?.entitlement;
@@ -282,12 +286,12 @@ class ChatSetupEntitlementResolver extends Disposable {
 
 		if (!response) {
 			this.logService.trace('[chat setup] entitlement: no response');
-			return { entitlement: ChatEntitlement.Unresolved, limited: false };
+			return { entitlement: ChatEntitlement.Unresolved, limited: false, entitled: false };
 		}
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
 			this.logService.trace(`[chat setup] entitlement: unexpected status code ${response.res.statusCode}`);
-			return { entitlement: ChatEntitlement.Unresolved, limited: false };
+			return { entitlement: ChatEntitlement.Unresolved, limited: false, entitled: false };
 		}
 
 		const responseText = await asText(response);
@@ -297,7 +301,7 @@ class ChatSetupEntitlementResolver extends Disposable {
 
 		if (!responseText) {
 			this.logService.trace('[chat setup] entitlement: response has no content');
-			return { entitlement: ChatEntitlement.Unresolved, limited: false };
+			return { entitlement: ChatEntitlement.Unresolved, limited: false, entitled: false };
 		}
 
 		let parsedResult: any;
@@ -306,25 +310,26 @@ class ChatSetupEntitlementResolver extends Disposable {
 			this.logService.trace(`[chat setup] entitlement: parsed result is ${JSON.stringify(parsedResult)}`);
 		} catch (err) {
 			this.logService.trace(`[chat setup] entitlement: error parsing response (${err})`);
-			return { entitlement: ChatEntitlement.Unresolved, limited: false };
+			return { entitlement: ChatEntitlement.Unresolved, limited: false, entitled: false };
 		}
 
 		const result = {
 			entitlement: Boolean(parsedResult[defaultChat.entitlementCanSignupLimited]) ? ChatEntitlement.Available : ChatEntitlement.Unavailable,
+			entitled: Boolean(parsedResult[defaultChat.entitlementChatEnabled]),
 			limited: Boolean(parsedResult[defaultChat.entitlementSkuType] === defaultChat.entitlementSkuTypeLimited)
 		};
 
-		this.logService.trace(`[chat setup] entitlement: resolved to ${result.entitlement}, limited: ${result.limited}`);
+		this.logService.trace(`[chat setup] entitlement: resolved to ${result.entitlement}, entitled: ${result.entitled}, limited: ${result.limited}`);
 		this.telemetryService.publicLog2<ChatSetupEntitlementEvent, ChatSetupEntitlementClassification>('chatInstallEntitlement', result);
 
 		return result;
 	}
 
-	private update(newEntitlement: ChatEntitlement, limited?: boolean): void {
+	private update(newEntitlement: ChatEntitlement, limited?: boolean, entitled?: boolean): void {
 		const oldEntitlement = this._entitlement;
 		this._entitlement = newEntitlement;
 
-		this.chatSetupContext.update({ canSignUp: newEntitlement === ChatEntitlement.Available, limited: limited ?? false });
+		this.chatSetupContext.update({ canSignUp: newEntitlement === ChatEntitlement.Available, limited: limited ?? false, entitled: entitled ?? false });
 
 		if (oldEntitlement !== this._entitlement) {
 			this._onDidChangeEntitlement.fire(this._entitlement);
@@ -566,7 +571,7 @@ class ChatSetupController extends Disposable {
 			this.logService.error('[chat setup] sign-up: not subscribed');
 		}
 
-		this.chatSetupContext.update({ limited: subscribed, canSignUp: !subscribed });
+		this.chatSetupContext.update({ entitled: false, limited: subscribed, canSignUp: !subscribed });
 	}
 }
 
@@ -707,6 +712,7 @@ class ChatSetupContext {
 	private static readonly CHAT_SETUP_TRIGGERD = 'chat.setupTriggered';
 	private static readonly CHAT_EXTENSION_INSTALLED = 'chat.extensionInstalled';
 
+	private readonly entitledContextKey = ChatContextKeys.Setup.entitled.bindTo(this.contextKeyService);
 	private readonly limitedContextKey = ChatContextKeys.Setup.limited.bindTo(this.contextKeyService);
 	private readonly canSignUpContextKey = ChatContextKeys.Setup.canSignUp.bindTo(this.contextKeyService);
 	private readonly triggeredContext = ChatContextKeys.Setup.triggered.bindTo(this.contextKeyService);
@@ -715,6 +721,7 @@ class ChatSetupContext {
 	private triggered = this.storageService.getBoolean(ChatSetupContext.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE, false);
 	private installed = this.storageService.getBoolean(ChatSetupContext.CHAT_EXTENSION_INSTALLED, StorageScope.PROFILE, false);
 	private limited = false;
+	private entitled = false;
 	private canSignUp = false;
 
 	private contextKeyUpdateBarrier: Barrier | undefined = undefined;
@@ -729,8 +736,8 @@ class ChatSetupContext {
 
 	update(context: { chatInstalled: boolean }): Promise<void>;
 	update(context: { triggered: boolean }): Promise<void>;
-	update(context: { limited: boolean; canSignUp: boolean }): Promise<void>;
-	update(context: { triggered?: boolean; chatInstalled?: boolean; limited?: boolean; canSignUp?: boolean }): Promise<void> {
+	update(context: { limited: boolean; entitled: boolean; canSignUp: boolean }): Promise<void>;
+	update(context: { triggered?: boolean; chatInstalled?: boolean; limited?: boolean; entitled?: boolean; canSignUp?: boolean }): Promise<void> {
 		if (typeof context.chatInstalled === 'boolean') {
 			this.installed = context.chatInstalled;
 			this.storageService.store(ChatSetupContext.CHAT_EXTENSION_INSTALLED, context.chatInstalled, StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -753,6 +760,10 @@ class ChatSetupContext {
 			this.limited = context.limited;
 		}
 
+		if (typeof context.entitled === 'boolean') {
+			this.entitled = context.entitled;
+		}
+
 		if (typeof context.canSignUp === 'boolean') {
 			this.canSignUp = context.canSignUp;
 		}
@@ -773,6 +784,7 @@ class ChatSetupContext {
 		this.triggeredContext.set(showChatSetup);
 		this.installedContext.set(this.installed);
 		this.limitedContextKey.set(this.limited);
+		this.entitledContextKey.set(this.entitled);
 		this.canSignUpContextKey.set(this.canSignUp);
 	}
 
@@ -781,6 +793,7 @@ class ChatSetupContext {
 			triggered: this.triggered,
 			installed: this.installed,
 			limited: this.limited,
+			entitled: this.entitled,
 			canSignUp: this.canSignUp
 		};
 	}
