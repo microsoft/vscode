@@ -22,7 +22,7 @@ import { InlineDecoration, InlineDecorationType } from '../../../../editor/commo
 import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../scm/browser/dirtydiffDecorator.js';
-import { ChatEditingSessionState, IChatEditingService, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { ChatEditingSessionState, IChatEditingService, IModifiedTextFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { Event } from '../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -155,7 +155,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		this._ctxHasEditorModification.reset();
 	}
 
-	private _updateWithDiff(entry: IModifiedFileEntry, diff: IDocumentDiff | null | undefined): void {
+	private _updateWithDiff(entry: IModifiedTextFileEntry, diff: IDocumentDiff | null | undefined): void {
 		if (!diff) {
 			this._clearRendering();
 			return;
@@ -507,7 +507,7 @@ class DiffHunkWidget implements IOverlayWidget {
 
 
 	constructor(
-		readonly entry: IModifiedFileEntry,
+		readonly entry: IModifiedTextFileEntry,
 		private readonly _undoEdits: ISingleEditOperation[],
 		private readonly _versionId: number,
 		private readonly _editor: ICodeEditor,

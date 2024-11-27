@@ -246,8 +246,6 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 	}
 
 	private _reportSaved(entry: IModifiedFileEntry) {
-		assertType(entry instanceof ChatEditingModifiedFileEntry);
-
 		this._chatService.notifyUserAction({
 			action: { kind: 'chatEditingSessionAction', uri: entry.modifiedURI, hasRemainingEdits: false, outcome: 'saved' },
 			agentId: entry.telemetryInfo.agentId,

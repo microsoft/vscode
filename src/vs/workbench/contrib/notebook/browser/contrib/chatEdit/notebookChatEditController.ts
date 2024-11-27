@@ -100,7 +100,7 @@ class NotebookChatEditorController extends Disposable {
 		const notebookDiffInfo = derivedWithStore(this, (r, store) => {
 			const entry = entryObs.read(r);
 			const model = notebookModel.read(r);
-			if (!entry || !model) {
+			if (!entry || !model || entry.kind !== 'text') {
 				// If entry is undefined, then revert the changes to the notebook.
 				if (notebookSynchronizer && model) {
 					notebookSynchronizer.object.revert();

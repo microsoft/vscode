@@ -378,7 +378,7 @@ class CollapsedCodeBlock extends Disposable {
 			if (!isStreaming && isComplete) {
 				const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
 				const labelRemoved = this.element.querySelector('.label-removed') ?? this.element.appendChild(dom.$('span.label-removed'));
-				const changes = modifiedEntry?.diffInfo.read(r);
+				const changes = modifiedEntry?.kind === 'text' ? modifiedEntry?.diffInfo.read(r) : undefined;
 				if (changes && !changes?.identical && !changes?.quitEarly) {
 					let removedLines = 0;
 					let addedLines = 0;

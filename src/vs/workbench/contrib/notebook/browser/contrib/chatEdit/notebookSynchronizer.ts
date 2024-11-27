@@ -140,7 +140,7 @@ export class NotebookModelSynchronizer extends Disposable {
 			const modifiedModel = (entry as ChatEditingModifiedFileEntry).modifiedModel;
 			let cancellationToken = store.add(new CancellationTokenSource());
 			store.add(modifiedModel.onDidChangeContent(async () => {
-				if (!modifiedModel.isDisposed() && !entry.originalModel.isDisposed() && modifiedModel.getValue() !== entry.originalModel.getValue()) {
+				if (!modifiedModel.isDisposed() && !(entry as any).originalModel.isDisposed() && modifiedModel.getValue() !== (entry as any).originalModel.getValue()) {
 					cancellationToken = store.add(new CancellationTokenSource());
 					updateNotebookModel(entry, cancellationToken.token);
 				}
@@ -249,7 +249,7 @@ export class NotebookModelSynchronizer extends Disposable {
 	private _originalModel?: Promise<NotebookTextModel>;
 	private async getOriginalModel(entry: IModifiedFileEntry): Promise<NotebookTextModel> {
 		if (!this._originalModel) {
-			this._originalModel = this.originalModelRefFactory.getOrCreate(entry, this.model.viewType).then(ref => this._register(ref).object);
+			this._originalModel = this.originalModelRefFactory.getOrCreate(entry as unknown as any, this.model.viewType).then(ref => this._register(ref).object);
 		}
 		return this._originalModel;
 	}
