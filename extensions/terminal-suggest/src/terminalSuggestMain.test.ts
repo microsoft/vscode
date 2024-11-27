@@ -21,7 +21,6 @@ interface ISuiteSpec {
 
 interface ITestSpec2 {
 	input: string;
-	// TODO: Instead of expected resources we should mock the file service with a set of files to use
 	expectedResourceRequests?: 'files' | 'folders' | 'both';
 	expectedCompletions?: string[];
 }
