@@ -327,7 +327,7 @@ class StatusInputMode extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<'overtype' | 'insert'>());
 	readonly onDidChange = this._onDidChange.event;
 
-	constructor(@IConfigurationService private readonly configurationService: IConfigurationService) {
+	constructor() {
 		super();
 		this._registerListeners();
 		InputMode.setInputMode('insert');
@@ -335,13 +335,6 @@ class StatusInputMode extends Disposable {
 
 	private _registerListeners(): void {
 		this._register(InputMode.onDidChangeInputMode(inputMode => this._onDidChange.fire(inputMode)));
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor.inputMode')) {
-				const defaultInputMode = 'insert';
-				InputMode.setInputMode(defaultInputMode);
-				this._onDidChange.fire(defaultInputMode);
-			}
-		}));
 	}
 }
 
