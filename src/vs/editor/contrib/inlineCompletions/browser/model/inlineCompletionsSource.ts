@@ -8,8 +8,10 @@ import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.j
 import { matchesSubString } from '../../../../../base/common/filters.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IReader, ITransaction, derivedOpts, disposableObservableValue, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { Position } from '../../../../common/core/position.js';
@@ -32,7 +34,12 @@ export class InlineCompletionsSource extends Disposable {
 	public readonly suggestWidgetInlineCompletions = disposableObservableValue<UpToDateInlineCompletions | undefined>('suggestWidgetInlineCompletions', undefined);
 
 	private readonly _loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
-	private readonly _recordingLoggingEnabled = observableContextKey('editor.inlineSuggest.logFetch', this._contextKeyService).recomputeInitiallyAndOnChange(this._store);
+	private readonly _structuredFetchLogger = this._register(this._instantiationService.createInstance(StructuredLogger.cast<
+		{ kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
+		| { kind: 'end'; error: any; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
+	>(),
+		'editor.inlineSuggest.logFetch.commandId'
+	));
 
 	constructor(
 		private readonly _textModel: ITextModel,
@@ -42,7 +49,7 @@ export class InlineCompletionsSource extends Disposable {
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -52,10 +59,13 @@ export class InlineCompletionsSource extends Disposable {
 	}
 
 	private _log(entry:
-		{ kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
-		| { kind: 'end'; error: any; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
+		{ sourceId: string; kind: 'start'; requestId: number; context: unknown } & IRecordableEditorLogEntry
+		| { sourceId: string; kind: 'end'; error: any; durationMs: number; result: unknown; requestId: number } & IRecordableLogEntry
 	) {
-		this._logService.info(formatRecordableLogEntry('InlineCompletions.fetch', entry));
+		if (this._loggingEnabled.get()) {
+			this._logService.info(formatRecordableLogEntry(entry));
+		}
+		this._structuredFetchLogger.log(entry);
 	}
 
 	public readonly loading = observableValue(this, false);
@@ -90,8 +100,8 @@ export class InlineCompletionsSource extends Disposable {
 			}
 
 			const requestId = InlineCompletionsSource._requestId++;
-			if (this._loggingEnabled.get() || this._recordingLoggingEnabled.get()) {
-				this._log({ kind: 'start', requestId, modelUri: this._textModel.uri.toString(), modelVersion: this._textModel.getVersionId(), context: { triggerKind: context.triggerKind }, time: Date.now() });
+			if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
+				this._log({ sourceId: 'InlineCompletions.fetch', kind: 'start', requestId, modelUri: this._textModel.uri.toString(), modelVersion: this._textModel.getVersionId(), context: { triggerKind: context.triggerKind }, time: Date.now() });
 			}
 
 			const startTime = new Date();
@@ -110,8 +120,8 @@ export class InlineCompletionsSource extends Disposable {
 				error = e;
 				throw e;
 			} finally {
-				if (this._loggingEnabled.get() || this._recordingLoggingEnabled.get()) {
-					if (source.token.isCancellationRequested) {
+				if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
+					if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
 						error = 'canceled';
 					}
 					const result = updatedCompletions?.completions.map(c => ({
@@ -120,7 +130,7 @@ export class InlineCompletionsSource extends Disposable {
 						isInlineEdit: !!c.sourceInlineCompletion.isInlineEdit,
 						source: c.source.provider.groupId,
 					}));
-					this._log({ kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now() });
+					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now() });
 				}
 			}
 
@@ -375,6 +385,7 @@ export class InlineCompletionWithUpdatedRange {
 const emptyRange = new Range(1, 1, 1, 1);
 
 interface IRecordableLogEntry {
+	sourceId: string;
 	time: number;
 }
 
@@ -386,10 +397,37 @@ export interface IRecordableEditorLogEntry extends IRecordableLogEntry {
 /**
  * The sourceLabel must not contain '@'!
 */
-export function formatRecordableLogEntry<T extends IRecordableLogEntry>(sourceId: string, entry: T): string {
-	return sourceId + ' @@ ' + JSON.stringify(entry);
+export function formatRecordableLogEntry<T extends IRecordableLogEntry>(entry: T): string {
+	return entry.sourceId + ' @@ ' + JSON.stringify({ ...entry, sourceId: undefined });
 }
 
-export function observableContextKey(key: string, contextKeyService: IContextKeyService): IObservable<unknown> {
-	return observableFromEvent(contextKeyService.onDidChangeContext, () => contextKeyService.getContextKeyValue(key));
+export class StructuredLogger<T extends IRecordableLogEntry> extends Disposable {
+	public static cast<T extends IRecordableLogEntry>(): typeof StructuredLogger<T> {
+		return this as typeof StructuredLogger<T>;
+	}
+
+	private readonly _contextKeyValue = observableContextKey<string>(this._contextKey, this._contextKeyService).recomputeInitiallyAndOnChange(this._store);
+
+	constructor(
+		private readonly _contextKey: string,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ICommandService private readonly _commandService: ICommandService,
+	) {
+		super();
+	}
+
+	public readonly isEnabled = this._contextKeyValue.map(v => v !== undefined);
+
+	public log(data: T): boolean {
+		const commandId = this._contextKeyValue.get();
+		if (!commandId) {
+			return false;
+		}
+		this._commandService.executeCommand(commandId, data);
+		return true;
+	}
+}
+
+export function observableContextKey<T>(key: string, contextKeyService: IContextKeyService): IObservable<T | undefined> {
+	return observableFromEvent(contextKeyService.onDidChangeContext, () => contextKeyService.getContextKeyValue<T>(key));
 }
