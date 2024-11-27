@@ -15,7 +15,7 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { LanguageFeatureRegistry } from '../../../../../editor/common/languageFeatureRegistry.js';
-import { Location } from '../../../../../editor/common/languages.js';
+import { Location, SymbolKind } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -193,7 +193,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 
 			if (attachment.kind === 'symbol') {
 				const scopedContextKeyService = this.attachedContextDisposables.add(this.contextKeyService.createScoped(widget));
-				this.attachedContextDisposables.add(this.instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, widget, scopedContextKeyService, attachment, MenuId.ChatInputSymbolAttachmentContext)));
+				this.attachedContextDisposables.add(this.instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, widget, scopedContextKeyService, { ...attachment, kind: attachment.symbolKind }, MenuId.ChatInputSymbolAttachmentContext)));
 			}
 
 			if (isAttachmentPartialOrOmitted) {
@@ -288,7 +288,7 @@ export function hookUpResourceAttachmentDragAndContextMenu(accessor: ServicesAcc
 	return store;
 }
 
-export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, attachment: { name: string; value: Location }, contextMenuId: MenuId): IDisposable {
+export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, attachment: { name: string; value: Location; kind: SymbolKind }, contextMenuId: MenuId): IDisposable {
 	const instantiationService = accessor.get(IInstantiationService);
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const textModelService = accessor.get(ITextModelService);
@@ -310,7 +310,7 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 			fsPath: attachment.value.uri.fsPath,
 			range: attachment.value.range,
 			name: attachment.name,
-			kind: 0
+			kind: attachment.kind,
 		}], e);
 
 		e.dataTransfer?.setDragImage(widget, 0, 0);

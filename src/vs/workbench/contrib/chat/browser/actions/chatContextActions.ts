@@ -407,6 +407,7 @@ export class AttachContextAction extends Action2 {
 					kind: 'symbol',
 					id: this._getFileContextId(pick.symbol.location),
 					value: pick.symbol.location,
+					symbolKind: pick.symbol.kind,
 					fullName: pick.label,
 					name: pick.symbol.name,
 					isDynamic: true

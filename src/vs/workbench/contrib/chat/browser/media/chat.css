@@ -919,6 +919,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .codicon {
 	padding-left: 4px;
+	font-size: 100% !important;
 }
 
 .interactive-session .chat-attached-context {
