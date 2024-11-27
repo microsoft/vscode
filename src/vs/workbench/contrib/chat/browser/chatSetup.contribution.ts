@@ -26,7 +26,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { showChatView, ChatViewId } from './chat.js';
+import { showChatView, ChatViewId, showEditsView, IChatWidget, EditsViewId } from './chat.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import product from '../../../../platform/product/common/product.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -47,7 +47,7 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { Barrier, timeout } from '../../../../base/common/async.js';
 import { IChatAgentService } from '../common/chatAgents.js';
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
-import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
+import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 const defaultChat = {
@@ -211,7 +211,7 @@ class ChatSetupEntitlementResolver extends Disposable {
 
 				await that.chatSetupContext.update({ triggered: true });
 
-				showChatView(viewsService);
+				showCopilotView(viewsService);
 
 				const location = viewDescriptorService.getViewLocationById(ChatViewId);
 				if (location !== ViewContainerLocation.Panel) {
@@ -514,7 +514,7 @@ class ChatSetupController extends Disposable {
 
 	async setup(enableTelemetry: boolean): Promise<void> {
 		const title = localize('setupChatProgress', "Getting {0} ready...", defaultChat.name);
-		const badge = this.activityService.showViewContainerActivity(CHAT_SIDEBAR_PANEL_ID, {
+		const badge = this.activityService.showViewContainerActivity(isCopilotEditsViewActive(this.viewsService) ? CHAT_EDITING_SIDEBAR_PANEL_ID : CHAT_SIDEBAR_PANEL_ID, {
 			badge: new ProgressBadge(() => title),
 			priority: 100
 		});
@@ -565,7 +565,7 @@ class ChatSetupController extends Disposable {
 	private async signIn(): Promise<AuthenticationSession | undefined> {
 		let session: AuthenticationSession | undefined;
 		try {
-			showChatView(this.viewsService);
+			showCopilotView(this.viewsService);
 			session = await this.authenticationService.createSession(defaultChat.providerId, defaultChat.providerScopes[0]);
 		} catch (error) {
 			// noop
@@ -585,7 +585,7 @@ class ChatSetupController extends Disposable {
 		let installResult: 'installed' | 'cancelled' | 'failedInstall';
 		const wasInstalled = this.chatSetupContext.getContext().installed;
 		try {
-			showChatView(this.viewsService);
+			showCopilotView(this.viewsService);
 
 			this.chatSetupContext.suspend(); // reduces flicker
 
@@ -600,7 +600,7 @@ class ChatSetupController extends Disposable {
 				isMachineScoped: false,
 				installEverywhere: true,
 				installPreReleaseVersion: this.productService.quality !== 'stable'
-			}, ChatViewId);
+			}, isCopilotEditsViewActive(this.viewsService) ? EditsViewId : ChatViewId);
 
 			installResult = 'installed';
 		} catch (error) {
@@ -621,7 +621,7 @@ class ChatSetupController extends Disposable {
 		this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signedIn });
 
 		if (activeElement === getActiveElement()) {
-			(await showChatView(this.viewsService))?.focusInput();
+			(await showCopilotView(this.viewsService))?.focusInput();
 		}
 	}
 
@@ -759,6 +759,18 @@ class ChatSetupWelcomeContent extends Disposable {
 //#endregion
 
 //#region Helpers
+
+function isCopilotEditsViewActive(viewsService: IViewsService): boolean {
+	return viewsService.getFocusedView()?.id === EditsViewId;
+}
+
+function showCopilotView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
+	if (isCopilotEditsViewActive(viewsService)) {
+		return showEditsView(viewsService);
+	} else {
+		return showChatView(viewsService);
+	}
+}
 
 class ChatSetupRequestHelper {
 
