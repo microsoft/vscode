@@ -325,15 +325,11 @@ class TabFocusMode extends Disposable {
 class StatusInputMode extends Disposable {
 
 	private readonly _onDidChange = this._register(new Emitter<'overtype' | 'insert'>());
-	readonly onDidChange = this._onDidChange.event;
+	public readonly onDidChange = this._onDidChange.event;
 
 	constructor() {
 		super();
-		this._registerListeners();
 		InputMode.setInputMode('insert');
-	}
-
-	private _registerListeners(): void {
 		this._register(InputMode.onDidChangeInputMode(inputMode => this._onDidChange.fire(inputMode)));
 	}
 }
@@ -394,9 +390,7 @@ class EditorStatus extends Disposable {
 				this.onTabFocusModeChange(this.configurationService.getValue('editor.tabFocusMode'));
 			}
 		}));
-		this._register(Event.runAndSubscribe(this.inputMode.onDidChange, (inputMode) => {
-			this.onInputModeChange(inputMode ?? 'insert');
-		}));
+		this._register(Event.runAndSubscribe(this.inputMode.onDidChange, (inputMode) => this.onInputModeChange(inputMode ?? 'insert')));
 	}
 
 	private registerCommands(): void {
