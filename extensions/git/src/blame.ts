@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString } from 'vscode';
+import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString, TextEditorDiffInformation } from 'vscode';
 import { Model } from './model';
 import { dispose, fromNow, IDisposable } from './util';
 import { Repository } from './repository';
@@ -62,22 +62,6 @@ type BlameInformationTemplateTokens = {
 	readonly authorDate: string;
 	readonly authorDateAgo: string;
 };
-
-function formatBlameInformation(template: string, blameInformation: BlameInformation): string {
-	const templateTokens = {
-		hash: blameInformation.hash,
-		hashShort: blameInformation.hash.substring(0, 8),
-		subject: blameInformation.subject ?? '',
-		authorName: blameInformation.authorName ?? '',
-		authorEmail: blameInformation.authorEmail ?? '',
-		authorDate: new Date(blameInformation.authorDate ?? new Date()).toLocaleString(),
-		authorDateAgo: fromNow(blameInformation.authorDate ?? new Date(), true, true)
-	} satisfies BlameInformationTemplateTokens;
-
-	return template.replace(/\$\{(.+?)\}/g, (_, token) => {
-		return token in templateTokens ? templateTokens[token as keyof BlameInformationTemplateTokens] : `\${${token}}`;
-	});
-}
 
 interface RepositoryBlameInformation {
 	/**
@@ -182,6 +166,22 @@ export class GitBlameController {
 		this._updateTextEditorBlameInformation(window.activeTextEditor);
 	}
 
+	formatBlameInformationMessage(template: string, blameInformation: BlameInformation): string {
+		const templateTokens = {
+			hash: blameInformation.hash,
+			hashShort: blameInformation.hash.substring(0, 8),
+			subject: blameInformation.subject ?? '',
+			authorName: blameInformation.authorName ?? '',
+			authorEmail: blameInformation.authorEmail ?? '',
+			authorDate: new Date(blameInformation.authorDate ?? new Date()).toLocaleString(),
+			authorDateAgo: fromNow(blameInformation.authorDate ?? new Date(), true, true)
+		} satisfies BlameInformationTemplateTokens;
+
+		return template.replace(/\$\{(.+?)\}/g, (_, token) => {
+			return token in templateTokens ? templateTokens[token as keyof BlameInformationTemplateTokens] : `\${${token}}`;
+		});
+	}
+
 	getBlameInformationHover(documentUri: Uri, blameInformation: BlameInformation | string): MarkdownString {
 		if (typeof blameInformation === 'string') {
 			return new MarkdownString(blameInformation, true);
@@ -270,6 +270,10 @@ export class GitBlameController {
 		return blameInformation;
 	}
 
+	private _findDiffInformation(textEditor: TextEditor, ref: string): TextEditorDiffInformation | undefined {
+		return textEditor.diffInformation?.find(diff => diff.original && isGitUri(diff.original) && fromGitUri(diff.original).ref === ref);
+	}
+
 	@throttle
 	private async _updateTextEditorBlameInformation(textEditor: TextEditor | undefined): Promise<void> {
 		if (!textEditor?.diffInformation || textEditor !== window.activeTextEditor) {
@@ -297,9 +301,7 @@ export class GitBlameController {
 				workingTreeAndIndexChanges = undefined;
 			} else if (ref === '') {
 				// Resource on the right-hand side of the diff editor when viewing a resource from the index.
-				const diffInformationWorkingTreeAndIndex = textEditor.diffInformation
-					.filter(diff => diff.original && isGitUri(diff.original))
-					.find(diff => fromGitUri(diff.original!).ref === 'HEAD');
+				const diffInformationWorkingTreeAndIndex = this._findDiffInformation(textEditor, 'HEAD');
 
 				// Working tree + index diff information is present and it is stale
 				if (diffInformationWorkingTreeAndIndex && diffInformationWorkingTreeAndIndex.isStale) {
@@ -313,9 +315,7 @@ export class GitBlameController {
 			}
 		} else {
 			// Working tree diff information
-			const diffInformationWorkingTree = textEditor.diffInformation
-				.filter(diff => diff.original && isGitUri(diff.original))
-				.find(diff => fromGitUri(diff.original!).ref === '');
+			const diffInformationWorkingTree = this._findDiffInformation(textEditor, '');
 
 			// Working tree diff information is not present or it is stale
 			if (!diffInformationWorkingTree || diffInformationWorkingTree.isStale) {
@@ -323,9 +323,7 @@ export class GitBlameController {
 			}
 
 			// Working tree + index diff information
-			const diffInformationWorkingTreeAndIndex = textEditor.diffInformation
-				.filter(diff => diff.original && isGitUri(diff.original))
-				.find(diff => fromGitUri(diff.original!).ref === 'HEAD');
+			const diffInformationWorkingTreeAndIndex = this._findDiffInformation(textEditor, 'HEAD');
 
 			// Working tree + index diff information is present and it is stale
 			if (diffInformationWorkingTreeAndIndex && diffInformationWorkingTreeAndIndex.isStale) {
@@ -469,7 +467,7 @@ class GitBlameEditorDecoration {
 		const decorations = blameInformation.map(blame => {
 			const contentText = typeof blame.blameInformation === 'string'
 				? blame.blameInformation
-				: formatBlameInformation(template, blame.blameInformation);
+				: this._controller.formatBlameInformationMessage(template, blame.blameInformation);
 			const hoverMessage = this._controller.getBlameInformationHover(textEditor.document.uri, blame.blameInformation);
 
 			return this._createDecoration(blame.lineNumber, contentText, hoverMessage);
@@ -575,7 +573,7 @@ class GitBlameStatusBarItem {
 			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
 			this._statusBarItem.command = undefined;
 		} else {
-			this._statusBarItem.text = formatBlameInformation(template, blameInformation[0].blameInformation);
+			this._statusBarItem.text = this._controller.formatBlameInformationMessage(template, blameInformation[0].blameInformation);
 			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
 			this._statusBarItem.command = {
 				title: l10n.t('View Commit'),
