@@ -47,7 +47,7 @@ export interface IChatEditingService {
 
 	startOrContinueEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
 	getEditingSession(resource: URI): IChatEditingSession | null;
-	createSnapshot(requestId: string): void;
+	createSnapshot(requestId: string): Promise<void>;
 	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
 	restoreSnapshot(requestId: string | undefined): Promise<void>;
 
@@ -140,6 +140,9 @@ export interface INotebookSnapshotEntry extends IBaseSnapshotEntry {
 	kind: 'notebook';
 	readonly original: VSBuffer;
 	readonly current: VSBuffer;
+	/** Cell index along with edit offsets */
+	readonly originalToCurrentEdits: Map<number, OffsetEdit>;
+	readonly diffInfo: ICellDiffInfo[];
 	serialize(): Promise<INotebookSnapshotEntryDTO>;
 }
 export type ISnapshotEntry = ITextSnapshotEntry | INotebookSnapshotEntry;
@@ -160,6 +163,9 @@ export interface ITextSnapshotEntryDTO extends IBaseSnapshotEntryDTO {
 
 export interface INotebookSnapshotEntryDTO extends IBaseSnapshotEntryDTO {
 	readonly kind: 'notebook';
+	readonly viewType: string;
+	readonly originalToCurrentEdits: Record<number, IOffsetEdit>;
+	readonly diffInfo: ICellDiffInfo[];
 }
 export type ISnapshotEntryDTO = ITextSnapshotEntryDTO | INotebookSnapshotEntryDTO;
 
@@ -186,34 +192,57 @@ interface IModifiedAnyFileEntry extends IDisposable {
 	readonly state: IObservable<WorkingSetEntryState>;
 	readonly isCurrentlyBeingModified: IObservable<boolean>;
 	readonly rewriteRatio: IObservable<number>;
-	readonly diffInfo: IObservable<IDocumentDiff>;
 	readonly lastModifyingRequestId: string;
 	readonly telemetryInfo: IModifiedEntryTelemetryInfo;
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
-	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean): void;
 	acceptStreamingEditsStart(tx: ITransaction): void;
 	acceptStreamingEditsEnd(tx: ITransaction): void;
 	updateTelemetryInfo(telemetryInfo: IModifiedEntryTelemetryInfo): void;
-	resetToInitialValue(): void;
+	resetToInitialValue(): Promise<void>;
 }
+
+export type ICellDiffInfo = {
+	originalCellIndex: number;
+	modifiedCellIndex: number;
+	type: 'unchanged';
+} | {
+	originalCellIndex: number;
+	modifiedCellIndex: number;
+	type: 'modified';
+	diff: IDocumentDiff;
+} |
+{
+	originalCellIndex: number;
+	type: 'delete';
+} |
+{
+	modifiedCellIndex: number;
+	type: 'insert';
+};
+
 
 export interface IModifiedTextFileEntry extends IModifiedAnyFileEntry {
 	readonly kind: 'text';
 	readonly originalModel: ITextModel;
 	readonly modifiedModel: ITextModel;
 	readonly initialContent: string;
-	createSnapshot(requestId: string | undefined): ITextSnapshotEntry;
-	restoreFromSnapshot(snapshot: ITextSnapshotEntry): void;
+	readonly diffInfo: IObservable<IDocumentDiff>;
+	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean): void;
+	createSnapshot(requestId: string | undefined): Promise<ITextSnapshotEntry>;
+	restoreFromSnapshot(snapshot: ITextSnapshotEntry): Promise<void>;
 }
 
 export interface IModifiedNotebookFileEntry extends IModifiedAnyFileEntry {
 	readonly kind: 'notebook';
+	readonly viewType: string;
 	readonly originalModel: INotebookTextModel;
 	readonly modifiedModel: INotebookTextModel;
-	acceptAgentEdits(textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean): void;
-	createSnapshot(requestId: string | undefined): INotebookSnapshotEntry;
-	restoreFromSnapshot(snapshot: INotebookSnapshotEntry): void;
+	readonly diffInfo: IObservable<ICellDiffInfo[]>;
+	acceptAgentCellEdits(cellUri: URI, textEdits: TextEdit[], isLastEdits: boolean): void;
+	acceptAgentNotebookEdits(edits: ICellEditOperation[], isLastEdits: boolean): Promise<void>;
+	createSnapshot(requestId: string | undefined): Promise<INotebookSnapshotEntry>;
+	restoreFromSnapshot(snapshot: INotebookSnapshotEntry): Promise<void>;
 }
 
 export type IModifiedFileEntry = IModifiedTextFileEntry | IModifiedNotebookFileEntry;

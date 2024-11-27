@@ -116,7 +116,7 @@ export class NotebookChatActionsOverlay extends Disposable {
 								if (entry === nextEntry) {
 									return;
 								}
-								const change = nextEntry.diffInfo.get().changes.at(0);
+								const change = nextEntry.kind === 'text' ? nextEntry.diffInfo.get().changes.at(0) : undefined;
 								return that._editorService.openEditor({
 									resource: nextEntry.modifiedURI,
 									options: {
@@ -283,7 +283,7 @@ class NextPreviousChangeActionRunner extends ActionRunner {
 			return;
 		}
 		// For now just go to next/previous file.
-		const change = this.next.diffInfo.get().changes.at(0);
+		const change = this.next.kind === 'text' ? this.next.diffInfo.get().changes.at(0) : undefined;
 		this.focusedDiff.set(undefined, undefined);
 		await this.editorService.openEditor({
 			resource: this.next.modifiedURI,

@@ -2703,12 +2703,17 @@ export namespace ChatResponseNotebookEditPart {
 			kind: 'notebookEdit',
 			uri: URI.revive(part.uri),
 			// We are only interested in cell replaces (insertions, deletions, replacements)
-			edits: part.edits.map(e => NotebookEdit.toEditReplaceOperation(e)).filter(isDefined)
+			edits: part.edits.map(e => NotebookEdit.toEditReplaceOperation(e)).filter(isDefined),
+			done: part.isDone
 		};
 	}
 
 	export function to(part: extHostProtocol.IChatNotebookEditDto): vscode.ChatResponseNotebookEditPart {
-		return new types.ChatResponseNotebookEditPart(URI.revive(part.uri), part.edits.map(NotebookEdit.fromEditReplaceOperation));
+		if (part.done) {
+			return new types.ChatResponseNotebookEditPart(URI.revive(part.uri), true);
+		} else {
+			return new types.ChatResponseNotebookEditPart(URI.revive(part.uri), part.edits.map(NotebookEdit.fromEditReplaceOperation));
+		}
 	}
 }
 

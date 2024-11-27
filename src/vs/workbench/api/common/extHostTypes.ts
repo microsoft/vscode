@@ -4625,9 +4625,16 @@ export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart
 export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebookEditPart {
 	uri: vscode.Uri;
 	edits: vscode.NotebookEdit[];
-	constructor(uri: vscode.Uri, editsOrDone: vscode.NotebookEdit | vscode.NotebookEdit[]) {
+	isDone?: boolean;
+	constructor(uri: vscode.Uri, editsOrDone: vscode.NotebookEdit | vscode.NotebookEdit[] | true) {
 		this.uri = uri;
-		this.edits = Array.isArray(editsOrDone) ? editsOrDone : [editsOrDone];
+		if (editsOrDone === true) {
+			this.isDone = true;
+			this.edits = [];
+		} else {
+			this.edits = Array.isArray(editsOrDone) ? editsOrDone : [editsOrDone];
+
+		}
 	}
 }
 

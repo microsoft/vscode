@@ -185,19 +185,19 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._telemetryInfo = telemetryInfo;
 	}
 
-	createSnapshot(requestId: string | undefined): ITextSnapshotEntry {
+	async createSnapshot(requestId: string | undefined): Promise<ITextSnapshotEntry> {
 		this._isFirstEditAfterStartOrSnapshot = true;
 		return TextSnapshotEntry.create(this, requestId, this._edit, this.instantiationService);
 	}
 
-	restoreFromSnapshot(snapshot: ITextSnapshotEntry) {
+	async restoreFromSnapshot(snapshot: ITextSnapshotEntry) {
 		this._stateObs.set(snapshot.state, undefined);
 		this.docSnapshot.setValue(snapshot.original);
 		this._setDocValue(snapshot.current);
 		this._edit = snapshot.originalToCurrentEdit;
 	}
 
-	resetToInitialValue() {
+	async resetToInitialValue() {
 		this._setDocValue(this.initialContent);
 	}
 
