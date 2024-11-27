@@ -114,8 +114,18 @@ export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.U
 	try {
 		// Get the nearest folder path from the prefix. This ignores everything after the `/` as
 		// they are what triggers changes in the directory.
-		// TODO: Support `\` on relevant shells
-		const lastSlashIndex = prefix.lastIndexOf('/');
+		let lastSlashIndex: number;
+		if (osIsWindows()) {
+			// TODO: This support is very basic, ideally the slashes supported would depend upon the
+			//       shell type. For example git bash under Windows does not allow using \ as a path
+			//       separator.
+			lastSlashIndex = prefix.lastIndexOf('\\');
+			if (lastSlashIndex === -1) {
+				lastSlashIndex = prefix.lastIndexOf('/');
+			}
+		} else {
+			lastSlashIndex = prefix.lastIndexOf('/');
+		}
 		const relativeFolder = lastSlashIndex === -1 ? '' : prefix.slice(0, lastSlashIndex);
 
 		// Resolve the absolute path of the prefix
