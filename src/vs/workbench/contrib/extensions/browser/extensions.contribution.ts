@@ -1649,12 +1649,9 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
 				const clipboardService = accessor.get(IClipboardService);
 				const productService = accessor.get(IProductService);
-				if (productService && productService.extensionsGallery) {
-					const itemUrl = productService.extensionsGallery.itemUrl;
-					if (itemUrl && extensionId) {
-						const link = `${itemUrl}?itemName=${extensionId}`;
-						await clipboardService.writeText(link);
-					}
+				if (productService.extensionsGallery?.itemUrl) {
+					const link = `${productService.extensionsGallery.itemUrl}?itemName=${extensionId}`;
+					await clipboardService.writeText(link);
 				}
 			}
 		});
