@@ -306,6 +306,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 							},
 							{
 								type: 'array',
+								items: {
+									type: 'string',
+								},
 								description: localize('extensions.allow.version.description', "Allow or disallow specific versions of the extension. To specifcy a platform specific version, use the format `platform@1.2.3`, e.g. `win32-x64@1.2.3`. Supported platforms are `win32-x64`, `win32-arm64`, `linux-x64`, `linux-arm64`, `linux-armhf`, `alpine-x64`, `alpine-arm64`, `darwin-x64`, `darwin-arm64`"),
 							},
 						]

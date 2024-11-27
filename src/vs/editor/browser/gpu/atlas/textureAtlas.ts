@@ -29,6 +29,12 @@ export class TextureAtlas extends Disposable {
 	private readonly _allocatorType: AllocatorType;
 
 	/**
+	 * The maximum number of texture atlas pages. This is currently a hard static cap that must not
+	 * be reached.
+	 */
+	static readonly maximumPageCount = 16;
+
+	/**
 	 * The main texture atlas pages which are both larger textures and more efficiently packed
 	 * relative to the scratch page. The idea is the main pages are drawn to and uploaded to the GPU
 	 * much less frequently so as to not drop frames.
@@ -82,7 +88,7 @@ export class TextureAtlas extends Disposable {
 		// IMPORTANT: The first glyph on the first page must be an empty glyph such that zeroed out
 		// cells end up rendering nothing
 		// TODO: This currently means the first slab is for 0x0 glyphs and is wasted
-		const nullRasterizer = new GlyphRasterizer(1, '');
+		const nullRasterizer = new GlyphRasterizer(1, '', 1);
 		firstPage.getGlyph(nullRasterizer, '', 0, 0);
 		nullRasterizer.dispose();
 	}
@@ -131,7 +137,9 @@ export class TextureAtlas extends Disposable {
 	}
 
 	private _getGlyphFromNewPage(rasterizer: IGlyphRasterizer, chars: string, tokenMetadata: number, charMetadata: number): Readonly<ITextureAtlasPageGlyph> {
-		// TODO: Support more than 2 pages and the GPU texture layer limit
+		if (this._pages.length >= TextureAtlas.maximumPageCount) {
+			throw new Error(`Attempt to create a texture atlas page past the limit ${TextureAtlas.maximumPageCount}`);
+		}
 		this._pages.push(this._instantiationService.createInstance(TextureAtlasPage, this._pages.length, this.pageSize, this._allocatorType));
 		this._glyphPageIndex.set(chars, tokenMetadata, charMetadata, rasterizer.cacheKey, this._pages.length - 1);
 		return this._pages[this._pages.length - 1].getGlyph(rasterizer, chars, tokenMetadata, charMetadata)!;
