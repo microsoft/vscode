@@ -51,7 +51,7 @@ export class Cursor {
 			// don't track the selection
 			return;
 		}
-		this._selTrackedRange = context.model._setTrackedRange(this._selTrackedRange, this.modelState.selection, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
+		this._selTrackedRange = context.model._setTrackedRange(this._selTrackedRange, this.modelState.selectionInVirtualSpace(), TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 	}
 
 	private _removeTrackedRange(context: CursorContext): void {

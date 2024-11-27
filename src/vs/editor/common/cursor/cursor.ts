@@ -22,6 +22,7 @@ import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequest
 import { dispose, Disposable } from '../../../base/common/lifecycle.js';
 import { ICoordinatesConverter } from '../viewModel.js';
 import { CursorStateChangedEvent, ViewModelEventsCollector } from '../viewModelEventDispatcher.js';
+import { VirtualSpaceRangeExtraData, virtualSpaceRangeExtraData, restoreVirtualSpaceRange } from '../virtualSpaceRange.js';
 
 export class CursorsController extends Disposable {
 
@@ -744,8 +745,7 @@ interface IExecContext {
 	readonly selectionsBefore: Selection[];
 	readonly trackedRanges: string[];
 	readonly trackedRangesDirection: SelectionDirection[];
-	readonly tracledRamgesStartLeftover: number[];
-	readonly trackedRangesEndLeftover: number[];
+	readonly trackedRangesExtra: VirtualSpaceRangeExtraData[];
 }
 
 interface ICommandData {
@@ -767,8 +767,7 @@ export class CommandExecutor {
 			selectionsBefore: selectionsBefore,
 			trackedRanges: [],
 			trackedRangesDirection: [],
-			tracledRamgesStartLeftover: [],
-			trackedRangesEndLeftover: [],
+			trackedRangesExtra: [],
 		};
 
 		const result = this._innerExecuteCommands(ctx, commands);
@@ -808,7 +807,7 @@ export class CommandExecutor {
 			}
 		}
 
-		// Add virtual space
+		// Replace virtual space with real spaces
 		for (let i = 0; i < filteredOperations.length; i++) {
 			const editOperation = filteredOperations[i];
 			const range = editOperation.range;
@@ -866,17 +865,16 @@ export class CommandExecutor {
 
 						getTrackedSelection: (id: string) => {
 							const idx = parseInt(id, 10);
-							const range = ctx.model._getTrackedRange(ctx.trackedRanges[idx])!;
-							const startLineNumber = range.startLineNumber;
-							const startLeftover = ctx.tracledRamgesStartLeftover[idx];
-							const startColumn = range.startColumn + startLeftover;
-							const endLineNumber = range.endLineNumber;
-							const endLeftover = ctx.trackedRangesEndLeftover[idx];
-							const endColumn = range.endColumn + endLeftover + (startLineNumber === endLineNumber ? startLeftover : 0);
+							const clippedRange = ctx.model._getTrackedRange(ctx.trackedRanges[idx])!;
+							const extra = ctx.trackedRangesExtra[idx];
+							const range =
+								extra !== undefined
+									? restoreVirtualSpaceRange(ctx.model, clippedRange, extra)
+									: clippedRange;
 							if (ctx.trackedRangesDirection[idx] === SelectionDirection.LTR) {
-								return new Selection(startLineNumber, startColumn, endLineNumber, endColumn);
+								return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 							}
-							return new Selection(endLineNumber, endColumn, startLineNumber, startColumn);
+							return new Selection(range.endLineNumber, range.endColumn, range.startLineNumber, range.startColumn);
 						}
 					});
 				} else {
@@ -995,22 +993,10 @@ export class CommandExecutor {
 			const l = ctx.trackedRanges.length;
 			const id = ctx.model._setTrackedRange(null, clippedSelection, stickiness);
 			ctx.trackedRanges[l] = id;
-			if (selection.getDirection() === SelectionDirection.LTR) {
-				ctx.trackedRangesDirection[l] = SelectionDirection.LTR;
-				ctx.tracledRamgesStartLeftover[l] = start.leftoverVisibleColumns;
-				if (start.lineNumber === pos.lineNumber) {
-					ctx.trackedRangesEndLeftover[l] = pos.leftoverVisibleColumns - start.leftoverVisibleColumns;
-				} else {
-					ctx.trackedRangesEndLeftover[l] = pos.leftoverVisibleColumns;
-				}
-			} else {
-				ctx.trackedRangesDirection[l] = SelectionDirection.RTL;
-				ctx.tracledRamgesStartLeftover[l] = pos.leftoverVisibleColumns;
-				if (start.lineNumber === pos.lineNumber) {
-					ctx.trackedRangesEndLeftover[l] = start.leftoverVisibleColumns - pos.leftoverVisibleColumns;
-				} else {
-					ctx.trackedRangesEndLeftover[l] = start.leftoverVisibleColumns;
-				}
+			ctx.trackedRangesDirection[l] = selection.getDirection();
+			const extra = virtualSpaceRangeExtraData(ctx.model, selection, clippedSelection);
+			if (extra !== null) {
+				ctx.trackedRangesExtra[l] = extra;
 			}
 			return l.toString();
 		};
