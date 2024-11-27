@@ -584,13 +584,14 @@ class ChatSetupController extends Disposable {
 
 		let installResult: 'installed' | 'cancelled' | 'failedInstall';
 		const wasInstalled = this.chatSetupContext.getContext().installed;
+		let didSignUp = false;
 		try {
 			showChatView(this.viewsService);
 
 			this.chatSetupContext.suspend(); // reduces flicker
 
 			if (this.canSignUpLimited) {
-				await this.signUpLimited(session, enableTelemetry);
+				didSignUp = await this.signUpLimited(session, enableTelemetry);
 			} else {
 				this.logService.trace('[chat setup] install: not signing up to limited SKU');
 			}
@@ -608,8 +609,8 @@ class ChatSetupController extends Disposable {
 
 			installResult = isCancellationError(error) ? 'cancelled' : 'failedInstall';
 		} finally {
-			if (wasInstalled) {
-				this.commandService.executeCommand('github.copilot.offline'); //TODO@bpasero this needs an official command
+			if (wasInstalled && didSignUp) {
+				this.commandService.executeCommand('github.copilot.refreshToken'); // ugly, but we need to signal to the extension that sign-up happened
 			}
 
 			await Promise.race([
@@ -625,7 +626,7 @@ class ChatSetupController extends Disposable {
 		}
 	}
 
-	private async signUpLimited(session: AuthenticationSession, enableTelemetry: boolean): Promise<void> {
+	private async signUpLimited(session: AuthenticationSession, enableTelemetry: boolean): Promise<boolean> {
 		const body = {
 			restricted_telemetry: enableTelemetry ? 'enabled' : 'disabled'
 		};
@@ -634,18 +635,18 @@ class ChatSetupController extends Disposable {
 		const response = await this.instantiationService.invokeFunction(accessor => ChatSetupRequestHelper.request(accessor, defaultChat.entitlementSignupLimitedUrl, 'POST', body, session, CancellationToken.None));
 		if (!response) {
 			this.logService.error('[chat setup] sign-up: no response');
-			return;
+			return false;
 		}
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
 			this.logService.error(`[chat setup] sign-up: unexpected status code ${response.res.statusCode}`);
-			return;
+			return false;
 		}
 
 		const responseText = await asText(response);
 		if (!responseText) {
 			this.logService.error('[chat setup] sign-up: response has no content');
-			return;
+			return false;
 		}
 
 		let parsedResult: { subscribed: boolean } | undefined = undefined;
@@ -664,6 +665,8 @@ class ChatSetupController extends Disposable {
 		}
 
 		this.chatSetupContext.update({ entitled: false, limited: subscribed, canSignUp: !subscribed });
+
+		return subscribed;
 	}
 }
 
