@@ -698,10 +698,10 @@ class ChatSetupWelcomeContent extends Disposable {
 		const markdown = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
 
 		// Header
-		const header = localize({ key: 'setupHeader', comment: ['{Locked="]({0})"}'] }, "[{0}]({1}) is your AI pair programmer that helps you with code suggestions, answers your questions, and more.", defaultChat.name, defaultChat.documentationUrl);
+		const header = localize({ key: 'setupHeader', comment: ['{Locked="[{0}]({1})"}'] }, "[{0}]({1}) is your AI pair programmer that helps you with code suggestions, answers your questions, and more.", defaultChat.name, defaultChat.documentationUrl);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element);
 
-		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="]({0})"}'] }, "Enable powerful AI features for free with the [{0}]({1}) plan.", defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
+		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="[{0}]({1})"}'] }, "Enable powerful AI features for free with the [{0}]({1}) plan.", defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
 		const limitedSkuHeaderElement = this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true }))).element);
 
 		// Limited SKU Sign-up
@@ -714,7 +714,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		this._register(button.onDidClick(() => this.controller.setup(telemetryCheckbox.checked)));
 
 		// Footer
-		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}).", defaultChat.privacyStatementUrl);
+		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}).", defaultChat.privacyStatementUrl);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(footer, { isTrusted: true }))).element);
 
 		// Update based on model state
