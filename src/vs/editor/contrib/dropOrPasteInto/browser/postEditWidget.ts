@@ -120,8 +120,8 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 		const pos = dom.getDomNodePagePosition(this.button.element);
 		const anchor = { x: pos.left + pos.width, y: pos.top + pos.height };
 
-		this._actionWidgetService.show('postEditWidget', false, [
-			...this.edits.allEdits.map((edit, i): IActionListItem<T> => {
+		this._actionWidgetService.show('postEditWidget', false,
+			this.edits.allEdits.map((edit, i): IActionListItem<T> => {
 				return {
 					kind: ActionListItemKind.Action,
 					item: edit,
@@ -130,8 +130,7 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 					canPreview: false,
 					group: { title: '', icon: ThemeIcon.fromId(i === this.edits.activeEditIndex ? Codicon.check.id : Codicon.blank.id) },
 				};
-			})
-		], {
+			}), {
 			onHide: () => {
 				this.editor.focus();
 			},
