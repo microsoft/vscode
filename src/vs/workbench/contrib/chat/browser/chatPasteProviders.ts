@@ -18,6 +18,7 @@ import { localize } from '../../../../nls.js';
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { Mimes } from '../../../../base/common/mime.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { basename } from '../../../../base/common/resources.js';
 
@@ -172,7 +173,8 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 	public readonly pasteMimeTypes = [COPY_MIME_TYPES];
 
 	constructor(
-		private readonly chatWidgetService: IChatWidgetService
+		private readonly chatWidgetService: IChatWidgetService,
+		private readonly modelService: IModelService
 	) { }
 
 	async provideDocumentPasteEdits(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
@@ -196,7 +198,26 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
+		const start = additionalData.range.startLineNumber;
+		const end = additionalData.range.endLineNumber;
+		if (start === end) {
+			const textModel = this.modelService.getModel(URI.revive(additionalData.uri));
+			if (!textModel) {
+				return;
+			}
+
+			// If copied line text data is the entire line content, then we can paste it as a code attachment. Otherwise, we ignore and use default paste provider.
+			const lineContent = textModel.getLineContent(start);
+			if (lineContent !== textdata) {
+				return;
+			}
+		}
+
 		const copiedContext = getCopiedContext(textdata, URI.revive(additionalData.uri), metadata.mode, additionalData.range);
+
+		if (token.isCancellationRequested || !copiedContext) {
+			return;
+		}
 
 		const currentContextIds = widget.attachmentModel.getAttachmentIDs();
 		if (currentContextIds.has(copiedContext.id)) {
@@ -271,11 +292,12 @@ export class ChatPasteProvidersFeature extends Disposable {
 	constructor(
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@IModelService modelService: IModelService
 	) {
 		super();
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService)));
-		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteTextProvider(chatWidgetService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteTextProvider(chatWidgetService, modelService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new CopyTextProvider()));
 	}
 }
