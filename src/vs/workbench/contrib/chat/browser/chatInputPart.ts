@@ -799,8 +799,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			let ariaLabel: string | undefined;
 
-			const resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
-			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
+			let resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
+			let range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
 			if (resource && (attachment.isFile || attachment.isDirectory)) {
 				const fileBasename = basename(resource.path);
 				const fileDirname = dirname(resource.path);
@@ -820,7 +820,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				});
 
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
-				store.add(this.instantiationService.invokeFunction(accessor => hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource)));
+				this.instantiationService.invokeFunction(accessor => {
+					if (resource) {
+						store.add(hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource));
+					}
+				});
 
 			} else if (attachment.isImage) {
 				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
@@ -867,12 +871,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				};
 
 				const classNames = ['file-icon', `${attachment.language}-lang-file-icon`];
-				label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
+				if (attachment.copiedFrom) {
+					resource = attachment.copiedFrom.uri;
+					range = attachment.copiedFrom.range;
+					label.setFile(attachment.copiedFrom.uri, { extraClasses: classNames });
+				} else {
+					label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
+				}
 				widget.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.pastedLines}`));
 
 				widget.style.position = 'relative';
 				store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverContent, { trapFocus: true }));
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
+
+				const copiedFromResource = attachment.copiedFrom?.uri;
+				if (copiedFromResource) {
+					store.add(this.instantiationService.invokeFunction(accessor => hookUpResourceAttachmentDragAndContextMenu(accessor, widget, copiedFromResource)));
+				}
+
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
