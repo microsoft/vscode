@@ -205,7 +205,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		if (endsWithSpace) {
 			lastWord = '';
 		} else {
-			lastWord = promptValue.substring(0, cursorPosition).trim().split(' ').pop() ?? '';
+			lastWord = promptValue.substring(0, cursorPosition).trim().split(' ').at(-1) ?? '';
 		}
 		if (lastWord.includes(basename(cwd.fsPath)) || lastWord === '..' + resourceRequestConfig.pathSeparator || lastWord === '.' + resourceRequestConfig.pathSeparator) {
 			path = lastWord;
