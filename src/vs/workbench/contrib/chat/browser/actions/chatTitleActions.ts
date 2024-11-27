@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
+import { waitForState } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -222,7 +222,6 @@ export function registerChatTitleActions() {
 			}
 
 			const chatService = accessor.get(IChatService);
-			const chatEditingService = accessor.get(IChatEditingService);
 			const chatModel = chatService.getSession(item.sessionId);
 			const chatRequests = chatModel?.getRequests();
 			if (!chatRequests) {
@@ -232,9 +231,14 @@ export function registerChatTitleActions() {
 			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession) {
 				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
+				const chatEditingService = accessor.get(IChatEditingService);
+				const currentEditingSession = chatEditingService.currentEditingSession;
+				if (!currentEditingSession) {
+					return;
+				}
 
 				// Prompt if the last request modified the working set and the user hasn't already disabled the dialog
-				const entriesModifiedInLastRequest = chatEditingService.currentEditingSessionObs.get()?.entries.get().filter((entry) => entry.lastModifyingRequestId === item.requestId) ?? [];
+				const entriesModifiedInLastRequest = currentEditingSession.entries.get().filter((entry) => entry.lastModifyingRequestId === item.requestId);
 				const shouldPrompt = entriesModifiedInLastRequest.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRetry') === true;
 				const confirmation = shouldPrompt
 					? await dialogService.confirm({
@@ -259,7 +263,7 @@ export function registerChatTitleActions() {
 				// Reset the snapshot
 				const snapshotRequest = chatRequests[itemIndex];
 				if (snapshotRequest) {
-					await chatEditingService.restoreSnapshot(snapshotRequest.id);
+					await currentEditingSession.restoreSnapshot(snapshotRequest.id);
 				}
 			}
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
@@ -461,9 +465,7 @@ export function registerChatTitleActions() {
 
 			let editingSession = chatEditingService.currentEditingSessionObs.get();
 			if (!editingSession) {
-				await Event.toPromise(chatEditingService.onDidCreateEditingSession);
-				editingSession = chatEditingService.currentEditingSessionObs.get();
-				return;
+				editingSession = await waitForState(chatEditingService.currentEditingSessionObs);
 			}
 
 			if (!editingSession) {
@@ -553,9 +555,9 @@ export function registerChatTitleActions() {
 			return await new Promise<IChatRequestModel[]>(_resolve => {
 
 				const resolve = (value: IChatRequestModel[]) => {
-					qp.hide();
 					store.dispose();
 					_resolve(value);
+					qp.hide();
 				};
 
 				const store = new DisposableStore();
@@ -573,9 +575,26 @@ export function registerChatTitleActions() {
 					ignore = true;
 					try {
 						const [first] = e;
-						const idx = first ? customPicks.indexOf(first) : -1;
-						const selected = idx >= 0 ? customPicks.slice(idx) : [];
+
+						const selected: typeof customPicks = [];
+						let disabled = false;
+
+						for (let i = 0; i < customPicks.length; i++) {
+							const oldItem = customPicks[i];
+							customPicks[i] = {
+								...oldItem,
+								disabled,
+							};
+
+							disabled = disabled || oldItem === first;
+
+							if (disabled) {
+								selected.push(customPicks[i]);
+							}
+						}
+						qp.items = customPicks;
 						qp.selectedItems = selected;
+
 					} finally {
 						ignore = false;
 					}

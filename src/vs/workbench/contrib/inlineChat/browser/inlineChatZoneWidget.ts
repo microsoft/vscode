@@ -89,6 +89,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 						return isEqual(uri, editor.getModel()?.uri)
 							&& configurationService.getValue<EditMode>(InlineChatConfigKeys.Mode) === EditMode.Live;
 					},
+					renderDetectedCommandsWithRequest: true,
 				}
 			}
 		});
@@ -106,7 +107,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 				revealFn ??= this._createZoneAndScrollRestoreFn(this.position);
 				const height = this._computeHeight();
 				this._relayout(height.linesValue);
-				revealFn();
+				revealFn?.();
 				revealFn = undefined;
 			}
 		}));
@@ -154,8 +155,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this._updatePadding();
 
 		const info = this.editor.getLayoutInfo();
-		let width = info.contentWidth - info.verticalScrollbarWidth;
-		width = Math.min(850, width);
+		const width = info.contentWidth - info.verticalScrollbarWidth;
+		// width = Math.min(850, width);
 
 		this._dimension = new Dimension(width, heightInPixel);
 		this.widget.layout(this._dimension);

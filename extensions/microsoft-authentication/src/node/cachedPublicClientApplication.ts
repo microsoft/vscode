@@ -15,7 +15,7 @@ import { ScopedAccountAccess } from '../common/accountAccess';
 export class CachedPublicClientApplication implements ICachedPublicClientApplication {
 	private _pca: PublicClientApplication;
 	private _sequencer = new Sequencer();
-	private readonly _refreshDelayer = new DelayerByKey<AuthenticationResult>();
+	// private readonly _refreshDelayer = new DelayerByKey<AuthenticationResult>();
 
 	private _accounts: AccountInfo[] = [];
 	private readonly _disposable: Disposable;
@@ -33,7 +33,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			loggerOptions: {
 				correlationId: `${this._clientId}] [${this._authority}`,
 				loggerCallback: (level, message, containsPii) => this._loggerOptions.loggerCallback(level, message, containsPii),
-				logLevel: LogLevel.Info
+				logLevel: LogLevel.Trace
 			}
 		},
 		broker: {
@@ -44,14 +44,6 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		}
 	};
 	private readonly _isBrokerAvailable = this._config.broker?.nativeBrokerPlugin?.isBrokerAvailable ?? false;
-
-	/**
-	 * We keep track of the last time an account was removed so we can recreate the PCA if we detect that an account was removed.
-	 * This is due to MSAL-node not providing a way to detect when an account is removed from the cache. An internal issue has been
-	 * filed to track this. If MSAL-node ever provides a way to detect this or handle this better in the Persistant Cache Plugin,
-	 * we can remove this logic.
-	 */
-	private _lastCreated: Date;
 
 	//#region Events
 
@@ -71,8 +63,9 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		private readonly _secretStorage: SecretStorage,
 		private readonly _logger: LogOutputChannel
 	) {
+		// TODO:@TylerLeonhardt clean up old use of memento. Remove this in an iteration
+		this._globalMemento.update(`lastRemoval:${this._clientId}:${this._authority}`, undefined);
 		this._pca = new PublicClientApplication(this._config);
-		this._lastCreated = new Date();
 		this._disposable = Disposable.from(
 			this._registerOnSecretStorageChanged(),
 			this._onDidAccountsChangeEmitter,
@@ -88,7 +81,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		if (this._isBrokerAvailable) {
 			await this._accountAccess.initialize();
 		}
-		await this._update();
+		await this._sequencer.queue(() => this._update());
 	}
 
 	dispose(): void {
@@ -99,9 +92,9 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] starting...`);
 		const result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(request));
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got result`);
+		// this._setupRefresh(result);
 		if (result.account && !result.fromCache && this._verifyIfUsingBroker(result)) {
 			this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] firing event due to change`);
-			this._setupRefresh(result);
 			this._onDidAccountsChangeEmitter.fire({ added: [], changed: [result.account], deleted: [] });
 		}
 		return result;
@@ -116,12 +109,12 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 				title: l10n.t('Signing in to Microsoft...')
 			},
 			(_process, token) => raceCancellationAndTimeoutError(
-				this._pca.acquireTokenInteractive(request),
+				this._sequencer.queue(() => this._pca.acquireTokenInteractive(request)),
 				token,
 				1000 * 60 * 5
 			)
 		);
-		this._setupRefresh(result);
+		// this._setupRefresh(result);
 		if (this._isBrokerAvailable) {
 			await this._accountAccess.setAllowedAccess(result.account!, true);
 		}
@@ -136,9 +129,9 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	 */
 	async acquireTokenByRefreshToken(request: RefreshTokenRequest) {
 		this._logger.debug(`[acquireTokenByRefreshToken] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}]`);
-		const result = await this._pca.acquireTokenByRefreshToken(request);
+		const result = await this._sequencer.queue(() => this._pca.acquireTokenByRefreshToken(request));
 		if (result) {
-			this._setupRefresh(result);
+			// this._setupRefresh(result);
 			if (this._isBrokerAvailable && result.account) {
 				await this._accountAccess.setAllowedAccess(result.account, true);
 			}
@@ -147,18 +140,17 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	}
 
 	removeAccount(account: AccountInfo): Promise<void> {
-		this._globalMemento.update(`lastRemoval:${this._clientId}:${this._authority}`, new Date());
 		if (this._isBrokerAvailable) {
 			return this._accountAccess.setAllowedAccess(account, false);
 		}
-		return this._pca.getTokenCache().removeAccount(account);
+		return this._sequencer.queue(() => this._pca.getTokenCache().removeAccount(account));
 	}
 
 	private _registerOnSecretStorageChanged() {
 		if (this._isBrokerAvailable) {
-			return this._accountAccess.onDidAccountAccessChange(() => this._update());
+			return this._accountAccess.onDidAccountAccessChange(() => this._sequencer.queue(() => this._update()));
 		}
-		return this._secretStorageCachePlugin.onDidChange(() => this._update());
+		return this._secretStorageCachePlugin.onDidChange(() => this._sequencer.queue(() => this._update()));
 	}
 
 	private _lastSeen = new Map<string, number>();
@@ -185,14 +177,8 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	private async _update() {
 		const before = this._accounts;
 		this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication update before: ${before.length}`);
-		// Dates are stored as strings in the memento
-		const lastRemovalDate = this._globalMemento.get<string>(`lastRemoval:${this._clientId}:${this._authority}`);
-		if (lastRemovalDate && this._lastCreated && Date.parse(lastRemovalDate) > this._lastCreated.getTime()) {
-			this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication removal detected... recreating PCA...`);
-			this._pca = new PublicClientApplication(this._config);
-			this._lastCreated = new Date();
-		}
-
+		// Clear in-memory cache so we know we're getting account data from the SecretStorage
+		this._pca.clearCache();
 		let after = await this._pca.getAllAccounts();
 		if (this._isBrokerAvailable) {
 			after = after.filter(a => this._accountAccess.isAllowedAccess(a));
@@ -216,23 +202,23 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication update complete`);
 	}
 
-	private _setupRefresh(result: AuthenticationResult) {
-		const on = result.refreshOn || result.expiresOn;
-		if (!result.account || !on) {
-			return;
-		}
+	// private _setupRefresh(result: AuthenticationResult) {
+	// 	const on = result.refreshOn || result.expiresOn;
+	// 	if (!result.account || !on) {
+	// 		return;
+	// 	}
 
-		const account = result.account;
-		const scopes = result.scopes;
-		const timeToRefresh = on.getTime() - Date.now() - 5 * 60 * 1000; // 5 minutes before expiry
-		const key = JSON.stringify({ accountId: account.homeAccountId, scopes });
-		this._logger.debug(`[_setupRefresh] [${this._clientId}] [${this._authority}] [${scopes.join(' ')}] [${account.username}] timeToRefresh: ${timeToRefresh}`);
-		this._refreshDelayer.trigger(
-			key,
-			() => this.acquireTokenSilent({ account, scopes, redirectUri: 'https://vscode.dev/redirect', forceRefresh: true }),
-			timeToRefresh > 0 ? timeToRefresh : 0
-		);
-	}
+	// 	const account = result.account;
+	// 	const scopes = result.scopes;
+	// 	const timeToRefresh = on.getTime() - Date.now() - 5 * 60 * 1000; // 5 minutes before expiry
+	// 	const key = JSON.stringify({ accountId: account.homeAccountId, scopes });
+	// 	this._logger.debug(`[_setupRefresh] [${this._clientId}] [${this._authority}] [${scopes.join(' ')}] [${account.username}] timeToRefresh: ${timeToRefresh}`);
+	// 	this._refreshDelayer.trigger(
+	// 		key,
+	// 		() => this.acquireTokenSilent({ account, scopes, redirectUri: 'https://vscode.dev/redirect', forceRefresh: true }),
+	// 		timeToRefresh > 0 ? timeToRefresh : 0
+	// 	);
+	// }
 }
 
 export class Sequencer {
@@ -244,16 +230,16 @@ export class Sequencer {
 	}
 }
 
-class DelayerByKey<T> {
-	private _delayers = new Map<string, Delayer<T>>();
+// class DelayerByKey<T> {
+// 	private _delayers = new Map<string, Delayer<T>>();
 
-	trigger(key: string, fn: () => Promise<T>, delay: number): Promise<T> {
-		let delayer = this._delayers.get(key);
-		if (!delayer) {
-			delayer = new Delayer<T>(delay);
-			this._delayers.set(key, delayer);
-		}
+// 	trigger(key: string, fn: () => Promise<T>, delay: number): Promise<T> {
+// 		let delayer = this._delayers.get(key);
+// 		if (!delayer) {
+// 			delayer = new Delayer<T>(delay);
+// 			this._delayers.set(key, delayer);
+// 		}
 
-		return delayer.trigger(fn, delay);
-	}
-}
+// 		return delayer.trigger(fn, delay);
+// 	}
+// }

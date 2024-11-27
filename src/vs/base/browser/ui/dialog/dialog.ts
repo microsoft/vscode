@@ -37,6 +37,7 @@ export interface IDialogOptions {
 	readonly icon?: ThemeIcon;
 	readonly buttonDetails?: string[];
 	readonly disableCloseAction?: boolean;
+	readonly closeOnLinkClick?: boolean;
 	readonly disableDefaultAction?: boolean;
 	readonly buttonStyles: IButtonStyles;
 	readonly checkboxStyles: ICheckboxStyles;
@@ -203,6 +204,28 @@ export class Dialog extends Disposable {
 		return new Promise<IDialogResult>((resolve) => {
 			clearNode(this.buttonsContainer);
 
+			const close = () => {
+				resolve({
+					button: this.options.cancelId || 0,
+					checkboxChecked: this.checkbox ? this.checkbox.checked : undefined
+				});
+				return;
+			};
+
+			if (this.options.closeOnLinkClick) {
+				for (const el of this.messageContainer.getElementsByTagName('a')) {
+					this._register(addDisposableListener(el, EventType.CLICK, () => {
+						setTimeout(close); // HACK to ensure the link action is triggered before the dialog is closed
+					}));
+					this._register(addDisposableListener(el, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+						const evt = new StandardKeyboardEvent(e);
+						if (evt.equals(KeyCode.Enter)) {
+							setTimeout(close); // HACK to ensure the link action is triggered before the dialog is closed
+						}
+					}));
+				}
+			}
+
 			const buttonBar = this.buttonBar = this._register(new ButtonBar(this.buttonsContainer));
 			const buttonMap = this.rearrangeButtons(this.buttons, this.options.cancelId);
 
@@ -337,10 +360,7 @@ export class Dialog extends Disposable {
 				const evt = new StandardKeyboardEvent(e);
 
 				if (!this.options.disableCloseAction && evt.equals(KeyCode.Escape)) {
-					resolve({
-						button: this.options.cancelId || 0,
-						checkboxChecked: this.checkbox ? this.checkbox.checked : undefined
-					});
+					close();
 				}
 			}, true));
 
@@ -450,6 +470,8 @@ export class Dialog extends Disposable {
 
 		let color;
 		switch (this.options.type) {
+			case 'none':
+				break;
 			case 'error':
 				color = style.errorIconForeground;
 				break;

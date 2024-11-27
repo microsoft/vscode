@@ -10,10 +10,12 @@ import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { FuzzyScore } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -133,7 +135,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private contribs: ReadonlyArray<IChatWidgetContrib> = [];
 
-	private tree!: WorkbenchObjectTree<ChatTreeItem>;
+	private tree!: WorkbenchObjectTree<ChatTreeItem, FuzzyScore>;
 	private renderer!: ChatListItemRenderer;
 	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
 	private lastItem: ChatTreeItem | undefined;
@@ -249,7 +251,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const chatEditingSessionDisposables = this._register(new DisposableStore());
 
-		this._register(this.chatEditingService.onDidCreateEditingSession((session) => {
+		this._register(autorun(r => {
+			const session = this.chatEditingService.currentEditingSessionObs.read(r);
+			if (!session) {
+				return;
+			}
 			if (session.chatSessionId !== this.viewModel?.sessionId) {
 				// this chat editing session is for a different chat widget
 				return;
@@ -504,7 +510,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private onDidChangeItems(skipDynamicLayout?: boolean) {
-		if (this.tree && this._visible) {
+		if (this._visible || !this.viewModel) {
 			const treeItems = (this.viewModel?.getItems() ?? [])
 				.map((item): ITreeElement<ChatTreeItem> => {
 					return {
@@ -518,6 +524,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this._onWillMaybeChangeHeight.fire();
 
+			this.lastItem = treeItems.at(-1)?.element;
+			ChatContextKeys.lastItemId.bindTo(this.contextKeyService).set(this.lastItem ? [this.lastItem.id] : []);
 			this.tree.setChildren(null, treeItems, {
 				diffIdentityProvider: {
 					getId: (element) => {
@@ -542,10 +550,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.layoutDynamicChatTreeItemMode();
 			}
 
-			this.lastItem = treeItems[treeItems.length - 1]?.element;
-			if (this.lastItem) {
-				ChatContextKeys.lastItemId.bindTo(this.contextKeyService).set([this.lastItem.id]);
-			}
 			if (this.lastItem && isResponseVM(this.lastItem) && this.lastItem.isComplete) {
 				this.renderFollowups(this.lastItem.replyFollowups, this.lastItem);
 			} else if (!treeItems.length && this.viewModel) {
@@ -652,8 +656,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
-		this.tree = this._register(<WorkbenchObjectTree<ChatTreeItem>>scopedInstantiationService.createInstance(
-			WorkbenchObjectTree,
+		this.tree = this._register(scopedInstantiationService.createInstance(
+			WorkbenchObjectTree<ChatTreeItem, FuzzyScore>,
 			'Chat',
 			listContainer,
 			delegate,
@@ -945,6 +949,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		return this._acceptInput(query ? { query } : undefined, options);
+	}
+
+	async rerunLastRequest(): Promise<void> {
+		if (!this.viewModel) {
+			return;
+		}
+
+		const sessionId = this.viewModel.sessionId;
+		const lastRequest = this.chatService.getSession(sessionId)?.getRequests().at(-1);
+		if (!lastRequest) {
+			return;
+		}
+
+		const options: IChatSendRequestOptions = {
+			attempt: lastRequest.attempt + 1,
+			location: this.location,
+			userSelectedModelId: this.input.currentLanguageModel
+		};
+		return await this.chatService.resendRequest(lastRequest, options);
 	}
 
 	async acceptInputWithPrefix(prefix: string): Promise<void> {

@@ -1396,7 +1396,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		this._cancelAction = new MenuItemAction({
 			id: SCMInputWidgetCommandId.CancelAction,
 			title: localize('scmInputCancelAction', "Cancel"),
-			icon: Codicon.debugStop,
+			icon: Codicon.stopCircle,
 		}, undefined, undefined, undefined, undefined, contextKeyService, commandService);
 	}
 
@@ -1957,7 +1957,7 @@ class SCMInputWidget {
 						this.contextViewService.hideContextView();
 					}));
 
-					const renderer = disposables.add(this.instantiationService.createInstance(MarkdownRenderer, {}));
+					const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 					const renderedMarkdown = renderer.render(message, {
 						actionHandler: {
 							callback: (link) => {

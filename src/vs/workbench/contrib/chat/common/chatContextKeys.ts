@@ -42,13 +42,15 @@ export namespace ChatContextKeys {
 	export const languageModelsAreUserSelectable = new RawContextKey<boolean>('chatModelsAreUserSelectable', false, { type: 'boolean', description: localize('chatModelsAreUserSelectable', "True when the chat model can be selected manually by the user.") });
 
 	export const Setup = {
-		signedIn: new RawContextKey<boolean>('chatSetupSignedIn', false, { type: 'boolean', description: localize('chatSetupSignedIn', "True when chat setup is offered for a signed-in user.") }),
-		entitled: new RawContextKey<boolean>('chatSetupEntitled', false, { type: 'boolean', description: localize('chatSetupEntitled', "True when chat setup is offered for a signed-in, entitled user.") }),
+		canSignUp: new RawContextKey<boolean>('chatSetupCanSignUp', false, true), 	// True when user can sign up to be a chat limited user.
 
-		triggered: new RawContextKey<boolean>('chatSetupTriggered', false, { type: 'boolean', description: localize('chatSetupTriggered', "True when chat setup is triggered.") }),
-		installing: new RawContextKey<boolean>('chatSetupInstalling', false, { type: 'boolean', description: localize('chatSetupInstalling', "True when chat setup is installing chat.") }),
-		signingIn: new RawContextKey<boolean>('chatSetupSigningIn', false, { type: 'boolean', description: localize('chatSetupSigningIn', "True when chat setup is waiting for signing in.") }),
+		signedOut: new RawContextKey<boolean>('chatSetupSignedOut', false, true), 	// True when user is signed out.
+		limited: new RawContextKey<boolean>('chatSetupLimited', false, true), 		// True when user is a chat limited user.
 
-		installed: new RawContextKey<boolean>('chatSetupInstalled', false, { type: 'boolean', description: localize('chatSetupInstalled', "True when the chat extension is installed.") }),
+		triggered: new RawContextKey<boolean>('chatSetupTriggered', false, true), 	// True when chat setup is triggered.
+		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed.
 	};
+
+	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
+	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);
 }

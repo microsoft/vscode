@@ -206,7 +206,7 @@ export class DiffContentProvider extends Disposable implements IPeekOutputRender
 
 export class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRenderer {
 	private readonly markdown = new Lazy(
-		() => this._register(this.instantiationService.createInstance(MarkdownRenderer, {})),
+		() => this.instantiationService.createInstance(MarkdownRenderer, {}),
 	);
 	private readonly rendered = this._register(new DisposableStore());
 

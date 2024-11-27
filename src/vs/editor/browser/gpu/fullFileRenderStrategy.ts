@@ -10,9 +10,9 @@ import { EditorOption } from '../../common/config/editorOptions.js';
 import { CursorColumns } from '../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../common/tokens/lineTokens.js';
 import { ViewEventHandler } from '../../common/viewEventHandler.js';
-import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../common/viewEvents.js';
+import { ViewEventType, type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../common/viewEvents.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
-import type { ViewLineRenderingData } from '../../common/viewModel.js';
+import type { InlineDecoration, ViewLineRenderingData } from '../../common/viewModel.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
 import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
 import type { ITextureAtlasPageGlyph } from './atlas/atlas.js';
@@ -22,7 +22,7 @@ import { GPULifecycle } from './gpuDisposable.js';
 import { quadVertices } from './gpuUtils.js';
 import { GlyphRasterizer } from './raster/glyphRasterizer.js';
 import { ViewGpuContext } from './viewGpuContext.js';
-
+import { Color } from '../../../base/common/color.js';
 
 const enum Constants {
 	IndicesPerCell = 6,
@@ -41,6 +41,7 @@ const enum CellBufferInfo {
 
 type QueuedBufferEvent = (
 	ViewConfigurationChangedEvent |
+	ViewLineMappingChangedEvent |
 	ViewLinesDeletedEvent |
 	ViewZonesChangedEvent
 );
@@ -89,7 +90,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
 		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
 
-		this._glyphRasterizer = this._register(new MandatoryMutableDisposable(new GlyphRasterizer(fontSize, fontFamily)));
+		this._glyphRasterizer = this._register(new MandatoryMutableDisposable(new GlyphRasterizer(fontSize, fontFamily, this._viewGpuContext.devicePixelRatio.get())));
 
 		const bufferSize = this._viewGpuContext.maxGpuLines * this._viewGpuContext.maxGpuCols * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
 		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
@@ -127,11 +128,13 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
 		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
+		const devicePixelRatio = this._viewGpuContext.devicePixelRatio.get();
 		if (
 			this._glyphRasterizer.value.fontFamily !== fontFamily ||
-			this._glyphRasterizer.value.fontSize !== fontSize
+			this._glyphRasterizer.value.fontSize !== fontSize ||
+			this._glyphRasterizer.value.devicePixelRatio !== devicePixelRatio
 		) {
-			this._glyphRasterizer.value = new GlyphRasterizer(fontSize, fontFamily);
+			this._glyphRasterizer.value = new GlyphRasterizer(fontSize, fontFamily, devicePixelRatio);
 		}
 
 		return true;
@@ -146,10 +149,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		// TODO: This currently fires for the entire viewport whenever scrolling stops
 		//       https://github.com/microsoft/vscode/issues/233942
 		for (const range of e.ranges) {
-			for (let i = range.fromLineNumber; i <= range.toLineNumber; i++) {
-				this._upToDateLines[0].delete(i);
-				this._upToDateLines[1].delete(i);
-			}
+			this._invalidateLineRange(range.fromLineNumber, range.toLineNumber);
 		}
 		return true;
 	}
@@ -159,12 +159,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		//       line data up to retain some up to date lines
 		// TODO: This does not invalidate lines that are no longer in the file
 		this._invalidateLinesFrom(e.fromLineNumber);
-
-		// Queue updates that need to happen on the active buffer, not just the cache. This is
-		// deferred since the active buffer could be locked by the GPU which would block the main
-		// thread.
 		this._queueBufferUpdate(e);
-
 		return true;
 	}
 
@@ -176,10 +171,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 	}
 
 	public override onLinesChanged(e: ViewLinesChangedEvent): boolean {
-		for (let i = e.fromLineNumber; i < e.fromLineNumber + e.count; i++) {
-			this._upToDateLines[0].delete(i);
-			this._upToDateLines[1].delete(i);
-		}
+		this._invalidateLineRange(e.fromLineNumber, e.fromLineNumber + e.count);
 		return true;
 	}
 
@@ -191,12 +183,19 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		return true;
 	}
 
+	public override onThemeChanged(e: ViewThemeChangedEvent): boolean {
+		this._invalidateAllLines();
+		return true;
+	}
+
+	public override onLineMappingChanged(e: ViewLineMappingChangedEvent): boolean {
+		this._invalidateAllLines();
+		this._queueBufferUpdate(e);
+		return true;
+	}
+
 	public override onZonesChanged(e: ViewZonesChangedEvent): boolean {
 		this._invalidateAllLines();
-
-		// Queue updates that need to happen on the active buffer, not just the cache. This is
-		// deferred since the active buffer could be locked by the GPU which would block the main
-		// thread.
 		this._queueBufferUpdate(e);
 
 		return true;
@@ -220,20 +219,30 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		}
 	}
 
+	private _invalidateLineRange(fromLineNumber: number, toLineNumber: number): void {
+		for (let i = fromLineNumber; i <= toLineNumber; i++) {
+			this._upToDateLines[0].delete(i);
+			this._upToDateLines[1].delete(i);
+		}
+	}
+
 	reset() {
+		this._invalidateAllLines();
 		for (const bufferIndex of [0, 1]) {
 			// Zero out buffer and upload to GPU to prevent stale rows from rendering
 			const buffer = new Float32Array(this._cellValueBuffers[bufferIndex]);
 			buffer.fill(0, 0, buffer.length);
 			this._device.queue.writeBuffer(this._cellBindBuffer, 0, buffer.buffer, 0, buffer.byteLength);
-			this._upToDateLines[bufferIndex].clear();
 		}
-		this._visibleObjectCount = 0;
+		this._finalRenderedLine = 0;
 	}
 
 	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): number {
-		// Pre-allocate variables to be shared within the loop - don't trust the JIT compiler to do
-		// this optimization to avoid additional blocking time in garbage collector
+		// IMPORTANT: This is a hot function. Variables are pre-allocated and shared within the
+		// loop. This is done so we don't need to trust the JIT compiler to do this optimization to
+		// avoid potential additional blocking time in garbage collector which is a common cause of
+		// dropped frames.
+
 		let chars = '';
 		let y = 0;
 		let x = 0;
@@ -247,7 +256,10 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		let tokenEndIndex = 0;
 		let tokenMetadata = 0;
 
+		let charMetadata = 0;
+
 		let lineData: ViewLineRenderingData;
+		let decoration: InlineDecoration;
 		let content: string = '';
 		let fillStartIndex = 0;
 		let fillEndIndex = 0;
@@ -273,14 +285,15 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		const queuedBufferUpdates = this._queuedBufferUpdates[this._activeDoubleBufferIndex];
 		while (queuedBufferUpdates.length) {
 			const e = queuedBufferUpdates.shift()!;
-
 			switch (e.type) {
-				case ViewEventType.ViewConfigurationChanged: {
-					// TODO: Refine the cases for when we throw away all the data
+				// TODO: Refine these cases so we're not throwing away everything
+				case ViewEventType.ViewConfigurationChanged:
+				case ViewEventType.ViewLineMappingChanged:
+				case ViewEventType.ViewZonesChanged: {
 					cellBuffer.fill(0);
 
 					dirtyLineStart = 1;
-					dirtyLineEnd = this._finalRenderedLine;
+					dirtyLineEnd = Math.max(dirtyLineEnd, this._finalRenderedLine);
 					this._finalRenderedLine = 0;
 					break;
 				}
@@ -296,18 +309,8 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 
 					// Update dirty lines and final rendered line
 					dirtyLineStart = Math.min(dirtyLineStart, e.fromLineNumber);
-					dirtyLineEnd = this._finalRenderedLine;
+					dirtyLineEnd = Math.max(dirtyLineEnd, this._finalRenderedLine);
 					this._finalRenderedLine -= e.toLineNumber - e.fromLineNumber + 1;
-					break;
-				}
-				case ViewEventType.ViewZonesChanged: {
-					// TODO: We could retain render data if we know what view zones changed and how
-					// Zero out content on all lines
-					cellBuffer.fill(0);
-
-					dirtyLineStart = 1;
-					dirtyLineEnd = this._finalRenderedLine;
-					this._finalRenderedLine = 0;
 					break;
 				}
 			}
@@ -316,10 +319,14 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		for (y = viewportData.startLineNumber; y <= viewportData.endLineNumber; y++) {
 
 			// Only attempt to render lines that the GPU renderer can handle
-			if (!ViewGpuContext.canRender(viewLineOptions, viewportData, y)) {
+			if (!this._viewGpuContext.canRender(viewLineOptions, viewportData, y)) {
 				fillStartIndex = ((y - 1) * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
 				fillEndIndex = (y * this._viewGpuContext.maxGpuCols) * Constants.IndicesPerCell;
 				cellBuffer.fill(0, fillStartIndex, fillEndIndex);
+
+				dirtyLineStart = Math.min(dirtyLineStart, y);
+				dirtyLineEnd = Math.max(dirtyLineEnd, y);
+
 				continue;
 			}
 
@@ -327,6 +334,7 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 			if (upToDateLines.has(y)) {
 				continue;
 			}
+
 			dirtyLineStart = Math.min(dirtyLineStart, y);
 			dirtyLineEnd = Math.max(dirtyLineEnd, y);
 
@@ -352,6 +360,41 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						break;
 					}
 					chars = content.charAt(x);
+					charMetadata = 0;
+
+					// Apply supported inline decoration styles to the cell metadata
+					for (decoration of lineData.inlineDecorations) {
+						// This is Range.strictContainsPosition except it works at the cell level,
+						// it's also inlined to avoid overhead.
+						if (
+							(y < decoration.range.startLineNumber || y > decoration.range.endLineNumber) ||
+							(y === decoration.range.startLineNumber && x < decoration.range.startColumn - 1) ||
+							(y === decoration.range.endLineNumber && x >= decoration.range.endColumn - 1)
+						) {
+							continue;
+						}
+
+						const rules = ViewGpuContext.decorationCssRuleExtractor.getStyleRules(this._viewGpuContext.canvas.domNode, decoration.inlineClassName);
+						for (const rule of rules) {
+							for (const r of rule.style) {
+								const value = rule.styleMap.get(r)?.toString() ?? '';
+								switch (r) {
+									case 'color': {
+										// TODO: This parsing and error handling should move into canRender so fallback
+										//       to DOM works
+										const parsedColor = Color.Format.CSS.parse(value);
+										if (!parsedColor) {
+											throw new BugIndicatingError('Invalid color format ' + value);
+										}
+										charMetadata = parsedColor.toNumber24Bit();
+										break;
+									}
+									default: throw new BugIndicatingError('Unexpected inline decoration style');
+								}
+							}
+						}
+					}
+
 					if (chars === ' ' || chars === '\t') {
 						// Zero out glyph to ensure it doesn't get rendered
 						cellIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + x) * Constants.IndicesPerCell;
@@ -363,17 +406,21 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 						continue;
 					}
 
-					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata);
+					glyph = this._viewGpuContext.atlas.getGlyph(this._glyphRasterizer.value, chars, tokenMetadata, charMetadata);
 
 					// TODO: Support non-standard character widths
 					absoluteOffsetX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);
-					absoluteOffsetY = (
-						Math.ceil((
-							// Top of line including line height
-							viewportData.relativeVerticalOffset[y - viewportData.startLineNumber] +
-							// Delta to top of line after line height
-							Math.floor((viewportData.lineHeight - this._context.configuration.options.get(EditorOption.fontSize)) / 2)
-						) * dpr)
+					absoluteOffsetY = Math.round(
+						// Top of layout box (includes line height)
+						viewportData.relativeVerticalOffset[y - viewportData.startLineNumber] * dpr +
+
+						// Delta from top of layout box (includes line height) to top of the inline box (no line height)
+						Math.floor((viewportData.lineHeight * dpr - (glyph.fontBoundingBoxAscent + glyph.fontBoundingBoxDescent)) / 2) +
+
+						// Delta from top of inline box (no line height) to top of glyph origin. If the glyph was drawn
+						// with a top baseline for example, this ends up drawing the glyph correctly using the alphabetical
+						// baseline.
+						glyph.fontBoundingBoxAscent
 					);
 
 					cellIndex = ((y - 1) * this._viewGpuContext.maxGpuCols + x) * Constants.IndicesPerCell;
@@ -428,6 +475,11 @@ export class FullFileRenderStrategy extends ViewEventHandler implements IGpuRend
 		);
 	}
 
+	/**
+	 * Queue updates that need to happen on the active buffer, not just the cache. This will be
+	 * deferred to when the actual cell buffer is changed since the active buffer could be locked by
+	 * the GPU which would block the main thread.
+	 */
 	private _queueBufferUpdate(e: QueuedBufferEvent) {
 		this._queuedBufferUpdates[0].push(e);
 		this._queuedBufferUpdates[1].push(e);

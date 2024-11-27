@@ -454,6 +454,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.checkoutRef",
+        "title": "%command.checkoutRef%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.checkoutRefDetached",
         "title": "%command.checkoutRefDetached%",
         "category": "Git",
@@ -937,19 +943,19 @@
         "command": "git.stageSelectedRanges",
         "key": "ctrl+k ctrl+alt+s",
         "mac": "cmd+k cmd+alt+s",
-        "when": "isInDiffEditor"
+        "when": "resourceScheme =~ /^git$|^file$/"
       },
       {
         "command": "git.unstageSelectedRanges",
         "key": "ctrl+k ctrl+n",
         "mac": "cmd+k cmd+n",
-        "when": "isInDiffEditor"
+        "when": "isInDiffEditor && resourceScheme =~ /^git$|^file$/"
       },
       {
         "command": "git.revertSelectedRanges",
         "key": "ctrl+k ctrl+r",
         "mac": "cmd+k cmd+r",
-        "when": "isInDiffEditor"
+        "when": "resourceScheme =~ /^git$|^file$/"
       }
     ],
     "menus": {
@@ -1468,6 +1474,10 @@
         },
         {
           "command": "git.copyCommitMessage",
+          "when": "false"
+        },
+        {
+          "command": "git.checkoutRef",
           "when": "false"
         },
         {
@@ -2028,6 +2038,7 @@
           "group": "9_copy@2"
         }
       ],
+      "scm/historyItemRef/context": [],
       "editor/title": [
         {
           "command": "git.openFile",
@@ -3198,10 +3209,28 @@
             "experimental"
           ]
         },
+        "git.blame.editorDecoration.template": {
+          "type": "string",
+          "default": "${subject}, ${authorName} (${authorDateAgo})",
+          "markdownDescription": "%config.blameEditorDecoration.template%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
         "git.blame.statusBarItem.enabled": {
           "type": "boolean",
           "default": false,
           "markdownDescription": "%config.blameStatusBarItem.enabled%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "git.blame.statusBarItem.template": {
+          "type": "string",
+          "default": "${authorName} (${authorDateAgo})",
+          "markdownDescription": "%config.blameStatusBarItem.template%",
           "scope": "resource",
           "tags": [
             "experimental"

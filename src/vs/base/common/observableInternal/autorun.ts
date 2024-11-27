@@ -125,6 +125,35 @@ export function autorunDelta<T>(
 	});
 }
 
+export function autorunIterableDelta<T>(
+	getValue: (reader: IReader) => Iterable<T>,
+	handler: (args: { addedValues: T[]; removedValues: T[] }) => void,
+	getUniqueIdentifier: (value: T) => unknown = v => v,
+) {
+	const lastValues = new Map<unknown, T>();
+	return autorunOpts({ debugReferenceFn: getValue }, (reader) => {
+		const newValues = new Map();
+		const removedValues = new Map(lastValues);
+		for (const value of getValue(reader)) {
+			const id = getUniqueIdentifier(value);
+			if (lastValues.has(id)) {
+				removedValues.delete(id);
+			} else {
+				newValues.set(id, value);
+				lastValues.set(id, value);
+			}
+		}
+		for (const id of removedValues.keys()) {
+			lastValues.delete(id);
+		}
+
+		if (newValues.size || removedValues.size) {
+			handler({ addedValues: [...newValues.values()], removedValues: [...removedValues.values()] });
+		}
+	});
+}
+
+
 
 const enum AutorunState {
 	/**

@@ -4,25 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual, throws } from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import type { IGlyphRasterizer, IRasterizedGlyph } from '../../../../../browser/gpu/raster/raster.js';
-import { ensureNonNullable } from '../../../../../browser/gpu/gpuUtils.js';
-import type { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { TextureAtlas } from '../../../../../browser/gpu/atlas/textureAtlas.js';
-import { createCodeEditorServices } from '../../../testCodeEditor.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import type { IGlyphRasterizer, IRasterizedGlyph } from '../../../../browser/gpu/raster/raster.js';
+import { ensureNonNullable } from '../../../../browser/gpu/gpuUtils.js';
+import type { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TextureAtlas } from '../../../../browser/gpu/atlas/textureAtlas.js';
+import { createCodeEditorServices } from '../../testCodeEditor.js';
 import { assertIsValidGlyph } from './testUtil.js';
-import { TextureAtlasSlabAllocator } from '../../../../../browser/gpu/atlas/textureAtlasSlabAllocator.js';
+import { TextureAtlasSlabAllocator } from '../../../../browser/gpu/atlas/textureAtlasSlabAllocator.js';
 
 const blackInt = 0x000000FF;
+const nullCharMetadata = 0x0;
 
 let lastUniqueGlyph: string | undefined;
-function getUniqueGlyphId(): [chars: string, tokenFg: number] {
+function getUniqueGlyphId(): [chars: string, tokenMetadata: number, charMetadata: number] {
 	if (!lastUniqueGlyph) {
 		lastUniqueGlyph = 'a';
 	} else {
 		lastUniqueGlyph = String.fromCharCode(lastUniqueGlyph.charCodeAt(0) + 1);
 	}
-	return [lastUniqueGlyph, blackInt];
+	return [lastUniqueGlyph, blackInt, nullCharMetadata];
 }
 
 class TestGlyphRasterizer implements IGlyphRasterizer {
@@ -30,7 +31,7 @@ class TestGlyphRasterizer implements IGlyphRasterizer {
 	readonly cacheKey = '';
 	nextGlyphColor: [number, number, number, number] = [0, 0, 0, 0];
 	nextGlyphDimensions: [number, number] = [0, 0];
-	rasterizeGlyph(chars: string, metadata: number, colorMap: string[]): Readonly<IRasterizedGlyph> {
+	rasterizeGlyph(chars: string, tokenMetadata: number, charMetadata: number, colorMap: string[]): Readonly<IRasterizedGlyph> {
 		const w = this.nextGlyphDimensions[0];
 		const h = this.nextGlyphDimensions[1];
 		if (w === 0 || h === 0) {
@@ -55,6 +56,8 @@ class TestGlyphRasterizer implements IGlyphRasterizer {
 			source: canvas,
 			boundingBox: { top: 0, left: 0, bottom: h - 1, right: w - 1 },
 			originOffset: { x: 0, y: 0 },
+			fontBoundingBoxAscent: 0,
+			fontBoundingBoxDescent: 0,
 		};
 	}
 }

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqual } from '../../../../../../base/common/resources.js';
 import { Disposable, dispose, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { IChatEditingService, WorkingSetEntryState } from '../../../../chat/common/chatEditingService.js';
@@ -18,13 +17,12 @@ import { INotebookOriginalModelReferenceFactory, NotebookOriginalModelReferenceF
 import { debouncedObservable2 } from '../../../../../../base/common/observableInternal/utils.js';
 import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
 import { NotebookChatActionsOverlayController } from './notebookChatActionsOverlay.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { localize } from '../../../../../../nls.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory } from './notebookOriginalCellModelFactory.js';
-
-export const ctxNotebookHasEditorModification = new RawContextKey<boolean>('chat.hasNotebookEditorModifications', undefined, localize('chat.hasNotebookEditorModifications', "The current Notebook editor contains chat modifications"));
+import { Event } from '../../../../../../base/common/event.js';
+import { ctxNotebookHasEditorModification } from './notebookChatEditContext.js';
 
 export class NotebookChatEditorControllerContrib extends Disposable implements INotebookEditorContribution {
 
@@ -37,9 +35,7 @@ export class NotebookChatEditorControllerContrib extends Disposable implements I
 
 	) {
 		super();
-		if (configurationService.getValue<boolean>('notebook.experimental.chatEdits')) {
-			this._register(instantiationService.createInstance(NotebookChatEditorController, notebookEditor));
-		}
+		this._register(instantiationService.createInstance(NotebookChatEditorController, notebookEditor));
 	}
 }
 
@@ -62,7 +58,10 @@ class NotebookChatEditorController extends Disposable {
 		this.insertedCellDecorator = this._register(instantiationService.createInstance(NotebookInsertedCellDecorator, notebookEditor));
 		const notebookModel = observableFromEvent(this.notebookEditor.onDidChangeModel, e => e);
 		const originalModel = observableValue<NotebookTextModel | undefined>('originalModel', undefined);
-		const viewModelAttached = observableFromEvent(this.notebookEditor.onDidAttachViewModel, () => !!this.notebookEditor.getViewModel());
+		// We need to render viewzones only when the viewmodel is attached (i.e. list view is ready).
+		// https://github.com/microsoft/vscode/issues/234718
+		const readyToRenderViewzones = observableValue<boolean>('viewModelAttached', false);
+		this._register(Event.once(this.notebookEditor.onDidAttachViewModel)(() => readyToRenderViewzones.set(true, undefined)));
 		const onDidChangeVisibleRanges = debouncedObservable2(observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges), 50);
 		const decorators = new Map<NotebookCellTextModel, NotebookCellDiffDecorator>();
 
@@ -86,7 +85,7 @@ class NotebookChatEditorController extends Disposable {
 			if (!model || !session) {
 				return;
 			}
-			return session.entries.read(r).find(e => isEqual(e.modifiedURI, model.uri));
+			return session.readEntry(model.uri, r);
 		}).recomputeInitiallyAndOnChange(this._store);
 
 
@@ -195,8 +194,8 @@ class NotebookChatEditorController extends Disposable {
 			const diffInfo = notebookDiffInfo.read(r);
 			const modified = notebookModel.read(r);
 			const original = originalModel.read(r);
-			const vmAttached = viewModelAttached.read(r);
-			if (!vmAttached || !entry || !modified || !original || !diffInfo) {
+			const ready = readyToRenderViewzones.read(r);
+			if (!ready || !entry || !modified || !original || !diffInfo) {
 				return;
 			}
 			if (diffInfo && updatedDeletedInsertedDecoratorsOnceBefore && (diffInfo.modelVersion !== modified.versionId)) {
