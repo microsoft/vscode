@@ -22,10 +22,12 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorIdentifier, SaveReason } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
@@ -34,6 +36,35 @@ import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatEditingModifiedFileEntry } from './chatEditing/chatEditingModifiedFileEntry.js';
 
+
+const STORAGE_KEY_AUTOSAVE_DISABLED = 'chat.editing.autosaveDisabled';
+
+export class ChatEditorAutoSaveInitializer extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID: string = 'workbench.chat.autoSaveInitializer';
+
+	constructor(
+		@IChatEditingService chatEditingService: IChatEditingService,
+		@IFilesConfigurationService fileConfigService: IFilesConfigurationService,
+		@IStorageService storageService: IStorageService
+	) {
+		super();
+
+		const autoSaveDisabled = storageService.getObject<string[]>(STORAGE_KEY_AUTOSAVE_DISABLED, StorageScope.WORKSPACE, []);
+		if (Array.isArray(autoSaveDisabled) && autoSaveDisabled.length > 0) {
+			const store = new DisposableStore();
+			for (const uriString of autoSaveDisabled) {
+				store.add(fileConfigService.disableAutoSave(URI.parse(uriString)));
+			}
+
+			chatEditingService.getOrRestoreEditingSession().finally(() => {
+				store.dispose();
+			});
+		}
+	}
+}
+
+
 export class ChatEditorSaving extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID: string = 'workbench.chat.editorSaving';
@@ -41,6 +72,8 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 	static readonly _config = 'chat.editing.alwaysSaveWithGeneratedChanges';
 
 	private readonly _sessionStore = this._store.add(new DisposableMap<IChatEditingSession>());
+
+	private _autosaveDisabled: URI[] = [];
 
 	constructor(
 		@IConfigurationService configService: IConfigurationService,
@@ -51,8 +84,16 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 		@IDialogService dialogService: IDialogService,
 		@IChatService private readonly _chatService: IChatService,
 		@IFilesConfigurationService private readonly _fileConfigService: IFilesConfigurationService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
+
+		this._store.add(this._lifecycleService.onWillShutdown((e) => {
+			if (this._autosaveDisabled.length > 0) {
+				this._storageService.store(STORAGE_KEY_AUTOSAVE_DISABLED, this._autosaveDisabled.map(uri => uri.toString()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			}
+		}));
 
 		// --- report that save happened
 		this._store.add(autorunWithStore((r, store) => {
@@ -161,16 +202,16 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 						return;
 					}
 
-					const session = chatEditingService.getEditingSession(workingCopy.resource);
+					const session = await chatEditingService.getOrRestoreEditingSession();
 					if (!session) {
 						return;
 					}
-
-					if (!session.entries.get().find(e => e.state.get() === WorkingSetEntryState.Modified && e.modifiedURI.toString() === workingCopy.resource.toString())) {
+					const entry = session.getEntry(workingCopy.resource);
+					if (!entry || entry.state.get() !== WorkingSetEntryState.Modified) {
 						return;
 					}
 
-					return saveJobs.add(workingCopy.resource);
+					return saveJobs.add(entry.modifiedURI);
 				}
 			}));
 		};
@@ -222,12 +263,15 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 		const update = () => {
 			const store = new DisposableStore();
 			const entries = session.entries.get();
+			const autoSaveDisabled = [];
 			for (const entry of entries) {
 				if (entry.state.get() === WorkingSetEntryState.Modified) {
+					autoSaveDisabled.push(entry.modifiedURI);
 					store.add(this._fileConfigService.disableAutoSave(entry.modifiedURI));
 				}
 			}
 			saveConfig.value = store;
+			this._autosaveDisabled = autoSaveDisabled;
 		};
 
 		update();
