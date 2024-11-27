@@ -971,8 +971,8 @@ export class SearchView extends ViewPane {
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 		const selection = this.tree.getSelection();
-		let arg;
-		let context;
+		let arg: any;
+		let context: any;
 		if (selection && selection.length > 0) {
 			arg = e.element;
 			context = selection;
