@@ -31,6 +31,7 @@ import { ITextEditorOptions } from '../../../../../platform/editor/common/editor
 import { FileKind, IFileService } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
@@ -61,6 +62,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IThemeService private readonly themeService: IThemeService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
@@ -155,25 +157,25 @@ export class ChatAttachmentsContentPart extends Disposable {
 			} else if (isPasteVariableEntry(attachment)) {
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
-				const hoverContent: IManagedHoverTooltipMarkdownString = {
-					markdown: {
-						value: `\`\`\`${attachment.language}\n${attachment.code}\n\`\`\``,
-					},
-					markdownNotSupportedFallback: attachment.code,
-				};
-
 				const classNames = ['file-icon', `${attachment.language}-lang-file-icon`];
-
-				if (attachment.copiedFrom?.uri) {
+				if (attachment.copiedFrom) {
 					resource = attachment.copiedFrom.uri;
 					range = attachment.copiedFrom.range;
-					label.setFile(attachment.copiedFrom.uri, { extraClasses: classNames });
+					const filename = basename(resource.path);
+					label.setLabel(filename, undefined, { extraClasses: classNames });
 				} else {
 					label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
 				}
 				widget.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.pastedLines}`));
 
 				widget.style.position = 'relative';
+
+				const hoverContent: IManagedHoverTooltipMarkdownString = {
+					markdown: {
+						value: `**${attachment.copiedFrom ? this.labelService.getUriLabel(attachment.copiedFrom.uri, { relative: true }) : attachment.fileName}**\n\n---\n\n\`\`\`${attachment.language}\n${attachment.code}\n\`\`\``,
+					},
+					markdownNotSupportedFallback: attachment.code,
+				};
 
 				if (!this.attachedContextDisposables.isDisposed) {
 					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverContent, { trapFocus: true }));

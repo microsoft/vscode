@@ -198,22 +198,23 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const start = additionalData.ranges.startLineNumber;
-		const end = additionalData.ranges.endLineNumber;
+		const start = additionalData.range.startLineNumber;
+		const end = additionalData.range.endLineNumber;
 		if (start === end) {
-			const textModel = this.modelService.getModel(URI.parse(additionalData.uri));
+			const textModel = this.modelService.getModel(URI.revive(additionalData.uri));
 			if (!textModel) {
 				return;
 			}
 
 			// If copied line text data is the entire line content, then we can paste it as a code attachment. Otherwise, we ignore and use default paste provider.
-			const lineContent = textModel.getLineContent(start).trim();
+			const lineContent = textModel.getLineContent(start);
 			if (lineContent !== textdata) {
 				return;
 			}
 		}
 
 		const copiedContext = getCopiedContext(textdata, URI.revive(additionalData.uri), metadata.mode, additionalData.range);
+
 		if (token.isCancellationRequested || !copiedContext) {
 			return;
 		}
