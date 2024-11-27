@@ -86,14 +86,12 @@ enum ChatEntitlement {
 
 class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
-	private readonly chatSetupContext = this.instantiationService.createInstance(ChatSetupContext);
+	private readonly chatSetupContext = this._register(this.instantiationService.createInstance(ChatSetupContext));
 	private readonly entitlementsResolver = this._register(this.instantiationService.createInstance(ChatSetupEntitlementResolver, this.chatSetupContext));
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super();
 
@@ -102,8 +100,6 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		}
 
 		this.registerChatWelcome();
-
-		this.checkExtensionInstallation();
 	}
 
 	private registerChatWelcome(): void {
@@ -122,29 +118,6 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 			icon: defaultChat.icon,
 			content: () => ChatSetupWelcomeContent.getInstance(this.instantiationService, this.entitlementsResolver, this.chatSetupContext).element,
 		});
-	}
-
-	private async checkExtensionInstallation(): Promise<void> {
-		this._register(this.extensionService.onDidChangeExtensions(result => {
-			for (const extension of result.removed) {
-				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
-					this.chatSetupContext.update({ chatInstalled: false });
-					break;
-				}
-			}
-
-			for (const extension of result.added) {
-				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
-					this.chatSetupContext.update({ chatInstalled: true });
-					break;
-				}
-			}
-		}));
-
-		const extensions = await this.extensionManagementService.getInstalled();
-
-		const chatInstalled = !!extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
-		this.chatSetupContext.update({ chatInstalled });
 	}
 }
 
@@ -172,6 +145,8 @@ interface IResolvedEntitlements {
 	readonly limited: boolean;
 }
 
+const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
+
 class ChatSetupEntitlementResolver extends Disposable {
 
 	private _entitlement = ChatEntitlement.Unknown;
@@ -192,9 +167,125 @@ class ChatSetupEntitlementResolver extends Disposable {
 	) {
 		super();
 
+		this.registerActions();
 		this.registerListeners();
 
 		this.resolve();
+	}
+
+	private registerActions(): void {
+		const that = this;
+
+		class ChatSetupTriggerAction extends Action2 {
+
+			static readonly ID = TRIGGER_SETUP_COMMAND_ID;
+			static readonly TITLE = localize2('triggerChatSetup', "Use AI features with {0}...", defaultChat.name);
+
+			constructor() {
+				super({
+					id: ChatSetupTriggerAction.ID,
+					title: ChatSetupTriggerAction.TITLE,
+					f1: true,
+					precondition: ContextKeyExpr.and(
+						ChatContextKeys.Setup.installed.negate(),
+						ContextKeyExpr.or(
+							ChatContextKeys.Setup.entitled,
+							ContextKeyExpr.has('config.chat.experimental.offerSetup')
+						)
+					),
+					menu: {
+						id: MenuId.ChatCommandCenter,
+						group: 'a_first',
+						order: 1,
+						when: ChatContextKeys.Setup.installed.negate()
+					}
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const viewsService = accessor.get(IViewsService);
+				const viewDescriptorService = accessor.get(IViewDescriptorService);
+				const configurationService = accessor.get(IConfigurationService);
+				const layoutService = accessor.get(IWorkbenchLayoutService);
+
+				await that.chatSetupContext.update({ triggered: true });
+
+				showChatView(viewsService);
+
+				const location = viewDescriptorService.getViewLocationById(ChatViewId);
+				if (location !== ViewContainerLocation.Panel) {
+					const viewPart = location === ViewContainerLocation.Sidebar ? Parts.SIDEBAR_PART : Parts.AUXILIARYBAR_PART;
+					const partSize = layoutService.getSize(viewPart);
+					if (partSize.width < 350) {
+						layoutService.setSize(viewPart, { width: 350, height: partSize.height });
+					}
+				}
+
+				configurationService.updateValue('chat.commandCenter.enabled', true);
+			}
+		}
+
+		class ChatSetupHideAction extends Action2 {
+
+			static readonly ID = 'workbench.action.chat.hideSetup';
+			static readonly TITLE = localize2('hideChatSetup', "Hide {0}", defaultChat.name);
+
+			constructor() {
+				super({
+					id: ChatSetupHideAction.ID,
+					title: ChatSetupHideAction.TITLE,
+					f1: true,
+					precondition: ContextKeyExpr.and(
+						ChatContextKeys.Setup.installed.negate(),
+						ContextKeyExpr.or(
+							ChatContextKeys.Setup.entitled,
+							ContextKeyExpr.has('config.chat.experimental.offerSetup')
+						)
+					),
+					menu: {
+						id: MenuId.ChatCommandCenter,
+						group: 'z_end',
+						order: 2,
+						when: ChatContextKeys.Setup.installed.negate()
+					}
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const viewsDescriptorService = accessor.get(IViewDescriptorService);
+				const layoutService = accessor.get(IWorkbenchLayoutService);
+				const configurationService = accessor.get(IConfigurationService);
+				const dialogService = accessor.get(IDialogService);
+
+				const { confirmed } = await dialogService.confirm({
+					message: localize('hideChatSetupConfirm', "Are you sure you want to hide {0}?", defaultChat.name),
+					detail: localize('hideChatSetupDetail', "You can restore it by running the '{0}' command.", ChatSetupTriggerAction.TITLE.value),
+					primaryButton: localize('hideChatSetupButton', "Hide {0}", defaultChat.name)
+				});
+
+				if (!confirmed) {
+					return;
+				}
+
+				const location = viewsDescriptorService.getViewLocationById(ChatViewId);
+
+				await that.chatSetupContext.update({ triggered: false });
+
+				if (location === ViewContainerLocation.AuxiliaryBar) {
+					const activeContainers = viewsDescriptorService.getViewContainersByLocation(location).filter(container => viewsDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
+					if (activeContainers.length === 0) {
+						layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
+					}
+				}
+
+				configurationService.updateValue('chat.commandCenter.enabled', false);
+			}
+		}
+
+		//#endregion
+
+		registerAction2(ChatSetupTriggerAction);
+		registerAction2(ChatSetupHideAction);
 	}
 
 	private registerListeners(): void {
@@ -430,7 +521,7 @@ class ChatSetupController extends Disposable {
 		try {
 			await this.progressService.withProgress({
 				location: ProgressLocation.Window,
-				command: ChatSetupTriggerAction.ID,
+				command: TRIGGER_SETUP_COMMAND_ID,
 				title,
 			}, () => this.doSetup(enableTelemetry));
 		} finally {
@@ -707,7 +798,7 @@ class ChatSetupRequestHelper {
 	}
 }
 
-class ChatSetupContext {
+class ChatSetupContext extends Disposable {
 
 	private static readonly CHAT_SETUP_TRIGGERD = 'chat.setupTriggered';
 	private static readonly CHAT_EXTENSION_INSTALLED = 'chat.extensionInstalled';
@@ -730,8 +821,36 @@ class ChatSetupContext {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService
 	) {
+		super();
+
+		this.checkExtensionInstallation();
 		this.updateContext();
+	}
+
+	private async checkExtensionInstallation(): Promise<void> {
+		this._register(this.extensionService.onDidChangeExtensions(result => {
+			for (const extension of result.removed) {
+				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
+					this.update({ chatInstalled: false });
+					break;
+				}
+			}
+
+			for (const extension of result.added) {
+				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
+					this.update({ chatInstalled: true });
+					break;
+				}
+			}
+		}));
+
+		const extensions = await this.extensionManagementService.getInstalled();
+
+		const chatInstalled = !!extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
+		this.update({ chatInstalled });
 	}
 
 	update(context: { chatInstalled: boolean }): Promise<void>;
@@ -809,114 +928,5 @@ class ChatSetupContext {
 }
 
 //#endregion
-
-//#region Actions
-
-class ChatSetupTriggerAction extends Action2 {
-
-	static readonly ID = 'workbench.action.chat.triggerSetup';
-	static readonly TITLE = localize2('triggerChatSetup', "Use AI features with {0}...", defaultChat.name);
-
-	constructor() {
-		super({
-			id: ChatSetupTriggerAction.ID,
-			title: ChatSetupTriggerAction.TITLE,
-			f1: true,
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.Setup.installed.negate(),
-				ContextKeyExpr.has('config.chat.experimental.offerSetup')
-			),
-			menu: {
-				id: MenuId.ChatCommandCenter,
-				group: 'a_first',
-				order: 1,
-				when: ChatContextKeys.Setup.installed.negate()
-			}
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const viewDescriptorService = accessor.get(IViewDescriptorService);
-		const instantiationService = accessor.get(IInstantiationService);
-		const configurationService = accessor.get(IConfigurationService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-
-		await instantiationService.createInstance(ChatSetupContext).update({ triggered: true });
-
-		showChatView(viewsService);
-
-		const location = viewDescriptorService.getViewLocationById(ChatViewId);
-		if (location !== ViewContainerLocation.Panel) {
-			const viewPart = location === ViewContainerLocation.Sidebar ? Parts.SIDEBAR_PART : Parts.AUXILIARYBAR_PART;
-			const partSize = layoutService.getSize(viewPart);
-			if (partSize.width < 350) {
-				layoutService.setSize(viewPart, { width: 350, height: partSize.height });
-			}
-		}
-
-		configurationService.updateValue('chat.commandCenter.enabled', true);
-	}
-}
-
-class ChatSetupHideAction extends Action2 {
-
-	static readonly ID = 'workbench.action.chat.hideSetup';
-	static readonly TITLE = localize2('hideChatSetup', "Hide {0}", defaultChat.name);
-
-	constructor() {
-		super({
-			id: ChatSetupHideAction.ID,
-			title: ChatSetupHideAction.TITLE,
-			f1: true,
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.Setup.installed.negate(),
-				ContextKeyExpr.has('config.chat.experimental.offerSetup')
-			),
-			menu: {
-				id: MenuId.ChatCommandCenter,
-				group: 'z_end',
-				order: 2,
-				when: ChatContextKeys.Setup.installed.negate()
-			}
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsDescriptorService = accessor.get(IViewDescriptorService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const instantiationService = accessor.get(IInstantiationService);
-		const configurationService = accessor.get(IConfigurationService);
-		const dialogService = accessor.get(IDialogService);
-
-		const { confirmed } = await dialogService.confirm({
-			message: localize('hideChatSetupConfirm', "Are you sure you want to hide {0}?", defaultChat.name),
-			detail: localize('hideChatSetupDetail', "You can restore it by running the '{0}' command.", ChatSetupTriggerAction.TITLE.value),
-			primaryButton: localize('hideChatSetupButton', "Hide {0}", defaultChat.name)
-		});
-
-		if (!confirmed) {
-			return;
-		}
-
-		const location = viewsDescriptorService.getViewLocationById(ChatViewId);
-
-		await instantiationService.createInstance(ChatSetupContext).update({ triggered: false });
-
-		if (location === ViewContainerLocation.AuxiliaryBar) {
-			const activeContainers = viewsDescriptorService.getViewContainersByLocation(location).filter(container => viewsDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
-			if (activeContainers.length === 0) {
-				layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
-			}
-		}
-
-		configurationService.updateValue('chat.commandCenter.enabled', false);
-	}
-}
-
-//#endregion
-
-registerAction2(ChatSetupTriggerAction);
-registerAction2(ChatSetupHideAction);
 
 registerWorkbenchContribution2('workbench.chat.setup', ChatSetupContribution, WorkbenchPhase.BlockRestore);
