@@ -37,6 +37,7 @@ import { EditorOptions } from '../../../../editor/common/config/editorOptions.js
 import { IDimension } from '../../../../editor/common/core/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { isLocation } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
@@ -899,7 +900,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
-				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
+				let contextMenuOptions;
+				if (attachment.kind === 'symbol') {
+					contextMenuOptions = {
+						contextMenuId: MenuId.ChatInputSymbolAttachmentContext,
+						contextKeyService: this.contextKeyService,
+						contextMenuArg: attachment
+					};
+				}
+
+				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate, contextMenuOptions);
 			}
 
 			await Promise.all(attachmentInitPromises);
@@ -1086,7 +1096,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		// Factor file variables that are part of the user query into the working set
 		for (const part of chatWidget?.parsedInput.parts ?? []) {
-			if (part instanceof ChatRequestDynamicVariablePart && part.isFile && URI.isUri(part.data) && !seenEntries.has(part.data)) {
+			if (part instanceof ChatRequestDynamicVariablePart && part.isFile && (URI.isUri(part.data) && !seenEntries.has(part.data) || isLocation(part.data) && !seenEntries.has(part.data.uri))) {
 				entries.unshift({
 					reference: part.data,
 					state: WorkingSetEntryState.Attached,

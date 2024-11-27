@@ -3,12 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { Location } from '../../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -22,6 +28,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ISymbolVariableEntry } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
@@ -564,5 +571,87 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 				}
 			}
 		}
+	}
+});
+
+registerAction2(class ResolveSymbolsContextAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.edits.addFilesFromReferences',
+			title: localize2('addFilesFromReferences', "Add Files From References"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			menu: {
+				id: MenuId.ChatInputSymbolAttachmentContext,
+				group: 'navigation',
+				order: 1,
+				when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const widgetService = accessor.get(IChatWidgetService);
+		const textModelService = accessor.get(ITextModelService);
+		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+		const [widget] = widgetService.getWidgetsByLocations(ChatAgentLocation.EditingSession);
+		if (!widget || !args[0] || args[0].kind !== 'symbol') {
+			return;
+		}
+
+		const attachment = args[0] as ISymbolVariableEntry;
+
+		const modelReference = await textModelService.createModelReference(attachment.value.uri);
+		const textModel = modelReference.object.textEditorModel;
+		if (!textModel) {
+			return;
+		}
+
+		const position = new Position(attachment.value.range.startLineNumber, attachment.value.range.startColumn);
+
+		const [references, definitions, implementations] = await Promise.all([
+			this.getReferences(position, textModel, languageFeaturesService),
+			this.getDefinitions(position, textModel, languageFeaturesService),
+			this.getImplementations(position, textModel, languageFeaturesService)
+		]);
+
+		// Sort the references, definitions and implementations by
+		// how important it is that they make it into the working set as it has limited size
+		const attachments = [];
+		for (const reference of [...definitions, ...implementations, ...references]) {
+			attachments.push(widget.attachmentModel.asVariableEntry(reference.uri));
+		}
+
+		widget.attachmentModel.addContext(...attachments);
+	}
+
+	private async getReferences(position: Position, textModel: ITextModel, languageFeaturesService: ILanguageFeaturesService): Promise<Location[]> {
+		const referenceProviders = languageFeaturesService.referenceProvider.all(textModel);
+
+		const references = await Promise.all(referenceProviders.map(async (referenceProvider) => {
+			return await referenceProvider.provideReferences(textModel, position, { includeDeclaration: true }, CancellationToken.None) ?? [];
+		}));
+
+		return references.flat();
+	}
+
+	private async getDefinitions(position: Position, textModel: ITextModel, languageFeaturesService: ILanguageFeaturesService): Promise<Location[]> {
+		const definitionProviders = languageFeaturesService.definitionProvider.all(textModel);
+
+		const definitions = await Promise.all(definitionProviders.map(async (definitionProvider) => {
+			return await definitionProvider.provideDefinition(textModel, position, CancellationToken.None) ?? [];
+		}));
+
+		return definitions.flat();
+	}
+
+	private async getImplementations(position: Position, textModel: ITextModel, languageFeaturesService: ILanguageFeaturesService): Promise<Location[]> {
+		const implementationProviders = languageFeaturesService.implementationProvider.all(textModel);
+
+		const implementations = await Promise.all(implementationProviders.map(async (implementationProvider) => {
+			return await implementationProvider.provideImplementation(textModel, position, CancellationToken.None) ?? [];
+		}));
+
+		return implementations.flat();
 	}
 });
