@@ -218,7 +218,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	/**
 	 * Set value of the implicit context or remove it if `undefined` is provided.
 	 */
-	public setValue(value: Location | URI | undefined, isSelection: boolean) {
+	setValue(value: Location | URI | undefined, isSelection: boolean) {
 		// if the `prompt-snippets` feature is enabled, add a chat reference object
 		if (PromptFileReference.promptSnippetsEnabled(this.configService)) {
 			this.addPromptFileReferenceFor(value);

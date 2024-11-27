@@ -83,14 +83,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		this.domNode.tabIndex = 0;
 
 		const hintTitle = localize('current file', 'Current file');
-		const hintElement = dom.append(
-			this.domNode,
-			dom.$(
-				'span.chat-implicit-hint',
-				undefined,
-				`${hintTitle}${this.getReferencesSuffix()}`,
-			),
-		);
+		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, `${hintTitle}${this.getReferencesSuffix()}`));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
 		const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current file context") : localize('enable', "Enable current file context");

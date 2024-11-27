@@ -106,19 +106,8 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		this.updateDecorations();
 	}
 
-	/**
-	 * Dispose all existing variables.
-	 */
-	public disposeVariables(): void {
-		for (const variable of this._variables) {
-			variable.dispose();
-		}
-	}
-
 	addReference(ref: IDynamicVariable): void {
-		const variable = this._register(
-			this.instantiationService.createInstance(ChatDynamicVariable, ref),
-		);
+		const variable = this.instantiationService.createInstance(ChatDynamicVariable, ref);
 
 		this._variables.push(variable);
 		this.onVariablesChanged();
@@ -127,7 +116,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		// nested file references immediatelly and subscribe to updates
 		if (variable.isPromptSnippetFile) {
 			// subscribe to variable changes
-			this._register(variable.onUpdate(this.onVariablesChanged));
+			variable.onUpdate(this.onVariablesChanged);
 			// start resolving the file references
 			variable.resolve();
 		}
@@ -170,16 +159,10 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	private updateDecorations(): void {
-		this.widget.inputEditor.setDecorationsByType(
-			'chat',
-			dynamicVariableDecorationType,
-			this._variables.map((variable): IDecorationOptions => {
-				return {
-					range: variable.range,
-					hoverMessage: this.getHoverForReference(variable),
-				};
-			}),
-		);
+		this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map((r): IDecorationOptions => ({
+			range: r.range,
+			hoverMessage: this.getHoverForReference(r)
+		})));
 	}
 
 	private getHoverForReference(variable: IDynamicVariable): IMarkdownString | IMarkdownString[] {
@@ -202,6 +185,15 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		}
 
 		return result;
+	}
+
+	/**
+	 * Dispose all existing variables.
+	 */
+	private disposeVariables(): void {
+		for (const variable of this._variables) {
+			variable.dispose();
+		}
 	}
 
 	public override dispose() {

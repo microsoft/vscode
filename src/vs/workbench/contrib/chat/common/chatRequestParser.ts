@@ -228,11 +228,7 @@ export class ChatRequestParser {
 			const length = refAtThisPosition.range.endColumn - refAtThisPosition.range.startColumn;
 			const text = message.substring(0, length);
 			const range = new OffsetRange(offset, offset + length);
-			return new ChatRequestDynamicVariablePart(
-				range,
-				text,
-				refAtThisPosition,
-			);
+			return new ChatRequestDynamicVariablePart(range, text, refAtThisPosition);
 		}
 
 		return;

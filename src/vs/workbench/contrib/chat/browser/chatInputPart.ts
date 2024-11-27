@@ -123,7 +123,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	static readonly INPUT_SCHEME = 'chatSessionInput';
 	private static _counter = 0;
 
-	private _onDidLoadInputState = this._register(new Emitter<IChatInputState | undefined>());
+	private _onDidLoadInputState = this._register(new Emitter<any>());
 	readonly onDidLoadInputState = this._onDidLoadInputState.event;
 
 	private _onDidChangeHeight = this._register(new Emitter<void>());
@@ -807,7 +807,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.renderAttachedContext();
 		}));
 	}
-
 
 	private async renderAttachedContext() {
 		const container = this.attachedContextContainer;

@@ -143,11 +143,7 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
 	readonly kind = ChatRequestDynamicVariablePart.Kind;
-	constructor(
-		public readonly range: OffsetRange,
-		public readonly text: string,
-		private readonly variable: IDynamicVariable,
-	) { }
+	constructor(readonly range: OffsetRange, readonly text: string, private readonly variable: IDynamicVariable) { }
 
 	/**
 	 * The nested child file references of this variable, if any.
