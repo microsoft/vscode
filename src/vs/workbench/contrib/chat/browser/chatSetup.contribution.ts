@@ -230,10 +230,10 @@ class ChatSetupEntitlementResolver extends Disposable {
 
 		// Immediately signal whether we have a session or not
 		if (session) {
-			this.update(this.resolvedEntitlements?.entitlement ?? ChatEntitlement.Unresolved, this.resolvedEntitlements?.limited, this.resolvedEntitlements?.entitled);
+			this.update(this.resolvedEntitlements ?? { entitlement: ChatEntitlement.Unresolved, limited: false, entitled: false });
 		} else {
 			this.resolvedEntitlements = undefined; // reset resolved entitlement when there is no session
-			this.update(ChatEntitlement.Unknown);
+			this.update({ entitlement: ChatEntitlement.Unknown, limited: false, entitled: false });
 		}
 
 		if (session && typeof this.resolvedEntitlements === 'undefined') {
@@ -265,13 +265,13 @@ class ChatSetupEntitlementResolver extends Disposable {
 	}
 
 	private async resolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<ChatEntitlement | undefined> {
-		const result = await this.doResolveEntitlement(session, token);
-		if (typeof result?.entitlement === 'number' && !token.isCancellationRequested) {
-			this.resolvedEntitlements = result;
-			this.update(result.entitlement, result.limited, result.entitled);
+		const resolvedEntitlements = await this.doResolveEntitlement(session, token);
+		if (typeof resolvedEntitlements?.entitlement === 'number' && !token.isCancellationRequested) {
+			this.resolvedEntitlements = resolvedEntitlements;
+			this.update(resolvedEntitlements);
 		}
 
-		return result?.entitlement;
+		return resolvedEntitlements?.entitlement;
 	}
 
 	private async doResolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<IResolvedEntitlements | undefined> {
@@ -325,11 +325,11 @@ class ChatSetupEntitlementResolver extends Disposable {
 		return result;
 	}
 
-	private update(newEntitlement: ChatEntitlement, limited?: boolean, entitled?: boolean): void {
+	private update({ entitlement: newEntitlement, limited, entitled }: IResolvedEntitlements): void {
 		const oldEntitlement = this._entitlement;
 		this._entitlement = newEntitlement;
 
-		this.chatSetupContext.update({ canSignUp: newEntitlement === ChatEntitlement.Available, limited: limited ?? false, entitled: entitled ?? false });
+		this.chatSetupContext.update({ canSignUp: newEntitlement === ChatEntitlement.Available, limited, entitled });
 
 		if (oldEntitlement !== this._entitlement) {
 			this._onDidChangeEntitlement.fire(this._entitlement);
