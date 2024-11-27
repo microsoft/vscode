@@ -44,7 +44,7 @@ import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 import { annotateSpecialMarkdownContent } from '../common/annotations.js';
 import { ChatAgentLocation, IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatRequestVariableEntry, IChatTextEditGroup } from '../common/chatModel.js';
+import { IChatNotebookEditGroup, IChatRequestVariableEntry, IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatConfirmation, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatTask, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData } from '../common/chatService.js';
 import { IChatCodeCitations, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
@@ -797,6 +797,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.instantiationService.createInstance(ChatCommandButtonContentPart, content, context);
 		} else if (content.kind === 'textEditGroup') {
 			return this.renderTextEdit(context, content, templateData);
+		} else if (content.kind === 'notebookEditGroup') {
+			return this.renderNotebookEdit(context, content, templateData);
 		} else if (content.kind === 'confirmation') {
 			return this.renderConfirmation(context, content, templateData);
 		} else if (content.kind === 'warning') {
@@ -898,6 +900,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 
 		return textEditPart;
+	}
+
+
+	private renderNotebookEdit(context: IChatContentPartRenderContext, chatTextEdit: IChatNotebookEditGroup, templateData: IChatListItemTemplate): IChatContentPart {
+		throw new Error('Method not implemented.');
+		// const textEditPart = this.instantiationService.createInstance(ChatNotebookEditContentPart, chatTextEdit, context, this.rendererOptions);
+		// textEditPart.addDisposable(textEditPart.onDidChangeHeight(() => {
+		// 	textEditPart.layout(this._currentLayoutWidth);
+		// 	this.updateItemHeight(templateData);
+		// }));
+
+		// return textEditPart;
 	}
 
 	private renderMarkdown(markdown: IChatMarkdownContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {

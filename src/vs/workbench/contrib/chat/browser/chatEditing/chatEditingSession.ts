@@ -42,6 +42,7 @@ import { IEnvironmentService } from '../../../../../platform/environment/common/
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { IOffsetEdit, ISingleOffsetEdit, OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IChatService } from '../../common/chatService.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
@@ -469,6 +470,17 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		// ensure that the edits are processed sequentially
 		this._sequencer.queue(() => this._acceptTextEdits(resource, textEdits, isLastEdits, responseModel));
+	}
+
+	acceptNotebookEdits(_resource: URI, _edits: ICellEditOperation[], _isLastEdits: boolean, _responseModel: IChatResponseModel): void {
+		if (this._state.get() === ChatEditingSessionState.Disposed) {
+			// we don't throw in this case because there could be a builder still connected to a disposed session
+			return;
+		}
+
+		// ensure that the edits are processed sequentially
+		// this._sequencer.queue(() => this._acceptNotebookEdits(resource, edits, isLastEdits, responseModel));
+		throw new Error('Method not implemented.');
 	}
 
 	resolve(): void {
