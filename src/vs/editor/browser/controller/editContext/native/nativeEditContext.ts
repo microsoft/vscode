@@ -5,7 +5,7 @@
 
 import './nativeEditContext.css';
 import { isFirefox } from '../../../../../base/browser/browser.js';
-import { addDisposableListener, getActiveWindow, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveWindow, getWindow, getWindowId, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -40,8 +40,12 @@ enum CompositionClassName {
 export class NativeEditContext extends AbstractEditContext {
 
 	// Text area used to handle paste events
+	public static readonly domNodeClassName = `native-edit-context`;
 	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly domNode: FastDomNode<HTMLDivElement>;
+
+	public ignoreSelectionChange: boolean = false;
+
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
 
@@ -74,7 +78,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this.textArea = new FastDomNode(document.createElement('textarea'));
 		this.textArea.setClassName('native-edit-context-textarea');
 
-		this._register(NativeEditContextRegistry.registerTextArea(ownerID, this.textArea.domNode));
 
 		this._updateDomAttributes();
 
@@ -159,6 +162,7 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 			viewController.paste(text, pasteOnNewLine, multicursorText, mode);
 		}));
+		this._register(NativeEditContextRegistry.register(ownerID, this));
 	}
 
 	// --- Public methods ---
@@ -454,9 +458,25 @@ export class NativeEditContext extends AbstractEditContext {
 		// When using a Braille display or NVDA for example, it is possible for users to reposition the
 		// system caret. This is reflected in Chrome as a `selectionchange` event and needs to be reflected within the editor.
 
-		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', () => {
+		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', (e) => {
 			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 			if (!this.isFocused() || !isScreenReaderOptimized) {
+				return;
+			}
+			const srcElement = e.srcElement;
+			if (srcElement && isHTMLElement(srcElement)) {
+				if (srcElement.className === NativeEditContext.domNodeClassName) {
+					return;
+				}
+			}
+			const targetElement = e.target;
+			if (targetElement && isHTMLElement(targetElement)) {
+				if (targetElement.className === NativeEditContext.domNodeClassName) {
+					return;
+				}
+			}
+			if (this.ignoreSelectionChange) {
+				this.ignoreSelectionChange = false;
 				return;
 			}
 			const screenReaderContentState = this._screenReaderSupport.screenReaderContentState;
