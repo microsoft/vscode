@@ -200,12 +200,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		const resourceCompletions: ITerminalCompletion[] = [];
 
-		const parentDirPath = cwd.fsPath.split(resourceRequestConfig.pathSeparator).slice(0, -1).join(resourceRequestConfig.pathSeparator);
 		const dirToPrefixMap = new Map<URI, string>();
 
 		dirToPrefixMap.set(cwd, '.');
-		dirToPrefixMap.set(cwd.with({ path: parentDirPath }), '..');
-
+		let path;
 		const endsWithSpace = promptValue.substring(0, cursorPosition).endsWith(' ');
 		let lastWord;
 		if (endsWithSpace) {
@@ -214,6 +212,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			lastWord = promptValue.substring(0, cursorPosition).trim().split(' ').pop() ?? '';
 		}
 		if (lastWord.includes(basename(cwd.fsPath))) {
+			path = lastWord;
 			lastWord = '';
 		}
 
@@ -255,7 +254,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 					continue;
 				}
 				const isDirectory = kind === TerminalCompletionItemKind.Folder;
-				const label = isDirectory ? prefix + stat.resource.fsPath.replace(dir.fsPath, '') + resourceRequestConfig.pathSeparator : prefix + stat.resource.fsPath.replace(dir.fsPath, '');
+				const pathStartsWithSlash = path?.startsWith('.' + resourceRequestConfig.pathSeparator);
+				let label;
+				if (pathStartsWithSlash) {
+					label = isDirectory ? stat.resource.fsPath.replace(dir.fsPath, '').substring(1) + resourceRequestConfig.pathSeparator : stat.resource.fsPath.replace(dir.fsPath, '').substring(1).replace(dir.fsPath, '');
+				} else {
+					label = isDirectory ? prefix + stat.resource.fsPath.replace(dir.fsPath, '') + resourceRequestConfig.pathSeparator : prefix + stat.resource.fsPath.replace(dir.fsPath, '');
+				}
 				resourceCompletions.push({
 					label,
 					kind,
