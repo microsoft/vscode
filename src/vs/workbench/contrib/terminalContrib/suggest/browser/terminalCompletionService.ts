@@ -5,6 +5,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { basename } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -200,18 +201,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const resourceCompletions: ITerminalCompletion[] = [];
 
 		const parentDirPath = cwd.fsPath.split(resourceRequestConfig.pathSeparator).slice(0, -1).join(resourceRequestConfig.pathSeparator);
-		const parentCwd = URI.from({ scheme: cwd.scheme, path: parentDirPath });
-		const grandParentDirPath = parentCwd.fsPath.split(resourceRequestConfig.pathSeparator).slice(0, -1).join(resourceRequestConfig.pathSeparator);
-		const grandParentCwd = URI.from({ scheme: cwd.scheme, path: grandParentDirPath });
 		const dirToPrefixMap = new Map<URI, string>();
 
 		dirToPrefixMap.set(cwd, '.');
-		if (cwd !== parentCwd) {
-			dirToPrefixMap.set(parentCwd, '..');
-		}
-		if (parentCwd !== grandParentCwd) {
-			dirToPrefixMap.set(grandParentCwd, '..' + resourceRequestConfig.pathSeparator + '..');
-		}
+		dirToPrefixMap.set(cwd.with({ path: parentDirPath }), '..');
 
 		const endsWithSpace = promptValue.substring(0, cursorPosition).endsWith(' ');
 		let lastWord;
@@ -220,10 +213,32 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		} else {
 			lastWord = promptValue.substring(0, cursorPosition).trim().split(' ').pop() ?? '';
 		}
+		if (lastWord.includes(basename(cwd.fsPath))) {
+			lastWord = '';
+		}
+
+		// This breaks folder completions because has a different replacement index
+		// which results in replacement index being set to 0
+		// const includeDirs = endsWithSpace || lastWord.match(/.*[\\\/]/);
+		// if (includeDirs) {
+		// 	resourceCompletions.push({
+		// 		label: '.' + resourceRequestConfig.pathSeparator,
+		// 		kind: TerminalCompletionItemKind.Folder,
+		// 		isDirectory: true,
+		// 		replacementIndex: cursorPosition,
+		// 		replacementLength: 2
+		// 	});
+		// 	resourceCompletions.push({
+		// 		label: '..' + resourceRequestConfig.pathSeparator,
+		// 		kind: TerminalCompletionItemKind.Folder,
+		// 		isDirectory: true,
+		// 		replacementIndex: cursorPosition,
+		// 		replacementLength: 3
+		// 	});
+		// }
 
 		for (const [dir, prefix] of dirToPrefixMap) {
 			const fileStat = await this._fileService.resolve(dir, { resolveSingleChildDescendants: true });
-
 			if (!fileStat || !fileStat?.children) {
 				return;
 			}

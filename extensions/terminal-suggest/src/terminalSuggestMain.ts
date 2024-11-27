@@ -92,12 +92,44 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			const result = getCompletionItemsFromSpecs(availableSpecs, terminalContext, commands, prefix, token);
 			if (result.filesRequested || result.foldersRequested) {
-				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, cwd: terminal.shellIntegration?.cwd, pathSeparator: osIsWindows() ? '\\' : '/' });
+				console.log('shell integration path ' + terminal.shellIntegration?.cwd?.path);
+				const cwd = await resolveCwdFromPrefix(prefix, terminal.shellIntegration?.cwd) ?? terminal.shellIntegration?.cwd;
+				console.log('new path ' + cwd?.path);
+				return new vscode.TerminalCompletionList(result.items, { filesRequested: result.filesRequested, foldersRequested: result.foldersRequested, cwd, pathSeparator: osIsWindows() ? '\\' : '/' });
 			}
 			return result.items;
 		}
 	}, '/', '\\'));
 }
+
+
+/**
+ * Adjusts the current working directory based on a given prefix if it is a folder.
+ * @param prefix - The folder path prefix.
+ * @param currentCwd - The current working directory.
+ * @returns The new working directory.
+ */
+export async function resolveCwdFromPrefix(prefix: string, currentCwd?: vscode.Uri): Promise<vscode.Uri | undefined> {
+	if (!currentCwd) {
+		return;
+	}
+	try {
+		// Resolve the absolute path of the prefix
+		const resolvedPath = path.resolve(currentCwd?.fsPath, prefix);
+
+		const stat = await fs.stat(resolvedPath);
+		// Check if the resolved path exists and is a directory
+		if (stat.isDirectory()) {
+			return currentCwd.with({ path: resolvedPath });
+		}
+	} catch {
+		// Ignore errors
+	}
+
+	// If the prefix is not a folder, return the current cwd
+	return currentCwd;
+}
+
 
 function getLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion | string): string[] | undefined {
 	if (typeof spec === 'string') {
@@ -236,7 +268,7 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 						foldersRequested = foldersRequested || argsCompletions.foldersRequested;
 						filesRequested = filesRequested || argsCompletions.filesRequested;
 						specificSuggestionsProvided = argsCompletions.specificSuggestionsProvided;
-						return pushDefaultResourceCompletions(terminalContext, prefix, argCompletions, filesRequested, foldersRequested);
+						return { items: argCompletions, filesRequested, foldersRequested };
 					}
 				}
 			}
@@ -284,7 +316,7 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 		filesRequested = true;
 		foldersRequested = true;
 	}
-	return pushDefaultResourceCompletions(terminalContext, prefix, items, filesRequested, foldersRequested);
+	return { items, filesRequested, foldersRequested };
 }
 
 function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined, currentPrefix: string, terminalContext: { commandLine: string; cursorPosition: number }, precedingText: string): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; specificSuggestionsProvided: boolean } | undefined {
@@ -339,21 +371,5 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 
 function osIsWindows(): boolean {
 	return os.platform() === 'win32';
-}
-
-function pushDefaultResourceCompletions(terminalContext: { commandLine: string; cursorPosition: number }, prefix: string, items: vscode.TerminalCompletionItem[], filesRequested: boolean, foldersRequested: boolean): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean } {
-	if (items.find(i => i.label === '.') && items.find(i => i.label === '..')) {
-		return { items, filesRequested, foldersRequested };
-	}
-	const onlyFilesOrFolders = (filesRequested || foldersRequested);
-	if (onlyFilesOrFolders) {
-		if (!items.find(i => i.label === '.')) {
-			items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, '.', 'Current directory', vscode.TerminalCompletionItemKind.Folder));
-		}
-		if (!items.find(i => i.label === '..')) {
-			items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, '..', 'Parent directory', vscode.TerminalCompletionItemKind.Folder));
-		}
-	}
-	return { items, filesRequested, foldersRequested };
 }
 
