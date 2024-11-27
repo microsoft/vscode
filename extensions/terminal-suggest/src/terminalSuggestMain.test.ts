@@ -66,7 +66,7 @@ suite('Terminal Suggest', () => {
 		test(testSpec.input, () => {
 			const commandLine = testSpec.input.split('|')[0];
 			const cursorPosition = testSpec.input.indexOf('|');
-			const prefix = commandLine.slice(0, cursorPosition).split(' ').pop() || '';
+			const prefix = commandLine.slice(0, cursorPosition).split(' ').at(-1) || '';
 			const filesRequested = testSpec.resourcesRequested === 'files' || testSpec.resourcesRequested === 'both';
 			const foldersRequested = testSpec.resourcesRequested === 'folders' || testSpec.resourcesRequested === 'both';
 			const result = getCompletionItemsFromSpecs(availableSpecs, { commandLine, cursorPosition }, availableCommands, prefix);
