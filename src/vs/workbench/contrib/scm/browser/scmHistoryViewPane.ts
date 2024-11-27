@@ -1587,16 +1587,19 @@ export class SCMHistoryViewPane extends ViewPane {
 
 		for (const ref of element.historyItemViewModel.historyItem.references ?? []) {
 			const contextKeyService = this.contextKeyService.createOverlay([
-				['historyItemRefId', ref.id]
+				['scmHistoryItemRef', ref.id]
 			]);
 
 			const historyItemRefMenu = this._menuService.createMenu(MenuId.SCMHistoryItemRefContext, contextKeyService);
 			const historyItemRefMenuActions = historyItemRefMenu.getActions({
-				arg: [element.repository.provider, ref],
+				arg: element.repository.provider,
 				shouldForwardArgs: true
 			});
 
-			actions.push(new SubmenuAction(`scm.historyItemRef.${ref.id}`, ref.name, getFlatContextMenuActions(historyItemRefMenuActions)));
+			const subMenuActions = getFlatContextMenuActions(historyItemRefMenuActions)
+				.map(action => ({ ...action, run: (...args: unknown[]) => action.run(...args, ref.id) }));
+
+			actions.push(new SubmenuAction(`scm.historyItemRef.${ref.id}`, ref.name, subMenuActions));
 		}
 
 		this.contextMenuService.showContextMenu({

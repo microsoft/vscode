@@ -2042,7 +2042,7 @@
         {
           "command": "git.checkoutRef",
           "when": "scmProvider == git",
-          "group": "1_modify@1"
+          "group": "1_checkout@1"
         }
       ],
       "editor/title": [

@@ -2505,8 +2505,18 @@ export class CommandCenter {
 		return this._checkout(repository, { detached: true, treeish });
 	}
 
+	@command('git.checkoutRef', { repository: true })
+	async checkoutRef(repository: Repository, historyItem?: SourceControlHistoryItem, historyItemRefId?: string): Promise<boolean> {
+		const historyItemRef = historyItem?.references?.find(r => r.id === historyItemRefId);
+		if (!historyItemRef) {
+			return false;
+		}
+
+		return this._checkout(repository, { treeish: historyItemRefId });
+	}
+
 	@command('git.checkoutRefDetached', { repository: true })
-	async checkoutRefDetached(repository: Repository, historyItem?: SourceControlHistoryItemRef): Promise<boolean> {
+	async checkoutRefDetached(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<boolean> {
 		if (!historyItem) {
 			return false;
 		}
