@@ -80,12 +80,12 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 	}
 }
 
-export class TriggerInlineEditAction extends EditorAction {
+export class ExplicitTriggerInlineEditAction extends EditorAction {
 	constructor() {
 		super({
-			id: 'editor.action.inlineSuggest.trigger.inlineEdit',
-			label: nls.localize2('action.inlineSuggest.trigger.inlineEdit', "Trigger Inline Edit"),
-			precondition: EditorContextKeys.writable
+			id: 'editor.action.inlineSuggest.triggerInlineEditExplicit',
+			label: nls.localize2('action.inlineSuggest.trigger.explicitInlineEdit', "Trigger Inline Edit"),
+			precondition: EditorContextKeys.writable,
 		});
 	}
 
@@ -100,6 +100,22 @@ export class TriggerInlineEditAction extends EditorAction {
 				message: nls.localize('noInlineEditAvailable', "No inline edit is available.")
 			});
 		}
+	}
+}
+
+export class TriggerInlineEditAction extends Action2 {
+	constructor() {
+		super({
+			id: 'editor.action.inlineSuggest.triggerInlineEdit',
+			title: nls.localize2('action.inlineSuggest.trigger.inlineEdit', "Trigger Inline Edit"),
+			precondition: EditorContextKeys.writable,
+			f1: false,
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		const controller = InlineCompletionsController.get(editor);
+		await controller?.model.get()?.triggerExplicitly(undefined, true);
 	}
 }
 
