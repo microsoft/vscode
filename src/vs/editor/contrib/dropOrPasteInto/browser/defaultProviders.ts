@@ -12,14 +12,14 @@ import { Mimes } from '../../../../base/common/mime.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IPosition } from '../../../common/core/position.js';
 import { IRange } from '../../../common/core/range.js';
 import { DocumentDropEditProvider, DocumentDropEditsSession, DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteEditsSession, DocumentPasteTriggerKind } from '../../../common/languages.js';
+import { LanguageFilter } from '../../../common/languageSelector.js';
 import { ITextModel } from '../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
-import { localize } from '../../../../nls.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { LanguageFilter, LanguageSelector } from '../../../common/languageSelector.js';
 
 
 abstract class SimplePasteAndDropProvider implements DocumentDropEditProvider, DocumentPasteEditProvider {
