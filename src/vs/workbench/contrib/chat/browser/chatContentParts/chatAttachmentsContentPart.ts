@@ -74,9 +74,9 @@ export class ChatAttachmentsContentPart extends Disposable {
 		const hoverDelegate = this.attachedContextDisposables.add(createInstantHoverDelegate());
 
 		this.variables.forEach(async (attachment) => {
-			const resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
-			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
-			if (resource && attachment.isFile && this.workingSet.find(entry => entry.toString() === resource.toString())) {
+			let resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
+			let range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
+			if (resource && attachment.isFile && this.workingSet.find(entry => entry.toString() === resource?.toString())) {
 				// Don't render attachment if it's in the working set
 				return;
 			}
@@ -117,8 +117,11 @@ export class ChatAttachmentsContentPart extends Disposable {
 					icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
 				});
 
-				this.attachedContextDisposables.add(this.instantiationService.invokeFunction(accessor => hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource)));
-
+				this.instantiationService.invokeFunction(accessor => {
+					if (resource) {
+						this.attachedContextDisposables.add(hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource));
+					}
+				});
 			} else if (attachment.isImage) {
 				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 
@@ -160,13 +163,25 @@ export class ChatAttachmentsContentPart extends Disposable {
 				};
 
 				const classNames = ['file-icon', `${attachment.language}-lang-file-icon`];
-				label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
+
+				if (attachment.copiedFrom?.uri) {
+					resource = attachment.copiedFrom.uri;
+					range = attachment.copiedFrom.range;
+					label.setFile(attachment.copiedFrom.uri, { extraClasses: classNames });
+				} else {
+					label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
+				}
 				widget.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.pastedLines}`));
 
 				widget.style.position = 'relative';
 
 				if (!this.attachedContextDisposables.isDisposed) {
 					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverContent, { trapFocus: true }));
+
+					const resource = attachment.copiedFrom?.uri;
+					if (resource) {
+						this.attachedContextDisposables.add(this.instantiationService.invokeFunction(accessor => hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource)));
+					}
 				}
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
