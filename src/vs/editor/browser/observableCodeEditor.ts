@@ -167,6 +167,17 @@ export class ObservableCodeEditor extends Disposable {
 		};
 	}, () => this.editor.hasWidgetFocus());
 
+	public readonly isTextFocused = observableFromEvent(this, e => {
+		const d1 = this.editor.onDidFocusEditorText(e);
+		const d2 = this.editor.onDidBlurEditorText(e);
+		return {
+			dispose() {
+				d1.dispose();
+				d2.dispose();
+			}
+		};
+	}, () => this.editor.hasTextFocus());
+
 	private _inComposition = false;
 	public readonly inComposition = observableFromEvent(this, e => {
 		const d1 = this.editor.onDidCompositionStart(() => {
