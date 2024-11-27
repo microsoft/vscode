@@ -880,16 +880,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
-				let contextMenuOptions;
-				if (attachment.kind === 'symbol') {
-					contextMenuOptions = {
-						contextMenuId: MenuId.ChatInputSymbolAttachmentContext,
-						contextKeyService: this.contextKeyService,
-						contextMenuArg: attachment
-					};
-				}
-
-				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate, contextMenuOptions);
+				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 			}
 
 			if (attachment.kind === 'symbol') {

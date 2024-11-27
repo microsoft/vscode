@@ -11,7 +11,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
-import { Location } from '../../../../../editor/common/languages.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { isLocation, Location } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -28,7 +29,6 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
-import { ISymbolVariableEntry } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
@@ -583,7 +583,7 @@ registerAction2(class ResolveSymbolsContextAction extends Action2 {
 				id: MenuId.ChatInputSymbolAttachmentContext,
 				group: 'navigation',
 				order: 1,
-				when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
+				when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), EditorContextKeys.hasReferenceProvider)
 			}
 		});
 	}
@@ -593,19 +593,19 @@ registerAction2(class ResolveSymbolsContextAction extends Action2 {
 		const textModelService = accessor.get(ITextModelService);
 		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 		const [widget] = widgetService.getWidgetsByLocations(ChatAgentLocation.EditingSession);
-		if (!widget || !args[0] || args[0].kind !== 'symbol') {
+		if (!widget || args.length === 0 || !isLocation(args[0])) {
 			return;
 		}
 
-		const attachment = args[0] as ISymbolVariableEntry;
+		const symbol = args[0] as Location;
 
-		const modelReference = await textModelService.createModelReference(attachment.value.uri);
+		const modelReference = await textModelService.createModelReference(symbol.uri);
 		const textModel = modelReference.object.textEditorModel;
 		if (!textModel) {
 			return;
 		}
 
-		const position = new Position(attachment.value.range.startLineNumber, attachment.value.range.startColumn);
+		const position = new Position(symbol.range.startLineNumber, symbol.range.startColumn);
 
 		const [references, definitions, implementations] = await Promise.all([
 			this.getReferences(position, textModel, languageFeaturesService),
