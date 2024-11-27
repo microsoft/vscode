@@ -261,20 +261,23 @@ export class MoveOperations {
 
 		let lineNumber: number,
 			column: number;
+		let columnHint: number | null;
 
 		if (cursor.hasSelection() && !inSelectionMode) {
 			// If we are in selection mode, move down acts relative to the end of selection
 			lineNumber = cursor.selection.endLineNumber;
 			column = cursor.selection.endColumn;
+			columnHint = null;
 		} else {
 			lineNumber = cursor.position.lineNumber;
 			column = cursor.position.column;
+			columnHint = cursor.columnHint;
 		}
 
 		let i = 0;
 		let r: CursorPosition;
 		do {
-			r = MoveOperations.down(config, model, lineNumber + i, column, cursor.columnHint, linesCount, true);
+			r = MoveOperations.down(config, model, lineNumber + i, column, columnHint, linesCount, true);
 			const np = model.normalizePosition(new Position(r.lineNumber, r.column), PositionAffinity.None);
 			if (np.lineNumber > lineNumber) {
 				break;
@@ -309,17 +312,20 @@ export class MoveOperations {
 
 		let lineNumber: number,
 			column: number;
+		let columnHint: number | null;
 
 		if (cursor.hasSelection() && !inSelectionMode) {
 			// If we are in selection mode, move up acts relative to the beginning of selection
 			lineNumber = cursor.selection.startLineNumber;
 			column = cursor.selection.startColumn;
+			columnHint = null;
 		} else {
 			lineNumber = cursor.position.lineNumber;
 			column = cursor.position.column;
+			columnHint = cursor.columnHint;
 		}
 
-		const r = MoveOperations.up(config, model, lineNumber, column, cursor.columnHint, linesCount, true);
+		const r = MoveOperations.up(config, model, lineNumber, column, columnHint, linesCount, true);
 
 		return cursor.move(inSelectionMode, r.lineNumber, r.column, 0, r.columnHint);
 	}
