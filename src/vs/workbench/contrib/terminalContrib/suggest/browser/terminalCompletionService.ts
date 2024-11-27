@@ -5,7 +5,6 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { basename } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -199,21 +198,15 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		const resourceCompletions: ITerminalCompletion[] = [];
-
-		const parentDirPath = cwd.fsPath.split(resourceRequestConfig.pathSeparator).slice(0, -1).join(resourceRequestConfig.pathSeparator);
-		const dirToPrefixMap = new Map<URI, string>();
-
-		dirToPrefixMap.set(cwd, '.');
-		dirToPrefixMap.set(cwd.with({ path: parentDirPath }), '..');
-
 		const endsWithSpace = promptValue.substring(0, cursorPosition).endsWith(' ');
 		let lastWord;
 		if (endsWithSpace) {
 			lastWord = '';
 		} else {
-			lastWord = promptValue.substring(0, cursorPosition).trim().split(' ').pop() ?? '';
+			lastWord = promptValue.substring(0, cursorPosition).trim().split(' ').at(-1) ?? '';
 		}
-		if (lastWord.includes(basename(cwd.fsPath))) {
+		const pathStartsWithSlash = /^(\.\/|\.\.\/)/.test(lastWord);
+		if (pathStartsWithSlash) {
 			lastWord = '';
 		}
 
@@ -237,34 +230,37 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		// 	});
 		// }
 
-		for (const [dir, prefix] of dirToPrefixMap) {
-			const fileStat = await this._fileService.resolve(dir, { resolveSingleChildDescendants: true });
-			if (!fileStat || !fileStat?.children) {
-				return;
-			}
+		const fileStat = await this._fileService.resolve(cwd, { resolveSingleChildDescendants: true });
+		if (!fileStat || !fileStat?.children) {
+			return;
+		}
 
-			for (const stat of fileStat.children) {
-				let kind: TerminalCompletionItemKind | undefined;
-				if (foldersRequested && stat.isDirectory) {
-					kind = TerminalCompletionItemKind.Folder;
-				}
-				if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === Schemas.file)) {
-					kind = TerminalCompletionItemKind.File;
-				}
-				if (kind === undefined) {
-					continue;
-				}
-				const isDirectory = kind === TerminalCompletionItemKind.Folder;
-				const label = isDirectory ? prefix + stat.resource.fsPath.replace(dir.fsPath, '') + resourceRequestConfig.pathSeparator : prefix + stat.resource.fsPath.replace(dir.fsPath, '');
-				resourceCompletions.push({
-					label,
-					kind,
-					isDirectory,
-					isFile: kind === TerminalCompletionItemKind.File,
-					replacementIndex: cursorPosition - lastWord.length,
-					replacementLength: label.length
-				});
+		for (const stat of fileStat.children) {
+			let kind: TerminalCompletionItemKind | undefined;
+			if (foldersRequested && stat.isDirectory) {
+				kind = TerminalCompletionItemKind.Folder;
 			}
+			if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === Schemas.file)) {
+				kind = TerminalCompletionItemKind.File;
+			}
+			if (kind === undefined) {
+				continue;
+			}
+			const isDirectory = kind === TerminalCompletionItemKind.Folder;
+			let label;
+			if (pathStartsWithSlash) {
+				label = isDirectory ? stat.resource.fsPath.replace(cwd.fsPath, '').substring(1) + resourceRequestConfig.pathSeparator : stat.resource.fsPath.replace(cwd.fsPath, '').substring(1).replace(cwd.fsPath, '');
+			} else {
+				label = isDirectory ? '.' + stat.resource.fsPath.replace(cwd.fsPath, '') + resourceRequestConfig.pathSeparator : '.' + stat.resource.fsPath.replace(cwd.fsPath, '');
+			}
+			resourceCompletions.push({
+				label,
+				kind,
+				isDirectory,
+				isFile: kind === TerminalCompletionItemKind.File,
+				replacementIndex: cursorPosition - lastWord.length,
+				replacementLength: label.length
+			});
 		}
 
 		return resourceCompletions.length ? resourceCompletions : undefined;
