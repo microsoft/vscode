@@ -288,7 +288,7 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 		}
 	}
 
-	if (!specificSuggestionsProvided) {
+	if (!specificSuggestionsProvided && (filesRequested === foldersRequested)) {
 		// Include builitin/available commands in the results
 		for (const command of availableCommands) {
 			if ((!terminalContext.commandLine.trim() || !!prefix) && command.startsWith(prefix) && !items.find(item => item.label === command)) {
