@@ -337,9 +337,9 @@ class StatusInputMode extends Disposable {
 		this._register(InputMode.onDidChangeInputMode(inputMode => this._onDidChange.fire(inputMode)));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.inputMode')) {
-				const inputMode = this.configurationService.getValue<'overtype' | 'insert'>('editor.inputMode');
-				InputMode.setInputMode(inputMode);
-				this._onDidChange.fire(inputMode);
+				const defaultInputMode = 'insert';
+				InputMode.setInputMode(defaultInputMode);
+				this._onDidChange.fire(defaultInputMode);
 			}
 		}));
 	}
@@ -402,11 +402,7 @@ class EditorStatus extends Disposable {
 			}
 		}));
 		this._register(Event.runAndSubscribe(this.inputMode.onDidChange, (inputMode) => {
-			if (inputMode !== undefined) {
-				this.onInputModeChange(inputMode);
-			} else {
-				this.onInputModeChange(this.configurationService.getValue('editor.inputMode'));
-			}
+			this.onInputModeChange(inputMode ?? 'insert');
 		}));
 	}
 
