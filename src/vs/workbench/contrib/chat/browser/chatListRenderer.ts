@@ -59,6 +59,7 @@ import { ChatCommandButtonContentPart } from './chatContentParts/chatCommandCont
 import { ChatConfirmationContentPart } from './chatContentParts/chatConfirmationContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts/chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from './chatContentParts/chatMarkdownContentPart.js';
+import { ChatNotebookEditContentPart } from './chatContentParts/chatNotebookEditContentPart.js';
 import { ChatProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
 import { ChatCollapsibleListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
@@ -904,14 +905,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 
 	private renderNotebookEdit(context: IChatContentPartRenderContext, chatTextEdit: IChatNotebookEditGroup, templateData: IChatListItemTemplate): IChatContentPart {
-		throw new Error('Method not implemented.');
-		// const textEditPart = this.instantiationService.createInstance(ChatNotebookEditContentPart, chatTextEdit, context, this.rendererOptions);
-		// textEditPart.addDisposable(textEditPart.onDidChangeHeight(() => {
-		// 	textEditPart.layout(this._currentLayoutWidth);
-		// 	this.updateItemHeight(templateData);
-		// }));
+		const textEditPart = this.instantiationService.createInstance(ChatNotebookEditContentPart, chatTextEdit, context, this.rendererOptions);
+		textEditPart.addDisposable(textEditPart.onDidChangeHeight(() => {
+			textEditPart.layout(this._currentLayoutWidth);
+			this.updateItemHeight(templateData);
+		}));
 
-		// return textEditPart;
+		return textEditPart;
 	}
 
 	private renderMarkdown(markdown: IChatMarkdownContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
