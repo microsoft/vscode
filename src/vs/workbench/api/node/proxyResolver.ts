@@ -18,6 +18,7 @@ import { createRequire } from 'node:module';
 import type * as undiciType from 'undici-types';
 import type * as tlsType from 'tls';
 import type * as streamType from 'stream';
+import { lookupKerberosAuthorization } from '../../../platform/request/node/requestService.js';
 
 const require = createRequire(import.meta.url);
 const http = require('http');
@@ -480,14 +481,8 @@ async function lookupProxyAuthorization(
 		state.kerberosRequested = true;
 
 		try {
-			const importKerberos = await import('kerberos');
-			const kerberos = importKerberos.default || importKerberos;
-			const url = new URL(proxyURL);
-			const spn = configProvider.getConfiguration('http').get<string>('proxyKerberosServicePrincipal')
-				|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
-			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication lookup', `proxyURL:${proxyURL}`, `spn:${spn}`);
-			const client = await kerberos.initializeClient(spn);
-			const response = await client.step('');
+			const spnConfig = configProvider.getConfiguration('http').get<string>('proxyKerberosServicePrincipal');
+			const response = await lookupKerberosAuthorization(proxyURL, spnConfig, extHostLogService, 'ProxyResolver#lookupProxyAuthorization');
 			return 'Negotiate ' + response;
 		} catch (err) {
 			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);
