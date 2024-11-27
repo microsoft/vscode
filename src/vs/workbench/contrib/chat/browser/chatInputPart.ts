@@ -62,6 +62,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -281,6 +282,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IThemeService private readonly themeService: IThemeService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super();
 
@@ -863,24 +865,25 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			} else if (isPasteVariableEntry(attachment)) {
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
-				const hoverContent: IManagedHoverTooltipMarkdownString = {
-					markdown: {
-						value: `\`\`\`${attachment.language}\n${attachment.code}\n\`\`\``,
-					},
-					markdownNotSupportedFallback: attachment.code,
-				};
-
 				const classNames = ['file-icon', `${attachment.language}-lang-file-icon`];
 				if (attachment.copiedFrom) {
 					resource = attachment.copiedFrom.uri;
 					range = attachment.copiedFrom.range;
-					label.setFile(attachment.copiedFrom.uri, { extraClasses: classNames });
+					const filename = basename(resource.path);
+					label.setLabel(filename, undefined, { extraClasses: classNames });
 				} else {
 					label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
 				}
 				widget.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.pastedLines}`));
 
 				widget.style.position = 'relative';
+
+				const hoverContent: IManagedHoverTooltipMarkdownString = {
+					markdown: {
+						value: `**${attachment.copiedFrom ? this.labelService.getUriLabel(attachment.copiedFrom.uri, { relative: true }) : attachment.fileName}**\n\n---\n\n\`\`\`${attachment.language}\n${attachment.code}\n\`\`\``,
+					},
+					markdownNotSupportedFallback: attachment.code,
+				};
 				store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverContent, { trapFocus: true }));
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 
@@ -901,7 +904,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			if (attachment.kind === 'symbol') {
 				const scopedContextKeyService = store.add(this.contextKeyService.createScoped(widget));
-				store.add(this.instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, widget, scopedContextKeyService, attachment, MenuId.ChatInputSymbolAttachmentContext)));
+				store.add(this.instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, widget, scopedContextKeyService, { ...attachment, kind: attachment.symbolKind }, MenuId.ChatInputSymbolAttachmentContext)));
 			}
 
 			await Promise.all(attachmentInitPromises);
