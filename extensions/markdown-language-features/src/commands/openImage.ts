@@ -14,9 +14,9 @@ export class OpenImageCommand implements Command {
 		private readonly _webviewManager: MarkdownPreviewManager,
 	) { }
 
-	public execute(args: { resource: string, imageSource: string }) {
+	public execute(args: { resource: string; imageSource: string }) {
 		const source = vscode.Uri.parse(args.resource);
-		const { fsPath } = vscode.Uri.parse(args.imageSource);
-		this._webviewManager.findPreview(source)?.openImage(fsPath);
+		const imageSource = vscode.Uri.file(vscode.Uri.parse(args.imageSource).path);
+		vscode.commands.executeCommand('vscode.open', imageSource, this._webviewManager.findPreview(source));
 	}
 }
