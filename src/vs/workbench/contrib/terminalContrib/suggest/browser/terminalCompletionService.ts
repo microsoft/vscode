@@ -251,9 +251,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (pathStartsWithSlash) {
 				label = isDirectory ? stat.resource.fsPath.replace(cwd.fsPath, '').substring(1) + resourceRequestConfig.pathSeparator : stat.resource.fsPath.replace(cwd.fsPath, '').substring(1).replace(cwd.fsPath, '');
 			} else {
-				label = isDirectory ? lastWord + stat.resource.fsPath.replace(cwd.fsPath, '') + resourceRequestConfig.pathSeparator : lastWord + stat.resource.fsPath.replace(cwd.fsPath, '');
+				label = isDirectory ? '.' + stat.resource.fsPath.replace(cwd.fsPath, '') + resourceRequestConfig.pathSeparator : '.' + stat.resource.fsPath.replace(cwd.fsPath, '');
 			}
-			label = isDirectory ? stat.resource.fsPath.replace(cwd.fsPath, '').substring(1) + resourceRequestConfig.pathSeparator : stat.resource.fsPath.replace(cwd.fsPath, '').substring(1).replace(cwd.fsPath, '');
 			resourceCompletions.push({
 				label,
 				kind,
