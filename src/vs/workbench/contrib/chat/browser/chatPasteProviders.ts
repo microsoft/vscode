@@ -19,6 +19,7 @@ import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 
 const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
 
@@ -165,7 +166,8 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 	public readonly pasteMimeTypes = [COPY_MIME_TYPES];
 
 	constructor(
-		private readonly chatWidgetService: IChatWidgetService
+		private readonly chatWidgetService: IChatWidgetService,
+		private readonly modelService: IModelService
 	) { }
 
 	async provideDocumentPasteEdits(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
@@ -187,6 +189,21 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 		if (!widget) {
 			return;
+		}
+
+		const start = additionalData.ranges.startLineNumber;
+		const end = additionalData.ranges.endLineNumber;
+		if (start === end) {
+			const textModel = this.modelService.getModel(URI.parse(additionalData.uri));
+			if (!textModel) {
+				return;
+			}
+
+			// If copied line text data is the entire line content, then we can paste it as a code attachment. Otherwise, we ignore and use default paste provider.
+			const lineContent = textModel.getLineContent(start).trim();
+			if (lineContent !== textdata) {
+				return;
+			}
 		}
 
 		const copiedContext = await getCopiedContext(textdata, additionalData.uri, metadata.mode, additionalData.ranges);
@@ -264,11 +281,12 @@ export class ChatPasteProvidersFeature extends Disposable {
 	constructor(
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@IModelService modelService: IModelService
 	) {
 		super();
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService)));
-		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteTextProvider(chatWidgetService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteTextProvider(chatWidgetService, modelService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new CopyTextProvider()));
 	}
 }
