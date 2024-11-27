@@ -2713,7 +2713,7 @@ export class ToggleOvertypeInsertMode extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.Insert,
-				secondary: [KeyMod.Alt | KeyCode.Ctrl | KeyCode.KeyO],
+				mac: { primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.KeyO },
 			},
 			f1: true,
 			category: Categories.View
