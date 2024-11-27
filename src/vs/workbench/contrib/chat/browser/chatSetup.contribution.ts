@@ -101,6 +101,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		}
 
 		this.registerChatWelcome();
+		this.registerActions();
 	}
 
 	private registerChatWelcome(): void {
@@ -119,59 +120,6 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 			icon: defaultChat.icon,
 			content: disposables => disposables.add(this.instantiationService.createInstance(ChatSetupWelcomeContent, this.chatSetupController)).element,
 		});
-	}
-}
-
-//#endregion
-
-//#region Entitlements Resolver
-
-type ChatSetupEntitlementClassification = {
-	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating the chat entitlement state' };
-	entitled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat setup entitled' };
-	limited: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat setup limited' };
-	owner: 'bpasero';
-	comment: 'Reporting chat setup entitlements';
-};
-
-type ChatSetupEntitlementEvent = {
-	entitlement: ChatEntitlement;
-	entitled: boolean;
-	limited: boolean;
-};
-
-interface IResolvedEntitlements {
-	readonly entitlement: ChatEntitlement;
-	readonly entitled: boolean;
-	readonly limited: boolean;
-}
-
-const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
-
-class ChatSetupEntitlementResolver extends Disposable {
-
-	private _entitlement = ChatEntitlement.Unknown;
-	get entitlement() { return this._entitlement; }
-
-	private readonly _onDidChangeEntitlement = this._register(new Emitter<ChatEntitlement>());
-	readonly onDidChangeEntitlement = this._onDidChangeEntitlement.event;
-
-	private pendingResolveCts = new CancellationTokenSource();
-	private resolvedEntitlements: IResolvedEntitlements | undefined = undefined;
-
-	constructor(
-		private readonly chatSetupContext: ChatSetupContext,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ILogService private readonly logService: ILogService,
-	) {
-		super();
-
-		this.registerActions();
-		this.registerListeners();
-
-		this.resolve();
 	}
 
 	private registerActions(): void {
@@ -283,10 +231,62 @@ class ChatSetupEntitlementResolver extends Disposable {
 			}
 		}
 
-		//#endregion
-
 		registerAction2(ChatSetupTriggerAction);
 		registerAction2(ChatSetupHideAction);
+	}
+}
+
+//#endregion
+
+//#region Entitlements Resolver
+
+type ChatSetupEntitlementClassification = {
+	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating the chat entitlement state' };
+	entitled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat setup entitled' };
+	limited: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat setup limited' };
+	owner: 'bpasero';
+	comment: 'Reporting chat setup entitlements';
+};
+
+type ChatSetupEntitlementEvent = {
+	entitlement: ChatEntitlement;
+	entitled: boolean;
+	limited: boolean;
+};
+
+interface IResolvedEntitlements {
+	readonly entitlement: ChatEntitlement;
+	readonly entitled: boolean;
+	readonly limited: boolean;
+}
+
+const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
+
+class ChatSetupEntitlementResolver extends Disposable {
+
+	private _entitlement = ChatEntitlement.Unknown;
+	get entitlement() { return this._entitlement; }
+
+	private readonly _onDidChangeEntitlement = this._register(new Emitter<ChatEntitlement>());
+	readonly onDidChangeEntitlement = this._onDidChangeEntitlement.event;
+
+	private pendingResolveCts = new CancellationTokenSource();
+	private resolvedEntitlements: IResolvedEntitlements | undefined = undefined;
+
+	private entitlementsUpdateBarrier: Barrier | undefined = undefined;
+
+	constructor(
+		private readonly chatSetupContext: ChatSetupContext,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService,
+	) {
+		super();
+
+		this.registerListeners();
+
+		this.resolve();
 	}
 
 	private registerListeners(): void {
@@ -417,7 +417,9 @@ class ChatSetupEntitlementResolver extends Disposable {
 		return result;
 	}
 
-	private update({ entitlement: newEntitlement, limited, entitled }: IResolvedEntitlements): void {
+	private async update({ entitlement: newEntitlement, limited, entitled }: IResolvedEntitlements): Promise<void> {
+		await this.entitlementsUpdateBarrier?.wait();
+
 		const oldEntitlement = this._entitlement;
 		this._entitlement = newEntitlement;
 
@@ -430,6 +432,15 @@ class ChatSetupEntitlementResolver extends Disposable {
 
 	async forceResolveEntitlement(session: AuthenticationSession): Promise<ChatEntitlement | undefined> {
 		return this.resolveEntitlement(session, CancellationToken.None);
+	}
+
+	suspend(): void {
+		this.entitlementsUpdateBarrier = new Barrier();
+	}
+
+	resume(): void {
+		this.entitlementsUpdateBarrier?.open();
+		this.entitlementsUpdateBarrier = undefined;
 	}
 
 	override dispose(): void {
@@ -582,13 +593,14 @@ class ChatSetupController extends Disposable {
 		const signedIn = !!session;
 		const activeElement = getActiveElement();
 
-		let installResult: 'installed' | 'cancelled' | 'failedInstall';
+		let installResult: 'installed' | 'cancelled' | 'failedInstall' | undefined = undefined;
 		const wasInstalled = this.chatSetupContext.getContext().installed;
 		let didSignUp = false;
 		try {
 			showCopilotView(this.viewsService);
 
-			this.chatSetupContext.suspend(); // reduces flicker
+			this.chatSetupContext.suspend(); 	// reduces
+			this.entitlementResolver.suspend(); // flicker
 
 			if (this.canSignUpLimited) {
 				didSignUp = await this.signUpLimited(session, enableTelemetry);
@@ -613,10 +625,15 @@ class ChatSetupController extends Disposable {
 				this.commandService.executeCommand('github.copilot.refreshToken'); // ugly, but we need to signal to the extension that sign-up happened
 			}
 
-			await Promise.race([
-				timeout(5000), 												// helps prevent flicker with sign-in welcome view
-				Event.toPromise(this.chatAgentService.onDidChangeAgents)	// https://github.com/microsoft/vscode-copilot/issues/9274
-			]).finally(() => this.chatSetupContext.resume());
+			if (installResult === 'installed') {
+				await Promise.race([
+					timeout(5000), 												// helps prevent flicker with sign-in welcome view
+					Event.toPromise(this.chatAgentService.onDidChangeAgents)	// https://github.com/microsoft/vscode-copilot/issues/9274
+				]);
+			}
+
+			this.chatSetupContext.resume();
+			this.entitlementResolver.resume();
 		}
 
 		this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signedIn });
@@ -728,11 +745,11 @@ class ChatSetupWelcomeContent extends Disposable {
 	}
 
 	private update(limitedSkuHeaderElement: HTMLElement, limitedCheckboxContainers: HTMLElement[], limitedCheckboxes: Checkbox[], button: Button): void {
+		setVisibility(this.controller.canSignUpLimited || this.controller.entitlement === ChatEntitlement.Unknown, limitedSkuHeaderElement);
+		setVisibility(this.controller.canSignUpLimited, ...limitedCheckboxContainers);
+
 		switch (this.controller.step) {
 			case ChatSetupStep.Initial:
-				setVisibility(this.controller.canSignUpLimited || this.controller.entitlement === ChatEntitlement.Unknown, limitedSkuHeaderElement);
-				setVisibility(this.controller.canSignUpLimited, ...limitedCheckboxContainers);
-
 				for (const checkbox of limitedCheckboxes) {
 					checkbox.enable();
 				}
