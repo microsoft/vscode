@@ -42,8 +42,11 @@ export namespace ChatContextKeys {
 	export const languageModelsAreUserSelectable = new RawContextKey<boolean>('chatModelsAreUserSelectable', false, { type: 'boolean', description: localize('chatModelsAreUserSelectable', "True when the chat model can be selected manually by the user.") });
 
 	export const Setup = {
+		canSignUp: new RawContextKey<boolean>('chatSetupCanSignUp', false, { type: 'boolean', description: localize('chatSetupCanSignUp', "True when user can sign up to be a chat limited user.") }),
+
 		entitled: new RawContextKey<boolean>('chatSetupEntitled', false, { type: 'boolean', description: localize('chatSetupEntitled', "True when user is a chat entitled user.") }),
 		limited: new RawContextKey<boolean>('chatSetupLimited', false, { type: 'boolean', description: localize('chatSetupLimited', "True when user is a chat limited user.") }),
+
 		triggered: new RawContextKey<boolean>('chatSetupTriggered', false, { type: 'boolean', description: localize('chatSetupTriggered', "True when chat setup is triggered.") }),
 		installed: new RawContextKey<boolean>('chatSetupInstalled', false, { type: 'boolean', description: localize('chatSetupInstalled', "True when the chat extension is installed.") }),
 	};
