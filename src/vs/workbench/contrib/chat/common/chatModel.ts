@@ -60,8 +60,16 @@ export interface IChatRequestPasteVariableEntry extends Omit<IBaseChatRequestVar
 	readonly kind: 'paste';
 	code: string;
 	language: string;
-	fileName: string;
 	pastedLines: string;
+
+	// This is only used for old serialized data and should be removed once we no longer support it
+	fileName: string;
+
+	// This is only undefined on old serialized data
+	copiedFrom: {
+		readonly uri: URI;
+		readonly range: IRange;
+	} | undefined;
 }
 
 export interface ISymbolVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
@@ -586,7 +594,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	setAgent(agent: IChatAgentData, slashCommand?: IChatAgentCommand) {
 		this._agent = agent;
 		this._slashCommand = slashCommand;
-		this._agentOrSlashCommandDetected = !agent.isDefault;
+		this._agentOrSlashCommandDetected = !agent.isDefault || !!slashCommand;
 		this._onDidChange.fire();
 	}
 

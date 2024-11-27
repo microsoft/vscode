@@ -101,10 +101,19 @@ export class EditsAttachmentModel extends ChatAttachmentModel {
 
 	override addContext(...attachments: IChatRequestVariableEntry[]) {
 		const currentAttachmentIds = this.getAttachmentIDs();
-
 		const fileAttachments = attachments.filter(attachment => attachment.isFile);
-		const newFileAttachments = fileAttachments.filter(attachment => !currentAttachmentIds.has(attachment.id));
 		const otherAttachments = attachments.filter(attachment => !attachment.isFile);
+
+		// deduplicate file attachments
+		const newFileAttachments = [];
+		const newFileAttachmentIds = new Set<string>();
+		for (const attachment of fileAttachments) {
+			if (newFileAttachmentIds.has(attachment.id) || currentAttachmentIds.has(attachment.id)) {
+				continue;
+			}
+			newFileAttachmentIds.add(attachment.id);
+			newFileAttachments.push(attachment);
+		}
 
 		const availableFileCount = Math.max(0, this._chatEditingService.editingSessionFileLimit - this.fileAttachments.length);
 		const fileAttachmentsToBeAdded = newFileAttachments.slice(0, availableFileCount);

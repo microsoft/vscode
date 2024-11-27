@@ -15,13 +15,19 @@ import { ChatInputPart } from './chatInputPart.js';
 import { IChatWidgetService } from './chat.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
-import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { Mimes } from '../../../../base/common/mime.js';
-import { URI } from '../../../../base/common/uri.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { basename } from '../../../../base/common/resources.js';
 
 const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
+
+interface SerializedCopyData {
+	readonly uri: UriComponents;
+	readonly range: IRange;
+}
 
 export class PasteImageProvider implements DocumentPasteEditProvider {
 
@@ -150,9 +156,10 @@ export class CopyTextProvider implements DocumentPasteEditProvider {
 		if (model.uri.scheme === ChatInputPart.INPUT_SCHEME) {
 			return;
 		}
+
 		const customDataTransfer = new VSDataTransfer();
-		const rangesString = JSON.stringify({ ranges: ranges[0], uri: model.uri.toString() });
-		customDataTransfer.append(COPY_MIME_TYPES, createStringDataTransferItem(rangesString));
+		const data: SerializedCopyData = { range: ranges[0], uri: model.uri.toJSON() };
+		customDataTransfer.append(COPY_MIME_TYPES, createStringDataTransferItem(JSON.stringify(data)));
 		return customDataTransfer;
 	}
 }
@@ -184,7 +191,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 
 		const textdata = await text.asString();
 		const metadata = JSON.parse(await editorData.asString());
-		const additionalData = JSON.parse(await additionalEditorData.asString());
+		const additionalData: SerializedCopyData = JSON.parse(await additionalEditorData.asString());
 
 		const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 		if (!widget) {
@@ -206,8 +213,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 			}
 		}
 
-		const copiedContext = await getCopiedContext(textdata, additionalData.uri, metadata.mode, additionalData.ranges);
-
+		const copiedContext = getCopiedContext(textdata, URI.revive(additionalData.uri), metadata.mode, additionalData.range);
 		if (token.isCancellationRequested || !copiedContext) {
 			return;
 		}
@@ -221,25 +227,29 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 	}
 }
 
-async function getCopiedContext(code: string, file: string, language: string, ranges: IRange): Promise<IChatRequestVariableEntry | undefined> {
-	const fileName = file.split('/').pop() || 'unknown file';
-	const start = ranges.startLineNumber;
-	const end = ranges.endLineNumber;
+function getCopiedContext(code: string, file: URI, language: string, range: IRange): IChatRequestPasteVariableEntry {
+	const fileName = basename(file);
+	const start = range.startLineNumber;
+	const end = range.endLineNumber;
 	const resultText = `Copied Selection of Code: \n\n\n From the file: ${fileName} From lines ${start} to ${end} \n \`\`\`${code}\`\`\``;
 	const pastedLines = start === end ? localize('pastedAttachment.oneLine', '1 line') : localize('pastedAttachment.multipleLines', '{0} lines', end + 1 - start);
 	return {
 		kind: 'paste',
 		value: resultText,
-		id: `${fileName}${start}${end}${ranges.startColumn}${ranges.endColumn}`,
+		id: `${fileName}${start}${end}${range.startColumn}${range.endColumn}`,
 		name: `${fileName} ${pastedLines}`,
 		icon: Codicon.code,
 		isDynamic: true,
 		pastedLines,
 		language,
-		fileName,
+		fileName: file.toString(),
+		copiedFrom: {
+			uri: file,
+			range
+		},
 		code,
 		references: [{
-			reference: URI.parse(file),
+			reference: file,
 			kind: 'reference'
 		}]
 	};

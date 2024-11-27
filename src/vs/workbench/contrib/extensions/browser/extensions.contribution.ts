@@ -1639,6 +1639,24 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
+			id: 'workbench.extensions.action.copyLink',
+			title: localize2('workbench.extensions.action.copyLink', 'Copy Link'),
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '1_copy',
+				when: ContextKeyExpr.has('isGalleryExtension'),
+			},
+			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				const clipboardService = accessor.get(IClipboardService);
+				const productService = accessor.get(IProductService);
+				if (productService.extensionsGallery?.itemUrl) {
+					const link = `${productService.extensionsGallery.itemUrl}?itemName=${extensionId}`;
+					await clipboardService.writeText(link);
+				}
+			}
+		});
+
+		this.registerExtensionAction({
 			id: 'workbench.extensions.action.configure',
 			title: localize2('workbench.extensions.action.configure', 'Settings'),
 			menu: {

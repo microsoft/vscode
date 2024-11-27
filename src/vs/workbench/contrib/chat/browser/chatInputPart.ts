@@ -36,6 +36,7 @@ import { EditorOptions } from '../../../../editor/common/config/editorOptions.js
 import { IDimension } from '../../../../editor/common/core/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { isLocation } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -798,8 +799,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			let ariaLabel: string | undefined;
 
-			const resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
-			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
+			let resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
+			let range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
 			if (resource && (attachment.isFile || attachment.isDirectory)) {
 				const fileBasename = basename(resource.path);
 				const fileDirname = dirname(resource.path);
@@ -819,7 +820,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				});
 
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
-				store.add(this.instantiationService.invokeFunction(accessor => hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource)));
+				this.instantiationService.invokeFunction(accessor => {
+					if (resource) {
+						store.add(hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource));
+					}
+				});
 
 			} else if (attachment.isImage) {
 				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
@@ -866,12 +871,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				};
 
 				const classNames = ['file-icon', `${attachment.language}-lang-file-icon`];
-				label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
+				if (attachment.copiedFrom) {
+					resource = attachment.copiedFrom.uri;
+					range = attachment.copiedFrom.range;
+					label.setFile(attachment.copiedFrom.uri, { extraClasses: classNames });
+				} else {
+					label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
+				}
 				widget.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.pastedLines}`));
 
 				widget.style.position = 'relative';
 				store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverContent, { trapFocus: true }));
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
+
+				const copiedFromResource = attachment.copiedFrom?.uri;
+				if (copiedFromResource) {
+					store.add(this.instantiationService.invokeFunction(accessor => hookUpResourceAttachmentDragAndContextMenu(accessor, widget, copiedFromResource)));
+				}
+
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
@@ -1054,7 +1071,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		// Factor file variables that are part of the user query into the working set
 		for (const part of chatWidget?.parsedInput.parts ?? []) {
-			if (part instanceof ChatRequestDynamicVariablePart && part.isFile && URI.isUri(part.data) && !seenEntries.has(part.data)) {
+			if (part instanceof ChatRequestDynamicVariablePart && part.isFile && (URI.isUri(part.data) && !seenEntries.has(part.data) || isLocation(part.data) && !seenEntries.has(part.data.uri))) {
 				entries.unshift({
 					reference: part.data,
 					state: WorkingSetEntryState.Attached,

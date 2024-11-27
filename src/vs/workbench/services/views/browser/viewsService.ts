@@ -289,10 +289,14 @@ export class ViewsService extends Disposable implements IViewsService {
 		return null;
 	}
 
-	getFocusedViewName(): string {
+	getFocusedView(): IViewDescriptor | null {
 		const viewId: string = this.contextKeyService.getContextKeyValue(FocusedViewContext.key) ?? '';
+		return this.viewDescriptorService.getViewDescriptorById(viewId.toString());
+	}
+
+	getFocusedViewName(): string {
 		const textEditorFocused = this.editorService.activeTextEditorControl?.hasTextFocus() ? localize('editor', "Text Editor") : undefined;
-		return this.viewDescriptorService.getViewDescriptorById(viewId.toString())?.name?.value ?? textEditorFocused ?? '';
+		return this.getFocusedView()?.name?.value ?? textEditorFocused ?? '';
 	}
 
 	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
