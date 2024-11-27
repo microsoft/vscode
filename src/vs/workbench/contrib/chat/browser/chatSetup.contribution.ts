@@ -88,6 +88,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 	private readonly chatSetupContext = this._register(this.instantiationService.createInstance(ChatSetupContext));
 	private readonly entitlementsResolver = this._register(this.instantiationService.createInstance(ChatSetupEntitlementResolver, this.chatSetupContext));
+	private readonly chatSetupController = this._register(this.instantiationService.createInstance(ChatSetupController, this.entitlementsResolver, this.chatSetupContext));
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
@@ -116,7 +117,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				)!
 			)!,
 			icon: defaultChat.icon,
-			content: () => ChatSetupWelcomeContent.getInstance(this.instantiationService, this.entitlementsResolver, this.chatSetupContext).element,
+			content: disposables => disposables.add(this.instantiationService.createInstance(ChatSetupWelcomeContent, this.chatSetupController)).element,
 		});
 	}
 }
@@ -668,28 +669,14 @@ class ChatSetupController extends Disposable {
 
 class ChatSetupWelcomeContent extends Disposable {
 
-	private static INSTANCE: ChatSetupWelcomeContent | undefined;
-	static getInstance(instantiationService: IInstantiationService, entitlementResolver: ChatSetupEntitlementResolver, chatSetupContext: ChatSetupContext): ChatSetupWelcomeContent {
-		if (!ChatSetupWelcomeContent.INSTANCE) {
-			ChatSetupWelcomeContent.INSTANCE = instantiationService.createInstance(ChatSetupWelcomeContent, entitlementResolver, chatSetupContext);
-		}
-
-		return ChatSetupWelcomeContent.INSTANCE;
-	}
-
 	readonly element = $('.chat-setup-view');
 
-	private readonly controller: ChatSetupController;
-
 	constructor(
-		entitlementResolver: ChatSetupEntitlementResolver,
-		chatSetupContext: ChatSetupContext,
+		private readonly controller: ChatSetupController,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
-
-		this.controller = this._register(instantiationService.createInstance(ChatSetupController, entitlementResolver, chatSetupContext));
 
 		this.create();
 	}
