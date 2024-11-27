@@ -348,10 +348,10 @@ function pushDefaultResourceCompletions(terminalContext: { commandLine: string; 
 	const onlyFilesOrFolders = (filesRequested || foldersRequested);
 	if (onlyFilesOrFolders) {
 		if (!items.find(i => i.label === '.')) {
-			items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition - 1, prefix, '.', 'Current directory', vscode.TerminalCompletionItemKind.Folder));
+			items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, '.', 'Current directory', vscode.TerminalCompletionItemKind.Folder));
 		}
 		if (!items.find(i => i.label === '..')) {
-			items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition - 1, prefix, '..', 'Parent directory', vscode.TerminalCompletionItemKind.Folder));
+			items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, '..', 'Parent directory', vscode.TerminalCompletionItemKind.Folder));
 		}
 	}
 	return { items, filesRequested, foldersRequested };

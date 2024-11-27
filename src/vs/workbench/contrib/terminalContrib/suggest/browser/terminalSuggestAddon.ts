@@ -222,8 +222,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._showCompletions(model);
 	}
 
-
-
 	setContainerWithOverflow(container: HTMLElement): void {
 		this._container = container;
 	}

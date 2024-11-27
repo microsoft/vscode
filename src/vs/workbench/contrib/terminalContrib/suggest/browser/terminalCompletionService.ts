@@ -213,7 +213,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			dirToPrefixMap.set(grandParentCwd, '..' + resourceRequestConfig.pathSeparator + '..');
 		}
 
-		const lastWord = promptValue.substring(0, cursorPosition).split(' ').pop() ?? '';
+		const endsWithSpace = promptValue.substring(0, cursorPosition).endsWith(' ');
+		let lastWord;
+		if (endsWithSpace) {
+			lastWord = '';
+		} else {
+			lastWord = promptValue.substring(0, cursorPosition).trim().split(' ').pop() ?? '';
+		}
 
 		for (const [dir, prefix] of dirToPrefixMap) {
 			const fileStat = await this._fileService.resolve(dir, { resolveSingleChildDescendants: true });
