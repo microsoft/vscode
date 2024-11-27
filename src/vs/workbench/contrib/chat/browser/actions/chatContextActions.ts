@@ -272,14 +272,11 @@ class AttachSelectionToChatAction extends Action2 {
 		if (matches && matches.length > 0) {
 			const uris = new Map<URI, Range | undefined>();
 			for (const match of matches) {
-				// If it's a file match, we want to attach the file
-				// If it's a tree, we want to make sure that at least has one file, if not just add the whole file
 				if (isSearchTreeFileMatch(match)) {
 					uris.set(match.resource, undefined);
 				} else {
 					const context = { uri: match._parent.resource, range: match._range };
 					const range = uris.get(context.uri);
-					// if the lines in the y axis are the same then contineu
 					if (!range ||
 						range.startLineNumber !== context.range.startLineNumber && range.endLineNumber !== context.range.endLineNumber) {
 						uris.set(context.uri, context.range);
