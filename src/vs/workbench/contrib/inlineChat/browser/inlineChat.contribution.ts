@@ -37,7 +37,7 @@ registerEditorContribution(INLINE_CHAT_ID, InlineChatController, EditorContribut
 registerAction2(InlineChatExpandLineAction);
 registerAction2(ShowInlineChatHintAction);
 registerAction2(HideInlineChatHintAction);
-registerEditorContribution(InlineChatHintsController.ID, InlineChatHintsController, EditorContributionInstantiation.Lazy);
+registerEditorContribution(InlineChatHintsController.ID, InlineChatHintsController, EditorContributionInstantiation.Eventually);
 
 // --- MENU special ---
 

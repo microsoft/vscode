@@ -306,6 +306,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 							},
 							{
 								type: 'array',
+								items: {
+									type: 'string',
+								},
 								description: localize('extensions.allow.version.description', "Allow or disallow specific versions of the extension. To specifcy a platform specific version, use the format `platform@1.2.3`, e.g. `win32-x64@1.2.3`. Supported platforms are `win32-x64`, `win32-arm64`, `linux-x64`, `linux-arm64`, `linux-armhf`, `alpine-x64`, `alpine-arm64`, `darwin-x64`, `darwin-arm64`"),
 							},
 						]
@@ -1633,6 +1636,24 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				group: '1_copy'
 			},
 			run: async (accessor: ServicesAccessor, id: string) => accessor.get(IClipboardService).writeText(id)
+		});
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.copyLink',
+			title: localize2('workbench.extensions.action.copyLink', 'Copy Link'),
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '1_copy',
+				when: ContextKeyExpr.has('isGalleryExtension'),
+			},
+			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				const clipboardService = accessor.get(IClipboardService);
+				const productService = accessor.get(IProductService);
+				if (productService.extensionsGallery?.itemUrl) {
+					const link = `${productService.extensionsGallery.itemUrl}?itemName=${extensionId}`;
+					await clipboardService.writeText(link);
+				}
+			}
 		});
 
 		this.registerExtensionAction({

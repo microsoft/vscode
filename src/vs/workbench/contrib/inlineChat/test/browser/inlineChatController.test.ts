@@ -203,7 +203,7 @@ suite('InteractiveChatController', function () {
 
 		configurationService = instaService.get(IConfigurationService) as TestConfigurationService;
 		configurationService.setUserConfiguration('chat', { editor: { fontSize: 14, fontFamily: 'default' } });
-		configurationService.setUserConfiguration('inlineChat', { mode: 'livePreview' });
+		configurationService.setUserConfiguration('inlineChat', { mode: EditMode.Live });
 		configurationService.setUserConfiguration('editor', {});
 
 		contextKeyService = instaService.get(IContextKeyService) as MockContextKeyService;
@@ -958,5 +958,51 @@ suite('InteractiveChatController', function () {
 
 		const value = contextKeyService.getContextKeyValue(CTX_INLINE_CHAT_RESPONSE_TYPE.key);
 		assert.notStrictEqual(value, InlineChatResponseType.None);
+	});
+
+	test('Restore doesn\'t edit on errored result', async function () {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+
+			const model2 = store.add(instaService.get(IModelService).createModel('ABC', null));
+
+			model.setValue('World');
+
+			store.add(chatAgentService.registerDynamicAgent({
+				id: 'testEditorAgent2',
+				...agentData
+			}, {
+				async invoke(request, progress, history, token) {
+
+					progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello1' }] });
+					await timeout(100);
+					progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello2' }] });
+					await timeout(100);
+					progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello3' }] });
+					await timeout(100);
+
+					return {
+						errorDetails: { message: 'FAILED' }
+					};
+				},
+			}));
+
+			ctrl = instaService.createInstance(TestController, editor);
+
+			// REQUEST 1
+			const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.WAIT_FOR_INPUT]);
+			ctrl.run({ message: 'Hello', autoSend: true });
+
+			assert.strictEqual(await p, undefined);
+
+			const p2 = ctrl.awaitStates([State.PAUSE]);
+			editor.setModel(model2);
+			assert.strictEqual(await p2, undefined);
+
+			const p3 = ctrl.awaitStates([...TestController.INIT_SEQUENCE]);
+			editor.setModel(model);
+			assert.strictEqual(await p3, undefined);
+
+			assert.strictEqual(model.getValue(), 'World');
+		});
 	});
 });
