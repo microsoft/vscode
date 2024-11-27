@@ -88,6 +88,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 	private readonly chatSetupContext = this._register(this.instantiationService.createInstance(ChatSetupContext));
 	private readonly entitlementsResolver = this._register(this.instantiationService.createInstance(ChatSetupEntitlementResolver, this.chatSetupContext));
+	private readonly chatSetupController = this._register(this.instantiationService.createInstance(ChatSetupController, this.entitlementsResolver, this.chatSetupContext));
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
@@ -116,7 +117,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				)!
 			)!,
 			icon: defaultChat.icon,
-			content: () => ChatSetupWelcomeContent.getInstance(this.instantiationService, this.entitlementsResolver, this.chatSetupContext).element,
+			content: disposables => disposables.add(this.instantiationService.createInstance(ChatSetupWelcomeContent, this.chatSetupController)).element,
 		});
 	}
 }
@@ -668,28 +669,14 @@ class ChatSetupController extends Disposable {
 
 class ChatSetupWelcomeContent extends Disposable {
 
-	private static INSTANCE: ChatSetupWelcomeContent | undefined;
-	static getInstance(instantiationService: IInstantiationService, entitlementResolver: ChatSetupEntitlementResolver, chatSetupContext: ChatSetupContext): ChatSetupWelcomeContent {
-		if (!ChatSetupWelcomeContent.INSTANCE) {
-			ChatSetupWelcomeContent.INSTANCE = instantiationService.createInstance(ChatSetupWelcomeContent, entitlementResolver, chatSetupContext);
-		}
-
-		return ChatSetupWelcomeContent.INSTANCE;
-	}
-
 	readonly element = $('.chat-setup-view');
 
-	private readonly controller: ChatSetupController;
-
 	constructor(
-		entitlementResolver: ChatSetupEntitlementResolver,
-		chatSetupContext: ChatSetupContext,
+		private readonly controller: ChatSetupController,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
-
-		this.controller = this._register(instantiationService.createInstance(ChatSetupController, entitlementResolver, chatSetupContext));
 
 		this.create();
 	}
@@ -698,10 +685,10 @@ class ChatSetupWelcomeContent extends Disposable {
 		const markdown = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
 
 		// Header
-		const header = localize({ key: 'setupHeader', comment: ['{Locked="]({0})"}'] }, "[{0}]({1}) is your AI pair programmer that helps you with code suggestions, answers your questions, and more.", defaultChat.name, defaultChat.documentationUrl);
+		const header = localize({ key: 'setupHeader', comment: ['{Locked="[{0}]({1})"}'] }, "[{0}]({1}) is your AI pair programmer that helps you with code suggestions, answers your questions, and more.", defaultChat.name, defaultChat.documentationUrl);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element);
 
-		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="]({0})"}'] }, "Enable powerful AI features for free with the [{0}]({1}) plan.", defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
+		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="[{0}]({1})"}'] }, "Enable powerful AI features for free with the [{0}]({1}) plan.", defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
 		const limitedSkuHeaderElement = this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true }))).element);
 
 		// Limited SKU Sign-up
@@ -714,7 +701,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		this._register(button.onDidClick(() => this.controller.setup(telemetryCheckbox.checked)));
 
 		// Footer
-		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}).", defaultChat.privacyStatementUrl);
+		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}).", defaultChat.privacyStatementUrl);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(footer, { isTrusted: true }))).element);
 
 		// Update based on model state
