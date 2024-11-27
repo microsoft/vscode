@@ -98,17 +98,17 @@ export class MoveOperations {
 			const pos = cursor.position.delta(undefined, -(noOfColumns - 1));
 			const minColumn = model.getLineMinColumn(pos.lineNumber);
 			const maxColumn = model.getLineMaxColumn(pos.lineNumber);
-			if (virtualSpace && pos.column <= minColumn) {
+			// We clip the position before normalization, as normalization is not defined
+			// for possibly negative columns.
+			const clippedPos = MoveOperations.clipPositionColumn(pos, minColumn, maxColumn);
+			const normalizedPos = model.normalizePosition(clippedPos, PositionAffinity.Left);
+			if (virtualSpace && normalizedPos.column <= minColumn) {
 				lineNumber = pos.lineNumber;
 				column = minColumn;
 			} else if (virtualSpace && pos.column > maxColumn) {
 				lineNumber = pos.lineNumber;
 				column = pos.column - 1;
 			} else {
-				// We clip the position before normalization, as normalization is not defined
-				// for possibly negative columns.
-				const clippedPos = MoveOperations.clipPositionColumn(pos, minColumn, maxColumn);
-				const normalizedPos = model.normalizePosition(clippedPos, PositionAffinity.Left);
 				const p = MoveOperations.left(config, model, normalizedPos);
 				lineNumber = p.lineNumber;
 				column = p.column;
@@ -182,12 +182,12 @@ export class MoveOperations {
 			const pos = cursor.position.delta(undefined, noOfColumns - 1);
 			const minColumn = model.getLineMinColumn(pos.lineNumber);
 			const maxColumn = model.getLineMaxColumn(pos.lineNumber);
-			if (virtualSpace && pos.column >= maxColumn) {
-				lineNumber = pos.lineNumber;
-				column = pos.column + 1;
+			const clippedPos = MoveOperations.clipPositionColumn(pos, minColumn, maxColumn);
+			const normalizedPos = model.normalizePosition(clippedPos, PositionAffinity.Right);
+			if (virtualSpace && normalizedPos.column >= maxColumn) {
+				lineNumber = normalizedPos.lineNumber;
+				column = Math.max(pos.column, normalizedPos.column) + 1;
 			} else {
-				const clippedPos = MoveOperations.clipPositionColumn(pos, minColumn, maxColumn);
-				const normalizedPos = model.normalizePosition(clippedPos, PositionAffinity.Right);
 				const r = MoveOperations.right(config, model, normalizedPos);
 				lineNumber = r.lineNumber;
 				column = r.column;

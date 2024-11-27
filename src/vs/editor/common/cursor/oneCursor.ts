@@ -185,8 +185,33 @@ export class Cursor {
 			);
 		} else {
 			// Validate new view state
-			const viewSelectionStart = context.coordinatesConverter.validateViewRange(viewState.selectionStart, modelState.selectionStart);
-			const viewPosition = context.coordinatesConverter.validateViewPosition(viewState.position, modelState.position);
+			const viewSelectionStartStart = context.coordinatesConverter.validateViewPosition(
+				viewState.selectionStart.getStartPosition(),
+				new Position(
+					modelState.selectionStart.startLineNumber,
+					modelState.selectionStart.startColumn + modelState.selectionStartLeftoverVisibleColumns
+				),
+			);
+			const viewSelectionStartEnd = context.coordinatesConverter.validateViewPosition(
+				viewState.selectionStart.getEndPosition(),
+				new Position(
+					modelState.selectionStart.endLineNumber,
+					modelState.selectionStart.endColumn + modelState.selectionStartLeftoverVisibleColumns
+				),
+			);
+			const viewSelectionStart = new Range(
+				viewSelectionStartStart.lineNumber,
+				viewSelectionStartStart.column,
+				viewSelectionStartEnd.lineNumber,
+				viewSelectionStartEnd.column
+			);
+			const viewPosition = context.coordinatesConverter.validateViewPosition(
+				viewState.position,
+				new Position(
+					modelState.position.lineNumber,
+					modelState.position.column + modelState.leftoverVisibleColumns
+				),
+			);
 			viewState = new SingleCursorState(
 				viewSelectionStart, modelState.selectionStartKind, 0,
 				viewPosition, 0, viewState.columnHint,
