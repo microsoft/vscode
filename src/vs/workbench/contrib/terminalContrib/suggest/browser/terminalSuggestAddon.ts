@@ -69,6 +69,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _lastUserData?: string;
 	static lastAcceptedCompletionTimestamp: number = 0;
+	private _lastUserDataTimestamp: number = 0;
 
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
 
@@ -124,6 +125,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._terminal = xterm;
 		this._register(xterm.onData(async e => {
 			this._lastUserData = e;
+			this._lastUserDataTimestamp = Date.now();
 		}));
 	}
 
@@ -139,6 +141,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		if (!this._shellType) {
+			return;
+		}
+
+		// Ensure that a key has been pressed since the last accepted completion in order to prevent
+		// completions being requested again right after accepting a completion
+		if (this._lastUserDataTimestamp < SuggestAddon.lastAcceptedCompletionTimestamp) {
 			return;
 		}
 
