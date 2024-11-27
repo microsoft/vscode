@@ -144,18 +144,20 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
+		let doNotRequestExtensionCompletions = false;
 		// Ensure that a key has been pressed since the last accepted completion in order to prevent
 		// completions being requested again right after accepting a completion
 		if (this._lastUserDataTimestamp < SuggestAddon.lastAcceptedCompletionTimestamp) {
+			doNotRequestExtensionCompletions = true;
 			return;
 		}
 
 		const enableExtensionCompletions = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enableExtensionCompletions;
-		if (enableExtensionCompletions) {
+		if (enableExtensionCompletions && !doNotRequestExtensionCompletions) {
 			await this._extensionService.activateByEvent('onTerminalCompletionsRequested');
 		}
 
-		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._promptInputModel.cursorIndex, this._shellType, token, triggerCharacter);
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._promptInputModel.cursorIndex, this._shellType, token, triggerCharacter, doNotRequestExtensionCompletions);
 		if (!providedCompletions?.length || token.isCancellationRequested) {
 			return;
 		}
