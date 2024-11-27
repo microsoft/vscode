@@ -288,6 +288,10 @@ export function detectUnicodeEncoding(buffer: Buffer): Encoding | null {
 	return null;
 }
 
+export function truncate(value: string, maxLength = 20): string {
+	return value.length <= maxLength ? value : `${value.substring(0, maxLength)}\u2026`;
+}
+
 function normalizePath(path: string): string {
 	// Windows & Mac are currently being handled
 	// as case insensitive file systems in VS Code.
