@@ -686,11 +686,9 @@ class BuiltinDynamicCompletions extends Disposable {
 		}
 		// no pattern, get top level symbols from all visible editors
 		else {
-			const editorsTopLevelSymbols = await Promise.all(this.editorService.visibleTextEditorControls.map(async editor => {
-				const model = editor?.getModel();
-				if (!model || !isITextModel(model)) {
-					return [];
-				}
+			const textEditorModels = this.editorService.visibleTextEditorControls.map(editor => editor.getModel()).filter(model => model !== null && isITextModel(model));
+			const uniqueTextModels = Array.from(new Set(textEditorModels));
+			const editorsTopLevelSymbols = await Promise.all(uniqueTextModels.map(async model => {
 				const outline = await this.outlineService.getOrCreate(model, token);
 				const topLevelSymbols = outline.getTopLevelSymbols();
 				return topLevelSymbols.map(symbol => ({ name: symbol.name, location: { uri: model.uri, range: symbol.range }, kind: symbol.kind }));
