@@ -464,7 +464,7 @@ export class InlineChatController implements IEditorContribution {
 		const editState = this._createChatTextEditGroupState();
 		let didEdit = false;
 		for (const request of this._session.chatModel.getRequests()) {
-			if (!request.response) {
+			if (!request.response || request.response.result?.errorDetails) {
 				// done when seeing the first request that is still pending (no response).
 				break;
 			}
