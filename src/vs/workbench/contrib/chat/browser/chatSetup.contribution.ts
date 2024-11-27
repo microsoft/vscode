@@ -768,12 +768,23 @@ class ChatSetupTriggerAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
+		const viewDescriptorService = accessor.get(IViewDescriptorService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const configurationService = accessor.get(IConfigurationService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
 
 		await instantiationService.createInstance(ChatSetupContextKeys).update({ triggered: true });
 
 		showChatView(viewsService);
+
+		const location = viewDescriptorService.getViewLocationById(ChatViewId);
+		if (location !== ViewContainerLocation.Panel) {
+			const viewPart = location === ViewContainerLocation.Sidebar ? Parts.SIDEBAR_PART : Parts.AUXILIARYBAR_PART;
+			const partSize = layoutService.getSize(viewPart);
+			if (partSize.width < 350) {
+				layoutService.setSize(viewPart, { width: 350, height: partSize.height });
+			}
+		}
 
 		configurationService.updateValue('chat.commandCenter.enabled', true);
 	}
