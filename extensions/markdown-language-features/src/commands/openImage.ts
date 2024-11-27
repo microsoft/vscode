@@ -16,7 +16,7 @@ export class OpenImageCommand implements Command {
 
 	public execute(args: { resource: string; imageSource: string }) {
 		const source = vscode.Uri.parse(args.resource);
-		const imageSource = vscode.Uri.file(vscode.Uri.parse(args.imageSource).path);
-		vscode.commands.executeCommand('vscode.open', imageSource, this._webviewManager.findPreview(source));
+		const imageSourceUri = vscode.Uri.file(vscode.Uri.parse(args.imageSource).path);
+		vscode.commands.executeCommand('vscode.open', imageSourceUri, this._webviewManager.findPreview(source));
 	}
 }
