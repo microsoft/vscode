@@ -15,7 +15,7 @@ const fancyLog = require('fancy-log');
  * @returns {stream} gulp file stream
  */
 function eslint(action) {
-	const linter = new ESLint();
+	const linter = new ESLint({});
 	const formatter = linter.loadFormatter('compact');
 
 	const results = [];

@@ -49,7 +49,7 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 	constructor(
 		private readonly _ctx: ITerminalContributionContext | IDetachedCompatibleTerminalContributionContext,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalLinkProviderService private readonly _terminalLinkProviderService: ITerminalLinkProviderService
+		@ITerminalLinkProviderService private readonly _terminalLinkProviderService: ITerminalLinkProviderService,
 	) {
 		super();
 		this._linkResolver = this._instantiationService.createInstance(TerminalLinkResolver);

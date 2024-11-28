@@ -28,7 +28,7 @@ import { INotebookEditorOptions } from '../notebookBrowser.js';
 import { NotebookDiffEditorInput } from '../../common/notebookDiffEditorInput.js';
 import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellUri, NotebookSetting, INotebookContributionData, INotebookExclusiveDocumentFilter, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, MimeTypeDisplayOrder, NotebookEditorPriority, NotebookRendererMatch, NOTEBOOK_DISPLAY_ORDER, RENDERER_EQUIVALENT_EXTENSIONS, RENDERER_NOT_AVAILABLE, NotebookExtensionDescription, INotebookStaticPreloadInfo } from '../../common/notebookCommon.js';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellUri, NotebookSetting, INotebookContributionData, INotebookExclusiveDocumentFilter, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, MimeTypeDisplayOrder, NotebookEditorPriority, NotebookRendererMatch, NOTEBOOK_DISPLAY_ORDER, RENDERER_EQUIVALENT_EXTENSIONS, RENDERER_NOT_AVAILABLE, NotebookExtensionDescription, INotebookStaticPreloadInfo, NotebookData } from '../../common/notebookCommon.js';
 import { NotebookEditorInput } from '../../common/notebookEditorInput.js';
 import { INotebookEditorModelResolverService } from '../../common/notebookEditorModelResolverService.js';
 import { NotebookOutputRendererInfo, NotebookStaticPreloadInfo as NotebookStaticPreloadInfo } from '../../common/notebookOutputRenderer.js';
@@ -42,9 +42,12 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { INotebookDocument, INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { MergeEditorInput } from '../../../mergeEditor/browser/mergeEditorInput.js';
 import type { EditorInputWithOptions, IResourceDiffEditorInput, IResourceMergeEditorInput } from '../../../../common/editor.js';
-import { streamToBuffer, VSBuffer, VSBufferReadableStream } from '../../../../../base/common/buffer.js';
+import { bufferToStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from '../../../../../base/common/buffer.js';
 import type { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { NotebookMultiDiffEditorInput } from '../diff/notebookMultiDiffEditorInput.js';
+import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 
 export class NotebookProviderInfoStore extends Disposable {
 
@@ -774,6 +777,52 @@ export class NotebookService extends Disposable implements INotebookService {
 		this._onDidAddNotebookDocument.fire(notebookModel);
 		this._postDocumentOpenActivation(info.viewType);
 		return notebookModel;
+	}
+
+	async createNotebookTextDocumentSnapshot(uri: URI, context: SnapshotContext, token: CancellationToken): Promise<VSBufferReadableStream> {
+		const model = this.getNotebookTextModel(uri);
+
+		if (!model) {
+			throw new Error(`notebook for ${uri} doesn't exist`);
+		}
+
+		const info = await this.withNotebookDataProvider(model.viewType);
+
+		if (!(info instanceof SimpleNotebookProviderInfo)) {
+			throw new Error('CANNOT open file notebook with this provider');
+		}
+
+		const serializer = info.serializer;
+		const outputSizeLimit = this._configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
+		const data: NotebookData = model.createSnapshot({ context: context, outputSizeLimit: outputSizeLimit, transientOptions: serializer.options });
+		const bytes = await serializer.notebookToData(data);
+
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		return bufferToStream(bytes);
+	}
+
+	async restoreNotebookTextModelFromSnapshot(uri: URI, viewType: string, snapshot: VSBufferReadableStream): Promise<NotebookTextModel> {
+		const model = this.getNotebookTextModel(uri);
+
+		if (!model) {
+			throw new Error(`notebook for ${uri} doesn't exist`);
+		}
+
+		const info = await this.withNotebookDataProvider(model.viewType);
+
+		if (!(info instanceof SimpleNotebookProviderInfo)) {
+			throw new Error('CANNOT open file notebook with this provider');
+		}
+
+		const serializer = info.serializer;
+
+		const bytes = await streamToBuffer(snapshot);
+		const data = await info.serializer.dataToNotebook(bytes);
+		model.restoreSnapshot(data, serializer.options);
+
+		return model;
 	}
 
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined {

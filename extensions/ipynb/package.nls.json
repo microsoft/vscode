@@ -2,7 +2,7 @@
 	"displayName": ".ipynb Support",
 	"description": "Provides basic support for opening and reading Jupyter's .ipynb notebook files",
 	"ipynb.pasteImagesAsAttachments.enabled": "Enable/disable pasting of images into Markdown cells in ipynb notebook files. Pasted images are inserted as attachments to the cell.",
-	"ipynb.experimental.serialization": "Experimental feature to serialize the Jupyter notebook in a worker thread. Not supported when the Extension host is running as a web worker.",
+	"ipynb.experimental.serialization": "Experimental feature to serialize the Jupyter notebook in a worker thread.",
 	"newUntitledIpynb.title": "New Jupyter Notebook",
 	"newUntitledIpynb.shortTitle": "Jupyter Notebook",
 	"openIpynbInNotebookEditor.title": "Open IPYNB File In Notebook Editor",

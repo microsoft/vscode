@@ -61,6 +61,8 @@ import { AbstractEditContext } from './controller/editContext/editContext.js';
 import { IVisibleRangeProvider, TextAreaEditContext } from './controller/editContext/textArea/textAreaEditContext.js';
 import { NativeEditContext } from './controller/editContext/native/nativeEditContext.js';
 import { RulersGpu } from './viewParts/rulersGpu/rulersGpu.js';
+import { EditContext } from './controller/editContext/native/editContextFactory.js';
+import { GpuMarkOverlay } from './viewParts/gpuMark/gpuMark.js';
 
 
 export interface IContentWidgetData {
@@ -110,8 +112,10 @@ export class View extends ViewEventHandler {
 	// Actual mutable state
 	private _shouldRecomputeGlyphMarginLanes: boolean = false;
 	private _renderAnimationFrame: IDisposable | null;
+	private _ownerID: string;
 
 	constructor(
+		ownerID: string,
 		commandDelegate: ICommandDelegate,
 		configuration: IEditorConfiguration,
 		colorTheme: IColorTheme,
@@ -121,6 +125,7 @@ export class View extends ViewEventHandler {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
+		this._ownerID = ownerID;
 		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderAnimationFrame = null;
 
@@ -162,7 +167,7 @@ export class View extends ViewEventHandler {
 		this._viewParts.push(this._scrollbar);
 
 		// View Lines
-		this._viewLines = new ViewLines(this._context, this._linesContent);
+		this._viewLines = new ViewLines(this._context, this._viewGpuContext, this._linesContent);
 		if (this._viewGpuContext) {
 			this._viewLinesGpu = this._instantiationService.createInstance(ViewLinesGpu, this._context, this._viewGpuContext);
 		}
@@ -193,6 +198,9 @@ export class View extends ViewEventHandler {
 		marginViewOverlays.addDynamicOverlay(new MarginViewLineDecorationsOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new LinesDecorationsOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new LineNumbersOverlay(this._context));
+		if (this._viewGpuContext) {
+			marginViewOverlays.addDynamicOverlay(new GpuMarkOverlay(this._context, this._viewGpuContext));
+		}
 
 		// Glyph margin widgets
 		this._glyphMarginWidgets = new GlyphMarginWidgets(this._context);
@@ -267,7 +275,13 @@ export class View extends ViewEventHandler {
 	}
 
 	private _instantiateEditContext(experimentalEditContextEnabled: boolean): AbstractEditContext {
-		return this._instantiationService.createInstance(experimentalEditContextEnabled ? NativeEditContext : TextAreaEditContext, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
+		const domNode = dom.getWindow(this._overflowGuardContainer.domNode);
+		const isEditContextSupported = EditContext.supported(domNode);
+		if (experimentalEditContextEnabled && isEditContextSupported) {
+			return this._instantiationService.createInstance(NativeEditContext, this._ownerID, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
+		} else {
+			return this._instantiationService.createInstance(TextAreaEditContext, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
+		}
 	}
 
 	private _updateEditContext(): void {
@@ -276,12 +290,15 @@ export class View extends ViewEventHandler {
 			return;
 		}
 		this._experimentalEditContextEnabled = experimentalEditContextEnabled;
+		const isEditContextFocused = this._editContext.isFocused();
+		const indexOfEditContext = this._viewParts.indexOf(this._editContext);
 		this._editContext.dispose();
 		this._editContext = this._instantiateEditContext(experimentalEditContextEnabled);
-		// Replace the view parts with the new edit context
-		const indexOfEditContextHandler = this._viewParts.indexOf(this._editContext);
-		if (indexOfEditContextHandler !== -1) {
-			this._viewParts.splice(indexOfEditContextHandler, 1, this._editContext);
+		if (isEditContextFocused) {
+			this._editContext.focus();
+		}
+		if (indexOfEditContext !== -1) {
+			this._viewParts.splice(indexOfEditContext, 1, this._editContext);
 		}
 	}
 
@@ -322,6 +339,7 @@ export class View extends ViewEventHandler {
 			viewDomNode: this.domNode.domNode,
 			linesContentDomNode: this._linesContent.domNode,
 			viewLinesDomNode: this._viewLines.getDomNode().domNode,
+			viewLinesGpu: this._viewLinesGpu,
 
 			focusTextArea: () => {
 				this.focus();
@@ -352,11 +370,18 @@ export class View extends ViewEventHandler {
 
 			visibleRangeForPosition: (lineNumber: number, column: number) => {
 				this._flushAccumulatedAndRenderNow();
-				return this._viewLines.visibleRangeForPosition(new Position(lineNumber, column));
+				const position = new Position(lineNumber, column);
+				return this._viewLines.visibleRangeForPosition(position) ?? this._viewLinesGpu?.visibleRangeForPosition(position) ?? null;
 			},
 
 			getLineWidth: (lineNumber: number) => {
 				this._flushAccumulatedAndRenderNow();
+				if (this._viewLinesGpu) {
+					const result = this._viewLinesGpu.getLineWidth(lineNumber);
+					if (result !== undefined) {
+						return result;
+					}
+				}
 				return this._viewLines.getLineWidth(lineNumber);
 			}
 		};
@@ -456,6 +481,10 @@ export class View extends ViewEventHandler {
 			throw new BugIndicatingError();
 		}
 		if (this._renderAnimationFrame === null) {
+			// TODO: workaround fix for https://github.com/microsoft/vscode/issues/229825
+			if (this._editContext instanceof NativeEditContext) {
+				this._editContext.setEditContextOnDomNode();
+			}
 			const rendering = this._createCoordinatedRendering();
 			this._renderAnimationFrame = EditorRenderingCoordinator.INSTANCE.scheduleCoordinatedRendering({
 				window: dom.getWindow(this.domNode?.domNode),

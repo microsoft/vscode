@@ -44,7 +44,7 @@ class TextAreaSyncContribution extends DisposableStore implements ITerminalContr
 	private _addon: TextAreaSyncAddon | undefined;
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 	}
@@ -71,12 +71,13 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService) {
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+	) {
 		super();
 		this._register(AccessibleViewAction.addImplementation(90, 'terminal', () => {
 			if (this._terminalService.activeInstance !== this._ctx.instance) {
@@ -310,11 +311,11 @@ registerTerminalAction({
 		}
 	],
 	run: async (c) => {
-		const instance = await c.service.activeInstance;
+		const instance = c.service.activeInstance;
 		if (!instance) {
 			return;
 		}
-		await TerminalAccessibleViewContribution.get(instance)?.navigateToCommand(NavigationType.Next);
+		TerminalAccessibleViewContribution.get(instance)?.navigateToCommand(NavigationType.Next);
 	}
 });
 
@@ -330,11 +331,11 @@ registerTerminalAction({
 		}
 	],
 	run: async (c) => {
-		const instance = await c.service.activeInstance;
+		const instance = c.service.activeInstance;
 		if (!instance) {
 			return;
 		}
-		await TerminalAccessibleViewContribution.get(instance)?.navigateToCommand(NavigationType.Previous);
+		TerminalAccessibleViewContribution.get(instance)?.navigateToCommand(NavigationType.Previous);
 	}
 });
 
@@ -368,10 +369,7 @@ registerTerminalAction({
 		when: accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal),
 		weight: KeybindingWeight.WorkbenchContrib
 	},
-	run: (c, accessor) => {
-		const accessibleViewService = accessor.get(IAccessibleViewService);
-		accessibleViewService.setPosition(new Position(1, 1), true);
-	}
+	run: (c, accessor) => accessor.get(IAccessibleViewService)?.setPosition(new Position(1, 1), true)
 });
 
 // #endregion

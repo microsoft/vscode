@@ -26,7 +26,7 @@ suite('lm', function () {
 
 	test('lm request and stream', async function () {
 
-		let p: vscode.Progress<vscode.ChatResponseFragment> | undefined;
+		let p: vscode.Progress<vscode.ChatResponseFragment2> | undefined;
 		const defer = new DeferredPromise<void>();
 
 		disposables.push(vscode.lm.registerChatModelProvider('test-lm', {
@@ -69,7 +69,7 @@ suite('lm', function () {
 		assert.strictEqual(responseText, '');
 		assert.strictEqual(streamDone, false);
 
-		p.report({ index: 0, part: 'Hello' });
+		p.report({ index: 0, part: new vscode.LanguageModelTextPart('Hello') });
 		defer.complete();
 
 		await pp;

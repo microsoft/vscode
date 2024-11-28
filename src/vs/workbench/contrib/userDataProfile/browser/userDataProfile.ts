@@ -12,7 +12,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../pla
 import { IUserDataProfile, IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TITLE, isProfileURL } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILES_TITLE, isProfileURL } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -61,7 +61,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		super();
 
 		this.currentProfileContext = CURRENT_PROFILE_CONTEXT.bindTo(contextKeyService);
-		PROFILES_ENABLEMENT_CONTEXT.bindTo(contextKeyService).set(this.userDataProfilesService.isEnabled());
 		this.isCurrentProfileTransientContext = IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.bindTo(contextKeyService);
 
 		this.currentProfileContext.set(this.userDataProfileService.currentProfile.id);
@@ -191,12 +190,14 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id: `workbench.profiles.actions.profileEntry.${profile.id}`,
 					title: profile.name,
+					metadata: {
+						description: localize2('change profile', "Switch to {0} profile", profile.name),
+					},
 					toggled: ContextKeyExpr.equals(CURRENT_PROFILE_CONTEXT.key, profile.id),
 					menu: [
 						{
 							id: ProfilesMenu,
 							group: '0_profiles',
-							when: PROFILES_ENABLEMENT_CONTEXT,
 						}
 					]
 				});
@@ -253,6 +254,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id,
 					title: localize2('openShort', "{0}", profile.name),
+					metadata: {
+						description: localize2('open profile', "Open New Window with {0} Profile", profile.name),
+					},
 					menu: {
 						id: OpenProfileMenu,
 						group: '0_profiles',
@@ -288,7 +292,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					title: localize2('switchProfile', 'Switch Profile...'),
 					category: PROFILES_CATEGORY,
 					f1: true,
-					precondition: PROFILES_ENABLEMENT_CONTEXT,
 				});
 			}
 			async run(accessor: ServicesAccessor) {
@@ -384,7 +387,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			command: {
 				id,
 				title: localize2('export profile in share', "Export Profile ({0})...", that.userDataProfileService.currentProfile.name),
-				precondition: PROFILES_ENABLEMENT_CONTEXT,
 			},
 		}));
 		return disposables;
@@ -400,7 +402,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					title: localize2('save profile as', "Save Current Profile As..."),
 					category: PROFILES_CATEGORY,
 					f1: true,
-					precondition: PROFILES_ENABLEMENT_CONTEXT
 				});
 			}
 
@@ -419,7 +420,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					id: 'workbench.profiles.actions.createProfile',
 					title: localize2('create profile', "New Profile..."),
 					category: PROFILES_CATEGORY,
-					precondition: PROFILES_ENABLEMENT_CONTEXT,
 					f1: true,
 					menu: [
 						{
@@ -446,7 +446,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					title: localize2('delete profile', "Delete Profile..."),
 					category: PROFILES_CATEGORY,
 					f1: true,
-					precondition: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, HAS_PROFILES_CONTEXT),
+					precondition: HAS_PROFILES_CONTEXT,
 				});
 			}
 

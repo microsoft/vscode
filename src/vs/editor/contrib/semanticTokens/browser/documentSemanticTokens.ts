@@ -3,29 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
-import * as errors from '../../../../base/common/errors.js';
-import { ITextModel } from '../../../common/model.js';
-import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
-import { DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits } from '../../../common/languages.js';
-import { IModelService } from '../../../common/services/model.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SemanticTokensProviderStyling, toMultilineTokens2 } from '../../../common/services/semanticTokensProviderStyling.js';
-import { getDocumentSemanticTokens, hasDocumentSemanticTokensProvider, isSemanticTokens, isSemanticTokensEdits } from '../common/getSemanticTokens.js';
-import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce.js';
+import * as errors from '../../../../base/common/errors.js';
+import { Disposable, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
-import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
-import { ISemanticTokensStylingService } from '../../../common/services/semanticTokensStyling.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { registerEditorFeature } from '../../../common/editorFeatures.js';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
+import { DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits } from '../../../common/languages.js';
+import { ITextModel } from '../../../common/model.js';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { IModelService } from '../../../common/services/model.js';
+import { SemanticTokensProviderStyling, toMultilineTokens2 } from '../../../common/services/semanticTokensProviderStyling.js';
+import { ISemanticTokensStylingService } from '../../../common/services/semanticTokensStyling.js';
+import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
+import { getDocumentSemanticTokens, hasDocumentSemanticTokensProvider, isSemanticTokens, isSemanticTokensEdits } from '../common/getSemanticTokens.js';
 import { SEMANTIC_HIGHLIGHTING_SETTING_ID, isSemanticColoringEnabled } from '../common/semanticTokensConfig.js';
 
 export class DocumentSemanticTokensFeature extends Disposable {
 
-	private readonly _watchers: Record<string, ModelSemanticColoring>;
+	private readonly _watchers = new ResourceMap<ModelSemanticColoring>();
 
 	constructor(
 		@ISemanticTokensStylingService semanticTokensStylingService: ISemanticTokensStylingService,
@@ -36,18 +37,18 @@ export class DocumentSemanticTokensFeature extends Disposable {
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
-		this._watchers = Object.create(null);
 
 		const register = (model: ITextModel) => {
-			this._watchers[model.uri.toString()] = new ModelSemanticColoring(model, semanticTokensStylingService, themeService, languageFeatureDebounceService, languageFeaturesService);
+			this._watchers.get(model.uri)?.dispose();
+			this._watchers.set(model.uri, new ModelSemanticColoring(model, semanticTokensStylingService, themeService, languageFeatureDebounceService, languageFeaturesService));
 		};
 		const deregister = (model: ITextModel, modelSemanticColoring: ModelSemanticColoring) => {
 			modelSemanticColoring.dispose();
-			delete this._watchers[model.uri.toString()];
+			this._watchers.delete(model.uri);
 		};
 		const handleSettingOrThemeChange = () => {
 			for (const model of modelService.getModels()) {
-				const curr = this._watchers[model.uri.toString()];
+				const curr = this._watchers.get(model.uri);
 				if (isSemanticColoringEnabled(model, themeService, configurationService)) {
 					if (!curr) {
 						register(model);
@@ -70,7 +71,7 @@ export class DocumentSemanticTokensFeature extends Disposable {
 			}
 		}));
 		this._register(modelService.onModelRemoved((model) => {
-			const curr = this._watchers[model.uri.toString()];
+			const curr = this._watchers.get(model.uri);
 			if (curr) {
 				deregister(model, curr);
 			}
@@ -84,10 +85,9 @@ export class DocumentSemanticTokensFeature extends Disposable {
 	}
 
 	override dispose(): void {
-		// Dispose all watchers
-		for (const watcher of Object.values(this._watchers)) {
-			watcher.dispose();
-		}
+		dispose(this._watchers.values());
+		this._watchers.clear();
+
 		super.dispose();
 	}
 }
