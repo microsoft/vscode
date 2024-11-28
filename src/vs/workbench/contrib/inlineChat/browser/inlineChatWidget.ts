@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, Dimension, getActiveElement, getTotalHeight, h, reset, trackFocus } from '../../../../base/browser/dom.js';
-import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -49,8 +48,7 @@ import { ChatWidget, IChatViewState, IChatWidgetLocationOptions } from '../../ch
 import { chatRequestBackground } from '../../chat/common/chatColors.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { IChatModel } from '../../chat/common/chatModel.js';
-import { chatSubcommandLeader } from '../../chat/common/chatParserTypes.js';
-import { ChatAgentVoteDirection, IChatSendRequestOptions, IChatService } from '../../chat/common/chatService.js';
+import { ChatAgentVoteDirection, IChatService } from '../../chat/common/chatService.js';
 import { isResponseVM } from '../../chat/common/chatViewModel.js';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from '../common/inlineChat.js';
 import { HunkInformation, Session } from './inlineChatSession.js';
@@ -90,7 +88,6 @@ export class InlineChatWidget {
 			h('div.status@status', [
 				h('div.label.info.hidden@infoLabel'),
 				h('div.actions.hidden@toolbar1'),
-				h('div.rerun@rerun'),
 				h('div.label.status.hidden@statusLabel'),
 				h('div.actions.secondary.hidden@toolbar2'),
 			]),
@@ -201,8 +198,6 @@ export class InlineChatWidget {
 				ctxResponseSupportIssues.reset();
 			}));
 
-			const detectedAgentCmdStore = viewModelStore.add(new DisposableStore());
-
 			viewModelStore.add(viewModel.onDidChange(() => {
 
 				this._requestInProgress.set(viewModel.requestInProgress, undefined);
@@ -215,37 +210,6 @@ export class InlineChatWidget {
 				ctxResponseError.set(isResponseVM(last) && last.errorDetails !== undefined);
 				ctxResponseErrorFiltered.set((!!(isResponseVM(last) && last.errorDetails?.responseIsFiltered)));
 				ctxResponseSupportIssues.set(isResponseVM(last) && (last.agent?.metadata.supportIssueReporting ?? false));
-
-				if (isResponseVM(last) && last.agentOrSlashCommandDetected && last.slashCommand) {
-					this._elements.rerun.innerText = last.slashCommand.name;
-					this._elements.rerun.title = last.slashCommand.description;
-
-					const msg = localize('usedAgentSlashCommand', "``{0}`` [[(rerun without)]]", `${chatSubcommandLeader}${last.slashCommand.name}`);
-
-					reset(this._elements.rerun, renderFormattedText(msg, {
-						className: 'agentOrSlashCommandDetected',
-						inline: true,
-						renderCodeSegments: true,
-						actionHandler: {
-							disposables: detectedAgentCmdStore,
-							callback: (content) => {
-								const request = this._chatService.getSession(last.sessionId)?.getRequests().find(candidate => candidate.id === last.requestId);
-								if (request) {
-									const options: IChatSendRequestOptions = {
-										noCommandDetection: true,
-										attempt: request.attempt + 1,
-										location: location.location,
-										userSelectedModelId: this.chatWidget.input.currentLanguageModel
-									};
-									this._chatService.resendRequest(request, options);
-								}
-							},
-						}
-					}));
-
-				} else {
-					reset(this._elements.rerun);
-				}
 
 				this._onDidChangeHeight.fire();
 			}));
@@ -515,7 +479,6 @@ export class InlineChatWidget {
 		this._chatWidget.saveState();
 
 		reset(this._elements.statusLabel);
-		reset(this._elements.rerun);
 		this._elements.statusLabel.classList.toggle('hidden', true);
 		this._elements.toolbar1.classList.add('hidden');
 		this._elements.toolbar2.classList.add('hidden');
