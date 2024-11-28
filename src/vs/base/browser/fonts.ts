@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mainWindow } from 'vs/base/browser/window';
-import type { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema.js';
+import { mainWindow } from './window.js';
+import type { IJSONSchemaSnippet } from '../common/jsonSchema.js';
 import { isElectron, isMacintosh, isWindows } from '../common/platform.js';
 
 /**
