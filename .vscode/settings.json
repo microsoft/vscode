@@ -75,7 +75,7 @@
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"npm.exclude": "**/extensions/**",
 	"emmet.excludeLanguages": [],
-	"typescript.preferences.importModuleSpecifier": "relative",
+	"typescript.preferences.importModuleSpecifier": "project-relative",
 	"typescript.preferences.quoteStyle": "single",
 	"json.schemas": [
 		{
