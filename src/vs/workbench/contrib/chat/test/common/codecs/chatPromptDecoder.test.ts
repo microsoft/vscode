@@ -9,17 +9,17 @@ import { newWriteableStream } from '../../../../../../base/common/stream.js';
 import { TestDecoder } from '../../../../../../editor/test/common/utils/testDecoder.js';
 import { FileReference } from '../../../common/codecs/chatPromptCodec/tokens/fileReference.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ChatbotPromptDecoder, TChatbotPromptToken } from '../../../common/codecs/chatPromptCodec/chatPromptDecoder.js';
+import { ChatPromptDecoder, TChatPromptToken } from '../../../common/codecs/chatPromptCodec/chatPromptDecoder.js';
 
 /**
- * A reusable test utility that asserts that a `ChatbotPromptDecoder` instance
- * correctly decodes `inputData` into a stream of `TChatbotPromptToken` tokens.
+ * A reusable test utility that asserts that a `ChatPromptDecoder` instance
+ * correctly decodes `inputData` into a stream of `TChatPromptToken` tokens.
  *
  * ## Examples
  *
  * ```typescript
  * // create a new test utility instance
- * const test = testDisposables.add(new TestChatbotPromptDecoder());
+ * const test = testDisposables.add(new TestChatPromptDecoder());
  *
  * // run the test
  * await test.run(
@@ -32,22 +32,22 @@ import { ChatbotPromptDecoder, TChatbotPromptToken } from '../../../common/codec
  *   ]
  * );
  */
-export class TestChatbotPromptDecoder extends TestDecoder<TChatbotPromptToken, ChatbotPromptDecoder> {
+export class TestChatPromptDecoder extends TestDecoder<TChatPromptToken, ChatPromptDecoder> {
 	constructor(
 	) {
 		const stream = newWriteableStream<VSBuffer>(null);
-		const decoder = new ChatbotPromptDecoder(stream);
+		const decoder = new ChatPromptDecoder(stream);
 
 		super(stream, decoder);
 	}
 }
 
-suite('ChatbotPromptDecoder', () => {
+suite('ChatPromptDecoder', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('produces expected tokens', async () => {
 		const test = testDisposables.add(
-			new TestChatbotPromptDecoder(),
+			new TestChatPromptDecoder(),
 		);
 
 		await test.run(

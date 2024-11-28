@@ -7,17 +7,17 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ReadableStream } from '../../../../../../base/common/stream.js';
 import { ICodec } from '../../../../../../base/common/codecs/types/ICodec.js';
-import { ChatbotPromptDecoder, TChatbotPromptToken } from './chatPromptDecoder.js';
+import { ChatPromptDecoder, TChatPromptToken } from './chatPromptDecoder.js';
 
 /**
- * Codec that is capable to encode and decode syntax tokens of a AI chat bot prompt message.
+ * Codec that is capable to encode and decode syntax tokens of a AI chatbot prompt message.
  */
-export class ChatbotPromptCodec extends Disposable implements ICodec<VSBuffer, TChatbotPromptToken> {
-	public encode(_: ReadableStream<TChatbotPromptToken>): ReadableStream<VSBuffer> {
+export class ChatPromptCodec extends Disposable implements ICodec<VSBuffer, TChatPromptToken> {
+	public encode(_: ReadableStream<TChatPromptToken>): ReadableStream<VSBuffer> {
 		throw new Error('The `encode` method is not implemented.');
 	}
 
-	public decode(stream: ReadableStream<VSBuffer>): ChatbotPromptDecoder {
-		return this._register(new ChatbotPromptDecoder(stream));
+	public decode(stream: ReadableStream<VSBuffer>): ChatPromptDecoder {
+		return this._register(new ChatPromptDecoder(stream));
 	}
 }

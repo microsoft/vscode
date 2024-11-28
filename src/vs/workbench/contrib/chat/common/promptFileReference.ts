@@ -8,7 +8,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { extUri } from '../../../../base/common/resources.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Location } from '../../../../editor/common/languages.js';
-import { ChatbotPromptCodec } from './codecs/chatPromptCodec/chatPromptCodec.js';
+import { ChatPromptCodec } from './codecs/chatPromptCodec/chatPromptCodec.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { FileOpenFailed, NonPromptSnippetFile, RecursiveReference } from './promptFileReferenceErrors.js';
 import { FileChangesEvent, FileChangeType, IFileService, IFileStreamContent } from '../../../../platform/files/common/files.js';
@@ -75,7 +75,7 @@ export class PromptFileReference extends Disposable {
 	/**
 	 * Chatbot prompt message codec helps to parse out prompt syntax.
 	 */
-	private readonly codec = this._register(new ChatbotPromptCodec());
+	private readonly codec = this._register(new ChatPromptCodec());
 
 	/**
 	 * Child references of the current one.

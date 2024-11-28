@@ -192,12 +192,9 @@ class TestPromptFileReference extends Disposable {
 	}
 }
 
-suite('ChatbotPromptReference (Unix)', function () {
+suite('PromptFileReference (Unix)', function () {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	// let parser: ChatRequestParser;
-
-	// let varService: MockObject<IChatVariablesService>;
 	let instantiationService: TestInstantiationService;
 	setup(async () => {
 		const nullPolicyService = new NullPolicyService();

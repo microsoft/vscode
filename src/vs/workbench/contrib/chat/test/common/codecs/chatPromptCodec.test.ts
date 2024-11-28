@@ -8,19 +8,19 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { newWriteableStream } from '../../../../../../base/common/stream.js';
 import { TestDecoder } from '../../../../../../editor/test/common/utils/testDecoder.js';
 import { FileReference } from '../../../common/codecs/chatPromptCodec/tokens/fileReference.js';
-import { ChatbotPromptCodec } from '../../../common/codecs/chatPromptCodec/chatPromptCodec.js';
+import { ChatPromptCodec } from '../../../common/codecs/chatPromptCodec/chatPromptCodec.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ChatbotPromptDecoder, TChatbotPromptToken } from '../../../common/codecs/chatPromptCodec/chatPromptDecoder.js';
+import { ChatPromptDecoder, TChatPromptToken } from '../../../common/codecs/chatPromptCodec/chatPromptDecoder.js';
 
 /**
- * A reusable test utility that asserts that a `ChatbotPromptDecoder` instance
- * correctly decodes `inputData` into a stream of `TChatbotPromptToken` tokens.
+ * A reusable test utility that asserts that a `ChatPromptDecoder` instance
+ * correctly decodes `inputData` into a stream of `TChatPromptToken` tokens.
  *
  * ## Examples
  *
  * ```typescript
  * // create a new test utility instance
- * const test = testDisposables.add(new TestChatbotPromptCodec());
+ * const test = testDisposables.add(new TestChatPromptCodec());
  *
  * // run the test
  * await test.run(
@@ -33,10 +33,10 @@ import { ChatbotPromptDecoder, TChatbotPromptToken } from '../../../common/codec
  *   ]
  * );
  */
-export class TestChatbotPromptCodec extends TestDecoder<TChatbotPromptToken, ChatbotPromptDecoder> {
+export class TestChatPromptCodec extends TestDecoder<TChatPromptToken, ChatPromptDecoder> {
 	constructor() {
 		const stream = newWriteableStream<VSBuffer>(null);
-		const codec = new ChatbotPromptCodec();
+		const codec = new ChatPromptCodec();
 		const decoder = codec.decode(stream);
 
 		super(stream, decoder);
@@ -45,11 +45,11 @@ export class TestChatbotPromptCodec extends TestDecoder<TChatbotPromptToken, Cha
 	}
 }
 
-suite('ChatbotPromptCodec', () => {
+suite('ChatPromptCodec', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('produces expected tokens', async () => {
-		const test = testDisposables.add(new TestChatbotPromptCodec());
+		const test = testDisposables.add(new TestChatPromptCodec());
 
 		await test.run(
 			'#file:/etc/hosts some text\t\n  for #file:./README.md\t testing\n ✔ purposes\n#file:LICENSE.md ✌ \t#file:.gitignore\n\n\n\t   #file:/Users/legomushroom/repos/vscode   ',

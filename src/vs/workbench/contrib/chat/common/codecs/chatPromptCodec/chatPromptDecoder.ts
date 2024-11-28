@@ -11,15 +11,15 @@ import { Word } from '../../../../../../editor/common/codecs/simpleCodec/tokens/
 import { SimpleDecoder, TSimpleToken } from '../../../../../../editor/common/codecs/simpleCodec/simpleDecoder.js';
 
 /**
- * Tokens handled by the `ChatbotPromptDecoder` decoder.
+ * Tokens handled by the `ChatPromptDecoder` decoder.
  */
-export type TChatbotPromptToken = FileReference;
+export type TChatPromptToken = FileReference;
 
 /**
  * Decoder for the common chatbot prompt message syntax.
  * For instance, the file references `#file:./path/file.md` are handled by this decoder.
  */
-export class ChatbotPromptDecoder extends BaseDecoder<TChatbotPromptToken, TSimpleToken> {
+export class ChatPromptDecoder extends BaseDecoder<TChatPromptToken, TSimpleToken> {
 	constructor(
 		stream: ReadableStream<VSBuffer>,
 	) {
