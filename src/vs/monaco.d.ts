@@ -6868,6 +6868,23 @@ declare namespace monaco.languages {
 		removeText?: number;
 	}
 
+	export interface TokenChangeEvent {
+		textModel: editor.ITextModel;
+		changes: {
+			readonly ranges: {
+				/**
+				 * The start of the range (inclusive)
+				 */
+				readonly fromLineNumber: number;
+				/**
+				 * The end of the range (inclusive)
+				 */
+				readonly toLineNumber: number;
+			}[];
+		};
+		versionId: number;
+	}
+
 	/**
 	 * The state of the tokenizer between two lines.
 	 * It is useful to store flags such as in multiline comment, etc.

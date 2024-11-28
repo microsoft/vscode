@@ -26,7 +26,6 @@ import { ContiguousMultilineTokens } from './tokens/contiguousMultilineTokens.js
 import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
-import { IModelTokensChangedEvent } from './textModelEvents.js';
 import type { Parser } from '@vscode/tree-sitter-wasm';
 
 /**
@@ -84,6 +83,23 @@ export class EncodedTokenizationResult {
 	}
 }
 
+export interface TokenChangeEvent {
+	textModel: model.ITextModel;
+	changes: {
+		readonly ranges: {
+			/**
+			 * The start of the range (inclusive)
+			 */
+			readonly fromLineNumber: number;
+			/**
+			 * The end of the range (inclusive)
+			 */
+			readonly toLineNumber: number;
+		}[];
+	};
+	versionId: number;
+}
+
 /**
  * An intermediate interface for scaffolding the new tree sitter tokenization support. Not final.
  * @internal
@@ -92,7 +108,7 @@ export interface ITreeSitterTokenizationSupport {
 	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): Uint32Array | undefined;
 	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): Parser.QueryCapture[];
 	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[];
-	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
+	onDidChangeTokens: Event<TokenChangeEvent>;
 	tokenizeEncodedInstrumented(lineNumber: number, textModel: model.ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined;
 }
 

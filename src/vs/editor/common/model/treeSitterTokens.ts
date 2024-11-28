@@ -12,16 +12,19 @@ import { IModelContentChangedEvent } from '../textModelEvents.js';
 import { AbstractTokens } from './tokens.js';
 import { ITokenizeLineWithEditResult, LineEditWithAdditionalLines } from '../tokenizationTextModelPart.js';
 import { IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Range } from '../core/range.js';
+import { ITreeSitterTokenizationStoreService } from './treeSitterTokenStore.js';
 
 export class TreeSitterTokens extends AbstractTokens {
 	private _tokenizationSupport: ITreeSitterTokenizationSupport | null = null;
 	private _lastLanguageId: string | undefined;
 	private readonly _tokensChangedListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
-	constructor(private readonly _treeSitterService: ITreeSitterParserService,
-		languageIdCodec: ILanguageIdCodec,
+	constructor(languageIdCodec: ILanguageIdCodec,
 		textModel: TextModel,
-		languageId: () => string) {
+		languageId: () => string,
+		@ITreeSitterParserService private readonly _treeSitterService: ITreeSitterParserService,
+		@ITreeSitterTokenizationStoreService private readonly _tokenStore: ITreeSitterTokenizationStoreService,) {
 		super(languageIdCodec, textModel, languageId);
 
 		this._initialize();
@@ -34,16 +37,16 @@ export class TreeSitterTokens extends AbstractTokens {
 			this._tokenizationSupport = TreeSitterTokenizationRegistry.get(newLanguage);
 			this._tokensChangedListener.value = this._tokenizationSupport?.onDidChangeTokens((e) => {
 				if (e.textModel === this._textModel) {
-					this._onDidChangeTokens.fire(e.changes);
+					this._onDidChangeTokens.fire({ ...e.changes, semanticTokensApplied: false });
 				}
 			});
 		}
 	}
 
 	public getLineTokens(lineNumber: number): LineTokens {
+		const rawTokens = this._tokenStore.getTokens(this._textModel, new Range(lineNumber, 1, lineNumber, this._textModel.getLineMaxColumn(lineNumber)));
 		const content = this._textModel.getLineContent(lineNumber);
 		if (this._tokenizationSupport) {
-			const rawTokens = this._tokenizationSupport.tokenizeEncoded(lineNumber, this._textModel);
 			if (rawTokens) {
 				return new LineTokens(rawTokens, content, this._languageIdCodec);
 			}
@@ -78,12 +81,13 @@ export class TreeSitterTokens extends AbstractTokens {
 	}
 
 	public override forceTokenization(lineNumber: number): void {
-		// TODO @alexr00 implement
+		if (this._tokenizationSupport) {
+			this._tokenizationSupport.tokenizeEncoded(lineNumber, this._textModel);
+		}
 	}
 
 	public override hasAccurateTokensForLine(lineNumber: number): boolean {
-		// TODO @alexr00 update for background tokenization
-		return true;
+		return this._tokenStore.hasTokens(this._textModel, new Range(lineNumber, 1, lineNumber, this._textModel.getLineLength(lineNumber)));
 	}
 
 	public override isCheapToTokenize(lineNumber: number): boolean {

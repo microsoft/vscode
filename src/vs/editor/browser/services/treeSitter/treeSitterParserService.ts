@@ -5,7 +5,7 @@
 
 import type { Parser } from '@vscode/tree-sitter-wasm';
 import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../../base/common/network.js';
-import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult, ITextModelTreeSitter } from '../../../common/services/treeSitterParserService.js';
+import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult, ITextModelTreeSitter, TreeUpdateEvent } from '../../../common/services/treeSitterParserService.js';
 import { IModelService } from '../../../common/services/model.js';
 import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ITextModel } from '../../../common/model.js';
@@ -83,12 +83,12 @@ export class TextModelTreeSitter extends Disposable implements ITextModelTreeSit
 
 		const treeSitterTree = this._languageSessionDisposables.add(new TreeSitterParseResult(new Parser(), language, this._logService, this._telemetryService));
 		this._languageSessionDisposables.add(this.model.onDidChangeContent(e => this._onDidChangeContent(treeSitterTree, e.changes)));
+		this._parseResult = treeSitterTree;
 		await this._onDidChangeContent(treeSitterTree, []);
 		if (token.isCancellationRequested) {
 			return;
 		}
 
-		this._parseResult = treeSitterTree;
 		return this._parseResult;
 	}
 
@@ -357,8 +357,8 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 	private readonly _treeSitterLanguages: TreeSitterLanguages;
 
 	public readonly onDidAddLanguage: Event<{ id: string; language: Parser.Language }>;
-	private _onDidUpdateTree: Emitter<{ textModel: ITextModel; ranges: Range[] }> = this._register(new Emitter());
-	public readonly onDidUpdateTree: Event<{ textModel: ITextModel; ranges: Range[] }> = this._onDidUpdateTree.event;
+	private _onDidUpdateTree: Emitter<TreeUpdateEvent> = this._register(new Emitter());
+	public readonly onDidUpdateTree: Event<TreeUpdateEvent> = this._onDidUpdateTree.event;
 
 	constructor(@IModelService private readonly _modelService: IModelService,
 		@IFileService fileService: IFileService,
@@ -477,7 +477,7 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		const textModelTreeSitter = new TextModelTreeSitter(model, this._treeSitterLanguages, this._treeSitterImporter, this._logService, this._telemetryService);
 		const disposables = new DisposableStore();
 		disposables.add(textModelTreeSitter);
-		disposables.add(textModelTreeSitter.onDidChangeParseResult((ranges) => this._onDidUpdateTree.fire({ textModel: model, ranges })));
+		disposables.add(textModelTreeSitter.onDidChangeParseResult((ranges) => this._onDidUpdateTree.fire({ textModel: model, ranges, versionId: model.getVersionId() })));
 		this._textModelTreeSitters.set(model, {
 			textModelTreeSitter,
 			disposables,

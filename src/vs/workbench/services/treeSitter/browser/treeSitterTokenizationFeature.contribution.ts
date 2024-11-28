@@ -23,7 +23,7 @@ class TreeSitterTokenizationInstantiator implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.treeSitterTokenizationInstantiator';
 
 	constructor(
-		@ITreeSitterParserService _treeSitterTokenizationService: ITreeSitterParserService,
+		@ITreeSitterParserService _treeSitterParserService: ITreeSitterParserService,
 		@ITreeSitterTokenizationFeature _treeSitterTokenizationFeature: ITreeSitterTokenizationFeature
 	) { }
 }
