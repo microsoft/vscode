@@ -21,7 +21,7 @@ import { AbstractEditContext } from '../editContext.js';
 import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
 import { Range } from '../../../../common/core/range.js';
-import { Selection } from '../../../../common/core/selection.js';
+import { Selection, SelectionDirection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
@@ -492,7 +492,13 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 			const positionOfSelectionStart = model.getPositionAt(offsetOfSelectionStart);
 			const positionOfSelectionEnd = model.getPositionAt(offsetOfSelectionEnd);
-			const newSelection = Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd);
+			const currentSelection = this._context.viewModel.getPrimaryCursorState().modelState.selection;
+			const newSelection = currentSelection.getDirection() === SelectionDirection.LTR ?
+				Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd) :
+				Selection.fromPositions(positionOfSelectionEnd, positionOfSelectionStart);
+			if (newSelection.equalsSelection(currentSelection)) {
+				return;
+			}
 			viewController.setSelection(newSelection);
 		});
 	}
