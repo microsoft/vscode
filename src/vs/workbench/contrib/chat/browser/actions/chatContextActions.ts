@@ -268,7 +268,7 @@ class AttachSelectionToChatAction extends Action2 {
 		const variablesService = accessor.get(IChatVariablesService);
 		const textEditorService = accessor.get(IEditorService);
 		const [_, matches] = args;
-		// It means this is coming from the search widget
+		// If we have search matches, it means this is coming from the search widget
 		if (matches && matches.length > 0) {
 			const uris = new Map<URI, Range | undefined>();
 			for (const match of matches) {
