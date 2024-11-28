@@ -4170,6 +4170,7 @@ export interface IInlineSuggestOptions {
 			enabled?: boolean;
 			useMixedLinesDiff?: 'never' | 'whenPossible' | 'afterJumpWhenPossible';
 			useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
+			onlyShowWhenCloseToCursor?: boolean;
 		};
 	};
 }
@@ -4201,6 +4202,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					enabled: true,
 					useMixedLinesDiff: 'never',
 					useInterleavedLinesDiff: 'never',
+					onlyShowWhenCloseToCursor: true,
 				},
 			},
 		};
@@ -4256,6 +4258,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					description: nls.localize('inlineSuggest.edits.experimental.useInterleavedLinesDiff', "Controls whether to enable experimental interleaved lines diff in inline suggestions."),
 					enum: ['never', 'always', 'afterJump'],
 				},
+				'editor.inlineSuggest.edits.experimental.onlyShowWhenCloseToCursor': {
+					type: 'boolean',
+					default: defaults.edits.experimental.onlyShowWhenCloseToCursor,
+					description: nls.localize('inlineSuggest.edits.experimental.onlyShowWhenCloseToCursor', "Controls whether to only show inline suggestions when the cursor is close to the suggestion.")
+				},
 			}
 		);
 	}
@@ -4278,6 +4285,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					enabled: boolean(input.edits?.experimental?.enabled, this.defaultValue.edits.experimental.enabled),
 					useMixedLinesDiff: stringSet(input.edits?.experimental?.useMixedLinesDiff, this.defaultValue.edits.experimental.useMixedLinesDiff, ['never', 'whenPossible', 'afterJumpWhenPossible']),
 					useInterleavedLinesDiff: stringSet(input.edits?.experimental?.useInterleavedLinesDiff, this.defaultValue.edits.experimental.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
+					onlyShowWhenCloseToCursor: boolean(input.edits?.experimental?.onlyShowWhenCloseToCursor, this.defaultValue.edits.experimental.onlyShowWhenCloseToCursor),
 				},
 			},
 		};
