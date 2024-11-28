@@ -5,7 +5,7 @@
 
 import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString, TextEditorDiffInformation } from 'vscode';
 import { Model } from './model';
-import { dispose, fromNow, IDisposable, isWindows } from './util';
+import { dispose, fromNow, IDisposable } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation } from './git';
