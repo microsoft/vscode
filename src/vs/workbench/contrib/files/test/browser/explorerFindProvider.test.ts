@@ -196,7 +196,7 @@ suite('Files - ExplorerView', () => {
 		const compressionDelegate = new CompressionDelegate(dataSource);
 		const keyboardNavigationLabelProvider = new KeyboardNavigationLabelProvider();
 		const accessibilityProvider = new AccessibilityProvider();
-		const filter = instantiationService.createInstance(FilesFilter);
+		const filter = disposables.add(instantiationService.createInstance(FilesFilter));
 
 		const options: IWorkbenchCompressibleAsyncDataTreeOptions<ExplorerItem, FuzzyScore> = { identityProvider: new IdentityProvider(), keyboardNavigationLabelProvider, accessibilityProvider };
 		const tree = disposables.add(instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, 'test', container, new VirtualDelegate(), compressionDelegate, [new Renderer()], dataSource, options));
