@@ -9,7 +9,7 @@ import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compres
 import { ExplorerItem } from '../../common/explorerModel.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
-import { ITreeNode, IAsyncDataSource } from '../../../../../base/browser/ui/tree/tree.js';
+import { ITreeNode, IAsyncDataSource, ITreeFilter, TreeFilterResult } from '../../../../../base/browser/ui/tree/tree.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { NullFilesConfigurationService } from '../../../../test/common/workbenchTestServices.js';
@@ -120,7 +120,13 @@ class CompressionDelegate implements ITreeCompressionDelegate<ExplorerItem> {
 	}
 }
 
-suite('Files - ExplorerView', () => {
+class TestFilesFilter implements ITreeFilter<ExplorerItem> {
+	filter(): TreeFilterResult<void> { return true; }
+	isIgnored(): boolean { return false; }
+	dispose() { }
+}
+
+suite('Find Provider - ExplorerView', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const fileService = new TestFileService();
@@ -196,7 +202,7 @@ suite('Files - ExplorerView', () => {
 		const compressionDelegate = new CompressionDelegate(dataSource);
 		const keyboardNavigationLabelProvider = new KeyboardNavigationLabelProvider();
 		const accessibilityProvider = new AccessibilityProvider();
-		const filter = disposables.add(instantiationService.createInstance(FilesFilter));
+		const filter = instantiationService.createInstance(TestFilesFilter) as unknown as FilesFilter;
 
 		const options: IWorkbenchCompressibleAsyncDataTreeOptions<ExplorerItem, FuzzyScore> = { identityProvider: new IdentityProvider(), keyboardNavigationLabelProvider, accessibilityProvider };
 		const tree = disposables.add(instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, 'test', container, new VirtualDelegate(), compressionDelegate, [new Renderer()], dataSource, options));
