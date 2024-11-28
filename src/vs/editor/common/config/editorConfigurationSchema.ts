@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
+import type { IJSONSchemaSnippet } from '../../../base/common/jsonSchema.js';
 import { diffEditorDefaultOptions } from './diffEditor.js';
 import { editorOptionsRegistry } from './editorOptions.js';
 import { EDITOR_MODEL_DEFAULTS } from '../core/textModelDefaults.js';
