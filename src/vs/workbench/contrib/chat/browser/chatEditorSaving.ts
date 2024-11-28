@@ -8,10 +8,9 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
-import { autorunWithStore } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { autorun, autorunWithStore } from '../../../../base/common/observable.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
@@ -22,6 +21,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorIdentifier, SaveReason } from '../../../common/editor.js';
@@ -31,7 +31,7 @@ import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatEditingModifiedFileEntry } from './chatEditing/chatEditingModifiedFileEntry.js';
@@ -39,28 +39,69 @@ import { ChatEditingModifiedFileEntry } from './chatEditing/chatEditingModifiedF
 
 const STORAGE_KEY_AUTOSAVE_DISABLED = 'chat.editing.autosaveDisabled';
 
-export class ChatEditorAutoSaveInitializer extends Disposable implements IWorkbenchContribution {
+export class ChatEditorAutoSaveDisabler extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID: string = 'workbench.chat.autoSaveInitializer';
+	static readonly ID: string = 'workbench.chat.autoSaveDisabler';
+
+	private _autosaveDisabledUris: string[] = [];
 
 	constructor(
+		@IConfigurationService configService: IConfigurationService,
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@IFilesConfigurationService fileConfigService: IFilesConfigurationService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@IStorageService storageService: IStorageService
 	) {
 		super();
 
-		const autoSaveDisabled = storageService.getObject<string[]>(STORAGE_KEY_AUTOSAVE_DISABLED, StorageScope.WORKSPACE, []);
-		if (Array.isArray(autoSaveDisabled) && autoSaveDisabled.length > 0) {
-			const store = new DisposableStore();
-			for (const uriString of autoSaveDisabled) {
-				store.add(fileConfigService.disableAutoSave(URI.parse(uriString)));
-			}
+		// on shutdown remember all files that have auto save disabled
+		this._store.add(lifecycleService.onWillShutdown((e) => {
+			storageService.store(STORAGE_KEY_AUTOSAVE_DISABLED, this._autosaveDisabledUris, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}));
 
-			chatEditingService.getOrRestoreEditingSession().finally(() => {
-				store.dispose();
-			});
+		const alwaysSaveConfig = observableConfigValue<boolean>(ChatEditorSaving._config, false, configService);
+
+		// as quickly as possible disable auto save for all files that were modified before the last shutdown
+		if (!alwaysSaveConfig.get()) {
+			const autoSaveDisabled = storageService.getObject<string[]>(STORAGE_KEY_AUTOSAVE_DISABLED, StorageScope.WORKSPACE, []);
+			if (Array.isArray(autoSaveDisabled) && autoSaveDisabled.length > 0) {
+
+				const initialDisabledAutoSaveDisposabled = new DisposableStore();
+				for (const uriString of autoSaveDisabled) {
+					initialDisabledAutoSaveDisposabled.add(fileConfigService.disableAutoSave(URI.parse(uriString)));
+				}
+				chatEditingService.getOrRestoreEditingSession().finally(() => {
+					// by now the session is restored and the auto save handlers are in place
+					initialDisabledAutoSaveDisposabled.dispose();
+				});
+
+			}
 		}
+
+		// listen to session changes and update auto save settings accordingly
+		const saveConfig = this._store.add(new MutableDisposable());
+		autorun(reader => {
+			const store = new DisposableStore();
+			const autoSaveDisabled = [];
+			try {
+				if (alwaysSaveConfig.read(reader)) {
+					return;
+				}
+				const session = chatEditingService.currentEditingSessionObs.read(reader);
+				if (session) {
+					const entries = session.entries.read(reader);
+					for (const entry of entries) {
+						if (entry.state.read(reader) === WorkingSetEntryState.Modified) {
+							autoSaveDisabled.push(entry.modifiedURI.toString());
+							store.add(fileConfigService.disableAutoSave(entry.modifiedURI));
+						}
+					}
+				}
+			} finally {
+				saveConfig.value = store; // disposes the previous store, after we have added the new one
+				this._autosaveDisabledUris = autoSaveDisabled;
+			}
+		});
 	}
 }
 
@@ -71,10 +112,6 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 
 	static readonly _config = 'chat.editing.alwaysSaveWithGeneratedChanges';
 
-	private readonly _sessionStore = this._store.add(new DisposableMap<IChatEditingSession>());
-
-	private _autosaveDisabled: URI[] = [];
-
 	constructor(
 		@IConfigurationService configService: IConfigurationService,
 		@IChatEditingService chatEditingService: IChatEditingService,
@@ -83,17 +120,8 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 		@ILabelService labelService: ILabelService,
 		@IDialogService dialogService: IDialogService,
 		@IChatService private readonly _chatService: IChatService,
-		@IFilesConfigurationService private readonly _fileConfigService: IFilesConfigurationService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
-
-		this._store.add(this._lifecycleService.onWillShutdown((e) => {
-			if (this._autosaveDisabled.length > 0) {
-				this._storageService.store(STORAGE_KEY_AUTOSAVE_DISABLED, this._autosaveDisabled.map(uri => uri.toString()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-			}
-		}));
 
 		// --- report that save happened
 		this._store.add(autorunWithStore((r, store) => {
@@ -105,10 +133,8 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 			if (!chatSession) {
 				return;
 			}
-			const entries = session.entries.read(r);
-
 			store.add(textFileService.files.onDidSave(e => {
-				const entry = entries.find(entry => isEqual(entry.modifiedURI, e.model.resource));
+				const entry = session.getEntry(e.model.resource);
 				if (entry && entry.state.get() === WorkingSetEntryState.Modified) {
 					this._reportSavedWhenReady(chatSession, entry);
 				}
@@ -124,10 +150,6 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 			const alwaysSave = configService.getValue<boolean>(ChatEditorSaving._config);
 			if (alwaysSave) {
 				return;
-			}
-
-			if (chatEditingService.currentEditingSession) {
-				this._handleNewEditingSession(chatEditingService.currentEditingSession, store);
 			}
 
 			const saveJobs = new class {
@@ -192,7 +214,6 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 				}
 			};
 
-			store.add(chatEditingService.onDidCreateEditingSession(e => this._handleNewEditingSession(e, store)));
 			store.add(textFileService.files.addSaveParticipant({
 				participate: async (workingCopy, context, progress, token) => {
 
@@ -251,41 +272,6 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 			}
 		});
 		this._store.add(d);
-	}
-
-	private _handleNewEditingSession(session: IChatEditingSession, container: DisposableStore) {
-
-		const store = new DisposableStore();
-		container.add(store);
-
-		// disable auto save for those files involved in editing
-		const saveConfig = store.add(new MutableDisposable());
-		const update = () => {
-			const store = new DisposableStore();
-			const entries = session.entries.get();
-			const autoSaveDisabled = [];
-			for (const entry of entries) {
-				if (entry.state.get() === WorkingSetEntryState.Modified) {
-					autoSaveDisabled.push(entry.modifiedURI);
-					store.add(this._fileConfigService.disableAutoSave(entry.modifiedURI));
-				}
-			}
-			saveConfig.value = store;
-			this._autosaveDisabled = autoSaveDisabled;
-		};
-
-		update();
-
-		this._sessionStore.set(session, store);
-
-		store.add(session.onDidChange(() => {
-			update();
-		}));
-
-		store.add(session.onDidDispose(() => {
-			store.dispose();
-			container.delete(store);
-		}));
 	}
 }
 
