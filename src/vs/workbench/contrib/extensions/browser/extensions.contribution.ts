@@ -13,7 +13,7 @@ import { EnablementState, IExtensionManagementServerService, IWorkbenchExtension
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, UPDATE_ACTIONS_GROUP, IExtensionArg, ExtensionRuntimeActionType } from '../common/extensions.js';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, UPDATE_ACTIONS_GROUP, IExtensionArg, ExtensionRuntimeActionType, EXTENSIONS_CATEGORY } from '../common/extensions.js';
 import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction, ToggleAutoUpdateForExtensionAction, ToggleAutoUpdatesForPublisherAction, TogglePreReleaseExtensionAction, InstallAnotherVersionAction, InstallAction } from './extensionsActions.js';
 import { ExtensionsInput } from '../common/extensionsInput.js';
 import { ExtensionEditor } from './extensionEditor.js';
@@ -1805,7 +1805,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.addToWorkspaceRecommendations',
 			title: localize2('workbench.extensions.action.addToWorkspaceRecommendations', "Add Extension to Workspace Recommendations"),
-			category: localize('extensions', "Extensions"),
+			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
 				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.equals('resourceScheme', Schemas.extension)),
@@ -1828,7 +1828,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.addToWorkspaceFolderRecommendations',
 			title: localize2('workbench.extensions.action.addToWorkspaceFolderRecommendations', "Add Extension to Workspace Folder Recommendations"),
-			category: localize('extensions', "Extensions"),
+			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
 				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('folder'), ContextKeyExpr.equals('resourceScheme', Schemas.extension)),
@@ -1839,7 +1839,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.addToWorkspaceIgnoredRecommendations',
 			title: localize2('workbench.extensions.action.addToWorkspaceIgnoredRecommendations', "Add Extension to Workspace Ignored Recommendations"),
-			category: localize('extensions', "Extensions"),
+			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
 				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.equals('resourceScheme', Schemas.extension)),
@@ -1862,7 +1862,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.addToWorkspaceFolderIgnoredRecommendations',
 			title: localize2('workbench.extensions.action.addToWorkspaceFolderIgnoredRecommendations', "Add Extension to Workspace Folder Ignored Recommendations"),
-			category: localize('extensions', "Extensions"),
+			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
 				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('folder'), ContextKeyExpr.equals('resourceScheme', Schemas.extension)),
@@ -1873,7 +1873,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this.registerExtensionAction({
 			id: ConfigureWorkspaceRecommendedExtensionsAction.ID,
 			title: { value: ConfigureWorkspaceRecommendedExtensionsAction.LABEL, original: 'Configure Recommended Extensions (Workspace)' },
-			category: localize('extensions', "Extensions"),
+			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
 				when: WorkbenchStateContext.isEqualTo('workspace'),

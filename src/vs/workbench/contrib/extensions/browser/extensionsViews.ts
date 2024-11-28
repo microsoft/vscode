@@ -17,8 +17,8 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { append, $ } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { Delegate, Renderer, IExtensionsViewState } from './extensionsList.js';
-import { ExtensionState, IExtension, IExtensionsWorkbenchService, IWorkspaceRecommendedExtensionsView } from '../common/extensions.js';
+import { Delegate, Renderer } from './extensionsList.js';
+import { ExtensionState, IExtension, IExtensionsViewState, IExtensionsWorkbenchService, IWorkspaceRecommendedExtensionsView } from '../common/extensions.js';
 import { Query } from '../common/extensionQuery.js';
 import { IExtensionService, toExtension } from '../../../services/extensions/common/extensions.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -72,6 +72,10 @@ class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
 	private currentlyFocusedItems: IExtension[] = [];
 
+	filters: {
+		featureId?: string;
+	} = {};
+
 	onFocusChange(extensions: IExtension[]): void {
 		this.currentlyFocusedItems.forEach(extension => this._onBlur.fire(extension));
 		this.currentlyFocusedItems = extensions;
@@ -119,6 +123,7 @@ export class ExtensionsListView extends ViewPane {
 	private list: WorkbenchPagedList<IExtension> | null = null;
 	private queryRequest: { query: string; request: CancelablePromise<IPagedModel<IExtension>> } | null = null;
 	private queryResult: IQueryResult | undefined;
+	private extensionsViewState: ExtensionsViewState | undefined;
 
 	private readonly contextMenuActionRunner = this._register(new ActionRunner());
 
@@ -186,8 +191,8 @@ export class ExtensionsListView extends ViewPane {
 		const messageSeverityIcon = append(messageContainer, $(''));
 		const messageBox = append(messageContainer, $('.message'));
 		const delegate = new Delegate();
-		const extensionsViewState = new ExtensionsViewState();
-		const renderer = this.instantiationService.createInstance(Renderer, extensionsViewState, {
+		this.extensionsViewState = new ExtensionsViewState();
+		const renderer = this.instantiationService.createInstance(Renderer, this.extensionsViewState, {
 			hoverOptions: {
 				position: () => {
 					const viewLocation = this.viewDescriptorService.getViewLocationById(this.id);
@@ -217,9 +222,9 @@ export class ExtensionsListView extends ViewPane {
 			openOnSingleClick: true
 		}) as WorkbenchPagedList<IExtension>;
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
-		this._register(this.list.onDidChangeFocus(e => extensionsViewState.onFocusChange(coalesce(e.elements)), this));
+		this._register(this.list.onDidChangeFocus(e => this.extensionsViewState?.onFocusChange(coalesce(e.elements)), this));
 		this._register(this.list);
-		this._register(extensionsViewState);
+		this._register(this.extensionsViewState);
 
 		this._register(Event.debounce(Event.filter(this.list.onDidOpen, e => e.element !== null), (_, event) => event, 75, true)(options => {
 			this.openExtension(options.element!, { sideByside: options.sideBySide, ...options.editorOptions });
@@ -257,6 +262,9 @@ export class ExtensionsListView extends ViewPane {
 		if (this.queryResult) {
 			this.queryResult.disposables.dispose();
 			this.queryResult = undefined;
+			if (this.extensionsViewState) {
+				this.extensionsViewState.filters = {};
+			}
 		}
 
 		const parsedQuery = Query.parse(query);
@@ -720,6 +728,9 @@ export class ExtensionsListView extends ViewPane {
 		const feature = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeature(featureId);
 		if (!feature) {
 			return [];
+		}
+		if (this.extensionsViewState) {
+			this.extensionsViewState.filters.featureId = featureId;
 		}
 		const renderer = feature.renderer ? this.instantiationService.createInstance<IExtensionFeatureRenderer>(feature.renderer) : undefined;
 		try {
