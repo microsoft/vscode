@@ -184,6 +184,12 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 
 		const ghostCtrl = InlineCompletionsController.get(editor);
 
+		this._store.add(commandService.onWillExecuteCommand(e => {
+			if (e.commandId === _inlineChatActionId || e.commandId === ACTION_START) {
+				this.hide();
+			}
+		}));
+
 		this._store.add(this._editor.onMouseDown(e => {
 			if (e.target.type !== MouseTargetType.CONTENT_TEXT) {
 				return;
@@ -227,12 +233,13 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 
 			const visible = this._visibilityObs.read(r);// || this._ctxMenuVisibleObs.read(r);
 			const isEol = model.getLineMaxColumn(position.lineNumber) === position.column;
-			const isWhitespace = model.getLineLastNonWhitespaceColumn(position.lineNumber) === 0 && model.getValueLength() > 0;
+			const isWhitespace = model.getLineLastNonWhitespaceColumn(position.lineNumber) === 0 && model.getValueLength() > 0 && position.column > 1;
 
-			const shouldShow = (isWhitespace && _configurationService.getValue(InlineChatConfigKeys.LineEmptyHint))
-				|| (visible && isEol && _configurationService.getValue(InlineChatConfigKeys.LineSuffixHint));
+			if (isWhitespace && !_configurationService.getValue(InlineChatConfigKeys.LineEmptyHint)) {
+				return undefined;
+			}
 
-			if (!shouldShow) {
+			if (!visible || !isEol || !_configurationService.getValue(InlineChatConfigKeys.LineSuffixHint)) {
 				return undefined;
 			}
 

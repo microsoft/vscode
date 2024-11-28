@@ -17,6 +17,7 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ISelection, Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
@@ -591,8 +592,19 @@ export class InlineChatController implements IEditorContribution {
 		const progressiveEditsClock = StopWatch.create();
 		const progressiveEditsQueue = new Queue();
 
-		let next: State.WAIT_FOR_INPUT | State.SHOW_REQUEST | State.CANCEL | State.PAUSE | State.ACCEPT = State.WAIT_FOR_INPUT;
+		// disable typing and squiggles while streaming a reply
+		const origDeco = this._editor.getOption(EditorOption.renderValidationDecorations);
+		this._editor.updateOptions({
+			renderValidationDecorations: 'off'
+		});
+		store.add(toDisposable(() => {
+			this._editor.updateOptions({
+				renderValidationDecorations: origDeco
+			});
+		}));
 
+
+		let next: State.WAIT_FOR_INPUT | State.SHOW_REQUEST | State.CANCEL | State.PAUSE | State.ACCEPT = State.WAIT_FOR_INPUT;
 		store.add(Event.once(this._messages.event)(message => {
 			this._log('state=_makeRequest) message received', message);
 			this._chatService.cancelCurrentRequestForSession(chatModel.sessionId);
