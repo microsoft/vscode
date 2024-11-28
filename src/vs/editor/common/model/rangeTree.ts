@@ -106,7 +106,7 @@ export class TokenRangeTree<T> {
 		const end = this.getEnd();
 		const startingSegmentRange = { startInclusive: 0, endExclusive: end };
 		if (end !== this._lastEnd) {
-			this.tryBalance(end > this._lastEnd ? 'left' : 'right', this._root, startingSegmentRange, []);
+			this.tryBalance(this._root, startingSegmentRange, []);
 		}
 		this._lastEnd = end;
 		this.deleteFrom(newNode, this._root);
@@ -145,7 +145,7 @@ export class TokenRangeTree<T> {
 				const intendedMidPoint = this.getMidPoint(segmentRange);
 				if (current.maxLeftStartInclusive !== intendedMidPoint) {
 					// need to rebalance because length of document has changed.
-					this.tryBalance(current.maxLeftStartInclusive < intendedMidPoint ? 'left' : 'right', current, segmentRange, []);
+					this.tryBalance(current, segmentRange, []);
 				}
 
 				if (this.rangeStartIsLessThan(newNode, current.maxLeftStartInclusive)) {
@@ -275,7 +275,7 @@ export class TokenRangeTree<T> {
 		return (inner.startInclusive >= outer.startInclusive) && (inner.startInclusive < outer.endExclusive);
 	}
 
-	private tryBalance(direction: 'right' | 'left', node: RangeTreeBranchNode<T>, segmentRange: TreeRange, needsReInsert: RangeTreeLeafNode<T>[]) {
+	private tryBalance(node: RangeTreeBranchNode<T>, segmentRange: TreeRange, needsReInsert: RangeTreeLeafNode<T>[]) {
 		if (!isLeaf(node)) {
 			const intendedMidPoint = this.getMidPoint(segmentRange);
 			if (node.maxLeftStartInclusive === intendedMidPoint) {
@@ -287,7 +287,7 @@ export class TokenRangeTree<T> {
 					// the document got smaller remove the entire right subtree
 					node.right = undefined;
 				} else if (!isLeaf(node.right)) {
-					this.tryBalance(direction, node.right, intendedRightSegmentRange, needsReInsert);
+					this.tryBalance(node.right, intendedRightSegmentRange, needsReInsert);
 				} else if (isLeaf(node.right) && !this.rangeContainsStartPoint(intendedRightSegmentRange, node.right)) {
 					needsReInsert.push(node.right);
 					node.right = undefined;
@@ -296,7 +296,7 @@ export class TokenRangeTree<T> {
 			if (node.left) {
 				const intendedLeftSegmentRange = this.shrinkSegmentRange(true, segmentRange);
 				if (!isLeaf(node.left)) {
-					this.tryBalance(direction, node.left, intendedLeftSegmentRange, needsReInsert);
+					this.tryBalance(node.left, intendedLeftSegmentRange, needsReInsert);
 				} else if (isLeaf(node.left) && !this.rangeContainsStartPoint(intendedLeftSegmentRange, node.left)) {
 					needsReInsert.push(node.left);
 					node.left = undefined;
