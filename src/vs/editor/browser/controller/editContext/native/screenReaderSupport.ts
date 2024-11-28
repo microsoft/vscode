@@ -29,6 +29,7 @@ export class ScreenReaderSupport {
 	private _lineHeight: number = 1;
 	private _fontInfo: FontInfo | undefined;
 	private _accessibilityPageSize: number = 1;
+	private _ignoreSelectionChangeTime: number = 0;
 
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 	private _screenReaderContentState: ScreenReaderContentState | undefined;
@@ -41,6 +42,18 @@ export class ScreenReaderSupport {
 	) {
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
+	}
+
+	public setIgnoreSelectionChangeTime(): void {
+		this._ignoreSelectionChangeTime = Date.now();
+	}
+
+	public getIgnoreSelectionChangeTime(): number {
+		return this._ignoreSelectionChangeTime;
+	}
+
+	public resetSelectionChangeTime(): void {
+		this._ignoreSelectionChangeTime = 0;
 	}
 
 	public onConfigurationChanged(e: ViewConfigurationChangedEvent): void {
@@ -129,6 +142,7 @@ export class ScreenReaderSupport {
 			return;
 		}
 		if (this._domNode.domNode.textContent !== this._screenReaderContentState.value) {
+			this.setIgnoreSelectionChangeTime();
 			this._domNode.domNode.textContent = this._screenReaderContentState.value;
 		}
 		this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
@@ -175,6 +189,7 @@ export class ScreenReaderSupport {
 		const range = new globalThis.Range();
 		range.setStart(textContent, selectionOffsetStart);
 		range.setEnd(textContent, selectionOffsetEnd);
+		this.setIgnoreSelectionChangeTime();
 		activeDocumentSelection.removeAllRanges();
 		activeDocumentSelection.addRange(range);
 	}

@@ -21,7 +21,7 @@ import { AbstractEditContext } from '../editContext.js';
 import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
 import { Range } from '../../../../common/core/range.js';
-import { Selection, SelectionDirection } from '../../../../common/core/selection.js';
+import { Selection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
@@ -455,6 +455,9 @@ export class NativeEditContext extends AbstractEditContext {
 		// When using a Braille display or NVDA for example, it is possible for users to reposition the
 		// system caret. This is reflected in Chrome as a `selectionchange` event and needs to be reflected within the editor.
 
+		// `selectionchange` events often come multiple times for a single logical change
+		// so throttle multiple `selectionchange` events that burst in a short period of time.
+		let previousSelectionChangeEventTime = 0;
 		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', () => {
 			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 			if (!this.isFocused() || !isScreenReaderOptimized) {
@@ -462,6 +465,21 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 			const screenReaderContentState = this._screenReaderSupport.screenReaderContentState;
 			if (!screenReaderContentState) {
+				return;
+			}
+			const now = Date.now();
+			const delta1 = now - previousSelectionChangeEventTime;
+			previousSelectionChangeEventTime = now;
+			if (delta1 < 5) {
+				// received another `selectionchange` event within 5ms of the previous `selectionchange` event
+				// => ignore it
+				return;
+			}
+			const delta2 = now - this._screenReaderSupport.getIgnoreSelectionChangeTime();
+			this._screenReaderSupport.resetSelectionChangeTime();
+			if (delta2 < 100) {
+				// received a `selectionchange` event within 100ms since we touched the textarea
+				// => ignore it, since we caused it
 				return;
 			}
 			const activeDocument = getActiveWindow().document;
@@ -492,13 +510,7 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 			const positionOfSelectionStart = model.getPositionAt(offsetOfSelectionStart);
 			const positionOfSelectionEnd = model.getPositionAt(offsetOfSelectionEnd);
-			const currentSelection = this._context.viewModel.getPrimaryCursorState().modelState.selection;
-			const newSelection = currentSelection.getDirection() === SelectionDirection.LTR ?
-				Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd) :
-				Selection.fromPositions(positionOfSelectionEnd, positionOfSelectionStart);
-			if (newSelection.equalsSelection(currentSelection)) {
-				return;
-			}
+			const newSelection = Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd);
 			viewController.setSelection(newSelection);
 		});
 	}
