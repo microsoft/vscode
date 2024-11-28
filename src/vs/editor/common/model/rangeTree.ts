@@ -77,6 +77,10 @@ export class TokenRangeTree<T> {
 		return (one.startInclusive < two.endExclusive && one.endExclusive > two.startInclusive) || (two.startInclusive < one.endExclusive && two.endExclusive > one.startInclusive);
 	}
 
+	private rangesOverlapOrTouch(one: TreeRange, two: TreeRange): boolean {
+		return (one.startInclusive < two.endExclusive && one.endExclusive >= two.startInclusive) || (two.startInclusive <= one.endExclusive && two.endExclusive > one.startInclusive);
+	}
+
 	private _end: number = 0;
 	private _lastEnd: number = 0;
 	private getEnd(): number {
@@ -194,7 +198,7 @@ export class TokenRangeTree<T> {
 		return this.traverseInOrderFromNode({ startInclusive, endExclusive }, this._root, callback,);
 	}
 
-	private traverseInOrderFromNode(toDelete: TreeRange, startingNode: RangeTreeBranchNode<T>, callback: (node: RangeTreeLeafNode<T>) => void): void {
+	private traverseInOrderFromNode(range: TreeRange, startingNode: RangeTreeBranchNode<T>, callback: (node: RangeTreeLeafNode<T>) => void): void {
 		let current: RangeTreeNode<T> | undefined = startingNode;
 		const visited: RangeTreeNode<T>[] = [];
 		let needsToCheckRight = true;
@@ -202,10 +206,10 @@ export class TokenRangeTree<T> {
 		while (visited.length > 0 || current) {
 			if (current) {
 				visited.push(current);
-				if (!isLeaf(current) && ((current.segmentStartRange.startInclusive <= toDelete.startInclusive) || (toDelete.endExclusive >= current.segmentStartRange.startInclusive))) {
+				if (!isLeaf(current) && ((current.segmentStartRange.startInclusive <= range.startInclusive) || (range.endExclusive >= current.segmentStartRange.startInclusive))) {
 					// There could be overlapping ranges in this subtree.
 					const leftRange = (current.left && !isLeaf(current.left)) ? current.left.segmentStartRange : current.left;
-					if (leftRange && this.rangesOverlap(leftRange, toDelete)) {
+					if (leftRange && this.rangesOverlapOrTouch(leftRange, range)) {
 						current = current.left;
 					} else {
 						current = undefined;
@@ -218,16 +222,16 @@ export class TokenRangeTree<T> {
 			}
 			current = visited.pop();
 			if (current && isLeaf(current)) {
-				if (this.rangesOverlap(current, toDelete)) {
+				if (this.rangesOverlap(current, range)) {
 					callback(current);
-				} else if (current.startInclusive > toDelete.endExclusive) {
+				} else if (current.startInclusive > range.endExclusive) {
 					needsToCheckRight = false;
 				}
 			}
-			if (current && !isLeaf(current) && needsToCheckRight && ((current.segmentStartRange.startInclusive <= toDelete.startInclusive) || (toDelete.endExclusive >= current.segmentStartRange.startInclusive))) {
+			if (current && !isLeaf(current) && needsToCheckRight && ((current.segmentStartRange.startInclusive <= range.startInclusive) || (range.endExclusive >= current.segmentStartRange.startInclusive))) {
 				// There could be overlapping ranges in this subtree.
 				const rightRange = (current.right && !isLeaf(current.right)) ? current.right.segmentStartRange : current.right;
-				if (rightRange && this.rangesOverlap(rightRange, toDelete)) {
+				if (rightRange && this.rangesOverlapOrTouch(rightRange, range)) {
 					current = current.right;
 				} else {
 					current = undefined;
@@ -238,19 +242,6 @@ export class TokenRangeTree<T> {
 		}
 
 	}
-
-	// private tryRebalance(node: RangeTreeBranchNode<T>, rangeSize: number, segmentRange: TreeRange): void {
-	// 	const current: RangeTreeNode<T> = node;
-	// 	while (true) {
-	// 		const intendedMidPoint = segmentRange.startInclusive + rangeSize;
-	// 		if (!isLeaf(current)) {
-	// 			if (node.maxLeftEndExclusive === intendedMidPoint) {
-	// 				return;
-	// 			}
-
-	// 		}
-	// 	}
-	// }
 
 	private rangeContainsStartPoint(outer: TreeRange, inner: TreeRange): boolean {
 		return (inner.startInclusive >= outer.startInclusive) && (inner.startInclusive < outer.endExclusive);

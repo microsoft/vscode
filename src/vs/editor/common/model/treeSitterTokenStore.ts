@@ -69,7 +69,6 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		const storableTokens: RangeTreeLeafNode<TokenInformation>[] = [];
 		tree.traverseInOrder(range, (node) => {
 			storableTokens.push(node);
-			return true;
 		});
 		const tokens: Uint32Array = new Uint32Array(storableTokens.length * 2);
 		for (let i = 0; i < storableTokens.length; i++) {
