@@ -13,7 +13,7 @@ import { ITreeNode, IAsyncDataSource } from '../../../../../base/browser/ui/tree
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { NullFilesConfigurationService } from '../../../../test/common/workbenchTestServices.js';
-import { ExplorerFindProvider } from '../../browser/views/explorerViewer.js';
+import { ExplorerFindProvider, FilesFilter } from '../../browser/views/explorerViewer.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IWorkbenchCompressibleAsyncDataTreeOptions, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
@@ -196,6 +196,7 @@ suite('Files - ExplorerView', () => {
 		const compressionDelegate = new CompressionDelegate(dataSource);
 		const keyboardNavigationLabelProvider = new KeyboardNavigationLabelProvider();
 		const accessibilityProvider = new AccessibilityProvider();
+		const filter = instantiationService.createInstance(FilesFilter);
 
 		const options: IWorkbenchCompressibleAsyncDataTreeOptions<ExplorerItem, FuzzyScore> = { identityProvider: new IdentityProvider(), keyboardNavigationLabelProvider, accessibilityProvider };
 		const tree = disposables.add(instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, 'test', container, new VirtualDelegate(), compressionDelegate, [new Renderer()], dataSource, options));
@@ -203,7 +204,7 @@ suite('Files - ExplorerView', () => {
 
 		await tree.setInput(root);
 
-		const findProvider = instantiationService.createInstance(ExplorerFindProvider, () => tree);
+		const findProvider = instantiationService.createInstance(ExplorerFindProvider, filter, () => tree);
 
 		findProvider.startSession();
 
