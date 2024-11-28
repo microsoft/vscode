@@ -198,7 +198,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			if (session.chatSessionId === chatSessionId) {
 				return session;
 			} else if (session.chatSessionId !== chatSessionId) {
-				await session.stop();
+				await session.stop(true);
 			}
 		}
 		return this._createEditingSession(chatSessionId);
