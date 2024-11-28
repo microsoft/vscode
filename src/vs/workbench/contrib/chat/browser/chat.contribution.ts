@@ -60,7 +60,7 @@ import { registerChatEditorActions } from './chatEditorActions.js';
 import { ChatEditorController } from './chatEditorController.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from './chatEditorInput.js';
 import { ChatInputBoxContentProvider } from './chatEdinputInputContentProvider.js';
-import { ChatEditorSaving } from './chatEditorSaving.js';
+import { ChatEditorAutoSaveDisabler, ChatEditorSaving } from './chatEditorSaving.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './chatMarkdownDecorationsRenderer.js';
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
 import { ChatPasteProvidersFeature } from './chatPasteProviders.js';
@@ -319,6 +319,7 @@ registerWorkbenchContribution2(ChatCommandCenterRendering.ID, ChatCommandCenterR
 registerWorkbenchContribution2(ChatImplicitContextContribution.ID, ChatImplicitContextContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatRelatedFilesContribution.ID, ChatRelatedFilesContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatEditorSaving.ID, ChatEditorSaving, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatEditorAutoSaveDisabler.ID, ChatEditorAutoSaveDisabler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatViewsWelcomeHandler.ID, ChatViewsWelcomeHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingStartedContribution, WorkbenchPhase.Eventually);
 

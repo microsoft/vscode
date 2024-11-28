@@ -14,6 +14,7 @@ import { ResourceMap } from '../../../../../base/common/map.js';
 import { derived, IObservable, observableValue, runOnChange, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { isString } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -23,6 +24,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -35,6 +37,9 @@ import { IChatResponseModel, IChatTextEditGroup } from '../../common/chatModel.j
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingSession } from './chatEditingSession.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
+
+
+const STORAGE_KEY_EDITING_SESSION = 'chat.editingSession';
 
 export class ChatEditingService extends Disposable implements IChatEditingService {
 
@@ -70,6 +75,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return this._editingSessionFileLimit ?? defaultChatEditingMaxFileLimit;
 	}
 
+	private _restoringEditingSession: Promise<IChatEditingSession> | undefined;
+
 	private _applyingChatEditsFailedContextKey: IContextKey<boolean | undefined>;
 
 	private _chatRelatedFilesProviders = new Map<number, IChatRelatedFilesProvider>();
@@ -85,7 +92,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IWorkbenchAssignmentService private readonly _workbenchAssignmentService: IWorkbenchAssignmentService
+		@IWorkbenchAssignmentService private readonly _workbenchAssignmentService: IWorkbenchAssignmentService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
 		this._applyingChatEditsFailedContextKey = applyingChatEditsFailedContextKey.bindTo(contextKeyService);
@@ -142,6 +150,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		this._register(this.lifecycleService.onWillShutdown((e) => {
 			const session = this._currentSessionObs.get();
 			if (session) {
+				storageService.store(STORAGE_KEY_EDITING_SESSION, session.chatSessionId, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 				e.join(session.storeState(), { id: 'join.chatEditingSession', label: localize('join.chatEditingSession', "Saving chat edits history") });
 			}
 		}));
@@ -151,6 +160,21 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			return this._editingSessionFileLimit;
 		});
 		void this._editingSessionFileLimitPromise;
+
+		const sessionIdToRestore = storageService.get(STORAGE_KEY_EDITING_SESSION, StorageScope.WORKSPACE);
+		if (isString(sessionIdToRestore)) {
+			this._restoringEditingSession = this.startOrContinueEditingSession(sessionIdToRestore);
+			this._restoringEditingSession.finally(() => {
+				this._restoringEditingSession = undefined;
+			});
+		}
+	}
+
+	async getOrRestoreEditingSession(): Promise<IChatEditingSession | null> {
+		if (this._restoringEditingSession) {
+			await this._restoringEditingSession;
+		}
+		return this.currentEditingSessionObs.get();
 	}
 
 	getSnapshotUri(id: string, uri: URI) {
@@ -161,36 +185,25 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return session.getSnapshot(id, uri)?.snapshotUri;
 	}
 
-	getEditingSession(resource: URI): IChatEditingSession | null {
-		const session = this.currentEditingSession;
-		if (!session) {
-			return null;
-		}
-		const entries = session.entries.get();
-		for (const entry of entries) {
-			if (entry.modifiedURI.toString() === resource.toString()) {
-				return session;
-			}
-		}
-		return null;
-	}
-
 	override dispose(): void {
 		this._currentSessionObs.get()?.dispose();
 		super.dispose();
 	}
 
 	async startOrContinueEditingSession(chatSessionId: string): Promise<IChatEditingSession> {
+		await this._restoringEditingSession;
+
 		const session = this._currentSessionObs.get();
 		if (session) {
 			if (session.chatSessionId === chatSessionId) {
 				return session;
 			} else if (session.chatSessionId !== chatSessionId) {
-				await session.stop();
+				await session.stop(true);
 			}
 		}
 		return this._createEditingSession(chatSessionId);
 	}
+
 
 	private async _createEditingSession(chatSessionId: string): Promise<IChatEditingSession> {
 		if (this._currentSessionObs.get()) {
@@ -200,11 +213,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		this._currentSessionDisposables.clear();
 
 		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, this._editingSessionFileLimitPromise);
+		await session.init();
 
 		// listen for completed responses, run the code mapper and apply the edits to this edit session
 		this._currentSessionDisposables.add(this.installAutoApplyObserver(session));
-
-		await session.restoreState();
 
 		this._currentSessionDisposables.add(session.onDidDispose(() => {
 			this._currentSessionDisposables.clear();
@@ -231,7 +243,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 	private installAutoApplyObserver(session: ChatEditingSession): IDisposable {
 
-		const chatModel = this._chatService.getSession(session.chatSessionId);
+		const chatModel = this._chatService.getOrRestoreSession(session.chatSessionId);
 		if (!chatModel) {
 			throw new Error(`Edit session was created for a non-existing chat session: ${session.chatSessionId}`);
 		}
