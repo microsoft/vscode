@@ -6,10 +6,13 @@
 import type { Parser } from '@vscode/tree-sitter-wasm';
 import { Event } from '../../../../base/common/event.js';
 import { ITextModel } from '../../../common/model.js';
-import { ITreeSitterParserService, ITreeSitterParseResult } from '../../../common/services/treeSitterParserService.js';
+import { ITreeSitterParserService, ITreeSitterParseResult, ITextModelTreeSitter } from '../../../common/services/treeSitterParserService.js';
 import { Range } from '../../../common/core/range.js';
 
 export class TestTreeSitterParserService implements ITreeSitterParserService {
+	getTextModelTreeSitter(textModel: ITextModel): ITextModelTreeSitter | undefined {
+		throw new Error('Method not implemented.');
+	}
 	getTree(content: string, languageId: string): Promise<Parser.Tree | undefined> {
 		throw new Error('Method not implemented.');
 	}

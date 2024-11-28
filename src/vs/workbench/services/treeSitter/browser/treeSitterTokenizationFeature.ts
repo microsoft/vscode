@@ -19,6 +19,7 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ColorThemeData, findMetadata } from '../../themes/common/colorThemeData.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 
 const ALLOWED_SUPPORT = ['typescript'];
 type TreeSitterQueries = string;
@@ -166,6 +167,15 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 	 * @returns
 	 */
 	public tokenizeEncoded(lineNumber: number, textModel: ITextModel): Uint32Array | undefined {
+		return this._tokenizeEncoded(lineNumber, textModel)?.result;
+	}
+
+	public tokenizeEncodedInstrumented(lineNumber: number, textModel: ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined {
+		return this._tokenizeEncoded(lineNumber, textModel);
+	}
+
+	private _tokenizeEncoded(lineNumber: number, textModel: ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined {
+		const stopwatch = StopWatch.create();
 		const lineLength = textModel.getLineMaxColumn(lineNumber);
 		const tree = this._getTree(textModel);
 		const captures = this._captureAtRange(lineNumber, new ColumnRange(1, lineLength), tree?.tree);
@@ -245,6 +255,8 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			endOffsetsAndScopes[tokenIndex].endOffset = lineLength - 1;
 			tokenIndex++;
 		}
+		const captureTime = stopwatch.elapsed();
+		stopwatch.reset();
 
 		const tokens: Uint32Array = new Uint32Array((tokenIndex) * 2);
 		for (let i = 0; i < tokenIndex; i++) {
@@ -255,8 +267,8 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			tokens[i * 2] = token.endOffset;
 			tokens[i * 2 + 1] = findMetadata(this._colorThemeData, token.scopes, encodedLanguageId);
 		}
-
-		return tokens;
+		const metadataTime = stopwatch.elapsed();
+		return { result: tokens, captureTime, metadataTime };
 	}
 
 	override dispose() {

@@ -25,16 +25,17 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 	static PREFIX = 'term ';
 
 	constructor(
+		@ICommandService private readonly _commandService: ICommandService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@ICommandService private readonly _commandService: ICommandService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super(TerminalQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
 	}
+
 	protected _getPicks(filter: string): Array<IPickerQuickAccessItem | IQuickPickSeparator> {
 		terminalPicks = [];
 		terminalPicks.push({ type: 'separator', label: 'panel' });

@@ -44,7 +44,7 @@ class TerminalFindContribution extends Disposable implements ITerminalContributi
 	constructor(
 		ctx: ITerminalContributionContext | IDetachedCompatibleTerminalContributionContext,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ITerminalService terminalService: ITerminalService
+		@ITerminalService terminalService: ITerminalService,
 	) {
 		super();
 

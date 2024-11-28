@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
 import { fileURLToPath } from 'url';
-import * as which from 'which';
+import which from 'which';
 import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
@@ -1052,6 +1052,76 @@ function parseGitChanges(repositoryRoot: string, raw: string): Change[] {
 	}
 
 	return result;
+}
+
+export interface BlameInformation {
+	readonly hash: string;
+	readonly subject?: string;
+	readonly authorName?: string;
+	readonly authorEmail?: string;
+	readonly authorDate?: number;
+	readonly ranges: {
+		readonly startLineNumber: number;
+		readonly endLineNumber: number;
+	}[];
+}
+
+function parseGitBlame(data: string): BlameInformation[] {
+	const lineSeparator = /\r?\n/;
+	const commitRegex = /^([0-9a-f]{40})/gm;
+
+	const blameInformation = new Map<string, BlameInformation>();
+
+	let commitHash: string | undefined = undefined;
+	let authorName: string | undefined = undefined;
+	let authorEmail: string | undefined = undefined;
+	let authorTime: number | undefined = undefined;
+	let message: string | undefined = undefined;
+	let startLineNumber: number | undefined = undefined;
+	let endLineNumber: number | undefined = undefined;
+
+	for (const line of data.split(lineSeparator)) {
+		// Commit
+		const commitMatch = line.match(commitRegex);
+		if (!commitHash && commitMatch) {
+			const segments = line.split(' ');
+
+			commitHash = commitMatch[0];
+			startLineNumber = Number(segments[2]);
+			endLineNumber = Number(segments[2]) + Number(segments[3]) - 1;
+		}
+
+		// Commit properties
+		if (commitHash && line.startsWith('author ')) {
+			authorName = line.substring('author '.length);
+		}
+		if (commitHash && line.startsWith('author-mail ')) {
+			authorEmail = line.substring('author-mail '.length);
+		}
+		if (commitHash && line.startsWith('author-time ')) {
+			authorTime = Number(line.substring('author-time '.length)) * 1000;
+		}
+		if (commitHash && line.startsWith('summary ')) {
+			message = line.substring('summary '.length);
+		}
+
+		// Commit end
+		if (commitHash && startLineNumber && endLineNumber && line.startsWith('filename ')) {
+			const existingCommit = blameInformation.get(commitHash);
+			if (existingCommit) {
+				existingCommit.ranges.push({ startLineNumber, endLineNumber });
+				blameInformation.set(commitHash, existingCommit);
+			} else {
+				blameInformation.set(commitHash, {
+					hash: commitHash, authorName, authorEmail, authorDate: authorTime, subject: message, ranges: [{ startLineNumber, endLineNumber }]
+				});
+			}
+
+			commitHash = authorName = authorEmail = authorTime = message = startLineNumber = endLineNumber = undefined;
+		}
+	}
+
+	return Array.from(blameInformation.values());
 }
 
 export interface PullOptions {
@@ -2106,14 +2176,21 @@ export class Repository {
 			await this.exec(['cherry-pick', commitHash]);
 		} catch (err) {
 			if (/The previous cherry-pick is now empty, possibly due to conflict resolution./.test(err.stderr ?? '')) {
-				// Abort the cherry-pick operation
-				await this.exec(['cherry-pick', '--abort']);
+				// Abort cherry-pick
+				await this.cherryPickAbort();
 
 				err.gitErrorCode = GitErrorCodes.CherryPickEmpty;
+			} else {
+				// Conflict during cherry-pick
+				err.gitErrorCode = GitErrorCodes.CherryPickConflict;
 			}
 
 			throw err;
 		}
+	}
+
+	async cherryPickAbort(): Promise<void> {
+		await this.exec(['cherry-pick', '--abort']);
 	}
 
 	async blame(path: string): Promise<string> {
@@ -2127,6 +2204,25 @@ export class Repository {
 			}
 
 			throw err;
+		}
+	}
+
+	async blame2(path: string, ref?: string): Promise<BlameInformation[] | undefined> {
+		try {
+			const args = ['blame', '--root', '--incremental'];
+
+			if (ref) {
+				args.push(ref);
+			}
+
+			args.push('--', sanitizePath(path));
+
+			const result = await this.exec(args);
+
+			return parseGitBlame(result.stdout.trim());
+		}
+		catch (err) {
+			return undefined;
 		}
 	}
 

@@ -15,34 +15,59 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { CellViewModel, NotebookViewModel } from './viewModel/notebookViewModelImpl.js';
 import { CellKind, NotebookCellExecutionState } from '../common/notebookCommon.js';
 import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from '../common/notebookExecutionStateService.js';
+import { getAllOutputsText } from './viewModel/cellOutputTextHelper.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
+
+type executionUpdate = { cellHandle: number; state: NotebookCellExecutionState | undefined };
 
 export class NotebookAccessibilityProvider extends Disposable implements IListAccessibilityProvider<CellViewModel> {
 	private readonly _onDidAriaLabelChange = new Emitter<CellViewModel>();
 	private readonly onDidAriaLabelChange = this._onDidAriaLabelChange.event;
 
 	constructor(
-		private readonly notebookExecutionStateService: INotebookExecutionStateService,
 		private readonly viewModel: () => NotebookViewModel | undefined,
-		private readonly keybindingService: IKeybindingService,
-		private readonly configurationService: IConfigurationService,
-		private readonly isReplHistory: boolean
+		private readonly isReplHistory: boolean,
+		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
-		this._register(Event.debounce<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent, number[]>(
+		this._register(Event.debounce<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent, executionUpdate[]>(
 			this.notebookExecutionStateService.onDidChangeExecution,
-			(last: number[] | undefined, e: ICellExecutionStateChangedEvent | IExecutionStateChangedEvent) => this.mergeEvents(last, e),
+			(last: executionUpdate[] | undefined, e: ICellExecutionStateChangedEvent | IExecutionStateChangedEvent) => this.mergeEvents(last, e),
 			100
-		)((cellHandles: number[]) => {
+		)((updates: executionUpdate[]) => {
+			if (!updates.length) {
+				return;
+			}
 			const viewModel = this.viewModel();
 			if (viewModel) {
-				for (const handle of cellHandles) {
-					const cellModel = viewModel.getCellByHandle(handle);
+				for (const update of updates) {
+					const cellModel = viewModel.getCellByHandle(update.cellHandle);
 					if (cellModel) {
 						this._onDidAriaLabelChange.fire(cellModel as CellViewModel);
 					}
 				}
+
+				const lastUpdate = updates[updates.length - 1];
+				if (this.shouldReadCellOutputs(lastUpdate.state)) {
+					const cell = viewModel.getCellByHandle(lastUpdate.cellHandle);
+					if (cell && cell.outputsViewModels.length) {
+						const text = getAllOutputsText(viewModel.notebookDocument, cell, true);
+						alert(text);
+					}
+				}
 			}
 		}, this));
+	}
+
+	private shouldReadCellOutputs(state: NotebookCellExecutionState | undefined): boolean {
+		return state === undefined // execution completed
+			&& this.isReplHistory
+			&& this.accessibilityService.isScreenReaderOptimized()
+			&& this.configurationService.getValue<boolean>('accessibility.replEditor.readLastExecutionOutput');
 	}
 
 	get verbositySettingId() {
@@ -61,20 +86,20 @@ export class NotebookAccessibilityProvider extends Disposable implements IListAc
 			const index = viewModel.getCellIndex(element);
 
 			if (index >= 0) {
-				return this.getLabel(index, element);
+				return this.getLabel(element);
 			}
 
 			return '';
 		});
 	}
 
-	private createItemLabel(executionLabel: string, index: number, cellKind: CellKind) {
+	private createItemLabel(executionLabel: string, cellKind: CellKind) {
 		return this.isReplHistory ?
-			`item${executionLabel}` :
+			`cell${executionLabel}` :
 			`${cellKind === CellKind.Markup ? 'markdown' : 'code'} cell${executionLabel}`;
 	}
 
-	private getLabel(index: number, element: CellViewModel) {
+	private getLabel(element: CellViewModel) {
 		const executionState = this.notebookExecutionStateService.getCellExecution(element.uri)?.state;
 		const executionLabel =
 			executionState === NotebookCellExecutionState.Executing
@@ -83,7 +108,7 @@ export class NotebookAccessibilityProvider extends Disposable implements IListAc
 					? ', pending'
 					: '';
 
-		return this.createItemLabel(executionLabel, index, element.cellKind);
+		return this.createItemLabel(executionLabel, element.cellKind);
 	}
 
 	private get widgetAriaLabelName() {
@@ -103,13 +128,15 @@ export class NotebookAccessibilityProvider extends Disposable implements IListAc
 		return this.widgetAriaLabelName;
 	}
 
-	private mergeEvents(last: number[] | undefined, e: ICellExecutionStateChangedEvent | IExecutionStateChangedEvent): number[] {
+	private mergeEvents(last: executionUpdate[] | undefined, e: ICellExecutionStateChangedEvent | IExecutionStateChangedEvent): executionUpdate[] {
 		const viewModel = this.viewModel();
 		const result = last || [];
 		if (viewModel && e.type === NotebookExecutionType.cell && e.affectsNotebook(viewModel.uri)) {
-			if (result.indexOf(e.cellHandle) < 0) {
-				result.push(e.cellHandle);
+			const index = result.findIndex(update => update.cellHandle === e.cellHandle);
+			if (index >= 0) {
+				result.splice(index, 1);
 			}
+			result.push({ cellHandle: e.cellHandle, state: e.changed?.state });
 		}
 		return result;
 	}

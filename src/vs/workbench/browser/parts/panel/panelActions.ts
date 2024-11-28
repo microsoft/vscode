@@ -20,6 +20,7 @@ import { IPaneCompositePartService } from '../../../services/panecomposite/brows
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ICommandActionTitle } from '../../../../platform/action/common/action.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { SwitchCompositeViewAction } from '../compositeBarActions.js';
 
 const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, localize('maximizeIcon', 'Icon to maximize a panel.'));
 const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, localize('restoreIcon', 'Icon to restore a panel.'));
@@ -223,54 +224,25 @@ AlignPanelActionConfigs.forEach(alignPanelAction => {
 	});
 });
 
-class SwitchPanelViewAction extends Action2 {
-
-	constructor(id: string, title: ICommandActionTitle) {
-		super({
-			id,
-			title,
-			category: Categories.View,
-			f1: true,
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, offset: number): Promise<void> {
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const pinnedPanels = paneCompositeService.getVisiblePaneCompositeIds(ViewContainerLocation.Panel);
-		const activePanel = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
-		if (!activePanel) {
-			return;
-		}
-		let targetPanelId: string | undefined;
-		for (let i = 0; i < pinnedPanels.length; i++) {
-			if (pinnedPanels[i] === activePanel.getId()) {
-				targetPanelId = pinnedPanels[(i + pinnedPanels.length + offset) % pinnedPanels.length];
-				break;
-			}
-		}
-		if (typeof targetPanelId === 'string') {
-			await paneCompositeService.openPaneComposite(targetPanelId, ViewContainerLocation.Panel, true);
-		}
-	}
-}
-
-registerAction2(class extends SwitchPanelViewAction {
+registerAction2(class extends SwitchCompositeViewAction {
 	constructor() {
-		super('workbench.action.previousPanelView', localize2('previousPanelView', "Previous Panel View"));
-	}
-
-	override run(accessor: ServicesAccessor): Promise<void> {
-		return super.run(accessor, -1);
+		super({
+			id: 'workbench.action.previousPanelView',
+			title: localize2('previousPanelView', "Previous Panel View"),
+			category: Categories.View,
+			f1: true
+		}, ViewContainerLocation.Panel, -1);
 	}
 });
 
-registerAction2(class extends SwitchPanelViewAction {
+registerAction2(class extends SwitchCompositeViewAction {
 	constructor() {
-		super('workbench.action.nextPanelView', localize2('nextPanelView', "Next Panel View"));
-	}
-
-	override run(accessor: ServicesAccessor): Promise<void> {
-		return super.run(accessor, 1);
+		super({
+			id: 'workbench.action.nextPanelView',
+			title: localize2('nextPanelView', "Next Panel View"),
+			category: Categories.View,
+			f1: true
+		}, ViewContainerLocation.Panel, 1);
 	}
 });
 
@@ -352,7 +324,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.AuxiliaryBarTitle,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.notEquals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP)
+				when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.DEFAULT)
 			}]
 		});
 	}
@@ -365,7 +337,7 @@ MenuRegistry.appendMenuItems([
 	{
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: '0_workbench_toggles',
+			group: '2_pane_toggles',
 			command: {
 				id: TogglePanelAction.ID,
 				title: localize('togglePanel', "Toggle Panel"),

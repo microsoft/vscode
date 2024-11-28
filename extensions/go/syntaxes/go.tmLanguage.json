@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/worlpaker/go-syntax/commit/ce0d1d19653dc264d8e53f97cb45cc8d1689f221",
+	"version": "https://github.com/worlpaker/go-syntax/commit/32bbaebcf218fa552e8f0397401e12f6e94fa3c5",
 	"name": "Go",
 	"scopeName": "source.go",
 	"patterns": [
@@ -1370,7 +1370,53 @@
 					}
 				},
 				{
-					"include": "#parameter-variable-types"
+					"begin": "(?:([\\w\\.\\*]+)?(\\[))",
+					"beginCaptures": {
+						"1": {
+							"patterns": [
+								{
+									"include": "#type-declarations"
+								},
+								{
+									"match": "(?:\\w+)",
+									"name": "entity.name.type.go"
+								}
+							]
+						},
+						"2": {
+							"name": "punctuation.definition.begin.bracket.square.go"
+						}
+					},
+					"end": "\\]",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.end.bracket.square.go"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#generic_param_types"
+						}
+					]
+				},
+				{
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.begin.bracket.round.go"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.end.bracket.round.go"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#function_param_types"
+						}
+					]
 				},
 				{
 					"comment": "other types",
@@ -1483,7 +1529,53 @@
 					}
 				},
 				{
-					"include": "#parameter-variable-types"
+					"begin": "(?:([\\w\\.\\*]+)?(\\[))",
+					"beginCaptures": {
+						"1": {
+							"patterns": [
+								{
+									"include": "#type-declarations"
+								},
+								{
+									"match": "(?:\\w+)",
+									"name": "entity.name.type.go"
+								}
+							]
+						},
+						"2": {
+							"name": "punctuation.definition.begin.bracket.square.go"
+						}
+					},
+					"end": "\\]",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.end.bracket.square.go"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#generic_param_types"
+						}
+					]
+				},
+				{
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.begin.bracket.round.go"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.end.bracket.round.go"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#function_param_types"
+						}
+					]
 				},
 				{
 					"comment": "other types",

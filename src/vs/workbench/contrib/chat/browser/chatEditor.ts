@@ -66,7 +66,10 @@ export class ChatEditor extends EditorPane {
 				ChatWidget,
 				ChatAgentLocation.Panel,
 				undefined,
-				{ supportsFileReferences: true },
+				{
+					supportsFileReferences: true,
+					enableImplicitContext: true
+				},
 				{
 					listForeground: editorForeground,
 					listBackground: editorBackground,
@@ -125,7 +128,6 @@ export class ChatEditor extends EditorPane {
 
 			// Need to set props individually on the memento
 			this._viewState.inputValue = widgetViewState.inputValue;
-			this._viewState.selectedLanguageModelId = widgetViewState.selectedLanguageModelId;
 			this._memento.saveMemento();
 		}
 	}

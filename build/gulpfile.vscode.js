@@ -31,7 +31,7 @@ const { config } = require('./lib/electron');
 const createAsar = require('./lib/asar').createAsar;
 const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
-const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
+const { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } = require('./gulpfile.extensions');
 const { promisify } = require('util');
 const glob = promisify(require('glob'));
 const rcedit = promisify(require('rcedit'));
@@ -74,7 +74,7 @@ const vscodeResourceIncludes = [
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
 
 	// Terminal shell integration
-	'out-build/vs/workbench/contrib/terminal/common/scripts/fish_xdg_data/fish/vendor_conf.d/*.fish',
+	'out-build/vs/workbench/contrib/terminal/common/scripts/*.fish',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/*.ps1',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/*.psm1',
 	'out-build/vs/workbench/contrib/terminal/common/scripts/*.sh',
@@ -101,9 +101,6 @@ const vscodeResourceIncludes = [
 
 	// Tree Sitter highlights
 	'out-build/vs/editor/common/languages/highlights/*.scm',
-
-	// Issue Reporter
-	'out-build/vs/workbench/contrib/issue/electron-sandbox/issueReporter.html'
 ];
 
 const vscodeResources = [
@@ -119,26 +116,19 @@ const vscodeResources = [
 	'!**/test/**'
 ];
 
-// Do not change the order of these files! They will
-// be inlined into the target window file in this order
-// and they depend on each other in this way.
-const windowBootstrapFiles = [
-	'out-build/bootstrap-window.js'
-];
-
 const bootstrapEntryPoints = [
 	'out-build/main.js',
 	'out-build/cli.js',
 	'out-build/bootstrap-fork.js'
 ];
 
-const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
+const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 	util.rimraf('out-vscode'),
 	// Optimize: bundles source files automatically based on
 	// import statements based on the passed in entry points.
 	// In addition, concat window related bootstrap files into
 	// a single file.
-	optimize.optimizeTask(
+	optimize.bundleTask(
 		{
 			out: 'out-vscode',
 			esm: {
@@ -147,22 +137,30 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 					...vscodeEntryPoints,
 					...bootstrapEntryPoints
 				],
-				resources: vscodeResources
-			},
-			manual: [
-				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/workbench/workbench.js'], out: 'vs/code/electron-sandbox/workbench/workbench.js' },
-				// TODO: @justchen https://github.com/microsoft/vscode/issues/213332 make sure to remove when we use window.open on desktop.
-				{ src: [...windowBootstrapFiles, 'out-build/vs/workbench/contrib/issue/electron-sandbox/issueReporter.js'], out: 'vs/workbench/contrib/issue/electron-sandbox/issueReporter.js' },
-				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], out: 'vs/code/electron-sandbox/processExplorer/processExplorer.js' }
-			]
+				resources: vscodeResources,
+				fileContentMapper: filePath => {
+					if (
+						filePath.endsWith('vs/code/electron-sandbox/workbench/workbench.js') ||
+						filePath.endsWith('vs/code/electron-sandbox/processExplorer/processExplorer.js')) {
+						return async (content) => {
+							const bootstrapWindowContent = await fs.promises.readFile(path.join(root, 'out-build', 'bootstrap-window.js'), 'utf-8');
+							return `${bootstrapWindowContent}\n${content}`; // prepend bootstrap-window.js content to entry points that are Electron windows
+						};
+					}
+					return undefined;
+				},
+				skipTSBoilerplateRemoval: entryPoint =>
+					entryPoint === 'vs/code/electron-sandbox/workbench/workbench' ||
+					entryPoint === 'vs/code/electron-sandbox/processExplorer/processExplorer',
+			}
 		}
 	)
 ));
-gulp.task(optimizeVSCodeTask);
+gulp.task(bundleVSCodeTask);
 
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
-	optimizeVSCodeTask,
+	bundleVSCodeTask,
 	util.rimraf('out-vscode-min'),
 	optimize.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
 ));
@@ -269,11 +267,10 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		}
 
 		const name = product.nameShort;
-		const packageJsonUpdates = { name, version, ...{ type: 'module', main: 'out/main.js' } }; // TODO@esm this should be configured in the top level package.json
+		const packageJsonUpdates = { name, version };
 
-		// for linux url handling
 		if (platform === 'linux') {
-			packageJsonUpdates.desktopName = `${product.applicationName}-url-handler.desktop`;
+			packageJsonUpdates.desktopName = `${product.applicationName}.desktop`;
 		}
 
 		let packageJsonContents;
@@ -490,6 +487,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
 		const tasks = [
+			compileNativeExtensionsBuildTask,
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
 		];
@@ -503,9 +501,10 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 			compileBuildTask,
-			compileExtensionsBuildTask,
+			cleanExtensionsBuildTask,
+			compileNonNativeExtensionsBuildTask,
 			compileExtensionMediaBuildTask,
-			minified ? minifyVSCodeTask : optimizeVSCodeTask,
+			minified ? minifyVSCodeTask : bundleVSCodeTask,
 			vscodeTaskCI
 		));
 		gulp.task(vscodeTask);
@@ -540,7 +539,7 @@ gulp.task(task.define(
 	'vscode-translations-export',
 	task.series(
 		core,
-		compileExtensionsBuildTask,
+		compileAllExtensionsBuildTask,
 		function () {
 			const pathToMetadata = './out-build/nls.metadata.json';
 			const pathToExtensions = '.build/extensions/*';
