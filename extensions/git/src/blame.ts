@@ -5,7 +5,7 @@
 
 import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString, TextEditorDiffInformation } from 'vscode';
 import { Model } from './model';
-import { dispose, fromNow, IDisposable } from './util';
+import { dispose, fromNow, IDisposable, isWindows } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation } from './git';
@@ -160,6 +160,7 @@ export class GitBlameController {
 		this._model.onDidOpenRepository(this._onDidOpenRepository, this, this._disposables);
 		this._model.onDidCloseRepository(this._onDidCloseRepository, this, this._disposables);
 
+		window.onDidChangeActiveTextEditor(e => this._updateTextEditorBlameInformation(e), this, this._disposables);
 		window.onDidChangeTextEditorSelection(e => this._updateTextEditorBlameInformation(e.textEditor), this, this._disposables);
 		window.onDidChangeTextEditorDiffInformation(e => this._updateTextEditorBlameInformation(e.textEditor), this, this._disposables);
 
