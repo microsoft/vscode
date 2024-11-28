@@ -134,6 +134,9 @@ module.exports.indentationFilter = [
 	'!extensions/ipynb/notebook-out/**',
 	'!extensions/notebook-renderers/renderer-out/*.js',
 	'!extensions/simple-browser/media/*.js',
+
+	// except test file with strings that break the indentation
+	'!src/vs/editor/test/common/model/rangeTree.test.ts',
 ];
 
 module.exports.copyrightFilter = [
