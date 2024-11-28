@@ -474,7 +474,7 @@ export function registerChatActions() {
 					{
 						id: MenuId.ChatCommandCenter,
 						group: 'z_end',
-						order: 1
+						order: 2
 					}
 				]
 			});
@@ -484,6 +484,35 @@ export function registerChatActions() {
 			const openerService = accessor.get(IOpenerService);
 			if (defaultChat.documentationUrl) {
 				openerService.open(URI.parse(defaultChat.documentationUrl));
+			}
+		}
+	});
+
+	registerAction2(class ManagePlanAction extends Action2 {
+
+		static readonly ID = 'workbench.action.chat.managePlan';
+		static readonly TITLE = localize2('managePlan', "Manage {0} Plan", defaultChat.name);
+
+		constructor() {
+			super({
+				id: ManagePlanAction.ID,
+				title: ManagePlanAction.TITLE,
+				f1: true,
+				category: CHAT_CATEGORY,
+				menu: [
+					{
+						id: MenuId.ChatCommandCenter,
+						group: 'z_end',
+						order: 1
+					}
+				]
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const openerService = accessor.get(IOpenerService);
+			if (defaultChat.documentationUrl) {
+				openerService.open(URI.parse(defaultChat.managePlanUrl));
 			}
 		}
 	});
@@ -504,6 +533,7 @@ const defaultChat = {
 	name: product.defaultChatAgent?.name ?? '',
 	icon: Codicon[product.defaultChatAgent?.icon as keyof typeof Codicon ?? 'commentDiscussion'],
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
+	managePlanUrl: product.defaultChatAgent?.managePlanUrl ?? '',
 };
 
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {

@@ -49,6 +49,7 @@ import { IChatAgentService } from '../common/chatAgents.js';
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CHAT_CATEGORY } from './actions/chatActions.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -135,6 +136,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				super({
 					id: ChatSetupTriggerAction.ID,
 					title: ChatSetupTriggerAction.TITLE,
+					category: CHAT_CATEGORY,
 					f1: true,
 					precondition: ContextKeyExpr.and(
 						ChatContextKeys.Setup.installed.negate(),
@@ -185,6 +187,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 					id: ChatSetupHideAction.ID,
 					title: ChatSetupHideAction.TITLE,
 					f1: true,
+					category: CHAT_CATEGORY,
 					precondition: ContextKeyExpr.and(
 						ChatContextKeys.Setup.installed.negate(),
 						ContextKeyExpr.or(
@@ -195,7 +198,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 					menu: {
 						id: MenuId.ChatCommandCenter,
 						group: 'z_end',
-						order: 2,
+						order: 3,
 						when: ChatContextKeys.Setup.installed.negate()
 					}
 				});
@@ -707,7 +710,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		const markdown = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
 
 		// Header
-		const header = localize({ key: 'setupHeader', comment: ['{Locked="[{0}]({1})"}'] }, "[{0}]({1}) is your AI pair programmer that provides code suggestions, edits across your project and answers to your questions.", defaultChat.name, defaultChat.documentationUrl);
+		const header = localize({ key: 'setupHeader', comment: ['{Locked="[{0}]({1})"}'] }, "[{0}]({1}) is your AI pair programmer that provides code suggestions, edits across your project, and answers to your questions.", defaultChat.name, defaultChat.documentationUrl);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element);
 
 		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="[{0}]({1})"}'] }, "Enable powerful AI features for free with the [{0}]({1}) plan.", defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
