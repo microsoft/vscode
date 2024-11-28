@@ -80,7 +80,9 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		if (!channel) {
 			return;
 		}
-		if (!this._viewsService.isViewVisible(OUTPUT_VIEW_ID) && this._configurationService.getValue<any>('workbench.view.showQuietly')[OUTPUT_VIEW_ID]) {
+
+		const viewsToShowQuietly = this._configurationService.getValue<Record<string, boolean> | undefined>('workbench.view.showQuietly') ?? {};
+		if (!this._viewsService.isViewVisible(OUTPUT_VIEW_ID) && viewsToShowQuietly[OUTPUT_VIEW_ID]) {
 			this._showChannelQuietly(channel);
 			return;
 		}
@@ -98,6 +100,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 			tooltip: localize('status.showOutputTooltip', "Show {0} Output Channel", channel.label),
 			kind: 'prominent'
 		};
+
 		if (!this._outputStatusItem.value) {
 			this._outputStatusItem.value = this._statusbarService.addEntry(
 				statusProperties,
