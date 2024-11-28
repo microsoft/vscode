@@ -140,7 +140,7 @@ export class CodeMapperService implements ICodeMapperService {
 			});
 			conversation.push({
 				type: 'response',
-				message: response.response.toMarkdown(),
+				message: response.response.getMarkdown(),
 				result: response.result,
 				references: getReferencesAsDocumentContext(response.contentReferences)
 			});
@@ -168,6 +168,9 @@ function iterateLinesOrUris(responseModel: IChatResponseModel): Iterable<string 
 				} else if (part.kind === 'codeblockUri') {
 					yield part.uri;
 				}
+			}
+			if (lastIncompleteLine !== undefined) {
+				yield lastIncompleteLine;
 			}
 		}
 	};

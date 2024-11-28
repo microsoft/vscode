@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService.js';
 import { IToolConfirmationMessages } from '../languageModelToolsService.js';
 
@@ -13,6 +14,11 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	private _isComplete = false;
 	public get isComplete(): boolean {
 		return this._isComplete;
+	}
+
+	private _isCompleteDeferred = new DeferredPromise<void>();
+	public get isCompleteDeferred(): DeferredPromise<void> {
+		return this._isCompleteDeferred;
 	}
 
 	private _isCanceled: boolean | undefined;
@@ -31,7 +37,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	}
 
 	constructor(
-		public readonly invocationMessage: string,
+		public readonly invocationMessage: string | IMarkdownString,
 		private _confirmationMessages: IToolConfirmationMessages | undefined) {
 		if (!_confirmationMessages) {
 			// No confirmation needed
@@ -44,16 +50,13 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			this._confirmationMessages = undefined;
 			if (!confirmed) {
 				// Spinner -> check
-				this.complete();
+				this._isCompleteDeferred.complete();
 			}
 		});
-	}
 
-	complete(): void {
-		if (this._isComplete) {
-			throw new Error('Invocation is already complete.');
-		}
-		this._isComplete = true;
+		this._isCompleteDeferred.p.then(() => {
+			this._isComplete = true;
+		});
 	}
 
 	public get confirmationMessages(): IToolConfirmationMessages | undefined {
@@ -64,7 +67,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		return {
 			kind: 'toolInvocationSerialized',
 			invocationMessage: this.invocationMessage,
-			isConfirmed: this._isConfirmed ?? false
+			isConfirmed: this._isConfirmed ?? false,
+			isComplete: this._isComplete,
 		};
 	}
 }

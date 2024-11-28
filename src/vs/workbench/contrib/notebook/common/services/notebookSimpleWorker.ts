@@ -2,18 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
+import { IDiffResult, ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
 import { doHash, numberHash } from '../../../../../base/common/hash.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRequestHandler, IWorkerServer } from '../../../../../base/common/worker/simpleWorker.js';
 import { PieceTreeTextBufferBuilder } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
-import { CellKind, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookDocumentMetadata } from '../notebookCommon.js';
+import { CellKind, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookDocumentMetadata, TransientDocumentMetadata } from '../notebookCommon.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { SearchParams } from '../../../../../editor/common/model/textModelSearch.js';
 import { MirrorModel } from '../../../../../editor/common/services/textModelSync/textModelSync.impl.js';
 import { DefaultEndOfLine } from '../../../../../editor/common/model.js';
 import { IModelChangedEvent } from '../../../../../editor/common/model/mirrorTextModel.js';
+import { filter } from '../../../../../base/common/objects.js';
 
 class MirrorCell {
 	private readonly textModel: MirrorModel;
@@ -81,6 +82,7 @@ class MirrorNotebookDocument {
 		readonly uri: URI,
 		public cells: MirrorCell[],
 		public metadata: NotebookDocumentMetadata,
+		public transientDocumentMetadata: TransientDocumentMetadata,
 	) {
 	}
 
@@ -153,6 +155,16 @@ class CellSequence implements ISequence {
 		return new CellSequence(hashValue);
 	}
 
+	static async createWithCellId(textModel: MirrorNotebookDocument): Promise<Map<string, number>> {
+		const hashValue = new Map<string, number>();
+		await Promise.all(textModel.cells.map(async (c, i) => {
+			const value = await c.getComparisonValue();
+			const id: string = (c.metadata?.id || '') as string;
+			hashValue.set(id, value);
+		}));
+		return hashValue;
+	}
+
 	constructor(readonly hashValue: Int32Array) { }
 
 	getElements(): string[] | number[] | Int32Array {
@@ -171,7 +183,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 	dispose(): void {
 	}
 
-	public $acceptNewModel(uri: string, metadata: NotebookDocumentMetadata, cells: IMainCellDto[]): void {
+	public $acceptNewModel(uri: string, metadata: NotebookDocumentMetadata, transientDocumentMetadata: TransientDocumentMetadata, cells: IMainCellDto[]): void {
 		this._models[uri] = new MirrorNotebookDocument(URI.parse(uri), cells.map(dto => new MirrorCell(
 			dto.handle,
 			URI.parse(dto.url),
@@ -182,7 +194,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 			dto.cellKind,
 			dto.outputs,
 			dto.metadata
-		)), metadata);
+		)), metadata, transientDocumentMetadata);
 	}
 
 	public $acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
@@ -214,60 +226,92 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		const diff = new LcsDiff(originalSeq, modifiedSeq);
 		const diffResult = diff.ComputeDiff(false);
 
-		/* let cellLineChanges: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: ILineChange[] }[] = [];
-
-		diffResult.changes.forEach(change => {
-			if (change.modifiedLength === 0) {
-				// deletion ...
-				return;
-			}
-
-			if (change.originalLength === 0) {
-				// insertion
-				return;
-			}
-
-			for (let i = 0, len = Math.min(change.modifiedLength, change.originalLength); i < len; i++) {
-				let originalIndex = change.originalStart + i;
-				let modifiedIndex = change.modifiedStart + i;
-
-				const originalCell = original.cells[originalIndex];
-				const modifiedCell = modified.cells[modifiedIndex];
-
-				if (originalCell.getValue() !== modifiedCell.getValue()) {
-					// console.log(`original cell ${originalIndex} content change`);
-					const originalLines = originalCell.textBuffer.getLinesContent();
-					const modifiedLines = modifiedCell.textBuffer.getLinesContent();
-					const diffComputer = new DiffComputer(originalLines, modifiedLines, {
-						shouldComputeCharChanges: true,
-						shouldPostProcessCharChanges: true,
-						shouldIgnoreTrimWhitespace: false,
-						shouldMakePrettyDiff: true,
-						maxComputationTime: 5000
-					});
-
-					const lineChanges = diffComputer.computeDiff().changes;
-
-					cellLineChanges.push({
-						originalCellhandle: originalCell.handle,
-						modifiedCellhandle: modifiedCell.handle,
-						lineChanges
-					});
-
-					// console.log(lineDecorations);
-
-				} else {
-					// console.log(`original cell ${originalIndex} metadata change`);
-				}
-
-			}
-		});
- */
+		const originalMetadata = filter(original.metadata, key => !original.transientDocumentMetadata[key]);
+		const modifiedMetadata = filter(modified.metadata, key => !modified.transientDocumentMetadata[key]);
 		return {
-			metadataChanged: JSON.stringify(original.metadata) !== JSON.stringify(modified.metadata),
+			metadataChanged: JSON.stringify(originalMetadata) !== JSON.stringify(modifiedMetadata),
 			cellsDiff: diffResult,
 			// linesDiff: cellLineChanges
 		};
+	}
+
+	async $computeDiffWithCellIds(original: MirrorNotebookDocument, modified: MirrorNotebookDocument): Promise<IDiffResult | undefined> {
+		const originalCellIds = original.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || '') as string }));
+		const modifiedCellIds = modified.cells.map((cell, index) => ({ index, id: (cell.metadata?.id || '') as string }));
+
+		if (originalCellIds.some(c => !c.id) || modifiedCellIds.some(c => !c.id)) {
+			return;
+		}
+
+		const diffResult: IDiffResult = { changes: [], quitEarly: false, };
+
+		const computeCellHashesById = async (notebook: MirrorNotebookDocument) => {
+			const hashValue = new Map<string, number>();
+			await Promise.all(notebook.cells.map(async (c, i) => {
+				const value = await c.getComparisonValue();
+				// Verified earlier that these cannot be empty.
+				const id: string = (c.metadata?.id || '') as string;
+				hashValue.set(id, value);
+			}));
+			return hashValue;
+		};
+
+		const [originalSeq, modifiedSeq] = await Promise.all([computeCellHashesById(original), computeCellHashesById(modified)]);
+
+		while (modifiedCellIds.length) {
+			const modifiedCell = modifiedCellIds.shift()!;
+			const originalCell = originalCellIds.find(c => c.id === modifiedCell.id);
+			if (originalCell) {
+				// Everything before this cell is a deletion
+				const index = originalCellIds.indexOf(originalCell);
+				const deletedFromOriginal = originalCellIds.splice(0, index + 1);
+
+				if (deletedFromOriginal.length === 1) {
+					if (originalSeq.get(originalCell.id) === modifiedSeq.get(originalCell.id)) {
+						// Cell contents are the same.
+						// No changes, hence ignore this cell.
+					}
+					else {
+						diffResult.changes.push({
+							originalStart: originalCell.index,
+							originalLength: 1,
+							modifiedStart: modifiedCell.index,
+							modifiedLength: 1
+						});
+					}
+				} else {
+					// This means we have some cells before this and they were removed.
+					diffResult.changes.push({
+						originalStart: deletedFromOriginal[0].index,
+						originalLength: deletedFromOriginal.length - 1,
+						modifiedStart: modifiedCell.index,
+						modifiedLength: 0
+					});
+				}
+				continue;
+			}
+			else {
+				// This is a new cell.
+				diffResult.changes.push({
+					originalStart: originalCellIds.length ? originalCellIds[0].index : original.cells.length,
+					originalLength: 0,
+					modifiedStart: modifiedCell.index,
+					modifiedLength: 1
+				});
+			}
+		}
+
+		// If we still have some original cells, then those have been removed.
+		if (originalCellIds.length) {
+			diffResult.changes.push({
+				originalStart: originalCellIds[0].index,
+				originalLength: originalCellIds.length,
+				modifiedStart: modifiedCellIds.length,
+				modifiedLength: 0
+			});
+		}
+
+		return diffResult;
 	}
 
 	$canPromptRecommendation(modelUrl: string): boolean {

@@ -18,7 +18,7 @@ steps:
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
@@ -77,11 +77,33 @@ steps:
     - task: Docker@1
       displayName: "Pull Docker image"
       inputs:
-        azureSubscriptionEndpoint: "vscode-builds-subscription"
+        azureSubscriptionEndpoint: vscode
         azureContainerRegistry: vscodehub.azurecr.io
         command: "Run an image"
         imageName: vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)
         containerCommand: uname
+
+  - ${{ if or(eq(parameters.VSCODE_ARCH, 'arm64'), eq(parameters.VSCODE_ARCH, 'armhf')) }}:
+    - script: |
+        set -e
+        includes=$(cat << 'EOF'
+        {
+          "target_defaults": {
+            "conditions": [
+              ["OS=='linux'", {
+                'cflags_cc!': [ '-std=gnu++20' ],
+                'cflags_cc': [ '-std=gnu++2a' ],
+              }]
+            ]
+          }
+        }
+        EOF
+        )
+        if [ ! -d "$HOME/.gyp" ]; then
+          mkdir -p "$HOME/.gyp"
+        fi
+        echo "$includes" > "$HOME/.gyp/include.gypi"
+      displayName: Override gnu target for arm64 and arm
 
   - script: |
       set -e
@@ -101,7 +123,7 @@ steps:
       set -e
 
       export VSCODE_SYSROOT_PREFIX='-glibc-2.17'
-      source ./build/azure-pipelines/linux/setup-env.sh --only-remote
+      source ./build/azure-pipelines/linux/setup-env.sh --skip-sysroot
 
       for i in {1..5}; do # try 5 times
         npm ci && break

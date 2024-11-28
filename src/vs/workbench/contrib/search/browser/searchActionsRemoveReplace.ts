@@ -13,7 +13,6 @@ import { searchRemoveIcon, searchReplaceIcon } from './searchIcons.js';
 import { SearchView } from './searchView.js';
 import * as Constants from '../common/constants.js';
 import { IReplaceService } from './replace.js';
-import { arrayContainsElementOrParent, FileMatch, FolderMatch, Match, MatchInNotebook, RenderableMatch, SearchResult, TextSearchResult } from './searchModel.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ISearchConfiguration, ISearchConfigurationProperties } from '../../../services/search/common/search.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -23,11 +22,13 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { category, getElementsToOperateOn, getSearchView, shouldRefocus } from './searchActionsBase.js';
 import { equals } from '../../../../base/common/arrays.js';
+import { arrayContainsElementOrParent, RenderableMatch, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeMatch, isSearchResult, isTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
+import { MatchInNotebook } from './notebookSearch/notebookSearchModel.js';
 
 
 //#region Interfaces
 export interface ISearchActionContext {
-	readonly viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>;
+	readonly viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch>;
 	readonly element: RenderableMatch;
 }
 
@@ -106,7 +107,7 @@ registerAction2(class RemoveAction extends Action2 {
 			return;
 		}
 
-		if (!focusElement || (focusElement instanceof SearchResult)) {
+		if (!focusElement || (isSearchResult(focusElement))) {
 			focusElement = element;
 		}
 
@@ -122,7 +123,7 @@ registerAction2(class RemoveAction extends Action2 {
 			searchResult.batchRemove(elementsToRemove);
 		}
 
-		await searchView.refreshTreePromiseSerializer; // wait for refreshTree to finish
+		await searchView.queueRefreshTree(); // wait for refreshTree to finish
 
 		if (focusElement && shouldRefocusMatch) {
 			if (!nextFocusElement) {
@@ -261,7 +262,7 @@ async function performReplace(accessor: ServicesAccessor,
 	const viewsService = accessor.get(IViewsService);
 
 	const viewlet: SearchView | undefined = getSearchView(viewsService);
-	const viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> | undefined = context?.viewer ?? viewlet?.getControl();
+	const viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch> | undefined = context?.viewer ?? viewlet?.getControl();
 
 	if (!viewer) {
 		return;
@@ -272,7 +273,7 @@ async function performReplace(accessor: ServicesAccessor,
 	const elementsToReplace = getElementsToOperateOn(viewer, element ?? undefined, configurationService.getValue<ISearchConfigurationProperties>('search'));
 	let focusElement = viewer.getFocus()[0];
 
-	if (!focusElement || (focusElement && !arrayContainsElementOrParent(focusElement, elementsToReplace)) || (focusElement instanceof SearchResult)) {
+	if (!focusElement || (focusElement && !arrayContainsElementOrParent(focusElement, elementsToReplace)) || (isSearchResult(focusElement))) {
 		focusElement = element;
 	}
 
@@ -290,7 +291,7 @@ async function performReplace(accessor: ServicesAccessor,
 		await searchResult.batchReplace(elementsToReplace);
 	}
 
-	await viewlet?.refreshTreePromiseSerializer; // wait for refreshTree to finish
+	await viewlet?.queueRefreshTree(); // wait for refreshTree to finish
 
 	if (focusElement) {
 		if (!nextFocusElement) {
@@ -302,14 +303,14 @@ async function performReplace(accessor: ServicesAccessor,
 			viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 			viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 
-			if (nextFocusElement instanceof Match) {
+			if (isSearchTreeMatch(nextFocusElement)) {
 				const useReplacePreview = configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
 				if (!useReplacePreview || hasToOpenFile(accessor, nextFocusElement) || nextFocusElement instanceof MatchInNotebook) {
 					viewlet?.open(nextFocusElement, true);
 				} else {
 					accessor.get(IReplaceService).openReplacePreview(nextFocusElement, true);
 				}
-			} else if (nextFocusElement instanceof FileMatch) {
+			} else if (isSearchTreeFileMatch(nextFocusElement)) {
 				viewlet?.open(nextFocusElement, true);
 			}
 		}
@@ -320,7 +321,7 @@ async function performReplace(accessor: ServicesAccessor,
 }
 
 function hasToOpenFile(accessor: ServicesAccessor, currBottomElem: RenderableMatch): boolean {
-	if (!(currBottomElem instanceof Match)) {
+	if (!(isSearchTreeMatch(currBottomElem))) {
 		return false;
 	}
 	const activeEditor = accessor.get(IEditorService).activeEditor;
@@ -332,34 +333,31 @@ function hasToOpenFile(accessor: ServicesAccessor, currBottomElem: RenderableMat
 }
 
 function compareLevels(elem1: RenderableMatch, elem2: RenderableMatch) {
-	if (elem1 instanceof Match) {
-		if (elem2 instanceof Match) {
+	if (isSearchTreeMatch(elem1)) {
+		if (isSearchTreeMatch(elem2)) {
 			return 0;
 		} else {
 			return -1;
 		}
 
-	} else if (elem1 instanceof FileMatch) {
-		if (elem2 instanceof Match) {
+	} else if (isSearchTreeFileMatch(elem1)) {
+		if (isSearchTreeMatch(elem2)) {
 			return 1;
-		} else if (elem2 instanceof FileMatch) {
+		} else if (isSearchTreeFileMatch(elem2)) {
 			return 0;
 		} else {
 			return -1;
 		}
-
-	} else if (elem2 instanceof FolderMatch) {
-		// FolderMatch
-		if (elem2 instanceof TextSearchResult) {
+	} else if (isSearchTreeFolderMatch(elem1)) {
+		if (isTextSearchHeading(elem2)) {
 			return -1;
-		} else if (elem2 instanceof FolderMatch) {
+		} else if (isSearchTreeFolderMatch(elem2)) {
 			return 0;
 		} else {
 			return 1;
 		}
 	} else {
-		// textSearchResult
-		if (elem2 instanceof TextSearchResult) {
+		if (isTextSearchHeading(elem2)) {
 			return 0;
 		} else {
 			return 1;
@@ -370,16 +368,16 @@ function compareLevels(elem1: RenderableMatch, elem2: RenderableMatch) {
 /**
  * Returns element to focus after removing the given element
  */
-export async function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>, element: RenderableMatch, elementsToRemove: RenderableMatch[]): Promise<RenderableMatch | undefined> {
+export async function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch>, element: RenderableMatch, elementsToRemove: RenderableMatch[]): Promise<RenderableMatch | undefined> {
 	const navigator: ITreeNavigator<any> = viewer.navigate(element);
-	if (element instanceof FolderMatch) {
-		while (!!navigator.next() && (!(navigator.current() instanceof FolderMatch) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) { }
-	} else if (element instanceof FileMatch) {
-		while (!!navigator.next() && (!(navigator.current() instanceof FileMatch) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
+	if (isSearchTreeFolderMatch(element)) {
+		while (!!navigator.next() && (!isSearchTreeFolderMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) { }
+	} else if (isSearchTreeFileMatch(element)) {
+		while (!!navigator.next() && (!isSearchTreeFileMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
 			await viewer.expand(navigator.current());
 		}
 	} else {
-		while (navigator.next() && (!(navigator.current() instanceof Match) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
+		while (navigator.next() && (!isSearchTreeMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
 			await viewer.expand(navigator.current());
 		}
 	}
@@ -389,7 +387,7 @@ export async function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibl
 /***
  * Finds the last element in the tree with the same type as `element`
  */
-export async function getLastNodeFromSameType(viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>, element: RenderableMatch): Promise<RenderableMatch | undefined> {
+export async function getLastNodeFromSameType(viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch>, element: RenderableMatch): Promise<RenderableMatch | undefined> {
 	let lastElem: RenderableMatch | null = viewer.lastVisibleElement ?? null;
 
 	while (lastElem) {
@@ -402,7 +400,7 @@ export async function getLastNodeFromSameType(viewer: WorkbenchCompressibleAsync
 			lastElem = viewer.lastVisibleElement;
 		} else if (compareVal === 1) {
 			const potentialLastElem = viewer.getParentElement(lastElem);
-			if (potentialLastElem instanceof SearchResult) {
+			if (isSearchResult(potentialLastElem)) {
 				break;
 			} else {
 				lastElem = potentialLastElem;

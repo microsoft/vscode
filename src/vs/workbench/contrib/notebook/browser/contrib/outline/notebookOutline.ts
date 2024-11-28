@@ -42,9 +42,9 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { Action2, IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { MenuEntryActionViewItem, createAndFillInActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuEntryActionViewItem, getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IAction } from '../../../../../../base/common/actions.js';
-import { NotebookSectionArgs } from '../../controller/sectionActions.js';
+import { NotebookOutlineEntryArgs } from '../../controller/sectionActions.js';
 import { MarkupCellViewModel } from '../../viewModel/markupCellViewModel.js';
 import { Delayer, disposableTimeout } from '../../../../../../base/common/async.js';
 import { IOutlinePane } from '../../../../outline/browser/outline.js';
@@ -153,8 +153,12 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 		}
 
 		if (this._target === OutlineTarget.OutlinePane) {
+			if (!this._editor) {
+				return;
+			}
+
 			const nbCell = node.element.cell;
-			const nbViewModel = this._editor?.getViewModel();
+			const nbViewModel = this._editor.getViewModel();
 			if (!nbViewModel) {
 				return;
 			}
@@ -181,7 +185,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 			const actions = getOutlineToolbarActions(menu, { notebookEditor: this._editor, outlineEntry: node.element });
 			outlineEntryToolbar.setActions(actions.primary, actions.secondary);
 
-			this.setupToolbarListeners(outlineEntryToolbar, menu, actions, node.element, template);
+			this.setupToolbarListeners(this._editor, outlineEntryToolbar, menu, actions, node.element, template);
 			template.actionMenu.style.padding = '0 0.8em 0 0.4em';
 		}
 	}
@@ -210,7 +214,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 		}
 	}
 
-	private setupToolbarListeners(toolbar: ToolBar, menu: IMenu, initActions: { primary: IAction[]; secondary: IAction[] }, entry: OutlineEntry, templateData: NotebookOutlineTemplate): void {
+	private setupToolbarListeners(editor: INotebookEditor, toolbar: ToolBar, menu: IMenu, initActions: { primary: IAction[]; secondary: IAction[] }, entry: OutlineEntry, templateData: NotebookOutlineTemplate): void {
 		// same fix as in cellToolbars setupListeners re #103926
 		let dropdownIsVisible = false;
 		let deferredUpdate: (() => void) | undefined;
@@ -218,13 +222,13 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 		toolbar.setActions(initActions.primary, initActions.secondary);
 		templateData.elementDisposables.add(menu.onDidChange(() => {
 			if (dropdownIsVisible) {
-				const actions = getOutlineToolbarActions(menu, { notebookEditor: this._editor, outlineEntry: entry });
+				const actions = getOutlineToolbarActions(menu, { notebookEditor: editor, outlineEntry: entry });
 				deferredUpdate = () => toolbar.setActions(actions.primary, actions.secondary);
 
 				return;
 			}
 
-			const actions = getOutlineToolbarActions(menu, { notebookEditor: this._editor, outlineEntry: entry });
+			const actions = getOutlineToolbarActions(menu, { notebookEditor: editor, outlineEntry: entry });
 			toolbar.setActions(actions.primary, actions.secondary);
 		}));
 
@@ -249,15 +253,8 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 	}
 }
 
-function getOutlineToolbarActions(menu: IMenu, args?: NotebookSectionArgs): { primary: IAction[]; secondary: IAction[] } {
-	const primary: IAction[] = [];
-	const secondary: IAction[] = [];
-	const result = { primary, secondary };
-
-	// TODO: @Yoyokrazy bring the "inline" back when there's an appropriate run in section icon
-	createAndFillInActionBarActions(menu, { shouldForwardArgs: true, arg: args }, result); //, g => /^inline/.test(g));
-
-	return result;
+function getOutlineToolbarActions(menu: IMenu, args?: NotebookOutlineEntryArgs): { primary: IAction[]; secondary: IAction[] } {
+	return getActionBarActions(menu.getActions({ shouldForwardArgs: true, arg: args }), g => /^inline/.test(g));
 }
 
 class NotebookOutlineAccessibility implements IListAccessibilityProvider<OutlineEntry> {

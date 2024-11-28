@@ -251,8 +251,8 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 
 		const sorter = new OutlineTreeSorter(newOutline.config.comparator, this._outlineViewState.sortBy);
 
-		const tree = <WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>>this._instantiationService.createInstance(
-			WorkbenchDataTree,
+		const tree = this._instantiationService.createInstance(
+			WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>,
 			'OutlinePane',
 			this._treeContainer,
 			newOutline.config.delegate,

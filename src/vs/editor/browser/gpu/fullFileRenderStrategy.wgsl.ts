@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TextureAtlas } from './atlas/textureAtlas.js';
+import { TextureAtlasPage } from './atlas/textureAtlasPage.js';
 import { BindingId } from './gpu.js';
 
 export const fullFileRenderStrategyWgsl = /*wgsl*/ `
@@ -45,8 +47,7 @@ struct VSOutput {
 @group(0) @binding(${BindingId.ScrollOffset})            var<uniform>       scrollOffset:    ScrollOffset;
 
 // Storage buffers
-@group(0) @binding(${BindingId.GlyphInfo0})              var<storage, read> glyphInfo0:      array<GlyphInfo>;
-@group(0) @binding(${BindingId.GlyphInfo1})              var<storage, read> glyphInfo1:      array<GlyphInfo>;
+@group(0) @binding(${BindingId.GlyphInfo})               var<storage, read> glyphInfo:       array<array<GlyphInfo, ${TextureAtlasPage.maximumGlyphCount}>, ${TextureAtlas.maximumPageCount}>;
 @group(0) @binding(${BindingId.Cells})                   var<storage, read> cells:           array<Cell>;
 
 @vertex fn vs(
@@ -55,19 +56,17 @@ struct VSOutput {
 	@builtin(vertex_index) vertexIndex : u32
 ) -> VSOutput {
 	let cell = cells[instanceIndex];
-	// TODO: Is there a nicer way to init this?
-	var glyph = glyphInfo0[0];
-	let glyphIndex = u32(cell.glyphIndex);
-	if (u32(cell.textureIndex) == 0) {
-		glyph = glyphInfo0[glyphIndex];
-	} else {
-		glyph = glyphInfo1[glyphIndex];
-	}
+	var glyph = glyphInfo[u32(cell.textureIndex)][u32(cell.glyphIndex)];
 
 	var vsOut: VSOutput;
 	// Multiple vert.position by 2,-2 to get it into clipspace which ranged from -1 to 1
 	vsOut.position = vec4f(
-		(((vert.position * vec2f(2, -2)) / layoutInfo.canvasDims)) * glyph.size + cell.position + ((glyph.origin * vec2f(2, -2)) / layoutInfo.canvasDims) + (((layoutInfo.viewportOffset - scrollOffset.offset * vec2(1, -1)) * 2) / layoutInfo.canvasDims),
+		// Make everything relative to top left instead of center
+		vec2f(-1, 1) +
+		((vert.position * vec2f(2, -2)) / layoutInfo.canvasDims) * glyph.size +
+		((cell.position * vec2f(2, -2)) / layoutInfo.canvasDims) +
+		((glyph.origin * vec2f(2, -2)) / layoutInfo.canvasDims) +
+		(((layoutInfo.viewportOffset - scrollOffset.offset * vec2(1, -1)) * 2) / layoutInfo.canvasDims),
 		0.0,
 		1.0
 	);

@@ -732,11 +732,6 @@ export class CompositionOperation {
 		const startColumn = Math.max(1, pos.column - replacePrevCharCnt);
 		const endColumn = Math.min(model.getLineMaxColumn(pos.lineNumber), pos.column + replaceNextCharCnt);
 		const range = new Range(pos.lineNumber, startColumn, pos.lineNumber, endColumn);
-		const oldText = model.getValueInRange(range);
-		if (oldText === text && positionDelta === 0) {
-			// => ignore composition that doesn't do anything
-			return null;
-		}
 		return new ReplaceCommandWithOffsetCursorState(range, text, 0, positionDelta);
 	}
 }

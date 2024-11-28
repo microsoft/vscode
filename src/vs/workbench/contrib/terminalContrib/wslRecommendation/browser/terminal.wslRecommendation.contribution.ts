@@ -19,10 +19,10 @@ export class TerminalWslRecommendationContribution extends Disposable implements
 	static ID = 'terminalWslRecommendation';
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService productService: IProductService,
-		@INotificationService notificationService: INotificationService,
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@INotificationService notificationService: INotificationService,
+		@IProductService productService: IProductService,
 		@ITerminalService terminalService: ITerminalService,
 	) {
 		super();

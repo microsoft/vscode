@@ -50,6 +50,22 @@ suite('PolicyConfiguration', () => {
 					minimumVersion: '1.0.0',
 				}
 			},
+			'policy.objectSetting': {
+				'type': 'object',
+				'default': {},
+				policy: {
+					name: 'PolicyObjectSetting',
+					minimumVersion: '1.0.0',
+				}
+			},
+			'policy.arraySetting': {
+				'type': 'object',
+				'default': [],
+				policy: {
+					name: 'PolicyArraySetting',
+					minimumVersion: '1.0.0',
+				}
+			},
 			'nonPolicy.setting': {
 				'type': 'boolean',
 				'default': true
@@ -105,6 +121,24 @@ suite('PolicyConfiguration', () => {
 		assert.strictEqual(acutal.getValue('nonPolicy.setting'), undefined);
 		assert.deepStrictEqual(acutal.keys, ['policy.settingA', 'policy.settingB']);
 		assert.deepStrictEqual(acutal.overrides, []);
+	});
+
+	test('initialize: with object type policy', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyObjectSetting': JSON.stringify({ 'a': 'b' }) })));
+
+		await testObject.initialize();
+		const acutal = testObject.configurationModel;
+
+		assert.deepStrictEqual(acutal.getValue('policy.objectSetting'), { 'a': 'b' });
+	});
+
+	test('initialize: with array type policy', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyArraySetting': JSON.stringify([1]) })));
+
+		await testObject.initialize();
+		const acutal = testObject.configurationModel;
+
+		assert.deepStrictEqual(acutal.getValue('policy.arraySetting'), [1]);
 	});
 
 	test('change: when policy is added', async () => {

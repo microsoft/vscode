@@ -364,9 +364,18 @@ export class TestResultsViewContent extends Disposable {
 
 		const provider = await findAsync(this.contentProviders, p => p.update(subject));
 		if (provider) {
-			if (this.dimension) {
-				topFrame.height.set(provider.layout(this.dimension, hasMultipleFrames)!, undefined);
+			const width = this.splitView.getViewSize(SubView.Diff);
+			if (width !== -1 && this.dimension) {
+				topFrame.height.set(provider.layout({ width, height: this.dimension?.height }, hasMultipleFrames)!, undefined);
 			}
+
+			if (provider.onScrolled) {
+				this.currentSubjectStore.add(this.callStackWidget.onDidScroll(evt => {
+					provider.onScrolled!(evt);
+				}));
+			}
+
+
 			if (provider.onDidContentSizeChange) {
 				this.currentSubjectStore.add(provider.onDidContentSizeChange(() => {
 					if (this.dimension && !this.isDoingLayoutUpdate) {

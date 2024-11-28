@@ -35,12 +35,12 @@ class TerminalHistoryContribution extends Disposable implements ITerminalContrib
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this._terminalInRunCommandPicker = TerminalContextKeys.inTerminalRunCommandPicker.bindTo(this._contextKeyService);
+		this._terminalInRunCommandPicker = TerminalContextKeys.inTerminalRunCommandPicker.bindTo(contextKeyService);
 
 		this._register(_ctx.instance.capabilities.onDidAddCapabilityType(e => {
 			switch (e) {
@@ -72,7 +72,7 @@ class TerminalHistoryContribution extends Disposable implements ITerminalContrib
 			this._terminalInRunCommandPicker,
 			type,
 			filterMode,
-			value
+			value,
 		);
 	}
 }
