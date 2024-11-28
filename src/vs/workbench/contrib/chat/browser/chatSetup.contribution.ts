@@ -59,6 +59,7 @@ const defaultChat = {
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? '',
 	skusDocumentationUrl: product.defaultChatAgent?.skusDocumentationUrl ?? '',
+	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	providerName: product.defaultChatAgent?.providerName ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
@@ -523,7 +524,7 @@ class ChatSetupController extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	async setup(enableTelemetry: boolean): Promise<void> {
+	async setup(enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
 		const title = localize('setupChatProgress', "Getting {0} ready...", defaultChat.name);
 		const badge = this.activityService.showViewContainerActivity(isCopilotEditsViewActive(this.viewsService) ? CHAT_EDITING_SIDEBAR_PANEL_ID : CHAT_SIDEBAR_PANEL_ID, {
 			badge: new ProgressBadge(() => title),
@@ -535,13 +536,13 @@ class ChatSetupController extends Disposable {
 				location: ProgressLocation.Window,
 				command: TRIGGER_SETUP_COMMAND_ID,
 				title,
-			}, () => this.doSetup(enableTelemetry));
+			}, () => this.doSetup(enableTelemetry, enableDetection));
 		} finally {
 			badge.dispose();
 		}
 	}
 
-	private async doSetup(enableTelemetry: boolean): Promise<void> {
+	private async doSetup(enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
 		try {
 			let session: AuthenticationSession | undefined;
 
@@ -567,7 +568,7 @@ class ChatSetupController extends Disposable {
 				}
 			}
 			this.setStep(ChatSetupStep.Installing);
-			await this.install(session, enableTelemetry);
+			await this.install(session, enableTelemetry, enableDetection);
 		} finally {
 			this.setStep(ChatSetupStep.Initial);
 		}
@@ -589,7 +590,7 @@ class ChatSetupController extends Disposable {
 		return session;
 	}
 
-	private async install(session: AuthenticationSession, enableTelemetry: boolean): Promise<void> {
+	private async install(session: AuthenticationSession, enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
 		const signedIn = !!session;
 		const activeElement = getActiveElement();
 
@@ -603,7 +604,7 @@ class ChatSetupController extends Disposable {
 			this.entitlementResolver.suspend(); // flicker
 
 			if (this.canSignUpLimited) {
-				didSignUp = await this.signUpLimited(session, enableTelemetry);
+				didSignUp = await this.signUpLimited(session, enableTelemetry, enableDetection);
 			} else {
 				this.logService.trace('[chat setup] install: not signing up to limited SKU');
 			}
@@ -643,9 +644,10 @@ class ChatSetupController extends Disposable {
 		}
 	}
 
-	private async signUpLimited(session: AuthenticationSession, enableTelemetry: boolean): Promise<boolean> {
+	private async signUpLimited(session: AuthenticationSession, enableTelemetry: boolean, enableDetection: boolean): Promise<boolean> {
 		const body = {
-			restricted_telemetry: enableTelemetry ? 'enabled' : 'disabled'
+			restricted_telemetry: enableTelemetry ? 'enabled' : 'disabled',
+			public_code_suggestions: enableDetection ? 'enabled' : 'disabled'
 		};
 		this.logService.trace(`[chat setup] sign-up: options ${JSON.stringify(body)}`);
 
@@ -705,7 +707,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		const markdown = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
 
 		// Header
-		const header = localize({ key: 'setupHeader', comment: ['{Locked="[{0}]({1})"}'] }, "[{0}]({1}) is your AI pair programmer that helps you with code suggestions, answers your questions, and more.", defaultChat.name, defaultChat.documentationUrl);
+		const header = localize({ key: 'setupHeader', comment: ['{Locked="[{0}]({1})"}'] }, "[{0}]({1}) is your AI pair programmer that provides code suggestions, edits across your project and answers to your questions.", defaultChat.name, defaultChat.documentationUrl);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element);
 
 		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="[{0}]({1})"}'] }, "Enable powerful AI features for free with the [{0}]({1}) plan.", defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
@@ -715,17 +717,20 @@ class ChatSetupWelcomeContent extends Disposable {
 		const telemetryLabel = localize('telemetryLabel', "Allow {0} to use my data, including prompts, suggestions, and code snippets, for product improvements", defaultChat.providerName);
 		const { container: telemetryContainer, checkbox: telemetryCheckbox } = this.createCheckBox(telemetryLabel, this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? false : true, markdown);
 
+		const detectionLabel = localize('detectionLabel', "Allow code suggestions that [match public code]({0})", defaultChat.publicCodeMatchesUrl);
+		const { container: detectionContainer, checkbox: detectionCheckbox } = this.createCheckBox(detectionLabel, true, markdown);
+
 		// Setup Button
 		const buttonRow = this.element.appendChild($('p'));
 		const button = this._register(new Button(buttonRow, { ...defaultButtonStyles, supportIcons: true }));
-		this._register(button.onDidClick(() => this.controller.setup(telemetryCheckbox.checked)));
+		this._register(button.onDidClick(() => this.controller.setup(telemetryCheckbox.checked, detectionCheckbox.checked)));
 
 		// Footer
 		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}).", defaultChat.privacyStatementUrl);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(footer, { isTrusted: true }))).element);
 
 		// Update based on model state
-		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(limitedSkuHeaderElement, [telemetryContainer], [telemetryCheckbox], button)));
+		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(limitedSkuHeaderElement, [telemetryContainer, detectionContainer], [telemetryCheckbox, detectionCheckbox], button)));
 	}
 
 	private createCheckBox(label: string, checked: boolean, markdown: MarkdownRenderer): { container: HTMLElement; checkbox: Checkbox } {
