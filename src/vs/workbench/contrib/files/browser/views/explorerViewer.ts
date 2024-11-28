@@ -44,7 +44,7 @@ import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces
 import { findValidPasteFileTarget } from '../fileActions.js';
 import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js';
 import { Emitter, Event, EventMultiplexer } from '../../../../../base/common/event.js';
-import { IAsyncDataTreeViewState, IAsyncFindProvider, IAsyncFindResultMetadata, IAsyncFindToggles, ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
+import { IAsyncDataTreeViewState, IAsyncFindProvider, IAsyncFindResult, IAsyncFindToggles, ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -183,7 +183,8 @@ export class PhantomExplorerItem extends ExplorerItem {
 }
 
 interface FindHighlightLayer {
-	total: number;
+	childMatches: number;
+	isMatch: boolean;
 	stats: {
 		[statName: string]: FindHighlightLayer;
 	};
@@ -191,6 +192,7 @@ interface FindHighlightLayer {
 
 interface IExplorerFindHighlightTree {
 	get(item: ExplorerItem): number;
+	isMatch(item: ExplorerItem): boolean;
 }
 
 class ExplorerFindHighlightTree implements IExplorerFindHighlightTree {
@@ -202,9 +204,21 @@ class ExplorerFindHighlightTree implements IExplorerFindHighlightTree {
 	}
 
 	get(item: ExplorerItem): number {
+		const result = this.find(item);
+		if (result === undefined) {
+			return 0;
+		}
+
+		const { treeLayer, relPath } = result;
+		this._highlightedItems.set(relPath, item);
+
+		return treeLayer.childMatches;
+	}
+
+	private find(item: ExplorerItem): { treeLayer: FindHighlightLayer; relPath: string } | undefined {
 		const rootLayer = this._tree.get(item.root.name);
 		if (rootLayer === undefined) {
-			return 0;
+			return undefined;
 		}
 
 		const relPath = relativePath(item.root.resource, item.resource);
@@ -215,15 +229,13 @@ class ExplorerFindHighlightTree implements IExplorerFindHighlightTree {
 		let treeLayer = rootLayer;
 		for (const segment of relPath.split('/')) {
 			if (!treeLayer.stats[segment]) {
-				return 0;
+				return undefined;
 			}
 
 			treeLayer = treeLayer.stats[segment];
 		}
 
-		this._highlightedItems.set(relPath, item);
-
-		return treeLayer.total;
+		return { treeLayer, relPath };
 	}
 
 	add(resource: URI, root: ExplorerItem): void {
@@ -233,18 +245,31 @@ class ExplorerFindHighlightTree implements IExplorerFindHighlightTree {
 		}
 
 		if (!this._tree.get(root.name)) {
-			this._tree.set(root.name, { total: 0, stats: {} });
+			this._tree.set(root.name, { childMatches: 0, stats: {}, isMatch: false });
 		}
 
 		let treeLayer = this._tree.get(root.name)!;
-		for (const stat of relPath.split('/').slice(0, -1)) {
+		for (const stat of relPath.split('/')) {
 			if (!treeLayer.stats[stat]) {
-				treeLayer.stats[stat] = { total: 0, stats: {} };
+				treeLayer.stats[stat] = { childMatches: 0, stats: {}, isMatch: false };
 			}
 
 			treeLayer = treeLayer.stats[stat];
-			treeLayer.total++;
+			treeLayer.childMatches++;
 		}
+
+		treeLayer.childMatches--; // the last segment is the file itself
+		treeLayer.isMatch = true;
+	}
+
+	isMatch(item: ExplorerItem): boolean {
+		const result = this.find(item);
+		if (result === undefined) {
+			return false;
+		}
+
+		const { treeLayer } = result;
+		return treeLayer.isMatch;
 	}
 
 	clear(): void {
@@ -309,7 +334,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		}
 	}
 
-	async find(pattern: string, toggles: IAsyncFindToggles, token: CancellationToken): Promise<IAsyncFindResultMetadata> {
+	async find(pattern: string, toggles: IAsyncFindToggles, token: CancellationToken): Promise<IAsyncFindResult<ExplorerItem> | undefined> {
 		const promise = this.doFind(pattern, toggles, token);
 
 		return await this.progressService.withProgress({
@@ -318,7 +343,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		}, _progress => promise);
 	}
 
-	async doFind(pattern: string, toggles: IAsyncFindToggles, token: CancellationToken): Promise<IAsyncFindResultMetadata> {
+	async doFind(pattern: string, toggles: IAsyncFindToggles, token: CancellationToken): Promise<IAsyncFindResult<ExplorerItem> | undefined> {
 		if (toggles.findMode === TreeFindMode.Highlight) {
 			if (this.filterSessionStartState) {
 				await this.endFilterSession();
@@ -357,7 +382,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		this.explorerFindActiveContextKey.set(true);
 	}
 
-	async doFilterFind(pattern: string, matchType: TreeFindMatchType, token: CancellationToken): Promise<IAsyncFindResultMetadata> {
+	async doFilterFind(pattern: string, matchType: TreeFindMatchType, token: CancellationToken): Promise<IAsyncFindResult<ExplorerItem> | undefined> {
 		if (!this.filterSessionStartState) {
 			throw new Error('ExplorerFindProvider: no session state');
 		}
@@ -366,7 +391,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		const searchResults = await this.getSearchResults(pattern, roots, matchType, token);
 
 		if (token.isCancellationRequested) {
-			return {};
+			return undefined;
 		}
 
 		this.clearPhantomElements();
@@ -378,7 +403,11 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		await tree.setInput(this.filterSessionStartState.input);
 
 		const hitMaxResults = searchResults.some(({ hitMaxResults }) => hitMaxResults);
-		return { warningMessage: hitMaxResults ? localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.") : undefined };
+		return {
+			isMatch: (item: ExplorerItem) => item.isMarkedAsFiltered(),
+			matchCount: searchResults.reduce((acc, { files, directories }) => acc + files.length + directories.length, 0),
+			warningMessage: hitMaxResults ? localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.") : undefined
+		};
 	}
 
 	private addWorkspaceFilterResults(root: ExplorerItem, files: URI[], directories: URI[]): void {
@@ -473,7 +502,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		this.highlightSessionStartState = { rootsWithProviders: new Set(roots) };
 	}
 
-	async doHighlightFind(pattern: string, matchType: TreeFindMatchType, token: CancellationToken): Promise<IAsyncFindResultMetadata> {
+	async doHighlightFind(pattern: string, matchType: TreeFindMatchType, token: CancellationToken): Promise<IAsyncFindResult<ExplorerItem> | undefined> {
 		if (!this.highlightSessionStartState) {
 			throw new Error('ExplorerFindProvider: no highlight session state');
 		}
@@ -482,7 +511,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		const searchResults = await this.getSearchResults(pattern, roots, matchType, token);
 
 		if (token.isCancellationRequested) {
-			return {};
+			return undefined;
 		}
 
 		this.clearHighlights();
@@ -491,7 +520,11 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		}
 
 		const hitMaxResults = searchResults.some(({ hitMaxResults }) => hitMaxResults);
-		return { warningMessage: hitMaxResults ? localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.") : undefined };
+		return {
+			isMatch: (item: ExplorerItem) => this.findHighlightTree.isMatch(item) || (this.findHighlightTree.get(item) > 0 && this.treeProvider().isCollapsed(item)),
+			matchCount: searchResults.reduce((acc, { files, directories }) => acc + files.length + directories.length, 0),
+			warningMessage: hitMaxResults ? localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.") : undefined
+		};
 	}
 
 	private addWorkspaceHighlightResults(root: ExplorerItem, resources: URI[]): void {
@@ -515,7 +548,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 			const firstParent = findFirstParent(resource, root);
 			if (firstParent) {
 				this.findHighlightTree.add(resource, root);
-				storeDirectories(firstParent);
+				storeDirectories(firstParent.parent!);
 			}
 		}
 

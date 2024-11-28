@@ -21,7 +21,7 @@ import { AbstractEditContext } from '../editContext.js';
 import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
 import { Range } from '../../../../common/core/range.js';
-import { Selection } from '../../../../common/core/selection.js';
+import { Selection, SelectionDirection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
@@ -474,11 +474,14 @@ export class NativeEditContext extends AbstractEditContext {
 				return;
 			}
 			const range = activeDocumentSelection.getRangeAt(0);
-			const model = this._context.viewModel.model;
-			const offsetOfStartOfScreenReaderContent = model.getOffsetAt(screenReaderContentState.startPositionWithinEditor);
+			const viewModel = this._context.viewModel;
+			const model = viewModel.model;
+			const coordinatesConverter = viewModel.coordinatesConverter;
+			const modelScreenReaderContentStartPositionWithinEditor = coordinatesConverter.convertViewPositionToModelPosition(screenReaderContentState.startPositionWithinEditor);
+			const offsetOfStartOfScreenReaderContent = model.getOffsetAt(modelScreenReaderContentStartPositionWithinEditor);
 			let offsetOfSelectionStart = range.startOffset + offsetOfStartOfScreenReaderContent;
 			let offsetOfSelectionEnd = range.endOffset + offsetOfStartOfScreenReaderContent;
-			const modelUsesCRLF = this._context.viewModel.model.getEndOfLineSequence() === EndOfLineSequence.CRLF;
+			const modelUsesCRLF = model.getEndOfLineSequence() === EndOfLineSequence.CRLF;
 			if (modelUsesCRLF) {
 				const screenReaderContentText = screenReaderContentState.value;
 				const offsetTransformer = new PositionOffsetTransformer(screenReaderContentText);
@@ -489,7 +492,13 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 			const positionOfSelectionStart = model.getPositionAt(offsetOfSelectionStart);
 			const positionOfSelectionEnd = model.getPositionAt(offsetOfSelectionEnd);
-			const newSelection = Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd);
+			const currentSelection = this._context.viewModel.getPrimaryCursorState().modelState.selection;
+			const newSelection = currentSelection.getDirection() === SelectionDirection.LTR ?
+				Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd) :
+				Selection.fromPositions(positionOfSelectionEnd, positionOfSelectionStart);
+			if (newSelection.equalsSelection(currentSelection)) {
+				return;
+			}
 			viewController.setSelection(newSelection);
 		});
 	}

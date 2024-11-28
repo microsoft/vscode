@@ -4599,6 +4599,7 @@ declare namespace monaco.editor {
 				enabled?: boolean;
 				useMixedLinesDiff?: 'never' | 'whenPossible' | 'afterJumpWhenPossible';
 				useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
+				onlyShowWhenCloseToCursor?: boolean;
 			};
 		};
 	}
@@ -7962,7 +7963,14 @@ declare namespace monaco.languages {
 	}
 
 	export interface WorkspaceEdit {
-		edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit>;
+		edits: Array<IWorkspaceTextEdit | IWorkspaceFileEdit | ICustomEdit>;
+	}
+
+	export interface ICustomEdit {
+		readonly resource: Uri;
+		readonly metadata?: WorkspaceEditMetadata;
+		undo(): Promise<void> | void;
+		redo(): Promise<void> | void;
 	}
 
 	export interface Rejection {

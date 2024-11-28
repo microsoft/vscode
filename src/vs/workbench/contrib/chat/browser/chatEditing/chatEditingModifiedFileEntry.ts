@@ -192,6 +192,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			telemetryInfo: this._telemetryInfo
 		};
 	}
+
 	restoreFromSnapshot(snapshot: ISnapshotEntry) {
 		this._stateObs.set(snapshot.state, undefined);
 		this.docSnapshot.setValue(snapshot.original);
@@ -369,6 +370,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		}
 
 		this.docSnapshot.setValue(this.doc.createSnapshot());
+		this._diffInfo.set(nullDocumentDiff, transaction);
 		this._edit = OffsetEdit.empty;
 		this._stateObs.set(WorkingSetEntryState.Accepted, transaction);
 		await this.collapse(transaction);

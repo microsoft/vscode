@@ -8,8 +8,7 @@ import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData
 import type { ViewLineOptions } from '../viewParts/viewLines/viewLineOptions.js';
 
 export const enum BindingId {
-	GlyphInfo0,
-	GlyphInfo1,
+	GlyphInfo,
 	Cells,
 	TextureSampler,
 	Texture,

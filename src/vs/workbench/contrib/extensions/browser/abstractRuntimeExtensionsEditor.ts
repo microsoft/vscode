@@ -447,7 +447,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 			}
 		};
 
-		this._list = <WorkbenchList<IRuntimeExtension>>this._instantiationService.createInstance(WorkbenchList,
+		this._list = this._instantiationService.createInstance(WorkbenchList<IRuntimeExtension>,
 			'RuntimeExtensions',
 			parent, delegate, [renderer], {
 			multipleSelectionSupport: false,

@@ -62,6 +62,7 @@
 	"command.undoCommit": "Undo Last Commit",
 	"command.checkout": "Checkout to...",
 	"command.checkoutDetached": "Checkout to (Detached)...",
+	"command.checkoutRef": "Checkout",
 	"command.checkoutRefDetached": "Checkout (Detached)",
 	"command.branch": "Create Branch...",
 	"command.branchFrom": "Create Branch From...",

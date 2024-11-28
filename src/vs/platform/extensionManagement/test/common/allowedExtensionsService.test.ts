@@ -8,7 +8,6 @@ import { AllowedExtensionsService } from '../../common/allowedExtensionsService.
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
-import { IStringDictionary } from '../../../../base/common/collections.js';
 import { AllowedExtensionsConfigKey, IGalleryExtension, ILocalExtension } from '../../common/extensionManagement.js';
 import { ExtensionType, IExtensionManifest, TargetPlatform } from '../../../extensions/common/extensions.js';
 import { Event } from '../../../../base/common/event.js';
@@ -29,157 +28,157 @@ suite('AllowedExtensionsService', () => {
 
 	test('should allow all extensions if no allowed extensions are configured', () => {
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension' }) === true, true);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined }) === true, true);
 	});
 
 	test('should not allow specific extension if not in allowed list', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': false });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension' }) === true, false);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined }) === true, false);
 	});
 
 	test('should allow specific extension if in allowed list', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': true });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension' }) === true, true);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined }) === true, true);
 	});
 
 	test('should not allow pre-release extension if only release is allowed', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': 'release' });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', prerelease: true }) === true, false);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, prerelease: true }) === true, false);
 	});
 
 	test('should allow pre-release extension if pre-release is allowed', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': true });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', prerelease: true }) === true, true);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, prerelease: true }) === true, true);
 	});
 
 	test('should allow specific version of an extension when configured to that version', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': ['1.2.3'] });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', version: '1.2.3' }) === true, true);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, version: '1.2.3' }) === true, true);
 	});
 
 	test('should allow any version of an extension when a specific version is configured', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': ['1.2.3'] });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension' }) === true, true);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined }) === true, true);
 	});
 
 	test('should allow any version of an extension when release is configured', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': 'release' });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension' }) === true, true);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined }) === true, true);
 	});
 
 	test('should allow a version of an extension when release is configured', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': 'release' });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', version: '1.2.3' }) === true, true);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, version: '1.2.3' }) === true, true);
 	});
 
 	test('should allow a pre-release version of an extension when release is configured', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': 'release' });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', version: '1.2.3', prerelease: true }) === true, false);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, version: '1.2.3', prerelease: true }) === true, false);
 	});
 
 	test('should allow specific version of an extension when configured to multiple versions', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': ['1.2.3', '2.0.1', '3.1.2'] });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', version: '1.2.3' }) === true, true);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, version: '1.2.3' }) === true, true);
 	});
 
 	test('should allow platform specific version of an extension when configured to platform specific version', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': ['1.2.3@darwin-x64'] });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', version: '1.2.3', targetPlatform: TargetPlatform.DARWIN_X64 }) === true, true);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, version: '1.2.3', targetPlatform: TargetPlatform.DARWIN_X64 }) === true, true);
 	});
 
 	test('should allow universal platform specific version of an extension when configured to platform specific version', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': ['1.2.3@darwin-x64'] });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', version: '1.2.3', targetPlatform: TargetPlatform.UNIVERSAL }) === true, true);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, version: '1.2.3', targetPlatform: TargetPlatform.UNIVERSAL }) === true, true);
 	});
 
 	test('should allow specific version of an extension when configured to platform specific version', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': ['1.2.3@darwin-x64'] });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', version: '1.2.3' }) === true, true);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, version: '1.2.3' }) === true, true);
 	});
 
 	test('should allow platform specific version of an extension when configured to multiple versions', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': ['1.0.0', '1.2.3@darwin-x64', '1.2.3@darwin-arm64'] });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', version: '1.2.3', targetPlatform: TargetPlatform.DARWIN_X64 }) === true, true);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, version: '1.2.3', targetPlatform: TargetPlatform.DARWIN_X64 }) === true, true);
 	});
 
 	test('should not allow platform specific version of an extension when configured to different platform specific version', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': ['1.2.3@darwin-x64'] });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', version: '1.2.3', targetPlatform: TargetPlatform.DARWIN_ARM64 }) === true, false);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, version: '1.2.3', targetPlatform: TargetPlatform.DARWIN_ARM64 }) === true, false);
 	});
 
 	test('should specific version of an extension when configured to different versions', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': ['1.0.0', '1.2.3@darwin-x64', '1.2.3@darwin-arm64'] });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', version: '1.0.1' }) === true, false);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, version: '1.0.1' }) === true, false);
 	});
 
 	test('should allow extension if publisher is in allowed list', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test': true });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension' }), true);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined }), true);
 	});
 
 	test('should allow extension if publisher is not in allowed list and has publisher mapping', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'hello': true });
-		const testObject = disposables.add(new AllowedExtensionsService(aProductService({ 'test': 'hello' }), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension' }), true);
+		const testObject = disposables.add(new AllowedExtensionsService(aProductService(['hello']), configurationService));
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: 'Hello' }), true);
 	});
 
 	test('should allow extension if publisher is not in allowed list and has different publisher mapping', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'hello': true });
-		const testObject = disposables.add(new AllowedExtensionsService(aProductService({ 'test': 'bar' }), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension' }) === true, false);
+		const testObject = disposables.add(new AllowedExtensionsService(aProductService(['bar']), configurationService));
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: 'Hello' }) === true, false);
 	});
 
 	test('should not allow extension if publisher is not in allowed list', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test': false });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension' }) === true, false);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined }) === true, false);
 	});
 
 	test('should not allow prerelease extension if publisher is allowed only to release', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test': 'release' });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', prerelease: true }) === true, false);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, prerelease: true }) === true, false);
 	});
 
 	test('should allow extension if publisher is set to random value', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test': 'hello' });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', prerelease: true }) === true, true);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, prerelease: true }) === true, true);
 	});
 
 	test('should allow extension if only wildcard is in allowed list', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { '*': true });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension' }), true);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined }), true);
 	});
 
 	test('should allow extension if wildcard is in allowed list', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { '*': true, 'hello': false });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension' }), true);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined }), true);
 	});
 
 	test('should not allow extension if wildcard is not in allowed list', () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { '*': false, 'hello': true });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
-		assert.strictEqual(testObject.isAllowed({ id: 'test.extension' }) === true, false);
+		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined }) === true, false);
 	});
 
 	test('should allow a gallery extension', () => {
@@ -202,15 +201,15 @@ suite('AllowedExtensionsService', () => {
 		await promise;
 	});
 
-	function aProductService(extensionPublisherMappings?: IStringDictionary<string>): IProductService {
+	function aProductService(extensionPublisherOrgs?: string[]): IProductService {
 		return {
 			_serviceBrand: undefined,
-			extensionPublisherMappings
+			extensionPublisherOrgs
 		} as IProductService;
 	}
 
 	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}): IGalleryExtension {
-		const galleryExtension = <IGalleryExtension>Object.create({ type: 'gallery', name, publisher: 'pub', version: '1.0.0', allTargetPlatforms: [TargetPlatform.UNIVERSAL], properties: {}, assets: {}, isSigned: true, ...properties });
+		const galleryExtension = <IGalleryExtension>Object.create({ type: 'gallery', name, publisher: 'pub', publisherDisplayName: 'Pub', version: '1.0.0', allTargetPlatforms: [TargetPlatform.UNIVERSAL], properties: {}, assets: {}, isSigned: true, ...properties });
 		galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], ...galleryExtensionProperties };
 		galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: generateUuid() };
 		return <IGalleryExtension>galleryExtension;

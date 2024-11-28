@@ -34,7 +34,7 @@ import { IDiffEditorOptions, EditorOption } from '../../../../editor/common/conf
 import { Action, IAction, ActionRunner } from '../../../../base/common/actions.js';
 import { IActionBarOptions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { basename, isEqual } from '../../../../base/common/resources.js';
+import { basename } from '../../../../base/common/resources.js';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ScrollType, IEditorContribution, IDiffEditorModel, IEditorModel, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
@@ -57,9 +57,10 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { IQuickDiffService, QuickDiff } from '../common/quickDiff.js';
+import { IQuickDiffService, QuickDiff, QuickDiffResult } from '../common/quickDiff.js';
 import { IQuickDiffSelectItem, SwitchQuickDiffBaseAction, SwitchQuickDiffViewItem } from './dirtyDiffSwitcher.js';
 import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
+import { lineRangeMappingFromChanges } from '../../../../editor/common/diff/rangeMapping.js';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -1274,6 +1275,22 @@ export class DirtyDiffModel extends Disposable {
 		return this._quickDiffs;
 	}
 
+	public getQuickDiffResults(): QuickDiffResult[] {
+		return this._quickDiffs.map(quickDiff => {
+			const changes = this._changes
+				.filter(change => change.label === quickDiff.label)
+				.map(change => change.change);
+
+			// Convert IChange[] to LineRangeMapping[]
+			const lineRangeMappings = lineRangeMappingFromChanges(changes);
+			return {
+				original: quickDiff.originalResource,
+				modified: this._model.resource,
+				changes: lineRangeMappings
+			};
+		});
+	}
+
 	public getDiffEditorModel(originalUri: string): IDiffEditorModel | undefined {
 		if (!this._originalModels.has(originalUri)) {
 			return;
@@ -1440,8 +1457,8 @@ export class DirtyDiffModel extends Disposable {
 		}
 		const uri = this._model.resource;
 
-		const session = this._chatEditingService.getEditingSession(uri);
-		if (session && session.entries.get().find(v => isEqual(v.modifiedURI, uri) && v.state.get() === WorkingSetEntryState.Modified)) {
+		const session = this._chatEditingService.currentEditingSession;
+		if (session && session.getEntry(uri)?.state.get() === WorkingSetEntryState.Modified) {
 			// disable dirty diff when doing chat edits
 			return Promise.resolve([]);
 		}

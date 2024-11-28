@@ -10,7 +10,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
-import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -48,7 +48,11 @@ export class DirtyDiffModelService extends Disposable implements IDirtyDiffModel
 					.find(editor => isCodeEditor(editor) &&
 						this.uriIdentityService.extUri.isEqual(editor.getModel()?.uri, uri));
 
-				if (textEditorControl) {
+				const diffEditorControl = visibleTextEditorControls
+					.find(editor => isDiffEditor(editor) &&
+						this.uriIdentityService.extUri.isEqual(editor.getModel()?.modified.uri, uri));
+
+				if (textEditorControl || diffEditorControl) {
 					continue;
 				}
 

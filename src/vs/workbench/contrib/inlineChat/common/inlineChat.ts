@@ -18,7 +18,9 @@ export const enum InlineChatConfigKeys {
 	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
 	StartWithOverlayWidget = 'inlineChat.startWithOverlayWidget',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
-	AccessibleDiffView = 'inlineChat.accessibleDiffView'
+	AccessibleDiffView = 'inlineChat.accessibleDiffView',
+	LineEmptyHint = 'inlineChat.lineEmptyHint',
+	LineSuffixHint = 'inlineChat.lineSuffixHint'
 }
 
 export const enum EditMode {
@@ -59,6 +61,16 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('accessibleDiffView.on', "The accessible diff viewer is always enabled."),
 				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
 			],
+		},
+		[InlineChatConfigKeys.LineEmptyHint]: {
+			description: localize('emptyLineHint', "Whether empty lines show a hint to generate code with inline chat."),
+			default: false,
+			type: 'boolean'
+		},
+		[InlineChatConfigKeys.LineSuffixHint]: {
+			description: localize('lineSuffixHint', "Whether a hint to complete a line with inline chat is shown."),
+			default: true,
+			type: 'boolean'
 		},
 	}
 });

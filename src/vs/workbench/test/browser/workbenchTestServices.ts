@@ -79,7 +79,7 @@ import { BrowserTextFileService } from '../../services/textfile/browser/browserT
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { createTextBufferFactoryFromStream } from '../../../editor/common/model/textModel.js';
 import { IPathService } from '../../services/path/common/pathService.js';
-import { Direction } from '../../../base/browser/ui/grid/grid.js';
+import { Direction, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { IProgressService, IProgressOptions, IProgressWindowOptions, IProgressNotificationOptions, IProgressCompositeOptions, IProgress, IProgressStep, Progress, IProgressDialogOptions, IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { IWorkingCopyFileService, WorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
 import { UndoRedoService } from '../../../platform/undoRedo/common/undoRedoService.js';
@@ -99,7 +99,7 @@ import { QuickInputService } from '../../services/quickinput/browser/quickInputS
 import { IListService } from '../../../platform/list/browser/listService.js';
 import { win32, posix } from '../../../base/common/path.js';
 import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService, TestMarkerService, TestHistoryService } from '../common/workbenchTestServices.js';
-import { IView, ViewContainer, ViewContainerLocation } from '../../common/views.js';
+import { IView, IViewDescriptor, ViewContainer, ViewContainerLocation } from '../../common/views.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
 import { IPaneComposite } from '../../common/panecomposite.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
@@ -672,6 +672,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	isMainEditorLayoutCentered(): boolean { return false; }
 	centerMainEditorLayout(_active: boolean): void { }
 	resizePart(_part: Parts, _sizeChangeWidth: number, _sizeChangeHeight: number): void { }
+	getSize(part: Parts): IViewSize { throw new Error('Method not implemented.'); }
+	setSize(part: Parts, size: IViewSize): void { throw new Error('Method not implemented.'); }
 	registerPart(part: Part): IDisposable { return Disposable.None; }
 	isWindowMaximized(targetWindow: Window) { return false; }
 	updateWindowMaximizedState(targetWindow: Window, maximized: boolean): void { }
@@ -823,6 +825,7 @@ export class TestViewsService implements IViewsService {
 	getViewProgressIndicator(id: string) { return null!; }
 	getActiveViewPaneContainerWithId(id: string) { return null; }
 	getFocusedViewName(): string { return ''; }
+	getFocusedView(): IViewDescriptor | null { return null; }
 }
 
 export class TestEditorGroupsService implements IEditorGroupsService {
