@@ -427,7 +427,12 @@ class ChatSetupEntitlementResolver extends Disposable {
 		const oldEntitlement = this._entitlement;
 		this._entitlement = newEntitlement;
 
-		this.chatSetupContext.update({ canSignUp: newEntitlement === ChatEntitlement.Available, limited, entitled });
+		this.chatSetupContext.update({
+			signedOut: newEntitlement === ChatEntitlement.Unknown,
+			canSignUp: newEntitlement === ChatEntitlement.Available,
+			limited,
+			entitled
+		});
 
 		if (oldEntitlement !== this._entitlement) {
 			this._onDidChangeEntitlement.fire(this._entitlement);
@@ -686,7 +691,7 @@ class ChatSetupController extends Disposable {
 			this.logService.error('[chat setup] sign-up: not subscribed');
 		}
 
-		this.chatSetupContext.update({ entitled: false, limited: subscribed, canSignUp: !subscribed });
+		this.chatSetupContext.update({ signedOut: false, entitled: false, limited: subscribed, canSignUp: !subscribed });
 
 		return subscribed;
 	}
@@ -830,17 +835,19 @@ class ChatSetupContext extends Disposable {
 	private static readonly CHAT_SETUP_TRIGGERD = 'chat.setupTriggered';
 	private static readonly CHAT_EXTENSION_INSTALLED = 'chat.extensionInstalled';
 
+	private readonly canSignUpContextKey = ChatContextKeys.Setup.canSignUp.bindTo(this.contextKeyService);
+	private readonly signedOutContextKey = ChatContextKeys.Setup.signedOut.bindTo(this.contextKeyService);
 	private readonly entitledContextKey = ChatContextKeys.Setup.entitled.bindTo(this.contextKeyService);
 	private readonly limitedContextKey = ChatContextKeys.Setup.limited.bindTo(this.contextKeyService);
-	private readonly canSignUpContextKey = ChatContextKeys.Setup.canSignUp.bindTo(this.contextKeyService);
 	private readonly triggeredContext = ChatContextKeys.Setup.triggered.bindTo(this.contextKeyService);
 	private readonly installedContext = ChatContextKeys.Setup.installed.bindTo(this.contextKeyService);
 
+	private canSignUp = false;
+	private signedOut = false;
+	private entitled = false;
+	private limited = false;
 	private triggered = this.storageService.getBoolean(ChatSetupContext.CHAT_SETUP_TRIGGERD, StorageScope.PROFILE, false);
 	private installed = this.storageService.getBoolean(ChatSetupContext.CHAT_EXTENSION_INSTALLED, StorageScope.PROFILE, false);
-	private limited = false;
-	private entitled = false;
-	private canSignUp = false;
 
 	private contextKeyUpdateBarrier: Barrier | undefined = undefined;
 
@@ -861,34 +868,32 @@ class ChatSetupContext extends Disposable {
 		this._register(this.extensionService.onDidChangeExtensions(result => {
 			for (const extension of result.removed) {
 				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
-					this.update({ chatInstalled: false });
+					this.update({ installed: false });
 					break;
 				}
 			}
 
 			for (const extension of result.added) {
 				if (ExtensionIdentifier.equals(defaultChat.extensionId, extension.identifier)) {
-					this.update({ chatInstalled: true });
+					this.update({ installed: true });
 					break;
 				}
 			}
 		}));
 
 		const extensions = await this.extensionManagementService.getInstalled();
-
-		const chatInstalled = !!extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
-		this.update({ chatInstalled });
+		this.update({ installed: !!extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId)) });
 	}
 
-	update(context: { chatInstalled: boolean }): Promise<void>;
+	update(context: { installed: boolean }): Promise<void>;
 	update(context: { triggered: boolean }): Promise<void>;
-	update(context: { limited: boolean; entitled: boolean; canSignUp: boolean }): Promise<void>;
-	update(context: { triggered?: boolean; chatInstalled?: boolean; limited?: boolean; entitled?: boolean; canSignUp?: boolean }): Promise<void> {
-		if (typeof context.chatInstalled === 'boolean') {
-			this.installed = context.chatInstalled;
-			this.storageService.store(ChatSetupContext.CHAT_EXTENSION_INSTALLED, context.chatInstalled, StorageScope.PROFILE, StorageTarget.MACHINE);
+	update(context: { signedOut: boolean; limited: boolean; entitled: boolean; canSignUp: boolean }): Promise<void>;
+	update(context: { installed?: boolean; triggered?: boolean; signedOut?: boolean; limited?: boolean; entitled?: boolean; canSignUp?: boolean }): Promise<void> {
+		if (typeof context.installed === 'boolean') {
+			this.installed = context.installed;
+			this.storageService.store(ChatSetupContext.CHAT_EXTENSION_INSTALLED, context.installed, StorageScope.PROFILE, StorageTarget.MACHINE);
 
-			if (context.chatInstalled) {
+			if (context.installed) {
 				context.triggered = true; // allows to fallback to setup view if the extension is uninstalled
 			}
 		}
@@ -902,16 +907,20 @@ class ChatSetupContext extends Disposable {
 			}
 		}
 
+		if (typeof context.signedOut === 'boolean') {
+			this.signedOut = context.signedOut;
+		}
+
+		if (typeof context.canSignUp === 'boolean') {
+			this.canSignUp = context.canSignUp;
+		}
+
 		if (typeof context.limited === 'boolean') {
 			this.limited = context.limited;
 		}
 
 		if (typeof context.entitled === 'boolean') {
 			this.entitled = context.entitled;
-		}
-
-		if (typeof context.canSignUp === 'boolean') {
-			this.canSignUp = context.canSignUp;
 		}
 
 		return this.updateContext();
@@ -927,11 +936,12 @@ class ChatSetupContext extends Disposable {
 			this.storageService.remove('interactive.sessions', this.workspaceContextService.getWorkspace().folders.length ? StorageScope.WORKSPACE : StorageScope.APPLICATION);
 		}
 
+		this.canSignUpContextKey.set(this.canSignUp);
+		this.signedOutContextKey.set(this.signedOut);
 		this.triggeredContext.set(showChatSetup);
 		this.installedContext.set(this.installed);
 		this.limitedContextKey.set(this.limited);
 		this.entitledContextKey.set(this.entitled);
-		this.canSignUpContextKey.set(this.canSignUp);
 	}
 
 	getContext() {
