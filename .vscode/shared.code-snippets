@@ -36,23 +36,5 @@
 			"private readonly _onDid$1 = new Emitter<$2>();",
 			"readonly onDid$1: Event<$2> = this._onDid$1.event;"
 		],
-	},
-	"esm-comment": {
-		"scope": "typescript,javascript",
-		"prefix": "esm-comment",
-		"body": [
-			"// ESM-comment-begin",
-			"$SELECTION$0",
-			"// ESM-comment-end",
-		]
-	},
-	"esm-uncomment": {
-		"scope": "typescript,javascript",
-		"prefix": "esm-uncomment",
-		"body": [
-			"// ESM-uncomment-begin",
-			"// $SELECTION$0",
-			"// ESM-uncomment-end",
-		]
 	}
 }

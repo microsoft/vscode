@@ -32,6 +32,11 @@ import { IFilesConfigurationService } from '../../../services/filesConfiguration
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ILoggerService, LogLevel, LogLevelToLocalizedString, LogLevelToString } from '../../../../platform/log/common/log.js';
 import { IDefaultLogLevelsService } from '../../logs/common/defaultLogLevels.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
+import { IsWindowsContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { FocusedViewContext } from '../../../common/contextkeys.js';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
@@ -540,4 +545,29 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['output']
 		}
 	}
+});
+
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'cursorWordAccessibilityLeft',
+	when: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
+	primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+	weight: KeybindingWeight.WorkbenchContrib
+});
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'cursorWordAccessibilityLeftSelect',
+	when: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
+	weight: KeybindingWeight.WorkbenchContrib
+});
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'cursorWordAccessibilityRight',
+	when: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
+	primary: KeyMod.CtrlCmd | KeyCode.RightArrow,
+	weight: KeybindingWeight.WorkbenchContrib
+});
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'cursorWordAccessibilityRightSelect',
+	when: ContextKeyExpr.and(EditorContextKeys.textInputFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsWindowsContext, ContextKeyExpr.equals(FocusedViewContext.key, OUTPUT_VIEW_ID)),
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow,
+	weight: KeybindingWeight.WorkbenchContrib
 });

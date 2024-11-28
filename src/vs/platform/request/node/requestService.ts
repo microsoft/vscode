@@ -16,7 +16,7 @@ import { IRequestContext, IRequestOptions } from '../../../base/parts/request/co
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
-import { ILogService, ILogger } from '../../log/common/log.js';
+import { ILogService } from '../../log/common/log.js';
 import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../common/request.js';
 import { Agent, getProxyAgent } from './proxy.js';
 import { createGunzip } from 'zlib';
@@ -52,12 +52,11 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 	private shellEnvErrorLogged?: boolean;
 
 	constructor(
-		logger: ILogger,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@ILogService private readonly logService: ILogService,
+		@ILogService logService: ILogService,
 	) {
-		super(logger);
+		super(logService);
 		this.configure();
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('http')) {
@@ -116,13 +115,8 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 
 	async lookupKerberosAuthorization(urlStr: string): Promise<string | undefined> {
 		try {
-			const kerberos = await import('kerberos');
-			const url = new URL(urlStr);
-			const spn = this.configurationService.getValue<string>('http.proxyKerberosServicePrincipal')
-				|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
-			this.logService.debug('RequestService#lookupKerberosAuthorization Kerberos authentication lookup', `proxyURL:${url}`, `spn:${spn}`);
-			const client = await kerberos.initializeClient(spn);
-			const response = await client.step('');
+			const spnConfig = this.configurationService.getValue<string>('http.proxyKerberosServicePrincipal');
+			const response = await lookupKerberosAuthorization(urlStr, spnConfig, this.logService, 'RequestService#lookupKerberosAuthorization');
 			return 'Negotiate ' + response;
 		} catch (err) {
 			this.logService.debug('RequestService#lookupKerberosAuthorization Kerberos authentication failed', err);
@@ -134,6 +128,17 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 		const proxyAgent = await import('@vscode/proxy-agent');
 		return proxyAgent.loadSystemCertificates({ log: this.logService });
 	}
+}
+
+export async function lookupKerberosAuthorization(urlStr: string, spnConfig: string | undefined, logService: ILogService, logPrefix: string) {
+	const importKerberos = await import('kerberos');
+	const kerberos = importKerberos.default || importKerberos;
+	const url = new URL(urlStr);
+	const spn = spnConfig
+		|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
+	logService.debug(`${logPrefix} Kerberos authentication lookup`, `proxyURL:${url}`, `spn:${spn}`);
+	const client = await kerberos.initializeClient(spn);
+	return client.step('');
 }
 
 async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunction> {

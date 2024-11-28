@@ -6,6 +6,9 @@
 const DEFAULT_CLIENT_ID = 'aebc6443-996d-45c2-90f0-388ff96faa56';
 const DEFAULT_TENANT = 'organizations';
 
+const OIDC_SCOPES = ['openid', 'email', 'profile', 'offline_access'];
+const GRAPH_TACK_ON_SCOPE = 'User.Read';
+
 export class ScopeData {
 
 	/**
@@ -38,22 +41,10 @@ export class ScopeData {
 
 	constructor(readonly originalScopes: readonly string[] = []) {
 		const modifiedScopes = [...originalScopes];
-		if (!modifiedScopes.includes('openid')) {
-			modifiedScopes.push('openid');
-		}
-		if (!modifiedScopes.includes('email')) {
-			modifiedScopes.push('email');
-		}
-		if (!modifiedScopes.includes('profile')) {
-			modifiedScopes.push('profile');
-		}
-		if (!modifiedScopes.includes('offline_access')) {
-			modifiedScopes.push('offline_access');
-		}
 		modifiedScopes.sort();
 		this.allScopes = modifiedScopes;
 		this.scopeStr = modifiedScopes.join(' ');
-		this.scopesToSend = this.originalScopes.filter(s => !s.startsWith('VSCODE_'));
+		this.scopesToSend = this.getScopesToSend(modifiedScopes);
 		this.clientId = this.getClientId(this.allScopes);
 		this.tenant = this.getTenantId(this.allScopes);
 	}
@@ -74,5 +65,21 @@ export class ScopeData {
 			}
 			return prev;
 		}, undefined) ?? DEFAULT_TENANT;
+	}
+
+	private getScopesToSend(scopes: string[]) {
+		const scopesToSend = scopes.filter(s => !s.startsWith('VSCODE_'));
+
+		const set = new Set(scopesToSend);
+		for (const scope of OIDC_SCOPES) {
+			set.delete(scope);
+		}
+
+		// If we only had OIDC scopes, we need to add a tack-on scope to make the request valid
+		// by forcing Identity into treating this as a Graph token request.
+		if (!set.size) {
+			scopesToSend.push(GRAPH_TACK_ON_SCOPE);
+		}
+		return scopesToSend;
 	}
 }

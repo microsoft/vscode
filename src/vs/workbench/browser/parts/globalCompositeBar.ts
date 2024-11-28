@@ -24,7 +24,7 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { EventType as TouchEventType, GestureEvent } from '../../../base/browser/touch.js';
 import { AnchorAlignment, AnchorAxisAlignment } from '../../../base/browser/ui/contextview/contextview.js';
 import { Lazy } from '../../../base/common/lazy.js';
-import { createAndFillInActionBarActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
@@ -277,9 +277,7 @@ abstract class AbstractGlobalActivityActionViewItem extends CompositeBarActionVi
 	}
 
 	protected async resolveMainMenuActions(menu: IMenu, _disposable: DisposableStore): Promise<IAction[]> {
-		const actions: IAction[] = [];
-		createAndFillInActionBarActions(menu, { renderShortTitle: true }, { primary: [], secondary: actions });
-		return actions;
+		return getActionBarActions(menu.getActions({ renderShortTitle: true })).secondary;
 	}
 }
 
@@ -602,8 +600,7 @@ export class GlobalActivityActionViewItem extends AbstractGlobalActivityActionVi
 		}
 
 		show(this.profileBadge);
-		this.profileBadgeContent.classList.toggle('profile-text-overlay', true);
-		this.profileBadgeContent.classList.toggle('profile-icon-overlay', false);
+		this.profileBadgeContent.classList.add('profile-text-overlay');
 		this.profileBadgeContent.textContent = this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase();
 	}
 

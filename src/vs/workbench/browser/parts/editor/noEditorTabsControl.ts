@@ -47,9 +47,17 @@ export class NoEditorTabsControl extends EditorTabsControl {
 
 	beforeCloseEditor(editor: EditorInput): void { }
 
-	closeEditor(editor: EditorInput): void { }
+	closeEditor(editor: EditorInput): void {
+		this.handleClosedEditors();
+	}
 
-	closeEditors(editors: EditorInput[]): void { }
+	closeEditors(editors: EditorInput[]): void {
+		this.handleClosedEditors();
+	}
+
+	private handleClosedEditors(): void {
+		this.activeEditor = this.tabsModel.activeEditor;
+	}
 
 	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number): void { }
 

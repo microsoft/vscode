@@ -9,22 +9,27 @@ import { ScopeData } from '../scopeData';
 suite('ScopeData', () => {
 	test('should include default scopes if not present', () => {
 		const scopeData = new ScopeData(['custom_scope']);
-		assert.deepStrictEqual(scopeData.allScopes, ['custom_scope', 'email', 'offline_access', 'openid', 'profile']);
+		assert.deepStrictEqual(scopeData.allScopes, ['custom_scope']);
 	});
 
 	test('should not duplicate default scopes if already present', () => {
-		const scopeData = new ScopeData(['openid', 'email', 'profile', 'offline_access']);
-		assert.deepStrictEqual(scopeData.allScopes, ['email', 'offline_access', 'openid', 'profile']);
+		const scopeData = new ScopeData(['custom_scope', 'openid', 'email', 'profile', 'offline_access']);
+		assert.deepStrictEqual(scopeData.allScopes, ['custom_scope', 'email', 'offline_access', 'openid', 'profile']);
 	});
 
 	test('should sort the scopes alphabetically', () => {
-		const scopeData = new ScopeData(['profile', 'email', 'openid', 'offline_access']);
-		assert.deepStrictEqual(scopeData.allScopes, ['email', 'offline_access', 'openid', 'profile']);
+		const scopeData = new ScopeData(['custom_scope', 'profile', 'email', 'openid', 'offline_access']);
+		assert.deepStrictEqual(scopeData.allScopes, ['custom_scope', 'email', 'offline_access', 'openid', 'profile']);
 	});
 
 	test('should create a space-separated string of all scopes', () => {
-		const scopeData = new ScopeData(['custom_scope']);
+		const scopeData = new ScopeData(['custom_scope', 'openid', 'email', 'offline_access', 'profile']);
 		assert.strictEqual(scopeData.scopeStr, 'custom_scope email offline_access openid profile');
+	});
+
+	test('should add TACK ON scope if all scopes are OIDC scopes', () => {
+		const scopeData = new ScopeData(['openid', 'email', 'offline_access', 'profile']);
+		assert.deepStrictEqual(scopeData.scopesToSend, ['email', 'offline_access', 'openid', 'profile', 'User.Read']);
 	});
 
 	test('should filter out internal VS Code scopes for scopesToSend', () => {

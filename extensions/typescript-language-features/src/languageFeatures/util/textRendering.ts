@@ -28,7 +28,7 @@ function getTagBodyText(
 		if (/^\s*[~`]{3}/m.test(text)) {
 			return text;
 		}
-		return '```\n' + text + '\n```';
+		return '```tsx\n' + text + '\n```';
 	}
 
 	let text = convertLinkTags(tag.text, filePathConverter);

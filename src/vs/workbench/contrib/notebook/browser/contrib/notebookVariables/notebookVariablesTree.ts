@@ -10,9 +10,9 @@ import { ITreeNode, ITreeRenderer } from '../../../../../../base/browser/ui/tree
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
-import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchObjectTree } from '../../../../../../platform/list/browser/listService.js';
-import { renderExpressionValue } from '../../../../debug/browser/baseDebugView.js';
+import { DebugExpressionRenderer } from '../../../../debug/browser/debugExpressionRenderer.js';
 import { INotebookVariableElement } from './notebookVariablesDataSource.js';
 
 const $ = dom.$;
@@ -40,15 +40,16 @@ export interface IVariableTemplateData {
 
 export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariableElement, FuzzyScore, IVariableTemplateData> {
 
+	private expressionRenderer: DebugExpressionRenderer;
+
 	static readonly ID = 'variableElement';
 
 	get templateId(): string {
 		return NotebookVariableRenderer.ID;
 	}
 
-	constructor(
-		@IHoverService private readonly _hoverService: IHoverService
-	) {
+	constructor(@IInstantiationService instantiationService: IInstantiationService) {
+		this.expressionRenderer = instantiationService.createInstance(DebugExpressionRenderer);
 	}
 
 	renderTemplate(container: HTMLElement): IVariableTemplateData {
@@ -66,10 +67,11 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 		data.name.textContent = text;
 		data.name.title = element.element.type ?? '';
 
-		renderExpressionValue(data.elementDisposables, element.element, data.value, {
+		data.elementDisposables.add(this.expressionRenderer.renderValue(data.value, element.element, {
 			colorize: true,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-		}, this._hoverService);
+			session: undefined,
+		}));
 	}
 
 	disposeElement(element: ITreeNode<INotebookVariableElement, FuzzyScore>, index: number, templateData: IVariableTemplateData, height: number | undefined): void {

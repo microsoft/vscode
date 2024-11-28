@@ -51,7 +51,12 @@ function extractEditor(options) {
     // Add extra .d.ts files from `node_modules/@types/`
     if (Array.isArray(options.compilerOptions?.types)) {
         options.compilerOptions.types.forEach((type) => {
-            options.typings.push(`../node_modules/@types/${type}/index.d.ts`);
+            if (type === '@webgpu/types') {
+                options.typings.push(`../node_modules/${type}/dist/index.d.ts`);
+            }
+            else {
+                options.typings.push(`../node_modules/@types/${type}/index.d.ts`);
+            }
         });
     }
     const result = tss.shake(options);
@@ -98,10 +103,7 @@ function extractEditor(options) {
     delete tsConfig.compilerOptions.moduleResolution;
     writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
     [
-        'vs/css.build.ts',
-        'vs/css.ts',
-        'vs/loader.js',
-        'vs/loader.d.ts'
+        'vs/loader.js'
     ].forEach(copyFile);
 }
 function createESMSourcesAndResources2(options) {

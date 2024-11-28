@@ -3,12 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertFn } from '../assert.js';
-import { EqualityComparer, strictEquals } from '../equals.js';
-import { onBugIndicatingError } from '../errors.js';
-import { DisposableStore, IDisposable } from '../lifecycle.js';
 import { BaseObservable, IChangeContext, IObservable, IObserver, IReader, ISettableObservable, ITransaction, _setDerivedOpts, } from './base.js';
-import { DebugNameData, IDebugNameData, DebugOwner } from './debugName.js';
+import { DebugNameData, DebugOwner, IDebugNameData } from './debugName.js';
+import { BugIndicatingError, DisposableStore, EqualityComparer, IDisposable, assertFn, onBugIndicatingError, strictEquals } from './commonFacade/deps.js';
 import { getLogger } from './logging.js';
 
 /**
@@ -196,6 +193,8 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	private dependencies = new Set<IObservable<any>>();
 	private dependenciesToBeRemoved = new Set<IObservable<any>>();
 	private changeSummary: TChangeSummary | undefined = undefined;
+	private _isUpdating = false;
+	private _isComputing = false;
 
 	public override get debugName(): string {
 		return this._debugNameData.getDebugName(this) ?? '(anonymous)';
@@ -230,13 +229,24 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	}
 
 	public override get(): T {
+		if (this._isComputing) {
+			throw new BugIndicatingError('Cyclic deriveds are not supported yet!');
+		}
+
 		if (this.observers.size === 0) {
+			let result;
 			// Without observers, we don't know when to clean up stuff.
 			// Thus, we don't cache anything to prevent memory leaks.
-			const result = this._computeFn(this, this.createChangeSummary?.()!);
+			try {
+				this._isReaderValid = true;
+				result = this._computeFn(this, this.createChangeSummary?.()!);
+			} finally {
+				this._isReaderValid = false;
+			}
 			// Clear new dependencies
 			this.onLastObserverRemoved();
 			return result;
+
 		} else {
 			do {
 				// We might not get a notification for a dependency that changed while it is updating,
@@ -280,13 +290,17 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 		let didChange = false;
 
+		this._isComputing = false; // TODO@hediet: Set to true and investigate diff editor scrolling issues! (also see test.skip('catches cyclic dependencies')
+
 		try {
 			const changeSummary = this.changeSummary!;
 			this.changeSummary = this.createChangeSummary?.();
 			try {
+				this._isReaderValid = true;
 				/** might call {@link handleChange} indirectly, which could invalidate us */
 				this.value = this._computeFn(this, changeSummary);
 			} finally {
+				this._isReaderValid = false;
 				// We don't want our observed observables to think that they are (not even temporarily) not being observed.
 				// Thus, we only unsubscribe from observables that are definitely not read anymore.
 				for (const o of this.dependenciesToBeRemoved) {
@@ -308,6 +322,8 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			onBugIndicatingError(e);
 		}
 
+		this._isComputing = false;
+
 		if (didChange) {
 			for (const r of this.observers) {
 				r.handleChange(this, undefined);
@@ -320,22 +336,32 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	}
 
 	// IObserver Implementation
+
 	public beginUpdate<T>(_observable: IObservable<T>): void {
+		if (this._isUpdating) {
+			throw new BugIndicatingError('Cyclic deriveds are not supported yet!');
+		}
+
 		this.updateCount++;
-		const propagateBeginUpdate = this.updateCount === 1;
-		if (this.state === DerivedState.upToDate) {
-			this.state = DerivedState.dependenciesMightHaveChanged;
-			// If we propagate begin update, that will already signal a possible change.
-			if (!propagateBeginUpdate) {
-				for (const r of this.observers) {
-					r.handlePossibleChange(this);
+		this._isUpdating = true;
+		try {
+			const propagateBeginUpdate = this.updateCount === 1;
+			if (this.state === DerivedState.upToDate) {
+				this.state = DerivedState.dependenciesMightHaveChanged;
+				// If we propagate begin update, that will already signal a possible change.
+				if (!propagateBeginUpdate) {
+					for (const r of this.observers) {
+						r.handlePossibleChange(this);
+					}
 				}
 			}
-		}
-		if (propagateBeginUpdate) {
-			for (const r of this.observers) {
-				r.beginUpdate(this); // This signals a possible change
+			if (propagateBeginUpdate) {
+				for (const r of this.observers) {
+					r.beginUpdate(this); // This signals a possible change
+				}
 			}
+		} finally {
+			this._isUpdating = false;
 		}
 	}
 
@@ -387,7 +413,11 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	}
 
 	// IReader Implementation
+	private _isReaderValid = false;
+
 	public readObservable<T>(observable: IObservable<T>): T {
+		if (!this._isReaderValid) { throw new BugIndicatingError('The reader object cannot be used outside its compute function!'); }
+
 		// Subscribe before getting the value to enable caching
 		observable.addObserver(this);
 		/** This might call {@link handleChange} indirectly, which could invalidate us */

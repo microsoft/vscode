@@ -14,6 +14,7 @@ import Severity from '../../../../base/common/severity.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { Color } from '../../../../base/common/color.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export namespace Extensions {
 	export const ExtensionFeaturesRegistry = 'workbench.registry.extensionFeatures';
@@ -56,6 +57,7 @@ export interface IExtensionFeatureDescriptor {
 	readonly id: string;
 	readonly label: string;
 	readonly description?: string;
+	readonly icon?: ThemeIcon;
 	readonly access: {
 		readonly canToggle?: boolean;
 		readonly requireUserConsent?: boolean;
@@ -73,11 +75,11 @@ export interface IExtensionFeaturesRegistry {
 
 export interface IExtensionFeatureAccessData {
 	readonly current?: {
-		readonly count: number;
-		readonly lastAccessed: number;
+		readonly accessTimes: Date[];
+		readonly lastAccessed: Date;
 		readonly status?: { readonly severity: Severity; readonly message: string };
 	};
-	readonly totalCount: number;
+	readonly accessTimes: Date[];
 }
 
 export const IExtensionFeaturesManagementService = createDecorator<IExtensionFeaturesManagementService>('IExtensionFeaturesManagementService');
@@ -92,6 +94,7 @@ export interface IExtensionFeaturesManagementService {
 	getAccess(extension: ExtensionIdentifier, featureId: string, justification?: string): Promise<boolean>;
 
 	readonly onDidChangeAccessData: Event<{ readonly extension: ExtensionIdentifier; readonly featureId: string; readonly accessData: IExtensionFeatureAccessData }>;
+	getAllAccessDataForExtension(extension: ExtensionIdentifier): Map<string, IExtensionFeatureAccessData>;
 	getAccessData(extension: ExtensionIdentifier, featureId: string): IExtensionFeatureAccessData | undefined;
 	setStatus(extension: ExtensionIdentifier, featureId: string, status: { readonly severity: Severity; readonly message: string } | undefined): void;
 }

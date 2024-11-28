@@ -53,7 +53,6 @@ import { equals } from '../../../../base/common/objects.js';
 import { EditSessionIdentityMatch, IEditSessionIdentityService } from '../../../../platform/workspace/common/editSessions.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IOutputService } from '../../../services/output/common/output.js';
-import { sha1Hex } from '../../../../base/browser/hash.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -61,14 +60,14 @@ import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
-import { IExtensionsViewPaneContainer, VIEWLET_ID } from '../../extensions/common/extensions.js';
-import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { WorkspaceStateSynchroniser } from '../common/workspaceStateSync.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IRequestService } from '../../../../platform/request/common/request.js';
 import { EditSessionsStoreClient } from '../common/editSessionsStorageClient.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceIdentityService } from '../../../services/workspaces/common/workspaceIdentityService.js';
+import { hashAsync } from '../../../../base/common/hash.js';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
 registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
@@ -101,10 +100,7 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const paneCompositePartService = accessor.get(IPaneCompositePartService);
-		const viewlet = await paneCompositePartService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
-		view?.search('@tag:continueOn');
+		return accessor.get(IExtensionsWorkbenchService).openSearch('@tag:continueOn');
 	}
 });
 
@@ -667,7 +663,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		switch (type) {
 			case (ChangeType.Addition): {
-				const [originalContents, incomingContents] = await Promise.all([sha1Hex(contents), sha1Hex(encodeBase64((await this.fileService.readFile(uriWithIncomingChanges)).value))]);
+				const [originalContents, incomingContents] = await Promise.all([
+					hashAsync(contents),
+					hashAsync(encodeBase64((await this.fileService.readFile(uriWithIncomingChanges)).value))
+				]);
 				return originalContents !== incomingContents;
 			}
 			case (ChangeType.Deletion): {

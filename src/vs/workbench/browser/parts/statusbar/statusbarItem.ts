@@ -39,8 +39,6 @@ export class StatusbarEntryItem extends Disposable {
 	private readonly commandMouseListener = this._register(new MutableDisposable());
 	private readonly commandTouchListener = this._register(new MutableDisposable());
 	private readonly commandKeyboardListener = this._register(new MutableDisposable());
-	private readonly focusListener = this._register(new MutableDisposable());
-	private readonly focusOutListener = this._register(new MutableDisposable());
 
 	private hover: IManagedHover | undefined = undefined;
 
@@ -123,16 +121,6 @@ export class StatusbarEntryItem extends Disposable {
 				this.hover.update(hoverContents);
 			} else {
 				this.hover = this._register(this.hoverService.setupManagedHover(this.hoverDelegate, this.container, hoverContents));
-			}
-			if (entry.command !== ShowTooltipCommand /* prevents flicker on click */) {
-				this.focusListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS, e => {
-					EventHelper.stop(e);
-					this.hover?.show(false);
-				});
-				this.focusOutListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS_OUT, e => {
-					EventHelper.stop(e);
-					this.hover?.hide();
-				});
 			}
 		}
 
@@ -320,7 +308,7 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 			// If we have text to show, add a space to separate from progress
 			let textContent = text ?? '';
 			if (textContent) {
-				textContent = ` ${textContent}`;
+				textContent = `\u00A0${textContent}`; // prepend non-breaking space
 			}
 
 			// Append new elements

@@ -28,6 +28,10 @@ declare module 'vscode' {
 		 */
 		rejected?: Command;
 
+		shown?: Command;
+
+		commands?: Command[];
+
 		/**
 		 * Creates a new inline edit.
 		 *

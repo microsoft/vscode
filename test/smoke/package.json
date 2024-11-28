@@ -11,13 +11,11 @@
     "mocha": "node ../node_modules/mocha/bin/mocha"
   },
   "dependencies": {
-    "mkdirp": "^1.0.4",
     "ncp": "^2.0.0",
     "node-fetch": "^2.6.7",
     "rimraf": "3.0.2"
   },
   "devDependencies": {
-    "@types/mkdirp": "^1.0.1",
     "@types/mocha": "^9.1.1",
     "@types/ncp": "2.0.1",
     "@types/node": "20.x",
