@@ -6,14 +6,23 @@
 import { SetWithKey } from './collections.js';
 import { ArrayNavigator, INavigator } from './navigator.js';
 
-export class HistoryNavigator<T> implements INavigator<T> {
+export interface IHistory<T> {
+	delete(t: T): boolean;
+	add(t: T): this;
+	has(t: T): boolean;
+	clear(): void;
+	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void;
+	replace?(t: T[]): void;
+}
 
-	private _history!: Set<T>;
+export class HistoryNavigator<T> implements INavigator<T> {
 	private _limit: number;
 	private _navigator!: ArrayNavigator<T>;
 
-	constructor(history: readonly T[] = [], limit: number = 10) {
-		this._initialize(history);
+	constructor(
+		private _history: IHistory<T> = new Set(),
+		limit: number = 10,
+	) {
 		this._limit = limit;
 		this._onChange();
 	}
@@ -69,7 +78,7 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	}
 
 	public clear(): void {
-		this._initialize([]);
+		this._history.clear();
 		this._onChange();
 	}
 
@@ -82,7 +91,12 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	private _reduceToLimit() {
 		const data = this._elements;
 		if (data.length > this._limit) {
-			this._initialize(data.slice(data.length - this._limit));
+			const replaceValue = data.slice(data.length - this._limit);
+			if (this._history.replace) {
+				this._history.replace(replaceValue);
+			} else {
+				this._history = new Set(replaceValue);
+			}
 		}
 	}
 
@@ -93,13 +107,6 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		}
 
 		return this._elements.indexOf(currentElement);
-	}
-
-	private _initialize(history: readonly T[]): void {
-		this._history = new Set();
-		for (const entry of history) {
-			this._history.add(entry);
-		}
 	}
 
 	private get _elements(): T[] {

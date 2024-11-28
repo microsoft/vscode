@@ -6,8 +6,8 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IPager } from '../../../../base/common/paging.js';
-import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionResult } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { EnablementState, IExtensionManagementServer, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionResult } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EnablementState, IExtensionManagementServer, IResourceExtension, IWorkbenchInstallOptions } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -20,6 +20,7 @@ import { IExtensionEditorOptions } from './extensionsInput.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { Severity } from '../../../../platform/notification/common/notification.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
@@ -105,7 +106,7 @@ export interface IExtension {
 
 export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>('extensionsWorkbenchService');
 
-export interface InstallExtensionOptions extends InstallOptions {
+export interface InstallExtensionOptions extends IWorkbenchInstallOptions {
 	version?: string;
 	justification?: string | { reason: string; action: string };
 	enable?: boolean;
@@ -133,11 +134,12 @@ export interface IExtensionsWorkbenchService {
 	getExtensions(extensionInfos: IExtensionInfo[], token: CancellationToken): Promise<IExtension[]>;
 	getExtensions(extensionInfos: IExtensionInfo[], options: IExtensionQueryOptions, token: CancellationToken): Promise<IExtension[]>;
 	getResourceExtensions(locations: URI[], isWorkspaceScoped: boolean): Promise<IExtension[]>;
-	canInstall(extension: IExtension): Promise<boolean>;
+	canInstall(extension: IExtension): Promise<true | IMarkdownString>;
 	install(id: string, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
 	install(vsix: URI, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
 	install(extension: IExtension, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
 	installInServer(extension: IExtension, server: IExtensionManagementServer): Promise<void>;
+	downloadVSIX(extension: string, prerelease: boolean): Promise<void>;
 	uninstall(extension: IExtension): Promise<void>;
 	reinstall(extension: IExtension): Promise<IExtension>;
 	togglePreRelease(extension: IExtension): Promise<void>;

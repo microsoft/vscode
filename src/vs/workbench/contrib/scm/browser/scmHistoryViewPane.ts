@@ -40,11 +40,11 @@ import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/lis
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Sequencer, Throttler } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ActionRunner, IAction, IActionRunner } from '../../../../base/common/actions.js';
+import { ActionRunner, IAction, IActionRunner, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import { delta, groupBy } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
@@ -61,9 +61,9 @@ import { compare } from '../../../../base/common/strings.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { groupBy as groupBy2 } from '../../../../base/common/collections.js';
+import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
@@ -196,7 +196,9 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 			title: localize('goToCurrentHistoryItem', "Go to Current History Item"),
 			icon: Codicon.target,
 			viewId: HISTORY_VIEW_PANE_ID,
-			precondition: ContextKeys.SCMHistoryItemCount.notEqualsTo(0),
+			precondition: ContextKeyExpr.and(
+				ContextKeys.SCMHistoryItemCount.notEqualsTo(0),
+				ContextKeys.SCMCurrentHistoryItemRefInFilter.isEqualTo(true)),
 			f1: false,
 			menu: {
 				id: MenuId.SCMHistoryTitle,
@@ -1205,12 +1207,14 @@ export class SCMHistoryViewPane extends ViewPane {
 	private readonly _updateChildrenThrottler = new Throttler();
 
 	private readonly _scmProviderCtx: IContextKey<string | undefined>;
+	private readonly _scmCurrentHistoryItemRefHasRemote: IContextKey<boolean>;
+	private readonly _scmCurrentHistoryItemRefInFilter: IContextKey<boolean>;
 
 	constructor(
 		options: IViewPaneOptions,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@INotificationService private readonly _notificationService: INotificationService,
+		@IMenuService private readonly _menuService: IMenuService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -1230,6 +1234,8 @@ export class SCMHistoryViewPane extends ViewPane {
 		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this._scmProviderCtx = ContextKeys.SCMProvider.bindTo(this.scopedContextKeyService);
+		this._scmCurrentHistoryItemRefHasRemote = ContextKeys.SCMCurrentHistoryItemRefHasRemote.bindTo(this.scopedContextKeyService);
+		this._scmCurrentHistoryItemRefInFilter = ContextKeys.SCMCurrentHistoryItemRefInFilter.bindTo(this.scopedContextKeyService);
 
 		this._actionRunner = this.instantiationService.createInstance(SCMHistoryViewPaneActionRunner);
 		this._register(this._actionRunner);
@@ -1311,15 +1317,15 @@ export class SCMHistoryViewPane extends ViewPane {
 					return;
 				}
 
-				// Update context
-				this._scmProviderCtx.set(repository.provider.contextValue);
-
 				// HistoryItemId changed (checkout)
 				const historyItemRefId = derived(reader => {
 					return historyProvider.historyItemRef.read(reader)?.id;
 				});
-				store.add(runOnChange(historyItemRefId, () => {
+				store.add(runOnChange(historyItemRefId, historyItemRefIdValue => {
 					this.refresh();
+
+					// Update context key (needs to be done after the refresh call)
+					this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefIdValue));
 				}));
 
 				// HistoryItemRefs changed
@@ -1344,7 +1350,19 @@ export class SCMHistoryViewPane extends ViewPane {
 				// HistoryItemRefs filter changed
 				store.add(runOnChange(this._treeViewModel.onDidChangeHistoryItemsFilter, () => {
 					this.refresh();
+
+					// Update context key (needs to be done after the refresh call)
+					this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefId.get()));
 				}));
+
+				// HistoryItemRemoteRef changed
+				store.add(autorun(reader => {
+					this._scmCurrentHistoryItemRefHasRemote.set(!!historyProvider.historyItemRemoteRef.read(reader));
+				}));
+
+				// Update context
+				this._scmProviderCtx.set(repository.provider.contextValue);
+				this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefId.get()));
 
 				// We skip refreshing the graph on the first execution of the autorun
 				// since the graph for the first repository is rendered when the tree
@@ -1438,16 +1456,11 @@ export class SCMHistoryViewPane extends ViewPane {
 		const repository = this._treeViewModel.repository.get();
 		const historyProvider = repository?.provider.historyProvider.get();
 		const historyItemRef = historyProvider?.historyItemRef.get();
-		const historyItemFilter = this._treeViewModel.getHistoryItemsFilter();
-
-		if (!repository || !historyItemRef?.revision || !historyItemFilter) {
+		if (!repository || !historyItemRef?.id || !historyItemRef?.revision) {
 			return;
 		}
 
-		// Filter set to `all`, `auto` or it contains the current history item
-		if (Array.isArray(historyItemFilter) &&
-			!historyItemFilter.find(ref => ref.id === historyItemRef.id)) {
-			this._notificationService.info(localize('scmGraphViewRevealCurrentHistoryItem', "The current history item is not present in the source control graph. Please use the history item references picker to expand the set of history items in the graph."));
+		if (this._isCurrentHistoryItemInFilter(historyItemRef.id)) {
 			return;
 		}
 
@@ -1513,6 +1526,19 @@ export class SCMHistoryViewPane extends ViewPane {
 		this._tree.onContextMenu(this._onContextMenu, this, this._store);
 	}
 
+	private _isCurrentHistoryItemInFilter(historyItemRefId: string | undefined): boolean {
+		if (!historyItemRefId) {
+			return false;
+		}
+
+		const historyItemFilter = this._treeViewModel.getHistoryItemsFilter();
+		if (historyItemFilter === 'all' || historyItemFilter === 'auto') {
+			return true;
+		}
+
+		return Array.isArray(historyItemFilter) && !!historyItemFilter.find(ref => ref.id === historyItemRefId);
+	}
+
 	private async _onDidOpen(e: IOpenEvent<TreeElement | undefined>): Promise<void> {
 		if (!e.element) {
 			return;
@@ -1546,14 +1572,40 @@ export class SCMHistoryViewPane extends ViewPane {
 			return;
 		}
 
-		this.contextMenuService.showContextMenu({
-			contextKeyService: this.scopedContextKeyService,
-			menuId: MenuId.SCMChangesContext,
-			menuActionOptions: {
+		const actions: IAction[] = [];
+
+		const historyItemMenu = this._menuService.createMenu(MenuId.SCMChangesContext, this.contextKeyService);
+		const historyItemMenuActions = historyItemMenu.getActions({
+			arg: element.repository.provider,
+			shouldForwardArgs: true
+		});
+
+		actions.push(...getFlatContextMenuActions(historyItemMenuActions));
+		if (element.historyItemViewModel.historyItem.references?.length) {
+			actions.push(new Separator());
+		}
+
+		for (const ref of element.historyItemViewModel.historyItem.references ?? []) {
+			const contextKeyService = this.contextKeyService.createOverlay([
+				['scmHistoryItemRef', ref.id]
+			]);
+
+			const historyItemRefMenu = this._menuService.createMenu(MenuId.SCMHistoryItemRefContext, contextKeyService);
+			const historyItemRefMenuActions = historyItemRefMenu.getActions({
 				arg: element.repository.provider,
 				shouldForwardArgs: true
-			},
+			});
+
+			const subMenuActions = getFlatContextMenuActions(historyItemRefMenuActions)
+				.map(action => ({ ...action, run: (...args: unknown[]) => action.run(...args, ref.id) }));
+
+			actions.push(new SubmenuAction(`scm.historyItemRef.${ref.id}`, ref.name, subMenuActions));
+		}
+
+		this.contextMenuService.showContextMenu({
+			contextKeyService: this.scopedContextKeyService,
 			getAnchor: () => e.anchor,
+			getActions: () => actions,
 			getActionsContext: () => element.historyItemViewModel.historyItem
 		});
 	}

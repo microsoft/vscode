@@ -1864,6 +1864,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		viewUserInputEvents.onMouseWheel = (e) => this._onMouseWheel.fire(e);
 
 		const view = new View(
+			this.getId(),
 			commandDelegate,
 			this._configuration,
 			this._themeService.getColorTheme(),

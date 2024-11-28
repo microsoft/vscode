@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ThreeKeyMap } from '../../../../base/common/map.js';
+import type { FourKeyMap } from '../../../../base/common/map.js';
 import type { IBoundingBox, IRasterizedGlyph } from '../raster/raster.js';
 
 /**
@@ -31,6 +31,20 @@ export interface ITextureAtlasPageGlyph {
 	originOffsetX: number;
 	/** The y offset from {@link y} of the glyph's origin. */
 	originOffsetY: number;
+	/**
+	 * The distance from the the glyph baseline to the top of the highest bounding rectangle of all
+	 * fonts used to render the text.
+	 *
+	 * @see {@link TextMetrics.fontBoundingBoxAscent}
+	 */
+	fontBoundingBoxAscent: number;
+	/**
+	 * The distance from the the glyph baseline to the bottom of the bounding rectangle of all fonts
+	 * used to render the text.
+	 *
+	 * @see {@link TextMetrics.fontBoundingBoxDescent}
+	 */
+	fontBoundingBoxDescent: number;
 }
 
 /**
@@ -92,4 +106,4 @@ export const enum UsagePreviewColors {
 	Restricted = '#FF000088',
 }
 
-export type GlyphMap<T> = ThreeKeyMap</*chars*/string, /*metadata*/number, /*rasterizerCacheKey*/string, T>;
+export type GlyphMap<T> = FourKeyMap</*chars*/string, /*tokenMetadata*/number, /*charMetadata*/number, /*rasterizerCacheKey*/string, T>;
