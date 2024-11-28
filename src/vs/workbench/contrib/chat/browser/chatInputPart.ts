@@ -1224,7 +1224,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if (e.element?.kind === 'reference' && URI.isUri(e.element.reference)) {
 					const modifiedFileUri = e.element.reference;
 
-					const entry = chatEditingSession.entries.get().find(entry => entry.modifiedURI.toString() === modifiedFileUri.toString());
+					const entry = chatEditingSession.getEntry(modifiedFileUri);
 					const diffInfo = entry?.diffInfo.get();
 					const range = diffInfo?.changes.at(0)?.modified.toExclusiveRange();
 

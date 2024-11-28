@@ -7,7 +7,6 @@ import './media/chatEditorController.css';
 import { getTotalWidth } from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
@@ -86,7 +85,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			const model = modelObs.read(r);
 
 			const session = this._chatEditingService.currentEditingSessionObs.read(r);
-			const entry = session?.entries.read(r).find(e => isEqual(e.modifiedURI, model?.uri));
+			const entry = model?.uri ? session?.readEntry(model.uri, r) : undefined;
 
 			if (!entry || entry.state.read(r) !== WorkingSetEntryState.Modified) {
 				this._clearRendering();
@@ -106,7 +105,9 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			if (!value || value.state.read(r) !== ChatEditingSessionState.StreamingEdits) {
 				return false;
 			}
-			return value.entries.read(r).some(e => isEqual(e.modifiedURI, this._editor.getModel()?.uri));
+
+			const model = modelObs.read(r);
+			return model ? value.readEntry(model.uri, r) : undefined;
 		});
 
 

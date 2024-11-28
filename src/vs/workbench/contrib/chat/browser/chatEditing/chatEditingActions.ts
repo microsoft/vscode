@@ -130,7 +130,7 @@ registerAction2(class OpenFileInDiffAction extends WorkingSetAction {
 	async runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, _chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		for (const uri of uris) {
-			const editedFile = currentEditingSession.entries.get().find((e) => e.modifiedURI.toString() === uri.toString());
+			const editedFile = currentEditingSession.getEntry(uri);
 			if (editedFile?.state.get() === WorkingSetEntryState.Modified) {
 				await editorService.openEditor({
 					original: { resource: URI.from(editedFile.originalURI, true) },
