@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { _tokenizeToString } from '../../../common/languages/textToHtmlTokenizer.js';
 import { ITextModel } from '../../../common/model.js';
 import { Position } from '../../../common/core/position.js';
-import { RangeTreeLeafNode, TokenRangeTree } from '../../../common/model/rangeTree.js';
+import { isLeaf, RangeTreeLeafNode, TokenRangeTree } from '../../../common/model/rangeTree.js';
 
 class MockTokenRangeTextModel {
 	constructor(private valueLength: number) {
@@ -140,8 +140,6 @@ suite('Range Tree', () => {
     │       ├── [12, 15]
     │       └── [15, 18]
     └── (17)
-        ├── (16)
-        │   ├── (15)
         └── (18)
             ├── [18, 19]
             └── [19, 20]`;
@@ -244,19 +242,14 @@ suite('Range Tree', () => {
 │   └── [15, 24]
 └── (29)
     ├── (24)
-    │   ├── (21)
-    │   │   └── (22)
-    │   │       └── [24, 28]
+    │   ├── [24, 28]
     │   └── (26)
-    │       ├── (25)
     │       └── (27)
     │           └── (28)
     │               ├── [28, 29]
     │               └── [29, 32]
     └── (34)
         ├── (31)
-        │   ├── (30)
-        │   │   ├── (29)
         │   └── (32)
         │       ├── [32, 33]
         │       └── (33)
@@ -359,8 +352,7 @@ suite('Range Tree', () => {
 
 		const expectedModifiedTree =
 			`(2)
-├── (1)
-│   ├── [0, 3]
+├── [0, 3]
 └── [3, 5]`;
 		assert.strictEqual(treeA.printTree(), expectedModifiedTree);
 	});
@@ -422,7 +414,6 @@ suite('Range Tree', () => {
 │       │   └── (7)
 │       │       ├── [7, 8]
 │       │       └── [8, 11]
-│       └── (9)
 └── (16)
     ├── (13)
     │   ├── (12)
@@ -439,10 +430,77 @@ suite('Range Tree', () => {
         │   └── (18)
         │       ├── [18, 19]
         │       └── [19, 20]
-        └── (20)
-            ├── [20, 22]`;
+        └── [20, 22]`;
 
 		assert.strictEqual(tree.printTree(), expectedModifiedTree);
+	});
+
+	test('Replace with one large token', () => {
+		const expectedTree =
+			`(9)
+├── (4)
+│   ├── [0, 7]
+│   └── (6)
+│       └── (7)
+│           ├── [7, 8]
+│           └── [8, 11]
+└── (13)
+    ├── (11)
+    │   ├── [11, 12]
+    │   └── [12, 15]
+    └── (15)
+        ├── [15, 16]
+        └── (16)
+            ├── [16, 17]
+            └── [17, 18]`;
+
+		const ranges: RangeTreeLeafNode<number>[] = [
+			{ startInclusive: 0, endExclusive: 7, data: 0, parent: undefined },
+			{ startInclusive: 7, endExclusive: 8, data: 0, parent: undefined },
+			{ startInclusive: 8, endExclusive: 11, data: 0, parent: undefined },
+			{ startInclusive: 11, endExclusive: 12, data: 0, parent: undefined },
+			{ startInclusive: 12, endExclusive: 15, data: 0, parent: undefined },
+			{ startInclusive: 15, endExclusive: 16, data: 0, parent: undefined },
+			{ startInclusive: 16, endExclusive: 17, data: 0, parent: undefined },
+			{ startInclusive: 17, endExclusive: 18, data: 0, parent: undefined }
+		];
+
+		const mockTextModel = new MockTokenRangeTextModel(18);
+		const tree = new TokenRangeTree<number>(mockTextModel as unknown as ITextModel, 0);
+		for (const range of ranges) {
+			insertRange(tree, range);
+		}
+		assert.strictEqual(tree.printTree(), expectedTree);
+
+		mockTextModel.updateLength(5);
+		insertRange(tree, { startInclusive: 0, endExclusive: 23, data: 0, parent: undefined });
+		const expectedModifiedTree =
+		`(2)
+├── [0, 23]`;
+		assert.strictEqual(tree.printTree(), expectedModifiedTree);
+	});
+
+	test('traversePostOrderFromNode', () => {
+		const textModel = new MockTokenRangeTextModel(15);
+		const tree =  new TokenRangeTree<number>(textModel as unknown as ITextModel, 0);
+
+		// Insert nodes into the tree
+		tree.insert(0, 5, 1);
+		tree.insert(5, 10, 2);
+		tree.insert(10, 15, 3);
+
+		let visited = '';
+
+		tree.traversePostOrder((node, segmentRange) => {
+			if (isLeaf(node)) {
+				visited += `[${node.startInclusive}, ${node.endExclusive}]`;
+			} else {
+				visited += `(${node.maxLeftStartInclusive})`;
+			}
+		});
+
+		// Verify the nodes are visited in post-order
+		assert.deepStrictEqual(visited, '[0, 5][5, 10](3)[10, 15](7)');
 	});
 
 });

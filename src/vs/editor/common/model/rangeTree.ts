@@ -28,7 +28,7 @@ interface RangeTreeBranchNode<T> {
 
 type RangeTreeNode<T> = RangeTreeLeafNode<T> | RangeTreeBranchNode<T>;
 
-function isLeaf<T>(node: RangeTreeNode<T>): node is RangeTreeLeafNode<T> {
+export function isLeaf<T>(node: RangeTreeNode<T>): node is RangeTreeLeafNode<T> {
 	return (node as RangeTreeLeafNode<T>).data !== undefined;
 }
 
@@ -202,20 +202,25 @@ export class TokenRangeTree<T> {
 				}
 
 				current.parent = undefined;
-				toInsert.push({ newNode: current, startingNode: newBranch, startingSegmentRange: segmentRange });
+				toInsert.unshift({ newNode: current, startingNode: newBranch, startingSegmentRange: segmentRange });
 				current = newBranch;
 			}
 		}
 	}
 
 	private deleteFrom(toDelete: RangeTreeLeafNode<T>, startingNode: RangeTreeBranchNode<T>): void {
-		this.traverseInOrderFromNode(toDelete, startingNode, (node) => {
-			if (node.parent?.left === node) {
-				node.parent.left = undefined;
-			} else if (node.parent?.right === node) {
-				node.parent.right = undefined;
+		this.traversePostOrderFromNode(toDelete, startingNode, (node) => {
+			// We don't delete identical ranges as then can just be reused.
+			const deleteLeaf = isLeaf(node) && this.rangesOverlap(node, toDelete) && (node.startInclusive !== toDelete.startInclusive || node.endExclusive !== toDelete.endExclusive);
+			const deleteBranch = !isLeaf(node) && !node.left && !node.right;
+			if (deleteLeaf || deleteBranch) {
+				if (node.parent?.left === node) {
+					node.parent.left = undefined;
+				} else if (node.parent?.right === node) {
+					node.parent.right = undefined;
+				}
+				node.parent = undefined;
 			}
-			node.parent = undefined;
 		});
 	}
 
@@ -291,6 +296,33 @@ export class TokenRangeTree<T> {
 		}
 	}
 
+	public traversePostOrder(callback: (node: RangeTreeNode<T>, segmentRange: TreeRange) => void): void {
+		const end = this.getEnd();
+		const startingSegmentRange = { startInclusive: 0, endExclusive: end };
+		this.traversePostOrderFromNode(startingSegmentRange, this._root, callback);
+	}
+
+	private traversePostOrderFromNode(range: TreeRange, startingNode: RangeTreeBranchNode<T>, callback: (node: RangeTreeNode<T>, segmentRange: TreeRange) => void): void {
+		let current: { node: RangeTreeNode<T>; segmentRange: TreeRange } | undefined = { node: startingNode, segmentRange: range };
+		const stack: { node: RangeTreeNode<T>; segmentRange: TreeRange }[] = [];
+		let lastVisitedNode: RangeTreeNode<T> | undefined = undefined;
+
+		while (stack.length > 0 || current) {
+			if (current) {
+				stack.push(current);
+				current = (!isLeaf(current.node) && current.node.left) ? { node: current.node.left, segmentRange: this.shrinkSegmentRange(true, current.segmentRange) } : undefined;
+			} else {
+				const peekNode = stack[stack.length - 1];
+				if (!isLeaf(peekNode.node) && peekNode.node.right && lastVisitedNode !== peekNode.node.right) {
+					current = { node: peekNode.node.right, segmentRange: this.shrinkSegmentRange(false, peekNode.segmentRange) };
+				} else {
+					callback(peekNode.node, peekNode.segmentRange);
+					lastVisitedNode = stack.pop()!.node;
+				}
+			}
+		}
+	}
+
 	private rangeContainsStartPoint(outer: TreeRange, inner: TreeRange): boolean {
 		return (inner.startInclusive >= outer.startInclusive) && (inner.startInclusive < outer.endExclusive);
 	}
@@ -311,9 +343,12 @@ export class TokenRangeTree<T> {
 				const intendedRightSegmentRange = this.shrinkSegmentRange(false, segmentRange);
 				if (!isLeaf(node.right) && (this._end < node.right.segmentStartRange.startInclusive)) {
 					// the document got smaller remove the entire right subtree
+					node.right.parent = undefined;
 					node.right = undefined;
+					// TODO: do I need to traverse this right subtree and set everything to undefined so it gets garbage collected?
 				} else if (isLeaf(node.right) && !this.rangeContainsStartPoint(intendedRightSegmentRange, node.right)) {
 					needsReInsert.push(node.right);
+					node.right.parent = undefined;
 					node.right = undefined;
 				}
 			}
@@ -321,6 +356,7 @@ export class TokenRangeTree<T> {
 				const intendedLeftSegmentRange = this.shrinkSegmentRange(true, segmentRange);
 				if (isLeaf(node.left) && !this.rangeContainsStartPoint(intendedLeftSegmentRange, node.left)) {
 					needsReInsert.push(node.left);
+					node.left.parent = undefined;
 					node.left = undefined;
 				}
 			}
@@ -329,12 +365,12 @@ export class TokenRangeTree<T> {
 			node.segmentStartRange = segmentRange;
 
 			if (node.parent && node.parent.maxLeftStartInclusive === node.maxLeftStartInclusive) {
-				// node is redundant
 				if (node.parent.left === node) {
 					node.parent.left = undefined;
 				} else if (node.parent.right === node) {
 					node.parent.right = undefined;
 				}
+				node.parent = undefined;
 			}
 
 			return true;
@@ -347,25 +383,31 @@ export class TokenRangeTree<T> {
 
 	printTree(): string | undefined {
 		const toPrint: string[] = [];
-		const printNode = (node: RangeTreeNode<T> | undefined, prefix: string, isLeft: boolean) => {
-			if (!node) { return; }
-			// allow-any-unicode-next-line
-			toPrint.push(prefix + (isLeft ? '├── ' : '└── ') + (isLeaf(node) ? `[${node.startInclusive}, ${node.endExclusive}]` : `(${node.maxLeftStartInclusive})`));
-			if (!isLeaf(node)) {
-				// allow-any-unicode-next-line
-				printNode(node.left, prefix + (isLeft ? '│   ' : '    '), true);
-				// allow-any-unicode-next-line
-				printNode(node.right, prefix + (isLeft ? '│   ' : '    '), false);
-			}
-		};
+		const stack: { node: RangeTreeNode<T>; prefix: string; isLeft: boolean | undefined }[] = [];
+		stack.push({ node: this._root, prefix: '', isLeft: undefined });
 
-		if (this._root) {
-			toPrint.push(`(${this._root.maxLeftStartInclusive})`);
-			printNode(this._root.left, '', true);
-			printNode(this._root.right, '', false);
-			return toPrint.join('\n');
-		} else {
-			return undefined;
+		while (stack.length > 0) {
+			const { node, prefix, isLeft } = stack.pop()!;
+			if (node) {
+				const nodeLabel = isLeaf(node)
+					? `[${node.startInclusive}, ${node.endExclusive}]`
+					: `(${node.maxLeftStartInclusive})`;
+
+				// allow-any-unicode-next-line
+				toPrint.push(prefix + ((isLeft === true) ? '├── ' : (isLeft === false ? '└── ' : '')) + nodeLabel);
+
+				if (!isLeaf(node)) {
+					// allow-any-unicode-next-line
+					const childPrefix = prefix + ((isLeft === true) ? '│   ' : (isLeft === false ? '    ' : ''));
+					if (node.right) {
+						stack.push({ node: node.right, prefix: childPrefix, isLeft: false });
+					}
+					if (node.left) {
+						stack.push({ node: node.left, prefix: childPrefix, isLeft: true });
+					}
+				}
+			}
 		}
+		return toPrint.join('\n');
 	}
 }
