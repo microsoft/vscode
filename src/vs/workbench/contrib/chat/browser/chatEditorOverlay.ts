@@ -374,7 +374,7 @@ export class ChatEditorOverlayController implements IEditorContribution {
 		@IInstantiationService instaService: IInstantiationService,
 	) {
 		const modelObs = observableFromEvent(this._editor.onDidChangeModel, () => this._editor.getModel());
-		const widget = instaService.createInstance(ChatEditorOverlayWidget, this._editor);
+		const widget = this._store.add(instaService.createInstance(ChatEditorOverlayWidget, this._editor));
 
 		if (this._editor.getOption(EditorOption.inDiffEditor)) {
 			return;

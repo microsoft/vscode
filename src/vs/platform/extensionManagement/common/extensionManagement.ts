@@ -477,6 +477,7 @@ export const enum ExtensionManagementErrorCode {
 }
 
 export enum ExtensionSignatureVerificationCode {
+	'NotSigned' = 'NotSigned',
 	'Success' = 'Success',
 	'RequiredArgumentMissing' = 'RequiredArgumentMissing', // A required argument is missing.
 	'InvalidArgument' = 'InvalidArgument', // An argument is invalid.
@@ -633,7 +634,9 @@ export interface IAllowedExtensionsService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeAllowedExtensions: Event<void>;
-	isAllowed(extension: IGalleryExtension | IExtension | { id: string; version?: string; prerelease?: boolean }): true | IMarkdownString;
+
+	isAllowed(extension: IGalleryExtension | IExtension): true | IMarkdownString;
+	isAllowed(extension: { id: string; publisherDisplayName: string | undefined; version?: string; prerelease?: boolean; targetPlatform?: TargetPlatform }): true | IMarkdownString;
 }
 
 export async function computeSize(location: URI, fileService: IFileService): Promise<number> {

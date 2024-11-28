@@ -69,6 +69,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	private _lastUserData?: string;
 	static lastAcceptedCompletionTimestamp: number = 0;
+	private _lastUserDataTimestamp: number = 0;
 
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
 
@@ -124,6 +125,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._terminal = xterm;
 		this._register(xterm.onData(async e => {
 			this._lastUserData = e;
+			this._lastUserDataTimestamp = Date.now();
 		}));
 	}
 
@@ -142,12 +144,19 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
+		let doNotRequestExtensionCompletions = false;
+		// Ensure that a key has been pressed since the last accepted completion in order to prevent
+		// completions being requested again right after accepting a completion
+		if (this._lastUserDataTimestamp < SuggestAddon.lastAcceptedCompletionTimestamp) {
+			doNotRequestExtensionCompletions = true;
+		}
+
 		const enableExtensionCompletions = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).enableExtensionCompletions;
-		if (enableExtensionCompletions) {
+		if (enableExtensionCompletions && !doNotRequestExtensionCompletions) {
 			await this._extensionService.activateByEvent('onTerminalCompletionsRequested');
 		}
 
-		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._promptInputModel.cursorIndex, this._shellType, token, triggerCharacter);
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._promptInputModel.cursorIndex, this._shellType, token, triggerCharacter, doNotRequestExtensionCompletions);
 		if (!providedCompletions?.length || token.isCancellationRequested) {
 			return;
 		}
@@ -213,8 +222,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		this._showCompletions(model);
 	}
-
-
 
 	setContainerWithOverflow(container: HTMLElement): void {
 		this._container = container;
@@ -454,8 +461,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		const completion = suggestion.item.completion;
-		const completionText = completion.label;
-
+		let completionText = completion.label;
+		if ((completion.isDirectory || completion.isFile) && completionText.includes(' ')) {
+			// Escape spaces in files or folders so they're valid paths
+			completionText = completionText.replaceAll(' ', '\\ ');
+		}
 		let runOnEnter = false;
 		if (respectRunOnEnter) {
 			const runOnEnterConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).runOnEnter;
@@ -485,9 +495,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		this._mostRecentCompletion = completion;
 
-		const commonPrefixLen = commonPrefixLength(replacementText, completion.label);
+		const commonPrefixLen = commonPrefixLength(replacementText, completionText);
 		const commonPrefix = replacementText.substring(replacementText.length - 1 - commonPrefixLen, replacementText.length - 1);
-		const completionSuffix = completion.label.substring(commonPrefixLen);
+		const completionSuffix = completionText.substring(commonPrefixLen);
 		let resultSequence: string;
 		if (currentPromptInputState.suffix.length > 0 && currentPromptInputState.prefix.endsWith(commonPrefix) && currentPromptInputState.suffix.startsWith(completionSuffix)) {
 			// Move right to the end of the completion

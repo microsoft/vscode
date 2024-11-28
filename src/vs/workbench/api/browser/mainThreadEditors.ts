@@ -33,8 +33,9 @@ import { IDirtyDiffModelService } from '../../contrib/scm/browser/diff.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, observableFromEvent } from '../../../base/common/observable.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { isITextModel } from '../../../editor/common/model.js';
-import { LineRangeMapping, lineRangeMappingFromChanges } from '../../../editor/common/diff/rangeMapping.js';
+import { LineRangeMapping } from '../../../editor/common/diff/rangeMapping.js';
 import { equals } from '../../../base/common/arrays.js';
+import { Event } from '../../../base/common/event.js';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -146,45 +147,43 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			? observableFromEvent(this, diffEditor.onDidChangeModel, () => diffEditor.getModel())
 			: observableFromEvent(this, codeEditor.onDidChangeModel, () => codeEditor.getModel());
 
-		const editorChangesObs = derived<IObservable<{ original: URI; modified: URI; lineRangeMappings: LineRangeMapping[] }[] | undefined>>(reader => {
+		const editorChangesObs = derived<IObservable<{ original: URI; modified: URI; changes: readonly LineRangeMapping[] }[] | undefined>>(reader => {
 			const editorModel = editorModelObs.read(reader);
 			if (!editorModel) {
 				return constObservable(undefined);
 			}
 
-			// DiffEditor
-			if (!isITextModel(editorModel)) {
-				return observableFromEvent(diffEditor.onDidUpdateDiff, () => {
-					const changes = diffEditor.getDiffComputationResult()?.changes2 ?? [];
+			const editorModelUri = isITextModel(editorModel)
+				? editorModel.uri
+				: editorModel.modified.uri;
 
-					return [{
-						original: editorModel.original.uri,
-						modified: editorModel.modified.uri,
-						lineRangeMappings: changes.map(change => change as LineRangeMapping)
-					}];
-				});
-			}
-
-			// TextEditor
-			const dirtyDiffModel = this._dirtyDiffModelService.getOrCreateModel(editorModel.uri);
+			// DirtyDiffModel - we create a dirty diff model for both the text editor and the
+			// diff editor so that we can provide multiple "original resources" to diff with
+			// the modified resource.
+			const dirtyDiffModel = this._dirtyDiffModelService.getOrCreateModel(editorModelUri);
 			if (!dirtyDiffModel) {
 				return constObservable(undefined);
 			}
 
-			return observableFromEvent(this, dirtyDiffModel.onDidChange, () => {
-				return dirtyDiffModel.quickDiffs.map(quickDiff => {
-					const changes = dirtyDiffModel.changes
-						.filter(change => change.label === quickDiff.label)
-						.map(change => change.change);
-
-					// Convert IChange[] to LineRangeMapping[]
-					const lineRangeMappings = lineRangeMappingFromChanges(changes);
-					return {
-						original: quickDiff.originalResource,
-						modified: editorModel.uri,
-						lineRangeMappings
-					};
+			// TextEditor
+			if (isITextModel(editorModel)) {
+				return observableFromEvent(this, dirtyDiffModel.onDidChange, () => {
+					return dirtyDiffModel.getQuickDiffResults();
 				});
+			}
+
+			// DiffEditor
+			return observableFromEvent(Event.any(dirtyDiffModel.onDidChange, diffEditor.onDidUpdateDiff), () => {
+				const dirtyDiffInformation = dirtyDiffModel.getQuickDiffResults();
+
+				const diffChanges = diffEditor.getDiffComputationResult()?.changes2 ?? [];
+				const diffInformation = [{
+					original: editorModel.original.uri,
+					modified: editorModel.modified.uri,
+					changes: diffChanges.map(change => change as LineRangeMapping)
+				}];
+
+				return [...dirtyDiffInformation, ...diffInformation];
 			});
 		});
 
@@ -203,7 +202,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 				: editorModel.modified.getVersionId();
 
 			return editorChanges.map(change => {
-				const changes: ITextEditorChange[] = change.lineRangeMappings
+				const changes: ITextEditorChange[] = change.changes
 					.map(change => [
 						change.original.startLineNumber,
 						change.original.endLineNumberExclusive,

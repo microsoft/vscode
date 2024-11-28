@@ -3,32 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './documentSymbolsTree.css';
-import '../../../../../editor/contrib/symbolIcons/browser/symbolIcons.js'; // The codicon symbol colors are defined here and must be loaded to get colors
+import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
-import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
-import { ITreeNode, ITreeRenderer, ITreeFilter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
-import { createMatches, FuzzyScore } from '../../../../../base/common/filters.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { DocumentSymbol, SymbolKind, SymbolKinds, SymbolTag, getAriaLabelForSymbol, symbolKindNames } from '../../../../../editor/common/languages.js';
-import { OutlineElement, OutlineGroup, OutlineModel } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
-import { localize } from '../../../../../nls.js';
 import { IconLabel, IIconLabelValueOptions } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { listErrorForeground, listWarningForeground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
-import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
-import { IOutlineComparator, OutlineConfigKeys, OutlineTarget } from '../../../../services/outline/browser/outline.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { mainWindow } from '../../../../../base/browser/window.js';
-import { IDragAndDropData, DataTransfers } from '../../../../../base/browser/dnd.js';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { ElementsDragAndDropData } from '../../../../../base/browser/ui/list/listView.js';
-import { CodeDataTransfers } from '../../../../../platform/dnd/browser/dnd.js';
-import { withSelection } from '../../../../../platform/opener/common/opener.js';
+import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
+import { ITreeDragAndDrop, ITreeDragOverReaction, ITreeFilter, ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { createMatches, FuzzyScore } from '../../../../../base/common/filters.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { DocumentSymbol, getAriaLabelForSymbol, SymbolKind, symbolKindNames, SymbolKinds, SymbolTag } from '../../../../../editor/common/languages.js';
+import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { OutlineElement, OutlineGroup, OutlineModel } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
+import '../../../../../editor/contrib/symbolIcons/browser/symbolIcons.js'; // The codicon symbol colors are defined here and must be loaded to get colors
+import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { fillInSymbolsDragData, IResourceStat } from '../../../../../platform/dnd/browser/dnd.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
+import { withSelection } from '../../../../../platform/opener/common/opener.js';
+import { listErrorForeground, listWarningForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { fillEditorsDragData } from '../../../../browser/dnd.js';
+import { IOutlineComparator, OutlineConfigKeys, OutlineTarget } from '../../../../services/outline/browser/outline.js';
+import './documentSymbolsTree.css';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -67,7 +69,9 @@ export class DocumentSymbolIdentityProvider implements IIdentityProvider<Documen
 
 export class DocumentSymbolDragAndDrop implements ITreeDragAndDrop<DocumentSymbolItem> {
 
-	constructor() { }
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
+	) { }
 
 	getDragURI(element: DocumentSymbolItem): string | null {
 		const resource = OutlineModel.get(element)?.uri;
@@ -106,15 +110,18 @@ export class DocumentSymbolDragAndDrop implements ITreeDragAndDrop<DocumentSymbo
 		}
 
 		const outlineElements = item instanceof OutlineElement ? [item] : Array.from(item.children.values());
-		const symbolsData = outlineElements.map(oe => ({
+
+		fillInSymbolsDragData(outlineElements.map(oe => ({
 			name: oe.symbol.name,
 			fsPath: resource.fsPath,
 			range: oe.symbol.range,
 			kind: oe.symbol.kind
-		}));
+		})), originalEvent);
 
-		originalEvent.dataTransfer.setData(CodeDataTransfers.SYMBOLS, JSON.stringify(symbolsData));
-		originalEvent.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(outlineElements.map(oe => symbolRangeUri(resource, oe.symbol).toString())));
+		this._instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, outlineElements.map((oe): IResourceStat => ({
+			resource,
+			selection: oe.symbol.range,
+		})), originalEvent));
 	}
 
 	onDragOver(): boolean | ITreeDragOverReaction { return false; }

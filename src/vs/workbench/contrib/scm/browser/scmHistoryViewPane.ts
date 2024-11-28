@@ -40,11 +40,11 @@ import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/lis
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Sequencer, Throttler } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ActionRunner, IAction, IActionRunner } from '../../../../base/common/actions.js';
+import { ActionRunner, IAction, IActionRunner, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import { delta, groupBy } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
@@ -63,6 +63,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { groupBy as groupBy2 } from '../../../../base/common/collections.js';
+import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
@@ -1213,6 +1214,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		options: IViewPaneOptions,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IMenuService private readonly _menuService: IMenuService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -1570,14 +1572,40 @@ export class SCMHistoryViewPane extends ViewPane {
 			return;
 		}
 
-		this.contextMenuService.showContextMenu({
-			contextKeyService: this.scopedContextKeyService,
-			menuId: MenuId.SCMChangesContext,
-			menuActionOptions: {
+		const actions: IAction[] = [];
+
+		const historyItemMenu = this._menuService.createMenu(MenuId.SCMChangesContext, this.contextKeyService);
+		const historyItemMenuActions = historyItemMenu.getActions({
+			arg: element.repository.provider,
+			shouldForwardArgs: true
+		});
+
+		actions.push(...getFlatContextMenuActions(historyItemMenuActions));
+		if (element.historyItemViewModel.historyItem.references?.length) {
+			actions.push(new Separator());
+		}
+
+		for (const ref of element.historyItemViewModel.historyItem.references ?? []) {
+			const contextKeyService = this.contextKeyService.createOverlay([
+				['scmHistoryItemRef', ref.id]
+			]);
+
+			const historyItemRefMenu = this._menuService.createMenu(MenuId.SCMHistoryItemRefContext, contextKeyService);
+			const historyItemRefMenuActions = historyItemRefMenu.getActions({
 				arg: element.repository.provider,
 				shouldForwardArgs: true
-			},
+			});
+
+			const subMenuActions = getFlatContextMenuActions(historyItemRefMenuActions)
+				.map(action => ({ ...action, run: (...args: unknown[]) => action.run(...args, ref.id) }));
+
+			actions.push(new SubmenuAction(`scm.historyItemRef.${ref.id}`, ref.name, subMenuActions));
+		}
+
+		this.contextMenuService.showContextMenu({
+			contextKeyService: this.scopedContextKeyService,
 			getAnchor: () => e.anchor,
+			getActions: () => actions,
 			getActionsContext: () => element.historyItemViewModel.historyItem
 		});
 	}

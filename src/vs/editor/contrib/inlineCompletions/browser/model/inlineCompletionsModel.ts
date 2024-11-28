@@ -8,12 +8,13 @@ import { itemsEquals } from '../../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
-import { commonPrefixLength } from '../../../../../base/common/strings.js';
+import { commonPrefixLength, firstNonWhitespaceIndex } from '../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
+import { CursorColumns } from '../../../../common/core/cursorColumns.js';
 import { EditOperation } from '../../../../common/core/editOperation.js';
 import { LineRange } from '../../../../common/core/lineRange.js';
 import { Position } from '../../../../common/core/position.js';
@@ -54,7 +55,7 @@ export class InlineCompletionsModel extends Disposable {
 
 	constructor(
 		public readonly textModel: ITextModel,
-		public readonly selectedSuggestItem: IObservable<SuggestItemInfo | undefined>,
+		private readonly _selectedSuggestItem: IObservable<SuggestItemInfo | undefined>,
 		public readonly _textModelVersionId: IObservable<number | null, IModelContentChangedEvent | undefined>,
 		private readonly _positions: IObservable<readonly Position[]>,
 		private readonly _debounceValue: IFeatureDebounceInformation,
@@ -86,6 +87,40 @@ export class InlineCompletionsModel extends Disposable {
 				}
 			}
 		}));
+	}
+
+	public debugGetSelectedSuggestItem(): IObservable<SuggestItemInfo | undefined> {
+		return this._selectedSuggestItem;
+	}
+
+	public getIndentationInfo(reader: IReader) {
+		let startsWithIndentation = false;
+		let startsWithIndentationLessThanTabSize = true;
+		const ghostText = this?.primaryGhostText.read(reader);
+		if (!!this?._selectedSuggestItem && ghostText && ghostText.parts.length > 0) {
+			const { column, lines } = ghostText.parts[0];
+
+			const firstLine = lines[0];
+
+			const indentationEndColumn = this.textModel.getLineIndentColumn(ghostText.lineNumber);
+			const inIndentation = column <= indentationEndColumn;
+
+			if (inIndentation) {
+				let firstNonWsIdx = firstNonWhitespaceIndex(firstLine);
+				if (firstNonWsIdx === -1) {
+					firstNonWsIdx = firstLine.length - 1;
+				}
+				startsWithIndentation = firstNonWsIdx > 0;
+
+				const tabSize = this.textModel.getOptions().tabSize;
+				const visibleColumnIndentation = CursorColumns.visibleColumnFromColumn(firstLine, firstNonWsIdx + 1, tabSize);
+				startsWithIndentationLessThanTabSize = visibleColumnIndentation < tabSize;
+			}
+		}
+		return {
+			startsWithIndentation,
+			startsWithIndentationLessThanTabSize,
+		};
 	}
 
 	private readonly _preserveCurrentCompletionReasons = new Set([
@@ -128,7 +163,7 @@ export class InlineCompletionsModel extends Disposable {
 		this.dontRefetchSignal.read(reader);
 		this._onlyRequestInlineEditsSignal.read(reader);
 		this._forceUpdateExplicitlySignal.read(reader);
-		const shouldUpdate = (this._enabled.read(reader) && this.selectedSuggestItem.read(reader)) || this._isActive.read(reader);
+		const shouldUpdate = (this._enabled.read(reader) && this._selectedSuggestItem.read(reader)) || this._isActive.read(reader);
 		if (!shouldUpdate) {
 			this._source.cancelUpdate();
 			return undefined;
@@ -137,7 +172,7 @@ export class InlineCompletionsModel extends Disposable {
 		this._textModelVersionId.read(reader); // Refetch on text change
 
 		const suggestWidgetInlineCompletions = this._source.suggestWidgetInlineCompletions.get();
-		const suggestItem = this.selectedSuggestItem.read(reader);
+		const suggestItem = this._selectedSuggestItem.read(reader);
 		if (suggestWidgetInlineCompletions && !suggestItem) {
 			const inlineCompletions = this._source.inlineCompletions.get();
 			transaction(tx => {
@@ -321,7 +356,7 @@ export class InlineCompletionsModel extends Disposable {
 
 		this._jumpedTo.set(false, undefined);
 
-		const suggestItem = this.selectedSuggestItem.read(reader);
+		const suggestItem = this._selectedSuggestItem.read(reader);
 		if (suggestItem) {
 			const suggestCompletionEdit = singleTextRemoveCommonPrefix(suggestItem.toSingleTextEdit(), model);
 			const augmentation = this._computeAugmentation(suggestCompletionEdit, reader);
@@ -357,15 +392,6 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	});
 
-	private readonly _alwaysShowInlineEdit = observableValue<boolean>(this, false);
-
-	protected readonly _resetAlwaysShowInlineEdit = this._register(autorun(reader => {
-		this._primaryPosition.read(reader);
-		this._textModelVersionId.read(reader);
-
-		this._alwaysShowInlineEdit.set(false, undefined);
-	}));
-
 	public readonly status = derived(this, reader => {
 		if (this._source.loading.read(reader)) { return 'loading'; }
 		const s = this.state.read(reader);
@@ -376,7 +402,9 @@ export class InlineCompletionsModel extends Disposable {
 
 	public readonly inlineCompletionState = derived(reader => {
 		const s = this.state.read(reader);
-		if (!s || s.kind !== 'ghostText') { return undefined; }
+		if (!s || s.kind !== 'ghostText') {
+			return undefined;
+		}
 		if (this._editorObs.inComposition.read(reader)) {
 			return undefined;
 		}
@@ -385,7 +413,9 @@ export class InlineCompletionsModel extends Disposable {
 
 	public readonly inlineEditState = derived(reader => {
 		const s = this.state.read(reader);
-		if (!s || s.kind !== 'inlineEdit') { return undefined; }
+		if (!s || s.kind !== 'inlineEdit') {
+			return undefined;
+		}
 		return s;
 	});
 
@@ -416,13 +446,17 @@ export class InlineCompletionsModel extends Disposable {
 
 	public readonly ghostTexts = derivedOpts({ owner: this, equalsFn: ghostTextsOrReplacementsEqual }, reader => {
 		const v = this.inlineCompletionState.read(reader);
-		if (!v) { return undefined; }
+		if (!v) {
+			return undefined;
+		}
 		return v.ghostTexts;
 	});
 
 	public readonly primaryGhostText = derivedOpts({ owner: this, equalsFn: ghostTextOrReplacementEquals }, reader => {
 		const v = this.inlineCompletionState.read(reader);
-		if (!v) { return undefined; }
+		if (!v) {
+			return undefined;
+		}
 		return v?.primaryGhostText;
 	});
 
@@ -449,18 +483,29 @@ export class InlineCompletionsModel extends Disposable {
 	});
 
 	public readonly tabShouldJumpToInlineEdit = derived(this, reader => {
-		if (this._tabShouldIndent.read(reader)) { return false; }
+		if (this._tabShouldIndent.read(reader)) {
+			return false;
+		}
 
 		const s = this.inlineEditState.read(reader);
-		if (!s) { return false; }
+		if (!s) {
+			return false;
+		}
 		return !s.cursorAtInlineEdit;
 	});
 
 	public readonly tabShouldAcceptInlineEdit = derived(this, reader => {
-		if (this._tabShouldIndent.read(reader)) { return false; }
+		if (this._jumpedTo.read(reader)) {
+			return true;
+		}
+		if (this._tabShouldIndent.read(reader)) {
+			return false;
+		}
 
 		const s = this.inlineEditState.read(reader);
-		if (!s) { return false; }
+		if (!s) {
+			return false;
+		}
 		return s.cursorAtInlineEdit;
 	});
 
@@ -534,8 +579,6 @@ export class InlineCompletionsModel extends Disposable {
 				.then(undefined, onUnexpectedExternalError);
 			completion.source.removeRef();
 		}
-
-		this._alwaysShowInlineEdit.set(true, undefined);
 	}
 
 	public async acceptNextWord(editor: ICodeEditor): Promise<void> {

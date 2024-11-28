@@ -9,7 +9,6 @@ const cdSpec: Fig.Spec = {
 	args: {
 		name: 'folder',
 		template: 'folders',
-		isVariadic: true,
 
 		suggestions: [
 			{

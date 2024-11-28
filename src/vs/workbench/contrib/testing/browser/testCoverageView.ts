@@ -224,8 +224,8 @@ class TestCoverageTree extends Disposable {
 	) {
 		super();
 
-		this.tree = <WorkbenchCompressibleObjectTree<CoverageTreeElement, void>>instantiationService.createInstance(
-			WorkbenchCompressibleObjectTree,
+		this.tree = instantiationService.createInstance(
+			WorkbenchCompressibleObjectTree<CoverageTreeElement, void>,
 			'TestCoverageView',
 			container,
 			new TestCoverageTreeListDelegate(),

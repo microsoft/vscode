@@ -6,8 +6,8 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IPager } from '../../../../base/common/paging.js';
-import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, InstallOptions, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionResult } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { EnablementState, IExtensionManagementServer, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionResult } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EnablementState, IExtensionManagementServer, IResourceExtension, IWorkbenchInstallOptions } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -106,7 +106,7 @@ export interface IExtension {
 
 export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>('extensionsWorkbenchService');
 
-export interface InstallExtensionOptions extends InstallOptions {
+export interface InstallExtensionOptions extends IWorkbenchInstallOptions {
 	version?: string;
 	justification?: string | { reason: string; action: string };
 	enable?: boolean;

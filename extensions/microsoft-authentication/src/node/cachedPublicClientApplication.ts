@@ -81,7 +81,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		if (this._isBrokerAvailable) {
 			await this._accountAccess.initialize();
 		}
-		await this._update();
+		await this._sequencer.queue(() => this._update());
 	}
 
 	dispose(): void {
@@ -92,9 +92,9 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] starting...`);
 		const result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(request));
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got result`);
+		this._setupRefresh(result);
 		if (result.account && !result.fromCache && this._verifyIfUsingBroker(result)) {
 			this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] firing event due to change`);
-			this._setupRefresh(result);
 			this._onDidAccountsChangeEmitter.fire({ added: [], changed: [result.account], deleted: [] });
 		}
 		return result;
@@ -109,7 +109,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 				title: l10n.t('Signing in to Microsoft...')
 			},
 			(_process, token) => raceCancellationAndTimeoutError(
-				this._pca.acquireTokenInteractive(request),
+				this._sequencer.queue(() => this._pca.acquireTokenInteractive(request)),
 				token,
 				1000 * 60 * 5
 			)
@@ -129,7 +129,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	 */
 	async acquireTokenByRefreshToken(request: RefreshTokenRequest) {
 		this._logger.debug(`[acquireTokenByRefreshToken] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}]`);
-		const result = await this._pca.acquireTokenByRefreshToken(request);
+		const result = await this._sequencer.queue(() => this._pca.acquireTokenByRefreshToken(request));
 		if (result) {
 			this._setupRefresh(result);
 			if (this._isBrokerAvailable && result.account) {
@@ -143,14 +143,14 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		if (this._isBrokerAvailable) {
 			return this._accountAccess.setAllowedAccess(account, false);
 		}
-		return this._pca.getTokenCache().removeAccount(account);
+		return this._sequencer.queue(() => this._pca.getTokenCache().removeAccount(account));
 	}
 
 	private _registerOnSecretStorageChanged() {
 		if (this._isBrokerAvailable) {
-			return this._accountAccess.onDidAccountAccessChange(() => this._update());
+			return this._accountAccess.onDidAccountAccessChange(() => this._sequencer.queue(() => this._update()));
 		}
-		return this._secretStorageCachePlugin.onDidChange(() => this._update());
+		return this._secretStorageCachePlugin.onDidChange(() => this._sequencer.queue(() => this._update()));
 	}
 
 	private _lastSeen = new Map<string, number>();
