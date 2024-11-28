@@ -680,7 +680,7 @@ interface StoredSessionState {
 	readonly linearHistory: IChatEditingSessionSnapshot[];
 }
 
-export class ChatEditingSessionStorage {
+class ChatEditingSessionStorage {
 	constructor(
 		private readonly chatSessionId: string,
 		@IFileService private readonly _fileService: IFileService,

@@ -66,13 +66,13 @@ export class ChatEditorAutoSaveDisabler extends Disposable implements IWorkbench
 			const autoSaveDisabled = storageService.getObject<string[]>(STORAGE_KEY_AUTOSAVE_DISABLED, StorageScope.WORKSPACE, []);
 			if (Array.isArray(autoSaveDisabled) && autoSaveDisabled.length > 0) {
 
-				const initialDisabledAutoSaveDisposabled = new DisposableStore();
+				const initializingStore = new DisposableStore();
 				for (const uriString of autoSaveDisabled) {
-					initialDisabledAutoSaveDisposabled.add(fileConfigService.disableAutoSave(URI.parse(uriString)));
+					initializingStore.add(fileConfigService.disableAutoSave(URI.parse(uriString)));
 				}
 				chatEditingService.getOrRestoreEditingSession().finally(() => {
 					// by now the session is restored and the auto save handlers are in place
-					initialDisabledAutoSaveDisposabled.dispose();
+					initializingStore.dispose();
 				});
 
 			}
