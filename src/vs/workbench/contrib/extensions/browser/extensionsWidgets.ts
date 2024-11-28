@@ -6,7 +6,7 @@
 import './media/extensionsWidgets.css';
 import * as semver from '../../../../base/common/semver/semver.js';
 import { Disposable, toDisposable, DisposableStore, MutableDisposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState, ExtensionEditorTab } from '../common/extensions.js';
+import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState, ExtensionEditorTab, IExtensionsViewState } from '../common/extensions.js';
 import { append, $, reset, addDisposableListener, EventType, finalHandler } from '../../../../base/browser/dom.js';
 import * as platform from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
@@ -43,6 +43,10 @@ import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defa
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from '../../../services/extensionManagement/common/extensionFeatures.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -481,17 +485,23 @@ export class SyncIgnoredWidget extends ExtensionWidget {
 	}
 }
 
-export class ExtensionActivationStatusWidget extends ExtensionWidget {
+export class ExtensionRuntimeStatusWidget extends ExtensionWidget {
 
 	constructor(
+		private readonly extensionViewState: IExtensionsViewState,
 		private readonly container: HTMLElement,
-		private readonly small: boolean,
 		@IExtensionService extensionService: IExtensionService,
+		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super();
 		this._register(extensionService.onDidChangeExtensionsStatus(extensions => {
 			if (this.extension && extensions.some(e => areSameExtensions({ id: e.value }, this.extension!.identifier))) {
+				this.update();
+			}
+		}));
+		this._register(extensionFeaturesManagementService.onDidChangeAccessData(e => {
+			if (this.extension && ExtensionIdentifier.equals(this.extension.identifier.id, e.extension)) {
 				this.update();
 			}
 		}));
@@ -504,21 +514,25 @@ export class ExtensionActivationStatusWidget extends ExtensionWidget {
 			return;
 		}
 
-		const extensionStatus = this.extensionsWorkbenchService.getExtensionRuntimeStatus(this.extension);
-		if (!extensionStatus || !extensionStatus.activationTimes) {
-			return;
+		if (this.extensionViewState.filters.featureId && this.extension.state === ExtensionState.Installed) {
+			const accessData = this.extensionFeaturesManagementService.getAllAccessDataForExtension(new ExtensionIdentifier(this.extension.identifier.id)).get(this.extensionViewState.filters.featureId);
+			const feature = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeature(this.extensionViewState.filters.featureId);
+			if (feature?.icon && accessData) {
+				const featureAccessTimeElement = append(this.container, $('span.activationTime'));
+				featureAccessTimeElement.textContent = localize('feature access label', "{0} reqs", accessData.accessTimes.length);
+				const iconElement = append(this.container, $('span' + ThemeIcon.asCSSSelector(feature.icon)));
+				iconElement.style.paddingLeft = '4px';
+				return;
+			}
 		}
 
-		const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
-		if (this.small) {
+		const extensionStatus = this.extensionsWorkbenchService.getExtensionRuntimeStatus(this.extension);
+		if (extensionStatus?.activationTimes) {
+			const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
 			append(this.container, $('span' + ThemeIcon.asCSSSelector(activationTimeIcon)));
 			const activationTimeElement = append(this.container, $('span.activationTime'));
 			activationTimeElement.textContent = `${activationTime}ms`;
-		} else {
-			const activationTimeElement = append(this.container, $('span.activationTime'));
-			activationTimeElement.textContent = `${localize('activation', "Activation time")}${extensionStatus.activationTimes.activationReason.startup ? ` (${localize('startup', "Startup")})` : ''} : ${activationTime}ms`;
 		}
-
 	}
 
 }
@@ -536,6 +550,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		private readonly options: ExtensionHoverOptions,
 		private readonly extensionStatusAction: ExtensionStatusAction,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService,
@@ -651,11 +666,12 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 		const preReleaseMessage = ExtensionHoverWidget.getPreReleaseMessage(this.extension);
 		const extensionRuntimeStatus = this.extensionsWorkbenchService.getExtensionRuntimeStatus(this.extension);
+		const extensionFeaturesAccessData = this.extensionFeaturesManagementService.getAllAccessDataForExtension(new ExtensionIdentifier(this.extension.identifier.id));
 		const extensionStatus = this.extensionStatusAction.status;
 		const runtimeState = this.extension.runtimeState;
 		const recommendationMessage = this.getRecommendationMessage(this.extension);
 
-		if (extensionRuntimeStatus || extensionStatus.length || runtimeState || recommendationMessage || preReleaseMessage) {
+		if (extensionRuntimeStatus || extensionFeaturesAccessData.size || extensionStatus.length || runtimeState || recommendationMessage || preReleaseMessage) {
 
 			markdown.appendMarkdown(`---`);
 			markdown.appendText(`\n`);
@@ -678,6 +694,20 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 						markdown.appendMarkdown(`${errorsLink || messageLink}`);
 					}
 					markdown.appendText(`\n`);
+				}
+			}
+
+			if (extensionFeaturesAccessData.size) {
+				const registry = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry);
+				for (const [featureId, accessData] of extensionFeaturesAccessData) {
+					if (accessData?.accessTimes.length) {
+						const feature = registry.getExtensionFeature(featureId);
+						if (feature) {
+							markdown.appendMarkdown(localize('feature usage label', "{0} usage", feature.label));
+							markdown.appendMarkdown(`: ${localize('total', "{0} requests in last 30 days)", accessData.accessTimes.length)} [$(${Codicon.linkExternal.id})](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Features]))}`)})`);
+							markdown.appendText(`\n`);
+						}
+					}
 				}
 			}
 
