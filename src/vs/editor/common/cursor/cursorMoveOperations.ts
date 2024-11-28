@@ -102,12 +102,12 @@ export class MoveOperations {
 			// for possibly negative columns.
 			const clippedPos = MoveOperations.clipPositionColumn(pos, minColumn, maxColumn);
 			const normalizedPos = model.normalizePosition(clippedPos, PositionAffinity.Left);
-			if (virtualSpace && normalizedPos.column <= minColumn) {
-				lineNumber = pos.lineNumber;
-				column = minColumn;
-			} else if (virtualSpace && pos.column > maxColumn) {
+			if (virtualSpace && pos.column > maxColumn) {
 				lineNumber = pos.lineNumber;
 				column = pos.column - 1;
+			} else if (virtualSpace && normalizedPos.column <= minColumn) {
+				lineNumber = pos.lineNumber;
+				column = minColumn;
 			} else {
 				const p = MoveOperations.left(config, model, normalizedPos);
 				lineNumber = p.lineNumber;

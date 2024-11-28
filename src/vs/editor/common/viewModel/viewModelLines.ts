@@ -789,6 +789,11 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const lineIndex = r.index;
 		const remainder = r.remainder;
 
+		// On wrapped lines, disable virtual space on all but the last view line
+		const virtualSpace =
+			this.model.getOptions().virtualSpace
+			&& viewLineNumber === this.projectedModelLineLineCounts.getPrefixSum(lineIndex + 1);
+
 		const line = this.modelLineProjections[lineIndex];
 
 		const minColumn = line.getViewLineMinColumn(this.model, lineIndex + 1, remainder);
@@ -796,7 +801,6 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		if (viewColumn < minColumn) {
 			viewColumn = minColumn;
 		}
-		const virtualSpace = this.model.getOptions().virtualSpace;
 		let viewLeftoverVisibleColumns = 0;
 		if (viewColumn > maxColumn) {
 			viewLeftoverVisibleColumns = virtualSpace ? viewColumn - maxColumn : 0;

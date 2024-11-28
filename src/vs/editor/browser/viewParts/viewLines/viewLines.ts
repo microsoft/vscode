@@ -633,7 +633,8 @@ export class ViewLines extends ViewPart implements IViewLines {
 				const newScrollLeft = this._computeScrollLeftToReveal(horizontalRevealRequest);
 
 				if (newScrollLeft) {
-					if (!this._isViewportWrapping) {
+					const virtualSpace = this._context.viewModel.model.getOptions().virtualSpace;
+					if (!this._isViewportWrapping || virtualSpace) {
 						// ensure `scrollWidth` is large enough
 						this._ensureMaxLineWidth(newScrollLeft.maxHorizontalOffset);
 					}
