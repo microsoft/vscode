@@ -106,7 +106,7 @@ export class TokenRangeTree<T> {
 		const end = this.getEnd();
 		const startingSegmentRange = { startInclusive: 0, endExclusive: end };
 		if (end !== this._lastEnd) {
-			this.tryBalance(this._root, startingSegmentRange, []);
+			this.tryBalance(this._root, startingSegmentRange);
 		}
 		this._lastEnd = end;
 		this.deleteFrom(newNode, this._root);
@@ -145,7 +145,7 @@ export class TokenRangeTree<T> {
 				const intendedMidPoint = this.getMidPoint(segmentRange);
 				if (current.maxLeftStartInclusive !== intendedMidPoint) {
 					// need to rebalance because length of document has changed.
-					this.tryBalance(current, segmentRange, []);
+					this.tryBalance(current, segmentRange);
 				}
 
 				if (this.rangeStartIsLessThan(newNode, current.maxLeftStartInclusive)) {
@@ -268,26 +268,50 @@ export class TokenRangeTree<T> {
 				current = undefined;
 			}
 		}
+	}
 
+	private traversePreOrderFromNode(range: TreeRange, startingNode: RangeTreeBranchNode<T>, callback: (node: RangeTreeNode<T>, segmentRange: TreeRange) => boolean): void {
+		let current: { node: RangeTreeNode<T>; segmentRange: TreeRange } | undefined = { node: startingNode, segmentRange: range };
+		const stack: { node: RangeTreeNode<T>; segmentRange: TreeRange }[] = [];
+
+		while (stack.length > 0 || current) {
+			if (current) {
+				if (!isLeaf(current.node)) {
+					if (!callback(current.node, current.segmentRange)) {
+						current = undefined;
+						continue;
+					}
+				}
+				stack.push(current);
+				current = (!isLeaf(current.node) && current.node.left) ? { node: current.node.left, segmentRange: this.shrinkSegmentRange(true, current.segmentRange) } : undefined;
+			} else {
+				current = stack.pop()!;
+				current = (!isLeaf(current.node) && current.node.right) ? { node: current.node.right, segmentRange: this.shrinkSegmentRange(false, current.segmentRange) } : undefined;
+			}
+		}
 	}
 
 	private rangeContainsStartPoint(outer: TreeRange, inner: TreeRange): boolean {
 		return (inner.startInclusive >= outer.startInclusive) && (inner.startInclusive < outer.endExclusive);
 	}
 
-	private tryBalance(node: RangeTreeBranchNode<T>, segmentRange: TreeRange, needsReInsert: RangeTreeLeafNode<T>[]) {
-		if (!isLeaf(node)) {
+	private tryBalance(initialNode: RangeTreeBranchNode<T>, initialSegmentRange: TreeRange) {
+		const needsReInsert: RangeTreeLeafNode<T>[] = [];
+
+		this.traversePreOrderFromNode(initialSegmentRange, initialNode, (node, segmentRange) => {
+			if (isLeaf(node)) {
+				return true;
+			}
 			const intendedMidPoint = this.getMidPoint(segmentRange);
 			if (node.maxLeftStartInclusive === intendedMidPoint) {
-				return;
+				return false;
 			}
+
 			if (node.right) {
 				const intendedRightSegmentRange = this.shrinkSegmentRange(false, segmentRange);
 				if (!isLeaf(node.right) && (this._end < node.right.segmentStartRange.startInclusive)) {
 					// the document got smaller remove the entire right subtree
 					node.right = undefined;
-				} else if (!isLeaf(node.right)) {
-					this.tryBalance(node.right, intendedRightSegmentRange, needsReInsert);
 				} else if (isLeaf(node.right) && !this.rangeContainsStartPoint(intendedRightSegmentRange, node.right)) {
 					needsReInsert.push(node.right);
 					node.right = undefined;
@@ -295,31 +319,30 @@ export class TokenRangeTree<T> {
 			}
 			if (node.left) {
 				const intendedLeftSegmentRange = this.shrinkSegmentRange(true, segmentRange);
-				if (!isLeaf(node.left)) {
-					this.tryBalance(node.left, intendedLeftSegmentRange, needsReInsert);
-				} else if (isLeaf(node.left) && !this.rangeContainsStartPoint(intendedLeftSegmentRange, node.left)) {
+				if (isLeaf(node.left) && !this.rangeContainsStartPoint(intendedLeftSegmentRange, node.left)) {
 					needsReInsert.push(node.left);
 					node.left = undefined;
 				}
 			}
+
 			node.maxLeftStartInclusive = intendedMidPoint;
 			node.segmentStartRange = segmentRange;
-			// The document got smaller and now we have branch nodes where there should be only leaves.
-			if (node.right && !isLeaf(node.right) && node.right?.maxLeftStartInclusive === node.maxLeftStartInclusive) {
-				node.right = undefined;
-			}
 
-			let toInsert = needsReInsert.length > 0 ? needsReInsert[0] : undefined;
-			while (toInsert) {
-				if (this.rangeContainsStartPoint(segmentRange, toInsert)) {
-					this.insertAt([{ newNode: toInsert, startingNode: node, startingSegmentRange: segmentRange }]);
-					needsReInsert.shift();
-					toInsert = needsReInsert.length > 0 ? needsReInsert[0] : undefined;
-				} else {
-					toInsert = undefined;
+			if (node.parent && node.parent.maxLeftStartInclusive === node.maxLeftStartInclusive) {
+				// node is redundant
+				if (node.parent.left === node) {
+					node.parent.left = undefined;
+				} else if (node.parent.right === node) {
+					node.parent.right = undefined;
 				}
 			}
-		}
+
+			return true;
+		});
+
+		const end = this.getEnd();
+		const startingSegmentRange = { startInclusive: 0, endExclusive: end };
+		this.insertAt(needsReInsert.map(node => ({ newNode: node, startingNode: this._root, startingSegmentRange })));
 	}
 
 	printTree(): string | undefined {
@@ -345,44 +368,4 @@ export class TokenRangeTree<T> {
 			return undefined;
 		}
 	}
-
-	// callback return value indicates if the traversal should continue
-	// traverseInOrder(range: Range, callback: (node: TokenNode) => boolean): void {
-	// 	const startInclusive = this._textModel.getOffsetAt(range.getStartPosition());
-	// 	const endExclusive = this._textModel.getOffsetAt(range.getEndPosition()) + 1;
-	// 	const current: TokenNode | undefined = this._root;
-	// 	if (!current) {
-	// 		return;
-	// 	}
-	// 	return this.traverseInOrderFromNode(TraverseDirection.InOrder, current, callback, startInclusive, endExclusive);
-	// }
-
-	// private traverseInOrderFromNode(direction: TraverseDirection, node: TokenNode, callback: (node: TokenNode) => boolean, startInclusive: number, endExclusive: number): void {
-	// 	const isEndMax = endExclusive === this.getEnd();
-	// 	let current: TokenNode | undefined = node;
-	// 	const toVisit: TokenNode[] = [];
-	// 	while (current || toVisit.length > 0) {
-	// 		if (current) {
-	// 			toVisit.push(current);
-	// 			if (direction === TraverseDirection.InOrder) {
-	// 				current = (startInclusive <= current.startInclusive) ? current.left : undefined;
-	// 			} else {
-	// 				current = ((endExclusive >= current.endExclusive) || isEndMax) ? current.right : undefined;
-	// 			}
-	// 			continue;
-	// 		}
-	// 		current = toVisit.pop()!;
-	// 		if (((direction === TraverseDirection.InOrder) && (current.startInclusive >= startInclusive) && ((current.startInclusive < endExclusive) || isEndMax))
-	// 			|| ((direction === TraverseDirection.ReverseOrder) && (current.endExclusive >= startInclusive) && ((current.endExclusive < endExclusive) || isEndMax))) {
-	// 			if (!callback(current)) {
-	// 				break;
-	// 			}
-	// 		}
-	// 		if (direction === TraverseDirection.InOrder) {
-	// 			current = ((endExclusive >= current.endExclusive) || isEndMax) ? current.right : undefined;
-	// 		} else {
-	// 			current = (startInclusive <= current.startInclusive) ? current.left : undefined;
-	// 		}
-	// 	}
-	// }
 }
