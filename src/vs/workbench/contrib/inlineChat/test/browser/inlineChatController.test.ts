@@ -71,7 +71,7 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
 
-suite('InteractiveChatController', function () {
+suite('InlineChatController', function () {
 
 	const agentData = {
 		extensionId: nullExtensionDescription.identifier,

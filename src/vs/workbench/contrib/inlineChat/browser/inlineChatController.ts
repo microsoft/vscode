@@ -593,15 +593,12 @@ export class InlineChatController implements IEditorContribution {
 		const progressiveEditsQueue = new Queue();
 
 		// disable typing and squiggles while streaming a reply
-		const origReadonly = this._editor.getOption(EditorOption.readOnly);
 		const origDeco = this._editor.getOption(EditorOption.renderValidationDecorations);
 		this._editor.updateOptions({
-			readOnly: true,
 			renderValidationDecorations: 'off'
 		});
 		store.add(toDisposable(() => {
 			this._editor.updateOptions({
-				readOnly: origReadonly,
 				renderValidationDecorations: origDeco
 			});
 		}));
