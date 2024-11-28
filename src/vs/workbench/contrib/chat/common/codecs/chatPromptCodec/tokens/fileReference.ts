@@ -8,12 +8,11 @@ import { Range } from '../../../../../../../editor/common/core/range.js';
 import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
 import { Word } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/word.js';
 
-
 // Start sequence for a file reference token in a prompt.
 const TOKEN_START: string = '#file:';
 
 /**
- * A file reference token inside a prompt.
+ * Object represents a file reference token inside a chatbot prompt.
  */
 export class FileReference extends BaseToken {
 	// Start sequence for a file reference token in a prompt.
@@ -29,7 +28,7 @@ export class FileReference extends BaseToken {
 	/**
 	 * Get full text of the file reference token.
 	 */
-	get text(): string {
+	public get text(): string {
 		return `${TOKEN_START}${this.path}`;
 	}
 

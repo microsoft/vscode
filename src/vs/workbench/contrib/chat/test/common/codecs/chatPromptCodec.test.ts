@@ -36,12 +36,9 @@ import { ChatPromptDecoder, TChatPromptToken } from '../../../common/codecs/chat
 export class TestChatPromptCodec extends TestDecoder<TChatPromptToken, ChatPromptDecoder> {
 	constructor() {
 		const stream = newWriteableStream<VSBuffer>(null);
-		const codec = new ChatPromptCodec();
-		const decoder = codec.decode(stream);
+		const decoder = ChatPromptCodec.decode(stream);
 
 		super(stream, decoder);
-
-		this._register(codec);
 	}
 }
 

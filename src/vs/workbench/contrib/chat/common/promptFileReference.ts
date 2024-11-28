@@ -73,11 +73,6 @@ const PROMPT_SNIPPETS_CONFIG_KEY: string = 'chat.experimental.prompt-snippets';
  */
 export class PromptFileReference extends Disposable {
 	/**
-	 * Chatbot prompt message codec helps to parse out prompt syntax.
-	 */
-	private readonly codec = this._register(new ChatPromptCodec());
-
-	/**
 	 * Child references of the current one.
 	 */
 	protected readonly children: PromptFileReference[] = [];
@@ -287,7 +282,7 @@ export class PromptFileReference extends Disposable {
 		}
 
 		// get all file references in the file contents
-		const references = await this.codec.decode(fileStream.value).consumeAll();
+		const references = await ChatPromptCodec.decode(fileStream.value).consumeAll();
 
 		// recursively resolve all references and add to the `children` array
 		//

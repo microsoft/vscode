@@ -11,12 +11,12 @@ import { ReadableStream } from '../../stream.js';
  */
 export interface ICodec<T, K> {
 	/**
-	 * Encode a readable stream of `T`s into a readable stream of `K`s.
+	 * Encode a stream of `K`s into a stream of `T`s.
 	 */
 	encode: (value: ReadableStream<K>) => ReadableStream<T>;
 
 	/**
-	 * Encode a readable stream of `T`s into a readable stream of `K`s.
+	 * Decode a stream of `T`s into a stream of `K`s.
 	 */
 	decode: (value: ReadableStream<T>) => ReadableStream<K>;
 }
