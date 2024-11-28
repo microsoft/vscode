@@ -8,6 +8,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { LanguageSelector } from '../../../../editor/common/languageSelector.js';
 import { Event } from '../../../../base/common/event.js';
+import { LineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 
 export const IQuickDiffService = createDecorator<IQuickDiffService>('quickDiff');
 
@@ -25,6 +26,12 @@ export interface QuickDiff {
 	originalResource: URI;
 	isSCM: boolean;
 	visible: boolean;
+}
+
+export interface QuickDiffResult {
+	readonly original: URI;
+	readonly modified: URI;
+	readonly changes: readonly LineRangeMapping[];
 }
 
 export interface IQuickDiffService {

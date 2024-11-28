@@ -454,6 +454,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.checkoutRef",
+        "title": "%command.checkoutRef%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.checkoutRefDetached",
         "title": "%command.checkoutRefDetached%",
         "category": "Git",
@@ -1471,6 +1477,10 @@
           "when": "false"
         },
         {
+          "command": "git.checkoutRef",
+          "when": "false"
+        },
+        {
           "command": "git.checkoutRefDetached",
           "when": "false"
         },
@@ -2026,6 +2036,13 @@
           "command": "git.copyCommitMessage",
           "when": "scmProvider == git && !listMultiSelection",
           "group": "9_copy@2"
+        }
+      ],
+      "scm/historyItemRef/context": [
+        {
+          "command": "git.checkoutRef",
+          "when": "scmProvider == git",
+          "group": "1_checkout@1"
         }
       ],
       "editor/title": [

@@ -1399,6 +1399,45 @@ export namespace SymbolKinds {
 		}
 		return icon;
 	}
+
+	const byCompletionKind = new Map<SymbolKind, CompletionItemKind>();
+	byCompletionKind.set(SymbolKind.File, CompletionItemKind.File);
+	byCompletionKind.set(SymbolKind.Module, CompletionItemKind.Module);
+	byCompletionKind.set(SymbolKind.Namespace, CompletionItemKind.Module);
+	byCompletionKind.set(SymbolKind.Package, CompletionItemKind.Module);
+	byCompletionKind.set(SymbolKind.Class, CompletionItemKind.Class);
+	byCompletionKind.set(SymbolKind.Method, CompletionItemKind.Method);
+	byCompletionKind.set(SymbolKind.Property, CompletionItemKind.Property);
+	byCompletionKind.set(SymbolKind.Field, CompletionItemKind.Field);
+	byCompletionKind.set(SymbolKind.Constructor, CompletionItemKind.Constructor);
+	byCompletionKind.set(SymbolKind.Enum, CompletionItemKind.Enum);
+	byCompletionKind.set(SymbolKind.Interface, CompletionItemKind.Interface);
+	byCompletionKind.set(SymbolKind.Function, CompletionItemKind.Function);
+	byCompletionKind.set(SymbolKind.Variable, CompletionItemKind.Variable);
+	byCompletionKind.set(SymbolKind.Constant, CompletionItemKind.Constant);
+	byCompletionKind.set(SymbolKind.String, CompletionItemKind.Text);
+	byCompletionKind.set(SymbolKind.Number, CompletionItemKind.Value);
+	byCompletionKind.set(SymbolKind.Boolean, CompletionItemKind.Value);
+	byCompletionKind.set(SymbolKind.Array, CompletionItemKind.Value);
+	byCompletionKind.set(SymbolKind.Object, CompletionItemKind.Value);
+	byCompletionKind.set(SymbolKind.Key, CompletionItemKind.Keyword);
+	byCompletionKind.set(SymbolKind.Null, CompletionItemKind.Value);
+	byCompletionKind.set(SymbolKind.EnumMember, CompletionItemKind.EnumMember);
+	byCompletionKind.set(SymbolKind.Struct, CompletionItemKind.Struct);
+	byCompletionKind.set(SymbolKind.Event, CompletionItemKind.Event);
+	byCompletionKind.set(SymbolKind.Operator, CompletionItemKind.Operator);
+	byCompletionKind.set(SymbolKind.TypeParameter, CompletionItemKind.TypeParameter);
+	/**
+	 * @internal
+	 */
+	export function toCompletionKind(kind: SymbolKind): CompletionItemKind {
+		let completionKind = byCompletionKind.get(kind);
+		if (completionKind === undefined) {
+			console.info('No completion kind found for SymbolKind ' + kind);
+			completionKind = CompletionItemKind.File;
+		}
+		return completionKind;
+	}
 }
 
 export interface DocumentSymbol {
