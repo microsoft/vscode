@@ -44,8 +44,6 @@ export class NativeEditContext extends AbstractEditContext {
 	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly domNode: FastDomNode<HTMLDivElement>;
 
-	public ignoreSelectionChange: boolean = false;
-
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
 
@@ -474,10 +472,6 @@ export class NativeEditContext extends AbstractEditContext {
 				if (targetElement.className === NativeEditContext.domNodeClassName) {
 					return;
 				}
-			}
-			if (this.ignoreSelectionChange) {
-				this.ignoreSelectionChange = false;
-				return;
 			}
 			const screenReaderContentState = this._screenReaderSupport.screenReaderContentState;
 			if (!screenReaderContentState) {

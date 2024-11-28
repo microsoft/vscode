@@ -248,7 +248,6 @@ if (PasteAction) {
 					result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
 					textAreaDomNode.textContent = '';
 					if (isHTMLElement(currentFocusedElement)) {
-						nativeEditContext.ignoreSelectionChange = true;
 						currentFocusedElement.focus();
 					}
 				} else {
