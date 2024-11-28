@@ -169,42 +169,25 @@ export class CodeApplication extends Disposable {
 			'clipboard-sanitized-write',
 		]);
 
-<<<<<<< HEAD
-		const allowedPermissionsDefault = new Set(['font-access', 'local-fonts']);
-=======
 		const allowedPermissionsInCore = new Set([
 			'media',
+			'font-access',
 			'local-fonts',
 		]);
->>>>>>> origin/main
 
 		session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
-<<<<<<< HEAD
-			return callback(allowedPermissionsDefault.has(permission));
-=======
-			if (isUrlFromWindow(details.requestingUrl)) {
-				return callback(allowedPermissionsInCore.has(permission));
-			}
-			return callback(false);
->>>>>>> origin/main
+			return callback(allowedPermissionsInCore.has(permission));
 		});
 
 		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
 			}
-<<<<<<< HEAD
 
-			return allowedPermissionsDefault.has(permission);
-=======
-			if (isUrlFromWindow(details.requestingUrl)) {
-				return allowedPermissionsInCore.has(permission);
-			}
-			return false;
->>>>>>> origin/main
+			return allowedPermissionsInCore.has(permission);
 		});
 
 		//#endregion
