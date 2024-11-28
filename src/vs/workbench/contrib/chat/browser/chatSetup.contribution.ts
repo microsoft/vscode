@@ -65,10 +65,7 @@ const defaultChat = {
 	providerName: product.defaultChatAgent?.providerName ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
-	entitlementChatEnabled: product.defaultChatAgent?.entitlementChatEnabled ?? '',
 	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
-	entitlementCanSignupLimited: product.defaultChatAgent?.entitlementCanSignupLimited ?? '',
-	entitlementSkuType: product.defaultChatAgent?.entitlementSkuType ?? '',
 	entitlementSkuTypeLimited: product.defaultChatAgent?.entitlementSkuTypeLimited ?? '',
 	entitlementSkuTypeLimitedName: product.defaultChatAgent?.entitlementSkuTypeLimitedName ?? ''
 };
@@ -258,10 +255,29 @@ type ChatSetupEntitlementEvent = {
 	limited: boolean;
 };
 
+interface IEntitlementsResponse {
+	readonly access_type_sku: string;
+	readonly assigned_date: string;
+	readonly can_signup_for_limited: boolean;
+	readonly chat_enabled: boolean;
+	readonly limited_user_quotas: {
+		readonly chat: number;
+		readonly completions: number;
+	};
+	readonly limited_user_reset_date: string;
+}
+
+interface IResolvedQuotas {
+	readonly chat: number;
+	readonly completions: number;
+	readonly resetDate: string;
+}
+
 interface IResolvedEntitlements {
 	readonly entitlement: ChatEntitlement;
 	readonly entitled: boolean;
 	readonly limited: boolean;
+	readonly quotas?: IResolvedQuotas;
 }
 
 const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
@@ -400,19 +416,19 @@ class ChatSetupEntitlementResolver extends Disposable {
 			return { entitlement: ChatEntitlement.Unresolved, limited: false, entitled: false };
 		}
 
-		let parsedResult: any;
+		let entitlementsResponse: IEntitlementsResponse;
 		try {
-			parsedResult = JSON.parse(responseText);
-			this.logService.trace(`[chat setup] entitlement: parsed result is ${JSON.stringify(parsedResult)}`);
+			entitlementsResponse = JSON.parse(responseText);
+			this.logService.trace(`[chat setup] entitlement: parsed result is ${JSON.stringify(entitlementsResponse)}`);
 		} catch (err) {
 			this.logService.trace(`[chat setup] entitlement: error parsing response (${err})`);
 			return { entitlement: ChatEntitlement.Unresolved, limited: false, entitled: false };
 		}
 
 		const result = {
-			entitlement: Boolean(parsedResult[defaultChat.entitlementCanSignupLimited]) ? ChatEntitlement.Available : ChatEntitlement.Unavailable,
-			entitled: Boolean(parsedResult[defaultChat.entitlementChatEnabled]),
-			limited: Boolean(parsedResult[defaultChat.entitlementSkuType] === defaultChat.entitlementSkuTypeLimited)
+			entitlement: entitlementsResponse.can_signup_for_limited ? ChatEntitlement.Available : ChatEntitlement.Unavailable,
+			entitled: entitlementsResponse.chat_enabled,
+			limited: entitlementsResponse.access_type_sku === defaultChat.entitlementSkuTypeLimited
 		};
 
 		this.logService.trace(`[chat setup] entitlement: resolved to ${result.entitlement}, entitled: ${result.entitled}, limited: ${result.limited}`);
