@@ -16,7 +16,7 @@ import { isNative, isWeb } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IDialogService } from '../../dialogs/common/dialogs.js';
-import { IBaseTextResourceEditorInput } from '../../editor/common/editor.js';
+import { IBaseTextResourceEditorInput, ITextEditorSelection } from '../../editor/common/editor.js';
 import { HTMLFileSystemProvider } from '../../files/browser/htmlFileSystemProvider.js';
 import { WebFileSystemAccess } from '../../files/browser/webFileSystemAccess.js';
 import { ByteSize, IFileService } from '../../files/common/files.js';
@@ -29,7 +29,8 @@ import { Registry } from '../../registry/common/platform.js';
 
 export const CodeDataTransfers = {
 	EDITORS: 'CodeEditors',
-	FILES: 'CodeFiles'
+	FILES: 'CodeFiles',
+	SYMBOLS: 'application/vnd.code.symbols'
 };
 
 export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInput {
@@ -308,8 +309,9 @@ export function containsDragType(event: DragEvent, ...dragTypesToFind: string[])
 //#region DND contributions
 
 export interface IResourceStat {
-	resource: URI;
-	isDirectory?: boolean;
+	readonly resource: URI;
+	readonly isDirectory?: boolean;
+	readonly selection?: ITextEditorSelection;
 }
 
 export interface IDragAndDropContributionRegistry {
@@ -398,6 +400,35 @@ export class LocalSelectionTransfer<T> {
 			this.proto = proto;
 		}
 	}
+}
+
+export interface DocumentSymbolTransferData {
+	name: string;
+	fsPath: string;
+	range: {
+		startLineNumber: number;
+		startColumn: number;
+		endLineNumber: number;
+		endColumn: number;
+	};
+	kind: number;
+}
+
+export function extractSymbolDropData(e: DragEvent): DocumentSymbolTransferData[] {
+	const rawSymbolsData = e.dataTransfer?.getData(CodeDataTransfers.SYMBOLS);
+	if (rawSymbolsData) {
+		try {
+			return JSON.parse(rawSymbolsData);
+		} catch (error) {
+			// Invalid transfer
+		}
+	}
+
+	return [];
+}
+
+export function fillInSymbolsDragData(symbolsData: readonly DocumentSymbolTransferData[], e: DragEvent): void {
+	e.dataTransfer?.setData(CodeDataTransfers.SYMBOLS, JSON.stringify(symbolsData));
 }
 
 /**

@@ -160,6 +160,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.table.${Markers.MARKERS_VIEW_ID}.viewAsTree`,
 			title: localize('viewAsTree', "View as Tree"),
+			metadata: {
+				description: localize2('viewAsTreeDescription', "Show the problems view as a tree.")
+			},
 			menu: {
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', Markers.MARKERS_VIEW_ID), MarkersContextKeys.MarkersViewModeContextKey.isEqualTo(MarkersViewMode.Table)),
@@ -181,6 +184,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.table.${Markers.MARKERS_VIEW_ID}.viewAsTable`,
 			title: localize('viewAsTable', "View as Table"),
+			metadata: {
+				description: localize2('viewAsTableDescription', "Show the problems view as a table.")
+			},
 			menu: {
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', Markers.MARKERS_VIEW_ID), MarkersContextKeys.MarkersViewModeContextKey.isEqualTo(MarkersViewMode.Tree)),
@@ -202,6 +208,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleErrors`,
 			title: localize('show errors', "Show Errors"),
+			metadata: {
+				description: localize2('toggleErrorsDescription', "Show or hide errors in the problems view.")
+			},
 			category: localize('problems', "Problems"),
 			toggled: MarkersContextKeys.ShowErrorsFilterContextKey,
 			menu: {
@@ -224,6 +233,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleWarnings`,
 			title: localize('show warnings', "Show Warnings"),
+			metadata: {
+				description: localize2('toggleWarningsDescription', "Show or hide warnings in the problems view.")
+			},
 			category: localize('problems', "Problems"),
 			toggled: MarkersContextKeys.ShowWarningsFilterContextKey,
 			menu: {
@@ -248,6 +260,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 			title: localize('show infos', "Show Infos"),
 			category: localize('problems', "Problems"),
 			toggled: MarkersContextKeys.ShowInfoFilterContextKey,
+			metadata: {
+				description: localize2('toggleInfosDescription', "Show or hide infos in the problems view.")
+			},
 			menu: {
 				id: viewFilterSubmenu,
 				group: '1_filter',
@@ -268,6 +283,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleActiveFile`,
 			title: localize('show active file', "Show Active File Only"),
+			metadata: {
+				description: localize2('toggleActiveFileDescription', "Show or hide problems (errors, warnings, info) only from the active file in the problems view.")
+			},
 			category: localize('problems', "Problems"),
 			toggled: MarkersContextKeys.ShowActiveFileFilterContextKey,
 			menu: {
@@ -290,6 +308,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleExcludedFiles`,
 			title: localize('show excluded files', "Show Excluded Files"),
+			metadata: {
+				description: localize2('toggleExcludedFilesDescription', "Show or hide excluded files in the problems view.")
+			},
 			category: localize('problems', "Problems"),
 			toggled: MarkersContextKeys.ShowExcludedFilesFilterContextKey.negate(),
 			menu: {

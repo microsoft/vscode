@@ -31,7 +31,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	private _minimumSize: dom.Dimension;
 	private _contentWidth: number | undefined;
 
-	private readonly _hover: HoverWidget = this._register(new HoverWidget());
+	private readonly _hover: HoverWidget = this._register(new HoverWidget(true));
 	private readonly _hoverVisibleKey: IContextKey<boolean>;
 	private readonly _hoverFocusedKey: IContextKey<boolean>;
 

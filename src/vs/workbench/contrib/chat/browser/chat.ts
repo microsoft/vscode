@@ -8,7 +8,6 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
-import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -35,17 +34,20 @@ export interface IChatWidgetService {
 	 */
 	readonly lastFocusedWidget: IChatWidget | undefined;
 
+	readonly onDidAddWidget: Event<IChatWidget>;
+
+
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
-	getWidgetByLocation(location: ChatAgentLocation): IChatWidget[];
+	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
 }
 
 export async function showChatView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
-	return (await viewsService.openView<ChatViewPane>(CHAT_VIEW_ID))?.widget;
+	return (await viewsService.openView<ChatViewPane>(ChatViewId))?.widget;
 }
 
 export async function showEditsView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
-	return (await viewsService.openView<ChatViewPane>(EDITS_VIEW_ID))?.widget;
+	return (await viewsService.openView<ChatViewPane>(EditsViewId))?.widget;
 }
 
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
@@ -88,6 +90,7 @@ export interface IChatCodeBlockInfo {
 	readonly codeBlockIndex: number;
 	readonly element: ChatTreeItem;
 	readonly uri: URI | undefined;
+	readonly uriPromise: Promise<URI | undefined>;
 	codemapperUri: URI | undefined;
 	readonly isStreaming: boolean;
 	focus(): void;
@@ -108,10 +111,12 @@ export interface IChatListItemRendererOptions {
 	readonly noPadding?: boolean;
 	readonly editableCodeBlock?: boolean;
 	readonly renderCodeBlockPills?: boolean;
+	readonly renderDetectedCommandsWithRequest?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 }
 
 export interface IChatWidgetViewOptions {
+	autoScroll?: boolean;
 	renderInputOnTop?: boolean;
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
@@ -135,6 +140,7 @@ export interface IChatWidgetViewOptions {
 	};
 	defaultElementHeight?: number;
 	editorOverflowWidgetsDomNode?: HTMLElement;
+	enableImplicitContext?: boolean;
 }
 
 export interface IChatViewViewContext {
@@ -146,6 +152,11 @@ export interface IChatResourceViewContext {
 }
 
 export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewContext | {};
+
+export interface IChatAcceptInputOptions {
+	noCommandDetection?: boolean;
+	isVoiceInput?: boolean;
+}
 
 export interface IChatWidget {
 	readonly onDidChangeViewModel: Event<void>;
@@ -172,8 +183,9 @@ export interface IChatWidget {
 	getFocus(): ChatTreeItem | undefined;
 	setInput(query?: string): void;
 	getInput(): string;
+	refreshParsedInput(): void;
 	logInputHistory(): void;
-	acceptInput(query?: string, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined>;
+	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
 	acceptInputWithPrefix(prefix: string): void;
 	setInputPlaceholder(placeholder: string): void;
 	resetInputPlaceholder(): void;
@@ -200,8 +212,6 @@ export interface IChatCodeBlockContextProviderService {
 	registerProvider(provider: ICodeBlockActionContextProvider, id: string): IDisposable;
 }
 
-export const GeneratingPhrase = localize('generating', "Generating");
+export const ChatViewId = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
 
-export const CHAT_VIEW_ID = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
-
-export const EDITS_VIEW_ID = 'workbench.panel.chat.view.edits';
+export const EditsViewId = 'workbench.panel.chat.view.edits';

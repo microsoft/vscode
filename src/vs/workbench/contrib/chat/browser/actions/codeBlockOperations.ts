@@ -270,7 +270,7 @@ export class ApplyCodeBlockOperation {
 				let isOpen = true;
 				const firstEdit = textEdits[0];
 				editorToApply.revealLineInCenterIfOutsideViewport(firstEdit.range.startLineNumber);
-				const promise = inlineChatController.reviewEdits(textEdits[0].range, AsyncIterableObject.fromArray(textEdits), tokenSource.token);
+				const promise = inlineChatController.reviewEdits(textEdits[0].range, AsyncIterableObject.fromArray([textEdits]), tokenSource.token);
 				promise.finally(() => {
 					isOpen = false;
 					tokenSource.dispose();

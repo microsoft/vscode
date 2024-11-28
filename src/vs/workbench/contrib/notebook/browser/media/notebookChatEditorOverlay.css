@@ -1,0 +1,63 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.notebook-chat-editor-overlay-widget {
+	position: absolute;
+	/** Based on chat widget for regular editors **/
+	right: 28px;
+	/** Based on chat widget for regular editors **/
+	bottom: 23px;
+	/** In notebook.css we set this to 22px, we need to revert this to standards **/
+	line-height: 1.4em;
+}
+
+/** Copied from src/vs/workbench/contrib/chat/browser/media/chatEditorOverlay.css **/
+/** Copied until we unify these, for now its separate **/
+.notebook-chat-editor-overlay-widget {
+	padding: 0px;
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+	border-radius: 5px;
+	border: 1px solid var(--vscode-contrastBorder);
+	display: flex;
+	align-items: center;
+	z-index: 30;
+}
+
+.notebook-chat-editor-overlay-widget .chat-editor-overlay-progress {
+	display: none;
+	padding: 0px 5px;
+	font-size: 12px;
+}
+
+.notebook-chat-editor-overlay-widget.busy .chat-editor-overlay-progress {
+	display: inherit;
+}
+
+.notebook-chat-editor-overlay-widget .action-item > .action-label {
+	padding: 5px;
+	font-size: 12px;
+}
+
+.notebook-chat-editor-overlay-widget .action-item:first-child > .action-label {
+	padding-left: 9px;
+}
+
+.notebook-chat-editor-overlay-widget .action-item:last-child > .action-label {
+	padding-right: 9px;
+}
+
+.notebook-chat-editor-overlay-widget.busy .chat-editor-overlay-progress .codicon,
+.notebook-chat-editor-overlay-widget .action-item > .action-label.codicon {
+	color: var(--vscode-button-foreground);
+}
+
+.notebook-chat-editor-overlay-widget .action-item.disabled > .action-label.codicon::before,
+.notebook-chat-editor-overlay-widget .action-item.disabled > .action-label.codicon,
+.notebook-chat-editor-overlay-widget .action-item.disabled > .action-label,
+.notebook-chat-editor-overlay-widget .action-item.disabled > .action-label:hover {
+	color: var(--vscode-button-foreground);
+	opacity: 0.7;
+}

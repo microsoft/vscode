@@ -15,8 +15,9 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService, IToolData } from '../languageModelToolsService.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
+import { toolsParametersSchemaSchemaId } from './languageModelToolsParametersSchema.js';
 
-interface IRawToolContribution {
+export interface IRawToolContribution {
 	name: string;
 	displayName: string;
 	modelDescription: string;
@@ -25,9 +26,8 @@ interface IRawToolContribution {
 	when?: string;
 	tags?: string[];
 	userDescription?: string;
-	parametersSchema?: IJSONSchema;
+	inputSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
-	supportedContentTypes?: string[];
 }
 
 const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawToolContribution[]>({
@@ -43,7 +43,21 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 		items: {
 			additionalProperties: false,
 			type: 'object',
-			defaultSnippets: [{ body: { name: '', description: '' } }],
+			defaultSnippets: [{
+				body: {
+					name: '${1}',
+					modelDescription: '${2}',
+					inputSchema: {
+						type: 'object',
+						properties: {
+							'${3:name}': {
+								type: 'string',
+								description: '${4:description}'
+							}
+						}
+					},
+				}
+			}],
 			required: ['name', 'displayName', 'modelDescription'],
 			properties: {
 				name: {
@@ -69,10 +83,9 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					description: localize('toolModelDescription', "A description of this tool that may be used by a language model to select it."),
 					type: 'string'
 				},
-				parametersSchema: {
-					description: localize('parametersSchema', "A JSON schema for the parameters this tool accepts."),
-					type: 'object',
-					$ref: 'http://json-schema.org/draft-07/schema#'
+				inputSchema: {
+					description: localize('parametersSchema', "A JSON schema for the input this tool accepts. The input must be an object at the top level. A particular language model may not support all JSON schema features. See the documentation for the language model family you are using for more information."),
+					$ref: toolsParametersSchemaSchemaId
 				},
 				canBeReferencedInPrompt: {
 					markdownDescription: localize('canBeReferencedInPrompt', "If true, this tool shows up as an attachment that the user can add manually to their request. Chat participants will receive the tool in {0}.", '`ChatRequest#toolReferences`'),
@@ -101,15 +114,8 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					markdownDescription: localize('condition', "Condition which must be true for this tool to be enabled. Note that a tool may still be invoked by another extension even when its `when` condition is false."),
 					type: 'string'
 				},
-				supportedContentTypes: {
-					markdownDescription: localize('contentTypes', "The list of content types that this tool can return. It's recommended that all tools support `text/plain`, which would indicate any text-based content. Another example is the contentType exported by the `@vscode/prompt-tsx` library, which would let a tool return a `PromptElementJSON` which can be easily rendered in a prompt by an extension using `@vscode/prompt-tsx`."),
-					type: 'array',
-					items: {
-						type: 'string'
-					}
-				},
 				tags: {
-					description: localize('toolTags', "A set of tags that roughly describe the tool's capabilities. A tool user may use these to filter the set of tools to just ones that are relevant for the task at hand."),
+					description: localize('toolTags', "A set of tags that roughly describe the tool's capabilities. A tool user may use these to filter the set of tools to just ones that are relevant for the task at hand, or they may want to pick a tag that can be used to identify just the tools contributed by this extension."),
 					type: 'array',
 					items: {
 						type: 'string'
@@ -167,10 +173,11 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 
 					const tool: IToolData = {
 						...rawTool,
+						extensionId: extension.description.identifier,
+						inputSchema: rawTool.inputSchema,
 						id: rawTool.name,
 						icon,
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,
-						supportedContentTypes: rawTool.supportedContentTypes ? rawTool.supportedContentTypes : [],
 					};
 					const disposable = languageModelToolsService.registerToolData(tool);
 					this._registrationDisposables.set(toToolKey(extension.description.identifier, rawTool.name), disposable);

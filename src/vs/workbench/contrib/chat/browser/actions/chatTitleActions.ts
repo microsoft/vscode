@@ -4,27 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
+import { isLocation } from '../../../../../editor/common/languages.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ResourceNotebookCellEdit } from '../../../bulkEdit/browser/bulkCellEdits.js';
 import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
 import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_ITEM_ID, CONTEXT_LAST_ITEM_ID, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from '../../common/chatContextKeys.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { applyingChatEditsFailedContextKey, ChatEditingSessionState, IChatEditingService, isChatEditingActionContext } from '../../common/chatEditingService.js';
+import { IChatRequestModel } from '../../common/chatModel.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
-import { ChatTreeItem, IChatWidgetService } from '../chat.js';
+import { ChatTreeItem, EditsViewId, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
@@ -38,17 +49,17 @@ export function registerChatTitleActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsup,
-				toggled: CONTEXT_RESPONSE_VOTE.isEqualTo('up'),
+				toggled: ChatContextKeys.responseVote.isEqualTo('up'),
 				menu: [{
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR.negate())
+					when: ContextKeyExpr.and(ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate())
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR.negate())
+					when: ContextKeyExpr.and(ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate())
 				}]
 			});
 		}
@@ -85,17 +96,17 @@ export function registerChatTitleActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsdown,
-				toggled: CONTEXT_RESPONSE_VOTE.isEqualTo('down'),
+				toggled: ChatContextKeys.responseVote.isEqualTo('down'),
 				menu: [{
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(CONTEXT_RESPONSE)
+					when: ContextKeyExpr.and(ChatContextKeys.isResponse)
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR.negate())
+					when: ContextKeyExpr.and(ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate())
 				}]
 			});
 		}
@@ -142,12 +153,12 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 3,
-					when: ContextKeyExpr.and(CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_RESPONSE)
+					when: ContextKeyExpr.and(ChatContextKeys.responseSupportsIssueReporting, ChatContextKeys.isResponse)
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					group: 'navigation',
 					order: 3,
-					when: ContextKeyExpr.and(CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_RESPONSE)
+					when: ContextKeyExpr.and(ChatContextKeys.responseSupportsIssueReporting, ChatContextKeys.isResponse)
 				}]
 			});
 		}
@@ -180,18 +191,32 @@ export function registerChatTitleActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.refresh,
-				menu: [{
-					id: MenuId.ChatMessageFooter,
-					group: 'navigation',
-					when: ContextKeyExpr.and(
-						CONTEXT_RESPONSE,
-						ContextKeyExpr.in(CONTEXT_ITEM_ID.key, CONTEXT_LAST_ITEM_ID.key))
-				}]
+				menu: [
+					{
+						id: MenuId.ChatMessageFooter,
+						group: 'navigation',
+						when: ContextKeyExpr.and(
+							ChatContextKeys.isResponse,
+							ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key))
+					},
+					{
+						id: MenuId.ChatEditingWidgetToolbar,
+						group: 'navigation',
+						when: applyingChatEditsFailedContextKey,
+						order: 0
+					}
+				]
 			});
 		}
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const item = args[0];
+			const chatWidgetService = accessor.get(IChatWidgetService);
+
+			let item = args[0];
+			if (isChatEditingActionContext(item)) {
+				// Resolve chat editing action context to the last response VM
+				item = chatWidgetService.getWidgetBySessionId(item.sessionId)?.viewModel?.getItems().at(-1);
+			}
 			if (!isResponseVM(item)) {
 				return;
 			}
@@ -205,16 +230,32 @@ export function registerChatTitleActions() {
 			}
 			const itemIndex = chatRequests?.findIndex(request => request.id === item.requestId);
 			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession) {
+				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
-				const confirmation = await dialogService.confirm({
-					title: localize('chat.removeLast.confirmation.title', "Do you want to retry your last edit?"),
-					message: localize('chat.remove.confirmation.message', "This will also undo any edits made to your working set from this request."),
-					primaryButton: localize('chat.remove.confirmation.primaryButton', "Yes"),
-					type: 'info'
-				});
-				if (!confirmation) {
+
+				// Prompt if the last request modified the working set and the user hasn't already disabled the dialog
+				const entriesModifiedInLastRequest = chatEditingService.currentEditingSessionObs.get()?.entries.get().filter((entry) => entry.lastModifyingRequestId === item.requestId) ?? [];
+				const shouldPrompt = entriesModifiedInLastRequest.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRetry') === true;
+				const confirmation = shouldPrompt
+					? await dialogService.confirm({
+						title: localize('chat.retryLast.confirmation.title2', "Do you want to retry your last request?"),
+						message: entriesModifiedInLastRequest.length === 1
+							? localize('chat.retry.confirmation.message2', "This will undo edits made to {0} since this request.", basename(entriesModifiedInLastRequest[0].modifiedURI))
+							: localize('chat.retryLast.confirmation.message2', "This will undo edits made to {0} files in your working set since this request. Do you want to proceed?", entriesModifiedInLastRequest.length),
+						primaryButton: localize('chat.retry.confirmation.primaryButton', "Yes"),
+						checkbox: { label: localize('chat.retry.confirmation.checkbox', "Don't ask again"), checked: false },
+						type: 'info'
+					})
+					: { confirmed: true };
+
+				if (!confirmation.confirmed) {
 					return;
 				}
+
+				if (confirmation.checkboxChecked) {
+					await configurationService.updateValue('chat.editing.confirmEditRequestRetry', false);
+				}
+
 				// Reset the snapshot
 				const snapshotRequest = chatRequests[itemIndex];
 				if (snapshotRequest) {
@@ -222,7 +263,8 @@ export function registerChatTitleActions() {
 				}
 			}
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
-			chatService.resendRequest(request!);
+			const languageModelId = chatWidgetService.getWidgetBySessionId(item.sessionId)?.input.currentLanguageModel;
+			chatService.resendRequest(request!, { userSelectedModelId: languageModelId });
 		}
 	});
 
@@ -238,7 +280,7 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					isHiddenByDefault: true,
-					when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED.negate())
+					when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, ChatContextKeys.isResponse, ChatContextKeys.responseIsFiltered.negate())
 				}
 			});
 		}
@@ -303,24 +345,24 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.remove',
-				title: localize2('chat.remove.label', "Remove Request and Response"),
+				title: localize2('chat.removeRequest.label', "Remove Request"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.x,
-				precondition: CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession),
+				precondition: ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession),
 				keybinding: {
 					primary: KeyCode.Delete,
 					mac: {
 						primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 					},
-					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession), CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate()),
+					when: ContextKeyExpr.and(ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession), ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()),
 					weight: KeybindingWeight.WorkbenchContrib,
 				},
 				menu: {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession), CONTEXT_REQUEST)
+					when: ContextKeyExpr.and(ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession), ChatContextKeys.isRequest)
 				}
 			});
 		}
@@ -339,7 +381,7 @@ export function registerChatTitleActions() {
 
 			const chatService = accessor.get(IChatService);
 			const chatModel = chatService.getSession(item.sessionId);
-			if (chatModel?.initialLocation !== ChatAgentLocation.EditingSession) {
+			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession) {
 				return;
 			}
 
@@ -351,6 +393,201 @@ export function registerChatTitleActions() {
 				chatService.removeRequest(item.sessionId, requestId);
 			}
 		}
+	});
+
+	registerAction2(class ContinueEditingAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.startEditing',
+				title: localize2('chat.startEditing.label2', "Edit with Copilot"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.goToEditingSession,
+				precondition: ContextKeyExpr.and(ChatContextKeys.editingParticipantRegistered, ChatContextKeys.requestInProgress.toNegated(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
+				menu: {
+					id: MenuId.ChatMessageFooter,
+					group: 'navigation',
+					order: 4,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.isResponse, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel))
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: any[]) {
+
+			const logService = accessor.get(ILogService);
+			const chatWidgetService = accessor.get(IChatWidgetService);
+			const chatService = accessor.get(IChatService);
+			const chatAgentService = accessor.get(IChatAgentService);
+			const viewsService = accessor.get(IViewsService);
+			const chatEditingService = accessor.get(IChatEditingService);
+			const quickPickService = accessor.get(IQuickInputService);
+
+			const editAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession);
+			if (!editAgent) {
+				logService.trace('[CHAT_MOVE] No edit agent found');
+				return;
+			}
+
+			const sourceWidget = chatWidgetService.lastFocusedWidget;
+			if (!sourceWidget || !sourceWidget.viewModel) {
+				logService.trace('[CHAT_MOVE] NO source model');
+				return;
+			}
+
+			const sourceModel = sourceWidget.viewModel.model;
+			let sourceRequests = sourceModel.getRequests().slice();
+
+			// when a response is passed (clicked on) ignore all item after it
+			const [first] = args;
+			if (isResponseVM(first)) {
+				const idx = sourceRequests.findIndex(candidate => candidate.id === first.requestId);
+				if (idx >= 0) {
+					sourceRequests.length = idx + 1;
+				}
+			}
+
+			// when having multiple turns, let the user pick
+			if (sourceRequests.length > 1) {
+				sourceRequests = await this._pickTurns(quickPickService, sourceRequests);
+			}
+
+			if (sourceRequests.length === 0) {
+				logService.trace('[CHAT_MOVE] NO requests to move');
+				return;
+			}
+
+			await viewsService.openView(EditsViewId);
+
+			let editingSession = chatEditingService.currentEditingSessionObs.get();
+			if (!editingSession) {
+				await Event.toPromise(chatEditingService.onDidCreateEditingSession);
+				editingSession = chatEditingService.currentEditingSessionObs.get();
+				return;
+			}
+
+			if (!editingSession) {
+				return;
+			}
+
+			const state = editingSession.state.get();
+			if (state === ChatEditingSessionState.Disposed) {
+				return;
+			}
+
+			// adopt request items and collect new working set entries
+			const workingSetAdditions = new ResourceSet();
+			for (const request of sourceRequests) {
+				await chatService.adoptRequest(editingSession.chatSessionId, request);
+				this._collectWorkingSetAdditions(request, workingSetAdditions);
+			}
+			workingSetAdditions.forEach(uri => editingSession.addFileToWorkingSet(uri));
+
+			// make request
+			await chatService.sendRequest(editingSession.chatSessionId, '', {
+				agentId: editAgent.id,
+				acceptedConfirmationData: [{ _type: 'toEditTransfer', transferedTurnResults: sourceRequests.map(v => v.response?.result) }], // TODO@jrieken HACKY
+				confirmation: typeof this.desc.title === 'string' ? this.desc.title : this.desc.title.value
+			});
+		}
+
+		private _collectWorkingSetAdditions(request: IChatRequestModel, bucket: ResourceSet) {
+			for (const item of request.response?.response.value ?? []) {
+				if (item.kind === 'inlineReference') {
+					bucket.add(isLocation(item.inlineReference)
+						? item.inlineReference.uri
+						: URI.isUri(item.inlineReference)
+							? item.inlineReference
+							: item.inlineReference.location.uri
+					);
+				}
+			}
+		}
+
+		private async _pickTurns(quickPickService: IQuickInputService, requests: IChatRequestModel[]): Promise<IChatRequestModel[]> {
+
+			const timeThreshold = 2 * 60000; // 2 minutes
+			const lastRequestTimestamp = requests[requests.length - 1].timestamp;
+			const relatedRequests = requests.filter(request => request.timestamp >= 0 && lastRequestTimestamp - request.timestamp <= timeThreshold);
+
+			const lastPick: IQuickPickItem = {
+				label: localize('chat.startEditing.last', "The last {0} requests", relatedRequests.length),
+				detail: relatedRequests.map(req => req.message.text).join(', ')
+			};
+
+			const allPick: IQuickPickItem = {
+				label: localize('chat.startEditing.pickAll', "All requests from the conversation")
+			};
+
+			const customPick: IQuickPickItem = {
+				label: localize('chat.startEditing.pickCustom', "Manually select requests...")
+			};
+
+			const picks: IQuickPickItem[] = relatedRequests.length !== 0
+				? [lastPick, allPick, customPick]
+				: [allPick, customPick];
+
+			const firstPick = await quickPickService.pick(picks, {
+				placeHolder: localize('chat.startEditing.pickRequest', "Select requests that you want to use for editing")
+			});
+
+			if (!firstPick) {
+				return [];
+			} else if (firstPick === allPick) {
+				return requests;
+			} else if (firstPick === lastPick) {
+				return relatedRequests;
+			}
+
+			// custom pick
+			type PickType = (IQuickPickItem & { request: IChatRequestModel });
+			const customPicks: (IQuickPickItem & { request: IChatRequestModel })[] = requests.map(request => ({
+
+				picked: false,
+				request: request,
+				label: request.message.text,
+				detail: request.response?.response.toString(),
+			}));
+
+
+			return await new Promise<IChatRequestModel[]>(_resolve => {
+
+				const resolve = (value: IChatRequestModel[]) => {
+					qp.hide();
+					store.dispose();
+					_resolve(value);
+				};
+
+				const store = new DisposableStore();
+
+				const qp = quickPickService.createQuickPick<PickType>();
+				qp.placeholder = localize('chat.startEditing.pickRequest', "Select requests that you want to use for editing");
+				qp.canSelectMany = true;
+				qp.items = customPicks;
+
+				let ignore = false;
+				store.add(qp.onDidChangeSelection(e => {
+					if (ignore) {
+						return;
+					}
+					ignore = true;
+					try {
+						const [first] = e;
+						const idx = first ? customPicks.indexOf(first) : -1;
+						const selected = idx >= 0 ? customPicks.slice(idx) : [];
+						qp.selectedItems = selected;
+					} finally {
+						ignore = false;
+					}
+				}));
+
+				store.add(qp.onDidAccept(_e => resolve(qp.selectedItems.map(i => i.request))));
+				store.add(qp.onDidHide(_ => resolve([])));
+				store.add(qp);
+				qp.show();
+			});
+		}
+
 	});
 }
 

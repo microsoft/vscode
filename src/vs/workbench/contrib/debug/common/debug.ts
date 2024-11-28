@@ -814,6 +814,7 @@ export interface IDebugConfiguration {
 	autoExpandLazyVariables: 'auto' | 'off' | 'on';
 	enableStatusBarColor: boolean;
 	showVariableTypes: boolean;
+	hideSlowPreLaunchWarning: boolean;
 }
 
 export interface IGlobalConfig {
@@ -1017,7 +1018,8 @@ export interface IConfigurationManager {
 	onDidChangeConfigurationProviders: Event<void>;
 
 	hasDebugConfigurationProvider(debugType: string, triggerKind?: DebugConfigurationProviderTriggerKind): boolean;
-	getDynamicProviders(): Promise<{ label: string; type: string; pick: () => Promise<{ launch: ILaunch; config: IConfig } | undefined> }[]>;
+	getDynamicProviders(): Promise<{ label: string; type: string; pick: () => Promise<{ launch: ILaunch; config: IConfig; label: string } | undefined> }[]>;
+	getDynamicConfigurationsByType(type: string, token?: CancellationToken): Promise<{ launch: ILaunch; config: IConfig; label: string }[]>;
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
 	unregisterDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): void;
@@ -1048,9 +1050,18 @@ export interface IAdapterManager {
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 	getEnabledDebugger(type: string): (IDebugger & IDebuggerMetadata) | undefined;
-	guessDebugger(gettingConfigurations: boolean): Promise<(IDebugger & IDebuggerMetadata) | undefined>;
+	guessDebugger(gettingConfigurations: boolean): Promise<IGuessedDebugger | undefined>;
 
 	get onDidDebuggersExtPointRead(): Event<void>;
+}
+
+export interface IGuessedDebugger {
+	debugger: IDebugger;
+	withConfig?: {
+		label: string;
+		launch: ILaunch;
+		config: IConfig;
+	};
 }
 
 export interface ILaunch {

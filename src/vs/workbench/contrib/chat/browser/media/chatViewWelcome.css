@@ -30,10 +30,14 @@
 	display: none;
 }
 
-.pane-body .chat-welcome-view {
+div.chat-welcome-view {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
+
+	& > .chat-welcome-view-icon {
+		min-height: 48px;
+	}
 
 	& > .chat-welcome-view-icon .codicon {
 		font-size: 40px;
@@ -43,10 +47,19 @@
 		font-size: 24px;
 		margin-top: 10px;
 		font-weight: 500;
+		text-align: center;
+	}
+
+	& > .chat-welcome-view-indicator {
+		color: var(--vscode-badge-foreground);
+		background: var(--vscode-badge-background);
+		padding: 1px 8px;
+		border-radius: 14px;
+		margin-top: 10px;
+		font-size: 11px;
 	}
 
 	& > .chat-welcome-view-message {
-		color: var(--vscode-descriptionForeground);
 		text-align: center;
 		max-width: 350px;
 		padding: 0 20px;
@@ -64,7 +77,6 @@
 	}
 
 	& > .chat-welcome-view-tips {
-		color: var(--vscode-descriptionForeground);
 		max-width: 250px;
 		margin-top: 10px;
 

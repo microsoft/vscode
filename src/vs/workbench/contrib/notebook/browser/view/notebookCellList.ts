@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import * as domStylesheetsJs from '../../../../../base/browser/domStylesheets.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IListRenderer, IListVirtualDelegate, ListError } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles, IStyleController } from '../../../../../base/browser/ui/list/listWidget.js';
@@ -1177,7 +1178,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	domElementOfElement(element: ICellViewModel): HTMLElement | null {
 		const index = this._getViewIndexUpperBound(element);
-		if (index >= 0) {
+		if (index >= 0 && index < this.length) {
 			return this.view.domElement(index);
 		}
 
@@ -1316,7 +1317,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	override style(styles: IListStyles) {
 		const selectorSuffix = this.view.domId;
 		if (!this.styleElement) {
-			this.styleElement = DOM.createStyleSheet(this.view.domNode);
+			this.styleElement = domStylesheetsJs.createStyleSheet(this.view.domNode);
 		}
 		const suffix = selectorSuffix && `.${selectorSuffix}`;
 		const content: string[] = [];
