@@ -291,6 +291,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 	}
 
 	constructor(
+		private readonly filesFilter: FilesFilter,
 		private readonly treeProvider: () => WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>,
 		@ISearchService private readonly searchService: ISearchService,
 		@IFileService private readonly fileService: IFileService,
@@ -621,7 +622,10 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		const fileResultResources = fileResults.results.map(result => result.resource);
 		const directoryResources = getMatchingDirectoriesFromFiles(folderResults.results.map(result => result.resource), root, segmentMatchPattern);
 
-		return { explorerRoot: root, files: fileResultResources, directories: directoryResources, hitMaxResults: !!fileResults.limitHit || !!folderResults.limitHit };
+		const filteredFileResources = fileResultResources.filter(resource => !this.filesFilter.isIgnored(resource, root.resource, false));
+		const filteredDirectoryResources = directoryResources.filter(resource => !this.filesFilter.isIgnored(resource, root.resource, true));
+
+		return { explorerRoot: root, files: filteredFileResources, directories: filteredDirectoryResources, hitMaxResults: !!fileResults.limitHit || !!folderResults.limitHit };
 	}
 }
 
@@ -1404,12 +1408,9 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		// Hide those that match Hidden Patterns
 		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
 		const globMatch = cached?.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)));
-		// Small optimization to only traverse gitIgnore if the globMatch from fileExclude returned nothing
-		const ignoreFile = globMatch ? undefined : this.ignoreTreesPerRoot.get(stat.root.resource.toString())?.findSubstr(stat.resource);
-		const isIncludedInTraversal = ignoreFile?.isPathIncludedInTraversal(stat.resource.path, stat.isDirectory);
-		// Doing !undefined returns true and we want it to be false when undefined because that means it's not included in the ignore file
-		const isIgnoredByIgnoreFile = isIncludedInTraversal === undefined ? false : !isIncludedInTraversal;
-		if (isIgnoredByIgnoreFile || globMatch || stat.parent?.isExcluded) {
+		// Small optimization to only run isHiddenResource (traverse gitIgnore) if the globMatch from fileExclude returned nothing
+		const isHiddenResource = !!globMatch ? true : this.isIgnored(stat.resource, stat.root.resource, stat.isDirectory);
+		if (isHiddenResource || stat.parent?.isExcluded) {
 			stat.isExcluded = true;
 			const editors = this.editorService.visibleEditors;
 			const editor = editors.find(e => e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, stat.resource));
@@ -1422,6 +1423,14 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		}
 
 		return true;
+	}
+
+	isIgnored(resource: URI, rootResource: URI, isDirectory: boolean): boolean {
+		const ignoreFile = this.ignoreTreesPerRoot.get(rootResource.toString())?.findSubstr(resource);
+		const isIncludedInTraversal = ignoreFile?.isPathIncludedInTraversal(resource.path, isDirectory);
+
+		// Doing !undefined returns true and we want it to be false when undefined because that means it's not included in the ignore file
+		return isIncludedInTraversal === undefined ? false : !isIncludedInTraversal;
 	}
 
 	dispose(): void {
