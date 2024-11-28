@@ -32,6 +32,12 @@ function isLeaf<T>(node: RangeTreeNode<T>): node is RangeTreeLeafNode<T> {
 	return (node as RangeTreeLeafNode<T>).data !== undefined;
 }
 
+interface NodeToInsert<T> {
+	newNode: RangeTreeLeafNode<T>;
+	startingNode: RangeTreeBranchNode<T>;
+	startingSegmentRange: TreeRange;
+}
+
 export class TokenRangeTree<T> {
 	private _root: RangeTreeBranchNode<T>;
 	constructor(private readonly _textModel: ITextModel, private readonly _endIncrement: number = 20) {
@@ -104,17 +110,35 @@ export class TokenRangeTree<T> {
 		}
 		this._lastEnd = end;
 		this.deleteFrom(newNode, this._root);
-		this.insertAt(newNode, this._root, startingSegmentRange);
+		this.insertAt([{ newNode, startingNode: this._root, startingSegmentRange }]);
 	}
 
-	private insertAt(newNode: RangeTreeLeafNode<T>, startingNode: RangeTreeBranchNode<T>, startSegmentRange: TreeRange): void {
-		let current: RangeTreeNode<T> = startingNode;
-		let segmentRange: TreeRange = startSegmentRange;
+	private insertAt(toInsert: NodeToInsert<T>[]): void {
+		let newNode!: RangeTreeLeafNode<T>;
+		let current!: RangeTreeNode<T>;
+		let segmentRange!: TreeRange;
+
+		const moveToNextInsert = (): boolean => {
+			if (toInsert.length === 0) {
+				return false;
+			}
+			const nextInsert = toInsert.shift()!;
+			newNode = nextInsert.newNode;
+			current = nextInsert.startingNode;
+			segmentRange = nextInsert.startingSegmentRange;
+			return true;
+		};
+
+		if (!moveToNextInsert()) {
+			return;
+		}
 
 		while (true) {
 			if (isLeaf(current) && current.startInclusive === newNode.startInclusive && current.endExclusive === newNode.endExclusive) {
 				current.data = newNode.data;
-				break;
+				if (!moveToNextInsert()) {
+					break;
+				}
 			}
 
 			if (!isLeaf(current)) {
@@ -132,7 +156,9 @@ export class TokenRangeTree<T> {
 					} else {
 						current.left = newNode;
 						newNode.parent = current;
-						break;
+						if (!moveToNextInsert()) {
+							break;
+						}
 					}
 				} else {
 					if (current.right) {
@@ -142,7 +168,9 @@ export class TokenRangeTree<T> {
 					} else {
 						current.right = newNode;
 						newNode.parent = current;
-						break;
+						if (!moveToNextInsert()) {
+							break;
+						}
 					}
 				}
 			} else {
@@ -154,9 +182,10 @@ export class TokenRangeTree<T> {
 						current.parent.right = newNode;
 					}
 					newNode.parent = current.parent;
-					break;
+					if (!moveToNextInsert()) {
+						break;
+					}
 				}
-
 
 				const newMidPont = this.getMidPoint(segmentRange);
 				const newBranch: RangeTreeBranchNode<T> = {
@@ -173,9 +202,8 @@ export class TokenRangeTree<T> {
 				}
 
 				current.parent = undefined;
-				this.insertAt(current, newBranch, segmentRange);
-				this.insertAt(newNode, newBranch, segmentRange);
-				break;
+				toInsert.push({ newNode: current, startingNode: newBranch, startingSegmentRange: segmentRange });
+				current = newBranch;
 			}
 		}
 	}
@@ -284,7 +312,7 @@ export class TokenRangeTree<T> {
 			let toInsert = needsReInsert.length > 0 ? needsReInsert[0] : undefined;
 			while (toInsert) {
 				if (this.rangeContainsStartPoint(segmentRange, toInsert)) {
-					this.insertAt(toInsert, node, segmentRange);
+					this.insertAt([{ newNode: toInsert, startingNode: node, startingSegmentRange: segmentRange }]);
 					needsReInsert.shift();
 					toInsert = needsReInsert.length > 0 ? needsReInsert[0] : undefined;
 				} else {
