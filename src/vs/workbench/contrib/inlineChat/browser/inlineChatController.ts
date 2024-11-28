@@ -804,9 +804,9 @@ export class InlineChatController implements IEditorContribution {
 			this._log(err);
 		}
 
+		this._resetWidget();
 		this._inlineChatSessionService.releaseSession(this._session);
 
-		this._resetWidget();
 
 		this._strategy?.dispose();
 		this._strategy = undefined;
@@ -814,6 +814,9 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private async[State.CANCEL]() {
+
+		this._resetWidget();
+
 		if (this._session) {
 			// assertType(this._session);
 			assertType(this._strategy);
@@ -838,7 +841,6 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}
 
-		this._resetWidget();
 
 		this._strategy?.dispose();
 		this._strategy = undefined;
@@ -888,9 +890,7 @@ export class InlineChatController implements IEditorContribution {
 		this._ctxVisible.reset();
 		this._ctxUserDidEdit.reset();
 
-		if (this._ui.rawValue) {
-			this._ui.rawValue.hide();
-		}
+		this._ui.rawValue?.hide();
 
 		// Return focus to the editor only if the current focus is within the editor widget
 		if (this._editor.hasWidgetFocus()) {
