@@ -53,6 +53,7 @@ import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js'
 import { MarkUnhelpfulActionId } from './actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from './chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
+import { ChatAgentCommandContentPart } from './chatContentParts/chatAgentCommandContentPart.js';
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
 import { ChatCodeCitationContentPart } from './chatContentParts/chatCodeCitationContentPart.js';
 import { ChatCommandButtonContentPart } from './chatContentParts/chatCommandContentPart.js';
@@ -123,8 +124,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	protected readonly _onDidClickFollowup = this._register(new Emitter<IChatFollowup>());
 	readonly onDidClickFollowup: Event<IChatFollowup> = this._onDidClickFollowup.event;
 
-	private readonly _onDidClickRerunWithAgentOrCommandDetection = new Emitter<IChatResponseViewModel>();
-	readonly onDidClickRerunWithAgentOrCommandDetection: Event<IChatResponseViewModel> = this._onDidClickRerunWithAgentOrCommandDetection.event;
+	private readonly _onDidClickRerunWithAgentOrCommandDetection = new Emitter<{ sessionId: string; requestId: string }>();
+	readonly onDidClickRerunWithAgentOrCommandDetection: Event<{ sessionId: string; requestId: string }> = this._onDidClickRerunWithAgentOrCommandDetection.event;
 
 	protected readonly _onDidChangeItemHeight = this._register(new Emitter<IItemHeightChangeParams>());
 	readonly onDidChangeItemHeight: Event<IItemHeightChangeParams> = this._onDidChangeItemHeight.event;
@@ -531,6 +532,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				};
 				const newPart = this.renderChatContentPart(data, templateData, context);
 				if (newPart) {
+
+					if (this.rendererOptions.renderDetectedCommandsWithRequest
+						&& isRequestVM(element) && element.agentOrSlashCommandDetected && element.slashCommand
+						&& data.kind === 'markdownContent' // TODO this is fishy but I didn't find a better way to render on the same inline as the MD request part
+					) {
+						newPart.domNode.style.display = 'inline-flex';
+						const cmdPart = this.instantiationService.createInstance(ChatAgentCommandContentPart, element.slashCommand, () => this._onDidClickRerunWithAgentOrCommandDetection.fire({ sessionId: element.sessionId, requestId: element.id }));
+						templateData.value.appendChild(cmdPart.domNode);
+						parts.push(cmdPart);
+					}
+
 					templateData.value.appendChild(newPart.domNode);
 					parts.push(newPart);
 				}
