@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { AccountInfo, AuthenticationResult, ServerError } from '@azure/msal-node';
-import { AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, env, EventEmitter, ExtensionContext, l10n, LogOutputChannel, Memento, SecretStorage, Uri, window } from 'vscode';
+import { AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, env, EventEmitter, ExtensionContext, l10n, LogOutputChannel, Uri, window } from 'vscode';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
 import { UriHandlerLoopbackClient } from '../common/loopbackClientAndOpener';
@@ -12,6 +12,9 @@ import { ICachedPublicClientApplication } from '../common/publicClientCache';
 import { MicrosoftAccountType, MicrosoftAuthenticationTelemetryReporter } from '../common/telemetryReporter';
 import { loopbackTemplate } from './loopbackTemplate';
 import { ScopeData } from '../common/scopeData';
+import { EventBufferer } from '../common/event';
+import { BetterTokenStorage } from '../betterSecretStorage';
+import { IStoredSession } from '../AADHelper';
 
 const redirectUri = 'https://vscode.dev/redirect';
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
@@ -21,6 +24,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	private readonly _disposables: { dispose(): void }[];
 	private readonly _publicClientManager: CachedPublicClientApplicationManager;
+	private readonly _eventBufferer = new EventBufferer();
 
 	/**
 	 * Event to signal a change in authentication sessions for this provider.
@@ -41,23 +45,82 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	onDidChangeSessions = this._onDidChangeSessionsEmitter.event;
 
 	constructor(
-		context: ExtensionContext,
+		private readonly _context: ExtensionContext,
 		private readonly _telemetryReporter: MicrosoftAuthenticationTelemetryReporter,
 		private readonly _logger: LogOutputChannel,
 		private readonly _uriHandler: UriEventHandler,
 		private readonly _env: Environment = Environment.AzureCloud
 	) {
-		this._disposables = context.subscriptions;
-		this._publicClientManager = new CachedPublicClientApplicationManager(context.globalState, context.secrets, this._logger);
+		this._disposables = _context.subscriptions;
+		this._publicClientManager = new CachedPublicClientApplicationManager(
+			_context.globalState,
+			_context.secrets,
+			this._logger,
+			this._env.name
+		);
+		const accountChangeEvent = this._eventBufferer.wrapEvent(
+			this._publicClientManager.onDidAccountsChange,
+			(last, newEvent) => {
+				if (!last) {
+					return newEvent;
+				}
+				const mergedEvent = {
+					added: [...(last.added ?? []), ...(newEvent.added ?? [])],
+					deleted: [...(last.deleted ?? []), ...(newEvent.deleted ?? [])],
+					changed: [...(last.changed ?? []), ...(newEvent.changed ?? [])]
+				};
+
+				const dedupedEvent = {
+					added: Array.from(new Map(mergedEvent.added.map(item => [item.username, item])).values()),
+					deleted: Array.from(new Map(mergedEvent.deleted.map(item => [item.username, item])).values()),
+					changed: Array.from(new Map(mergedEvent.changed.map(item => [item.username, item])).values())
+				};
+
+				return dedupedEvent;
+			},
+			{ added: new Array<AccountInfo>(), deleted: new Array<AccountInfo>(), changed: new Array<AccountInfo>() }
+		)(e => this._handleAccountChange(e));
 		this._disposables.push(
 			this._onDidChangeSessionsEmitter,
 			this._publicClientManager,
-			this._publicClientManager.onDidAccountsChange(e => this._handleAccountChange(e))
+			accountChangeEvent
 		);
 	}
 
+	/**
+	 * Migrate sessions from the old secret storage to MSAL.
+	 * TODO: MSAL Migration. Remove this when we remove the old flow.
+	 */
+	private async _migrateSessions() {
+		const betterSecretStorage = new BetterTokenStorage<IStoredSession>('microsoft.login.keylist', this._context);
+		const sessions = await betterSecretStorage.getAll(item => {
+			item.endpoint ||= Environment.AzureCloud.activeDirectoryEndpointUrl;
+			return item.endpoint === this._env.activeDirectoryEndpointUrl;
+		});
+		this._context.globalState.update('msalMigration', true);
+
+		const clientTenantMap = new Map<string, { clientId: string; tenant: string; refreshTokens: string[] }>();
+
+		for (const session of sessions) {
+			const scopeData = new ScopeData(session.scope.split(' '));
+			const key = `${scopeData.clientId}:${scopeData.tenant}`;
+			if (!clientTenantMap.has(key)) {
+				clientTenantMap.set(key, { clientId: scopeData.clientId, tenant: scopeData.tenant, refreshTokens: [] });
+			}
+			clientTenantMap.get(key)!.refreshTokens.push(session.refreshToken);
+		}
+
+		for (const { clientId, tenant, refreshTokens } of clientTenantMap.values()) {
+			await this.getOrCreatePublicClientApplication(clientId, tenant, refreshTokens);
+		}
+	}
+
 	async initialize(): Promise<void> {
-		await this._publicClientManager.initialize();
+		await this._eventBufferer.bufferEventsAsync(() => this._publicClientManager.initialize());
+
+		if (!this._context.globalState.get('msalMigration', false)) {
+			await this._migrateSessions();
+		}
 
 		// Send telemetry for existing accounts
 		for (const cachedPca of this._publicClientManager.getAll()) {
@@ -77,6 +140,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 	 * @param param0 Event that contains the added and removed accounts
 	 */
 	private _handleAccountChange({ added, changed, deleted }: { added: AccountInfo[]; changed: AccountInfo[]; deleted: AccountInfo[] }) {
+		this._logger.debug(`[_handleAccountChange] added: ${added.length}, changed: ${changed.length}, deleted: ${deleted.length}`);
 		this._onDidChangeSessionsEmitter.fire({
 			added: added.map(this.sessionFromAccountInfo),
 			changed: changed.map(this.sessionFromAccountInfo),
@@ -117,21 +181,29 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	}
 
-	async createSession(scopes: readonly string[]): Promise<AuthenticationSession> {
+	async createSession(scopes: readonly string[], options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
 		const scopeData = new ScopeData(scopes);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 
 		this._logger.info('[createSession]', `[${scopeData.scopeStr}]`, 'starting');
 		const cachedPca = await this.getOrCreatePublicClientApplication(scopeData.clientId, scopeData.tenant);
-		let result: AuthenticationResult;
+		let result: AuthenticationResult | undefined;
+
 		try {
+			const windowHandle = window.nativeHandle ? Buffer.from(window.nativeHandle) : undefined;
 			result = await cachedPca.acquireTokenInteractive({
 				openBrowser: async (url: string) => { await env.openExternal(Uri.parse(url)); },
 				scopes: scopeData.scopesToSend,
 				// The logic for rendering one or the other of these templates is in the
 				// template itself, so we pass the same one for both.
 				successTemplate: loopbackTemplate,
-				errorTemplate: loopbackTemplate
+				errorTemplate: loopbackTemplate,
+				// Pass the label of the account to the login hint so that we prefer signing in to that account
+				loginHint: options.account?.label,
+				// If we aren't logging in to a specific account, then we can use the prompt to make sure they get
+				// the option to choose a different account.
+				prompt: options.account?.label ? undefined : 'select_account',
+				windowHandle
 			});
 		} catch (e) {
 			if (e instanceof CancellationError) {
@@ -156,17 +228,28 @@ export class MsalAuthProvider implements AuthenticationProvider {
 				this._telemetryReporter.sendLoginFailedEvent();
 				throw e;
 			}
-			const loopbackClient = new UriHandlerLoopbackClient(this._uriHandler, redirectUri);
+
+			// The user wants to try the loopback client or we got an error likely due to spinning up the server
+			const loopbackClient = new UriHandlerLoopbackClient(this._uriHandler, redirectUri, this._logger);
 			try {
+				const windowHandle = window.nativeHandle ? Buffer.from(window.nativeHandle) : undefined;
 				result = await cachedPca.acquireTokenInteractive({
 					openBrowser: (url: string) => loopbackClient.openBrowser(url),
 					scopes: scopeData.scopesToSend,
-					loopbackClient
+					loopbackClient,
+					loginHint: options.account?.label,
+					prompt: options.account?.label ? undefined : 'select_account',
+					windowHandle
 				});
 			} catch (e) {
 				this._telemetryReporter.sendLoginFailedEvent();
 				throw e;
 			}
+		}
+
+		if (!result) {
+			this._telemetryReporter.sendLoginFailedEvent();
+			throw new Error('No result returned from MSAL');
 		}
 
 		const session = this.sessionFromAuthenticationResult(result, scopeData.originalScopes);
@@ -210,9 +293,9 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	//#endregion
 
-	private async getOrCreatePublicClientApplication(clientId: string, tenant: string): Promise<ICachedPublicClientApplication> {
+	private async getOrCreatePublicClientApplication(clientId: string, tenant: string, refreshTokensToMigrate?: string[]): Promise<ICachedPublicClientApplication> {
 		const authority = new URL(tenant, this._env.activeDirectoryEndpointUrl).toString();
-		return await this._publicClientManager.getOrCreate(clientId, authority);
+		return await this._publicClientManager.getOrCreate(clientId, authority, refreshTokensToMigrate);
 	}
 
 	private async getAllSessionsForPca(
@@ -225,17 +308,19 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			? cachedPca.accounts.filter(a => a.homeAccountId === accountFilter.id)
 			: cachedPca.accounts;
 		const sessions: AuthenticationSession[] = [];
-		for (const account of accounts) {
-			try {
-				const result = await cachedPca.acquireTokenSilent({ account, scopes: scopesToSend, redirectUri });
-				sessions.push(this.sessionFromAuthenticationResult(result, originalScopes));
-			} catch (e) {
-				// If we can't get a token silently, the account is probably in a bad state so we should skip it
-				// MSAL will log this already, so we don't need to log it again
-				continue;
+		return this._eventBufferer.bufferEventsAsync(async () => {
+			for (const account of accounts) {
+				try {
+					const result = await cachedPca.acquireTokenSilent({ account, scopes: scopesToSend, redirectUri });
+					sessions.push(this.sessionFromAuthenticationResult(result, originalScopes));
+				} catch (e) {
+					// If we can't get a token silently, the account is probably in a bad state so we should skip it
+					// MSAL will log this already, so we don't need to log it again
+					continue;
+				}
 			}
-		}
-		return sessions;
+			return sessions;
+		});
 	}
 
 	private sessionFromAuthenticationResult(result: AuthenticationResult, scopes: readonly string[]): AuthenticationSession & { idToken: string } {

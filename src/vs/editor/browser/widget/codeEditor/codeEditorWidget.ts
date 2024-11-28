@@ -188,11 +188,17 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private _updateCounter = 0;
 
+	private readonly _onWillTriggerEditorOperationEvent: Emitter<editorCommon.ITriggerEditorOperationEvent> = this._register(new Emitter<editorCommon.ITriggerEditorOperationEvent>());
+	public readonly onWillTriggerEditorOperationEvent: Event<editorCommon.ITriggerEditorOperationEvent> = this._onWillTriggerEditorOperationEvent.event;
+
 	private readonly _onBeginUpdate: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onBeginUpdate: Event<void> = this._onBeginUpdate.event;
 
 	private readonly _onEndUpdate: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onEndUpdate: Event<void> = this._onEndUpdate.event;
+
+	private readonly _onBeforeExecuteEdit = this._register(new Emitter<{ source: string | undefined }>());
+	public readonly onBeforeExecuteEdit = this._onBeforeExecuteEdit.event;
 
 	//#endregion
 
@@ -581,8 +587,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, maxCol, includeViewZones);
 	}
 
-	public setHiddenAreas(ranges: IRange[], source?: unknown): void {
-		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)), source);
+	public setHiddenAreas(ranges: IRange[], source?: unknown, forceUpdate?: boolean): void {
+		this._modelData?.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)), source, forceUpdate);
 	}
 
 	public getVisibleColumnFromPosition(rawPosition: IPosition): number {
@@ -1047,6 +1053,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		payload = payload || {};
 
 		try {
+			this._onWillTriggerEditorOperationEvent.fire({ source: source, handlerId: handlerId, payload: payload });
 			this._beginUpdate();
 
 			switch (handlerId) {
@@ -1227,6 +1234,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		} else {
 			cursorStateComputer = endCursorState;
 		}
+
+		this._onBeforeExecuteEdit.fire({ source: source ?? undefined });
 
 		this._modelData.viewModel.executeEdits(source, edits, cursorStateComputer);
 		return true;
@@ -1855,6 +1864,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		viewUserInputEvents.onMouseWheel = (e) => this._onMouseWheel.fire(e);
 
 		const view = new View(
+			this.getId(),
 			commandDelegate,
 			this._configuration,
 			this._themeService.getColorTheme(),

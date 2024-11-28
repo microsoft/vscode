@@ -24,6 +24,7 @@ import { ChatModel } from '../common/chatModel.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;
@@ -220,10 +221,11 @@ class QuickChat extends Disposable {
 				ChatWidget,
 				ChatAgentLocation.Panel,
 				{ isQuickChat: true },
-				{ renderInputOnTop: true, renderStyle: 'compact', menus: { inputSideToolbar: MenuId.ChatInputSide } },
+				{ autoScroll: true, renderInputOnTop: true, renderStyle: 'compact', menus: { inputSideToolbar: MenuId.ChatInputSide }, enableImplicitContext: true },
 				{
 					listForeground: quickInputForeground,
 					listBackground: quickInputBackground,
+					overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
 					inputEditorBackground: inputBackground,
 					resultEditorBackground: editorBackground
 				}));

@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { setUnexpectedErrorHandler } from '../../common/errors.js';
 import { Emitter, Event } from '../../common/event.js';
 import { DisposableStore } from '../../common/lifecycle.js';
-import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved, waitForState, autorunHandleChanges, observableSignal } from '../../common/observable.js';
-import { BaseObservable, IObservable, IObserver } from '../../common/observableInternal/base.js';
-import { derivedDisposable } from '../../common/observableInternal/derived.js';
+import { autorun, autorunHandleChanges, derived, derivedDisposable, IObservable, IObserver, ISettableObservable, ITransaction, keepObserved, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from '../../common/observable.js';
+import { BaseObservable } from '../../common/observableInternal/base.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
-import { setUnexpectedErrorHandler } from '../../common/errors.js';
 
 suite('observables', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1397,6 +1396,86 @@ suite('observables', () => {
 			]);
 
 			d.dispose();
+		});
+	});
+
+	suite('prevent invalid usage', () => {
+		suite('reading outside of compute function', () => {
+			test('derived', () => {
+				let fn: () => void = () => { };
+
+				const obs = observableValue('obs', 0);
+				const d = derived(reader => {
+					fn = () => { obs.read(reader); };
+					return obs.read(reader);
+				});
+
+				const disp = autorun(reader => {
+					d.read(reader);
+				});
+
+				assert.throws(() => {
+					fn();
+				});
+
+				disp.dispose();
+			});
+
+			test('autorun', () => {
+				let fn: () => void = () => { };
+
+				const obs = observableValue('obs', 0);
+				const disp = autorun(reader => {
+					fn = () => { obs.read(reader); };
+					obs.read(reader);
+				});
+
+				assert.throws(() => {
+					fn();
+				});
+
+				disp.dispose();
+			});
+		});
+
+		test.skip('catches cyclic dependencies', () => {
+			const log = new Log();
+
+			setUnexpectedErrorHandler((e) => {
+				log.log(e.toString());
+			});
+
+			const obs = observableValue('obs', 0);
+			const d1 = derived(reader => {
+				log.log('d1.computed start');
+				const x = obs.read(reader) + d2.read(reader);
+				log.log('d1.computed end');
+				return x;
+			});
+			const d2 = derived(reader => {
+				log.log('d2.computed start');
+				d1.read(reader);
+				log.log('d2.computed end');
+				return 0;
+			});
+
+			const disp = autorun(reader => {
+				log.log('autorun start');
+				d1.read(reader);
+				log.log('autorun end');
+				return 0;
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"autorun start",
+				"d1.computed start",
+				"d2.computed start",
+				"Error: Cyclic deriveds are not supported yet!",
+				"d1.computed end",
+				"autorun end"
+			]));
+
+			disp.dispose();
 		});
 	});
 });

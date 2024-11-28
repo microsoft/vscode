@@ -66,7 +66,7 @@ export class DebugStatusContribution implements IWorkbenchContribution {
 			name: nls.localize('status.debug', "Debug"),
 			text: '$(debug-alt-small) ' + text,
 			ariaLabel: nls.localize('debugTarget', "Debug: {0}", text),
-			tooltip: nls.localize('selectAndStartDebug', "Select and start debug configuration"),
+			tooltip: nls.localize('selectAndStartDebug', "Select and Start Debug Configuration"),
 			command: 'workbench.action.debug.selectandstart'
 		};
 	}

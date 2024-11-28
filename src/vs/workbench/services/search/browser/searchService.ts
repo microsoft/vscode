@@ -65,6 +65,10 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 		this._worker = null;
 	}
 
+	async getAIName(): Promise<string | undefined> {
+		return undefined;
+	}
+
 	sendTextSearchMatch(match: IFileMatch<UriComponents>, queryId: number): void {
 		this._onDidReceiveTextSearchMatch.fire({ match, queryId });
 	}

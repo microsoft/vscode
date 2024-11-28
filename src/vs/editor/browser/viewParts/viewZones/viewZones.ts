@@ -32,6 +32,11 @@ interface IComputedViewZoneProps {
 
 const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
+/**
+ * A view zone is a rectangle that is a section that is inserted into the editor
+ * lines that can be used for various purposes such as showing a diffs, peeking
+ * an implementation, etc.
+ */
 export class ViewZones extends ViewPart {
 
 	private _zones: { [id: string]: IMyViewZone };

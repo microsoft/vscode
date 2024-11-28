@@ -20,6 +20,7 @@ import './mainThreadBulkEdits.js';
 import './mainThreadLanguageModels.js';
 import './mainThreadChatAgents2.js';
 import './mainThreadChatVariables.js';
+import './mainThreadChatCodeMapper.js';
 import './mainThreadLanguageModelTools.js';
 import './mainThreadEmbeddings.js';
 import './mainThreadCodeInsets.js';

@@ -29,7 +29,7 @@ import { NotebookEditor } from './notebookEditor.js';
 import { NotebookEditorInput, NotebookEditorInputOptions } from '../common/notebookEditorInput.js';
 import { INotebookService } from '../common/notebookService.js';
 import { NotebookService } from './services/notebookServiceImpl.js';
-import { CellKind, CellUri, IResolvedNotebookEditorModel, NotebookWorkingCopyTypeIdentifier, NotebookSetting, ICellOutput, ICell, NotebookCellsChangeType } from '../common/notebookCommon.js';
+import { CellKind, CellUri, IResolvedNotebookEditorModel, NotebookWorkingCopyTypeIdentifier, NotebookSetting, ICellOutput, ICell, NotebookCellsChangeType, NotebookMetadataUri } from '../common/notebookCommon.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { INotebookEditorModelResolverService } from '../common/notebookEditorModelResolverService.js';
@@ -70,6 +70,7 @@ import './controller/cellOutputActions.js';
 import './controller/apiActions.js';
 import './controller/foldingController.js';
 import './controller/chat/notebook.chat.contribution.js';
+import './controller/variablesActions.js';
 
 // Editor Contribution
 import './contrib/editorHint/emptyCellEditorHint.js';
@@ -98,9 +99,13 @@ import './contrib/execute/executionEditorProgress.js';
 import './contrib/kernelDetection/notebookKernelDetection.js';
 import './contrib/cellDiagnostics/cellDiagnostics.js';
 import './contrib/multicursor/notebookMulticursor.js';
+import './contrib/multicursor/notebookSelectionHighlight.js';
 
 // Diff Editor Contribution
 import './diff/notebookDiffActions.js';
+
+// Chat Edit Contributions
+import './contrib/chatEdit/notebookChatEditController.js';
 
 // Services
 import { editorOptionsRegistry } from '../../../../editor/common/config/editorOptions.js';
@@ -128,6 +133,7 @@ import { NotebookMultiTextDiffEditor } from './diff/notebookMultiDiffEditor.js';
 import { NotebookMultiDiffEditorInput } from './diff/notebookMultiDiffEditorInput.js';
 import { getFormattedMetadataJSON } from '../common/model/notebookCellTextModel.js';
 import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from './viewModel/notebookOutlineEntryFactory.js';
+import { getFormattedNotebookMetadataJSON } from '../common/model/notebookMetadataTextModel.js';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -605,6 +611,82 @@ class CellInfoContentProvider {
 	}
 }
 
+class NotebookMetadataContentProvider {
+	static readonly ID = 'workbench.contrib.notebookMetadataContentProvider';
+
+	private readonly _disposables: IDisposable[] = [];
+
+	constructor(
+		@ITextModelService textModelService: ITextModelService,
+		@IModelService private readonly _modelService: IModelService,
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@ILabelService private readonly _labelService: ILabelService,
+		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
+	) {
+		this._disposables.push(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookMetadata, {
+			provideTextContent: this.provideMetadataTextContent.bind(this)
+		}));
+
+		this._disposables.push(this._labelService.registerFormatter({
+			scheme: Schemas.vscodeNotebookMetadata,
+			formatting: {
+				label: '${path} (metadata)',
+				separator: '/'
+			}
+		}));
+	}
+
+	dispose(): void {
+		dispose(this._disposables);
+	}
+
+	async provideMetadataTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing) {
+			return existing;
+		}
+
+		const data = NotebookMetadataUri.parse(resource);
+		if (!data) {
+			return null;
+		}
+
+		const ref = await this._notebookModelResolverService.resolve(data);
+		let result: ITextModel | null = null;
+
+		const mode = this._languageService.createById('json');
+		const disposables = new DisposableStore();
+		const metadataSource = getFormattedNotebookMetadataJSON(ref.object.notebook.transientOptions.transientDocumentMetadata, ref.object.notebook.metadata);
+		result = this._modelService.createModel(
+			metadataSource,
+			mode,
+			resource
+		);
+
+		if (!result) {
+			ref.dispose();
+			return null;
+		}
+
+		this._disposables.push(disposables.add(ref.object.notebook.onDidChangeContent(e => {
+			if (result && e.rawEvents.some(event => (event.kind === NotebookCellsChangeType.ChangeCellContent || event.kind === NotebookCellsChangeType.ChangeDocumentMetadata || event.kind === NotebookCellsChangeType.ModelChange))) {
+				const value = getFormattedNotebookMetadataJSON(ref.object.notebook.transientOptions.transientDocumentMetadata, ref.object.notebook.metadata);
+				if (result.getValue() !== value) {
+					result.setValue(value);
+				}
+			}
+		})));
+
+		const once = result.onWillDispose(() => {
+			disposables.dispose();
+			once.dispose();
+			ref.dispose();
+		});
+
+		return result;
+	}
+}
+
 class RegisterSchemasContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.registerCellSchemas';
@@ -708,7 +790,7 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 
 	private handlesSync(workingCopy: IWorkingCopyIdentifier): string /* viewType */ | undefined {
 		const viewType = this._getViewType(workingCopy);
-		if (!viewType || viewType === 'interactive' || extname(workingCopy.resource) === '.replNotebook') {
+		if (!viewType || viewType === 'interactive') {
 			return undefined;
 		}
 
@@ -733,8 +815,12 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 		this._register(this._workingCopyEditorService.registerHandler(this));
 	}
 
-	private _getViewType(workingCopy: IWorkingCopyIdentifier): string | undefined {
-		return NotebookWorkingCopyTypeIdentifier.parse(workingCopy.typeId);
+	private _getViewType(workingCopy: IWorkingCopyIdentifier) {
+		const notebookType = NotebookWorkingCopyTypeIdentifier.parse(workingCopy.typeId);
+		if (notebookType && notebookType.viewType === notebookType.notebookType) {
+			return notebookType?.viewType;
+		}
+		return undefined;
 	}
 }
 
@@ -769,6 +855,7 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 registerWorkbenchContribution2(NotebookContribution.ID, NotebookContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(CellContentProvider.ID, CellContentProvider, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(CellInfoContentProvider.ID, CellInfoContentProvider, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(NotebookMetadataContentProvider.ID, NotebookMetadataContentProvider, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(RegisterSchemasContribution.ID, RegisterSchemasContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(NotebookEditorManager.ID, NotebookEditorManager, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(NotebookLanguageSelectorScoreRefine.ID, NotebookLanguageSelectorScoreRefine, WorkbenchPhase.BlockRestore);
@@ -792,6 +879,7 @@ registerSingleton(INotebookKeymapService, NotebookKeymapService, InstantiationTy
 registerSingleton(INotebookLoggingService, NotebookLoggingService, InstantiationType.Delayed);
 registerSingleton(INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFactory, InstantiationType.Delayed);
 registerSingleton(INotebookOutlineEntryFactory, NotebookOutlineEntryFactory, InstantiationType.Delayed);
+
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {
@@ -1058,7 +1146,7 @@ configurationRegistry.registerConfiguration({
 			markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
 		},
 		[NotebookSetting.formatOnSave]: {
-			markdownDescription: nls.localize('notebook.formatOnSave', "Format a notebook on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),
+			markdownDescription: nls.localize('notebook.formatOnSave', "Format a notebook on save. A formatter must be available and the editor must not be shutting down. When {0} is set to `afterDelay`, the file will only be formatted when saved explicitly.", '`#files.autoSave#`'),
 			type: 'boolean',
 			tags: ['notebookLayout'],
 			default: false
@@ -1128,8 +1216,7 @@ configurationRegistry.registerConfiguration({
 		[NotebookSetting.cellGenerate]: {
 			markdownDescription: nls.localize('notebook.cellGenerate', "Enable experimental generate action to create code cell with inline chat enabled."),
 			type: 'boolean',
-			default: typeof product.quality === 'string' && product.quality !== 'stable',
-			tags: ['experimental']
+			default: true
 		},
 		[NotebookSetting.notebookVariablesView]: {
 			markdownDescription: nls.localize('notebook.VariablesView.description', "Enable the experimental notebook variables view within the debug panel."),
@@ -1145,6 +1232,11 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.backup.sizeLimit', "The limit of notebook output size in kilobytes (KB) where notebook files will no longer be backed up for hot reload. Use 0 for unlimited."),
 			type: 'number',
 			default: 10000
-		}
+		},
+		[NotebookSetting.multiCursor]: {
+			markdownDescription: nls.localize('notebook.multiCursor.enabled', "Experimental. Enables a limited set of multi cursor controls across multiple cells in the notebook editor. Currently supported are core editor actions (typing/cut/copy/paste/composition) and a limited subset of editor commands."),
+			type: 'boolean',
+			default: false
+		},
 	}
 });

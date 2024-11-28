@@ -165,9 +165,9 @@ export function getShellIntegrationInjection(
 		} else if (shell === 'bash.exe') {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
-			} else if (areZshBashLoginArgs(originalArgs)) {
+			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				envMixin['VSCODE_SHELL_LOGIN'] = '1';
-				addEnvMixinPathPrefix(options, envMixin);
+				addEnvMixinPathPrefix(options, envMixin, shell);
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			}
 			if (!newArgs) {
@@ -187,9 +187,9 @@ export function getShellIntegrationInjection(
 		case 'bash': {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
-			} else if (areZshBashLoginArgs(originalArgs)) {
+			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				envMixin['VSCODE_SHELL_LOGIN'] = '1';
-				addEnvMixinPathPrefix(options, envMixin);
+				addEnvMixinPathPrefix(options, envMixin, shell);
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			}
 			if (!newArgs) {
@@ -201,13 +201,24 @@ export function getShellIntegrationInjection(
 			return { newArgs, envMixin };
 		}
 		case 'fish': {
-			// The injection mechanism used for fish is to add a custom dir to $XDG_DATA_DIRS which
-			// is similar to $ZDOTDIR in zsh but contains a list of directories to run from.
-			const oldDataDirs = env?.XDG_DATA_DIRS ?? '/usr/local/share:/usr/share';
-			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/fish_xdg_data');
-			envMixin['XDG_DATA_DIRS'] = `${oldDataDirs}:${newDataDir}`;
-			addEnvMixinPathPrefix(options, envMixin);
-			return { newArgs: undefined, envMixin };
+			if (!originalArgs || originalArgs.length === 0) {
+				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Fish);
+			} else if (areZshBashFishLoginArgs(originalArgs)) {
+				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin);
+			} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Fish) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin)) {
+				newArgs = originalArgs;
+			}
+			if (!newArgs) {
+				return undefined;
+			}
+
+			// On fish, '$fish_user_paths' is always prepended to the PATH, for both login and non-login shells, so we need
+			// to apply the path prefix fix always, not only for login shells (see #232291)
+			addEnvMixinPathPrefix(options, envMixin, shell);
+
+			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
+			return { newArgs, envMixin };
 		}
 		case 'pwsh': {
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
@@ -229,9 +240,9 @@ export function getShellIntegrationInjection(
 		case 'zsh': {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
-			} else if (areZshBashLoginArgs(originalArgs)) {
+			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
-				addEnvMixinPathPrefix(options, envMixin);
+				addEnvMixinPathPrefix(options, envMixin, shell);
 			} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin)) {
 				newArgs = originalArgs;
 			}
@@ -277,16 +288,19 @@ export function getShellIntegrationInjection(
 }
 
 /**
- * On macOS the profile calls path_helper which adds a bunch of standard bin directories to the
- * beginning of the PATH. This causes significant problems for the environment variable
+ * There are a few situations where some directories are added to the beginning of the PATH.
+ * 1. On macOS when the profile calls path_helper.
+ * 2. For fish terminals, which always prepend "$fish_user_paths" to the PATH.
+ *
+ * This causes significant problems for the environment variable
  * collection API as the custom paths added to the end will now be somewhere in the middle of
  * the PATH. To combat this, VSCODE_PATH_PREFIX is used to re-apply any prefix after the profile
  * has run. This will cause duplication in the PATH but should fix the issue.
  *
  * See #99878 for more information.
  */
-function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProcessEnvironment): void {
-	if (isMacintosh && options.environmentVariableCollections) {
+function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProcessEnvironment, shell: string): void {
+	if ((isMacintosh || shell === 'fish') && options.environmentVariableCollections) {
 		// Deserialize and merge
 		const deserialized = deserializeEnvironmentVariableCollections(options.environmentVariableCollections);
 		const merged = new MergedEnvironmentVariableCollection(deserialized);
@@ -316,7 +330,9 @@ enum ShellIntegrationExecutable {
 	PwshLogin = 'pwsh-login',
 	Zsh = 'zsh',
 	ZshLogin = 'zsh-login',
-	Bash = 'bash'
+	Bash = 'bash',
+	Fish = 'fish',
+	FishLogin = 'fish-login',
 }
 
 const shellIntegrationArgs: Map<ShellIntegrationExecutable, string[]> = new Map();
@@ -328,6 +344,8 @@ shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit',
 shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-i']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-il']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Fish, ['--init-command', 'source "{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish"']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.FishLogin, ['-l', '--init-command', 'source "{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish"']);
 const pwshLoginArgs = ['-login', '-l'];
 const shLoginArgs = ['--login', '-l'];
 const shInteractiveArgs = ['-i', '--interactive'];
@@ -352,7 +370,7 @@ function arePwshImpliedArgs(originalArgs: string | string[]): boolean {
 	}
 }
 
-function areZshBashLoginArgs(originalArgs: string | string[]): boolean {
+function areZshBashFishLoginArgs(originalArgs: string | string[]): boolean {
 	if (typeof originalArgs !== 'string') {
 		originalArgs = originalArgs.filter(arg => !shInteractiveArgs.includes(arg.toLowerCase()));
 	}

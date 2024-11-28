@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/REditorSupport/vscode-R/commit/ad966f3b2de8a83594f90aa5b51f5b569cf02c08",
+	"version": "https://github.com/REditorSupport/vscode-R/commit/c937cdd39982995d8ee1f1125919f7c2d150b35d",
 	"name": "R",
 	"scopeName": "source.r",
 	"patterns": [
@@ -158,14 +158,6 @@
 				{
 					"match": "\\b([[:alnum:]_]+)(?=::)",
 					"name": "entity.namespace.r"
-				},
-				{
-					"match": "\\b([[:alnum:]._]+)\\b",
-					"name": "variable.other.r"
-				},
-				{
-					"match": "(`[^`]+`)",
-					"name": "variable.other.r"
 				}
 			]
 		},

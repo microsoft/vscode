@@ -29,7 +29,7 @@ import { DownloadService } from '../../../platform/download/common/downloadServi
 import { INativeEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { GlobalExtensionEnablementService } from '../../../platform/extensionManagement/common/extensionEnablementService.js';
 import { ExtensionGalleryService } from '../../../platform/extensionManagement/common/extensionGalleryService.js';
-import { IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IGlobalExtensionEnablementService } from '../../../platform/extensionManagement/common/extensionManagement.js';
+import { IAllowedExtensionsService, IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IGlobalExtensionEnablementService } from '../../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from '../../../platform/extensionManagement/node/extensionSignatureVerificationService.js';
 import { ExtensionManagementChannel, ExtensionTipsChannel } from '../../../platform/extensionManagement/common/extensionManagementIpc.js';
 import { ExtensionManagementService, INativeServerExtensionManagementService } from '../../../platform/extensionManagement/node/extensionManagementService.js';
@@ -118,6 +118,8 @@ import { getOSReleaseInfo } from '../../../base/node/osReleaseInfo.js';
 import { getDesktopEnvironment } from '../../../base/common/desktopEnvironmentInfo.js';
 import { getCodeDisplayProtocol, getDisplayProtocol } from '../../../base/node/osDisplayProtocolInfo.js';
 import { RequestService } from '../../../platform/request/electron-utility/requestService.js';
+import { DefaultExtensionsInitializer } from './contrib/defaultExtensionsInitializer.js';
+import { AllowedExtensionsService } from '../../../platform/extensionManagement/common/allowedExtensionsService.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -187,7 +189,8 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			instantiationService.createInstance(LogsDataCleaner),
 			instantiationService.createInstance(LocalizationsUpdater),
 			instantiationService.createInstance(ExtensionsContributions),
-			instantiationService.createInstance(UserDataProfilesCleaner)
+			instantiationService.createInstance(UserDataProfilesCleaner),
+			instantiationService.createInstance(DefaultExtensionsInitializer)
 		));
 	}
 
@@ -270,11 +273,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		]);
 
 		// Request
-		const networkLogger = loggerService.createLogger('network-shared', {
-			name: localize('network-shared', "Network (Shared)"),
-			hidden: true,
-		});
-		const requestService = new RequestService(networkLogger, configurationService, environmentService, logService);
+		const requestService = new RequestService(configurationService, environmentService, logService);
 		services.set(IRequestService, requestService);
 
 		// Checksum
@@ -331,6 +330,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService, undefined, true));
 		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService, undefined, true));
 		services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
+		services.set(IAllowedExtensionsService, new SyncDescriptor(AllowedExtensionsService, undefined, true));
 		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService, undefined, true));
 
 		// Extension Gallery

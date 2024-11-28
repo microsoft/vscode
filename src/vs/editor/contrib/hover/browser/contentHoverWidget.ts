@@ -31,7 +31,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	private _minimumSize: dom.Dimension;
 	private _contentWidth: number | undefined;
 
-	private readonly _hover: HoverWidget = this._register(new HoverWidget());
+	private readonly _hover: HoverWidget = this._register(new HoverWidget(true));
 	private readonly _hoverVisibleKey: IContextKey<boolean>;
 	private readonly _hoverFocusedKey: IContextKey<boolean>;
 
@@ -291,7 +291,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	private _updateMaxDimensions() {
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250, ContentHoverWidget._lastDimensions.height);
-		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 500, ContentHoverWidget._lastDimensions.width);
+		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 750, ContentHoverWidget._lastDimensions.width);
 		this._setHoverWidgetMaxDimensions(width, height);
 	}
 

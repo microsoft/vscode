@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../dom.js';
+import * as domStylesheetsJs from '../../domStylesheets.js';
 import { IMouseEvent } from '../../mouseEvent.js';
 import { DomScrollableElement } from '../scrollbar/scrollableElement.js';
 import { commonPrefixLength } from '../../../common/arrays.js';
@@ -83,7 +84,7 @@ export class BreadcrumbsWidget {
 		this._disposables.add(dom.addStandardDisposableListener(this._domNode, 'click', e => this._onClick(e)));
 		container.appendChild(this._scrollable.getDomNode());
 
-		const styleElement = dom.createStyleSheet(this._domNode);
+		const styleElement = domStylesheetsJs.createStyleSheet(this._domNode);
 		this._style(styleElement, styles);
 
 		const focusTracker = dom.trackFocus(this._domNode);
@@ -191,13 +192,13 @@ export class BreadcrumbsWidget {
 		this._focus(this._items.indexOf(item!), payload);
 	}
 
-	focusPrev(payload?: any): any {
+	focusPrev(payload?: any): void {
 		if (this._focusedItemIdx > 0) {
 			this._focus(this._focusedItemIdx - 1, payload);
 		}
 	}
 
-	focusNext(payload?: any): any {
+	focusNext(payload?: any): void {
 		if (this._focusedItemIdx + 1 < this._nodes.length) {
 			this._focus(this._focusedItemIdx + 1, payload);
 		}

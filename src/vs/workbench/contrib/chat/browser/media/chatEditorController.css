@@ -1,0 +1,39 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-diff-change-content-widget {
+	opacity: 0;
+	transition: opacity 0.2s ease-in-out;
+	display: flex;
+}
+
+.chat-diff-change-content-widget.hover {
+	opacity: 1;
+}
+
+.chat-diff-change-content-widget .monaco-action-bar {
+	padding: 0;
+	border-radius: 2px;
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.chat-diff-change-content-widget .monaco-action-bar .action-item .action-label {
+	height: 14px;
+	border-radius: 2px;
+	color: var(--vscode-button-foreground);
+}
+
+.chat-diff-change-content-widget .monaco-action-bar .action-item .action-label.codicon {
+	width: unset;
+	padding: 2px;
+	font-size: 12px;
+	line-height: 14px;
+	color: var(--vscode-button-foreground);
+}
+
+.chat-diff-change-content-widget .monaco-action-bar .action-item .action-label.codicon[class*='codicon-'] {
+	font-size: 12px;
+}

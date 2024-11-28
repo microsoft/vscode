@@ -164,6 +164,7 @@ export interface IExpressionValue {
 
 export interface IExpressionContainer extends ITreeElement, IExpressionValue {
 	readonly hasChildren: boolean;
+	getSession(): IDebugSession | undefined;
 	evaluateLazy(): Promise<void>;
 	getChildren(): Promise<IExpression[]>;
 	readonly reference?: number;
@@ -411,8 +412,10 @@ export interface IDebugSession extends ITreeElement {
 	readonly onDidChangeState: Event<void>;
 	readonly onDidChangeReplElements: Event<IReplElement | undefined>;
 
-	// DA capabilities
+	/** DA capabilities. Set only when there is a running session available. */
 	readonly capabilities: DebugProtocol.Capabilities;
+	/** DA capabilities. These are retained on the session even after is implementation ends. */
+	readonly rememberedCapabilities?: DebugProtocol.Capabilities;
 
 	// DAP events
 
@@ -626,7 +629,7 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly pending: boolean;
 
 	/** Marks that a session did trigger the breakpoint. */
-	setSessionDidTrigger(sessionId: string): void;
+	setSessionDidTrigger(sessionId: string, didTrigger?: boolean): void;
 	/** Gets whether the `triggeredBy` condition has been met in the given sesison ID. */
 	getSessionDidTrigger(sessionId: string): boolean;
 
@@ -811,6 +814,7 @@ export interface IDebugConfiguration {
 	autoExpandLazyVariables: 'auto' | 'off' | 'on';
 	enableStatusBarColor: boolean;
 	showVariableTypes: boolean;
+	hideSlowPreLaunchWarning: boolean;
 }
 
 export interface IGlobalConfig {
@@ -1014,7 +1018,8 @@ export interface IConfigurationManager {
 	onDidChangeConfigurationProviders: Event<void>;
 
 	hasDebugConfigurationProvider(debugType: string, triggerKind?: DebugConfigurationProviderTriggerKind): boolean;
-	getDynamicProviders(): Promise<{ label: string; type: string; pick: () => Promise<{ launch: ILaunch; config: IConfig } | undefined> }[]>;
+	getDynamicProviders(): Promise<{ label: string; type: string; pick: () => Promise<{ launch: ILaunch; config: IConfig; label: string } | undefined> }[]>;
+	getDynamicConfigurationsByType(type: string, token?: CancellationToken): Promise<{ launch: ILaunch; config: IConfig; label: string }[]>;
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
 	unregisterDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): void;
@@ -1045,9 +1050,18 @@ export interface IAdapterManager {
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 	getEnabledDebugger(type: string): (IDebugger & IDebuggerMetadata) | undefined;
-	guessDebugger(gettingConfigurations: boolean): Promise<(IDebugger & IDebuggerMetadata) | undefined>;
+	guessDebugger(gettingConfigurations: boolean): Promise<IGuessedDebugger | undefined>;
 
 	get onDidDebuggersExtPointRead(): Event<void>;
+}
+
+export interface IGuessedDebugger {
+	debugger: IDebugger;
+	withConfig?: {
+		label: string;
+		launch: ILaunch;
+		config: IConfig;
+	};
 }
 
 export interface ILaunch {

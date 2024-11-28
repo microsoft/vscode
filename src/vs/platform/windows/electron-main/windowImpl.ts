@@ -43,7 +43,7 @@ import { IStateService } from '../../state/node/state.js';
 import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
 import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { isESM } from '../../../base/common/amd.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -1036,7 +1036,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-sandbox/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.${isESM ? 'esm.' : ''}html`).toString(true));
+		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-sandbox/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;
@@ -1093,6 +1093,11 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 
 		// Update window related properties
+		try {
+			configuration.handle = VSBuffer.wrap(this._win.getNativeWindowHandle());
+		} catch (error) {
+			this.logService.error(`Error getting native window handle: ${error}`);
+		}
 		configuration.fullscreen = this.isFullScreen;
 		configuration.maximized = this._win.isMaximized();
 		configuration.partsSplash = this.themeMainService.getWindowSplash();

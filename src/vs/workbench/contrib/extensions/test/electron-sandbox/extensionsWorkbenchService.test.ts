@@ -104,7 +104,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onDidChangeProfile: Event.None,
 			async getInstalled() { return []; },
 			async getInstalledWorkspaceExtensions() { return []; },
-			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
+			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [], publisherMapping: {} }; },
 			async updateMetadata(local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) {
 				local.identifier.uuid = metadata.id;
 				local.publisherDisplayName = metadata.publisherDisplayName!;
@@ -425,7 +425,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		uninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 		didUninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 
-		assert.ok(!(await testObject.canInstall(target)));
+		assert.ok(await testObject.canInstall(target) !== true);
 	});
 
 	test('test canInstall returns false for a system extension', async () => {
@@ -435,7 +435,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		testObject = await aWorkbenchService();
 		const target = testObject.local[0];
 
-		assert.ok(!(await testObject.canInstall(target)));
+		assert.ok(await testObject.canInstall(target) !== true);
 	});
 
 	test('test canInstall returns true for extensions with gallery', async () => {
@@ -449,7 +449,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const target = testObject.local[0];
 
 		await Event.toPromise(Event.filter(testObject.onChange, e => !!e?.gallery));
-		assert.ok(await testObject.canInstall(target));
+		assert.equal(await testObject.canInstall(target), true);
 	});
 
 	test('test onchange event is triggered while installing', async () => {
@@ -1581,7 +1581,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
 		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), ['pub.a']);
 
-		await testObject.updateAutoUpdateValue(false);
+		await testObject.updateAutoUpdateForAllExtensions(false);
 
 		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
 		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
@@ -1607,7 +1607,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), ['pub.a']);
 		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
 
-		await testObject.updateAutoUpdateValue(true);
+		await testObject.updateAutoUpdateForAllExtensions(true);
 
 		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
 		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
@@ -1650,7 +1650,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			type: ExtensionType.User,
 			location: URI.file(`pub.${name}`),
 			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
-			...properties
+			...properties,
+			isValid: properties.isValid ?? true,
 		};
 		return <ILocalExtension>Object.create({ manifest, ...properties });
 	}
@@ -1669,7 +1670,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: IGalleryExtensionAssets = noAssets): IGalleryExtension {
 		const targetPlatform = getTargetPlatform(platform, arch);
-		const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', allTargetPlatforms: [targetPlatform], properties: {}, assets: {}, ...properties });
+		const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', allTargetPlatforms: [targetPlatform], properties: {}, assets: {}, isSigned: true, ...properties });
 		galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], targetPlatform, ...galleryExtensionProperties };
 		galleryExtension.assets = { ...galleryExtension.assets, ...assets };
 		galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: generateUuid() };
@@ -1711,7 +1712,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				return local;
 			},
 			getTargetPlatform: async () => getTargetPlatform(platform, arch),
-			async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {}, search: [] }; },
+			async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {}, search: [], publisherMapping: {} }; },
 			async resetPinnedStateForAllUserExtensions(pinned: boolean) { }
 		};
 	}

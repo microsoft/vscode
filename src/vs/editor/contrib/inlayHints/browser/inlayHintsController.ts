@@ -613,12 +613,14 @@ export class InlayHintsController implements IEditorContribution {
 
 				itemActualLength += textlabel.length;
 
-				const overFixedLength = itemFixedLength !== undefined ? (itemActualLength - itemFixedLength) : 0;
-				if (overFixedLength > 0) {
-					// longer than fixed length, trim
-					itemActualLength -= overFixedLength;
-					textlabel = textlabel.slice(0, -(1 + overFixedLength)) + '…';
-					tooLong = true;
+				if (itemFixedLength !== undefined) {
+					const overFixedLength = itemActualLength - itemFixedLength;
+					if (overFixedLength >= 0) {
+						// longer than fixed length, trim
+						itemActualLength -= overFixedLength;
+						textlabel = textlabel.slice(0, -(1 + overFixedLength)) + '…';
+						tooLong = true;
+					}
 				}
 
 				if (padding) {

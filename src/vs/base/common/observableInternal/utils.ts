@@ -3,15 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, IValueWithChangeEvent } from '../event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../lifecycle.js';
 import { autorun, autorunOpts, autorunWithStoreHandleChanges } from './autorun.js';
 import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, _setKeepObserved, _setRecomputeInitiallyAndOnChange, observableValue, subtransaction, transaction } from './base.js';
-import { DebugNameData, IDebugNameData, DebugOwner, getDebugName, } from './debugName.js';
+import { DebugNameData, DebugOwner, IDebugNameData, getDebugName, } from './debugName.js';
+import { BugIndicatingError, DisposableStore, EqualityComparer, Event, IDisposable, IValueWithChangeEvent, strictEquals, toDisposable } from './commonFacade/deps.js';
 import { derived, derivedOpts } from './derived.js';
 import { getLogger } from './logging.js';
-import { BugIndicatingError } from '../errors.js';
-import { EqualityComparer, strictEquals } from '../equals.js';
 
 /**
  * Represents an efficient observable whose value never changes.
@@ -299,6 +296,15 @@ class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements
 	public override get(): void {
 		// NO OP
 	}
+}
+
+export function signalFromObservable<T>(owner: DebugOwner | undefined, observable: IObservable<T>): IObservable<void> {
+	return derivedOpts({
+		owner,
+		equalsFn: () => false,
+	}, reader => {
+		observable.read(reader);
+	});
 }
 
 /**
@@ -619,7 +625,8 @@ export function derivedConstOnceDefined<T>(owner: DebugOwner, fn: (reader: IRead
 
 type RemoveUndefined<T> = T extends undefined ? never : T;
 
-export function runOnChange<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, deltas: RemoveUndefined<TChange>[]) => void): IDisposable {
+export function runOnChange<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, previousValue: undefined | T, deltas: RemoveUndefined<TChange>[]) => void): IDisposable {
+	let _previousValue: T | undefined;
 	return autorunWithStoreHandleChanges({
 		createEmptyChangeSummary: () => ({ deltas: [] as RemoveUndefined<TChange>[], didChange: false }),
 		handleChange: (context, changeSummary) => {
@@ -634,17 +641,19 @@ export function runOnChange<T, TChange>(observable: IObservable<T, TChange>, cb:
 		},
 	}, (reader, changeSummary) => {
 		const value = observable.read(reader);
+		const previousValue = _previousValue;
 		if (changeSummary.didChange) {
-			cb(value, changeSummary.deltas);
+			_previousValue = value;
+			cb(value, previousValue, changeSummary.deltas);
 		}
 	});
 }
 
-export function runOnChangeWithStore<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, deltas: RemoveUndefined<TChange>[], store: DisposableStore) => void): IDisposable {
+export function runOnChangeWithStore<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, previousValue: undefined | T, deltas: RemoveUndefined<TChange>[], store: DisposableStore) => void): IDisposable {
 	const store = new DisposableStore();
-	const disposable = runOnChange(observable, (value, deltas) => {
+	const disposable = runOnChange(observable, (value, previousValue: undefined | T, deltas) => {
 		store.clear();
-		cb(value, deltas, store);
+		cb(value, previousValue, deltas, store);
 	});
 	return {
 		dispose() {

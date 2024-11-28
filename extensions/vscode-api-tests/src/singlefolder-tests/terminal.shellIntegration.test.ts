@@ -217,7 +217,7 @@ import { assertNoRpc } from '../utils';
 		const { execution, endEvent } = executeCommandAsync(shellIntegration, 'echo', ['hello']);
 		const executionSync = await execution;
 		const expectedCommandLine: TerminalShellExecutionCommandLine = {
-			value: 'echo "hello"',
+			value: 'echo hello',
 			isTrusted: true,
 			confidence: TerminalShellExecutionCommandLineConfidence.High
 		};

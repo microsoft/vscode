@@ -6,12 +6,12 @@
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../../base/browser/fastDomNode.js';
 import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
-import { Action, IAction } from '../../../../../../base/common/actions.js';
+import { Action } from '../../../../../../base/common/actions.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import * as nls from '../../../../../../nls.js';
-import { createAndFillInActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -19,8 +19,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { ViewContainerLocation } from '../../../../../common/views.js';
-import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from '../../../../extensions/common/extensions.js';
+import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, JUPYTER_EXTENSION_ID, RenderOutputType } from '../../notebookBrowser.js';
 import { mimetypeIcon } from '../../notebookIcons.js';
 import { CellContentPart } from '../cellPart.js';
@@ -31,11 +30,10 @@ import { CellUri, IOrderedMimeType, NotebookCellExecutionState, NotebookCellOutp
 import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
 import { INotebookKernel } from '../../../common/notebookKernelService.js';
 import { INotebookService } from '../../../common/notebookService.js';
-import { IPaneCompositePartService } from '../../../../../services/panecomposite/browser/panecomposite.js';
 import { COPY_OUTPUT_COMMAND_ID } from '../../controller/cellOutputActions.js';
-import { TEXT_BASED_MIMETYPES } from '../../contrib/clipboard/cellOutputClipboard.js';
 import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS, NOTEBOOK_CELL_IS_FIRST_OUTPUT } from '../../../common/notebookContextKeys.js';
+import { TEXT_BASED_MIMETYPES } from '../../viewModel/cellOutputTextHelper.js';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -80,7 +78,7 @@ class CellOutputElement extends Disposable {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IContextKeyService parentContextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -334,11 +332,7 @@ class CellOutputElement extends Disposable {
 		const menu = this.toolbarDisposables.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, menuContextKeyService));
 
 		const updateMenuToolbar = () => {
-			const primary: IAction[] = [];
-			let secondary: IAction[] = [];
-			const result = { primary, secondary };
-
-			createAndFillInActionBarActions(menu!, { shouldForwardArgs: true }, result, () => false);
+			let { secondary } = getActionBarActions(menu!.getActions({ shouldForwardArgs: true }), () => false);
 			if (!isCopyEnabled) {
 				secondary = secondary.filter((action) => action.id !== COPY_OUTPUT_COMMAND_ID);
 			}
@@ -430,9 +424,7 @@ class CellOutputElement extends Disposable {
 	}
 
 	private async _showJupyterExtension() {
-		const viewlet = await this.paneCompositeService.openPaneComposite(EXTENSION_VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
-		view?.search(`@id:${JUPYTER_EXTENSION_ID}`);
+		await this.extensionsWorkbenchService.openSearch(`@id:${JUPYTER_EXTENSION_ID}`);
 	}
 
 	private _generateRendererInfo(renderId: string): string {

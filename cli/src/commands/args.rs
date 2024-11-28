@@ -226,6 +226,9 @@ pub struct ServeWebArgs {
 
 #[derive(Args, Debug, Clone)]
 pub struct CommandShellArgs {
+	#[clap(flatten)]
+	pub server_args: BaseServerArgs,
+
 	/// Listen on a socket instead of stdin/stdout.
 	#[clap(long)]
 	pub on_socket: bool,
@@ -280,12 +283,12 @@ impl ExtensionSubcommand {
 					target.push("--show-versions".to_string());
 				}
 				if let Some(category) = &args.category {
-					target.push(format!("--category={}", category));
+					target.push(format!("--category={category}"));
 				}
 			}
 			ExtensionSubcommand::Install(args) => {
 				for id in args.id_or_path.iter() {
-					target.push(format!("--install-extension={}", id));
+					target.push(format!("--install-extension={id}"));
 				}
 				if args.pre_release {
 					target.push("--pre-release".to_string());
@@ -296,7 +299,7 @@ impl ExtensionSubcommand {
 			}
 			ExtensionSubcommand::Uninstall(args) => {
 				for id in args.id.iter() {
-					target.push(format!("--uninstall-extension={}", id));
+					target.push(format!("--uninstall-extension={id}"));
 				}
 			}
 			ExtensionSubcommand::Update => {
@@ -436,11 +439,11 @@ impl EditorOptions {
 			target.push("--wait".to_string());
 		}
 		if let Some(locale) = &self.locale {
-			target.push(format!("--locale={}", locale));
+			target.push(format!("--locale={locale}"));
 		}
 		if !self.enable_proposed_api.is_empty() {
 			for id in self.enable_proposed_api.iter() {
-				target.push(format!("--enable-proposed-api={}", id));
+				target.push(format!("--enable-proposed-api={id}"));
 			}
 		}
 		self.code_options.add_code_args(target);
@@ -477,10 +480,10 @@ pub struct OutputFormatOptions {
 impl DesktopCodeOptions {
 	pub fn add_code_args(&self, target: &mut Vec<String>) {
 		if let Some(extensions_dir) = &self.extensions_dir {
-			target.push(format!("--extensions-dir={}", extensions_dir));
+			target.push(format!("--extensions-dir={extensions_dir}"));
 		}
 		if let Some(user_data_dir) = &self.user_data_dir {
-			target.push(format!("--user-data-dir={}", user_data_dir));
+			target.push(format!("--user-data-dir={user_data_dir}"));
 		}
 	}
 }
@@ -519,13 +522,13 @@ impl GlobalOptions {
 			target.push("--verbose".to_string());
 		}
 		if let Some(log) = self.log {
-			target.push(format!("--log={}", log));
+			target.push(format!("--log={log}"));
 		}
 		if self.disable_telemetry {
 			target.push("--disable-telemetry".to_string());
 		}
 		if let Some(telemetry_level) = &self.telemetry_level {
-			target.push(format!("--telemetry-level={}", telemetry_level));
+			target.push(format!("--telemetry-level={telemetry_level}"));
 		}
 	}
 }
@@ -575,16 +578,16 @@ impl EditorTroubleshooting {
 			target.push("--disable-extensions".to_string());
 		}
 		for id in self.disable_extension.iter() {
-			target.push(format!("--disable-extension={}", id));
+			target.push(format!("--disable-extension={id}"));
 		}
 		if let Some(sync) = &self.sync {
-			target.push(format!("--sync={}", sync));
+			target.push(format!("--sync={sync}"));
 		}
 		if let Some(port) = &self.inspect_extensions {
-			target.push(format!("--inspect-extensions={}", port));
+			target.push(format!("--inspect-extensions={port}"));
 		}
 		if let Some(port) = &self.inspect_brk_extensions {
-			target.push(format!("--inspect-brk-extensions={}", port));
+			target.push(format!("--inspect-brk-extensions={port}"));
 		}
 		if self.disable_gpu {
 			target.push("--disable-gpu".to_string());
@@ -638,6 +641,9 @@ pub struct ExistingTunnelArgs {
 
 #[derive(Args, Debug, Clone, Default)]
 pub struct TunnelServeArgs {
+	#[clap(flatten)]
+	pub server_args: BaseServerArgs,
+
 	/// Optional details to connect to an existing tunnel
 	#[clap(flatten, next_help_heading = Some("ADVANCED OPTIONS"))]
 	pub tunnel: ExistingTunnelArgs,
@@ -661,7 +667,10 @@ pub struct TunnelServeArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+}
 
+#[derive(Args, Debug, Clone, Default)]
+pub struct BaseServerArgs {
 	/// Requests that extensions be preloaded and installed on connecting servers.
 	#[clap(long)]
 	pub install_extension: Vec<String>,
@@ -675,8 +684,8 @@ pub struct TunnelServeArgs {
 	pub extensions_dir: Option<String>,
 }
 
-impl TunnelServeArgs {
-	pub fn apply_to_server_args(&self, csa: &mut CodeServerArgs) {
+impl BaseServerArgs {
+	pub fn apply_to(&self, csa: &mut CodeServerArgs) {
 		csa.install_extensions
 			.extend_from_slice(&self.install_extension);
 

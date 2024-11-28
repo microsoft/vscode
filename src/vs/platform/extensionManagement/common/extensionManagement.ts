@@ -6,11 +6,13 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Event } from '../../../base/common/event.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IPager } from '../../../base/common/paging.js';
 import { Platform } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize2 } from '../../../nls.js';
 import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
+import { IFileService } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
@@ -257,6 +259,7 @@ export type Metadata = Partial<IGalleryMetadata & {
 	installedTimestamp: number;
 	pinned: boolean;
 	source: InstallSource;
+	size: number;
 }>;
 
 export interface ILocalExtension extends IExtension {
@@ -271,6 +274,7 @@ export interface ILocalExtension extends IExtension {
 	updated: boolean;
 	pinned: boolean;
 	source: InstallSource;
+	size: number;
 }
 
 export const enum SortBy {
@@ -292,8 +296,7 @@ export const enum SortOrder {
 
 export interface IQueryOptions {
 	text?: string;
-	ids?: string[];
-	names?: string[];
+	exclude?: string[];
 	pageSize?: number;
 	sortBy?: SortBy;
 	sortOrder?: SortOrder;
@@ -354,6 +357,7 @@ export interface IExtensionQueryOptions {
 	compatible?: boolean;
 	queryAllVersions?: boolean;
 	source?: string;
+	preferResourceApi?: boolean;
 }
 
 export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
@@ -462,12 +466,44 @@ export const enum ExtensionManagementErrorCode {
 	PostInstall = 'PostInstall',
 	CorruptZip = 'CorruptZip',
 	IncompleteZip = 'IncompleteZip',
-	Signature = 'Signature',
+	PackageNotSigned = 'PackageNotSigned',
+	SignatureVerificationInternal = 'SignatureVerificationInternal',
+	SignatureVerificationFailed = 'SignatureVerificationFailed',
 	NotAllowed = 'NotAllowed',
 	Gallery = 'Gallery',
 	Cancelled = 'Cancelled',
 	Unknown = 'Unknown',
 	Internal = 'Internal',
+}
+
+export enum ExtensionSignatureVerificationCode {
+	'NotSigned' = 'NotSigned',
+	'Success' = 'Success',
+	'RequiredArgumentMissing' = 'RequiredArgumentMissing', // A required argument is missing.
+	'InvalidArgument' = 'InvalidArgument', // An argument is invalid.
+	'PackageIsUnreadable' = 'PackageIsUnreadable', // The extension package is unreadable.
+	'UnhandledException' = 'UnhandledException', // An unhandled exception occurred.
+	'SignatureManifestIsMissing' = 'SignatureManifestIsMissing', // The extension is missing a signature manifest file (.signature.manifest).
+	'SignatureManifestIsUnreadable' = 'SignatureManifestIsUnreadable', // The signature manifest is unreadable.
+	'SignatureIsMissing' = 'SignatureIsMissing', // The extension is missing a signature file (.signature.p7s).
+	'SignatureIsUnreadable' = 'SignatureIsUnreadable', // The signature is unreadable.
+	'CertificateIsUnreadable' = 'CertificateIsUnreadable', // The certificate is unreadable.
+	'SignatureArchiveIsUnreadable' = 'SignatureArchiveIsUnreadable',
+	'FileAlreadyExists' = 'FileAlreadyExists', // The output file already exists.
+	'SignatureArchiveIsInvalidZip' = 'SignatureArchiveIsInvalidZip',
+	'SignatureArchiveHasSameSignatureFile' = 'SignatureArchiveHasSameSignatureFile', // The signature archive has the same signature file.
+	'PackageIntegrityCheckFailed' = 'PackageIntegrityCheckFailed', // The package integrity check failed.
+	'SignatureIsInvalid' = 'SignatureIsInvalid', // The extension has an invalid signature file (.signature.p7s).
+	'SignatureManifestIsInvalid' = 'SignatureManifestIsInvalid', // The extension has an invalid signature manifest file (.signature.manifest).
+	'SignatureIntegrityCheckFailed' = 'SignatureIntegrityCheckFailed', // The extension's signature integrity check failed.  Extension integrity is suspect.
+	'EntryIsMissing' = 'EntryIsMissing', // An entry referenced in the signature manifest was not found in the extension.
+	'EntryIsTampered' = 'EntryIsTampered', // The integrity check for an entry referenced in the signature manifest failed.
+	'Untrusted' = 'Untrusted', // An X.509 certificate in the extension signature is untrusted.
+	'CertificateRevoked' = 'CertificateRevoked', // An X.509 certificate in the extension signature has been revoked.
+	'SignatureIsNotValid' = 'SignatureIsNotValid', // The extension signature is invalid.
+	'UnknownError' = 'UnknownError', // An unknown error occurred.
+	'PackageIsInvalidZip' = 'PackageIsInvalidZip', // The extension package is not valid ZIP format.
+	'SignatureArchiveHasTooManyEntries' = 'SignatureArchiveHasTooManyEntries', // The signature archive has too many entries.
 }
 
 export class ExtensionManagementError extends Error {
@@ -528,7 +564,7 @@ export interface IExtensionManagementService {
 	zip(extension: ILocalExtension): Promise<URI>;
 	getManifest(vsix: URI): Promise<IExtensionManifest>;
 	install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension>;
-	canInstall(extension: IGalleryExtension): Promise<boolean>;
+	canInstall(extension: IGalleryExtension): Promise<true | IMarkdownString>;
 	installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension>;
 	installGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<InstallExtensionResult[]>;
 	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
@@ -593,5 +629,26 @@ export interface IExtensionTipsService {
 	getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
 }
 
+export const IAllowedExtensionsService = createDecorator<IAllowedExtensionsService>('IAllowedExtensionsService');
+export interface IAllowedExtensionsService {
+	readonly _serviceBrand: undefined;
+
+	readonly onDidChangeAllowedExtensions: Event<void>;
+
+	isAllowed(extension: IGalleryExtension | IExtension): true | IMarkdownString;
+	isAllowed(extension: { id: string; publisherDisplayName: string | undefined; version?: string; prerelease?: boolean; targetPlatform?: TargetPlatform }): true | IMarkdownString;
+}
+
+export async function computeSize(location: URI, fileService: IFileService): Promise<number> {
+	const stat = await fileService.resolve(location);
+	if (stat.children) {
+		const sizes = await Promise.all(stat.children.map(c => computeSize(c.resource, fileService)));
+		return sizes.reduce((r, s) => r + s, 0);
+	}
+	return stat.size ?? 0;
+}
+
 export const ExtensionsLocalizedLabel = localize2('extensions', "Extensions");
 export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences');
+export const UseUnpkgResourceApiConfigKey = 'extensions.gallery.useUnpkgResourceApi';
+export const AllowedExtensionsConfigKey = 'extensions.allowed';
