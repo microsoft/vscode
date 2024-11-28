@@ -75,8 +75,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this.textArea = new FastDomNode(document.createElement('textarea'));
 		this.textArea.setClassName('native-edit-context-textarea');
 
-		this._register(NativeEditContextRegistry.registerTextArea(ownerID, this.textArea.domNode));
-
 		this._updateDomAttributes();
 
 		overflowGuardContainer.appendChild(this.domNode);
@@ -160,6 +158,7 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 			viewController.paste(text, pasteOnNewLine, multicursorText, mode);
 		}));
+		this._register(NativeEditContextRegistry.register(ownerID, this));
 	}
 
 	// --- Public methods ---
@@ -202,6 +201,10 @@ export class NativeEditContext extends AbstractEditContext {
 		this._screenReaderSupport.onConfigurationChanged(e);
 		this._updateDomAttributes();
 		return true;
+	}
+
+	public onWillPaste(): void {
+		this._screenReaderSupport.setIgnoreSelectionChangeTime();
 	}
 
 	public writeScreenReaderContent(): void {
