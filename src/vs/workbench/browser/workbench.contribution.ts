@@ -572,7 +572,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'properties': {
 					'workbench.panel.output': {
 						'type': 'boolean',
-						'description': localize('workbench.view.showQuietly.workbench.panel.output', "If an extension requests an output channel to be shown while Output view is hidden, display a clickable status bar indicator instead.")
+						'description': localize('workbench.panel.output', "Output view")
 					}
 				},
 				'additionalProperties': false
