@@ -1603,7 +1603,9 @@ export class SCMHistoryViewPane extends ViewPane {
 					}
 				});
 
-			actions.push(new SubmenuAction(`scm.historyItemRef.${ref.id}`, ref.name, historyItemRefSubMenuActions));
+			if (historyItemRefSubMenuActions.length > 0) {
+				actions.push(new SubmenuAction(`scm.historyItemRef.${ref.id}`, ref.name, historyItemRefSubMenuActions));
+			}
 		}
 
 		this.contextMenuService.showContextMenu({
