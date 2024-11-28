@@ -3,26 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { FormFeed } from './tokens/formFeed.js';
 import { Tab } from '../simpleCodec/tokens/tab.js';
 import { Word } from '../simpleCodec/tokens/word.js';
+import { VerticalTab } from './tokens/verticalTab.js';
 import { Space } from '../simpleCodec/tokens/space.js';
 import { NewLine } from '../linesCodec/tokens/newLine.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ReadableStream } from '../../../../base/common/stream.js';
+import { CarriageReturn } from '../linesCodec/tokens/carriageReturn.js';
 import { LinesDecoder, TLineToken } from '../linesCodec/linesDecoder.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 
 /**
  * A token type that this decoder can handle.
  */
-export type TSimpleToken = Word | Space | Tab | NewLine;
+export type TSimpleToken = Word | Space | Tab | VerticalTab | NewLine | FormFeed | CarriageReturn;
 
 /**
  * Characters that stop a "word" sequence.
- * Note! the `\n` is excluded because this decoder based on `LinesDecoder` that already
- * 		 handles the `newline` case and emits lines that don't contain the `\n` anymore.
+ * Note! the `\r` and `\n` are excluded from the list because this decoder based on `LinesDecoder` which
+ * 	     already handles the `carriagereturn`/`newline` cases and emits lines that don't contain them.
  */
-const STOP_CHARACTERS = [Space.symbol, Tab.symbol];
+const STOP_CHARACTERS = [Space.symbol, Tab.symbol, VerticalTab.symbol, FormFeed.symbol];
 
 /**
  * A decoder that can decode a stream of `Line`s into a stream
@@ -36,8 +39,8 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineToken> {
 	}
 
 	protected override onStreamData(token: TLineToken): void {
-		// re-emit new lines
-		if (token instanceof NewLine) {
+		// re-emit new line tokens
+		if (token instanceof CarriageReturn || token instanceof NewLine) {
 			this._onData.fire(token);
 
 			return;
@@ -60,6 +63,22 @@ export class SimpleDecoder extends BaseDecoder<TSimpleToken, TLineToken> {
 			// if a tab character, emit a `Tab` token and continue
 			if (token.text[i] === Tab.symbol) {
 				this._onData.fire(Tab.newOnLine(token, columnNumber));
+
+				i++;
+				continue;
+			}
+
+			// if a vertical tab character, emit a `VerticalTab` token and continue
+			if (token.text[i] === VerticalTab.symbol) {
+				this._onData.fire(VerticalTab.newOnLine(token, columnNumber));
+
+				i++;
+				continue;
+			}
+
+			// if a form feed character, emit a `FormFeed` token and continue
+			if (token.text[i] === FormFeed.symbol) {
+				this._onData.fire(FormFeed.newOnLine(token, columnNumber));
 
 				i++;
 				continue;

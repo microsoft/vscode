@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from '../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../editor/common/core/range.js';
 
 /**
  * Base class for all tokens with a `range` that
@@ -11,8 +11,12 @@ import { Range } from '../../../editor/common/core/range.js';
  */
 export abstract class BaseToken {
 	constructor(
-		public readonly range: Range,
+		private _range: Range,
 	) { }
+
+	public get range(): Range {
+		return this._range;
+	}
 
 	/**
 	 * Check if this token has the same range as another one.
@@ -35,5 +39,19 @@ export abstract class BaseToken {
 		}
 
 		return this.sameRange(other.range);
+	}
+
+	/**
+	 * Change `range` of the token with provided range components.
+	 */
+	public withRange(components: Partial<IRange>): this {
+		this._range = new Range(
+			components.startLineNumber ?? this.range.startLineNumber,
+			components.startColumn ?? this.range.startColumn,
+			components.endLineNumber ?? this.range.endLineNumber,
+			components.endColumn ?? this.range.endColumn,
+		);
+
+		return this;
 	}
 }

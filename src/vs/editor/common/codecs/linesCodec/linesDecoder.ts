@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Line } from './tokens/line.js';
+import { Range } from '../../core/range.js';
 import { NewLine } from './tokens/newLine.js';
 import { assert } from '../../../../base/common/assert.js';
+import { CarriageReturn } from './tokens/carriageReturn.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { assertDefined } from '../../../../base/common/types.js';
 import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
@@ -13,7 +15,7 @@ import { BaseDecoder } from '../../../../base/common/codecs/baseDecoder.js';
 /**
  * Tokens produced by the `LinesDecoder`.
  */
-export type TLineToken = Line | NewLine;
+export type TLineToken = Line | CarriageReturn | NewLine;
 
 /**
  * The `decoder` part of the `LinesCodec` and is able to transform
@@ -60,14 +62,15 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 				? this.lastEmittedLine.range.startLineNumber + 1
 				: 1;
 
-			// find the newline symbol in the data, if any
-			const newLineIndex = this.buffer.indexOf(NewLine.byte);
+			// find the `\r`, `\n`, or `\r\n` tokens in the data
+			const endOfLineTokens = this.findEndOfLineTokens(lineNumber);
+			const firstToken = endOfLineTokens[0];
 
-			// no newline symbol found in the data, stop processing because we
+			// if no end-of-the-line tokens found, stop processing because we
 			// either (1)need more data to arraive or (2)the stream has ended
 			// in the case (2) remaining data must be emitted as the last line
-			if (newLineIndex < 0) {
-				// if `streamEnded`, we need to emit the whole remaining
+			if (!firstToken) {
+				// (2) if `streamEnded`, we need to emit the whole remaining
 				// data as the last line immediately
 				if (streamEnded) {
 					this.emitLine(lineNumber, this.buffer.slice(0));
@@ -77,7 +80,7 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 			}
 
 			// emit the line found in the data as the `Line` token
-			this.emitLine(lineNumber, this.buffer.slice(0, newLineIndex));
+			this.emitLine(lineNumber, this.buffer.slice(0, firstToken.range.startColumn - 1));
 
 			// must always hold true as the `emitLine` above sets this
 			assertDefined(
@@ -85,15 +88,18 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 				'No last emitted line found.',
 			);
 
-			// emit `NewLine` token for the newline symbol found in the data
-			this._onData.fire(
-				NewLine.newOnLine(
-					this.lastEmittedLine,
-					this.lastEmittedLine.range.endColumn,
-				),
-			);
-			// shorten the data buffer by the length of the newline symbol
-			this.buffer = this.buffer.slice(NewLine.byte.byteLength);
+			// emit the end-of-the-line tokens
+			let startColumn = this.lastEmittedLine.range.endColumn;
+			for (const token of endOfLineTokens) {
+				const endColumn = startColumn + token.byte.byteLength;
+				// emit the token updating its column start/end numbers based on
+				// the emitted line text length and previous end-of-the-line token
+				this._onData.fire(token.withRange({ startColumn, endColumn }));
+				// shorten the data buffer by the length of the token
+				this.buffer = this.buffer.slice(token.byte.byteLength);
+				// update the start column for the next token
+				startColumn = endColumn;
+			}
 		}
 
 		// if the stream has ended, assert that the input data buffer is now empty
@@ -104,6 +110,72 @@ export class LinesDecoder extends BaseDecoder<TLineToken, VSBuffer> {
 				'Expected the input data buffer to be empty when the stream ends.',
 			);
 		}
+	}
+
+	/**
+	 * Find the end of line tokens in the data buffer.
+	 * Can return:
+	 *  - [`\r`, `\n`] tokens if the sequence is found
+	 *  - [`\r`] token if only the carriage return is found
+	 *  - [`\n`] token if only the newline is found
+	 *  - an `empty array` if no end of line tokens found
+	 */
+	private findEndOfLineTokens(
+		lineNumber: number,
+	): (CarriageReturn | NewLine)[] {
+		const result = [];
+
+		// find the first occurrence of the carriage return and newline tokens
+		const carriageReturnIndex = this.buffer.indexOf(CarriageReturn.byte);
+		const newLineIndex = this.buffer.indexOf(NewLine.byte);
+
+		// if the `\r` comes before the `\n`(if `\n` present at all)
+		if (carriageReturnIndex >= 0 && (carriageReturnIndex < newLineIndex || newLineIndex === -1)) {
+			// add the carriage return token first
+			result.push(
+				new CarriageReturn(new Range(
+					lineNumber,
+					(carriageReturnIndex + 1),
+					lineNumber,
+					(carriageReturnIndex + 1) + CarriageReturn.byte.byteLength,
+				)),
+			);
+
+			// if the `\r\n` sequence
+			if (newLineIndex === carriageReturnIndex + 1) {
+				// add the newline token to the result
+				result.push(
+					new NewLine(new Range(
+						lineNumber,
+						(newLineIndex + 1),
+						lineNumber,
+						(newLineIndex + 1) + NewLine.byte.byteLength,
+					)),
+				);
+			}
+
+			if (this.buffer.byteLength > carriageReturnIndex + 1) {
+				// either `\r` or `\r\n` cases found
+				return result;
+			}
+
+			return [];
+		}
+
+		// no `\r`, but there is `\n`
+		if (newLineIndex >= 0) {
+			result.push(
+				new NewLine(new Range(
+					lineNumber,
+					(newLineIndex + 1),
+					lineNumber,
+					(newLineIndex + 1) + NewLine.byte.byteLength,
+				)),
+			);
+		}
+
+		// neither `\r` nor `\n` found, no end of line found at all
+		return result;
 	}
 
 	/**

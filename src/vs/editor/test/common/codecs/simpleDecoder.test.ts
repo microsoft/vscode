@@ -11,6 +11,9 @@ import { Tab } from '../../../common/codecs/simpleCodec/tokens/tab.js';
 import { Word } from '../../../common/codecs/simpleCodec/tokens/word.js';
 import { Space } from '../../../common/codecs/simpleCodec/tokens/space.js';
 import { NewLine } from '../../../common/codecs/linesCodec/tokens/newLine.js';
+import { FormFeed } from '../../../common/codecs/simpleCodec/tokens/formFeed.js';
+import { VerticalTab } from '../../../common/codecs/simpleCodec/tokens/verticalTab.js';
+import { CarriageReturn } from '../../../common/codecs/linesCodec/tokens/carriageReturn.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { SimpleDecoder, TSimpleToken } from '../../../common/codecs/simpleCodec/simpleDecoder.js';
 
@@ -54,7 +57,7 @@ suite('SimpleDecoder', () => {
 		);
 
 		await test.run(
-			' hello world\nhow are\t you?\n\n   (test)  [!@#$%^&*_+=]  \n\t\t🤗❤ \t\n ',
+			' hello world\nhow are\t you?\v\n\n   (test)  [!@#$%^&*_+=]\f  \n\t\t🤗❤ \t\n hey\vthere\r\n\r\n',
 			[
 				// first line
 				new Space(new Range(1, 1, 1, 2)),
@@ -69,7 +72,8 @@ suite('SimpleDecoder', () => {
 				new Tab(new Range(2, 8, 2, 9)),
 				new Space(new Range(2, 9, 2, 10)),
 				new Word(new Range(2, 10, 2, 14), 'you?'),
-				new NewLine(new Range(2, 14, 2, 15)),
+				new VerticalTab(new Range(2, 14, 2, 15)),
+				new NewLine(new Range(2, 15, 2, 16)),
 				// third line
 				new NewLine(new Range(3, 1, 3, 2)),
 				// fourth line
@@ -80,9 +84,10 @@ suite('SimpleDecoder', () => {
 				new Space(new Range(4, 10, 4, 11)),
 				new Space(new Range(4, 11, 4, 12)),
 				new Word(new Range(4, 12, 4, 25), '[!@#$%^&*_+=]'),
-				new Space(new Range(4, 25, 4, 26)),
+				new FormFeed(new Range(4, 25, 4, 26)),
 				new Space(new Range(4, 26, 4, 27)),
-				new NewLine(new Range(4, 27, 4, 28)),
+				new Space(new Range(4, 27, 4, 28)),
+				new NewLine(new Range(4, 28, 4, 29)),
 				// fifth line
 				new Tab(new Range(5, 1, 5, 2)),
 				new Tab(new Range(5, 2, 5, 3)),
@@ -92,6 +97,14 @@ suite('SimpleDecoder', () => {
 				new NewLine(new Range(5, 8, 5, 9)),
 				// sixth line
 				new Space(new Range(6, 1, 6, 2)),
+				new Word(new Range(6, 2, 6, 5), 'hey'),
+				new VerticalTab(new Range(6, 5, 6, 6)),
+				new Word(new Range(6, 6, 6, 11), 'there'),
+				new CarriageReturn(new Range(6, 11, 6, 12)),
+				new NewLine(new Range(6, 12, 6, 13)),
+				// seventh line
+				new CarriageReturn(new Range(7, 1, 7, 2)),
+				new NewLine(new Range(7, 2, 7, 3)),
 			],
 		);
 	});
