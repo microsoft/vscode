@@ -227,17 +227,15 @@ export class CharacterMapping {
 		const line_len = this._horizontalOffset.length;
 		if (line_len === 0) {
 			// No characters on this line
-			const extra = column - 1;
-			return extra;
+			// Note: Column numbers start at 1. However, when line_len === 0, we may get column === 0,
+			// which is technically incorrect, but we need to handle it
+			return Math.max(0, column - 1);
 		}
 		if (column > line_len) {
-			const extra = column - line_len;
-			const result = this._horizontalOffset[line_len - 1] + extra;
-			return result;
-		} else {
-			const result = this._horizontalOffset[column - 1];
-			return result;
+			const leftoverVisibleColumns = column - line_len;
+			return this._horizontalOffset[line_len - 1] + leftoverVisibleColumns;
 		}
+		return this._horizontalOffset[column - 1];
 	}
 
 	private charOffsetToPartData(charOffset: number): number {

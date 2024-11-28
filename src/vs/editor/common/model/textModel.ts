@@ -47,7 +47,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from '../../../platform/undoRedo/common/undoRedo.js';
 import { TokenArray } from '../tokens/tokenArray.js';
-import { VirtualSpaceRangeExtraData, virtualSpaceRangeExtraData, restoreVirtualSpaceRange } from '../virtualSpaceRange.js';
+import { VirtualSpaceRangeExtraData, virtualSpaceRangeExtraData } from '../virtualSpaceSupport.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -1667,12 +1667,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	_getTrackedRange(id: string): Range | null {
 		const range = this.getDecorationRange(id);
-		const extra = this._trackedRangeExtraData[id];
-		if (range === null || extra === undefined) {
-			return range;
-		} else {
-			return restoreVirtualSpaceRange(this, range, extra);
+		if (range === null) {
+			return null;
 		}
+		return this._trackedRangeExtraData[id]?.restore(this, range) ?? range;
 	}
 
 	_setTrackedRange(id: string | null, newRange: null, newStickiness: model.TrackedRangeStickiness): null;

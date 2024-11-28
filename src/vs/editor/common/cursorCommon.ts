@@ -6,6 +6,7 @@
 import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption } from './config/editorOptions.js';
 import { LineTokens } from './tokens/lineTokens.js';
 import { Position } from './core/position.js';
+import { PositionTripple } from './virtualSpaceSupport.js';
 import { Range } from './core/range.js';
 import { ISelection, Selection } from './core/selection.js';
 import { ICommand } from './editorCommon.js';
@@ -273,12 +274,12 @@ export class CursorState {
 	}
 
 	public static fromModelSelection(model: ICursorSimpleModel, modelSelection: ISelection): PartialModelCursorState {
-		const start = PositionTripple.fromSelectionStart(model, modelSelection);
-		const pos = PositionTripple.fromSelectionPosition(model, modelSelection);
+		const start = PositionTripple.fromModelPosition(model, new Position(modelSelection.selectionStartLineNumber, modelSelection.selectionStartColumn));
+		const pos = PositionTripple.fromModelPosition(model, new Position(modelSelection.positionLineNumber, modelSelection.positionColumn));
 		const modelState = new SingleCursorState(
-			new Range(start.lineNumber, start.column, pos.lineNumber, pos.column),
+			Range.fromPositions(start.validPosition),
 			SelectionStartKind.Simple, start.leftoverVisibleColumns,
-			new Position(pos.lineNumber, pos.column), pos.leftoverVisibleColumns, null,
+			pos.validPosition, pos.leftoverVisibleColumns, null,
 		);
 		return CursorState.fromModelState(modelState);
 	}
@@ -330,38 +331,6 @@ export const enum SelectionStartKind {
 	Line
 }
 
-export class PositionTripple {
-	constructor(
-		public readonly lineNumber: number,
-		public readonly column: number,
-		public readonly leftoverVisibleColumns: number,
-	) { }
-
-	public static fromSelectionStart(model: ICursorSimpleModel, selection: ISelection): PositionTripple {
-		const lineNumber = selection.selectionStartLineNumber;
-		let column = selection.selectionStartColumn;
-		let leftoverVisibleColumns = 0;
-		const maxColumn = model.getLineMaxColumn(lineNumber);
-		if (column > maxColumn) {
-			leftoverVisibleColumns = column - maxColumn;
-			column = maxColumn;
-		}
-		return new PositionTripple(lineNumber, column, leftoverVisibleColumns);
-	}
-
-	public static fromSelectionPosition(model: ICursorSimpleModel, selection: ISelection): PositionTripple {
-		const lineNumber = selection.positionLineNumber;
-		let column = selection.positionColumn;
-		let leftoverVisibleColumns = 0;
-		const maxColumn = model.getLineMaxColumn(lineNumber);
-		if (column > maxColumn) {
-			leftoverVisibleColumns = column - maxColumn;
-			column = maxColumn;
-		}
-		return new PositionTripple(lineNumber, column, leftoverVisibleColumns);
-	}
-}
-
 /**
  * Represents the cursor state on either the model or on the view model.
  */
@@ -382,21 +351,6 @@ export class SingleCursorState {
 	// columnHint is used to preserve column during vertical movements.
 	// Without virtual space, it helps to recover from short lines.
 	// With virtual space, it helps when going through inlay hints.
-	//
-	// Example of cursor going down without columnHint:
-	//
-	//     | = cursor
-	//     x = inlay hint
-	//     . = other text
-	//
-	//     .....|.....    ...........    ...........
-	//     ...xxxxx... -> ..|xxxxx... -> ...xxxxx...
-	//     ...........    ...........    ..|........
-	//
-	// Same situation with columnHint:
-	//     .....|.....    ...........    ...........
-	//     ...xxxxx... -> ..|xxxxx... -> ...xxxxx...
-	//     ...........    ...........    .....|.....
 	//
 	// When converting between model and view model, we convert positions in virtual space
 	// to leftoverVisibleColumns and back.

@@ -52,8 +52,7 @@ export class ColumnSelection {
 			const leftoverVisibleColumns = toVisibleColumn - visibleEndColumn;
 
 			result.push(new SingleCursorState(
-				new Range(lineNumber, startColumn, lineNumber, startColumn),
-				SelectionStartKind.Simple, selectionStartLeftoverVisibleColumns,
+				new Range(lineNumber, startColumn, lineNumber, startColumn), SelectionStartKind.Simple, selectionStartLeftoverVisibleColumns,
 				new Position(lineNumber, endColumn), leftoverVisibleColumns, null,
 			));
 		}

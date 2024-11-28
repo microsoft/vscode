@@ -200,10 +200,8 @@ export class Cursor {
 				),
 			);
 			const viewSelectionStart = new Range(
-				viewSelectionStartStart.lineNumber,
-				viewSelectionStartStart.column,
-				viewSelectionStartEnd.lineNumber,
-				viewSelectionStartEnd.column
+				viewSelectionStartStart.lineNumber, viewSelectionStartStart.column,
+				viewSelectionStartEnd.lineNumber, viewSelectionStartEnd.column
 			);
 			const viewPosition = context.coordinatesConverter.validateViewPosition(
 				viewState.position,

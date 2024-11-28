@@ -563,22 +563,22 @@ class RenderedViewLine implements IRenderedViewLine {
 		if (column > this._characterMapping.length) {
 			const last = this._readPixelOffset(domNode, lineNumber, this._characterMapping.length, context);
 			return last + spaceWidth * (column - this._characterMapping.length);
-		} else {
-			if (this._pixelOffsetCache !== null) {
-				// the text is LTR
+		}
 
-				const cachedPixelOffset = this._pixelOffsetCache[column];
-				if (cachedPixelOffset !== -1) {
-					return cachedPixelOffset;
-				}
+		if (this._pixelOffsetCache !== null) {
+			// the text is LTR
 
-				const result = this._actualReadPixelOffset(domNode, lineNumber, column, context);
-				this._pixelOffsetCache[column] = result;
-				return result;
+			const cachedPixelOffset = this._pixelOffsetCache[column];
+			if (cachedPixelOffset !== -1) {
+				return cachedPixelOffset;
 			}
 
-			return this._actualReadPixelOffset(domNode, lineNumber, column, context);
+			const result = this._actualReadPixelOffset(domNode, lineNumber, column, context);
+			this._pixelOffsetCache[column] = result;
+			return result;
 		}
+
+		return this._actualReadPixelOffset(domNode, lineNumber, column, context);
 	}
 
 	private _actualReadPixelOffset(domNode: FastDomNode<HTMLElement>, lineNumber: number, column: number, context: DomReadingContext): number {

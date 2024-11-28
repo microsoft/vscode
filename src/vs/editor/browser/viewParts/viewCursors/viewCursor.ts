@@ -158,10 +158,9 @@ export class ViewCursor {
 		const lineContent = this._context.viewModel.getLineContent(lineNumber);
 		if (column > lineContent.length) {
 			return [new Position(lineNumber, column), ''];
-		} else {
-			const [startOffset, endOffset] = strings.getCharContainingOffset(lineContent, column - 1);
-			return [new Position(lineNumber, startOffset + 1), lineContent.substring(startOffset, endOffset)];
 		}
+		const [startOffset, endOffset] = strings.getCharContainingOffset(lineContent, column - 1);
+		return [new Position(lineNumber, startOffset + 1), lineContent.substring(startOffset, endOffset)];
 	}
 
 	private _prepareRender(ctx: RenderingContext): ViewCursorRenderData | null {

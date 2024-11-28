@@ -40,7 +40,7 @@ export class CursorColumns {
 	 */
 	public static visibleColumnFromColumn(lineContent: string, column: number, tabSize: number): number {
 		const textLen = Math.min(column - 1, lineContent.length);
-		const leftoverVisualColumns = column - 1 - textLen;
+		const leftoverVisibleColumns = column - 1 - textLen;
 		const text = lineContent.substring(0, textLen);
 		const iterator = new strings.GraphemeIterator(text);
 
@@ -52,7 +52,7 @@ export class CursorColumns {
 			result = this._nextVisibleColumn(codePoint, result, tabSize);
 		}
 
-		return result + leftoverVisualColumns;
+		return result + leftoverVisibleColumns;
 	}
 
 	/**
@@ -113,8 +113,8 @@ export class CursorColumns {
 		}
 
 		// walked the entire string
-		const leftoverVisualColumns = visibleColumn - beforeVisibleColumn;
-		return lineContentLength + 1 + leftoverVisualColumns;
+		const leftoverVisibleColumns = visibleColumn - beforeVisibleColumn;
+		return lineContentLength + 1 + leftoverVisibleColumns;
 	}
 
 	/**

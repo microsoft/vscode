@@ -6,7 +6,7 @@
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import * as strings from '../../../base/common/strings.js';
 import { CursorCollection } from './cursorCollection.js';
-import { CursorConfiguration, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel, PositionTripple } from '../cursorCommon.js';
+import { CursorConfiguration, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel } from '../cursorCommon.js';
 import { CursorContext } from './cursorContext.js';
 import { DeleteOperations } from './cursorDeleteOperations.js';
 import { CursorChangeReason } from '../cursorEvents.js';
@@ -22,7 +22,7 @@ import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequest
 import { dispose, Disposable } from '../../../base/common/lifecycle.js';
 import { ICoordinatesConverter } from '../viewModel.js';
 import { CursorStateChangedEvent, ViewModelEventsCollector } from '../viewModelEventDispatcher.js';
-import { VirtualSpaceRangeExtraData, virtualSpaceRangeExtraData, restoreVirtualSpaceRange } from '../virtualSpaceRange.js';
+import { VirtualSpaceRangeExtraData, virtualSpaceRangeExtraData, PositionTripple } from '../virtualSpaceSupport.js';
 
 export class CursorsController extends Disposable {
 
@@ -745,7 +745,7 @@ interface IExecContext {
 	readonly selectionsBefore: Selection[];
 	readonly trackedRanges: string[];
 	readonly trackedRangesDirection: SelectionDirection[];
-	readonly trackedRangesExtra: VirtualSpaceRangeExtraData[];
+	readonly trackedRangesExtra: (VirtualSpaceRangeExtraData | null)[];
 }
 
 interface ICommandData {
@@ -866,11 +866,7 @@ export class CommandExecutor {
 						getTrackedSelection: (id: string) => {
 							const idx = parseInt(id, 10);
 							const clippedRange = ctx.model._getTrackedRange(ctx.trackedRanges[idx])!;
-							const extra = ctx.trackedRangesExtra[idx];
-							const range =
-								extra !== undefined
-									? restoreVirtualSpaceRange(ctx.model, clippedRange, extra)
-									: clippedRange;
+							const range = ctx.trackedRangesExtra[idx]?.restore(ctx.model, clippedRange) ?? clippedRange;
 							if (ctx.trackedRangesDirection[idx] === SelectionDirection.LTR) {
 								return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 							}
@@ -965,12 +961,14 @@ export class CommandExecutor {
 		};
 
 		const trackSelection = (_selection: ISelection, trackPreviousOnEmpty?: boolean) => {
-			const selection = Selection.liftSelection(_selection);
-			const start = PositionTripple.fromSelectionStart(ctx.model, selection);
-			const pos = PositionTripple.fromSelectionPosition(ctx.model, selection);
-			const clippedSelection = new Selection(start.lineNumber, start.column, pos.lineNumber, pos.column);
+			const initialSelection = Selection.liftSelection(_selection);
+			const initialStart = initialSelection.getSelectionStart();
+			const start = PositionTripple.fromValidatedPosition(initialStart, ctx.model.validatePosition(initialStart));
+			const initialPos = initialSelection.getPosition();
+			const pos = PositionTripple.fromValidatedPosition(initialPos, ctx.model.validatePosition(initialPos));
+			const selection = Selection.fromPositions(start.validPosition, pos.validPosition);
 			let stickiness: TrackedRangeStickiness;
-			if (clippedSelection.isEmpty()) {
+			if (selection.isEmpty()) {
 				if (typeof trackPreviousOnEmpty === 'boolean') {
 					if (trackPreviousOnEmpty) {
 						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
@@ -979,8 +977,8 @@ export class CommandExecutor {
 					}
 				} else {
 					// Try to lock it with surrounding text
-					const maxLineColumn = ctx.model.getLineMaxColumn(clippedSelection.startLineNumber);
-					if (clippedSelection.startColumn >= maxLineColumn) {
+					const maxLineColumn = ctx.model.getLineMaxColumn(selection.startLineNumber);
+					if (selection.startColumn === maxLineColumn) {
 						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
 					} else {
 						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
@@ -991,13 +989,10 @@ export class CommandExecutor {
 			}
 
 			const l = ctx.trackedRanges.length;
-			const id = ctx.model._setTrackedRange(null, clippedSelection, stickiness);
+			const id = ctx.model._setTrackedRange(null, selection, stickiness);
 			ctx.trackedRanges[l] = id;
 			ctx.trackedRangesDirection[l] = selection.getDirection();
-			const extra = virtualSpaceRangeExtraData(ctx.model, selection, clippedSelection);
-			if (extra !== null) {
-				ctx.trackedRangesExtra[l] = extra;
-			}
+			ctx.trackedRangesExtra[l] = virtualSpaceRangeExtraData(ctx.model, initialSelection, selection);
 			return l.toString();
 		};
 

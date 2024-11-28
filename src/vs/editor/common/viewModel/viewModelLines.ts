@@ -796,9 +796,10 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		if (viewColumn < minColumn) {
 			viewColumn = minColumn;
 		}
+		const virtualSpace = this.model.getOptions().virtualSpace;
 		let viewLeftoverVisibleColumns = 0;
 		if (viewColumn > maxColumn) {
-			viewLeftoverVisibleColumns = viewColumn - maxColumn;
+			viewLeftoverVisibleColumns = virtualSpace ? viewColumn - maxColumn : 0;
 			viewColumn = maxColumn;
 		}
 
@@ -809,7 +810,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 			return new Position(viewLineNumber, viewColumn);
 		}
 
-		const modelLeftoverVisibleColumns = expectedModelPosition.column - computedModelPosition.column;
+		const modelLeftoverVisibleColumns = virtualSpace ? expectedModelPosition.column - computedModelPosition.column : 0;
 		if (
 			computedModelPosition.lineNumber === expectedModelPosition.lineNumber
 			&& computedModelPosition.column <= expectedModelPosition.column

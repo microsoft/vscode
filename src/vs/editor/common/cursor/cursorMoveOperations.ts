@@ -25,7 +25,7 @@ export class CursorPosition {
 export class MoveOperations {
 	// Operations in this class can handle both model and view model cursor states.
 	// However, model states may have their column clipped to the line length.
-	// If this happens, this function will unclip the them.
+	// If this happens, this function will unclip them.
 	private static toVirtualSpace(cursor: SingleCursorState): SingleCursorState {
 		const selectionStartLeftoverVisibleColumns = cursor.selectionStartLeftoverVisibleColumns;
 		const leftoverVisibleColumns = cursor.leftoverVisibleColumns;
