@@ -780,48 +780,35 @@ class ChatSetupWelcomeContent extends Disposable {
 	}
 
 	private update(limitedSkuHeaderContainer: HTMLElement, button: Button): void {
-		switch (this.controller.step) {
-			case ChatSetupStep.Initial:
-				{
-					let showLimitedSkuHeader: boolean;
-					let buttonLabel: string;
-					switch (this.context.state.entitlement) {
-						case ChatEntitlement.Unknown:
-						case ChatEntitlement.Unresolved:
-						case ChatEntitlement.Available:
-							showLimitedSkuHeader = true;
-							buttonLabel = localize('signIn', "Sign up for {0}", defaultChat.entitlementSkuTypeLimitedName);
-							break;
-						case ChatEntitlement.Limited:
-							showLimitedSkuHeader = false;
-							buttonLabel = localize('startUpLimited', "Start {0}", defaultChat.entitlementSkuTypeLimitedName);
-						case ChatEntitlement.Pro:
-						case ChatEntitlement.Unavailable:
-							showLimitedSkuHeader = false;
-							buttonLabel = localize('startUp', "Start Copilot", defaultChat.entitlementSkuTypeLimitedName);
-							break;
-					}
-
-					setVisibility(showLimitedSkuHeader, limitedSkuHeaderContainer);
-					button.label = buttonLabel;
-					button.enabled = true;
-					break;
-				}
-			case ChatSetupStep.SigningIn:
-			case ChatSetupStep.Installing:
-				{
-					let buttonLabel: string;
-					if (this.controller.step === ChatSetupStep.SigningIn) {
-						buttonLabel = localize('setupChatSignIn', "$(loading~spin) Signing in to {0}...", defaultChat.providerName);
-					} else {
-						buttonLabel = localize('setupChatInstalling', "$(loading~spin) Getting Copilot ready...");
-					}
-
-					button.label = buttonLabel;
-					button.enabled = false;
-					break;
-				}
+		let showLimitedSkuHeader: boolean;
+		let buttonLabel: string;
+		switch (this.context.state.entitlement) {
+			case ChatEntitlement.Unknown:
+			case ChatEntitlement.Unresolved:
+			case ChatEntitlement.Available:
+				showLimitedSkuHeader = true;
+				buttonLabel = localize('signIn', "Sign up for {0}", defaultChat.entitlementSkuTypeLimitedName);
+				break;
+			case ChatEntitlement.Limited:
+				showLimitedSkuHeader = false;
+				buttonLabel = localize('startUpLimited', "Start {0}", defaultChat.entitlementSkuTypeLimitedName);
+			case ChatEntitlement.Pro:
+			case ChatEntitlement.Unavailable:
+				showLimitedSkuHeader = false;
+				buttonLabel = localize('startUp', "Start Copilot", defaultChat.entitlementSkuTypeLimitedName);
+				break;
 		}
+
+		setVisibility(showLimitedSkuHeader, limitedSkuHeaderContainer);
+
+		if (this.controller.step === ChatSetupStep.SigningIn) {
+			buttonLabel = localize('setupChatSignIn', "$(loading~spin) Signing in to {0}...", defaultChat.providerName);
+		} else if (this.controller.step === ChatSetupStep.Installing) {
+			buttonLabel = localize('setupChatInstalling', "$(loading~spin) Getting Copilot ready...");
+		}
+
+		button.label = buttonLabel;
+		button.enabled = this.controller.step === ChatSetupStep.Initial;
 	}
 }
 
