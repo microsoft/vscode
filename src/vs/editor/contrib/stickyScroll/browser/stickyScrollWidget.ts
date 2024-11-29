@@ -63,8 +63,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _minContentWidthInPx: number = 0;
 	private _isOnGlyphMargin: boolean = false;
 
-	private _specialLineHeights: Map<number, number> = new Map();
-	private _specialLineFontSizes: Map<number, number> = new Map();
+	public readonly specialLineHeights: Map<number, number> = new Map();
+	public readonly specialLineFontSizes: Map<number, number> = new Map();
 
 	constructor(
 		private readonly _editor: ICodeEditor
@@ -121,9 +121,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 					const lineNumber = a.lineNumber;
 					const lineHeight = a.lineHeight;
 					if (lineHeight !== null) {
-						this._specialLineHeights.set(lineNumber, lineHeight);
+						this.specialLineHeights.set(lineNumber, lineHeight);
 					} else {
-						this._specialLineHeights.delete(lineNumber);
+						this.specialLineHeights.delete(lineNumber);
 					}
 				});
 			}));
@@ -132,9 +132,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 					const lineNumber = a.lineNumber;
 					const lineFontSize = a.lineFontSize;
 					if (lineFontSize !== null) {
-						this._specialLineFontSizes.set(lineNumber, lineFontSize);
+						this.specialLineFontSizes.set(lineNumber, lineFontSize);
 					} else {
-						this._specialLineFontSizes.delete(lineNumber);
+						this.specialLineFontSizes.delete(lineNumber);
 					}
 				});
 			}));
@@ -278,7 +278,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _getStickyScrollWidgetFullHeight(lineNumbers: number[]): number {
 		let totalHeight = 0;
 		for (const lineNumber of lineNumbers) {
-			totalHeight += this._specialLineHeights.get(lineNumber) ?? this._lineHeight;
+			totalHeight += this.specialLineHeights.get(lineNumber) ?? this._lineHeight;
 		}
 		return totalHeight;
 	}
@@ -334,7 +334,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 
 		// Need to set the line height from the decoration line height and font size
-		const height = this._specialLineHeights.get(line) ?? this._lineHeight;
+		const height = this.specialLineHeights.get(line) ?? this._lineHeight;
 		const lineHTMLNode = document.createElement('span');
 		lineHTMLNode.setAttribute(STICKY_INDEX_ATTR, String(index));
 		lineHTMLNode.setAttribute(STICKY_IS_LINE_ATTR, '');
@@ -363,6 +363,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		innerLineNumberHTML.style.lineHeight = `${height}px`;
 		innerLineNumberHTML.style.width = `${layoutInfo.lineNumbersWidth}px`;
 		innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
+		innerLineNumberHTML.style.verticalAlign = 'bottom';
 
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
 		const foldingIcon = this._renderFoldingIconForLine(foldingModel, line);
@@ -374,8 +375,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.applyFontInfo(innerLineNumberHTML);
 
 		const defaultFontSize = this._editor.getOption(EditorOption.fontSize);
-		lineHTMLNode.style.fontSize = `${this._specialLineFontSizes.get(line) ?? defaultFontSize}px`;
-		innerLineNumberHTML.style.fontSize = `${this._specialLineFontSizes.get(line) ?? defaultFontSize}px`;
+		lineHTMLNode.style.fontSize = `${this.specialLineFontSizes.get(line) ?? defaultFontSize}px`;
 
 		lineNumberHTMLNode.style.lineHeight = `${height}px`;
 		lineHTMLNode.style.lineHeight = `${height}px`;
@@ -397,6 +397,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineHTMLNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
 		lineNumberHTMLNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
 
+		// --
 		const lastLineTop = `${index * this._lineHeight + this._lastLineRelativePosition + (stickyLine.foldingIcon?.isCollapsed ? 1 : 0)}px`;
 		const intermediateLineTop = `${index * this._lineHeight}px`;
 		lineHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;

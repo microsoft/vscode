@@ -534,6 +534,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._minRebuildFromLine = undefined;
 		this._foldingModel = await FoldingController.get(this._editor)?.getFoldingModel() ?? undefined;
 		this._widgetState = this.findScrollWidgetState();
+		console.log('this._widgetState', this._widgetState);
 		const stickyWidgetHasLines = this._widgetState.startLineNumbers.length > 0;
 		this._stickyScrollVisibleContextKey.set(stickyWidgetHasLines);
 		this._stickyScrollWidget.setState(this._widgetState, this._foldingModel, rebuildFromLine);
@@ -548,7 +549,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	findScrollWidgetState(): StickyScrollWidgetState {
-		const lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
 		const maxNumberStickyLines = Math.min(this._maxStickyLines, this._editor.getOption(EditorOption.stickyScroll).maxLineCount);
 		const scrollTop: number = this._editor.getScrollTop();
 		let lastLineRelativePosition: number = 0;
@@ -561,10 +561,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			for (const range of candidateRanges) {
 				const start = range.startLineNumber;
 				const end = range.endLineNumber;
-				const depth = range.nestingDepth;
 				if (end - start > 0) {
-					const topOfElementAtDepth = (depth - 1) * lineHeight;
-					const bottomOfElementAtDepth = depth * lineHeight;
+					const topOfElementAtDepth = range.topOfElement;
+					const bottomOfElementAtDepth = range.bottomOfElement;
 
 					const bottomOfBeginningLine = this._editor.getBottomForLineNumber(start) - scrollTop;
 					const topOfEndLine = this._editor.getTopForLineNumber(end) - scrollTop;
@@ -573,7 +572,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					if (topOfElementAtDepth > topOfEndLine && topOfElementAtDepth <= bottomOfEndLine) {
 						startLineNumbers.push(start);
 						endLineNumbers.push(end + 1);
-						if (topOfElementAtDepth > bottomOfEndLine - lineHeight) {
+						if (topOfElementAtDepth > bottomOfEndLine - range.height) {
 							lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
 						}
 						break;
