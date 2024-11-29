@@ -12,6 +12,7 @@ import { _tokenizeToString } from '../../../common/languages/textToHtmlTokenizer
 import { ITextModel } from '../../../common/model.js';
 import { Position } from '../../../common/core/position.js';
 import { isLeaf, RangeTreeLeafNode, TokenRangeTree } from '../../../common/model/rangeTree.js';
+import { StorableToken } from '../../../common/model/treeSitterTokenStore.js';
 
 class MockTokenRangeTextModel {
 	constructor(private valueLength: number) {
@@ -35,7 +36,7 @@ class MockTokenRangeTextModel {
 }
 
 function insertRange(tree: TokenRangeTree<number>, range: RangeTreeLeafNode<number>) {
-	tree.insert(range.startInclusive, range.endExclusive, range.data);
+	tree.insert([new StorableToken(range.startInclusive, range.endExclusive, range.data)]);
 }
 
 suite('Range Tree', () => {
@@ -485,9 +486,9 @@ suite('Range Tree', () => {
 		const tree =  new TokenRangeTree<number>(textModel as unknown as ITextModel, 0);
 
 		// Insert nodes into the tree
-		tree.insert(0, 5, 1);
-		tree.insert(5, 10, 2);
-		tree.insert(10, 15, 3);
+		tree.insert([new StorableToken(0, 5, 1)]);
+		tree.insert([new StorableToken(5, 10, 2)]);
+		tree.insert([new StorableToken(10, 15, 3)]);
 
 		let visited = '';
 
@@ -502,5 +503,4 @@ suite('Range Tree', () => {
 		// Verify the nodes are visited in post-order
 		assert.deepStrictEqual(visited, '[0, 5][5, 10](3)[10, 15](7)');
 	});
-
 });

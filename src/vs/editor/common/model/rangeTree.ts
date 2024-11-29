@@ -6,6 +6,7 @@
 import { Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { ITextModel } from '../model.js';
+import { StorableToken } from './treeSitterTokenStore.js';
 
 interface TreeRange {
 	startInclusive: number;
@@ -92,7 +93,7 @@ export class TokenRangeTree<T> {
 	private getEnd(): number {
 		const lineCount = this._textModel.getLineCount();
 		const currentEnd = this._textModel.getOffsetAt(new Position(lineCount, this._textModel.getLineMaxColumn(lineCount)));
-		if (currentEnd > this._end) {
+		if ((currentEnd > this._end) || this._end === 0) {
 			this._end = currentEnd + this._endIncrement;
 		} else if (currentEnd < (this._end - this._endIncrement)) {
 			this._end = currentEnd + this._endIncrement;
@@ -100,17 +101,25 @@ export class TokenRangeTree<T> {
 		return this._end;
 	}
 
-	insert(startInclusive: number, endExclusive: number, data: T): void {
-		const newNode: RangeTreeLeafNode<T> = { startInclusive, endExclusive, data, parent: undefined };
+
+	/**
+	 * @param items A sorted array of items to insert.
+	 */
+	insert(items: StorableToken<T>[]): void {
 		// First delete the range, then insert the new range
+
 		const end = this.getEnd();
 		const startingSegmentRange = { startInclusive: 0, endExclusive: end };
 		if (end !== this._lastEnd) {
 			this.tryBalance(this._root, startingSegmentRange);
 		}
 		this._lastEnd = end;
-		this.deleteFrom(newNode, this._root);
-		this.insertAt([{ newNode, startingNode: this._root, startingSegmentRange }]);
+
+		const newNodes: NodeToInsert<T>[] = items.map(item => ({ startingNode: this._root, startingSegmentRange, newNode: { startInclusive: item.offsetStartInclusive, endExclusive: item.offsetEndExclusive, data: item.metadata, parent: undefined } }));
+		for (const node of newNodes) {
+			this.deleteFrom({ startInclusive: node.newNode.startInclusive, endExclusive: node.newNode.endExclusive }, this._root);
+		}
+		this.insertAt(newNodes);
 	}
 
 	private insertAt(toInsert: NodeToInsert<T>[]): void {
@@ -208,7 +217,7 @@ export class TokenRangeTree<T> {
 		}
 	}
 
-	private deleteFrom(toDelete: RangeTreeLeafNode<T>, startingNode: RangeTreeBranchNode<T>): void {
+	private deleteFrom(toDelete: TreeRange, startingNode: RangeTreeBranchNode<T>): void {
 		this.traversePostOrderFromNode(toDelete, startingNode, (node) => {
 			// We don't delete identical ranges as then can just be reused.
 			const deleteLeaf = isLeaf(node) && this.rangesOverlap(node, toDelete) && (node.startInclusive !== toDelete.startInclusive || node.endExclusive !== toDelete.endExclusive);
@@ -329,6 +338,7 @@ export class TokenRangeTree<T> {
 
 	private tryBalance(initialNode: RangeTreeBranchNode<T>, initialSegmentRange: TreeRange) {
 		const needsReInsert: RangeTreeLeafNode<T>[] = [];
+		const needsClearing: RangeTreeBranchNode<T>[] = [];
 
 		this.traversePreOrderFromNode(initialSegmentRange, initialNode, (node, segmentRange) => {
 			if (isLeaf(node)) {
@@ -343,21 +353,24 @@ export class TokenRangeTree<T> {
 				const intendedRightSegmentRange = this.shrinkSegmentRange(false, segmentRange);
 				if (!isLeaf(node.right) && (this._end < node.right.segmentStartRange.startInclusive)) {
 					// the document got smaller remove the entire right subtree
-					node.right.parent = undefined;
+					needsClearing.push(node.right);
 					node.right = undefined;
-					// TODO: do I need to traverse this right subtree and set everything to undefined so it gets garbage collected?
-				} else if (isLeaf(node.right) && !this.rangeContainsStartPoint(intendedRightSegmentRange, node.right)) {
-					needsReInsert.push(node.right);
-					node.right.parent = undefined;
-					node.right = undefined;
+				} else if (isLeaf(node.right)) {
+					if (!this.rangeContainsStartPoint(intendedRightSegmentRange, node.right) && this._end >= node.right.endExclusive) {
+						needsReInsert.push(node.right);
+						node.right.parent = undefined;
+						node.right = undefined;
+					}
 				}
 			}
 			if (node.left) {
 				const intendedLeftSegmentRange = this.shrinkSegmentRange(true, segmentRange);
-				if (isLeaf(node.left) && !this.rangeContainsStartPoint(intendedLeftSegmentRange, node.left)) {
-					needsReInsert.push(node.left);
-					node.left.parent = undefined;
-					node.left = undefined;
+				if (isLeaf(node.left)) {
+					if (!this.rangeContainsStartPoint(intendedLeftSegmentRange, node.left) && this._end >= node.left.endExclusive) {
+						needsReInsert.push(node.left);
+						node.left.parent = undefined;
+						node.left = undefined;
+					}
 				}
 			}
 
@@ -376,6 +389,28 @@ export class TokenRangeTree<T> {
 			return true;
 		});
 
+		for (const node of needsClearing) {
+			this.traversePostOrderFromNode(node.segmentStartRange, node, (node) => {
+				if (isLeaf(node)) {
+					if (node.parent?.left === node) {
+						node.parent.left = undefined;
+					} else if (node.parent?.right === node) {
+						node.parent.right = undefined;
+					}
+				} else {
+					if (node.left) {
+						node.left.parent = undefined;
+						node.left = undefined;
+					}
+					if (node.right) {
+						node.right.parent = undefined;
+						node.right = undefined;
+					}
+				}
+				node.parent = undefined;
+
+			});
+		}
 		const end = this.getEnd();
 		const startingSegmentRange = { startInclusive: 0, endExclusive: end };
 		this.insertAt(needsReInsert.map(node => ({ newNode: node, startingNode: this._root, startingSegmentRange })));

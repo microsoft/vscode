@@ -9,13 +9,13 @@ import { InstantiationType, registerSingleton } from '../../../platform/instanti
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { RangeTreeLeafNode, TokenRangeTree } from './rangeTree.js';
 
-export class StorableToken {
-	constructor(readonly offsetStartInclusive: number, readonly offsetEndExclusive: number, readonly metadata: number) { }
+export class StorableToken<T> {
+	constructor(readonly offsetStartInclusive: number, readonly offsetEndExclusive: number, readonly metadata: T) { }
 	equals(other: unknown): boolean {
 		return (
-			this.offsetStartInclusive === (other as StorableToken).offsetStartInclusive
-			&& this.offsetEndExclusive === (other as StorableToken).offsetEndExclusive
-			&& this.metadata === (other as StorableToken).metadata
+			this.offsetStartInclusive === (other as StorableToken<T>).offsetStartInclusive
+			&& this.offsetEndExclusive === (other as StorableToken<T>).offsetEndExclusive
+			&& this.metadata === (other as StorableToken<T>).metadata
 		);
 	}
 }
@@ -23,16 +23,16 @@ export class StorableToken {
 export interface ITreeSitterTokenizationStoreService {
 	readonly _serviceBrand: undefined;
 	getTokens(model: ITextModel, range: Range): Uint32Array | undefined;
-	updateTokens(model: ITextModel, tokens: StorableToken[]): void;
+	updateTokens(model: ITextModel, tokens: StorableToken<TokenInformation>[]): void;
 	markForRefresh(model: ITextModel, range: Range): void;
 	hasTokens(model: ITextModel, accurateForRange?: Range): boolean;
 }
 
 export const ITreeSitterTokenizationStoreService = createDecorator<ITreeSitterTokenizationStoreService>('treeSitterTokenizationStoreService');
 
-interface TokenInformation {
+export interface TokenInformation {
 	metadata: number;
-	needsRefresh: boolean;
+	needsRefresh?: boolean;
 }
 
 class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStoreService {
@@ -79,7 +79,7 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		return tokens;
 	}
 
-	updateTokens(model: ITextModel, tokens: StorableToken[]): void {
+	updateTokens(model: ITextModel, tokens: StorableToken<TokenInformation>[]): void {
 		console.log(`Updating: ${tokens.map(token => `[${token.offsetStartInclusive}, ${token.offsetEndExclusive}]`).join(', ')}`);
 		let tree = this.tokens.get(model);
 		if (!tree) {
@@ -87,9 +87,7 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 			this.tokens.set(model, tree);
 		}
 
-		for (const token of tokens) {
-			tree.insert(token.offsetStartInclusive, token.offsetEndExclusive, { metadata: token.metadata, needsRefresh: false });
-		}
+		tree.insert(tokens);
 	}
 
 	markForRefresh(model: ITextModel, range: Range): void {

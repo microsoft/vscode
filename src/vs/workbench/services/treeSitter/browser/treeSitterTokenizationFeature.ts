@@ -19,7 +19,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { ColorThemeData, findMetadata } from '../../themes/common/colorThemeData.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { ITreeSitterTokenizationStoreService, StorableToken } from '../../../../editor/common/model/treeSitterTokenStore.js';
+import { ITreeSitterTokenizationStoreService, StorableToken, TokenInformation } from '../../../../editor/common/model/treeSitterTokenStore.js';
 
 const ALLOWED_SUPPORT = ['typescript'];
 type TreeSitterQueries = string;
@@ -199,7 +199,7 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 				const result = new Uint32Array(2);
 				result[0] = lineLength;
 				result[1] = findMetadata(this._colorThemeData, [], encodedLanguageId);
-				this._tokenizationStoreService.updateTokens(textModel, [new StorableToken(lineStartOffset, lineStartOffset + lineLength, result[1])]);
+				this._tokenizationStoreService.updateTokens(textModel, [new StorableToken(lineStartOffset, lineStartOffset + lineLength, { metadata: result[1] })]);
 				this._onDidChangeTokens.fire({ textModel, changes: { ranges: [{ fromLineNumber: lineNumber, toLineNumber: lineNumber }] }, versionId: textModel.getVersionId() });
 				return { result, captureTime: stopwatch.elapsed(), metadataTime: 0 };
 			}
@@ -244,23 +244,36 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			};
 
 			if (previousTokenEnd >= lineRelativeOffset) {
-				const previousTokenStartOffset = ((tokenIndex >= 2) ? endOffsetsAndScopes[tokenIndex - 2].endOffset : 0);
 				const originalPreviousTokenEndOffset = endOffsetsAndScopes[tokenIndex - 1].endOffset;
 
+				const previousTokenStartOffset = ((tokenIndex >= 2) ? endOffsetsAndScopes[tokenIndex - 2].endOffset : 0);
+				const loopOriginalPreviousTokenEndOffset = endOffsetsAndScopes[tokenIndex - 1].endOffset;
+				const previousPreviousTokenEndOffset = (tokenIndex >= 2) ? endOffsetsAndScopes[tokenIndex - 2].endOffset : 0;
+
 				// Check that the current token doesn't just replace the last token
-				if ((previousTokenStartOffset + currentTokenLength) === originalPreviousTokenEndOffset) {
+				if ((previousTokenStartOffset + currentTokenLength) === loopOriginalPreviousTokenEndOffset) {
 					// Current token and previous token span the exact same characters, replace the last scope
 					endOffsetsAndScopes[tokenIndex - 1].scopes[endOffsetsAndScopes[tokenIndex - 1].scopes.length - 1] = capture.name;
-				} else {
-					// The current token is within the previous token. Adjust the end of the previous token.
-					endOffsetsAndScopes[tokenIndex - 1].endOffset = intermediateTokenOffset;
+				} else if (previousPreviousTokenEndOffset <= intermediateTokenOffset) {
+					let originalPreviousTokenScopes;
+					// The current token is within the previous token. Adjust the end of the previous token
+					if (previousPreviousTokenEndOffset !== intermediateTokenOffset) {
+						endOffsetsAndScopes[tokenIndex - 1] = { endOffset: intermediateTokenOffset, scopes: endOffsetsAndScopes[tokenIndex - 1].scopes };
+						addCurrentTokenToArray();
+						originalPreviousTokenScopes = endOffsetsAndScopes[tokenIndex - 2].scopes;
+					} else {
+						originalPreviousTokenScopes = endOffsetsAndScopes[tokenIndex - 1].scopes;
+						endOffsetsAndScopes[tokenIndex - 1] = { endOffset: lineRelativeOffset, scopes: [capture.name] };
+					}
 
-					addCurrentTokenToArray();
 					// Add the rest of the previous token after the current token
-					increaseSizeOfTokensByOneToken();
-					endOffsetsAndScopes[tokenIndex].endOffset = originalPreviousTokenEndOffset;
-					endOffsetsAndScopes[tokenIndex].scopes = endOffsetsAndScopes[tokenIndex - 2].scopes;
-					tokenIndex++;
+					if (originalPreviousTokenEndOffset !== lineRelativeOffset) {
+						increaseSizeOfTokensByOneToken();
+						endOffsetsAndScopes[tokenIndex] = { endOffset: originalPreviousTokenEndOffset, scopes: originalPreviousTokenScopes };
+						tokenIndex++;
+					} else {
+						endOffsetsAndScopes[tokenIndex - 1].scopes.unshift(...originalPreviousTokenScopes);
+					}
 				}
 			} else {
 				// Just add the token to the array
@@ -269,17 +282,17 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 		}
 
 		// Account for uncaptured characters at the end of the line
-		if (captures[captures.length - 1].node.endPosition.column + 1 < lineLength) {
+		if (endOffsetsAndScopes[tokenIndex - 1].endOffset < lineLength - 1) {
 			increaseSizeOfTokensByOneToken();
-			endOffsetsAndScopes[tokenIndex].endOffset = lineLength - 1;
+			endOffsetsAndScopes[tokenIndex] = { endOffset: lineLength - 1, scopes: endOffsetsAndScopes[tokenIndex].scopes };
 			tokenIndex++;
 		}
 		const captureTime = stopwatch.elapsed();
 		stopwatch.reset();
 
 		const tokens: Uint32Array = new Uint32Array((tokenIndex) * 2);
-		const storableTokens: StorableToken[] = Array(tokenIndex);
-
+		const storableTokens: StorableToken<TokenInformation>[] = Array(tokenIndex);
+		let maxSeen = 0;
 		for (let i = 0; i < tokenIndex; i++) {
 			const token = endOffsetsAndScopes[i];
 			if (token.endOffset === 0 && token.scopes.length === 0) {
@@ -288,7 +301,11 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			tokens[i * 2] = token.endOffset;
 			const metadata = findMetadata(this._colorThemeData, token.scopes, encodedLanguageId);
 			tokens[i * 2 + 1] = metadata;
-			storableTokens[i] = new StorableToken((i === 0 ? 0 : endOffsetsAndScopes[i - 1].endOffset) + lineStartOffset, token.endOffset + lineStartOffset, metadata);
+			storableTokens[i] = new StorableToken((i === 0 ? 0 : endOffsetsAndScopes[i - 1].endOffset) + lineStartOffset, token.endOffset + lineStartOffset, { metadata });
+			if (storableTokens[i].offsetStartInclusive < maxSeen || storableTokens[i].offsetEndExclusive < storableTokens[i].offsetStartInclusive || storableTokens[i].offsetStartInclusive === storableTokens[i].offsetEndExclusive) {
+				console.log(`Error: ${storableTokens[i].offsetStartInclusive} < ${maxSeen}`);
+			}
+			maxSeen = storableTokens[i].offsetEndExclusive;
 		}
 		this._tokenizationStoreService.updateTokens(textModel, storableTokens);
 		this._onDidChangeTokens.fire({ textModel, changes: { ranges: [{ fromLineNumber: lineNumber, toLineNumber: lineNumber }] }, versionId: textModel.getVersionId() });
