@@ -775,13 +775,20 @@ class ChatSetupWelcomeContent extends Disposable {
 		const button = this._register(new Button(buttonContainer, { ...defaultButtonStyles, supportIcons: true }));
 		this._register(button.onDidClick(() => this.controller.setup()));
 
+		// Alternate Login
+		const alternateLogin = `[${localize('signInGh', "Sign in")}](command:github.copilotChat.signIn "${localize('signInGh', "Sign in")}") | [${localize('signInGhe', "Sign in (GHE.com)")}](command:github.copilotChat.signInGHE "${localize('signInGhe', "Sign in (GHE.com)")}")`;
+		const alternateLoginContainer = this.element.appendChild($('p'));
+		alternateLoginContainer.appendChild(this._register(markdown.render(new MarkdownString(alternateLogin, { isTrusted: true }))).element);
+
 		// Update based on model state
-		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(limitedSkuHeaderContainer, button)));
+		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(limitedSkuHeaderContainer, alternateLoginContainer, button)));
 	}
 
-	private update(limitedSkuHeaderContainer: HTMLElement, button: Button): void {
+	private update(limitedSkuHeaderContainer: HTMLElement, alternateLoginContainer: HTMLElement, button: Button): void {
 		let showLimitedSkuHeader: boolean;
+		let showAlternateLogin: boolean = !!this.context.state.installed;
 		let buttonLabel: string;
+
 		switch (this.context.state.entitlement) {
 			case ChatEntitlement.Unknown:
 			case ChatEntitlement.Unresolved:
@@ -799,13 +806,22 @@ class ChatSetupWelcomeContent extends Disposable {
 				break;
 		}
 
-		setVisibility(showLimitedSkuHeader, limitedSkuHeaderContainer);
-
-		if (this.controller.step === ChatSetupStep.SigningIn) {
-			buttonLabel = localize('setupChatSignIn', "$(loading~spin) Signing in to {0}...", defaultChat.providerName);
-		} else if (this.controller.step === ChatSetupStep.Installing) {
-			buttonLabel = localize('setupChatInstalling', "$(loading~spin) Getting Copilot ready...");
+		switch (this.controller.step) {
+			case ChatSetupStep.Initial:
+				// do not override
+				break;
+			case ChatSetupStep.SigningIn:
+				buttonLabel = localize('setupChatSignIn', "$(loading~spin) Signing in to {0}...", defaultChat.providerName);
+				showAlternateLogin = false;
+				break;
+			case ChatSetupStep.Installing:
+				buttonLabel = localize('setupChatInstalling', "$(loading~spin) Getting Copilot ready...");
+				showAlternateLogin = false;
+				break;
 		}
+
+		setVisibility(showLimitedSkuHeader, limitedSkuHeaderContainer);
+		setVisibility(showAlternateLogin, alternateLoginContainer);
 
 		button.label = buttonLabel;
 		button.enabled = this.controller.step === ChatSetupStep.Initial;
