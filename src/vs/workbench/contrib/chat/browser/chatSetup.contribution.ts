@@ -255,8 +255,8 @@ type EntitlementEvent = {
 	entitlement: ChatEntitlement;
 	entitled: boolean;
 	limited: boolean;
-	quotaChat: number;
-	quotaCompletions: number;
+	quotaChat: number | undefined;
+	quotaCompletions: number | undefined;
 };
 
 interface IEntitlementsResponse {
@@ -264,7 +264,7 @@ interface IEntitlementsResponse {
 	readonly assigned_date: string;
 	readonly can_signup_for_limited: boolean;
 	readonly chat_enabled: boolean;
-	readonly limited_user_quotas: {
+	readonly limited_user_quotas?: {
 		readonly chat: number;
 		readonly completions: number;
 	};
@@ -272,9 +272,9 @@ interface IEntitlementsResponse {
 }
 
 interface IQuotas {
-	readonly chat: number;
-	readonly completions: number;
-	readonly resetDate: string;
+	readonly chat?: number;
+	readonly completions?: number;
+	readonly resetDate?: string;
 }
 
 interface IEntitlements {
@@ -434,19 +434,24 @@ class ChatSetupRequests extends Disposable {
 			return { entitlement: ChatEntitlement.Unresolved, limited: false, entitled: false };
 		}
 
-		const entitlements = {
+		const entitlements: IEntitlements = {
 			entitlement: entitlementsResponse.can_signup_for_limited ? ChatEntitlement.Available : ChatEntitlement.Unavailable,
 			entitled: entitlementsResponse.chat_enabled,
-			limited: entitlementsResponse.access_type_sku === defaultChat.entitlementSkuTypeLimited
+			limited: entitlementsResponse.access_type_sku === defaultChat.entitlementSkuTypeLimited,
+			quotas: {
+				chat: entitlementsResponse.limited_user_quotas?.chat,
+				completions: entitlementsResponse.limited_user_quotas?.completions,
+				resetDate: entitlementsResponse.limited_user_reset_date
+			}
 		};
 
 		this.logService.trace(`[chat setup] entitlement: resolved to ${entitlements.entitlement}, entitled: ${entitlements.entitled}, limited: ${entitlements.limited}`);
 		this.telemetryService.publicLog2<EntitlementEvent, EntitlementClassification>('chatInstallEntitlement', {
 			entitlement: entitlements.entitlement,
-			entitled: entitlements.entitled,
-			limited: entitlements.limited,
-			quotaChat: entitlementsResponse.limited_user_quotas.chat,
-			quotaCompletions: entitlementsResponse.limited_user_quotas.completions
+			entitled: !!entitlements.entitled,
+			limited: !!entitlements.limited,
+			quotaChat: entitlementsResponse.limited_user_quotas?.chat,
+			quotaCompletions: entitlementsResponse.limited_user_quotas?.completions
 		});
 
 		return entitlements;
