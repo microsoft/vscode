@@ -677,11 +677,7 @@ class ChatSetupController extends Disposable {
 
 			this.context.suspend();  // reduces flicker
 
-			if (this.context.state.entitlement === ChatEntitlement.Available) {
-				didSignUp = await this.requests.signUpLimited(session);
-			} else {
-				this.logService.trace('[chat setup] install: not signing up to limited SKU');
-			}
+			didSignUp = await this.requests.signUpLimited(session);
 
 			await this.extensionsWorkbenchService.install(defaultChat.extensionId, {
 				enable: true,
