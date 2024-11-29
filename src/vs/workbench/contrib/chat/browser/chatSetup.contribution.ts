@@ -245,6 +245,8 @@ type EntitlementClassification = {
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating the chat entitlement state' };
 	entitled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat setup entitled' };
 	limited: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat setup limited' };
+	quotaChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat completions available to the user' };
+	quotaCompletions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat completions available to the user' };
 	owner: 'bpasero';
 	comment: 'Reporting chat setup entitlements';
 };
@@ -253,6 +255,8 @@ type EntitlementEvent = {
 	entitlement: ChatEntitlement;
 	entitled: boolean;
 	limited: boolean;
+	quotaChat: number;
+	quotaCompletions: number;
 };
 
 interface IEntitlementsResponse {
@@ -339,16 +343,19 @@ class ChatSetupRequests extends Disposable {
 		}
 
 		// Immediately signal whether we have a session or not
+		let state: IEntitlements | undefined = undefined;
 		if (session) {
 			// Do not overwrite any state we have already
 			if (this.state.entitlement === ChatEntitlement.Unknown) {
-				this.state = { entitlement: ChatEntitlement.Unresolved };
+				state = { entitlement: ChatEntitlement.Unresolved };
 			}
 		} else {
 			this.didResolveEntitlements = false; // reset so that we resolve entitlements fresh when signed in again
-			this.state = { entitlement: ChatEntitlement.Unknown };
+			state = { entitlement: ChatEntitlement.Unknown };
 		}
-		this.update();
+		if (state) {
+			this.update(state);
+		}
 
 		if (session && !this.didResolveEntitlements) {
 			// Afterwards resolve entitlement with a network request
@@ -382,8 +389,7 @@ class ChatSetupRequests extends Disposable {
 		const resolvedEntitlements = await this.doResolveEntitlement(session, token);
 		if (typeof resolvedEntitlements?.entitlement === 'number' && !token.isCancellationRequested) {
 			this.didResolveEntitlements = true;
-			this.state = resolvedEntitlements;
-			this.update();
+			this.update(resolvedEntitlements);
 		}
 
 		return resolvedEntitlements?.entitlement;
@@ -428,16 +434,22 @@ class ChatSetupRequests extends Disposable {
 			return { entitlement: ChatEntitlement.Unresolved, limited: false, entitled: false };
 		}
 
-		const result = {
+		const entitlements = {
 			entitlement: entitlementsResponse.can_signup_for_limited ? ChatEntitlement.Available : ChatEntitlement.Unavailable,
 			entitled: entitlementsResponse.chat_enabled,
 			limited: entitlementsResponse.access_type_sku === defaultChat.entitlementSkuTypeLimited
 		};
 
-		this.logService.trace(`[chat setup] entitlement: resolved to ${result.entitlement}, entitled: ${result.entitled}, limited: ${result.limited}`);
-		this.telemetryService.publicLog2<EntitlementEvent, EntitlementClassification>('chatInstallEntitlement', result);
+		this.logService.trace(`[chat setup] entitlement: resolved to ${entitlements.entitlement}, entitled: ${entitlements.entitled}, limited: ${entitlements.limited}`);
+		this.telemetryService.publicLog2<EntitlementEvent, EntitlementClassification>('chatInstallEntitlement', {
+			entitlement: entitlements.entitlement,
+			entitled: entitlements.entitled,
+			limited: entitlements.limited,
+			quotaChat: entitlementsResponse.limited_user_quotas.chat,
+			quotaCompletions: entitlementsResponse.limited_user_quotas.completions
+		});
 
-		return result;
+		return entitlements;
 	}
 
 	private async request(url: string, type: 'GET', body: undefined, session: AuthenticationSession, token: CancellationToken): Promise<IRequestContext | undefined>;
@@ -459,7 +471,8 @@ class ChatSetupRequests extends Disposable {
 		}
 	}
 
-	private update(): void {
+	private update(state: IEntitlements): void {
+		this.state = state;
 		this.storageService.store(ChatSetupRequests.CHAT_SETUP_REQUEST_STORAGE_KEY, this.state, StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		this.context.update({
@@ -513,12 +526,11 @@ class ChatSetupRequests extends Disposable {
 			this.logService.error('[chat setup] sign-up: not subscribed');
 		}
 
-		this.state = {
+		this.update({
 			entitlement: subscribed ? ChatEntitlement.Unavailable : ChatEntitlement.Available,
 			entitled: false,
 			limited: subscribed
-		};
-		this.update();
+		});
 
 		return subscribed;
 	}
