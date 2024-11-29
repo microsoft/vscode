@@ -33,11 +33,13 @@
 		vertical-align: bottom;
 	}
 
-	.monaco-button {
-		text-align: center;
-		display: inline-block;
+	.monaco-button-dropdown {
 		width: 100%;
 		padding: 4px 7px;
+	}
+
+	.monaco-button-dropdown .monaco-text-button {
+		width: 100%;
 	}
 
 	.chat-setup-alternate-login {

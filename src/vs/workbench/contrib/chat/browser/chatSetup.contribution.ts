@@ -39,7 +39,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
+import { ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
@@ -50,6 +50,8 @@ import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatView
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -728,7 +730,9 @@ class ChatSetupWelcomeContent extends Disposable {
 	constructor(
 		private readonly controller: ChatSetupController,
 		private readonly context: ChatSetupContext,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 
@@ -776,21 +780,33 @@ class ChatSetupWelcomeContent extends Disposable {
 
 		// Setup Button
 		const buttonContainer = this.element.appendChild($('p'));
-		const button = this._register(new Button(buttonContainer, { ...defaultButtonStyles, supportIcons: true }));
+		const button = this._register(new ButtonWithDropdown(buttonContainer, {
+			actions: {
+				getActions: () => {
+					const actions: IAction[] = [];
+					if (this.context.state.installed) {
+						actions.push(toAction({ id: 'chatSetup.signInGh', label: localize('signInGh', "Sign in to GitHub.com"), run: () => this.commandService.executeCommand('github.copilotChat.signIn') }));
+						actions.push(toAction({ id: 'chatSetup.signInGhe', label: localize('signInGhd', "Sign in with a GHE.com account"), run: () => this.commandService.executeCommand('github.copilotChat.signInGHE') }));
+					} else {
+						actions.push(toAction({ id: 'chatSetup.signIn', label: localize('signIn', "Sign in to {0}", defaultChat.providerName), run: () => this.controller.setup() }));
+					}
+
+					return actions;
+				}
+			},
+			addPrimaryActionToDropdown: false,
+			contextMenuProvider: this.contextMenuService,
+			supportIcons: true,
+			...defaultButtonStyles
+		}));
 		this._register(button.onDidClick(() => this.controller.setup()));
 
-		// Alternate Login
-		const alternateLogin = `[${localize('signInGh', "Sign in")}](command:github.copilotChat.signIn "${localize('signInGh', "Sign in")}") | [${localize('signInGhe', "Sign in (GHE.com)")}](command:github.copilotChat.signInGHE "${localize('signInGhe', "Sign in (GHE.com)")}")`;
-		const alternateLoginContainer = this.element.appendChild($('p.chat-setup-alternate-login'));
-		alternateLoginContainer.appendChild(this._register(markdown.render(new MarkdownString(alternateLogin, { isTrusted: true }))).element);
-
 		// Update based on model state
-		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(limitedSkuHeaderContainer, alternateLoginContainer, button)));
+		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(limitedSkuHeaderContainer, button)));
 	}
 
-	private update(limitedSkuHeaderContainer: HTMLElement, alternateLoginContainer: HTMLElement, button: Button): void {
+	private update(limitedSkuHeaderContainer: HTMLElement, button: ButtonWithDropdown): void {
 		let showLimitedSkuHeader: boolean;
-		let showAlternateLogin: boolean = !!this.context.state.installed;
 		let buttonLabel: string;
 
 		switch (this.context.state.entitlement) {
@@ -798,7 +814,7 @@ class ChatSetupWelcomeContent extends Disposable {
 			case ChatEntitlement.Unresolved:
 			case ChatEntitlement.Available:
 				showLimitedSkuHeader = true;
-				buttonLabel = localize('signIn', "Sign up for {0}", defaultChat.entitlementSkuTypeLimitedName);
+				buttonLabel = localize('signInUp', "Sign up for {0}", defaultChat.entitlementSkuTypeLimitedName);
 				break;
 			case ChatEntitlement.Limited:
 				showLimitedSkuHeader = true;
@@ -817,16 +833,13 @@ class ChatSetupWelcomeContent extends Disposable {
 				break;
 			case ChatSetupStep.SigningIn:
 				buttonLabel = localize('setupChatSignIn', "$(loading~spin) Signing in to {0}...", defaultChat.providerName);
-				showAlternateLogin = false;
 				break;
 			case ChatSetupStep.Installing:
 				buttonLabel = localize('setupChatInstalling', "$(loading~spin) Getting Copilot ready...");
-				showAlternateLogin = false;
 				break;
 		}
 
 		setVisibility(showLimitedSkuHeader, limitedSkuHeaderContainer);
-		setVisibility(showAlternateLogin, alternateLoginContainer);
 
 		button.label = buttonLabel;
 		button.enabled = this.controller.step === ChatSetupStep.Initial;
