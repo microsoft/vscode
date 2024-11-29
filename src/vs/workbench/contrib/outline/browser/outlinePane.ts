@@ -127,7 +127,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 
 	override focus(): void {
 		super.focus();
-		this._tree?.domFocus();
+		this._editorControlChangePromise.then(() => this._tree?.domFocus());
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -197,6 +197,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		return false;
 	}
 
+	private _editorControlChangePromise: Promise<void> = Promise.resolve();
 	private _handleEditorChanged(pane: IEditorPane | undefined): void {
 		this._editorPaneDisposables.clear();
 
@@ -207,7 +208,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 			}));
 		}
 
-		this._handleEditorControlChanged(pane);
+		this._editorControlChangePromise = this._handleEditorControlChanged(pane);
 	}
 
 	private async _handleEditorControlChanged(pane: IEditorPane | undefined): Promise<void> {
