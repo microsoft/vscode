@@ -638,16 +638,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			return existingEntry;
 		}
 		// This gets manually disposed in .dispose() or in .restoreSnapshot()
-		let entry: IModifiedFileEntry;
-		if (isNotebook(resource)) {
-			// TODO: Implement notebook support
-			throw new Error('Not implemented');
-		} else {
-			const initialContent = this._initialFileContents.get(resource);
-			entry = await this._createModifiedTextFileEntry(resource, responseModel, false, initialContent);
-			if (!initialContent && isTextFileEntry(entry)) {
-				this._initialFileContents.set(resource, entry.initialContent);
-			}
+		const initialContent = this._initialFileContents.get(resource);
+		const entry = await this._createModifiedTextFileEntry(resource, responseModel, false, initialContent);
+		if (!initialContent && isTextFileEntry(entry)) {
+			this._initialFileContents.set(resource, entry.initialContent);
 		}
 		// If an entry is deleted e.g. reverting a created file,
 		// remove it from the entries and don't show it in the working set anymore
