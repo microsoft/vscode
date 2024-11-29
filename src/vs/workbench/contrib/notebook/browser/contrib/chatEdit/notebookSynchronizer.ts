@@ -239,6 +239,7 @@ export class NotebookModelSynchronizer extends Disposable {
 		const modifiedModel = (entry as ChatEditingModifiedFileEntry).modifiedModel;
 		const content = modifiedModel.getValue();
 		await this.updateNotebook(VSBuffer.fromString(content), false);
+		this._diffInfo.set(undefined, undefined);
 	}
 
 	async getNotebookSerializer() {
