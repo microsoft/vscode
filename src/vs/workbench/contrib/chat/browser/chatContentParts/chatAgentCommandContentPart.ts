@@ -41,7 +41,7 @@ export class ChatAgentCommandContentPart extends Disposable implements IChatCont
 		const rerun = localize('rerun', "Rerun without {0}{1}", chatSubcommandLeader, cmd.name);
 		const btn = new Button(this.domNode, { ariaLabel: rerun });
 		btn.icon = Codicon.close;
-		btn.onDidClick(() => onClick());
+		this._store.add(btn.onDidClick(() => onClick()));
 		this._store.add(btn);
 		this._store.add(this._hoverService.setupDelayedHover(btn.element, { content: rerun, appearance: { showPointer: true } }, { groupId }));
 	}
