@@ -9,7 +9,7 @@ import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
+import { Button, ButtonBar } from '../../../../base/browser/ui/button/button.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
@@ -231,6 +231,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _chatEditsProgress: ProgressBar | undefined;
 	private _chatEditsListPool: CollapsibleListPool;
 	private _chatEditList: IDisposableReference<WorkbenchList<IChatCollapsibleListItem>> | undefined;
+	private _chatEditButtonBar: ButtonBar | undefined;
 	get selectedElements(): URI[] {
 		const edits = [];
 		const editsList = this._chatEditList?.object;
@@ -1189,7 +1190,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Chat editing session actions
 		const actionsContainer = overviewRegion.querySelector('.chat-editing-session-actions') as HTMLElement ?? dom.append(overviewRegion, $('.chat-editing-session-actions'));
 
-		this._chatEditsActionsDisposables.add(this.instantiationService.createInstance(MenuWorkbenchButtonBar, actionsContainer, MenuId.ChatEditingWidgetToolbar, {
+		this._chatEditButtonBar ??= this._store.add(this.instantiationService.createInstance(MenuWorkbenchButtonBar, actionsContainer, MenuId.ChatEditingWidgetToolbar, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: {
 				arg: { sessionId: chatEditingSession.chatSessionId },
