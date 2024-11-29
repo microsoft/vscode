@@ -830,7 +830,7 @@ export class CommandExecutor {
 					endColumn = endMaxColumn;
 				}
 				editOperation.range = new Range(startLineNumber, startColumn, endLineNumber, endColumn);
-				editOperation.text = ' '.repeat(spacesLen) + editOperation.text;
+				editOperation.text = ' '.repeat(spacesLen) + (editOperation.text ?? '');
 			}
 		}
 
