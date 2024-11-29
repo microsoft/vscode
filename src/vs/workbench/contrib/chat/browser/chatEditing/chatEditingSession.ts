@@ -43,7 +43,6 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatService } from '../../common/chatService.js';
 import { parse } from '../../../../services/notebook/common/notebookDocumentService.js';
-import { isNotebook } from '../notebook.js';
 
 export class ChatEditingSession extends Disposable implements IChatEditingSession {
 
@@ -582,7 +581,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		} else if (isTextFileEntry(entry)) {
 			entry.acceptAgentEdits(textEdits, isLastEdits);
 		} else {
-			entry.acceptAgentCellEdits(resource, textEdits, isLastEdits);
+			entry.acceptAgentEdits(resource, textEdits, isLastEdits);
 		}
 		await this._editorService.openEditor({ resource: entry.modifiedURI, options: { inactive: true } });
 	}
@@ -597,7 +596,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			return;
 		}
 
-		if (resource.scheme !== Schemas.untitled && !this._workspaceContextService.getWorkspaceFolder(resource) && !isNotebook(resource) && !(await this._fileService.exists(resource))) {
+		if (resource.scheme !== Schemas.untitled && !this._workspaceContextService.getWorkspaceFolder(resource) && !(await this._fileService.exists(resource))) {
 			// if the file doesn't exist yet and is outside the workspace, prompt the user for a location to save it to
 			const saveLocation = await this._dialogService.showSaveDialog({ title: localize('chatEditing.fileSave', '{0} wants to create a file. Choose where it should be saved.', this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName ?? 'Chat') });
 			if (!saveLocation) {
