@@ -99,9 +99,13 @@ import './contrib/execute/executionEditorProgress.js';
 import './contrib/kernelDetection/notebookKernelDetection.js';
 import './contrib/cellDiagnostics/cellDiagnostics.js';
 import './contrib/multicursor/notebookMulticursor.js';
+import './contrib/multicursor/notebookSelectionHighlight.js';
 
 // Diff Editor Contribution
 import './diff/notebookDiffActions.js';
+
+// Chat Edit Contributions
+import './contrib/chatEdit/notebookChatEditController.js';
 
 // Services
 import { editorOptionsRegistry } from '../../../../editor/common/config/editorOptions.js';
@@ -875,6 +879,7 @@ registerSingleton(INotebookKeymapService, NotebookKeymapService, InstantiationTy
 registerSingleton(INotebookLoggingService, NotebookLoggingService, InstantiationType.Delayed);
 registerSingleton(INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFactory, InstantiationType.Delayed);
 registerSingleton(INotebookOutlineEntryFactory, NotebookOutlineEntryFactory, InstantiationType.Delayed);
+
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {

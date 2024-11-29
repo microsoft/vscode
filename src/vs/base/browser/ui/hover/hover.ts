@@ -227,7 +227,7 @@ export type IDelayedHoverOptions = Omit<IHoverOptions, 'target'>;
 
 // `position` is ignored for delayed at mouse hover methods as it's overwritten by the mouse event.
 // `showPointer` is always false when using mouse positioning
-export type IDelayedHoverAtMouseOptions = Omit<IDelayedHoverOptions, 'position' | 'appearance'> & { appearance: Omit<IHoverAppearanceOptions, 'showPointer'> };
+export type IDelayedHoverAtMouseOptions = Omit<IDelayedHoverOptions, 'position' | 'appearance'> & { appearance?: Omit<IHoverAppearanceOptions, 'showPointer'> };
 
 export interface IHoverLifecycleOptions {
 	/**
@@ -354,7 +354,7 @@ export interface IHoverAction {
 /**
  * A target for a hover.
  */
-export interface IHoverTarget {
+export interface IHoverTarget extends Partial<IDisposable> {
 	/**
 	 * A set of target elements used to position the hover. If multiple elements are used the hover
 	 * will try to not overlap any target element. An example use case for this is show a hover for

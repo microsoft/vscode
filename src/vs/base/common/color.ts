@@ -535,6 +535,19 @@ export class Color {
 		return this._toString;
 	}
 
+	private _toNumber24Bit?: number;
+	toNumber24Bit(): number {
+		if (!this._toNumber24Bit) {
+			this._toNumber24Bit = (
+				this.rgba.r /*  */ << 24 |
+				this.rgba.g /*  */ << 16 |
+				this.rgba.b /*  */ << 8 |
+				this.rgba.a * 0xFF << 0
+			) >>> 0;
+		}
+		return this._toNumber24Bit;
+	}
+
 	static getLighterColor(of: Color, relative: Color, factor?: number): Color {
 		if (of.isLighterThan(relative)) {
 			return of;
@@ -628,6 +641,198 @@ export namespace Color {
 				}
 
 				return Color.Format.CSS.formatRGBA(color);
+			}
+
+			/**
+			 * Parse a CSS color and return a {@link Color}.
+			 * @param css The CSS color to parse.
+			 * @see https://drafts.csswg.org/css-color/#typedef-color
+			 */
+			export function parse(css: string): Color | null {
+				if (css === 'transparent') {
+					return Color.transparent;
+				}
+				if (css.startsWith('#')) {
+					return parseHex(css);
+				}
+				if (css.startsWith('rgba(')) {
+					const color = css.match(/rgba\((?<r>(?:\+|-)?\d+), *(?<g>(?:\+|-)?\d+), *(?<b>(?:\+|-)?\d+), *(?<a>(?:\+|-)?\d+(\.\d+)?)\)/);
+					if (!color) {
+						throw new Error('Invalid color format ' + css);
+					}
+					const r = parseInt(color.groups?.r ?? '0');
+					const g = parseInt(color.groups?.g ?? '0');
+					const b = parseInt(color.groups?.b ?? '0');
+					const a = parseFloat(color.groups?.a ?? '0');
+					return new Color(new RGBA(r, g, b, a));
+				}
+				if (css.startsWith('rgb(')) {
+					const color = css.match(/rgb\((?<r>(?:\+|-)?\d+), *(?<g>(?:\+|-)?\d+), *(?<b>(?:\+|-)?\d+)\)/);
+					if (!color) {
+						throw new Error('Invalid color format ' + css);
+					}
+					const r = parseInt(color.groups?.r ?? '0');
+					const g = parseInt(color.groups?.g ?? '0');
+					const b = parseInt(color.groups?.b ?? '0');
+					return new Color(new RGBA(r, g, b));
+				}
+				// TODO: Support more formats as needed
+				return parseNamedKeyword(css);
+			}
+
+			function parseNamedKeyword(css: string): Color | null {
+				// https://drafts.csswg.org/css-color/#named-colors
+				switch (css) {
+					case 'aliceblue': return new Color(new RGBA(240, 248, 255, 1));
+					case 'antiquewhite': return new Color(new RGBA(250, 235, 215, 1));
+					case 'aqua': return new Color(new RGBA(0, 255, 255, 1));
+					case 'aquamarine': return new Color(new RGBA(127, 255, 212, 1));
+					case 'azure': return new Color(new RGBA(240, 255, 255, 1));
+					case 'beige': return new Color(new RGBA(245, 245, 220, 1));
+					case 'bisque': return new Color(new RGBA(255, 228, 196, 1));
+					case 'black': return new Color(new RGBA(0, 0, 0, 1));
+					case 'blanchedalmond': return new Color(new RGBA(255, 235, 205, 1));
+					case 'blue': return new Color(new RGBA(0, 0, 255, 1));
+					case 'blueviolet': return new Color(new RGBA(138, 43, 226, 1));
+					case 'brown': return new Color(new RGBA(165, 42, 42, 1));
+					case 'burlywood': return new Color(new RGBA(222, 184, 135, 1));
+					case 'cadetblue': return new Color(new RGBA(95, 158, 160, 1));
+					case 'chartreuse': return new Color(new RGBA(127, 255, 0, 1));
+					case 'chocolate': return new Color(new RGBA(210, 105, 30, 1));
+					case 'coral': return new Color(new RGBA(255, 127, 80, 1));
+					case 'cornflowerblue': return new Color(new RGBA(100, 149, 237, 1));
+					case 'cornsilk': return new Color(new RGBA(255, 248, 220, 1));
+					case 'crimson': return new Color(new RGBA(220, 20, 60, 1));
+					case 'cyan': return new Color(new RGBA(0, 255, 255, 1));
+					case 'darkblue': return new Color(new RGBA(0, 0, 139, 1));
+					case 'darkcyan': return new Color(new RGBA(0, 139, 139, 1));
+					case 'darkgoldenrod': return new Color(new RGBA(184, 134, 11, 1));
+					case 'darkgray': return new Color(new RGBA(169, 169, 169, 1));
+					case 'darkgreen': return new Color(new RGBA(0, 100, 0, 1));
+					case 'darkgrey': return new Color(new RGBA(169, 169, 169, 1));
+					case 'darkkhaki': return new Color(new RGBA(189, 183, 107, 1));
+					case 'darkmagenta': return new Color(new RGBA(139, 0, 139, 1));
+					case 'darkolivegreen': return new Color(new RGBA(85, 107, 47, 1));
+					case 'darkorange': return new Color(new RGBA(255, 140, 0, 1));
+					case 'darkorchid': return new Color(new RGBA(153, 50, 204, 1));
+					case 'darkred': return new Color(new RGBA(139, 0, 0, 1));
+					case 'darksalmon': return new Color(new RGBA(233, 150, 122, 1));
+					case 'darkseagreen': return new Color(new RGBA(143, 188, 143, 1));
+					case 'darkslateblue': return new Color(new RGBA(72, 61, 139, 1));
+					case 'darkslategray': return new Color(new RGBA(47, 79, 79, 1));
+					case 'darkslategrey': return new Color(new RGBA(47, 79, 79, 1));
+					case 'darkturquoise': return new Color(new RGBA(0, 206, 209, 1));
+					case 'darkviolet': return new Color(new RGBA(148, 0, 211, 1));
+					case 'deeppink': return new Color(new RGBA(255, 20, 147, 1));
+					case 'deepskyblue': return new Color(new RGBA(0, 191, 255, 1));
+					case 'dimgray': return new Color(new RGBA(105, 105, 105, 1));
+					case 'dimgrey': return new Color(new RGBA(105, 105, 105, 1));
+					case 'dodgerblue': return new Color(new RGBA(30, 144, 255, 1));
+					case 'firebrick': return new Color(new RGBA(178, 34, 34, 1));
+					case 'floralwhite': return new Color(new RGBA(255, 250, 240, 1));
+					case 'forestgreen': return new Color(new RGBA(34, 139, 34, 1));
+					case 'fuchsia': return new Color(new RGBA(255, 0, 255, 1));
+					case 'gainsboro': return new Color(new RGBA(220, 220, 220, 1));
+					case 'ghostwhite': return new Color(new RGBA(248, 248, 255, 1));
+					case 'gold': return new Color(new RGBA(255, 215, 0, 1));
+					case 'goldenrod': return new Color(new RGBA(218, 165, 32, 1));
+					case 'gray': return new Color(new RGBA(128, 128, 128, 1));
+					case 'green': return new Color(new RGBA(0, 128, 0, 1));
+					case 'greenyellow': return new Color(new RGBA(173, 255, 47, 1));
+					case 'grey': return new Color(new RGBA(128, 128, 128, 1));
+					case 'honeydew': return new Color(new RGBA(240, 255, 240, 1));
+					case 'hotpink': return new Color(new RGBA(255, 105, 180, 1));
+					case 'indianred': return new Color(new RGBA(205, 92, 92, 1));
+					case 'indigo': return new Color(new RGBA(75, 0, 130, 1));
+					case 'ivory': return new Color(new RGBA(255, 255, 240, 1));
+					case 'khaki': return new Color(new RGBA(240, 230, 140, 1));
+					case 'lavender': return new Color(new RGBA(230, 230, 250, 1));
+					case 'lavenderblush': return new Color(new RGBA(255, 240, 245, 1));
+					case 'lawngreen': return new Color(new RGBA(124, 252, 0, 1));
+					case 'lemonchiffon': return new Color(new RGBA(255, 250, 205, 1));
+					case 'lightblue': return new Color(new RGBA(173, 216, 230, 1));
+					case 'lightcoral': return new Color(new RGBA(240, 128, 128, 1));
+					case 'lightcyan': return new Color(new RGBA(224, 255, 255, 1));
+					case 'lightgoldenrodyellow': return new Color(new RGBA(250, 250, 210, 1));
+					case 'lightgray': return new Color(new RGBA(211, 211, 211, 1));
+					case 'lightgreen': return new Color(new RGBA(144, 238, 144, 1));
+					case 'lightgrey': return new Color(new RGBA(211, 211, 211, 1));
+					case 'lightpink': return new Color(new RGBA(255, 182, 193, 1));
+					case 'lightsalmon': return new Color(new RGBA(255, 160, 122, 1));
+					case 'lightseagreen': return new Color(new RGBA(32, 178, 170, 1));
+					case 'lightskyblue': return new Color(new RGBA(135, 206, 250, 1));
+					case 'lightslategray': return new Color(new RGBA(119, 136, 153, 1));
+					case 'lightslategrey': return new Color(new RGBA(119, 136, 153, 1));
+					case 'lightsteelblue': return new Color(new RGBA(176, 196, 222, 1));
+					case 'lightyellow': return new Color(new RGBA(255, 255, 224, 1));
+					case 'lime': return new Color(new RGBA(0, 255, 0, 1));
+					case 'limegreen': return new Color(new RGBA(50, 205, 50, 1));
+					case 'linen': return new Color(new RGBA(250, 240, 230, 1));
+					case 'magenta': return new Color(new RGBA(255, 0, 255, 1));
+					case 'maroon': return new Color(new RGBA(128, 0, 0, 1));
+					case 'mediumaquamarine': return new Color(new RGBA(102, 205, 170, 1));
+					case 'mediumblue': return new Color(new RGBA(0, 0, 205, 1));
+					case 'mediumorchid': return new Color(new RGBA(186, 85, 211, 1));
+					case 'mediumpurple': return new Color(new RGBA(147, 112, 219, 1));
+					case 'mediumseagreen': return new Color(new RGBA(60, 179, 113, 1));
+					case 'mediumslateblue': return new Color(new RGBA(123, 104, 238, 1));
+					case 'mediumspringgreen': return new Color(new RGBA(0, 250, 154, 1));
+					case 'mediumturquoise': return new Color(new RGBA(72, 209, 204, 1));
+					case 'mediumvioletred': return new Color(new RGBA(199, 21, 133, 1));
+					case 'midnightblue': return new Color(new RGBA(25, 25, 112, 1));
+					case 'mintcream': return new Color(new RGBA(245, 255, 250, 1));
+					case 'mistyrose': return new Color(new RGBA(255, 228, 225, 1));
+					case 'moccasin': return new Color(new RGBA(255, 228, 181, 1));
+					case 'navajowhite': return new Color(new RGBA(255, 222, 173, 1));
+					case 'navy': return new Color(new RGBA(0, 0, 128, 1));
+					case 'oldlace': return new Color(new RGBA(253, 245, 230, 1));
+					case 'olive': return new Color(new RGBA(128, 128, 0, 1));
+					case 'olivedrab': return new Color(new RGBA(107, 142, 35, 1));
+					case 'orange': return new Color(new RGBA(255, 165, 0, 1));
+					case 'orangered': return new Color(new RGBA(255, 69, 0, 1));
+					case 'orchid': return new Color(new RGBA(218, 112, 214, 1));
+					case 'palegoldenrod': return new Color(new RGBA(238, 232, 170, 1));
+					case 'palegreen': return new Color(new RGBA(152, 251, 152, 1));
+					case 'paleturquoise': return new Color(new RGBA(175, 238, 238, 1));
+					case 'palevioletred': return new Color(new RGBA(219, 112, 147, 1));
+					case 'papayawhip': return new Color(new RGBA(255, 239, 213, 1));
+					case 'peachpuff': return new Color(new RGBA(255, 218, 185, 1));
+					case 'peru': return new Color(new RGBA(205, 133, 63, 1));
+					case 'pink': return new Color(new RGBA(255, 192, 203, 1));
+					case 'plum': return new Color(new RGBA(221, 160, 221, 1));
+					case 'powderblue': return new Color(new RGBA(176, 224, 230, 1));
+					case 'purple': return new Color(new RGBA(128, 0, 128, 1));
+					case 'rebeccapurple': return new Color(new RGBA(102, 51, 153, 1));
+					case 'red': return new Color(new RGBA(255, 0, 0, 1));
+					case 'rosybrown': return new Color(new RGBA(188, 143, 143, 1));
+					case 'royalblue': return new Color(new RGBA(65, 105, 225, 1));
+					case 'saddlebrown': return new Color(new RGBA(139, 69, 19, 1));
+					case 'salmon': return new Color(new RGBA(250, 128, 114, 1));
+					case 'sandybrown': return new Color(new RGBA(244, 164, 96, 1));
+					case 'seagreen': return new Color(new RGBA(46, 139, 87, 1));
+					case 'seashell': return new Color(new RGBA(255, 245, 238, 1));
+					case 'sienna': return new Color(new RGBA(160, 82, 45, 1));
+					case 'silver': return new Color(new RGBA(192, 192, 192, 1));
+					case 'skyblue': return new Color(new RGBA(135, 206, 235, 1));
+					case 'slateblue': return new Color(new RGBA(106, 90, 205, 1));
+					case 'slategray': return new Color(new RGBA(112, 128, 144, 1));
+					case 'slategrey': return new Color(new RGBA(112, 128, 144, 1));
+					case 'snow': return new Color(new RGBA(255, 250, 250, 1));
+					case 'springgreen': return new Color(new RGBA(0, 255, 127, 1));
+					case 'steelblue': return new Color(new RGBA(70, 130, 180, 1));
+					case 'tan': return new Color(new RGBA(210, 180, 140, 1));
+					case 'teal': return new Color(new RGBA(0, 128, 128, 1));
+					case 'thistle': return new Color(new RGBA(216, 191, 216, 1));
+					case 'tomato': return new Color(new RGBA(255, 99, 71, 1));
+					case 'turquoise': return new Color(new RGBA(64, 224, 208, 1));
+					case 'violet': return new Color(new RGBA(238, 130, 238, 1));
+					case 'wheat': return new Color(new RGBA(245, 222, 179, 1));
+					case 'white': return new Color(new RGBA(255, 255, 255, 1));
+					case 'whitesmoke': return new Color(new RGBA(245, 245, 245, 1));
+					case 'yellow': return new Color(new RGBA(255, 255, 0, 1));
+					case 'yellowgreen': return new Color(new RGBA(154, 205, 50, 1));
+					default: return null;
+				}
 			}
 
 			/**

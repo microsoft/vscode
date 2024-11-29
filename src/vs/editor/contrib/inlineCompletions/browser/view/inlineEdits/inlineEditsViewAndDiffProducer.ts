@@ -22,6 +22,7 @@ import { TextModelText } from '../../../../../common/model/textModelText.js';
 import { IModelService } from '../../../../../common/services/model.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineEdit } from '../../model/inlineEdit.js';
+import { InlineCompletionItem } from '../../model/provideInlineCompletions.js';
 import { InlineEditsView } from './inlineEditsView.js';
 import { UniqueUriGenerator } from './utils.js';
 
@@ -81,7 +82,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable {
 			));
 			const diffEdits = new TextEdit(edits);
 
-			return new InlineEditWithChanges(text, diffEdits, inlineEdit.isCollapsed, true, inlineEdit.commands); //inlineEdit.showInlineIfPossible);
+			return new InlineEditWithChanges(text, diffEdits, inlineEdit.isCollapsed, inlineEdit.renderExplicitly, inlineEdit.commands, inlineEdit.inlineCompletion); //inlineEdit.showInlineIfPossible);
 		});
 	});
 
@@ -111,8 +112,9 @@ export class InlineEditWithChanges {
 		public readonly originalText: AbstractText,
 		public readonly edit: TextEdit,
 		public readonly isCollapsed: boolean,
-		public readonly showInlineIfPossible: boolean,
-		public readonly commands: readonly Command[]
+		public readonly userJumpedToIt: boolean,
+		public readonly commands: readonly Command[],
+		public readonly inlineCompletion: InlineCompletionItem,
 	) {
 	}
 
@@ -120,7 +122,8 @@ export class InlineEditWithChanges {
 		return this.originalText.getValue() === other.originalText.getValue() &&
 			this.edit.equals(other.edit) &&
 			this.isCollapsed === other.isCollapsed &&
-			this.showInlineIfPossible === other.showInlineIfPossible &&
-			this.commands === other.commands;
+			this.userJumpedToIt === other.userJumpedToIt &&
+			this.commands === other.commands &&
+			this.inlineCompletion === other.inlineCompletion;
 	}
 }

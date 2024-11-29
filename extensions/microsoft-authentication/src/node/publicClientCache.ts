@@ -28,9 +28,9 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		private readonly _globalMemento: Memento,
 		private readonly _secretStorage: SecretStorage,
 		private readonly _logger: LogOutputChannel,
-		cloudName: string
+		private readonly _cloudName: string
 	) {
-		this._pcasSecretStorage = new PublicClientApplicationsSecretStorage(_secretStorage, cloudName);
+		this._pcasSecretStorage = new PublicClientApplicationsSecretStorage(_secretStorage, _cloudName);
 		this._disposable = Disposable.from(
 			this._pcasSecretStorage,
 			this._registerSecretStorageHandler(),
@@ -94,24 +94,42 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		Disposable.from(...this._pcaDisposables.values()).dispose();
 	}
 
-	async getOrCreate(clientId: string, authority: string): Promise<ICachedPublicClientApplication> {
+	async getOrCreate(clientId: string, authority: string, refreshTokensToMigrate?: string[]): Promise<ICachedPublicClientApplication> {
 		// Use the clientId and authority as the key
 		const pcasKey = JSON.stringify({ clientId, authority });
 		let pca = this._pcas.get(pcasKey);
 		if (pca) {
 			this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] PublicClientApplicationManager cache hit`);
-			return pca;
+		} else {
+			this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] PublicClientApplicationManager cache miss, creating new PCA...`);
+			pca = await this._doCreatePublicClientApplication(clientId, authority, pcasKey);
+			await this._storePublicClientApplications();
+			this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] PCA created.`);
 		}
 
-		this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] PublicClientApplicationManager cache miss, creating new PCA...`);
-		pca = await this._doCreatePublicClientApplication(clientId, authority, pcasKey);
-		await this._storePublicClientApplications();
-		this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] PCA created.`);
+		// TODO: MSAL Migration. Remove this when we remove the old flow.
+		if (refreshTokensToMigrate?.length) {
+			this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] Migrating refresh tokens to PCA...`);
+			for (const refreshToken of refreshTokensToMigrate) {
+				try {
+					// Use the refresh token to acquire a result. This will cache the refresh token for future operations.
+					// The scopes don't matter here since we can create any token from the refresh token.
+					const result = await pca.acquireTokenByRefreshToken({ refreshToken, forceCache: true, scopes: [] });
+					if (result?.account) {
+						this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] Refresh token migrated to PCA.`);
+					}
+				} catch (e) {
+					this._logger.error(`[getOrCreate] [${clientId}] [${authority}] Error migrating refresh token:`, e);
+				}
+			}
+			// reinitialize the PCA so the account is properly cached
+			await pca.initialize();
+		}
 		return pca;
 	}
 
 	private async _doCreatePublicClientApplication(clientId: string, authority: string, pcasKey: string) {
-		const pca = new CachedPublicClientApplication(clientId, authority, this._globalMemento, this._secretStorage, this._logger);
+		const pca = new CachedPublicClientApplication(clientId, authority, this._cloudName, this._globalMemento, this._secretStorage, this._logger);
 		this._pcas.set(pcasKey, pca);
 		const disposable = Disposable.from(
 			pca,
@@ -160,11 +178,7 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		// Handle the deleted ones
 		for (const pcaKey of this._pcas.keys()) {
 			if (!pcaKeysFromStorage.delete(pcaKey)) {
-				// This PCA has been removed in another window
-				this._pcaDisposables.get(pcaKey)?.dispose();
-				this._pcaDisposables.delete(pcaKey);
-				this._pcas.delete(pcaKey);
-				this._logger.debug(`[_handleSecretStorageChange] Disposed PCA that was deleted in another window: ${pcaKey}`);
+				this._logger.debug(`[_handleSecretStorageChange] PCA was deleted in another window: ${pcaKey}`);
 			}
 		}
 

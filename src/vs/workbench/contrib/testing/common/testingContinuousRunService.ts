@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as arrays from '../../../../base/common/arrays.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorunIterableDelta } from '../../../../base/common/observableInternal/autorun.js';
+import { WellDefinedPrefixTree } from '../../../../base/common/prefixTree.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { StoredValue } from './storedValue.js';
-import { TestingContextKeys } from './testingContextKeys.js';
-import { ITestService } from './testService.js';
-import { TestService } from './testServiceImpl.js';
-import { ITestRunProfile, TestRunProfileBitset } from './testTypes.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
 import { TestId } from './testId.js';
-import { WellDefinedPrefixTree } from '../../../../base/common/prefixTree.js';
+import { TestingContextKeys } from './testingContextKeys.js';
 import { ITestProfileService } from './testProfileService.js';
-import * as arrays from '../../../../base/common/arrays.js';
+import { ITestService } from './testService.js';
+import { ITestRunProfile, TestRunProfileBitset } from './testTypes.js';
 
 export const ITestingContinuousRunService = createDecorator<ITestingContinuousRunService>('testingContinuousRunService');
 
@@ -53,6 +54,11 @@ export interface ITestingContinuousRunService {
 	isEnabledForAChildOf(testId: string): boolean;
 
 	/**
+	 * Gets whether continuous run is turned on for the given profile.
+	 */
+	isEnabledForProfile(profile: ITestRunProfile): boolean;
+
+	/**
 	 * Gets whether it's enabled at all.
 	 */
 	isEnabled(): boolean;
@@ -65,20 +71,25 @@ export interface ITestingContinuousRunService {
 	start(profile: ITestRunProfile[] | TestRunProfileBitset, testId?: string): void;
 
 	/**
+	 * Stops a continuous run for the given test profile.
+	 */
+	stopProfile(profile: ITestRunProfile): void;
+
+	/**
 	 * Stops any continuous run
 	 * Globally if no test is given, for a specific test otherwise.
 	 */
 	stop(testId?: string): void;
 }
 
+type RunningRef = { path: readonly string[]; profiles: ISettableObservable<ITestRunProfile[]>; autoSetDefault?: boolean; handle: DisposableStore };
+
 export class TestingContinuousRunService extends Disposable implements ITestingContinuousRunService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly changeEmitter = new Emitter<string | undefined>();
-	private globallyRunning?: IDisposable;
-	private readonly running = new WellDefinedPrefixTree<IDisposable>();
+	private readonly running = new WellDefinedPrefixTree<RunningRef>();
 	private readonly lastRun: StoredValue<Set<number>>;
-	private readonly isGloballyOn: IContextKey<boolean>;
 
 	public readonly onDidChange = this.changeEmitter.event;
 
@@ -87,13 +98,16 @@ export class TestingContinuousRunService extends Disposable implements ITestingC
 	}
 
 	constructor(
-		@ITestService private readonly testService: TestService,
+		@ITestService private readonly testService: ITestService,
 		@IStorageService storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
 	) {
 		super();
-		this.isGloballyOn = TestingContextKeys.isContinuousModeOn.bindTo(contextKeyService);
+		const isGloballyOn = TestingContextKeys.isContinuousModeOn.bindTo(contextKeyService);
+		this._register(this.onDidChange(() => {
+			isGloballyOn.set(!!this.running.root.value);
+		}));
 		this.lastRun = this._register(new StoredValue<Set<number>>({
 			key: 'lastContinuousRunProfileIds',
 			scope: StorageScope.WORKSPACE,
@@ -105,9 +119,8 @@ export class TestingContinuousRunService extends Disposable implements ITestingC
 		}, storageService));
 
 		this._register(toDisposable(() => {
-			this.globallyRunning?.dispose();
 			for (const cts of this.running.values()) {
-				cts.dispose();
+				cts.handle.dispose();
 			}
 		}));
 	}
@@ -119,91 +132,131 @@ export class TestingContinuousRunService extends Disposable implements ITestingC
 
 	/** @inheritdoc */
 	public isEnabledForAParentOf(testId: string): boolean {
-		if (this.globallyRunning) {
-			return true;
+		return !!this.running.root.value || (this.running.size > 0 && this.running.hasKeyOrParent(TestId.fromString(testId).path));
+	}
+
+	/** @inheritdoc */
+	public isEnabledForProfile({ profileId, controllerId }: ITestRunProfile): boolean {
+		for (const node of this.running.values()) {
+			if (node.profiles.get().some(p => p.profileId === profileId && p.controllerId === controllerId)) {
+				return true;
+			}
 		}
 
-		return this.running.size > 0 && this.running.hasKeyOrParent(TestId.fromString(testId).path);
+		return false;
 	}
 
 	/** @inheritdoc */
 	public isEnabledForAChildOf(testId: string): boolean {
-		return this.running.size > 0 && this.running.hasKeyOrChildren(TestId.fromString(testId).path);
+		return !!this.running.root.value || (this.running.size > 0 && this.running.hasKeyOrChildren(TestId.fromString(testId).path));
 	}
 
 	/** @inheritdoc */
 	public isEnabled(): boolean {
-		return !!this.globallyRunning || this.running.size > 0;
+		return !!this.running.root.value || this.running.size > 0;
 	}
 
 	/** @inheritdoc */
 	public start(profiles: ITestRunProfile[] | TestRunProfileBitset, testId?: string): void {
 		const store = new DisposableStore();
-		const cts = new CancellationTokenSource();
-		store.add(toDisposable(() => cts.dispose(true)));
 
-		if (testId === undefined) {
-			this.isGloballyOn.set(true);
-		}
-
-		if (!testId) {
-			this.globallyRunning?.dispose();
-			this.globallyRunning = store;
-		} else {
-			this.running.mutate(TestId.fromString(testId).path, c => {
-				c?.dispose();
-				return store;
-			});
-		}
-
-		let actualProfiles: ITestRunProfile[];
+		let actualProfiles: ISettableObservable<ITestRunProfile[]>;
 		if (profiles instanceof Array) {
-			actualProfiles = profiles;
+			actualProfiles = observableValue('crProfiles', profiles);
 		} else {
 			// restart the continuous run when default profiles change, if we were
 			// asked to run for a group
 			const getRelevant = () => this.testProfileService.getGroupDefaultProfiles(profiles)
 				.filter(p => p.supportsContinuousRun && (!testId || TestId.root(testId) === p.controllerId));
-			actualProfiles = getRelevant();
+			actualProfiles = observableValue('crProfiles', getRelevant());
 			store.add(this.testProfileService.onDidChange(() => {
-				if (!arrays.equals(getRelevant(), actualProfiles)) {
-					this.start(profiles, testId);
+				if (ref.autoSetDefault) {
+					const newRelevant = getRelevant();
+					if (!arrays.equals(newRelevant, actualProfiles.get())) {
+						actualProfiles.set(getRelevant(), undefined);
+					}
 				}
 			}));
 		}
 
-		this.lastRun.store(new Set(actualProfiles.map(p => p.profileId)));
+		const path = testId ? TestId.fromString(testId).path : [];
+		const ref: RunningRef = { profiles: actualProfiles, handle: store, path, autoSetDefault: typeof profiles === 'number' };
 
-		if (actualProfiles.length) {
-			this.testService.startContinuousRun({
-				continuous: true,
-				group: actualProfiles[0].group,
-				targets: actualProfiles.map(p => ({
-					testIds: [testId ?? p.controllerId],
-					controllerId: p.controllerId,
-					profileId: p.profileId
-				})),
-			}, cts.token);
+		// If we're already running this specific test, then add the profile and turn
+		// off the auto-addition of bitset-based profiles.
+		const existing = this.running.find(path);
+		if (existing) {
+			store.dispose();
+			ref.autoSetDefault = existing.autoSetDefault = false;
+			existing.profiles.set([...new Set([...actualProfiles.get(), ...existing.profiles.get()])], undefined);
+			this.changeEmitter.fire(testId);
+			return;
 		}
+
+		this.running.insert(path, ref);
+
+		const cancellationStores = new DisposableMap<ITestRunProfile, CancellationTokenSource>();
+		store.add(toDisposable(() => {
+			for (const cts of cancellationStores.values()) {
+				cts.cancel();
+			}
+			cancellationStores.dispose();
+		}));
+		store.add(autorunIterableDelta(reader => actualProfiles.read(reader), ({ addedValues, removedValues }) => {
+			for (const profile of addedValues) {
+				const cts = new CancellationTokenSource();
+				this.testService.startContinuousRun({
+					continuous: true,
+					group: profile.group,
+					targets: [{
+						testIds: [testId ?? profile.controllerId],
+						controllerId: profile.controllerId,
+						profileId: profile.profileId
+					}],
+				}, cts.token);
+				cancellationStores.set(profile, cts);
+			}
+
+			for (const profile of removedValues) {
+				cancellationStores.get(profile)?.cancel();
+				cancellationStores.deleteAndDispose(profile);
+			}
+
+			this.lastRun.store(new Set([...cancellationStores.keys()].map(p => p.profileId)));
+		}));
 
 		this.changeEmitter.fire(testId);
 	}
 
-	/** @inheritdoc */
-	public stop(testId?: string): void {
-		if (!testId) {
-			this.globallyRunning?.dispose();
-			this.globallyRunning = undefined;
-		} else {
-			const cancellations = [...this.running.deleteRecursive(TestId.fromString(testId).path)];
-			// deleteRecursive returns a BFS order, reverse it so children are cancelled before parents
-			for (let i = cancellations.length - 1; i >= 0; i--) {
-				cancellations[i].dispose();
+	/** Stops a continuous run for the profile across all test items that are running it. */
+	stopProfile({ profileId, controllerId }: ITestRunProfile): void {
+		const toDelete: RunningRef[] = [];
+		for (const node of this.running.values()) {
+			const profs = node.profiles.get();
+			const filtered = profs.filter(p => p.profileId !== profileId || p.controllerId !== controllerId);
+			if (filtered.length === profs.length) {
+				continue;
+			} else if (filtered.length === 0) {
+				toDelete.push(node);
+			} else {
+				node.profiles.set(filtered, undefined);
 			}
 		}
 
-		if (testId === undefined) {
-			this.isGloballyOn.set(false);
+		for (let i = toDelete.length - 1; i >= 0; i--) {
+			toDelete[i].handle.dispose();
+			this.running.delete(toDelete[i].path);
+		}
+
+		this.changeEmitter.fire(undefined);
+	}
+
+	/** @inheritdoc */
+	public stop(testId?: string): void {
+		const cancellations = [...this.running.deleteRecursive(testId ? TestId.fromString(testId).path : [])];
+		// deleteRecursive returns a BFS order, reverse it so children are cancelled before parents
+		for (let i = cancellations.length - 1; i >= 0; i--) {
+			cancellations[i].handle.dispose();
 		}
 
 		this.changeEmitter.fire(testId);

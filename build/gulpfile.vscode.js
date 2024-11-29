@@ -31,7 +31,7 @@ const { config } = require('./lib/electron');
 const createAsar = require('./lib/asar').createAsar;
 const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
-const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
+const { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } = require('./gulpfile.extensions');
 const { promisify } = require('util');
 const glob = promisify(require('glob'));
 const rcedit = promisify(require('rcedit'));
@@ -487,6 +487,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
 		const tasks = [
+			compileNativeExtensionsBuildTask,
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
 		];
@@ -500,7 +501,8 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 			compileBuildTask,
-			compileExtensionsBuildTask,
+			cleanExtensionsBuildTask,
+			compileNonNativeExtensionsBuildTask,
 			compileExtensionMediaBuildTask,
 			minified ? minifyVSCodeTask : bundleVSCodeTask,
 			vscodeTaskCI
@@ -537,7 +539,7 @@ gulp.task(task.define(
 	'vscode-translations-export',
 	task.series(
 		core,
-		compileExtensionsBuildTask,
+		compileAllExtensionsBuildTask,
 		function () {
 			const pathToMetadata = './out-build/nls.metadata.json';
 			const pathToExtensions = '.build/extensions/*';

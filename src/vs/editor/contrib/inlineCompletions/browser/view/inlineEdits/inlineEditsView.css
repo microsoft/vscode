@@ -62,6 +62,9 @@
 			margin: 0 2px;
 			transform: none;
 			transition: transform 0.2s ease-in-out;
+			.codicon {
+				color: var(--vscode-inlineEdit-indicator-foreground);
+			}
 		}
 
 		.label {
