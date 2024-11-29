@@ -120,6 +120,10 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				ContextKeyExpr.and(
 					ChatContextKeys.Setup.canSignUp,
 					ChatContextKeys.Setup.installed
+				)!,
+				ContextKeyExpr.and(
+					ChatContextKeys.Setup.signedOut,
+					ChatContextKeys.Setup.installed
 				)!
 			)!,
 			icon: defaultChat.icon,
@@ -133,7 +137,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		class ChatSetupTriggerAction extends Action2 {
 
 			static readonly ID = TRIGGER_SETUP_COMMAND_ID;
-			static readonly TITLE = localize2('triggerChatSetup', "Use AI features with {0}...", defaultChat.name);
+			static readonly TITLE = localize2('triggerChatSetup', "Use AI Features with Copilot...");
 
 			constructor() {
 				super({
@@ -183,7 +187,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 		class ChatSetupHideAction extends Action2 {
 
 			static readonly ID = 'workbench.action.chat.hideSetup';
-			static readonly TITLE = localize2('hideChatSetup', "Hide {0}", defaultChat.name);
+			static readonly TITLE = localize2('hideChatSetup', "Hide Copilot");
 
 			constructor() {
 				super({
@@ -214,9 +218,9 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				const dialogService = accessor.get(IDialogService);
 
 				const { confirmed } = await dialogService.confirm({
-					message: localize('hideChatSetupConfirm', "Are you sure you want to hide {0}?", defaultChat.name),
-					detail: localize('hideChatSetupDetail', "You can restore it by running the '{0}' command.", ChatSetupTriggerAction.TITLE.value),
-					primaryButton: localize('hideChatSetupButton', "Hide {0}", defaultChat.name)
+					message: localize('hideChatSetupConfirm', "Are you sure you want to hide Copilot?"),
+					detail: localize('hideChatSetupDetail', "You can restore Copilot by running the '{0}' command.", ChatSetupTriggerAction.TITLE.value),
+					primaryButton: localize('hideChatSetupButton', "Hide Copilot")
 				});
 
 				if (!confirmed) {
@@ -605,7 +609,7 @@ class ChatSetupController extends Disposable {
 	}
 
 	async setup(enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
-		const title = localize('setupChatProgress', "Getting {0} ready...", defaultChat.name);
+		const title = localize('setupChatProgress', "Getting Copilot ready...");
 		const badge = this.activityService.showViewContainerActivity(isCopilotEditsViewActive(this.viewsService) ? CHAT_EDITING_SIDEBAR_PANEL_ID : CHAT_SIDEBAR_PANEL_ID, {
 			badge: new ProgressBadge(() => title),
 			priority: 100
@@ -742,7 +746,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		const markdown = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
 
 		// Header
-		const header = localize({ key: 'setupHeader', comment: ['{Locked="[{0}]({1})"}'] }, "[{0}]({1}) is your AI pair programmer that provides code suggestions, edits across your project, and answers to your questions.", defaultChat.name, defaultChat.documentationUrl);
+		const header = localize({ key: 'setupHeader', comment: ['{Locked="[{0}]({1})"}'] }, "[Copilot]({0}) is your AI pair programmer that provides code suggestions, edits across your project, and answers to your questions.", defaultChat.documentationUrl);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element);
 
 		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="[{0}]({1})"}'] }, "Enable powerful AI features for free with the [{0}]({1}) plan.", defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
@@ -796,9 +800,9 @@ class ChatSetupWelcomeContent extends Disposable {
 
 				button.enabled = true;
 				button.label = this.context.state.entitlement === ChatEntitlement.Available ?
-					localize('startSetupLimited', "Start Using {0}", defaultChat.entitlementSkuTypeLimitedName) : this.context.state.entitlement === ChatEntitlement.Unknown ?
+					localize('startSetupLimited', "Start Using Copilot") : this.context.state.entitlement === ChatEntitlement.Unknown ?
 						localize('signInToStartSetup', "Sign in to Start") :
-						localize('startSetupLimited', "Start Using {0}", defaultChat.name);
+						localize('startSetupLimited', "Start Using Copilot");
 				break;
 			case ChatSetupStep.SigningIn:
 			case ChatSetupStep.Installing:
@@ -809,7 +813,7 @@ class ChatSetupWelcomeContent extends Disposable {
 				button.enabled = false;
 				button.label = this.controller.step === ChatSetupStep.SigningIn ?
 					localize('setupChatSigningIn', "$(loading~spin) Signing in to {0}...", defaultChat.providerName) :
-					localize('setupChatInstalling', "$(loading~spin) Getting {0} ready...", defaultChat.name);
+					localize('setupChatInstalling', "$(loading~spin) Getting Copilot ready...");
 
 				break;
 		}

@@ -543,12 +543,12 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	order: 10001,
 });
 
-registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
+registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(
 			'chat.commandCenter.enabled',
-			localize('toggle.chatControl', 'Chat Controls'),
-			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 4, false,
+			localize('toggle.chatControl', 'Copilot Controls'),
+			localize('toggle.chatControlsDescription', "Toggle visibility of the Copilot Controls in title bar"), 4, false,
 			ContextKeyExpr.and(
 				ContextKeyExpr.has('config.window.commandCenter'),
 				ContextKeyExpr.or(
@@ -586,7 +586,7 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 
 			const primaryAction = instantiationService.createInstance(MenuItemAction, {
 				id: chatExtensionInstalled ? CHAT_OPEN_ACTION_ID : 'workbench.action.chat.triggerSetup',
-				title: chatExtensionInstalled ? OpenChatGlobalAction.TITLE : localize2('triggerChatSetup', "Use AI features with {0}...", defaultChat.name),
+				title: chatExtensionInstalled ? OpenChatGlobalAction.TITLE : localize2('triggerChatSetup', "Use AI Features with Copilot"),
 				icon: defaultChat.icon,
 			}, undefined, undefined, undefined, undefined);
 
