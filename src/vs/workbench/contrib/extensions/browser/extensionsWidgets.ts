@@ -704,7 +704,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 						const feature = registry.getExtensionFeature(featureId);
 						if (feature) {
 							markdown.appendMarkdown(localize('feature usage label', "{0} usage", feature.label));
-							markdown.appendMarkdown(`: ${localize('total', "{0} requests in last 30 days)", accessData.accessTimes.length)} [$(${Codicon.linkExternal.id})](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Features]))}`)})`);
+							markdown.appendMarkdown(`: ${localize('total', "{0} requests in last 30 days", accessData.accessTimes.length)} [$(${Codicon.linkExternal.id})](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Features]))}`)})`);
 							markdown.appendText(`\n`);
 						}
 					}
