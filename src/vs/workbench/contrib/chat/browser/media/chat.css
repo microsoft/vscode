@@ -549,6 +549,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
+	overflow: hidden;
 }
 
 .interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar {
@@ -576,7 +577,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	justify-content: space-between;
 	gap: 6px;
 	padding: 0 4px;
-	overflow: hidden;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview > .working-set-title {
