@@ -11,7 +11,7 @@ import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ActionRunner, IAction, IActionRunner } from '../../../../../../base/common/actions.js';
 import { $ } from '../../../../../../base/browser/dom.js';
-import { IChatEditingService, IModifiedFileEntry, WorkingSetEntryState } from '../../../../chat/common/chatEditingService.js';
+import { IChatEditingService, IModifiedFileEntry } from '../../../../chat/common/chatEditingService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { autorun, autorunWithStore, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
