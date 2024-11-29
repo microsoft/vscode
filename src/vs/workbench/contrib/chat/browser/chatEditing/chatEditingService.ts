@@ -233,8 +233,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return session;
 	}
 
-	public createSnapshot(requestId: string): void {
-		this._currentSessionObs.get()?.createSnapshot(requestId);
+	public async createSnapshot(requestId: string): Promise<void> {
+		await this._currentSessionObs.get()?.createSnapshot(requestId);
 	}
 
 	public async restoreSnapshot(requestId: string | undefined): Promise<void> {
@@ -322,7 +322,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		observerDisposables.add(chatModel.onDidChange(async e => {
 			if (e.kind === 'addRequest') {
-				session.createSnapshot(e.request.id);
+				await session.createSnapshot(e.request.id);
 				this._applyingChatEditsFailedContextKey.set(false);
 				const responseModel = e.request.response;
 				if (responseModel) {

@@ -14,7 +14,7 @@ import { ChatEditorController, ctxHasEditorModification } from './chatEditorCont
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
-import { hasUndecidedChatEditingResourceContextKey, IChatEditingService } from '../common/chatEditingService.js';
+import { hasUndecidedChatEditingResourceContextKey, IChatEditingService, isTextFileEntry } from '../common/chatEditingService.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Range } from '../../../../editor/common/core/range.js';
@@ -95,7 +95,7 @@ abstract class NavigateAction extends Action2 {
 		}
 
 		const entry = entries[newIdx];
-		const change = entry.diffInfo.get().changes.at(this.next ? 0 : -1);
+		const change = isTextFileEntry(entry) ? entry.diffInfo.get().changes.at(this.next ? 0 : -1) : undefined;
 
 		const newEditorPane = await editorService.openEditor({
 			resource: entry.modifiedURI,

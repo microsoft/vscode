@@ -11,7 +11,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPosit
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, isTextFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
@@ -137,7 +137,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 								if (!d || d.entry === d.next) {
 									return;
 								}
-								const change = d.next.diffInfo.get().changes.at(0);
+								const change = isTextFileEntry(d.next) ? d.next.diffInfo.get().changes.at(0) : undefined;
 								return editorService.openEditor({
 									resource: d.next.modifiedURI,
 									options: {
@@ -215,6 +215,9 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 			let changes = 0;
 			let activeIdx = -1;
 			for (const entry of entries) {
+				if (!isTextFileEntry(entry)) {
+					continue;
+				}
 				const diffInfo = entry.diffInfo.read(r);
 
 				if (activeIdx !== -1 || entry !== activeEntry) {

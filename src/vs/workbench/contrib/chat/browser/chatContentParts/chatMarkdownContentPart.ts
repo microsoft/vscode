@@ -29,7 +29,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { IChatEditingService, isTextFileEntry } from '../../common/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatMarkdownContent } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
@@ -378,7 +378,7 @@ class CollapsedCodeBlock extends Disposable {
 			if (!isStreaming && isComplete) {
 				const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
 				const labelRemoved = this.element.querySelector('.label-removed') ?? this.element.appendChild(dom.$('span.label-removed'));
-				const changes = modifiedEntry?.diffInfo.read(r);
+				const changes = isTextFileEntry(modifiedEntry) ? modifiedEntry?.diffInfo.read(r) : undefined;
 				if (changes && !changes?.identical && !changes?.quitEarly) {
 					let removedLines = 0;
 					let addedLines = 0;
