@@ -22,6 +22,7 @@ import { localize } from '../../../../../../nls.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { INotebookOriginalCellModelFactory, OriginalNotebookCellModelFactory } from './notebookOriginalCellModelFactory.js';
+import { Event } from '../../../../../../base/common/event.js';
 
 export const ctxNotebookHasEditorModification = new RawContextKey<boolean>('chat.hasNotebookEditorModifications', undefined, localize('chat.hasNotebookEditorModifications', "The current Notebook editor contains chat modifications"));
 
@@ -61,7 +62,10 @@ class NotebookChatEditorController extends Disposable {
 		this.insertedCellDecorator = this._register(instantiationService.createInstance(NotebookInsertedCellDecorator, notebookEditor));
 		const notebookModel = observableFromEvent(this.notebookEditor.onDidChangeModel, e => e);
 		const originalModel = observableValue<NotebookTextModel | undefined>('originalModel', undefined);
-		const viewModelAttached = observableFromEvent(this.notebookEditor.onDidAttachViewModel, () => !!this.notebookEditor.getViewModel());
+		// We need to render viewzones only when the viewmodel is attached (i.e. list view is ready).
+		// https://github.com/microsoft/vscode/issues/234718
+		const readyToRenderViewzones = observableValue<boolean>('viewModelAttached', false);
+		this._register(Event.once(this.notebookEditor.onDidAttachViewModel)(() => readyToRenderViewzones.set(true, undefined)));
 		const onDidChangeVisibleRanges = debouncedObservable2(observableFromEvent(this.notebookEditor.onDidChangeVisibleRanges, () => this.notebookEditor.visibleRanges), 50);
 		const decorators = new Map<NotebookCellTextModel, NotebookCellDiffDecorator>();
 
@@ -194,8 +198,8 @@ class NotebookChatEditorController extends Disposable {
 			const diffInfo = notebookDiffInfo.read(r);
 			const modified = notebookModel.read(r);
 			const original = originalModel.read(r);
-			const vmAttached = viewModelAttached.read(r);
-			if (!vmAttached || !entry || !modified || !original || !diffInfo) {
+			const ready = readyToRenderViewzones.read(r);
+			if (!ready || !entry || !modified || !original || !diffInfo) {
 				return;
 			}
 			if (diffInfo && updatedDeletedInsertedDecoratorsOnceBefore && (diffInfo.modelVersion !== modified.versionId)) {
