@@ -239,10 +239,19 @@ export interface IEditorOptions {
 	 */
 	cursorSmoothCaretAnimation?: 'off' | 'explicit' | 'on';
 	/**
-	 * Control the cursor style, either 'block' or 'line'.
+	 * Control the cursor style in insert mode.
 	 * Defaults to 'line'.
 	 */
 	cursorStyle?: 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin';
+	/**
+	 * Control the cursor style in overtype mode.
+	 * Defaults to 'block'.
+	 */
+	overtypeCursorStyle?: 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin';
+	/**
+	 *  Controls whether paste in overtype mode should overwrite or insert.
+	 */
+	overtypeOnPaste?: boolean;
 	/**
 	 * Control the width of the cursor when cursorStyle is set to 'line'
 	 */
@@ -974,6 +983,7 @@ export interface IEnvironmentalOptions {
 	readonly emptySelectionClipboard: boolean;
 	readonly pixelRatio: number;
 	readonly tabFocusMode: boolean;
+	readonly inputMode: 'insert' | 'overtype';
 	readonly accessibilitySupport: AccessibilitySupport;
 	readonly glyphMarginDecorationLaneCount: number;
 }
@@ -1884,6 +1894,23 @@ class EditorFontInfo extends ComputedEditorOption<EditorOption.fontInfo, FontInf
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: FontInfo): FontInfo {
 		return env.fontInfo;
+	}
+}
+
+//#endregion
+
+//#region effectiveCursorStyle
+
+class EffectiveCursorStyle extends ComputedEditorOption<EditorOption.effectiveCursorStyle, TextEditorCursorStyle> {
+
+	constructor() {
+		super(EditorOption.effectiveCursorStyle);
+	}
+
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: TextEditorCursorStyle): TextEditorCursorStyle {
+		return env.inputMode === 'overtype' ?
+			options.get(EditorOption.overtypeCursorStyle) :
+			options.get(EditorOption.cursorStyle);
 	}
 }
 
@@ -5432,6 +5459,8 @@ export const enum EditorOption {
 	multiCursorLimit,
 	occurrencesHighlight,
 	occurrencesHighlightDelay,
+	overtypeCursorStyle,
+	overtypeOnPaste,
 	overviewRulerBorder,
 	overviewRulerLanes,
 	padding,
@@ -5494,6 +5523,7 @@ export const enum EditorOption {
 	showDeprecated,
 	inlayHints,
 	// Leave these at the end (because they have dependencies!)
+	effectiveCursorStyle,
 	editorClassName,
 	pixelRatio,
 	tabFocusMode,
@@ -5718,7 +5748,14 @@ export const EditorOptions = {
 		TextEditorCursorStyle.Line, 'line',
 		['line', 'block', 'underline', 'line-thin', 'block-outline', 'underline-thin'],
 		cursorStyleFromString,
-		{ description: nls.localize('cursorStyle', "Controls the cursor style.") }
+		{ description: nls.localize('cursorStyle', "Controls the cursor style in insert input mode.") }
+	)),
+	overtypeCursorStyle: register(new EditorEnumOption(
+		EditorOption.overtypeCursorStyle, 'overtypeCursorStyle',
+		TextEditorCursorStyle.Block, 'block',
+		['line', 'block', 'underline', 'line-thin', 'block-outline', 'underline-thin'],
+		cursorStyleFromString,
+		{ description: nls.localize('overtypeCursorStyle', "Controls the cursor style in overtype input mode.") }
 	)),
 	cursorSurroundingLines: register(new EditorIntOption(
 		EditorOption.cursorSurroundingLines, 'cursorSurroundingLines',
@@ -5974,6 +6011,10 @@ export const EditorOptions = {
 			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
 			tags: ['preview']
 		}
+	)),
+	overtypeOnPaste: register(new EditorBooleanOption(
+		EditorOption.overtypeOnPaste, 'overtypeOnPaste', true,
+		{ description: nls.localize('overtypeOnPaste', "Controls whether pasting should overtype.") }
 	)),
 	overviewRulerBorder: register(new EditorBooleanOption(
 		EditorOption.overviewRulerBorder, 'overviewRulerBorder', true,
@@ -6299,6 +6340,7 @@ export const EditorOptions = {
 	)),
 
 	// Leave these at the end (because they have dependencies!)
+	effectiveCursorStyle: register(new EffectiveCursorStyle()),
 	editorClassName: register(new EditorClassName()),
 	defaultColorDecorators: register(new EditorBooleanOption(
 		EditorOption.defaultColorDecorators, 'defaultColorDecorators', true,
