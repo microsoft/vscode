@@ -299,7 +299,6 @@ class ChatSetupRequests extends Disposable {
 		private readonly context: ChatSetupContext,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IRequestService private readonly requestService: IRequestService,
 	) {
@@ -399,7 +398,7 @@ class ChatSetupRequests extends Disposable {
 			return undefined;
 		}
 
-		const response = await this.instantiationService.invokeFunction(accessor => this.request(defaultChat.entitlementUrl, 'GET', undefined, session, token));
+		const response = await this.request(defaultChat.entitlementUrl, 'GET', undefined, session, token);
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
@@ -497,9 +496,8 @@ class ChatSetupRequests extends Disposable {
 			restricted_telemetry: 'disabled',
 			public_code_suggestions: 'enabled'
 		};
-		this.logService.trace(`[chat setup] sign-up: options ${JSON.stringify(body)}`);
 
-		const response = await this.instantiationService.invokeFunction(accessor => this.request(defaultChat.entitlementSignupLimitedUrl, 'POST', body, session, CancellationToken.None));
+		const response = await this.request(defaultChat.entitlementSignupLimitedUrl, 'POST', body, session, CancellationToken.None);
 		if (!response) {
 			this.logService.error('[chat setup] sign-up: no response');
 			return false;
@@ -770,9 +768,9 @@ class ChatSetupWelcomeContent extends Disposable {
 		}
 
 		// Limited SKU
-		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="[{0}]({1})"}'] }, "We now offer a [{0}]({1}) plan.", defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
+		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="[{0}]({1})"}'] }, "$(sparkle-filled) We now offer a [{0}]({1}) plan.", defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
 		const limitedSkuHeaderContainer = this.element.appendChild($('p'));
-		limitedSkuHeaderContainer.appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true }))).element);
+		limitedSkuHeaderContainer.appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true, supportThemeIcons: true }))).element);
 
 		// Terms
 		const terms = localize({ key: 'termsLabel', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "By continuing, you agree to our [Terms and Conditions]({0}).", defaultChat.privacyStatementUrl);
