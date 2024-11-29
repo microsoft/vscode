@@ -597,7 +597,7 @@ class ChatSetupController extends Disposable {
 		this._register(this.context.onDidChange(() => this._onDidChange.fire()));
 	}
 
-	setStep(step: ChatSetupStep): void {
+	private setStep(step: ChatSetupStep): void {
 		if (this._step === step) {
 			return;
 		}
@@ -657,6 +657,8 @@ class ChatSetupController extends Disposable {
 		try {
 			showCopilotView(this.viewsService);
 			session = await this.authenticationService.createSession(defaultChat.providerId, defaultChat.providerScopes[0]);
+
+			await this.requests.forceResolveEntitlement(session);
 		} catch (error) {
 			// noop
 		}
@@ -680,7 +682,9 @@ class ChatSetupController extends Disposable {
 
 			this.context.suspend();  // reduces flicker
 
-			didSignUp = await this.requests.signUpLimited(session);
+			if (this.context.state.entitlement !== ChatEntitlement.Limited && this.context.state.entitlement !== ChatEntitlement.Pro && this.context.state.entitlement !== ChatEntitlement.Unavailable) {
+				didSignUp = await this.requests.signUpLimited(session);
+			}
 
 			await this.extensionsWorkbenchService.install(defaultChat.extensionId, {
 				enable: true,
