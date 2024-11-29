@@ -34,7 +34,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IChatViewsWelcomeContributionRegistry, ChatViewsWelcomeExtensions } from './viewsWelcome/chatViewsWelcome.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { $, getActiveElement } from '../../../../base/browser/dom.js';
+import { $, getActiveElement, setVisibility } from '../../../../base/browser/dom.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -763,7 +763,8 @@ class ChatSetupWelcomeContent extends Disposable {
 
 		// Limited SKU
 		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="[{0}]({1})"}'] }, "We now offer a [{0}]({1}) plan.", defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
-		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true }))).element);
+		const limitedSkuHeaderContainer = this.element.appendChild($('p'));
+		limitedSkuHeaderContainer.appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true }))).element);
 
 		// Terms
 		const terms = localize({ key: 'termsLabel', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "By continuing, you agree to our [Terms and Conditions]({0}).", defaultChat.privacyStatementUrl);
@@ -775,28 +776,33 @@ class ChatSetupWelcomeContent extends Disposable {
 		this._register(button.onDidClick(() => this.controller.setup()));
 
 		// Update based on model state
-		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(button)));
+		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(limitedSkuHeaderContainer, button)));
 	}
 
-	private update(button: Button): void {
+	private update(limitedSkuHeaderContainer: HTMLElement, button: Button): void {
 		switch (this.controller.step) {
 			case ChatSetupStep.Initial:
 				{
+					let showLimitedSkuHeader: boolean;
 					let buttonLabel: string;
 					switch (this.context.state.entitlement) {
 						case ChatEntitlement.Unknown:
 						case ChatEntitlement.Unresolved:
 						case ChatEntitlement.Available:
+							showLimitedSkuHeader = true;
 							buttonLabel = localize('signIn', "Sign up for {0}", defaultChat.entitlementSkuTypeLimitedName);
 							break;
 						case ChatEntitlement.Limited:
+							showLimitedSkuHeader = false;
 							buttonLabel = localize('startUpLimited', "Start {0}", defaultChat.entitlementSkuTypeLimitedName);
 						case ChatEntitlement.Pro:
 						case ChatEntitlement.Unavailable:
+							showLimitedSkuHeader = false;
 							buttonLabel = localize('startUp', "Start Copilot", defaultChat.entitlementSkuTypeLimitedName);
 							break;
 					}
 
+					setVisibility(showLimitedSkuHeader, limitedSkuHeaderContainer);
 					button.label = buttonLabel;
 					button.enabled = true;
 					break;
