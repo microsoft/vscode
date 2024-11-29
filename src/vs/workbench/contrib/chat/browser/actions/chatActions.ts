@@ -527,7 +527,7 @@ const defaultChat = {
 
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	submenu: MenuId.ChatCommandCenter,
-	title: localize('title4', "Copilot"),
+	title: localize('title4', "Chat"),
 	icon: Codicon.copilot,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),

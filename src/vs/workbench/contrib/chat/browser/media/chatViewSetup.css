@@ -12,6 +12,7 @@
 
 	.chat-features-container {
 		text-align: initial;
+		border-radius: 2px;
 		border: 1px solid var(--vscode-chat-requestBorder);
 		background-color: var(--vscode-chat-requestBackground);
 	}
@@ -35,7 +36,6 @@
 
 	.monaco-button-dropdown {
 		width: 100%;
-		padding: 4px 7px;
 	}
 
 	.monaco-button-dropdown .monaco-text-button {
