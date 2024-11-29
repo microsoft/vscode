@@ -237,7 +237,9 @@ export interface IModifiedTextFileEntry extends IModifiedAnyFileEntry {
 export interface IModifiedNotebookFileEntry extends IModifiedAnyFileEntry {
 	readonly kind: 'notebook';
 	readonly viewType: string;
-	readonly originalModel: INotebookTextModel;
+	// For backward compatibility, we keep the original Text model for the synchronizer.
+	readonly originalModel: ITextModel;
+	readonly originalNotebookModel: INotebookTextModel;
 	readonly modifiedModel: INotebookTextModel;
 	readonly diffInfo: IObservable<ICellDiffInfo[]>;
 	acceptAgentCellEdits(cellUri: URI, textEdits: TextEdit[], isLastEdits: boolean): void;
