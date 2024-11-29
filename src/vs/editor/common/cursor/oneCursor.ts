@@ -81,11 +81,26 @@ export class Cursor {
 		this._setState(context, modelState, viewState);
 	}
 
+	private static _validatePosition(viewModel: ICursorSimpleModel, position: Position): Position {
+		const lineNumber = position.lineNumber;
+		const column = position.column;
+		const maxColumn = viewModel.getLineMaxColumn(lineNumber);
+		if (column > maxColumn) {
+			// If right normalization at the end of the line puts us on the next line,
+			// we're on a wrapped line and not the last segment, so we cannot use virtual space
+			const rightNormalized = viewModel.normalizePosition(new Position(lineNumber, maxColumn), PositionAffinity.Right);
+			if (lineNumber !== rightNormalized.lineNumber) {
+				return new Position(lineNumber, maxColumn);
+			}
+		}
+		return viewModel.normalizePosition(position, PositionAffinity.None);
+	}
+
 	private static _validatePositionWithCache(viewModel: ICursorSimpleModel, position: Position, cacheInput: Position, cacheOutput: Position): Position {
 		if (position.equals(cacheInput)) {
 			return cacheOutput;
 		}
-		return viewModel.normalizePosition(position, PositionAffinity.None);
+		return this._validatePosition(viewModel, position);
 	}
 
 	private static _validateViewState(viewModel: ICursorSimpleModel, viewState: SingleCursorState): SingleCursorState {
@@ -93,7 +108,7 @@ export class Cursor {
 		const sStartPosition = viewState.selectionStart.getStartPosition();
 		const sEndPosition = viewState.selectionStart.getEndPosition();
 
-		const validPosition = viewModel.normalizePosition(position, PositionAffinity.None);
+		const validPosition = this._validatePosition(viewModel, position);
 		const validSStartPosition = this._validatePositionWithCache(viewModel, sStartPosition, position, validPosition);
 		const validSEndPosition = this._validatePositionWithCache(viewModel, sEndPosition, sStartPosition, validSStartPosition);
 

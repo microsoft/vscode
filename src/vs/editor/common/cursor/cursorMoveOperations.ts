@@ -102,10 +102,13 @@ export class MoveOperations {
 			// for possibly negative columns.
 			const clippedPos = MoveOperations.clipPositionColumn(pos, minColumn, maxColumn);
 			const normalizedPos = model.normalizePosition(clippedPos, PositionAffinity.Left);
-			if (virtualSpace && pos.column > maxColumn) {
+			// If normalization moves us to the previous line, we're in the middle of a wrapped line
+			// We're neither at the beginning of the line, nor at the end
+			const sameLine = clippedPos.lineNumber === normalizedPos.lineNumber;
+			if (virtualSpace && sameLine && pos.column > maxColumn) { // Are we in virtual space?
 				lineNumber = pos.lineNumber;
 				column = pos.column - 1;
-			} else if (virtualSpace && normalizedPos.column <= minColumn) {
+			} else if (virtualSpace && sameLine && normalizedPos.column <= minColumn) { // Are we at the beginning of a line?
 				lineNumber = pos.lineNumber;
 				column = minColumn;
 			} else {
@@ -184,7 +187,9 @@ export class MoveOperations {
 			const maxColumn = model.getLineMaxColumn(pos.lineNumber);
 			const clippedPos = MoveOperations.clipPositionColumn(pos, minColumn, maxColumn);
 			const normalizedPos = model.normalizePosition(clippedPos, PositionAffinity.Right);
-			if (virtualSpace && normalizedPos.column >= maxColumn) {
+			// If normalization moves us to the next line, we're on a wrapped line and not the last segment, so we cannot use virtual space
+			const sameLine = clippedPos.lineNumber === normalizedPos.lineNumber;
+			if (virtualSpace && sameLine && normalizedPos.column >= maxColumn) {
 				lineNumber = normalizedPos.lineNumber;
 				column = Math.max(pos.column, normalizedPos.column) + 1;
 			} else {
