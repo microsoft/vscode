@@ -17,7 +17,7 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ICellEditOperation, INotebookTextModel } from '../../notebook/common/notebookCommon.js';
+import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentResult } from './chatAgents.js';
 import { IChatResponseModel } from './chatModel.js';
 
@@ -143,7 +143,6 @@ export interface INotebookSnapshotEntry extends IBaseSnapshotEntry {
 	readonly current: VSBuffer;
 	/** Cell index along with edit offsets */
 	readonly originalToCurrentEdits: Map<number, OffsetEdit>;
-	readonly diffInfo: ICellDiffInfo[];
 	serialize(): Promise<INotebookSnapshotEntryDTO>;
 }
 export type ISnapshotEntry = ITextSnapshotEntry | INotebookSnapshotEntry;
@@ -164,9 +163,6 @@ export interface ITextSnapshotEntryDTO extends IBaseSnapshotEntryDTO {
 
 export interface INotebookSnapshotEntryDTO extends IBaseSnapshotEntryDTO {
 	readonly kind: 'notebook';
-	readonly viewType: string;
-	readonly originalToCurrentEdits: Record<number, IOffsetEdit>;
-	readonly diffInfo: ICellDiffInfo[];
 }
 export type ISnapshotEntryDTO = ITextSnapshotEntryDTO | INotebookSnapshotEntryDTO;
 
@@ -203,26 +199,6 @@ interface IModifiedAnyFileEntry extends IDisposable {
 	resetToInitialValue(): Promise<void>;
 }
 
-export type ICellDiffInfo = {
-	originalCellIndex: number;
-	modifiedCellIndex: number;
-	type: 'unchanged';
-} | {
-	originalCellIndex: number;
-	modifiedCellIndex: number;
-	type: 'modified';
-	diff: IDocumentDiff;
-} |
-{
-	originalCellIndex: number;
-	type: 'delete';
-} |
-{
-	modifiedCellIndex: number;
-	type: 'insert';
-};
-
-
 export interface IModifiedTextFileEntry extends IModifiedAnyFileEntry {
 	readonly kind: 'text';
 	readonly originalModel: ITextModel;
@@ -237,11 +213,7 @@ export interface IModifiedTextFileEntry extends IModifiedAnyFileEntry {
 export interface IModifiedNotebookFileEntry extends IModifiedAnyFileEntry {
 	readonly kind: 'notebook';
 	readonly viewType: string;
-	// For backward compatibility, we keep the original Text model for the synchronizer.
 	readonly originalModel: ITextModel;
-	readonly originalNotebookModel: INotebookTextModel;
-	readonly modifiedModel: INotebookTextModel;
-	readonly diffInfo: IObservable<ICellDiffInfo[]>;
 	acceptAgentCellEdits(cellUri: URI, textEdits: TextEdit[], isLastEdits: boolean): void;
 	acceptAgentNotebookEdits(edits: ICellEditOperation[], isLastEdits: boolean): Promise<void>;
 	createSnapshot(requestId: string | undefined): Promise<INotebookSnapshotEntry>;
