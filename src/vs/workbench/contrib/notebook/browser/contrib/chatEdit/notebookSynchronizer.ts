@@ -21,7 +21,6 @@ import { EditOperation } from '../../../../../../editor/common/core/editOperatio
 import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
 import { filter } from '../../../../../../base/common/objects.js';
 import { INotebookEditorModelResolverService } from '../../../common/notebookEditorModelResolverService.js';
-import { SaveReason } from '../../../../../common/editor.js';
 import { IChatService } from '../../../../chat/common/chatService.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { INotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
