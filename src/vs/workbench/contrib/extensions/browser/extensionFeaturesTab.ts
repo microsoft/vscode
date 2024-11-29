@@ -134,6 +134,11 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 			const accessData = this.extensionFeaturesManagementService.getAccessData(extensionId, feature.id);
 			if (accessData?.accessTimes.length) {
 				if (accessData?.accessTimes.length) {
+					const description = append(container,
+						$('.feature-chart-description',
+							undefined,
+							localize('chartDescription', "There were {0} {1} requests from this extension in the last 30 days.", accessData?.accessTimes.length, feature.label)));
+					description.style.marginBottom = '8px';
 					this.renderRequestsChart(container, accessData.accessTimes, disposables);
 				}
 			}
@@ -159,12 +164,6 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 	}
 
 	private renderRequestsChart(container: HTMLElement, accessTimes: Date[], disposables: DisposableStore): void {
-		const description = append(container,
-			$('.feature-chart-description',
-				undefined,
-				localize('chartDescription', "There were {0} Copilot requests from this extension in the last 30 days.", accessTimes.length)));
-		description.style.marginBottom = '8px';
-
 		const width = 450;
 		const height = 250;
 		const margin = { top: 0, right: 4, bottom: 20, left: 4 };
@@ -286,8 +285,8 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 				highlightCircle.setAttribute('cx', `${closestPoint.x}`);
 				highlightCircle.setAttribute('cy', `${closestPoint.y}`);
 				highlightCircle.style.display = 'block';
-				tooltip.style.left = `${closestPoint.x + margin.left}px`;
-				tooltip.style.top = `${closestPoint.y - 5}px`;
+				tooltip.style.left = `${closestPoint.x + 24}px`;
+				tooltip.style.top = `${closestPoint.y + 14}px`;
 				hoverDisposable.value = this.hoverService.showHover({
 					content: new MarkdownString(`${closestPoint.date}: ${closestPoint.count} requests`),
 					target: tooltip,
