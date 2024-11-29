@@ -785,7 +785,7 @@ class ChatSetupWelcomeContent extends Disposable {
 					if (this.context.state.installed) {
 						actions.push(toAction({ id: 'chatSetup.signInGh', label: localize('signInGh', "Sign in to GitHub.com"), run: () => this.commandService.executeCommand('github.copilotChat.signIn') }));
 						actions.push(toAction({ id: 'chatSetup.signInGhe', label: localize('signInGhd', "Sign in with a GHE.com account"), run: () => this.commandService.executeCommand('github.copilotChat.signInGHE') }));
-					} else {
+					} else if (this.context.state.entitlement === ChatEntitlement.Unknown) {
 						actions.push(toAction({ id: 'chatSetup.signIn', label: localize('signIn', "Sign in to {0}", defaultChat.providerName), run: () => this.controller.setup() }));
 					}
 
