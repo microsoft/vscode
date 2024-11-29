@@ -11,11 +11,13 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { IResolvedTextFileEditorModel } from '../../../../services/textfile/common/textfiles.js';
 import { ChatEditKind } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo } from './chatEditingModifiedFileEntry.js';
 
 export class ChatEditingModifiedNotebookEntry extends ChatEditingModifiedFileEntry {
+	private readonly resolveTextFileEditorModel: IResolvedTextFileEditorModel;
 	constructor(
 		resourceRef: IReference<IResolvedTextEditorModel>,
 		_multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
@@ -31,5 +33,14 @@ export class ChatEditingModifiedNotebookEntry extends ChatEditingModifiedFileEnt
 		@IFileService _fileService: IFileService,
 	) {
 		super(resourceRef, _multiDiffEntryDelegate, _telemetryInfo, kind, initialContent, modelService, textModelService, languageService, _chatService, _editorWorkerService, _undoRedoService, _fileService);
+		this.resolveTextFileEditorModel = resourceRef.object as IResolvedTextFileEditorModel;
+	}
+
+	async saveMirrorDocument(): Promise<void> {
+		await this.resolveTextFileEditorModel.save();
+	}
+
+	async revertMirrorDocument(): Promise<void> {
+		await this.resolveTextFileEditorModel.revert({ soft: true });
 	}
 }
