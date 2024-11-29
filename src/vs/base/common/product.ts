@@ -305,15 +305,10 @@ export interface IAiGeneratedWorkspaceTrust {
 
 export interface IDefaultChatAgent {
 	readonly extensionId: string;
-	readonly name: string;
-	readonly icon: string;
 	readonly chatExtensionId: string;
-	readonly chatName: string;
-	readonly chatWelcomeTitle: string;
 	readonly documentationUrl: string;
 	readonly privacyStatementUrl: string;
 	readonly skusDocumentationUrl: string;
-	readonly publicCodeMatchesUrl: string;
 	readonly manageSettingsUrl: string;
 	readonly managePlanUrl: string;
 	readonly providerId: string;
@@ -321,6 +316,5 @@ export interface IDefaultChatAgent {
 	readonly providerScopes: string[][];
 	readonly entitlementUrl: string;
 	readonly entitlementSignupLimitedUrl: string;
-	readonly entitlementSkuTypeLimited: string;
 	readonly entitlementSkuTypeLimitedName: string;
 }

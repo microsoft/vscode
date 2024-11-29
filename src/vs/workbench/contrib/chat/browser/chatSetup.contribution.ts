@@ -54,19 +54,14 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
-	name: product.defaultChatAgent?.name ?? '',
-	icon: Codicon[product.defaultChatAgent?.icon as keyof typeof Codicon ?? 'commentDiscussion'],
-	chatWelcomeTitle: product.defaultChatAgent?.chatWelcomeTitle ?? '',
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? '',
 	skusDocumentationUrl: product.defaultChatAgent?.skusDocumentationUrl ?? '',
-	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	providerName: product.defaultChatAgent?.providerName ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
 	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
-	entitlementSkuTypeLimited: product.defaultChatAgent?.entitlementSkuTypeLimited ?? '',
 	entitlementSkuTypeLimitedName: product.defaultChatAgent?.entitlementSkuTypeLimitedName ?? ''
 };
 
@@ -111,7 +106,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 	private registerChatWelcome(): void {
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
-			title: defaultChat.chatWelcomeTitle,
+			title: localize('welcomeChat', "Welcome to Copilot"),
 			when: ContextKeyExpr.or(
 				ContextKeyExpr.and(
 					ChatContextKeys.Setup.triggered,
@@ -126,7 +121,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 					ChatContextKeys.Setup.installed
 				)!
 			)!,
-			icon: defaultChat.icon,
+			icon: Codicon.copilot,
 			content: disposables => disposables.add(this.instantiationService.createInstance(ChatSetupWelcomeContent, this.controller, this.context)).element,
 		});
 	}
@@ -436,7 +431,7 @@ class ChatSetupRequests extends Disposable {
 		let entitlement: ChatEntitlement;
 		if (entitlementsResponse.chat_enabled) {
 			entitlement = ChatEntitlement.Pro;
-		} else if (entitlementsResponse.access_type_sku === defaultChat.entitlementSkuTypeLimited) {
+		} else if (entitlementsResponse.access_type_sku === 'free_limited_copilot') {
 			entitlement = ChatEntitlement.Limited;
 		} else if (entitlementsResponse.can_signup_for_limited) {
 			entitlement = ChatEntitlement.Available;
