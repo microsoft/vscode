@@ -28,6 +28,7 @@ import { editorSelectionBackground } from '../../../../../platform/theme/common/
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { SaveReason } from '../../../../common/editor.js';
 import { IResolvedTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
+import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { IChatAgentResult } from '../../common/chatAgents.js';
 import { ChatEditKind, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
@@ -129,6 +130,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@IFileService private readonly _fileService: IFileService,
+		@INotebookService private readonly _notebookService: INotebookService,
 	) {
 		super();
 		if (kind === ChatEditKind.Created) {
@@ -392,7 +394,14 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			if (this._allEditsAreFromUs) {
 				// save the file after discarding so that the dirty indicator goes away
 				// and so that an intermediate saved state gets reverted
-				await this.docFileEditorModel.save({ reason: SaveReason.EXPLICIT });
+				if (this._notebookService.hasSupportedNotebooks(this.modifiedURI)) {
+					// For notebooks ignore the save participant,
+					// For Jupyter notebooks, the JSON must always have an ending newline
+					// However save participants will remove that trailing new line.
+					await this.docFileEditorModel.save({ reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
+				} else {
+					await this.docFileEditorModel.save({ reason: SaveReason.EXPLICIT });
+				}
 			}
 			await this.collapse(transaction);
 		}
