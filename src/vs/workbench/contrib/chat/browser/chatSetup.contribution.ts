@@ -170,8 +170,8 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				if (location !== ViewContainerLocation.Panel) {
 					const viewPart = location === ViewContainerLocation.Sidebar ? Parts.SIDEBAR_PART : Parts.AUXILIARYBAR_PART;
 					const partSize = layoutService.getSize(viewPart);
-					if (partSize.width < 350) {
-						layoutService.setSize(viewPart, { width: 350, height: partSize.height });
+					if (partSize.width < 400) {
+						layoutService.setSize(viewPart, { width: 400, height: partSize.height });
 					}
 				}
 
