@@ -78,7 +78,11 @@ enum ChatEntitlement {
 	/** Signed in and entitled to Sign-up */
 	Available,
 	/** Signed in but not entitled to Sign-up */
-	Unavailable
+	Unavailable,
+	/** Signed-up to limited */
+	Limited,
+	/** Signed-up to pro */
+	Pro
 }
 
 //#region Contribution
@@ -243,8 +247,6 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 type EntitlementClassification = {
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating the chat entitlement state' };
-	entitled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat setup entitled' };
-	limited: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the user is chat setup limited' };
 	quotaChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat completions available to the user' };
 	quotaCompletions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat completions available to the user' };
 	owner: 'bpasero';
@@ -253,8 +255,6 @@ type EntitlementClassification = {
 
 type EntitlementEvent = {
 	entitlement: ChatEntitlement;
-	entitled: boolean;
-	limited: boolean;
 	quotaChat: number | undefined;
 	quotaCompletions: number | undefined;
 };
@@ -277,10 +277,8 @@ interface IQuotas {
 	readonly resetDate?: string;
 }
 
-interface IEntitlements {
+interface IChatEntitlements {
 	readonly entitlement: ChatEntitlement;
-	readonly entitled?: boolean;
-	readonly limited?: boolean;
 	readonly quotas?: IQuotas;
 }
 
@@ -288,9 +286,7 @@ const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
 
 class ChatSetupRequests extends Disposable {
 
-	private static readonly CHAT_SETUP_REQUEST_STORAGE_KEY = 'chat.setupEntitlements';
-
-	private state: IEntitlements = this.storageService.getObject<IEntitlements>(ChatSetupRequests.CHAT_SETUP_REQUEST_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown };
+	private state: IChatEntitlements = { entitlement: this.context.state.entitlement ?? ChatEntitlement.Unknown };
 
 	private pendingResolveCts = new CancellationTokenSource();
 	private didResolveEntitlements = false;
@@ -301,7 +297,6 @@ class ChatSetupRequests extends Disposable {
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IRequestService private readonly requestService: IRequestService,
 	) {
 		super();
@@ -343,7 +338,7 @@ class ChatSetupRequests extends Disposable {
 		}
 
 		// Immediately signal whether we have a session or not
-		let state: IEntitlements | undefined = undefined;
+		let state: IChatEntitlements | undefined = undefined;
 		if (session) {
 			// Do not overwrite any state we have already
 			if (this.state.entitlement === ChatEntitlement.Unknown) {
@@ -395,7 +390,7 @@ class ChatSetupRequests extends Disposable {
 		return resolvedEntitlements?.entitlement;
 	}
 
-	private async doResolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<IEntitlements | undefined> {
+	private async doResolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<IChatEntitlements | undefined> {
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
@@ -407,12 +402,12 @@ class ChatSetupRequests extends Disposable {
 
 		if (!response) {
 			this.logService.trace('[chat setup] entitlement: no response');
-			return { entitlement: ChatEntitlement.Unresolved, limited: false, entitled: false };
+			return { entitlement: ChatEntitlement.Unresolved };
 		}
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
 			this.logService.trace(`[chat setup] entitlement: unexpected status code ${response.res.statusCode}`);
-			return { entitlement: ChatEntitlement.Unresolved, limited: false, entitled: false };
+			return { entitlement: ChatEntitlement.Unresolved };
 		}
 
 		const responseText = await asText(response);
@@ -422,7 +417,7 @@ class ChatSetupRequests extends Disposable {
 
 		if (!responseText) {
 			this.logService.trace('[chat setup] entitlement: response has no content');
-			return { entitlement: ChatEntitlement.Unresolved, limited: false, entitled: false };
+			return { entitlement: ChatEntitlement.Unresolved };
 		}
 
 		let entitlementsResponse: IEntitlementsResponse;
@@ -431,13 +426,22 @@ class ChatSetupRequests extends Disposable {
 			this.logService.trace(`[chat setup] entitlement: parsed result is ${JSON.stringify(entitlementsResponse)}`);
 		} catch (err) {
 			this.logService.trace(`[chat setup] entitlement: error parsing response (${err})`);
-			return { entitlement: ChatEntitlement.Unresolved, limited: false, entitled: false };
+			return { entitlement: ChatEntitlement.Unresolved };
 		}
 
-		const entitlements: IEntitlements = {
-			entitlement: entitlementsResponse.can_signup_for_limited ? ChatEntitlement.Available : ChatEntitlement.Unavailable,
-			entitled: entitlementsResponse.chat_enabled,
-			limited: entitlementsResponse.access_type_sku === defaultChat.entitlementSkuTypeLimited,
+		let entitlement: ChatEntitlement;
+		if (entitlementsResponse.chat_enabled) {
+			entitlement = ChatEntitlement.Pro;
+		} else if (entitlementsResponse.access_type_sku === defaultChat.entitlementSkuTypeLimited) {
+			entitlement = ChatEntitlement.Limited;
+		} else if (entitlementsResponse.can_signup_for_limited) {
+			entitlement = ChatEntitlement.Available;
+		} else {
+			entitlement = ChatEntitlement.Unavailable;
+		}
+
+		const entitlements: IChatEntitlements = {
+			entitlement,
 			quotas: {
 				chat: entitlementsResponse.limited_user_quotas?.chat,
 				completions: entitlementsResponse.limited_user_quotas?.completions,
@@ -445,11 +449,9 @@ class ChatSetupRequests extends Disposable {
 			}
 		};
 
-		this.logService.trace(`[chat setup] entitlement: resolved to ${entitlements.entitlement}, entitled: ${entitlements.entitled}, limited: ${entitlements.limited}`);
+		this.logService.trace(`[chat setup] entitlement: resolved to ${entitlements.entitlement}, quotas: ${JSON.stringify(entitlements.quotas)}`);
 		this.telemetryService.publicLog2<EntitlementEvent, EntitlementClassification>('chatInstallEntitlement', {
 			entitlement: entitlements.entitlement,
-			entitled: !!entitlements.entitled,
-			limited: !!entitlements.limited,
 			quotaChat: entitlementsResponse.limited_user_quotas?.chat,
 			quotaCompletions: entitlementsResponse.limited_user_quotas?.completions
 		});
@@ -476,16 +478,10 @@ class ChatSetupRequests extends Disposable {
 		}
 	}
 
-	private update(state: IEntitlements): void {
+	private update(state: IChatEntitlements): void {
 		this.state = state;
-		this.storageService.store(ChatSetupRequests.CHAT_SETUP_REQUEST_STORAGE_KEY, this.state, StorageScope.PROFILE, StorageTarget.MACHINE);
 
-		this.context.update({
-			signedOut: this.state.entitlement === ChatEntitlement.Unknown,
-			canSignUp: this.state.entitlement === ChatEntitlement.Available,
-			limited: !!this.state.limited,
-			entitled: !!this.state.entitled
-		});
+		this.context.update({ entitlement: this.state.entitlement });
 	}
 
 	async forceResolveEntitlement(session: AuthenticationSession): Promise<ChatEntitlement | undefined> {
@@ -531,11 +527,9 @@ class ChatSetupRequests extends Disposable {
 			this.logService.error('[chat setup] sign-up: not subscribed');
 		}
 
-		this.update({
-			entitlement: subscribed ? ChatEntitlement.Unavailable : ChatEntitlement.Available,
-			entitled: false,
-			limited: subscribed
-		});
+		if (subscribed) {
+			this.update({ entitlement: ChatEntitlement.Limited });
+		}
 
 		return subscribed;
 	}
@@ -633,7 +627,7 @@ class ChatSetupController extends Disposable {
 			let session: AuthenticationSession | undefined;
 
 			// Entitlement Unknown: we need to sign-in user
-			if (this.context.state.signedOut) {
+			if (this.context.state.entitlement === ChatEntitlement.Unknown) {
 				this.setStep(ChatSetupStep.SigningIn);
 				session = await this.signIn();
 				if (!session) {
@@ -688,7 +682,7 @@ class ChatSetupController extends Disposable {
 
 			this.context.suspend();  // reduces flicker
 
-			if (this.context.state.canSignUp) {
+			if (this.context.state.entitlement === ChatEntitlement.Available) {
 				didSignUp = await this.requests.signUpLimited(session, enableTelemetry, enableDetection);
 			} else {
 				this.logService.trace('[chat setup] install: not signing up to limited SKU');
@@ -791,8 +785,8 @@ class ChatSetupWelcomeContent extends Disposable {
 	}
 
 	private update(limitedSkuHeaderElement: HTMLElement, limitedCheckboxContainers: HTMLElement[], limitedCheckboxes: Checkbox[], button: Button): void {
-		setVisibility(Boolean(this.context.state.canSignUp || this.context.state.signedOut), limitedSkuHeaderElement);
-		setVisibility(Boolean(this.context.state.canSignUp), ...limitedCheckboxContainers);
+		setVisibility(Boolean(this.context.state.entitlement === ChatEntitlement.Unknown || this.context.state.entitlement === ChatEntitlement.Available), limitedSkuHeaderElement);
+		setVisibility(Boolean(this.context.state.entitlement === ChatEntitlement.Available), ...limitedCheckboxContainers);
 
 		switch (this.controller.step) {
 			case ChatSetupStep.Initial:
@@ -801,8 +795,8 @@ class ChatSetupWelcomeContent extends Disposable {
 				}
 
 				button.enabled = true;
-				button.label = this.context.state.canSignUp ?
-					localize('startSetupLimited', "Start Using {0}", defaultChat.entitlementSkuTypeLimitedName) : this.context.state.signedOut ?
+				button.label = this.context.state.entitlement === ChatEntitlement.Available ?
+					localize('startSetupLimited', "Start Using {0}", defaultChat.entitlementSkuTypeLimitedName) : this.context.state.entitlement === ChatEntitlement.Unknown ?
 						localize('signInToStartSetup', "Sign in to Start") :
 						localize('startSetupLimited', "Start Using {0}", defaultChat.name);
 				break;
@@ -839,10 +833,7 @@ function showCopilotView(viewsService: IViewsService): Promise<IChatWidget | und
 }
 
 interface IChatSetupContextState {
-	readonly canSignUp?: boolean;
-	readonly signedOut?: boolean;
-	readonly entitled?: boolean;
-	readonly limited?: boolean;
+	readonly entitlement?: ChatEntitlement;
 	readonly triggered?: boolean;
 	readonly installed?: boolean;
 }
@@ -902,8 +893,8 @@ class ChatSetupContext extends Disposable {
 
 	update(context: { installed: boolean }): Promise<void>;
 	update(context: { triggered: boolean }): Promise<void>;
-	update(context: { signedOut: boolean; limited: boolean; entitled: boolean; canSignUp: boolean }): Promise<void>;
-	update(context: { installed?: boolean; triggered?: boolean; signedOut?: boolean; limited?: boolean; entitled?: boolean; canSignUp?: boolean }): Promise<void> {
+	update(context: { entitlement: ChatEntitlement }): Promise<void>;
+	update(context: { installed?: boolean; triggered?: boolean; entitlement?: ChatEntitlement }): Promise<void> {
 		if (typeof context.installed === 'boolean') {
 			this._state.installed = context.installed;
 
@@ -916,20 +907,8 @@ class ChatSetupContext extends Disposable {
 			this._state.triggered = context.triggered;
 		}
 
-		if (typeof context.signedOut === 'boolean') {
-			this._state.signedOut = context.signedOut;
-		}
-
-		if (typeof context.canSignUp === 'boolean') {
-			this._state.canSignUp = context.canSignUp;
-		}
-
-		if (typeof context.limited === 'boolean') {
-			this._state.limited = context.limited;
-		}
-
-		if (typeof context.entitled === 'boolean') {
-			this._state.entitled = context.entitled;
+		if (typeof context.entitlement === 'number') {
+			this._state.entitlement = context.entitlement;
 		}
 
 		this.storageService.store(ChatSetupContext.CHAT_SETUP_CONTEXT_STORAGE_KEY, this._state, StorageScope.PROFILE, StorageTarget.MACHINE);
