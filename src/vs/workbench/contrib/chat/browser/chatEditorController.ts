@@ -388,6 +388,10 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		}));
 	}
 
+	unlockScroll(): void {
+		this._scrollLock = false;
+	}
+
 	initNavigation(): void {
 		const position = this._editor.getPosition();
 		const range = position && this._diffLineDecorations.getRanges().find(r => r.containsPosition(position));
