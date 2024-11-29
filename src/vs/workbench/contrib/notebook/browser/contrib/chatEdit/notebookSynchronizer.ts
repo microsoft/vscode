@@ -169,6 +169,12 @@ export class NotebookModelSynchronizer extends Disposable {
 				cells: [],
 			};
 
+			const indentAmount = this.model.metadata.indentAmount || ref.object.notebook.metadata.indentAmount || undefined;
+			if (typeof indentAmount === 'string' && indentAmount) {
+				// This is required for ipynb serializer to preserve the whitespace in the notebook.
+				data.metadata.indentAmount = indentAmount;
+			}
+
 			let outputSize = 0;
 			for (const cell of this.model.cells) {
 				const cellData: ICellDto2 = {
@@ -213,7 +219,11 @@ export class NotebookModelSynchronizer extends Disposable {
 		if (!this.snapshot) {
 			return;
 		}
-		await this.updateNotebook(this.snapshot.bytes, !this.snapshot.dirty);
+
+		// Even when reverting, we will never save,
+		// When reverting we expect the JSON file to be reverted,
+		// & as a result of that, we expect the JSON to be eventually saved to disc.
+		await this.updateNotebook(this.snapshot.bytes, false);
 		this._diffInfo.set(undefined, undefined);
 	}
 
