@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
@@ -139,10 +138,6 @@ export interface ITextSnapshotEntry extends IBaseSnapshotEntry {
 
 export interface INotebookSnapshotEntry extends IBaseSnapshotEntry {
 	kind: 'notebook';
-	readonly original: VSBuffer;
-	readonly current: VSBuffer;
-	/** Cell index along with edit offsets */
-	readonly originalToCurrentEdits: Map<number, OffsetEdit>;
 	serialize(): Promise<INotebookSnapshotEntryDTO>;
 }
 export type ISnapshotEntry = ITextSnapshotEntry | INotebookSnapshotEntry;
@@ -212,9 +207,8 @@ export interface IModifiedTextFileEntry extends IModifiedAnyFileEntry {
 
 export interface IModifiedNotebookFileEntry extends IModifiedAnyFileEntry {
 	readonly kind: 'notebook';
-	readonly viewType: string;
 	readonly originalModel: ITextModel;
-	acceptAgentCellEdits(cellUri: URI, textEdits: TextEdit[], isLastEdits: boolean): void;
+	acceptAgentEdits(cellUri: URI, textEdits: TextEdit[], isLastEdits: boolean): void;
 	acceptAgentNotebookEdits(edits: ICellEditOperation[], isLastEdits: boolean): Promise<void>;
 	createSnapshot(requestId: string | undefined): Promise<INotebookSnapshotEntry>;
 	restoreFromSnapshot(snapshot: INotebookSnapshotEntry): Promise<void>;
