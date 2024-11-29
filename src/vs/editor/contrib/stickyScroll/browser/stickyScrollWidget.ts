@@ -114,31 +114,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._register(this._editor.onDidLayoutChange((e) => {
 			this._updateWidgetWidth();
 		}));
-		const model = this._editor.getModel();
-		if (model) {
-			this._register(model.onDidChangeSpecialLineHeight((e) => {
-				e.changes.forEach((a) => {
-					const lineNumber = a.lineNumber;
-					const lineHeight = a.lineHeight;
-					if (lineHeight !== null) {
-						this.specialLineHeights.set(lineNumber, lineHeight);
-					} else {
-						this.specialLineHeights.delete(lineNumber);
-					}
-				});
-			}));
-			this._register(model.onDidChangeSpecialLineFontSize((e) => {
-				e.changes.forEach((a) => {
-					const lineNumber = a.lineNumber;
-					const lineFontSize = a.lineFontSize;
-					if (lineFontSize !== null) {
-						this.specialLineFontSizes.set(lineNumber, lineFontSize);
-					} else {
-						this.specialLineFontSizes.delete(lineNumber);
-					}
-				});
-			}));
-		}
 		this._updateWidgetWidth();
 	}
 
@@ -159,6 +134,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	setState(_state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | undefined, _rebuildFromLine?: number): void {
+		console.log('setState, _state.startLineNumbers : ', _state?.startLineNumbers);
 		if (_rebuildFromLine === undefined &&
 			((!this._previousState && !_state) || (this._previousState && this._previousState.equals(_state)))
 		) {
@@ -275,9 +251,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.layoutOverlayWidget(this);
 	}
 
-	private _getStickyScrollWidgetFullHeight(lineNumbers: number[]): number {
+	private _getStickyScrollWidgetFullHeight(lineNumbers: number[], untilIndex?: number): number {
 		let totalHeight = 0;
-		for (const lineNumber of lineNumbers) {
+		const indexToSumUntil = untilIndex ?? lineNumbers.length;
+		for (let i = 0; i < indexToSumUntil; i++) {
+			const lineNumber = lineNumbers[i];
 			totalHeight += this.specialLineHeights.get(lineNumber) ?? this._lineHeight;
 		}
 		return totalHeight;
@@ -398,10 +376,20 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineNumberHTMLNode.style.zIndex = isLastLine ? lastLineZIndex : intermediateLineZIndex;
 
 		// --
-		const lastLineTop = `${index * this._lineHeight + this._lastLineRelativePosition + (stickyLine.foldingIcon?.isCollapsed ? 1 : 0)}px`;
+		console.log('index', index);
+		console.log('this._lineNumbers : ', this._lineNumbers);
+		console.log('this._lastLineRelativePosition', this._lastLineRelativePosition);
+		const widgetHeight = this._getStickyScrollWidgetFullHeight(this._lineNumbers, index);
+		console.log('widgetHeight', widgetHeight);
+		const lastLineTop = `${widgetHeight + this._lastLineRelativePosition + (stickyLine.foldingIcon?.isCollapsed ? 1 : 0)}px`;
 		const intermediateLineTop = `${index * this._lineHeight}px`;
-		lineHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
-		lineNumberHTMLNode.style.top = isLastLine ? lastLineTop : intermediateLineTop;
+		console.log('isLastLine', isLastLine);
+		console.log('lastLineTop', lastLineTop);
+		console.log('intermediateLineTop', intermediateLineTop);
+		const top = isLastLine ? lastLineTop : intermediateLineTop;
+		console.log('top', top);
+		lineHTMLNode.style.top = top;
+		lineNumberHTMLNode.style.top = top;
 		return stickyLine;
 	}
 
