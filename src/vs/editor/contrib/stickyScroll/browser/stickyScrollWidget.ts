@@ -297,6 +297,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			newLine = sb.build();
 		}
 
+		// Need to set the line height from the decoration line height and font size
 		const lineHTMLNode = document.createElement('span');
 		lineHTMLNode.setAttribute(STICKY_INDEX_ATTR, String(index));
 		lineHTMLNode.setAttribute(STICKY_IS_LINE_ATTR, '');
