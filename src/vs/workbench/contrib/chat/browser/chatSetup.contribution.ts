@@ -70,7 +70,8 @@ const defaultChat = {
 	entitlementCanSignupLimited: product.defaultChatAgent?.entitlementCanSignupLimited ?? '',
 	entitlementSkuType: product.defaultChatAgent?.entitlementSkuType ?? '',
 	entitlementSkuTypeLimited: product.defaultChatAgent?.entitlementSkuTypeLimited ?? '',
-	entitlementSkuTypeLimitedName: product.defaultChatAgent?.entitlementSkuTypeLimitedName ?? ''
+	entitlementSkuTypeLimitedName: product.defaultChatAgent?.entitlementSkuTypeLimitedName ?? '',
+	managePlanUrl: product.defaultChatAgent?.managePlanUrl ?? '',
 };
 
 enum ChatEntitlement {
@@ -235,8 +236,60 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 			}
 		}
 
+		const outOfFreeChatResponses = localize('out of free chat responses', "You've run out of free chat responses, but free code completions are still available.");
+		// const outOfCompletions = localize('out of completions', "You've run out of free code completions, but free chat responses are still available.");
+		// const outOfQuota = localize('out of quota', "You've reached your free plan limit.");
+		const limitRefresh = localize('limit refresh', "Your limits will refresh on {0}.", 'January 13, 2025 at 3:35 PM');
+		const showExtensionsUsingCopilot = localize('showExtensionsUsingCopilot', "[Click here](command:workbench.action.chat.showExtensionsUsingCopilot) to get insights on how extensions might be using up your {0} free quota.", defaultChat.name);
+
+		class ShowLimitReachedDialogAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.chat.showLimitReachedDialog',
+					title: localize2('showLimitReachedDialog', "Show Limit Reached Dialog"),
+					f1: true,
+					category: CHAT_CATEGORY,
+					// precondition: ContextKeyExpr.and(
+					// 	ChatContextKeys.Setup.installed.negate(),
+					// 	ContextKeyExpr.or(
+					// 		ChatContextKeys.Setup.entitled,
+					// 		ContextKeyExpr.has('config.chat.experimental.offerSetup')
+					// 	)
+					// )
+				});
+			}
+
+			override async run(accessor: ServicesAccessor, ...args: any[]) {
+				const commandService = accessor.get(ICommandService);
+
+				await accessor.get(IDialogService).prompt({
+					type: 'none',
+					message: localize('limit reached', "{0} Plan Limit(s) Reached", defaultChat.name),
+					cancelButton: {
+						label: localize('dismiss', "Dismiss"),
+						run: ({ checkboxChecked }) => { /* noop */ }
+					},
+					buttons: [
+						{
+							label: localize('managePlan', "Manage {0} Plan", defaultChat.name),
+							run: ({ checkboxChecked }) => commandService.executeCommand('workbench.action.chat.managePlan')
+						},
+					],
+					custom: {
+						closeOnLinkClick: true,
+						icon: Codicon.copilot,
+						markdownDetails: [
+							{ markdown: new MarkdownString(`${outOfFreeChatResponses} ${limitRefresh}`, true) },
+							{ markdown: new MarkdownString(showExtensionsUsingCopilot, true) }
+						]
+					}
+				});
+			}
+		}
+
 		registerAction2(ChatSetupTriggerAction);
 		registerAction2(ChatSetupHideAction);
+		registerAction2(ShowLimitReachedDialogAction);
 	}
 }
 
