@@ -170,4 +170,5 @@ Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).re
 	access: {
 		canToggle: false
 	},
+	accessDataLabel: localize('chat', "chat"),
 });

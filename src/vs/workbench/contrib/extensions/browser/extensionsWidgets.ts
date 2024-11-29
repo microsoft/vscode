@@ -46,7 +46,6 @@ import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from '../../../services/extensionManagement/common/extensionFeatures.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -704,7 +703,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 						const feature = registry.getExtensionFeature(featureId);
 						if (feature) {
 							markdown.appendMarkdown(localize('feature usage label', "{0} usage", feature.label));
-							markdown.appendMarkdown(`: ${localize('total', "{0} requests in last 30 days)", accessData.accessTimes.length)} [$(${Codicon.linkExternal.id})](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Features]))}`)})`);
+							markdown.appendMarkdown(`: [${localize('total', "{0} {1} requests in last 30 days", accessData.accessTimes.length, feature.accessDataLabel ?? feature.label)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Features]))}`)})`);
 							markdown.appendText(`\n`);
 						}
 					}
