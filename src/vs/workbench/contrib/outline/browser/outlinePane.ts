@@ -126,8 +126,10 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 	}
 
 	override focus(): void {
-		super.focus();
-		this._editorControlChangePromise.then(() => this._tree?.domFocus());
+		this._editorControlChangePromise.then(() => {
+			super.focus();
+			this._tree?.domFocus();
+		});
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -204,7 +206,7 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		if (pane) {
 			// react to control changes from within pane (https://github.com/microsoft/vscode/issues/134008)
 			this._editorPaneDisposables.add(pane.onDidChangeControl(() => {
-				this._handleEditorControlChanged(pane);
+				this._editorControlChangePromise = this._handleEditorControlChanged(pane);
 			}));
 		}
 
