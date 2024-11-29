@@ -153,6 +153,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		this._diffVisualDecorations.clear();
 		this._diffLineDecorations.clear();
 		this._ctxHasEditorModification.reset();
+		this._currentChange.set(undefined, undefined);
 	}
 
 	private _updateWithDiff(entry: IModifiedFileEntry, diff: IDocumentDiff | null | undefined): void {
