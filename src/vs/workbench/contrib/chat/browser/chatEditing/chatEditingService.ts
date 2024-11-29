@@ -394,11 +394,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			return undefined;
 		}
 		const userAddedWorkingSetEntries: URI[] = [];
-		for (const entry of currentSession.workingSet) {
+		for (const [uri, metadata] of currentSession.workingSet) {
 			// Don't incorporate suggested files into the related files request
 			// but do consider transient entries like open editors
-			if (entry[1].state !== WorkingSetEntryState.Suggested) {
-				userAddedWorkingSetEntries.push(entry[0]);
+			if (metadata.state !== WorkingSetEntryState.Suggested) {
+				userAddedWorkingSetEntries.push(uri);
 			}
 		}
 

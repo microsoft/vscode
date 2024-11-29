@@ -38,59 +38,61 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 		}
 
 		const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
-		if (currentEditingSession) {
-			const workingSetEntries = currentEditingSession.entries.get();
-			if (workingSetEntries.length > 0) {
-				// Do this only for the initial working set state
-				return;
-			}
-
-			const widget = this.chatWidgetService.getWidgetBySessionId(currentEditingSession.chatSessionId);
-			if (!widget) {
-				return;
-			}
-
-			this._currentRelatedFilesRetrievalOperation = this.chatEditingService.getRelatedFiles(currentEditingSession.chatSessionId, widget.getInput(), CancellationToken.None)
-				.then((files) => {
-					if (!files?.length) {
-						return;
-					}
-
-					const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
-					if (!currentEditingSession || currentEditingSession.chatSessionId !== widget.viewModel?.sessionId || currentEditingSession.entries.get().length) {
-						return; // Might have disposed while we were calculating
-					}
-
-					// Pick up to 2 related files, or however many we can still fit in the working set
-					const maximumRelatedFiles = Math.min(2, this.chatEditingService.editingSessionFileLimit - widget.input.chatEditWorkingSetFiles.length);
-					const newSuggestions = new ResourceSet();
-					for (const group of files) {
-						for (const file of group.files) {
-							if (newSuggestions.size >= maximumRelatedFiles) {
-								break;
-							}
-							newSuggestions.add(file.uri);
-						}
-					}
-
-					// Remove the existing related file suggestions from the working set
-					const existingSuggestedEntriesToRemove: URI[] = [];
-					for (const entry of currentEditingSession.workingSet) {
-						if (entry[1].state === WorkingSetEntryState.Suggested && !newSuggestions.has(entry[0])) {
-							existingSuggestedEntriesToRemove.push(entry[0]);
-						}
-					}
-					currentEditingSession?.remove(WorkingSetEntryRemovalReason.Programmatic, ...existingSuggestedEntriesToRemove);
-
-					// Add the new related file suggestions to the working set
-					for (const file of newSuggestions) {
-						currentEditingSession.addFileToWorkingSet(file, localize('relatedFile', "Suggested File"), WorkingSetEntryState.Suggested);
-					}
-				})
-				.finally(() => {
-					this._currentRelatedFilesRetrievalOperation = undefined;
-				});
+		if (!currentEditingSession) {
+			return;
 		}
+		const workingSetEntries = currentEditingSession.entries.get();
+		if (workingSetEntries.length > 0) {
+			// Do this only for the initial working set state
+			return;
+		}
+
+		const widget = this.chatWidgetService.getWidgetBySessionId(currentEditingSession.chatSessionId);
+		if (!widget) {
+			return;
+		}
+
+		this._currentRelatedFilesRetrievalOperation = this.chatEditingService.getRelatedFiles(currentEditingSession.chatSessionId, widget.getInput(), CancellationToken.None)
+			.then((files) => {
+				if (!files?.length) {
+					return;
+				}
+
+				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
+				if (!currentEditingSession || currentEditingSession.chatSessionId !== widget.viewModel?.sessionId || currentEditingSession.entries.get().length) {
+					return; // Might have disposed while we were calculating
+				}
+
+				// Pick up to 2 related files, or however many we can still fit in the working set
+				const maximumRelatedFiles = Math.min(2, this.chatEditingService.editingSessionFileLimit - widget.input.chatEditWorkingSetFiles.length);
+				const newSuggestions = new ResourceSet();
+				for (const group of files) {
+					for (const file of group.files) {
+						if (newSuggestions.size >= maximumRelatedFiles) {
+							break;
+						}
+						newSuggestions.add(file.uri);
+					}
+				}
+
+				// Remove the existing related file suggestions from the working set
+				const existingSuggestedEntriesToRemove: URI[] = [];
+				for (const entry of currentEditingSession.workingSet) {
+					if (entry[1].state === WorkingSetEntryState.Suggested && !newSuggestions.has(entry[0])) {
+						existingSuggestedEntriesToRemove.push(entry[0]);
+					}
+				}
+				currentEditingSession?.remove(WorkingSetEntryRemovalReason.Programmatic, ...existingSuggestedEntriesToRemove);
+
+				// Add the new related file suggestions to the working set
+				for (const file of newSuggestions) {
+					currentEditingSession.addFileToWorkingSet(file, localize('relatedFile', "Suggested File"), WorkingSetEntryState.Suggested);
+				}
+			})
+			.finally(() => {
+				this._currentRelatedFilesRetrievalOperation = undefined;
+			});
+
 	}
 
 	private _handleNewEditingSession() {

@@ -37,7 +37,9 @@ import { IDimension } from '../../../../editor/common/core/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { isLocation } from '../../../../editor/common/languages.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../editor/common/model.js';
+import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
@@ -266,6 +268,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		getContribsInputState: () => any,
 		@IChatWidgetHistoryService private readonly historyService: IChatWidgetHistoryService,
 		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -1061,12 +1064,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				seenEntries.add(attachment.value);
 			}
 		}
-		for (const [file, state] of chatEditingSession.workingSet.entries()) {
-			if (!seenEntries.has(file)) {
+		for (const [file, metadata] of chatEditingSession.workingSet.entries()) {
+			if (!seenEntries.has(file) && metadata.state !== WorkingSetEntryState.Suggested) {
 				entries.unshift({
 					reference: file,
-					state: state.state,
-					description: state.description,
+					state: metadata.state,
+					description: metadata.description,
 					kind: 'reference',
 				});
 				seenEntries.add(file);
@@ -1270,6 +1273,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.commandService.executeCommand('workbench.action.chat.editing.attachFiles', { widget: chatWidget });
 		}));
 		dom.append(addFilesElement, button.element);
+
+		// REALTED files (NEW)
+		// TODO - HOVER
+		// TODO - more than 2 files
+		for (const [uri, metadata] of chatEditingSession.workingSet) {
+			if (metadata.state !== WorkingSetEntryState.Suggested) {
+				continue;
+			}
+			const btn = this._chatEditsActionsDisposables.add(new Button(addFilesElement, {
+				supportIcons: true,
+				secondary: true
+			}));
+			btn.enabled = remainingFileEntriesBudget > 0;
+			btn.label = this.labelService.getUriLabel(uri, { relative: true });
+			btn.element.classList.add(...getIconClasses(this.modelService, this.languageService, uri, FileKind.FILE));
+			btn.setTitle(localize('suggested', "Suggested File"));
+
+			this._chatEditsActionsDisposables.add(btn.onDidClick(() => {
+				btn.element.remove(); // REMOVE
+				chatEditingSession.addFileToWorkingSet(uri);
+			}));
+			dom.append(addFilesElement, btn.element);
+		}
+
 	}
 
 	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
