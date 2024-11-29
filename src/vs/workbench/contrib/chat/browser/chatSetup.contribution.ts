@@ -197,8 +197,8 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 					),
 					menu: {
 						id: MenuId.ChatCommandCenter,
-						group: 'z_end',
-						order: 3,
+						group: 'z_hide',
+						order: 1,
 						when: ChatContextKeys.Setup.installed.negate()
 					}
 				});
@@ -728,14 +728,14 @@ class ChatSetupWelcomeContent extends Disposable {
 		const detectionLabel = localize('detectionLabel', "Allow code suggestions that [match public code]({0})", defaultChat.publicCodeMatchesUrl);
 		const { container: detectionContainer, checkbox: detectionCheckbox } = this.createCheckBox(detectionLabel, true, markdown);
 
+		// Terms
+		const terms = localize({ key: 'termsLabel', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}).", defaultChat.privacyStatementUrl);
+		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element);
+
 		// Setup Button
 		const buttonRow = this.element.appendChild($('p'));
 		const button = this._register(new Button(buttonRow, { ...defaultButtonStyles, supportIcons: true }));
 		this._register(button.onDidClick(() => this.controller.setup(telemetryCheckbox.checked, detectionCheckbox.checked)));
-
-		// Footer
-		const footer = localize({ key: 'privacyFooter', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}).", defaultChat.privacyStatementUrl);
-		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(footer, { isTrusted: true }))).element);
 
 		// Update based on model state
 		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(limitedSkuHeaderElement, [telemetryContainer, detectionContainer], [telemetryCheckbox, detectionCheckbox], button)));
