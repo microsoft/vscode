@@ -382,9 +382,8 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			return;
 		}
 
-		this._stateObs.set(WorkingSetEntryState.Rejected, transaction);
-		this._notifyAction('rejected');
 		if (this.createdInRequestId === this._telemetryInfo.requestId) {
+			await this.docFileEditorModel.revert({ soft: true });
 			await this._fileService.del(this.modifiedURI);
 			this._onDidDelete.fire();
 		} else {
@@ -396,6 +395,8 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			}
 			await this.collapse(transaction);
 		}
+		this._stateObs.set(WorkingSetEntryState.Rejected, transaction);
+		this._notifyAction('rejected');
 	}
 
 	private _setDocValue(value: string): void {
