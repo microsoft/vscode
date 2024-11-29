@@ -314,6 +314,7 @@ export interface IDefaultChatAgent {
 	readonly privacyStatementUrl: string;
 	readonly skusDocumentationUrl: string;
 	readonly publicCodeMatchesUrl: string;
+	readonly manageSettingsUrl: string;
 	readonly managePlanUrl: string;
 	readonly providerId: string;
 	readonly providerName: string;
