@@ -248,6 +248,10 @@ export interface IModifiedNotebookFileEntry extends IModifiedAnyFileEntry {
 
 export type IModifiedFileEntry = IModifiedTextFileEntry | IModifiedNotebookFileEntry;
 
+export function isTextFileEntry(entry?: IModifiedFileEntry): entry is IModifiedTextFileEntry {
+	return entry?.kind === 'text';
+}
+
 export interface IChatEditingSessionStream {
 	textEdits(resource: URI, textEdits: TextEdit[], isLastEdits: boolean, responseModel: IChatResponseModel): void;
 }

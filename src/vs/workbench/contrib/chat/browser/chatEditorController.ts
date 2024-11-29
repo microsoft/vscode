@@ -22,7 +22,7 @@ import { InlineDecoration, InlineDecorationType } from '../../../../editor/commo
 import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../scm/browser/dirtydiffDecorator.js';
-import { ChatEditingSessionState, IChatEditingService, IModifiedTextFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { ChatEditingSessionState, IChatEditingService, IModifiedTextFileEntry, isTextFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { Event } from '../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -87,7 +87,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			const session = this._chatEditingService.currentEditingSessionObs.read(r);
 			const entry = model?.uri ? session?.readEntry(model.uri, r) : undefined;
 
-			if (!entry || entry.state.read(r) !== WorkingSetEntryState.Modified) {
+			if (!entry || !isTextFileEntry(entry) || entry.state.read(r) !== WorkingSetEntryState.Modified) {
 				this._clearRendering();
 				return;
 			}

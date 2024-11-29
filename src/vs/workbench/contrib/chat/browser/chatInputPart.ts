@@ -77,7 +77,7 @@ import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEd
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, isTextFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatRequestVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
 import { ChatRequestDynamicVariablePart } from '../common/chatParserTypes.js';
 import { IChatFollowup } from '../common/chatService.js';
@@ -1225,7 +1225,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const modifiedFileUri = e.element.reference;
 
 					const entry = chatEditingSession.getEntry(modifiedFileUri);
-					const diffInfo = entry?.diffInfo.get();
+					const diffInfo = isTextFileEntry(entry) ? entry.diffInfo.get() : undefined;
 					const range = diffInfo?.changes.at(0)?.modified.toExclusiveRange();
 
 					this.editorService.openEditor({

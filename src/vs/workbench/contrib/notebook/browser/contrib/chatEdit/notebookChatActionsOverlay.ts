@@ -11,7 +11,7 @@ import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ActionRunner, IAction, IActionRunner } from '../../../../../../base/common/actions.js';
 import { $ } from '../../../../../../base/browser/dom.js';
-import { IChatEditingService, IModifiedFileEntry } from '../../../../chat/common/chatEditingService.js';
+import { IChatEditingService, IModifiedFileEntry, isTextFileEntry } from '../../../../chat/common/chatEditingService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { autorunWithStore, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
@@ -116,7 +116,7 @@ export class NotebookChatActionsOverlay extends Disposable {
 								if (entry === nextEntry) {
 									return;
 								}
-								const change = nextEntry.kind === 'text' ? nextEntry.diffInfo.get().changes.at(0) : undefined;
+								const change = isTextFileEntry(nextEntry) ? nextEntry.diffInfo.get().changes.at(0) : undefined;
 								return that._editorService.openEditor({
 									resource: nextEntry.modifiedURI,
 									options: {
@@ -283,7 +283,7 @@ class NextPreviousChangeActionRunner extends ActionRunner {
 			return;
 		}
 		// For now just go to next/previous file.
-		const change = this.next.kind === 'text' ? this.next.diffInfo.get().changes.at(0) : undefined;
+		const change = isTextFileEntry(this.next) ? this.next.diffInfo.get().changes.at(0) : undefined;
 		this.focusedDiff.set(undefined, undefined);
 		await this.editorService.openEditor({
 			resource: this.next.modifiedURI,

@@ -5,7 +5,7 @@
 
 import { Disposable, dispose, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
-import { IChatEditingService, WorkingSetEntryState } from '../../../../chat/common/chatEditingService.js';
+import { IChatEditingService, isTextFileEntry, WorkingSetEntryState } from '../../../../chat/common/chatEditingService.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -100,7 +100,7 @@ class NotebookChatEditorController extends Disposable {
 		const notebookDiffInfo = derivedWithStore(this, (r, store) => {
 			const entry = entryObs.read(r);
 			const model = notebookModel.read(r);
-			if (!entry || !model || entry.kind !== 'text') {
+			if (!entry || !model || !isTextFileEntry(entry)) {
 				// If entry is undefined, then revert the changes to the notebook.
 				if (notebookSynchronizer && model) {
 					notebookSynchronizer.object.revert();

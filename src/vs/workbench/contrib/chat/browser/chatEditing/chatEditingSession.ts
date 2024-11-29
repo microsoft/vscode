@@ -30,7 +30,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, IChatEditingSession, IModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry, ISnapshotEntryDTO, STORAGE_CONTENTS_FOLDER, STORAGE_STATE_FILE, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditingSessionChangeType, ChatEditingSessionState, ChatEditKind, IChatEditingSession, IModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry, ISnapshotEntryDTO, isTextFileEntry, STORAGE_CONTENTS_FOLDER, STORAGE_STATE_FILE, WorkingSetDisplayMetadata, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatEditingMultiDiffSourceResolver } from './chatEditingService.js';
 import { ChatEditingModifiedFileEntry, TextSnapshotEntry } from './chatEditingModifiedFileEntry.js';
@@ -339,9 +339,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		// Restore all entries from the snapshot
 		for (const snapshotEntry of snapshot.entries.values()) {
 			const entry = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, snapshotEntry.telemetryInfo);
-			if (entry.kind === 'text' && snapshotEntry.kind === 'text') {
+			if (isTextFileEntry(entry) && snapshotEntry.kind === 'text') {
 				await entry.restoreFromSnapshot(snapshotEntry);
-			} else if (entry.kind === 'notebook' && snapshotEntry.kind === 'notebook') {
+			} else if (!isTextFileEntry(entry) && snapshotEntry.kind === 'notebook') {
 				await entry.restoreFromSnapshot(snapshotEntry);
 			} else {
 				throw new Error('Unexpected snapshot entry kind');
@@ -486,7 +486,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._assertNotDisposed();
 
 		const entry = this._entriesObs.get().find(e => e.entryId === documentId);
-		return entry?.kind === 'text' ? entry?.originalModel ?? null : null;
+		return isTextFileEntry(entry) ? entry.originalModel ?? null : null;
 	}
 
 	acceptStreamingEditsStart(): void {
@@ -579,7 +579,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const entry = await this.getEntryToAcceptEdits(resource, responseModel);
 		if (!entry) {
 			return;
-		} else if (entry.kind === 'text') {
+		} else if (isTextFileEntry(entry)) {
 			entry.acceptAgentEdits(textEdits, isLastEdits);
 		} else {
 			entry.acceptAgentCellEdits(resource, textEdits, isLastEdits);
@@ -645,7 +645,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		} else {
 			const initialContent = this._initialFileContents.get(resource);
 			entry = await this._createModifiedTextFileEntry(resource, responseModel, false, initialContent);
-			if (!initialContent && entry.kind === 'text') {
+			if (!initialContent && isTextFileEntry(entry)) {
 				this._initialFileContents.set(resource, entry.initialContent);
 			}
 		}
