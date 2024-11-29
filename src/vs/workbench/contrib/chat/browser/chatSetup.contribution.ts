@@ -762,17 +762,17 @@ class ChatSetupWelcomeContent extends Disposable {
 			featureExploreLabel.textContent = localize('featureExplore', "Explore your code base with chat");
 		}
 
+		// Limited SKU
 		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="[{0}]({1})"}'] }, "We now offer a [{0}]({1}) plan.", defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true }))).element);
-
 
 		// Terms
 		const terms = localize({ key: 'termsLabel', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "By continuing, you agree to our [Terms and Conditions]({0}).", defaultChat.privacyStatementUrl);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element);
 
 		// Setup Button
-		const buttonRow = this.element.appendChild($('p'));
-		const button = this._register(new Button(buttonRow, { ...defaultButtonStyles, supportIcons: true }));
+		const buttonContainer = this.element.appendChild($('p'));
+		const button = this._register(new Button(buttonContainer, { ...defaultButtonStyles, supportIcons: true }));
 		this._register(button.onDidClick(() => this.controller.setup()));
 
 		// Update based on model state
@@ -788,12 +788,13 @@ class ChatSetupWelcomeContent extends Disposable {
 						case ChatEntitlement.Unknown:
 						case ChatEntitlement.Unresolved:
 						case ChatEntitlement.Available:
-							buttonLabel = localize('startSetup', "Sign up for {0}", defaultChat.entitlementSkuTypeLimitedName);
+							buttonLabel = localize('signIn', "Sign up for {0}", defaultChat.entitlementSkuTypeLimitedName);
 							break;
 						case ChatEntitlement.Limited:
+							buttonLabel = localize('startUpLimited', "Start {0}", defaultChat.entitlementSkuTypeLimitedName);
 						case ChatEntitlement.Pro:
 						case ChatEntitlement.Unavailable:
-							buttonLabel = localize('signInToStartSetup', "Sign in to {0}", defaultChat.providerName);
+							buttonLabel = localize('startUp', "Start Copilot", defaultChat.entitlementSkuTypeLimitedName);
 							break;
 					}
 
