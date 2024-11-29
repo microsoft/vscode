@@ -803,6 +803,7 @@ class ChatSetupWelcomeContent extends Disposable {
 			case ChatEntitlement.Limited:
 				showLimitedSkuHeader = true;
 				buttonLabel = localize('startUpLimited', "Start {0}", defaultChat.entitlementSkuTypeLimitedName);
+				break;
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.Unavailable:
 				showLimitedSkuHeader = false;
