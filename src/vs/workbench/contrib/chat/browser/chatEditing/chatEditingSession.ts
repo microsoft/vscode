@@ -182,13 +182,13 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._entriesObs.read(reader).find(e => isEqual(e.modifiedURI, uri));
 	}
 
-	public storeState(): Promise<void> {
+	public async storeState(): Promise<void> {
 		const storage = this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionId);
 		const state: StoredSessionState = {
 			filesToSkipCreating: [...this._filesToSkipCreating],
 			initialFileContents: this._initialFileContents,
 			pendingSnapshot: this._pendingSnapshot,
-			recentSnapshot: this._createSnapshot(undefined),
+			recentSnapshot: await this._createSnapshot(undefined),
 			linearHistoryIndex: this._linearHistoryIndex.get(),
 			linearHistory: this._linearHistory.get(),
 		};
@@ -709,6 +709,7 @@ class ChatEditingSessionStorage {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) { }
 
 	private _getStorageLocation(): URI {
@@ -743,7 +744,7 @@ class ChatEditingSessionStorage {
 			if (entry.kind === 'notebook') {
 				throw new Error('Not implemented');
 			}
-			return TextSnapshotEntry.deserialize(entry, this.chatSessionId, this._instantiationService,);
+			return TextSnapshotEntry.deserialize(entry, this.chatSessionId, this._instantiationService);
 		};
 		try {
 			const stateFilePath = joinPath(storageLocation, STORAGE_STATE_FILE);
