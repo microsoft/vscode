@@ -2038,13 +2038,7 @@
           "group": "9_copy@2"
         }
       ],
-      "scm/historyItemRef/context": [
-        {
-          "command": "git.checkoutRef",
-          "when": "scmProvider == git",
-          "group": "1_checkout@1"
-        }
-      ],
+      "scm/historyItemRef/context": [],
       "editor/title": [
         {
           "command": "git.openFile",

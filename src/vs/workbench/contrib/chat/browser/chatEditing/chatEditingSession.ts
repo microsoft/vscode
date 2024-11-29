@@ -8,7 +8,7 @@ import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { autorun, derived, IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
@@ -178,6 +178,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	public getEntry(uri: URI): IModifiedFileEntry | undefined {
 		return this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
+	}
+
+	public readEntry(uri: URI, reader: IReader | undefined): IModifiedFileEntry | undefined {
+		return this._entriesObs.read(reader).find(e => isEqual(e.modifiedURI, uri));
 	}
 
 	public storeState(): Promise<void> {

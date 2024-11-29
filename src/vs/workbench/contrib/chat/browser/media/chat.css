@@ -1123,10 +1123,36 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-chat-slashCommandForeground);
 }
 
+
 .interactive-item-container .chat-resource-widget,
 .interactive-item-container .chat-agent-widget .monaco-button {
 	border-radius: 4px;
 	padding: 1px 3px;
+}
+
+.interactive-item-container .chat-agent-command {
+	background-color: var(--vscode-chat-slashCommandBackground);
+	color: var(--vscode-chat-slashCommandForeground);
+	display: inline-flex;
+	align-items: center;
+	margin-right: 0.5ch;
+	border-radius: 4px;
+	padding: 0 0 0 3px;
+}
+
+.interactive-item-container .chat-agent-command > .monaco-button {
+	display: flex;
+	align-self: stretch;
+	align-items: center;
+	cursor: pointer;
+	padding: 0 2px;
+	margin-left: 2px;
+	border-top-right-radius: 4px;
+	border-bottom-right-radius: 4px;
+}
+
+.interactive-item-container .chat-agent-command > .monaco-button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
 }
 
 .interactive-item-container .chat-agent-widget .monaco-text-button {

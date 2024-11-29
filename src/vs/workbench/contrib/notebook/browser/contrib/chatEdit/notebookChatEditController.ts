@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqual } from '../../../../../../base/common/resources.js';
 import { Disposable, dispose, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedWithStore, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { IChatEditingService, WorkingSetEntryState } from '../../../../chat/common/chatEditingService.js';
@@ -86,7 +85,7 @@ class NotebookChatEditorController extends Disposable {
 			if (!model || !session) {
 				return;
 			}
-			return session.entries.read(r).find(e => isEqual(e.modifiedURI, model.uri));
+			return session.readEntry(model.uri, r);
 		}).recomputeInitiallyAndOnChange(this._store);
 
 

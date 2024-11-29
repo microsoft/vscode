@@ -32,6 +32,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
@@ -39,6 +40,7 @@ import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
+import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
@@ -487,6 +489,23 @@ export function registerChatActions() {
 	registerOpenLinkAction('workbench.action.chat.managePlan', localize2('managePlan', "Manage {0} Plan", defaultChat.name), defaultChat.managePlanUrl, 1);
 	registerOpenLinkAction('workbench.action.chat.manageSettings', localize2('manageSettings', "Manage {0} Settings", defaultChat.name), defaultChat.manageSettingsUrl, 2);
 	registerOpenLinkAction('workbench.action.chat.learnMore', localize2('learnMore', "Learn More"), defaultChat.documentationUrl, 3);
+
+	registerAction2(class ShowExtensionsUsingCopilit extends Action2 {
+
+		constructor() {
+			super({
+				id: 'workbench.action.chat.showExtensionsUsingCopilot',
+				title: localize2('showCopilotUsageExtensions', "Show Extensions using Copilot"),
+				f1: true,
+				category: EXTENSIONS_CATEGORY,
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+			extensionsWorkbenchService.openSearch(`@feature:${CopilotUsageExtensionFeatureId}`);
+		}
+	});
 }
 
 export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewModel, includeName = true): string {

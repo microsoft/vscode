@@ -1572,7 +1572,7 @@ export class SCMHistoryViewPane extends ViewPane {
 			return;
 		}
 
-		const historyItemMenuActions = this._menuService.getMenuActions(MenuId.SCMChangesContext, this.contextKeyService, {
+		const historyItemMenuActions = this._menuService.getMenuActions(MenuId.SCMChangesContext, this.scopedContextKeyService, {
 			arg: element.repository.provider,
 			shouldForwardArgs: true
 		});
@@ -1584,7 +1584,7 @@ export class SCMHistoryViewPane extends ViewPane {
 
 		const that = this;
 		for (const ref of element.historyItemViewModel.historyItem.references ?? []) {
-			const contextKeyService = this.contextKeyService.createOverlay([
+			const contextKeyService = this.scopedContextKeyService.createOverlay([
 				['scmHistoryItemRef', ref.id]
 			]);
 
@@ -1603,7 +1603,9 @@ export class SCMHistoryViewPane extends ViewPane {
 					}
 				});
 
-			actions.push(new SubmenuAction(`scm.historyItemRef.${ref.id}`, ref.name, historyItemRefSubMenuActions));
+			if (historyItemRefSubMenuActions.length > 0) {
+				actions.push(new SubmenuAction(`scm.historyItemRef.${ref.id}`, ref.name, historyItemRefSubMenuActions));
+			}
 		}
 
 		this.contextMenuService.showContextMenu({

@@ -91,7 +91,7 @@ export class NotebookModelSynchronizer extends Disposable {
 			if (!session) {
 				return;
 			}
-			return session.entries.read(r).find(e => isEqual(e.modifiedURI, model.uri));
+			return session.readEntry(model.uri, r);
 		}).recomputeInitiallyAndOnChange(this._store);
 
 

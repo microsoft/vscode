@@ -7,7 +7,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { IObservable, ITransaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
@@ -82,6 +82,7 @@ export interface IChatEditingSession {
 	accept(...uris: URI[]): Promise<void>;
 	reject(...uris: URI[]): Promise<void>;
 	getEntry(uri: URI): IModifiedFileEntry | undefined;
+	readEntry(uri: URI, reader?: IReader): IModifiedFileEntry | undefined;
 	/**
 	 * Will lead to this object getting disposed
 	 */

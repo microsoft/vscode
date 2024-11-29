@@ -89,6 +89,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 						return isEqual(uri, editor.getModel()?.uri)
 							&& configurationService.getValue<EditMode>(InlineChatConfigKeys.Mode) === EditMode.Live;
 					},
+					renderDetectedCommandsWithRequest: true,
 				}
 			}
 		});

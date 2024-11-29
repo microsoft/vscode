@@ -235,15 +235,17 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 			const isEol = model.getLineMaxColumn(position.lineNumber) === position.column;
 			const isWhitespace = model.getLineLastNonWhitespaceColumn(position.lineNumber) === 0 && model.getValueLength() > 0 && position.column > 1;
 
-			if (isWhitespace && !_configurationService.getValue(InlineChatConfigKeys.LineEmptyHint)) {
-				return undefined;
+			if (isWhitespace) {
+				return _configurationService.getValue(InlineChatConfigKeys.LineEmptyHint)
+					? { isEol, isWhitespace, kb, position, model }
+					: undefined;
 			}
 
-			if (!visible || !isEol || !_configurationService.getValue(InlineChatConfigKeys.LineSuffixHint)) {
-				return undefined;
+			if (visible && isEol && _configurationService.getValue(InlineChatConfigKeys.LineSuffixHint)) {
+				return { isEol, isWhitespace, kb, position, model };
 			}
 
-			return { isEol, isWhitespace, kb, position, model };
+			return undefined;
 		});
 
 		this._store.add(autorun(r => {
@@ -262,9 +264,9 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 			const inlineClassName: string[] = ['inline-chat-hint'];
 			let content: string;
 			if (isWhitespace) {
-				content = '\u00a0' + localize('title2', "{0} to edit with {1}...", kb, agentName);
+				content = '\u00a0' + localize('title2', "{0} to edit with {1}", kb, agentName);
 			} else if (isEol) {
-				content = '\u00a0' + localize('title1', "{0} to continue with {1}...", kb, agentName);
+				content = '\u00a0' + localize('title1', "{0} to continue with {1}", kb, agentName);
 			} else {
 				content = '\u200a' + kb + '\u200a';
 				inlineClassName.push('embedded');
