@@ -137,7 +137,7 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 					const description = append(container,
 						$('.feature-chart-description',
 							undefined,
-							localize('chartDescription', "There were {0} {1} requests from this extension in the last 30 days.", accessData?.accessTimes.length, feature.label)));
+							localize('chartDescription', "There were {0} {1} requests from this extension in the last 30 days.", accessData?.accessTimes.length, feature.accessDataLabel ?? feature.label)));
 					description.style.marginBottom = '8px';
 					this.renderRequestsChart(container, accessData.accessTimes, disposables);
 				}

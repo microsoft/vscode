@@ -56,6 +56,7 @@ export interface IExtensionFeatureMarkdownAndTableRenderer extends IExtensionFea
 export interface IExtensionFeatureDescriptor {
 	readonly id: string;
 	readonly label: string;
+	readonly accessDataLabel?: string;
 	readonly description?: string;
 	readonly icon?: ThemeIcon;
 	readonly access: {
