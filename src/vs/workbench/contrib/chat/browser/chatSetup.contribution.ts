@@ -87,6 +87,8 @@ enum ChatEntitlement {
 
 //#region Contribution
 
+const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
+
 class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly context = this._register(this.instantiationService.createInstance(ChatSetupContext));
@@ -282,8 +284,6 @@ interface IChatEntitlements {
 	readonly quotas?: IQuotas;
 }
 
-const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
-
 class ChatSetupRequests extends Disposable {
 
 	private state: IChatEntitlements = { entitlement: this.context.state.entitlement };
@@ -381,13 +381,13 @@ class ChatSetupRequests extends Disposable {
 	}
 
 	private async resolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<ChatEntitlement | undefined> {
-		const resolvedEntitlements = await this.doResolveEntitlement(session, token);
-		if (typeof resolvedEntitlements?.entitlement === 'number' && !token.isCancellationRequested) {
+		const entitlements = await this.doResolveEntitlement(session, token);
+		if (typeof entitlements?.entitlement === 'number' && !token.isCancellationRequested) {
 			this.didResolveEntitlements = true;
-			this.update(resolvedEntitlements);
+			this.update(entitlements);
 		}
 
-		return resolvedEntitlements?.entitlement;
+		return entitlements?.entitlement;
 	}
 
 	private async doResolveEntitlement(session: AuthenticationSession, token: CancellationToken): Promise<IChatEntitlements | undefined> {
@@ -927,8 +927,8 @@ class ChatSetupContext extends Disposable {
 		}
 
 		let changed = false;
-		changed = this.updateContextKey(this.canSignUpContextKey, this._state.entitlement === ChatEntitlement.Available) || changed;
 		changed = this.updateContextKey(this.signedOutContextKey, this._state.entitlement === ChatEntitlement.Unknown) || changed;
+		changed = this.updateContextKey(this.canSignUpContextKey, this._state.entitlement === ChatEntitlement.Available) || changed;
 		changed = this.updateContextKey(this.limitedContextKey, this._state.entitlement === ChatEntitlement.Limited) || changed;
 		changed = this.updateContextKey(this.entitledContextKey, this._state.entitlement === ChatEntitlement.Pro) || changed;
 		changed = this.updateContextKey(this.triggeredContext, !!showChatSetup) || changed;
