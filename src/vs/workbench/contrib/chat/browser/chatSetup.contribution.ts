@@ -7,7 +7,7 @@ import './media/chatViewSetup.css';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
@@ -34,12 +34,11 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IChatViewsWelcomeContributionRegistry, ChatViewsWelcomeExtensions } from './viewsWelcome/chatViewsWelcome.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { $, addDisposableListener, EventType, getActiveElement, setVisibility } from '../../../../base/browser/dom.js';
+import { $, getActiveElement } from '../../../../base/browser/dom.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
-import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -50,6 +49,7 @@ import { IActivityService, ProgressBadge } from '../../../services/activity/comm
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -492,10 +492,10 @@ class ChatSetupRequests extends Disposable {
 		return this.resolveEntitlement(session, CancellationToken.None);
 	}
 
-	async signUpLimited(session: AuthenticationSession, enableTelemetry: boolean, enableDetection: boolean): Promise<boolean> {
+	async signUpLimited(session: AuthenticationSession): Promise<boolean> {
 		const body = {
-			restricted_telemetry: enableTelemetry ? 'enabled' : 'disabled',
-			public_code_suggestions: enableDetection ? 'enabled' : 'disabled'
+			restricted_telemetry: 'disabled',
+			public_code_suggestions: 'enabled'
 		};
 		this.logService.trace(`[chat setup] sign-up: options ${JSON.stringify(body)}`);
 
@@ -608,7 +608,7 @@ class ChatSetupController extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	async setup(enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
+	async setup(): Promise<void> {
 		const title = localize('setupChatProgress', "Getting Copilot ready...");
 		const badge = this.activityService.showViewContainerActivity(isCopilotEditsViewActive(this.viewsService) ? CHAT_EDITING_SIDEBAR_PANEL_ID : CHAT_SIDEBAR_PANEL_ID, {
 			badge: new ProgressBadge(() => title),
@@ -620,13 +620,13 @@ class ChatSetupController extends Disposable {
 				location: ProgressLocation.Window,
 				command: TRIGGER_SETUP_COMMAND_ID,
 				title,
-			}, () => this.doSetup(enableTelemetry, enableDetection));
+			}, () => this.doSetup());
 		} finally {
 			badge.dispose();
 		}
 	}
 
-	private async doSetup(enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
+	private async doSetup(): Promise<void> {
 		try {
 			let session: AuthenticationSession | undefined;
 
@@ -637,22 +637,18 @@ class ChatSetupController extends Disposable {
 				if (!session) {
 					return; // user cancelled
 				}
-
-				const entitlement = await this.requests.forceResolveEntitlement(session);
-				if (entitlement !== ChatEntitlement.Unavailable) {
-					return; // we cannot proceed with automated install because user needs to sign-up in a second step
-				}
 			}
 
-			// Entitlement known: proceed with installation
 			if (!session) {
 				session = (await this.authenticationService.getSessions(defaultChat.providerId)).at(0);
 				if (!session) {
 					return; // unexpected
 				}
 			}
+
+			// Install
 			this.setStep(ChatSetupStep.Installing);
-			await this.install(session, enableTelemetry, enableDetection);
+			await this.install(session);
 		} finally {
 			this.setStep(ChatSetupStep.Initial);
 		}
@@ -674,7 +670,7 @@ class ChatSetupController extends Disposable {
 		return session;
 	}
 
-	private async install(session: AuthenticationSession, enableTelemetry: boolean, enableDetection: boolean): Promise<void> {
+	private async install(session: AuthenticationSession): Promise<void> {
 		const signedIn = !!session;
 		const activeElement = getActiveElement();
 
@@ -687,7 +683,7 @@ class ChatSetupController extends Disposable {
 			this.context.suspend();  // reduces flicker
 
 			if (this.context.state.entitlement === ChatEntitlement.Available) {
-				didSignUp = await this.requests.signUpLimited(session, enableTelemetry, enableDetection);
+				didSignUp = await this.requests.signUpLimited(session);
 			} else {
 				this.logService.trace('[chat setup] install: not signing up to limited SKU');
 			}
@@ -734,7 +730,6 @@ class ChatSetupWelcomeContent extends Disposable {
 	constructor(
 		private readonly controller: ChatSetupController,
 		private readonly context: ChatSetupContext,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -746,76 +741,85 @@ class ChatSetupWelcomeContent extends Disposable {
 		const markdown = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
 
 		// Header
-		const header = localize({ key: 'setupHeader', comment: ['{Locked="[{0}]({1})"}'] }, "[Copilot]({0}) is your AI pair programmer that provides code suggestions, edits across your project, and answers to your questions.", defaultChat.documentationUrl);
-		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element);
+		{
+			const header = localize({ key: 'setupHeader', comment: ['{Locked="[{0}]({1})"}'] }, "[Copilot]({0}) is your AI pair programmer:", defaultChat.documentationUrl);
+			this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element);
 
-		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="[{0}]({1})"}'] }, "Enable powerful AI features for free with the [{0}]({1}) plan.", defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
-		const limitedSkuHeaderElement = this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true }))).element);
+			const features = this.element.appendChild($('div.chat-features-container'));
+			this.element.appendChild(features);
 
-		// Limited SKU Sign-up
-		const telemetryLabel = localize('telemetryLabel', "Allow {0} to use my data, including prompts, suggestions, and code snippets, for product improvements", defaultChat.providerName);
-		const { container: telemetryContainer, checkbox: telemetryCheckbox } = this.createCheckBox(telemetryLabel, this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? false : true, markdown);
+			const featureChatContainer = features.appendChild($('div.chat-feature-container'));
+			featureChatContainer.appendChild(renderIcon(Codicon.code));
 
-		const detectionLabel = localize('detectionLabel', "Allow code suggestions that [match public code]({0})", defaultChat.publicCodeMatchesUrl);
-		const { container: detectionContainer, checkbox: detectionCheckbox } = this.createCheckBox(detectionLabel, true, markdown);
+			const featureChatLabel = featureChatContainer.appendChild($('span'));
+			featureChatLabel.textContent = localize('featureChat', "Code faster with completions and Inline Chat");
+
+			const featureEditsContainer = features.appendChild($('div.chat-feature-container'));
+			featureEditsContainer.appendChild(renderIcon(Codicon.editSession));
+
+			const featureEditsLabel = featureEditsContainer.appendChild($('span'));
+			featureEditsLabel.textContent = localize('featureEdits', "Build features and resolve bugs with Copilot Edits");
+
+			const featureExploreContainer = features.appendChild($('div.chat-feature-container'));
+			featureExploreContainer.appendChild(renderIcon(Codicon.commentDiscussion));
+
+			const featureExploreLabel = featureExploreContainer.appendChild($('span'));
+			featureExploreLabel.textContent = localize('featureExplore', "Explore your code base with chat");
+		}
+
+		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="[{0}]({1})"}'] }, "We now offer a [{0}]({1}) plan.", defaultChat.entitlementSkuTypeLimitedName, defaultChat.skusDocumentationUrl);
+		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true }))).element);
+
 
 		// Terms
-		const terms = localize({ key: 'termsLabel', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "By proceeding you agree to our [privacy statement]({0}).", defaultChat.privacyStatementUrl);
+		const terms = localize({ key: 'termsLabel', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "By continuing, you agree to our [Terms and Conditions]({0}).", defaultChat.privacyStatementUrl);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element);
 
 		// Setup Button
 		const buttonRow = this.element.appendChild($('p'));
 		const button = this._register(new Button(buttonRow, { ...defaultButtonStyles, supportIcons: true }));
-		this._register(button.onDidClick(() => this.controller.setup(telemetryCheckbox.checked, detectionCheckbox.checked)));
+		this._register(button.onDidClick(() => this.controller.setup()));
 
 		// Update based on model state
-		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(limitedSkuHeaderElement, [telemetryContainer, detectionContainer], [telemetryCheckbox, detectionCheckbox], button)));
+		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(button)));
 	}
 
-	private createCheckBox(label: string, checked: boolean, markdown: MarkdownRenderer): { container: HTMLElement; checkbox: Checkbox } {
-		const container = this.element.appendChild($('p.checkbox-container'));
-		const checkbox = this._register(new Checkbox(label, checked, defaultCheckboxStyles));
-		container.appendChild(checkbox.domNode);
-
-		const checkboxLabel = container.appendChild(this._register(markdown.render(new MarkdownString(label, { isTrusted: true, supportThemeIcons: true }), { inline: true, className: 'checkbox-label' })).element);
-		this._register(addDisposableListener(checkboxLabel, EventType.CLICK, e => {
-			if (checkbox?.enabled && (e.target as HTMLElement).tagName !== 'A') {
-				checkbox.checked = !checkbox.checked;
-				checkbox.focus();
-			}
-		}));
-
-		return { container, checkbox };
-	}
-
-	private update(limitedSkuHeaderElement: HTMLElement, limitedCheckboxContainers: HTMLElement[], limitedCheckboxes: Checkbox[], button: Button): void {
-		setVisibility(Boolean(this.context.state.entitlement === ChatEntitlement.Unknown || this.context.state.entitlement === ChatEntitlement.Available), limitedSkuHeaderElement);
-		setVisibility(Boolean(this.context.state.entitlement === ChatEntitlement.Available), ...limitedCheckboxContainers);
-
+	private update(button: Button): void {
 		switch (this.controller.step) {
 			case ChatSetupStep.Initial:
-				for (const checkbox of limitedCheckboxes) {
-					checkbox.enable();
-				}
+				{
+					let buttonLabel: string;
+					switch (this.context.state.entitlement) {
+						case ChatEntitlement.Unknown:
+						case ChatEntitlement.Unresolved:
+						case ChatEntitlement.Available:
+							buttonLabel = localize('startSetup', "Sign up for {0}", defaultChat.entitlementSkuTypeLimitedName);
+							break;
+						case ChatEntitlement.Limited:
+						case ChatEntitlement.Pro:
+						case ChatEntitlement.Unavailable:
+							buttonLabel = localize('signInToStartSetup', "Sign in to {0}", defaultChat.providerName);
+							break;
+					}
 
-				button.enabled = true;
-				button.label = this.context.state.entitlement === ChatEntitlement.Available ?
-					localize('startSetupLimited', "Start Using Copilot") : this.context.state.entitlement === ChatEntitlement.Unknown ?
-						localize('signInToStartSetup', "Sign in to Start") :
-						localize('startSetupLimited', "Start Using Copilot");
-				break;
+					button.label = buttonLabel;
+					button.enabled = true;
+					break;
+				}
 			case ChatSetupStep.SigningIn:
 			case ChatSetupStep.Installing:
-				for (const checkbox of limitedCheckboxes) {
-					checkbox.disable();
+				{
+					let buttonLabel: string;
+					if (this.controller.step === ChatSetupStep.SigningIn) {
+						buttonLabel = localize('setupChatSignIn', "$(loading~spin) Signing in to {0}...", defaultChat.providerName);
+					} else {
+						buttonLabel = localize('setupChatInstalling', "$(loading~spin) Getting Copilot ready...");
+					}
+
+					button.label = buttonLabel;
+					button.enabled = false;
+					break;
 				}
-
-				button.enabled = false;
-				button.label = this.controller.step === ChatSetupStep.SigningIn ?
-					localize('setupChatSigningIn', "$(loading~spin) Signing in to {0}...", defaultChat.providerName) :
-					localize('setupChatInstalling', "$(loading~spin) Getting Copilot ready...");
-
-				break;
 		}
 	}
 }

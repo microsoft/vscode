@@ -4,10 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-welcome-view .chat-setup-view {
-	text-align: initial;
+	text-align: center;
 
 	p {
 		width: 100%;
+	}
+
+	.chat-features-container {
+		text-align: initial;
+		border: 1px solid var(--vscode-chat-requestBorder);
+		background-color: var(--vscode-chat-requestBackground);
+	}
+
+	.chat-features-container p {
+		display: flex;
+		margin: 0;
+		padding: 5px;
+	}
+
+	.chat-feature-container {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 5px 10px 5px 10px;
+	}
+
+	.chat-feature-container .codicon[class*='codicon-'] {
+		font-size: 20px;
 	}
 
 	.codicon[class*='codicon-'] {
