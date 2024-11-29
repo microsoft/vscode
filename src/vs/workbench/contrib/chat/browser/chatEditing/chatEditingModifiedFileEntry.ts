@@ -259,6 +259,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			}
 
 			this._allEditsAreFromUs = false;
+			this._updateDiffInfoSeq(true);
 		}
 
 		if (!this.isCurrentlyBeingModified.get()) {
@@ -272,8 +273,6 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 					}
 			}
 		}
-
-		this._updateDiffInfoSeq(!this._isEditFromUs);
 	}
 
 	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean): void {
@@ -348,7 +347,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 				{ computeMoves: true, ignoreTrimWhitespace: false, maxComputationTimeMs: 3000 },
 				'advanced'
 			),
-			timeout(fast ? 50 : 800) // DON't diff too fast
+			timeout(fast ? 0 : 800) // DON't diff too fast
 		]);
 
 		if (this.docSnapshot.isDisposed() || this.doc.isDisposed()) {

@@ -107,7 +107,7 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 		for (const feature of features) {
 			const accessData = this.extensionFeaturesManagementService.getAccessData(extensionId, feature.id);
 			if (accessData) {
-				data.appendMarkdown(`\n ### ${feature.label}\n\n`);
+				data.appendMarkdown(`\n ### ${localize('label', "{0} Usage", feature.label)}\n\n`);
 				const status = accessData?.current?.status;
 				if (status) {
 					if (status?.severity === Severity.Error) {
@@ -117,12 +117,20 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 						data.appendMarkdown(`$(${warningIcon.id}) ${status.message}\n\n`);
 					}
 				}
-				if (accessData?.totalCount) {
+				if (accessData?.accessTimes.length) {
+					const now = new Date();
+					const counts = {
+						today: accessData.accessTimes.filter(time => time > new Date(now.setHours(0, 0, 0, 0))).length,
+						lastWeek: accessData.accessTimes.filter(time => time > new Date(now.setDate(now.getDate() - 7))).length,
+						lastMonth: accessData.accessTimes.filter(time => time > new Date(now.setMonth(now.getMonth() - 1))).length,
+					};
 					if (accessData.current) {
-						data.appendMarkdown(`${localize('last request', "Last Request: `{0}`", fromNow(accessData.current.lastAccessed, true, true))}\n\n`);
-						data.appendMarkdown(`${localize('requests count session', "Requests (Session) : `{0}`", accessData.current.count)}\n\n`);
+						data.appendMarkdown(`${localize('last request', "Recent: `{0}`", fromNow(accessData.current.lastAccessed, true, true))}\n\n`);
+						data.appendMarkdown(`${localize('requests count session', "Session: `{0}` Requests", accessData.accessTimes.length)}\n\n`);
 					}
-					data.appendMarkdown(`${localize('requests count total', "Requests (Overall): `{0}`", accessData.totalCount)}\n\n`);
+					data.appendMarkdown(`${localize('requests count today', "Today: `{0}` Requests", counts.today)}\n\n`);
+					data.appendMarkdown(`${localize('requests count last week', "Last 7 Days: `{0}` Requests", counts.lastWeek)}\n\n`);
+					data.appendMarkdown(`${localize('requests count last month', "Last 30 Days: `{0}` Requests", counts.lastMonth)}\n\n`);
 				}
 			}
 		}

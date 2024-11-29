@@ -865,6 +865,16 @@ export class NotebookService extends Disposable implements INotebookService {
 		return [...this.notebookProviderInfoStore];
 	}
 
+	hasSupportedNotebooks(resource: URI): boolean {
+		const contribution = this.notebookProviderInfoStore.getContributedNotebook(resource);
+		if (!contribution.length) {
+			return false;
+		}
+		return contribution.some(info => info.matches(resource) &&
+			(info.priority === RegisteredEditorPriority.default || info.priority === RegisteredEditorPriority.exclusive)
+		);
+	}
+
 	getContributedNotebookType(viewType: string): NotebookProviderInfo | undefined {
 		return this.notebookProviderInfoStore.get(viewType);
 	}

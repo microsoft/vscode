@@ -15,7 +15,7 @@ import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
-import { localize, localize2 } from '../../../../../nls.js';
+import { ILocalizedString, localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -32,6 +32,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
@@ -39,6 +40,7 @@ import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
+import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
@@ -460,60 +462,48 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(class LearnMoreChatAction extends Action2 {
-
-		static readonly ID = 'workbench.action.chat.learnMore';
-		static readonly TITLE = localize2('learnMore', "Learn More");
-
-		constructor() {
-			super({
-				id: LearnMoreChatAction.ID,
-				title: LearnMoreChatAction.TITLE,
-				category: CHAT_CATEGORY,
-				menu: [
-					{
+	function registerOpenLinkAction(id: string, title: ILocalizedString, url: string, order: number): void {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id,
+					title,
+					category: CHAT_CATEGORY,
+					f1: true,
+					precondition: ChatContextKeys.enabled,
+					menu: {
 						id: MenuId.ChatCommandCenter,
-						group: 'z_end',
-						order: 2
+						group: 'y_manage',
+						order
 					}
-				]
-			});
-		}
-
-		override async run(accessor: ServicesAccessor): Promise<void> {
-			const openerService = accessor.get(IOpenerService);
-			if (defaultChat.documentationUrl) {
-				openerService.open(URI.parse(defaultChat.documentationUrl));
+				});
 			}
-		}
-	});
 
-	registerAction2(class ManagePlanAction extends Action2 {
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const openerService = accessor.get(IOpenerService);
+				openerService.open(URI.parse(url));
+			}
+		});
+	}
 
-		static readonly ID = 'workbench.action.chat.managePlan';
-		static readonly TITLE = localize2('managePlan', "Manage {0} Plan", defaultChat.name);
+	registerOpenLinkAction('workbench.action.chat.managePlan', localize2('managePlan', "Manage {0} Plan", defaultChat.name), defaultChat.managePlanUrl, 1);
+	registerOpenLinkAction('workbench.action.chat.manageSettings', localize2('manageSettings', "Manage {0} Settings", defaultChat.name), defaultChat.manageSettingsUrl, 2);
+	registerOpenLinkAction('workbench.action.chat.learnMore', localize2('learnMore', "Learn More"), defaultChat.documentationUrl, 3);
+
+	registerAction2(class ShowExtensionsUsingCopilit extends Action2 {
 
 		constructor() {
 			super({
-				id: ManagePlanAction.ID,
-				title: ManagePlanAction.TITLE,
+				id: 'workbench.action.chat.showExtensionsUsingCopilot',
+				title: localize2('showCopilotUsageExtensions', "Show Extensions using Copilot"),
 				f1: true,
-				category: CHAT_CATEGORY,
-				menu: [
-					{
-						id: MenuId.ChatCommandCenter,
-						group: 'z_end',
-						order: 1
-					}
-				]
+				category: EXTENSIONS_CATEGORY,
 			});
 		}
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
-			const openerService = accessor.get(IOpenerService);
-			if (defaultChat.documentationUrl) {
-				openerService.open(URI.parse(defaultChat.managePlanUrl));
-			}
+			const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+			extensionsWorkbenchService.openSearch(`@feature:${CopilotUsageExtensionFeatureId}`);
 		}
 	});
 }
@@ -533,6 +523,7 @@ const defaultChat = {
 	name: product.defaultChatAgent?.name ?? '',
 	icon: Codicon[product.defaultChatAgent?.icon as keyof typeof Codicon ?? 'commentDiscussion'],
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
+	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
 	managePlanUrl: product.defaultChatAgent?.managePlanUrl ?? '',
 };
 
