@@ -73,15 +73,15 @@ const defaultChat = {
 enum ChatEntitlement {
 	/** Signed out */
 	Unknown = 1,
-	/** Signed in but not yet resolved if Sign-up possible */
+	/** Signed in but not yet resolved */
 	Unresolved,
-	/** Signed in and entitled to Sign-up */
+	/** Signed in and entitled to Limited */
 	Available,
-	/** Signed in but not entitled to Sign-up */
+	/** Signed in but not entitled to Limited */
 	Unavailable,
-	/** Signed-up to limited */
+	/** Signed-up to Limited */
 	Limited,
-	/** Signed-up to pro */
+	/** Signed-up to Pro */
 	Pro
 }
 
@@ -286,7 +286,7 @@ const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
 
 class ChatSetupRequests extends Disposable {
 
-	private state: IChatEntitlements = { entitlement: this.context.state.entitlement ?? ChatEntitlement.Unknown };
+	private state: IChatEntitlements = { entitlement: this.context.state.entitlement };
 
 	private pendingResolveCts = new CancellationTokenSource();
 	private didResolveEntitlements = false;
@@ -833,9 +833,9 @@ function showCopilotView(viewsService: IViewsService): Promise<IChatWidget | und
 }
 
 interface IChatSetupContextState {
-	readonly entitlement?: ChatEntitlement;
-	readonly triggered?: boolean;
-	readonly installed?: boolean;
+	entitlement: ChatEntitlement;
+	triggered?: boolean;
+	installed?: boolean;
 }
 
 class ChatSetupContext extends Disposable {
@@ -849,7 +849,7 @@ class ChatSetupContext extends Disposable {
 	private readonly triggeredContext = ChatContextKeys.Setup.triggered.bindTo(this.contextKeyService);
 	private readonly installedContext = ChatContextKeys.Setup.installed.bindTo(this.contextKeyService);
 
-	private _state = this.storageService.getObject<IChatSetupContextState>(ChatSetupContext.CHAT_SETUP_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? Object.create(null);
+	private _state: IChatSetupContextState = this.storageService.getObject<IChatSetupContextState>(ChatSetupContext.CHAT_SETUP_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown };
 	get state(): IChatSetupContextState { return this._state; }
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -927,12 +927,12 @@ class ChatSetupContext extends Disposable {
 		}
 
 		let changed = false;
-		changed = this.updateContextKey(this.canSignUpContextKey, this._state.canSignUp) || changed;
-		changed = this.updateContextKey(this.signedOutContextKey, this._state.signedOut) || changed;
-		changed = this.updateContextKey(this.triggeredContext, showChatSetup) || changed;
-		changed = this.updateContextKey(this.installedContext, this._state.installed) || changed;
-		changed = this.updateContextKey(this.limitedContextKey, this._state.limited) || changed;
-		changed = this.updateContextKey(this.entitledContextKey, this._state.entitled) || changed;
+		changed = this.updateContextKey(this.canSignUpContextKey, this._state.entitlement === ChatEntitlement.Available) || changed;
+		changed = this.updateContextKey(this.signedOutContextKey, this._state.entitlement === ChatEntitlement.Unknown) || changed;
+		changed = this.updateContextKey(this.limitedContextKey, this._state.entitlement === ChatEntitlement.Limited) || changed;
+		changed = this.updateContextKey(this.entitledContextKey, this._state.entitlement === ChatEntitlement.Pro) || changed;
+		changed = this.updateContextKey(this.triggeredContext, !!showChatSetup) || changed;
+		changed = this.updateContextKey(this.installedContext, !!this._state.installed) || changed;
 
 		if (changed) {
 			this._onDidChange.fire();
