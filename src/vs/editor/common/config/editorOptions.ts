@@ -5795,7 +5795,7 @@ export const EditorOptions = {
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
 	experimentalEditContextEnabled: register(new EditorBooleanOption(
-		EditorOption.experimentalEditContextEnabled, 'experimentalEditContextEnabled', false,
+		EditorOption.experimentalEditContextEnabled, 'experimentalEditContextEnabled', product.quality !== 'stable',
 		{
 			description: nls.localize('experimentalEditContextEnabled', "Sets whether the new experimental edit context should be used instead of the text area."),
 			included: platform.isChrome || platform.isEdge || platform.isNative
