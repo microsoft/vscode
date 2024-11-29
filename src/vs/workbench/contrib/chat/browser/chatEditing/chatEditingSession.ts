@@ -43,6 +43,8 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { IOffsetEdit, ISingleOffsetEdit, OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatService } from '../../common/chatService.js';
+import { INotebookService } from '../../../notebook/common/notebookService.js';
+import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
@@ -142,6 +144,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@IFileDialogService private readonly _dialogService: IFileDialogService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IChatService private readonly _chatService: IChatService,
+		@INotebookService private readonly _notebookService: INotebookService,
 	) {
 		super();
 	}
@@ -652,6 +655,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		try {
 			const ref = await this._textModelService.createModelReference(resource);
 
+			if (this._notebookService.hasSupportedNotebooks(resource)) {
+				return this._instantiationService.createInstance(ChatEditingModifiedNotebookEntry, ref, { collapse: (transaction: ITransaction | undefined) => this._collapse(resource, transaction) }, responseModel, mustExist ? ChatEditKind.Created : ChatEditKind.Modified, initialContent);
+			}
 			return this._instantiationService.createInstance(ChatEditingModifiedFileEntry, ref, { collapse: (transaction: ITransaction | undefined) => this._collapse(resource, transaction) }, responseModel, mustExist ? ChatEditKind.Created : ChatEditKind.Modified, initialContent);
 		} catch (err) {
 			if (mustExist) {
