@@ -215,9 +215,6 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 			let changes = 0;
 			let activeIdx = -1;
 			for (const entry of entries) {
-				if (!isTextFileEntry(entry)) {
-					continue;
-				}
 				const diffInfo = entry.diffInfo.read(r);
 
 				if (activeIdx !== -1 || entry !== activeEntry) {
