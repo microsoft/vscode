@@ -37,7 +37,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
-import { foreground, scrollbarSliderActiveBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { foreground, chartAxis, chartGuide, chartLine } from '../../../../platform/theme/common/colorRegistry.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 interface IExtensionFeatureElementRenderer extends IExtensionFeatureRenderer {
@@ -162,7 +162,7 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 		const description = append(container,
 			$('.feature-chart-description',
 				undefined,
-				localize('chartDescription', "Showing the overall {0} requests this extension has made during the last 30 days.", accessTimes.length)));
+				localize('chartDescription', "There were {0} Copilot requests from this extension in the last 30 days.", accessTimes.length)));
 		description.style.marginBottom = '8px';
 
 		const width = 450;
@@ -215,11 +215,10 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 		xAxisLine.setAttribute('y1', `${innerHeight}`);
 		xAxisLine.setAttribute('x2', `${innerWidth}`);
 		xAxisLine.setAttribute('y2', `${innerHeight}`);
-		xAxisLine.setAttribute('stroke', asCssVariable(scrollbarSliderActiveBackground));
+		xAxisLine.setAttribute('stroke', asCssVariable(chartAxis));
 		xAxisLine.setAttribute('stroke-width', '1px');
 		g.appendChild(xAxisLine);
 
-		// Add dates on x-axis in intervals of 1 week, starting from the 29th day
 		for (let i = 1; i <= 30; i += 7) {
 			const date = new Date(now);
 			date.setDate(now.getDate() - (30 - i));
@@ -227,14 +226,23 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 			const x = (i / 30) * innerWidth;
 
 			// Add vertical line
-			const verticalLine = $.SVG('line');
-			verticalLine.setAttribute('x1', `${x}`);
-			verticalLine.setAttribute('y1', `${innerHeight}`);
-			verticalLine.setAttribute('x2', `${x}`);
-			verticalLine.setAttribute('y2', `${innerHeight + 10}`);
-			verticalLine.setAttribute('stroke', asCssVariable(scrollbarSliderActiveBackground));
-			verticalLine.setAttribute('stroke-width', '1px');
-			g.appendChild(verticalLine);
+			const tick = $.SVG('line');
+			tick.setAttribute('x1', `${x}`);
+			tick.setAttribute('y1', `${innerHeight}`);
+			tick.setAttribute('x2', `${x}`);
+			tick.setAttribute('y2', `${innerHeight + 10}`);
+			tick.setAttribute('stroke', asCssVariable(chartAxis));
+			tick.setAttribute('stroke-width', '1px');
+			g.appendChild(tick);
+
+			const ruler = $.SVG('line');
+			ruler.setAttribute('x1', `${x}`);
+			ruler.setAttribute('y1', `0`);
+			ruler.setAttribute('x2', `${x}`);
+			ruler.setAttribute('y2', `${innerHeight}`);
+			ruler.setAttribute('stroke', asCssVariable(chartGuide));
+			ruler.setAttribute('stroke-width', '1px');
+			g.appendChild(ruler);
 
 			const xAxisDate = $.SVG('text');
 			xAxisDate.setAttribute('x', `${x}`);
@@ -246,36 +254,15 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 			g.appendChild(xAxisDate);
 		}
 
-		// const yAxisLine = $.SVG('line');
-		// yAxisLine.setAttribute('x1', '0');
-		// yAxisLine.setAttribute('y1', '-50');
-		// yAxisLine.setAttribute('x2', '0');
-		// yAxisLine.setAttribute('y2', `${innerHeight}`);
-		// yAxisLine.setAttribute('stroke', asCssVariable(scrollbarSliderActiveBackground));
-		// yAxisLine.setAttribute('stroke-width', '1px');
-		// g.appendChild(yAxisLine);
-
-		// // Y-axis label
-		// const yAxisLabel = $.SVG('text');
-		// yAxisLabel.setAttribute('x', `-${innerHeight / 2}`);
-		// yAxisLabel.setAttribute('y', `-6`);
-		// yAxisLabel.setAttribute('text-anchor', 'middle');
-		// yAxisLabel.setAttribute('transform', 'rotate(-90)');
-		// yAxisLabel.setAttribute('fill', asCssVariable(foreground));
-		// yAxisLabel.setAttribute('font-size', '10px');
-		// yAxisLabel.textContent = localize('requests', "Requests");
-		// g.appendChild(yAxisLabel);
-
 		const line = $.SVG('polyline');
 		line.setAttribute('fill', 'none');
-		line.setAttribute('stroke', 'steelblue');
+		line.setAttribute('stroke', asCssVariable(chartLine));
 		line.setAttribute('stroke-width', `2px`);
 		line.setAttribute('points', points.map(p => `${p.x},${p.y}`).join(' '));
 		g.appendChild(line);
 
 		const highlightCircle = $.SVG('circle');
 		highlightCircle.setAttribute('r', `4px`);
-		highlightCircle.setAttribute('fill', 'steelblue');
 		highlightCircle.style.display = 'none';
 		g.appendChild(highlightCircle);
 
@@ -283,13 +270,12 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 		const mouseMoveListener = (event: MouseEvent): void => {
 			const rect = svg.getBoundingClientRect();
 			const mouseX = event.clientX - rect.left - margin.left;
-			const mouseY = event.clientY - rect.top - margin.top;
 
 			let closestPoint: Point | undefined;
 			let minDistance = Infinity;
 
 			points.forEach(point => {
-				const distance = Math.sqrt((point.x - mouseX) ** 2 + (point.y - mouseY) ** 2);
+				const distance = Math.abs(point.x - mouseX);
 				if (distance < minDistance) {
 					minDistance = distance;
 					closestPoint = point;
