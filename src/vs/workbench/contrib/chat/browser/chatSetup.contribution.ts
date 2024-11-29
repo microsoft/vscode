@@ -801,7 +801,6 @@ class ChatSetupWelcomeContent extends Disposable {
 				buttonLabel = localize('signIn', "Sign up for {0}", defaultChat.entitlementSkuTypeLimitedName);
 				break;
 			case ChatEntitlement.Limited:
-				showLimitedSkuHeader = false;
 				buttonLabel = localize('startUpLimited', "Start {0}", defaultChat.entitlementSkuTypeLimitedName);
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.Unavailable:
