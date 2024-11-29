@@ -4,10 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-welcome-view .chat-setup-view {
-	text-align: initial;
+	text-align: center;
 
 	p {
 		width: 100%;
+	}
+
+	.chat-features-container {
+		text-align: initial;
+		border-radius: 2px;
+		border: 1px solid var(--vscode-chat-requestBorder);
+		background-color: var(--vscode-chat-requestBackground);
+	}
+
+	.chat-feature-container {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 5px 10px 5px 10px;
+	}
+
+	.chat-feature-container .codicon[class*='codicon-'] {
+		font-size: 20px;
 	}
 
 	.codicon[class*='codicon-'] {
@@ -16,23 +34,11 @@
 		vertical-align: bottom;
 	}
 
-	.monaco-button {
-		text-align: center;
-		display: inline-block;
+	.monaco-button-dropdown {
 		width: 100%;
-		padding: 4px 7px;
 	}
 
-	.checkbox-container {
-		display: flex;
-	}
-
-	.checkbox-label {
-		flex-basis: fit-content;
-		cursor: pointer;
-	}
-
-	.checkbox-label p {
-		display: inline;
+	.monaco-button-dropdown .monaco-text-button {
+		width: 100%;
 	}
 }

@@ -88,7 +88,7 @@ class OpenChatGlobalAction extends Action2 {
 		super({
 			id: CHAT_OPEN_ACTION_ID,
 			title: OpenChatGlobalAction.TITLE,
-			icon: defaultChat.icon,
+			icon: Codicon.copilot,
 			f1: true,
 			precondition: ContextKeyExpr.or(
 				ChatContextKeys.Setup.installed,
@@ -486,8 +486,8 @@ export function registerChatActions() {
 		});
 	}
 
-	registerOpenLinkAction('workbench.action.chat.managePlan', localize2('managePlan', "Manage {0} Plan", defaultChat.name), defaultChat.managePlanUrl, 1);
-	registerOpenLinkAction('workbench.action.chat.manageSettings', localize2('manageSettings', "Manage {0} Settings", defaultChat.name), defaultChat.manageSettingsUrl, 2);
+	registerOpenLinkAction('workbench.action.chat.managePlan', localize2('managePlan', "Manage Copilot Plan"), defaultChat.managePlanUrl, 1);
+	registerOpenLinkAction('workbench.action.chat.manageSettings', localize2('manageSettings', "Manage Copilot Settings"), defaultChat.manageSettingsUrl, 2);
 	registerOpenLinkAction('workbench.action.chat.learnMore', localize2('learnMore', "Learn More"), defaultChat.documentationUrl, 3);
 
 	registerAction2(class ShowExtensionsUsingCopilit extends Action2 {
@@ -520,8 +520,6 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 // --- command center chat
 
 const defaultChat = {
-	name: product.defaultChatAgent?.name ?? '',
-	icon: Codicon[product.defaultChatAgent?.icon as keyof typeof Codicon ?? 'commentDiscussion'],
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
 	managePlanUrl: product.defaultChatAgent?.managePlanUrl ?? '',
@@ -530,7 +528,7 @@ const defaultChat = {
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	submenu: MenuId.ChatCommandCenter,
 	title: localize('title4', "Chat"),
-	icon: defaultChat.icon,
+	icon: Codicon.copilot,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
 		ContextKeyExpr.or(
@@ -543,12 +541,12 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	order: 10001,
 });
 
-registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
+registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(
 			'chat.commandCenter.enabled',
-			localize('toggle.chatControl', 'Chat Controls'),
-			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 4, false,
+			localize('toggle.chatControl', 'Copilot Controls'),
+			localize('toggle.chatControlsDescription', "Toggle visibility of the Copilot Controls in title bar"), 4, false,
 			ContextKeyExpr.and(
 				ContextKeyExpr.has('config.window.commandCenter'),
 				ContextKeyExpr.or(
@@ -586,8 +584,8 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 
 			const primaryAction = instantiationService.createInstance(MenuItemAction, {
 				id: chatExtensionInstalled ? CHAT_OPEN_ACTION_ID : 'workbench.action.chat.triggerSetup',
-				title: chatExtensionInstalled ? OpenChatGlobalAction.TITLE : localize2('triggerChatSetup', "Use AI features with {0}...", defaultChat.name),
-				icon: defaultChat.icon,
+				title: chatExtensionInstalled ? OpenChatGlobalAction.TITLE : localize2('triggerChatSetup', "Use AI Features with Copilot"),
+				icon: Codicon.copilot,
 			}, undefined, undefined, undefined, undefined);
 
 			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, primaryAction, dropdownAction, action.actions, '', { ...options, skipTelemetry: true });
