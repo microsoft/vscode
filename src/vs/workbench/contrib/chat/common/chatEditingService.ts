@@ -186,6 +186,7 @@ interface IModifiedAnyFileEntry extends IDisposable {
 	readonly rewriteRatio: IObservable<number>;
 	readonly lastModifyingRequestId: string;
 	readonly telemetryInfo: IModifiedEntryTelemetryInfo;
+	readonly diffInfo: IObservable<IDocumentDiff>;
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
 	acceptStreamingEditsStart(tx: ITransaction): void;
@@ -199,7 +200,6 @@ export interface IModifiedTextFileEntry extends IModifiedAnyFileEntry {
 	readonly originalModel: ITextModel;
 	readonly modifiedModel: ITextModel;
 	readonly initialContent: string;
-	readonly diffInfo: IObservable<IDocumentDiff>;
 	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean): void;
 	createSnapshot(requestId: string | undefined): Promise<ITextSnapshotEntry>;
 	restoreFromSnapshot(snapshot: ITextSnapshotEntry): Promise<void>;
