@@ -16,12 +16,6 @@
 		background-color: var(--vscode-chat-requestBackground);
 	}
 
-	.chat-features-container p {
-		display: flex;
-		margin: 0;
-		padding: 5px;
-	}
-
 	.chat-feature-container {
 		display: flex;
 		align-items: center;
@@ -46,16 +40,7 @@
 		padding: 4px 7px;
 	}
 
-	.checkbox-container {
-		display: flex;
-	}
-
-	.checkbox-label {
-		flex-basis: fit-content;
-		cursor: pointer;
-	}
-
-	.checkbox-label p {
-		display: inline;
+	.chat-setup-alternate-login {
+		margin-top: 50px;
 	}
 }

@@ -740,7 +740,7 @@ class ChatSetupWelcomeContent extends Disposable {
 
 		// Header
 		{
-			const header = localize({ key: 'setupHeader', comment: ['{Locked="[{0}]({1})"}'] }, "[Copilot]({0}) is your AI pair programmer:", defaultChat.documentationUrl);
+			const header = localize({ key: 'setupHeader', comment: ['{Locked="[{0}]({1})"}'] }, "[Copilot]({0}) is your AI pair programmer.", defaultChat.documentationUrl);
 			this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element);
 
 			const features = this.element.appendChild($('div.chat-features-container'));
@@ -781,7 +781,7 @@ class ChatSetupWelcomeContent extends Disposable {
 
 		// Alternate Login
 		const alternateLogin = `[${localize('signInGh', "Sign in")}](command:github.copilotChat.signIn "${localize('signInGh', "Sign in")}") | [${localize('signInGhe', "Sign in (GHE.com)")}](command:github.copilotChat.signInGHE "${localize('signInGhe', "Sign in (GHE.com)")}")`;
-		const alternateLoginContainer = this.element.appendChild($('p'));
+		const alternateLoginContainer = this.element.appendChild($('p.chat-setup-alternate-login'));
 		alternateLoginContainer.appendChild(this._register(markdown.render(new MarkdownString(alternateLogin, { isTrusted: true }))).element);
 
 		// Update based on model state
