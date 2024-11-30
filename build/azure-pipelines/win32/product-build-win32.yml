@@ -37,7 +37,7 @@ steps:
       inputs:
         azureSubscription: vscode
         KeyVaultName: vscode-build-secrets
-        SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
+        SecretsFilter: "github-distro-mixin-password"
 
     - task: DownloadPipelineArtifact@2
       inputs:
@@ -206,25 +206,35 @@ steps:
         inputs:
           version: 6.x
 
-      - task: EsrpClientTool@1
-        displayName: Download ESRPClient
+      - task: EsrpCodeSigning@5
+        inputs:
+          UseMSIAuthentication: true
+          ConnectedServiceName: vscode-esrp
+          AppRegistrationClientId: $(ESRP_CLIENT_ID)
+          AppRegistrationTenantId: $(ESRP_TENANT_ID)
+          AuthAKVName: vscode-esrp
+          AuthSignCertName: esrp-sign
+          FolderPath: .
+          Pattern: noop
+        displayName: 'Install ESRP Tooling'
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          $EsrpClientTool = (gci -directory -filter EsrpClientTool_* $(Agent.RootDirectory)\_tasks | Select-Object -last 1).FullName
-          $EsrpCliZip = (gci -recurse -filter esrpcli.*.zip $EsrpClientTool | Select-Object -last 1).FullName
-          mkdir -p $(Agent.TempDirectory)\esrpcli
-          Expand-Archive -Path $EsrpCliZip -DestinationPath $(Agent.TempDirectory)\esrpcli
-          $EsrpCliDllPath = (gci -recurse -filter esrpcli.dll $(Agent.TempDirectory)\esrpcli | Select-Object -last 1).FullName
-          echo "##vso[task.setvariable variable=EsrpCliDllPath]$EsrpCliDllPath"
+          $EsrpCodeSigningTool = (gci -directory -filter EsrpCodeSigning_* $(Agent.RootDirectory)\_tasks | Select-Object -last 1).FullName
+          $Version = (gci -directory $EsrpCodeSigningTool | Select-Object -last 1).FullName
+          echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version\net6.0\esrpcli.dll"
         displayName: Find ESRP CLI
 
-      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.dll,*.exe,*.node'
+      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(CodeSigningFolderPath) '*.dll,*.exe,*.node'
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Codesign executables and shared libraries
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
-      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows-appx $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.appx'
+      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows-appx $(CodeSigningFolderPath) '*.appx'
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Codesign context menu appx package
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -268,25 +278,23 @@ steps:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          $env:ESRPPKI = "$(ESRP-PKI)"
-          $env:ESRPAADUsername = "$(esrp-aad-username)"
-          $env:ESRPAADPassword = "$(esrp-aad-password)"
           exec { npm run -- gulp "vscode-win32-$(VSCODE_ARCH)-system-setup" --sign }
           $SetupPath = ".build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
           mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $SetupPath
           echo "##vso[task.setvariable variable=SYSTEM_SETUP_PATH]$SetupPath"
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Build system setup
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          $env:ESRPPKI = "$(ESRP-PKI)"
-          $env:ESRPAADUsername = "$(esrp-aad-username)"
-          $env:ESRPAADPassword = "$(esrp-aad-password)"
           exec { npm run -- gulp "vscode-win32-$(VSCODE_ARCH)-user-setup" --sign }
           $SetupPath = ".build\win32-$(VSCODE_ARCH)\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
           mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $SetupPath
           echo "##vso[task.setvariable variable=USER_SETUP_PATH]$SetupPath"
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Build user setup
 
       - powershell: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"

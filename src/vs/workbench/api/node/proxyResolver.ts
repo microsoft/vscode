@@ -18,6 +18,8 @@ import { createRequire } from 'node:module';
 import type * as undiciType from 'undici-types';
 import type * as tlsType from 'tls';
 import type * as streamType from 'stream';
+import { lookupKerberosAuthorization } from '../../../platform/request/node/requestService.js';
+import * as proxyAgent from '@vscode/proxy-agent';
 
 const require = createRequire(import.meta.url);
 const http = require('http');
@@ -89,6 +91,8 @@ export function connectProxyResolver(
 		env: process.env,
 	};
 	const { resolveProxyWithRequest, resolveProxyURL } = createProxyResolver(params);
+	const target = (proxyAgent as any).default || proxyAgent;
+	target.resolveProxyURL = resolveProxyURL;
 
 	patchGlobalFetch(configProvider, mainThreadTelemetry, initData, resolveProxyURL, params.lookupProxyAuthorization!, getOrLoadAdditionalCertificates.bind(undefined, params), disposables);
 
@@ -191,12 +195,13 @@ function patchFetch(originalFetch: typeof globalThis.fetch, configProvider: ExtH
 			return originalFetch(input, init);
 		}
 		const ca = addCerts ? [...tls.rootCertificates, ...await loadAdditionalCertificates()] : undefined;
+		const { allowH2, requestCA, proxyCA } = getAgentOptions(ca, init);
 		if (!proxyURL) {
 			const modifiedInit = {
 				...init,
 				dispatcher: new undici.Agent({
-					allowH2: true,
-					connect: { ca },
+					allowH2,
+					connect: { ca: requestCA },
 				})
 			};
 			return originalFetch(input, modifiedInit);
@@ -208,12 +213,10 @@ function patchFetch(originalFetch: typeof globalThis.fetch, configProvider: ExtH
 			...init,
 			dispatcher: new undici.ProxyAgent({
 				uri: proxyURL,
-				allowH2: true,
+				allowH2,
 				headers: proxyAuthorization ? { 'Proxy-Authorization': proxyAuthorization } : undefined,
-				...(addCerts ? {
-					proxyTls: { ca },
-					requestTls: { ca },
-				} : {}),
+				...(requestCA ? { requestTls: { ca: requestCA } } : {}),
+				...(proxyCA ? { proxyTls: { ca: proxyCA } } : {}),
 				clientFactory: (origin: URL, opts: object): undiciType.Dispatcher => (new undici.Pool(origin, opts) as any).compose((dispatch: undiciType.Dispatcher['dispatch']) => {
 					class ProxyAuthHandler extends undici.DecoratorHandler {
 						private abort: ((err?: Error) => void) | undefined;
@@ -348,7 +351,9 @@ function recordFetchFeatureUse(mainThreadTelemetry: MainThreadTelemetryShape, fe
 function createPatchedModules(params: ProxyAgentParams, resolveProxy: ResolveProxyWithRequest) {
 
 	function mergeModules(module: any, patch: any) {
-		return Object.assign(module.default || module, patch);
+		const target = module.default || module;
+		target.__vscodeOriginal = Object.assign({}, target);
+		return Object.assign(target, patch);
 	}
 
 	return {
@@ -369,7 +374,7 @@ function certSettingV2(configProvider: ExtHostConfigProvider) {
 	return !!http.get<boolean>('experimental.systemCertificatesV2', systemCertificatesV2Default) && !!http.get<boolean>('systemCertificates');
 }
 
-const modulesCache = new Map<IExtensionDescription | undefined, { http?: typeof http; https?: typeof https }>();
+const modulesCache = new Map<IExtensionDescription | undefined, { http?: typeof http; https?: typeof https; undici?: typeof undiciType }>();
 function configureModuleLoading(extensionService: ExtHostExtensionService, lookup: ReturnType<typeof createPatchedModules>): Promise<void> {
 	return extensionService.getExtensionPathIndex()
 		.then(extensionPaths => {
@@ -384,7 +389,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 					return lookup.tls;
 				}
 
-				if (request !== 'http' && request !== 'https') {
+				if (request !== 'http' && request !== 'https' && request !== 'undici') {
 					return original.apply(this, arguments);
 				}
 
@@ -394,12 +399,66 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 					modulesCache.set(ext, cache = {});
 				}
 				if (!cache[request]) {
-					const mod = lookup[request];
-					cache[request] = <any>{ ...mod }; // Copy to work around #93167.
+					if (request === 'undici') {
+						const undici = original.apply(this, arguments);
+						patchUndici(undici);
+						cache[request] = undici;
+					} else {
+						const mod = lookup[request];
+						cache[request] = <any>{ ...mod }; // Copy to work around #93167.
+					}
 				}
 				return cache[request];
 			};
 		});
+}
+
+const agentOptions = Symbol('agentOptions');
+const proxyAgentOptions = Symbol('proxyAgentOptions');
+
+function patchUndici(undici: typeof undiciType) {
+	const originalAgent = undici.Agent;
+	const patchedAgent = function PatchedAgent(opts?: undiciType.Agent.Options): undiciType.Agent {
+		const agent = new originalAgent(opts);
+		(agent as any)[agentOptions] = {
+			...opts,
+			...(opts?.connect && typeof opts?.connect === 'object' ? { connect: { ...opts.connect } } : undefined),
+		};
+		return agent;
+	};
+	patchedAgent.prototype = originalAgent.prototype;
+	(undici as any).Agent = patchedAgent;
+
+	const originalProxyAgent = undici.ProxyAgent;
+	const patchedProxyAgent = function PatchedProxyAgent(opts: undiciType.ProxyAgent.Options | string): undiciType.ProxyAgent {
+		const proxyAgent = new originalProxyAgent(opts);
+		(proxyAgent as any)[proxyAgentOptions] = typeof opts === 'string' ? opts : {
+			...opts,
+			...(opts?.connect && typeof opts?.connect === 'object' ? { connect: { ...opts.connect } } : undefined),
+		};
+		return proxyAgent;
+	};
+	patchedProxyAgent.prototype = originalProxyAgent.prototype;
+	(undici as any).ProxyAgent = patchedProxyAgent;
+}
+
+function getAgentOptions(systemCA: string[] | undefined, requestInit: RequestInit | undefined) {
+	let allowH2: boolean | undefined;
+	let requestCA: string | Buffer | Array<string | Buffer> | undefined = systemCA;
+	let proxyCA: string | Buffer | Array<string | Buffer> | undefined = systemCA;
+	const dispatcher: undiciType.Dispatcher = (requestInit as any)?.dispatcher;
+	const originalAgentOptions: undiciType.Agent.Options | undefined = dispatcher && (dispatcher as any)[agentOptions];
+	if (originalAgentOptions) {
+		allowH2 = originalAgentOptions.allowH2;
+		requestCA = originalAgentOptions.connect && typeof originalAgentOptions.connect === 'object' && 'ca' in originalAgentOptions.connect && originalAgentOptions.connect.ca || systemCA;
+	}
+	const originalProxyAgentOptions: undiciType.ProxyAgent.Options | string | undefined = dispatcher && (dispatcher as any)[proxyAgentOptions];
+	if (originalProxyAgentOptions && typeof originalProxyAgentOptions === 'object') {
+		allowH2 = originalProxyAgentOptions.allowH2;
+		requestCA = originalProxyAgentOptions.requestTls && 'ca' in originalProxyAgentOptions.requestTls && originalProxyAgentOptions.requestTls.ca || systemCA;
+		proxyCA = originalProxyAgentOptions.proxyTls && 'ca' in originalProxyAgentOptions.proxyTls && originalProxyAgentOptions.proxyTls.ca || systemCA;
+	}
+	return { allowH2, requestCA, proxyCA };
 }
 
 async function lookupProxyAuthorization(
@@ -427,13 +486,8 @@ async function lookupProxyAuthorization(
 		state.kerberosRequested = true;
 
 		try {
-			const kerberos = await import('kerberos');
-			const url = new URL(proxyURL);
-			const spn = configProvider.getConfiguration('http').get<string>('proxyKerberosServicePrincipal')
-				|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
-			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication lookup', `proxyURL:${proxyURL}`, `spn:${spn}`);
-			const client = await kerberos.initializeClient(spn);
-			const response = await client.step('');
+			const spnConfig = configProvider.getConfiguration('http').get<string>('proxyKerberosServicePrincipal');
+			const response = await lookupKerberosAuthorization(proxyURL, spnConfig, extHostLogService, 'ProxyResolver#lookupProxyAuthorization');
 			return 'Negotiate ' + response;
 		} catch (err) {
 			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);

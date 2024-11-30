@@ -1417,10 +1417,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._domElement;
 	}
 
-	public getTextAreaDomNode(): HTMLTextAreaElement | undefined {
-		return this._modelData?.view.getTextAreaDomNode();
-	}
-
 	public getDomNode(): HTMLElement | null {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return null;
@@ -1890,6 +1886,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		viewUserInputEvents.onMouseWheel = (e) => this._onMouseWheel.fire(e);
 
 		const view = new View(
+			this.getId(),
 			commandDelegate,
 			this._configuration,
 			this._themeService.getColorTheme(),

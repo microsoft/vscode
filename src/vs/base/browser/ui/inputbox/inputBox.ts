@@ -17,7 +17,7 @@ import { ScrollableElement } from '../scrollbar/scrollableElement.js';
 import { Widget } from '../widget.js';
 import { IAction } from '../../../common/actions.js';
 import { Emitter, Event } from '../../../common/event.js';
-import { HistoryNavigator } from '../../../common/history.js';
+import { HistoryNavigator, IHistory } from '../../../common/history.js';
 import { equals } from '../../../common/objects.js';
 import { ScrollbarVisibility } from '../../../common/scrollable.js';
 import './inputBox.css';
@@ -39,6 +39,7 @@ export interface IInputOptions {
 	readonly flexibleMaxHeight?: number;
 	readonly actions?: ReadonlyArray<IAction>;
 	readonly inputBoxStyles: IInputBoxStyles;
+	readonly history?: IHistory<string>;
 }
 
 export interface IInputBoxStyles {
@@ -624,7 +625,6 @@ export class InputBox extends Widget {
 }
 
 export interface IHistoryInputOptions extends IInputOptions {
-	history: string[];
 	readonly showHistoryHint?: () => boolean;
 }
 

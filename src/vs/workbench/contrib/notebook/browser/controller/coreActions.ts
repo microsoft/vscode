@@ -34,6 +34,7 @@ export const NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT = KeybindingWeight.EditorContr
 export const NOTEBOOK_OUTPUT_WEBVIEW_ACTION_WEIGHT = KeybindingWeight.WorkbenchContrib + 1; // higher than Workbench contribution (such as Notebook List View), etc
 
 export const enum CellToolbarOrder {
+	RunSection,
 	EditCell,
 	ExecuteAboveCells,
 	ExecuteCellAndBelow,

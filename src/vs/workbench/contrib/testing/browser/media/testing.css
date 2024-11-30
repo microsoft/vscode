@@ -408,7 +408,11 @@
 }
 
 .monaco-workbench .test-error-content-widget {
-	margin-left: 2em;
+	z-index: 0;
+}
+
+.monaco-workbench .test-error-content-widget .inner {
+	margin-left: 20px;
 	color: var(--vscode-testing-message-error-badgeForeground) !important;
 	background: var(--vscode-testing-message-error-badgeBackground);
 	border-top-right-radius: 2px;
@@ -416,11 +420,14 @@
 	padding-right: 3px;
 	display: flex !important;
 	align-items: center;
-	white-space: nowrap;
 	font-size: 11px;
 	gap: 3px;
 	user-select: none;
 	cursor: pointer;
+	box-sizing: border-box;
+	position: relative;
+	border: 1px solid var(--vscode-testing-message-error-badgeBorder);
+	border-left: none;
 
 	&.is-current {
 		display: none !important;
@@ -433,13 +440,22 @@
 		z-index: 1;
 	}
 
+	.content {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
 	.arrow svg {
 		position: absolute;
-		right: calc(100% - 0.4px);
-		height: 100%;
-		top: 0;
-		width: 10px;
+		height: calc(100% + 2px);
+		top: -1px;
+		width: 15px;
+		left: -10px;
 		fill: var(--vscode-testing-message-error-badgeBackground);
+		z-index: -1;
+		stroke-width: 0.71px; /* 1 / sqrt(2) */
+		stroke: var(--vscode-testing-message-error-badgeBorder);
 	}
 }
 

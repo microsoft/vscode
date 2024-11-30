@@ -9,25 +9,30 @@ steps:
     inputs:
       version: 6.x
 
-  - task: EsrpClientTool@1
-    continueOnError: true
-    displayName: Download ESRPClient
-
-  - task: AzureKeyVault@2
-    displayName: "Azure Key Vault: Get Secrets"
+  - task: EsrpCodeSigning@5
     inputs:
-      azureSubscription: vscode
-      KeyVaultName: vscode-build-secrets
-      SecretsFilter: "ESRP-PKI,esrp-aad-username,esrp-aad-password"
+      UseMSIAuthentication: true
+      ConnectedServiceName: vscode-esrp
+      AppRegistrationClientId: $(ESRP_CLIENT_ID)
+      AppRegistrationTenantId: $(ESRP_TENANT_ID)
+      AuthAKVName: vscode-esrp
+      AuthSignCertName: esrp-sign
+      FolderPath: .
+      Pattern: noop
+    displayName: 'Install ESRP Tooling'
 
   - download: current
     artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
     displayName: Download $(VSCODE_ARCH) artifact
 
-  - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll sign-darwin $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
+  - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-darwin $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Codesign
 
-  - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll notarize-darwin $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
+  - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll notarize-darwin $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Notarize
 
   - script: unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)

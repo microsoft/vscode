@@ -71,7 +71,7 @@ function bundleESMTask(opts) {
                             newContents = contents;
                         }
                         // File Content Mapper
-                        const mapper = opts.fileContentMapper?.(path);
+                        const mapper = opts.fileContentMapper?.(path.replace(/\\/g, '/'));
                         if (mapper) {
                             newContents = await mapper(newContents);
                         }

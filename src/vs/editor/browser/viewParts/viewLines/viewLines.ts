@@ -25,6 +25,7 @@ import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.j
 import { Viewport } from '../../../common/viewModel.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { ViewLineOptions } from './viewLineOptions.js';
+import type { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 
 class LastRenderedData {
 
@@ -125,7 +126,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 	private _stickyScrollEnabled: boolean;
 	private _maxNumberStickyLines: number;
 
-	constructor(context: ViewContext, linesContent: FastDomNode<HTMLElement>) {
+	constructor(context: ViewContext, viewGpuContext: ViewGpuContext | undefined, linesContent: FastDomNode<HTMLElement>) {
 		super(context);
 
 		const conf = this._context.configuration;
@@ -145,7 +146,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 		this._linesContent = linesContent;
 		this._textRangeRestingSpot = document.createElement('div');
 		this._visibleLines = new VisibleLinesCollection({
-			createLine: () => new ViewLine(this._viewLineOptions),
+			createLine: () => new ViewLine(viewGpuContext, this._viewLineOptions),
 		});
 		this.domNode = this._visibleLines.domNode;
 
