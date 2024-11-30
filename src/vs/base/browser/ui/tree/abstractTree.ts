@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from '../../dnd.js';
-import { $, append, clearNode, createStyleSheet, h, hasParentWithClass, isActiveElement, isKeyboardEvent, addDisposableListener, isEditableElement } from '../../dom.js';
+import { $, append, clearNode, h, hasParentWithClass, isActiveElement, isKeyboardEvent, addDisposableListener, isEditableElement } from '../../dom.js';
+import { createStyleSheet } from '../../domStylesheets.js';
 import { asCssValueWithDefault } from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
@@ -839,6 +840,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this.toggles = toggleContributions.map(contribution => this._register(new TreeFindToggle(contribution, styles.toggleStyles, toggleHoverDelegate)));
 		this.onDidToggleChange = Event.any(...this.toggles.map(toggle => Event.map(toggle.onChange, () => ({ id: toggle.id, isChecked: toggle.checked }))));
 
+		const history = options?.history || [];
 		this.findInput = this._register(new FindInput(this.elements.findInput, contextViewProvider, {
 			label: localize('type to search', "Type to search"),
 			placeholder,
@@ -846,7 +848,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 			showCommonFindToggles: false,
 			inputBoxStyles: styles.inputBoxStyles,
 			toggleStyles: styles.toggleStyles,
-			history: options?.history
+			history: new Set(history)
 		}));
 
 		this.actionbar = this._register(new ActionBar(this.elements.actionbar));
@@ -1175,7 +1177,7 @@ export class FindController<T, TFilterData> extends AbstractFindController<T, TF
 		this.tree.refilter();
 
 		if (pattern) {
-			this.tree.focusNext(0, true, undefined, node => !FuzzyScore.isDefault(node.filterData as any as FuzzyScore));
+			this.tree.focusNext(0, true, undefined, (node) => this.shouldAllowFocus(node));
 		}
 
 		const focus = this.tree.getFocus();

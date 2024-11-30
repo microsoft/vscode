@@ -1,0 +1,19 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"repositoryUrl": "https://github.com/withfig/autocomplete",
+					"commitHash": "1cc34dc1ba530bb620bd380c25cfb9eb2264be89"
+				}
+			},
+			"version": "2.684.0",
+			"license": {
+				"type": "MIT",
+				"url": "https://github.com/withfig/autocomplete/blob/main/LICENSE.md"
+			},
+			"description": "IDE-style autocomplete for your existing terminal & shell from withfig/autocomplete."
+		}
+	]
+}

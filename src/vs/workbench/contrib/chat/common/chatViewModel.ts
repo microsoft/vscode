@@ -77,6 +77,8 @@ export interface IChatRequestViewModel {
 	readonly isHidden: boolean;
 	readonly isComplete: boolean;
 	readonly isCompleteAddedRequest: boolean;
+	readonly slashCommand: IChatAgentCommand | undefined;
+	readonly agentOrSlashCommandDetected: boolean;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -385,6 +387,14 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get isHidden() {
 		return this._model.isHidden;
+	}
+
+	get slashCommand(): IChatAgentCommand | undefined {
+		return this._model.response?.slashCommand;
+	}
+
+	get agentOrSlashCommandDetected(): boolean {
+		return this._model.response?.agentOrSlashCommandDetected ?? false;
 	}
 
 	currentRenderedHeight: number | undefined;

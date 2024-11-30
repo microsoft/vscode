@@ -900,6 +900,8 @@ export class SearchView extends ViewPane {
 				}
 			}));
 
+		Constants.SearchContext.SearchResultListFocusedKey.bindTo(this.tree.contextKeyService);
+
 		this.tree.setInput(this.viewModel.searchResult);
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		const updateHasSomeCollapsible = () => this.toggleCollapseStateDelayer.trigger(() => this.hasSomeCollapsibleResultKey.set(this.hasSomeCollapsible()));

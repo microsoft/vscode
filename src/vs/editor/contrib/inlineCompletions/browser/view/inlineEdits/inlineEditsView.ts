@@ -190,6 +190,8 @@ export class InlineEditsView extends Disposable {
 		const edit = this._edit.read(reader);
 		if (!edit) { return undefined; }
 
+		this._model.get()?.handleInlineCompletionShown(edit.inlineCompletion);
+
 		let mappings = RangeMapping.fromEdit(edit.edit);
 		let newText = edit.edit.apply(edit.originalText);
 		let diff = lineRangeMappingFromRangeMappings(mappings, edit.originalText, new StringText(newText));
@@ -315,6 +317,7 @@ export class InlineEditsView extends Disposable {
 			scrollbar: {
 				vertical: 'hidden',
 				horizontal: 'hidden',
+				handleMouseWheel: false,
 			},
 			readOnly: true,
 			wordWrap: 'off',

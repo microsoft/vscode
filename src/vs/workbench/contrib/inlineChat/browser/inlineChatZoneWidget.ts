@@ -89,6 +89,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 						return isEqual(uri, editor.getModel()?.uri)
 							&& configurationService.getValue<EditMode>(InlineChatConfigKeys.Mode) === EditMode.Live;
 					},
+					renderDetectedCommandsWithRequest: true,
 				}
 			}
 		});
@@ -106,7 +107,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 				revealFn ??= this._createZoneAndScrollRestoreFn(this.position);
 				const height = this._computeHeight();
 				this._relayout(height.linesValue);
-				revealFn();
+				revealFn?.();
 				revealFn = undefined;
 			}
 		}));
@@ -151,8 +152,10 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	protected override _doLayout(heightInPixel: number): void {
 
+		this._updatePadding();
+
 		const info = this.editor.getLayoutInfo();
-		let width = info.contentWidth + info.glyphMarginWidth - 8;
+		let width = info.contentWidth - info.verticalScrollbarWidth;
 		width = Math.min(850, width);
 
 		this._dimension = new Dimension(width, heightInPixel);
@@ -190,9 +193,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	override show(position: Position): void {
 		assertType(this.container);
 
-		const info = this.editor.getLayoutInfo();
-		const marginWithoutIndentation = info.glyphMarginWidth + info.lineNumbersWidth;
-		this.container.style.paddingLeft = `${marginWithoutIndentation}px`;
+		this._updatePadding();
 
 		const revealZone = this._createZoneAndScrollRestoreFn(position);
 		super.show(position, this._computeHeight().linesValue);
@@ -201,6 +202,14 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 		revealZone();
 		this._scrollUp.enable();
+	}
+
+	private _updatePadding() {
+		assertType(this.container);
+
+		const info = this.editor.getLayoutInfo();
+		const marginWithoutIndentation = info.glyphMarginWidth + info.lineNumbersWidth + info.decorationsWidth;
+		this.container.style.paddingLeft = `${marginWithoutIndentation}px`;
 	}
 
 	reveal(position: Position) {
