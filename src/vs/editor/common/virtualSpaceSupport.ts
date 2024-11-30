@@ -33,7 +33,10 @@ export class PositionTripple {
 	) { }
 
 	public static fromModelPosition(model: ICursorSimpleModel, position: Position): PositionTripple {
-		const maxColumn = model.getLineMaxColumn(position.lineNumber);
+		// As far as I can tell, during normal editing the line numbers are always valid.
+		// However some unit tests use values out of range. To be on the safe side, I'm patching it here.
+		const lineNumberIsValid = position.lineNumber >= 1 && position.lineNumber <= model.getLineCount();
+		const maxColumn = lineNumberIsValid ? model.getLineMaxColumn(position.lineNumber) : 1;
 		if (position.column > maxColumn) {
 			return new PositionTripple(new Position(position.lineNumber, maxColumn), position.column - maxColumn);
 		}

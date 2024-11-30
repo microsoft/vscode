@@ -226,14 +226,22 @@ export class MoveOperations {
 			if (lineNumber < 1) {
 				lineNumber = 1;
 				if (allowMoveOnEdgeLine) {
-					column = model.getLineMinColumn(lineNumber);
+					const firstColumn = model.getLineMinColumn(lineNumber);
+					if (column === firstColumn) {
+						columnHint = null;
+					}
+					column = firstColumn;
 				} else {
 					column = Math.min(model.getLineMaxColumn(lineNumber), column);
 				}
 			} else if (lineNumber > lineCount) {
 				lineNumber = lineCount;
 				if (allowMoveOnEdgeLine) {
-					column = model.getLineMaxColumn(lineNumber);
+					const lastColumn = model.getLineMaxColumn(lineNumber);
+					if (column === lastColumn) {
+						columnHint = null;
+					}
+					column = lastColumn;
 				} else {
 					column = Math.min(model.getLineMaxColumn(lineNumber), column);
 				}
