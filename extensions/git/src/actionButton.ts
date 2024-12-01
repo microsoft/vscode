@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace, l10n } from 'vscode';
+import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace, l10n, LogOutputChannel } from 'vscode';
 import { Branch, RefType, Status } from './api/git';
 import { OperationKind } from './operation';
 import { CommitCommandsCenter } from './postCommitCommands';
@@ -51,13 +51,16 @@ export class ActionButton {
 
 		this._state = state;
 		this._onDidChange.fire();
+
+		this.logger.trace(`[ActionButton][setState] ${JSON.stringify(state)}`);
 	}
 
 	private disposables: Disposable[] = [];
 
 	constructor(
-		readonly repository: Repository,
-		readonly postCommitCommandCenter: CommitCommandsCenter) {
+		private readonly repository: Repository,
+		private readonly postCommitCommandCenter: CommitCommandsCenter,
+		private readonly logger: LogOutputChannel) {
 		this._state = {
 			HEAD: undefined,
 			isCheckoutInProgress: false,
@@ -102,7 +105,15 @@ export class ActionButton {
 		}
 
 		// Commit Changes (enabled) -> Publish Branch -> Sync Changes -> Commit Changes (disabled)
-		return actionButton ?? this.getPublishBranchActionButton() ?? this.getSyncChangesActionButton() ?? this.getCommitActionButton();
+		actionButton = actionButton ?? this.getPublishBranchActionButton() ?? this.getSyncChangesActionButton() ?? this.getCommitActionButton();
+
+		this.logger.trace(`[ActionButton][getButton] ${JSON.stringify({
+			command: actionButton?.command.command,
+			title: actionButton?.command.title,
+			enabled: actionButton?.enabled
+		})}`);
+
+		return actionButton;
 	}
 
 	private getCommitActionButton(): SourceControlActionButton | undefined {
