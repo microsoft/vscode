@@ -52,6 +52,7 @@ import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
+import { Lazy } from '../../../../base/common/lazy.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -88,8 +89,7 @@ const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
 class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly context = this._register(this.instantiationService.createInstance(ChatSetupContext));
-	private readonly requests = this._register(this.instantiationService.createInstance(ChatSetupRequests, this.context));
-	private readonly controller = this._register(this.instantiationService.createInstance(ChatSetupController, this.requests, this.context));
+	private readonly controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, this.context)));
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
@@ -126,7 +126,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				)
 			)!,
 			icon: Codicon.copilot,
-			content: disposables => disposables.add(this.instantiationService.createInstance(ChatSetupWelcomeContent, this.controller, this.context)).element,
+			content: disposables => disposables.add(this.instantiationService.createInstance(ChatSetupWelcomeContent, this.controller.value, this.context)).element,
 		});
 	}
 
@@ -624,8 +624,9 @@ class ChatSetupController extends Disposable {
 		return this._step;
 	}
 
+	private readonly requests = this._register(this.instantiationService.createInstance(ChatSetupRequests, this.context));
+
 	constructor(
-		private readonly requests: ChatSetupRequests,
 		private readonly context: ChatSetupContext,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
@@ -636,7 +637,8 @@ class ChatSetupController extends Disposable {
 		@IProgressService private readonly progressService: IProgressService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IActivityService private readonly activityService: IActivityService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
