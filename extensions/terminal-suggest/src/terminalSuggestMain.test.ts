@@ -83,6 +83,14 @@ function createCodeTestSpecs(executable: string): ITestSpec2[] {
 
 const testSpecs2: ISuiteSpec[] = [
 	{
+		name: 'Fallback to default completions',
+		completionSpecs: [],
+		availableCommands: [],
+		testSpecs: [
+			{ input: 'fakecommand |', expectedCompletions: [], expectedResourceRequests: { type: 'both', cwd: testCwd } },
+		]
+	},
+	{
 		name: 'cd',
 		completionSpecs: cdSpec,
 		availableCommands: 'cd',
