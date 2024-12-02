@@ -282,7 +282,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 						foldersRequested = foldersRequested || argsCompletions.foldersRequested;
 						filesRequested = filesRequested || argsCompletions.filesRequested;
 						let cwd: vscode.Uri | undefined;
-						if (shellIntegrationCwd && filesRequested || foldersRequested) {
+						if (shellIntegrationCwd && (filesRequested || foldersRequested)) {
 							cwd = await resolveCwdFromPrefix(prefix, shellIntegrationCwd) ?? shellIntegrationCwd;
 						}
 						specificSuggestionsProvided = argsCompletions.specificSuggestionsProvided;
@@ -335,7 +335,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 		foldersRequested = true;
 	}
 	let cwd: vscode.Uri | undefined;
-	if (shellIntegrationCwd && filesRequested || foldersRequested) {
+	if (shellIntegrationCwd && (filesRequested || foldersRequested)) {
 		cwd = await resolveCwdFromPrefix(prefix, shellIntegrationCwd) ?? shellIntegrationCwd;
 	}
 	return { items, filesRequested, foldersRequested, cwd };
