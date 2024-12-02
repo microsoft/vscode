@@ -607,6 +607,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions {
 	margin: 3px 0px;
+	overflow: hidden;
 }
 
 .interactive-session .chat-editing-session .monaco-button {
@@ -654,6 +655,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	cursor: pointer;
 	display: flex;
 	justify-content: start;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary:first-child {
+	flex-shrink: 0;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary:only-child {
 	width: 100%;
 }
 
@@ -696,6 +704,28 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button {
 	overflow: hidden;
 	text-wrap: nowrap;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button-dropdown.sidebyside-button {
+	align-items: center;
+	border-radius: 2px;
+}
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button-dropdown.sidebyside-button .monaco-button,
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button-dropdown.sidebyside-button .monaco-button:hover {
+	border-right: 1px solid transparent;
+	background-color: unset;
+	padding: 0;
+}
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button-dropdown.sidebyside-button > .separator {
+	border-right: 1px solid transparent;
+	padding: 0 1px;
+	height: 22px;
+}
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button-dropdown.sidebyside-button:hover > .separator {
+	border-color: var(--vscode-input-border);
+}
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button-dropdown.sidebyside-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .interactive-session .interactive-input-part.compact .chat-input-container {
@@ -1022,6 +1052,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	/* clamp to max 3 lines */
 	display: -webkit-box;
+	line-clamp: 3;
 	-webkit-line-clamp: 3;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
