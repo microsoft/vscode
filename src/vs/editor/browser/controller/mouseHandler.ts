@@ -8,7 +8,7 @@ import { StandardWheelEvent, IMouseWheelEvent } from '../../../base/browser/mous
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
 import { HitTestContext, MouseTarget, MouseTargetFactory, PointerHandlerLastRenderData } from './mouseTarget.js';
-import { IMouseTarget, IMouseTargetOutsideEditor, IMouseTargetScrollbar, IMouseTargetViewZoneData, MouseTargetType } from '../editorBrowser.js';
+import { IMouseTarget, IMouseTargetOutsideEditor, IMouseTargetViewZoneData, MouseTargetType } from '../editorBrowser.js';
 import { ClientCoordinates, EditorMouseEvent, EditorMouseEventFactory, GlobalEditorPointerMoveMonitor, createEditorPagePosition, createCoordinatesRelativeToEditor, PageCoordinates } from '../editorDom.js';
 import { ViewController } from '../view/viewController.js';
 import { EditorZoom } from '../../common/config/editorZoom.js';
@@ -21,7 +21,6 @@ import { ViewEventHandler } from '../../common/viewEventHandler.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import { NavigationCommandRevealType } from '../coreCommands.js';
 import { MouseWheelClassifier } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { positionToString } from '../../../workbench/services/layout/browser/layoutService.js';
 
 export interface IPointerHandlerHelper {
 	viewDomNode: HTMLElement;
@@ -423,16 +422,19 @@ class MouseDownOperation extends Disposable {
 			});
 		} else {
 			console.log(position.type)
-			if (position.type === MouseTargetType.OUTSIDE_EDITOR && (position.outsidePosition === 'above' || position.outsidePosition === 'below')) {
+			if (position.type === MouseTargetType.OUTSIDE_EDITOR && (position.outsidePosition === 'left' || position.outsidePosition === 'right')) {
 				this._leftRightDragScrolling.start(position, e);
+				return
+			} else {
+				this._leftRightDragScrolling.stop();
 			}
-			else if (position.type === MouseTargetType.OUTSIDE_EDITOR && (position.outsidePosition === 'above' || position.outsidePosition === 'below')) {
+			if (position.type === MouseTargetType.OUTSIDE_EDITOR && (position.outsidePosition === 'above' || position.outsidePosition === 'below')) {
 				this._topBottomDragScrolling.start(position, e);
+				return
 			} else {
 				this._topBottomDragScrolling.stop();
-				this._leftRightDragScrolling.stop();
-				this._dispatchMouse(position, true, NavigationCommandRevealType.Minimal);
 			}
+			this._dispatchMouse(position, true, NavigationCommandRevealType.Minimal);
 		}
 	}
 
@@ -562,13 +564,18 @@ class MouseDownOperation extends Disposable {
 
 		const possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + e.relativePos.y);
 
-		if (e.posx < editorContent.x) {
-			const outsideDistance = editorContent.x - e.posx;
+		const buffer = 120;
+
+		const left = this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft;
+		const right = this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft + this._context.configuration.options.get(EditorOption.layoutInfo).contentWidth;
+		console.log("left: " + left + " right: " + right + " pos: " + e.relativePos.x)
+		if (e.relativePos.x < left + buffer) {
+			const outsideDistance = left + buffer - e.relativePos.x;
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, 1), 'left', outsideDistance);
 		}
 
-		if (e.posx > editorContent.x + editorContent.width) {
-			const outsideDistance = e.posx - editorContent.x - editorContent.width;
+		if (e.relativePos.x > right - buffer) {
+			const outsideDistance = e.relativePos.x - right - buffer;
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)), 'right', outsideDistance);
 		}
 
@@ -786,7 +793,7 @@ class LeftRightDragScrolling extends Disposable {
 		this.stop();
 	}
 
-	public start(position: IMouseTargetScrollbar, mouseEvent: EditorMouseEvent): void {
+	public start(position: IMouseTargetOutsideEditor, mouseEvent: EditorMouseEvent): void {
 		if (this._operation) {
 			this._operation.setPosition(position, mouseEvent);
 		} else {
@@ -805,7 +812,7 @@ class LeftRightDragScrolling extends Disposable {
 
 class LeftRightDragScrollingOperation extends Disposable {
 
-	private _position: IMouseTargetScrollbar;
+	private _position: IMouseTargetOutsideEditor;
 	private _mouseEvent: EditorMouseEvent;
 	private _lastTime: number;
 	private _animationFrameDisposable: IDisposable;
@@ -815,7 +822,7 @@ class LeftRightDragScrollingOperation extends Disposable {
 		private readonly _viewHelper: IPointerHandlerHelper,
 		private readonly _mouseTargetFactory: MouseTargetFactory,
 		private readonly _dispatchMouse: (position: IMouseTarget, inSelectionMode: boolean, revealType: NavigationCommandRevealType) => void,
-		position: IMouseTargetScrollbar,
+		position: IMouseTargetOutsideEditor,
 		mouseEvent: EditorMouseEvent
 	) {
 		super();
@@ -830,7 +837,7 @@ class LeftRightDragScrollingOperation extends Disposable {
 		super.dispose();
 	}
 
-	public setPosition(position: IMouseTargetScrollbar, mouseEvent: EditorMouseEvent): void {
+	public setPosition(position: IMouseTargetOutsideEditor, mouseEvent: EditorMouseEvent): void {
 		this._position = position;
 		this._mouseEvent = mouseEvent;
 	}
@@ -849,10 +856,9 @@ class LeftRightDragScrollingOperation extends Disposable {
 	 * get the number of cols per second to auto-scroll
 	 */
 	private _getScrollSpeed(): number {
-		const charWidth = this._context.configuration.options.get(EditorOption.fontInfo).typicalFullwidthCharacterWidth;
-		const viewportInCols = this._context.configuration.options.get(EditorOption.layoutInfo).width / charWidth;
-		const outsideDistanceInLines = this._position.mouseColumn / charWidth;
-		console.log(outsideDistanceInLines)
+		const lineHeight = this._context.configuration.options.get(EditorOption.lineHeight);
+		const viewportInCols = this._context.configuration.options.get(EditorOption.layoutInfo).width / lineHeight;
+		const outsideDistanceInLines = this._position.outsideDistance / lineHeight;
 		if (outsideDistanceInLines <= 1.5) {
 			return Math.max(30, viewportInCols * (1 + outsideDistanceInLines));
 		}
@@ -866,13 +872,15 @@ class LeftRightDragScrollingOperation extends Disposable {
 		const scrollSpeedInLines = this._getScrollSpeed();
 		const elapsed = this._tick();
 		const scrollInPixels = scrollSpeedInLines * (elapsed / 1000);
-		const scrollValue = scrollInPixels;
+		const scrollValue = (this._position.outsidePosition === 'left' ? -scrollInPixels : scrollInPixels);
 
 		this._context.viewModel.viewLayout.deltaScrollNow(scrollValue, 0);
 		this._viewHelper.renderNow();
 
-		const viewportData = this._context.viewLayout.getLinesViewportData();
-		const edgeLineNumber = viewportData.endLineNumber;
+		if (!this._position.position) {
+			return
+		}
+		const edgeLineNumber = this._position.position.lineNumber
 
 		// First, try to find a position that matches the horizontal position of the mouse
 		let mouseTarget: IMouseTarget;
@@ -883,10 +891,17 @@ class LeftRightDragScrollingOperation extends Disposable {
 			const relativePos = createCoordinatesRelativeToEditor(this._viewHelper.viewDomNode, editorPos, pos);
 			mouseTarget = this._mouseTargetFactory.createMouseTarget(this._viewHelper.getLastRenderData(), editorPos, pos, relativePos, null);
 		}
-		mouseTarget = MouseTarget.createOutsideEditor(this._position.mouseColumn, new Position(edgeLineNumber, 1), 'right', this._position.mouseColumn);
-		if (mouseTarget.position) {
-			// console.log("col " + mouseTarget.position.column + " row " + mouseTarget.position.lineNumber)
+		const currentScrollPosition = this._context.viewModel.viewLayout.getCurrentScrollLeft()
+		console.log(currentScrollPosition)
+		if (!mouseTarget.position || mouseTarget.position.lineNumber !== edgeLineNumber) {
+			//console.log(this._position.mouseColumn + " " + edgeLineNumber + " " + this._position.position.column + " " + this._position.outsideDistance)
+			if (this._position.outsidePosition === 'left') {
+				mouseTarget = MouseTarget.createOutsideEditor(this._position.mouseColumn, new Position(edgeLineNumber, this._position.mouseColumn), 'left', this._position.outsideDistance);
+			} else {
+				mouseTarget = MouseTarget.createOutsideEditor(this._position.mouseColumn, new Position(edgeLineNumber, this._position.mouseColumn), 'right', this._position.outsideDistance);
+			}
 		}
+
 		this._dispatchMouse(mouseTarget, true, NavigationCommandRevealType.None);
 		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(dom.getWindow(mouseTarget.element), () => this._execute());
 	}
