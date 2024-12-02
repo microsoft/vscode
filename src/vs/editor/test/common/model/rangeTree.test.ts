@@ -9,25 +9,13 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { _tokenizeToString } from '../../../common/languages/textToHtmlTokenizer.js';
-import { ITextModel } from '../../../common/model.js';
-import { Position } from '../../../common/core/position.js';
 import { isLeaf, RangeTreeLeafNode, TokenRangeTree } from '../../../common/model/rangeTree.js';
 import { StorableToken } from '../../../common/model/treeSitterTokenStore.js';
 
 class MockTokenRangeTextModel {
 	constructor(private valueLength: number) {
 	}
-	getLineCount(): number {
-		return 10;
-	}
-	getLineMaxColumn(lineNumber: number): number {
-		return 10;
-	}
-	getOffsetAt(position: Position): number {
-		if (position.lineNumber === 1) {
-			return 0;
-		}
-
+	getEnd() {
 		return this.valueLength;
 	}
 	updateLength(newLength: number) {
@@ -83,19 +71,19 @@ suite('Range Tree', () => {
 			{ startInclusive: 17, endExclusive: 18, data: 0, parent: undefined }
 		];
 
-		const treeA = new TokenRangeTree<number>(new MockTokenRangeTextModel(18) as unknown as ITextModel, 0);
+		const treeA = new TokenRangeTree<number>(new MockTokenRangeTextModel(18), 0);
 		for (const range of ranges) {
 			insertRange(treeA, range);
 		}
 		assert.strictEqual(treeA.printTree(), expectedTree);
 
-		const treeB = new TokenRangeTree<number>(new MockTokenRangeTextModel(18) as unknown as ITextModel, 0);
+		const treeB = new TokenRangeTree<number>(new MockTokenRangeTextModel(18), 0);
 		for (let i = ranges.length - 1; i >= 0; i--) {
 			insertRange(treeB, ranges[i]);
 		}
 		assert.strictEqual(treeB.printTree(), expectedTree);
 
-		const treeC = new TokenRangeTree<number>(new MockTokenRangeTextModel(18) as unknown as ITextModel, 0);
+		const treeC = new TokenRangeTree<number>(new MockTokenRangeTextModel(18), 0);
 		insertRange(treeC, ranges[4]);
 		insertRange(treeC, ranges[0]);
 		insertRange(treeC, ranges[7]);
@@ -157,7 +145,7 @@ suite('Range Tree', () => {
 		];
 
 		const mockTextModel = new MockTokenRangeTextModel(18);
-		const tree = new TokenRangeTree<number>(mockTextModel as unknown as ITextModel, 0);
+		const tree = new TokenRangeTree<number>(mockTextModel, 0);
 		for (const range of ranges) {
 			insertRange(tree, range);
 		}
@@ -274,7 +262,7 @@ suite('Range Tree', () => {
 		];
 
 		const mockTextModel = new MockTokenRangeTextModel(36);
-		const tree = new TokenRangeTree<number>(mockTextModel as unknown as ITextModel, 0);
+		const tree = new TokenRangeTree<number>(mockTextModel, 0);
 		for (const range of ranges) {
 			insertRange(tree, range);
 		}
@@ -342,7 +330,7 @@ suite('Range Tree', () => {
 		];
 
 		const mockTextModel = new MockTokenRangeTextModel(18);
-		const treeA = new TokenRangeTree<number>(mockTextModel as unknown as ITextModel, 0);
+		const treeA = new TokenRangeTree<number>(mockTextModel, 0);
 		for (const range of ranges) {
 			insertRange(treeA, range);
 		}
@@ -389,7 +377,7 @@ suite('Range Tree', () => {
 		];
 
 		const mockTextModel = new MockTokenRangeTextModel(18);
-		const tree = new TokenRangeTree<number>(mockTextModel as unknown as ITextModel, 0);
+		const tree = new TokenRangeTree<number>(mockTextModel, 0);
 		for (const range of ranges) {
 			insertRange(tree, range);
 		}
@@ -467,7 +455,7 @@ suite('Range Tree', () => {
 		];
 
 		const mockTextModel = new MockTokenRangeTextModel(18);
-		const tree = new TokenRangeTree<number>(mockTextModel as unknown as ITextModel, 0);
+		const tree = new TokenRangeTree<number>(mockTextModel, 0);
 		for (const range of ranges) {
 			insertRange(tree, range);
 		}
@@ -483,7 +471,7 @@ suite('Range Tree', () => {
 
 	test('traversePostOrderFromNode', () => {
 		const textModel = new MockTokenRangeTextModel(15);
-		const tree =  new TokenRangeTree<number>(textModel as unknown as ITextModel, 0);
+		const tree =  new TokenRangeTree<number>(textModel, 0);
 
 		// Insert nodes into the tree
 		tree.insert([new StorableToken(0, 5, 1)]);
