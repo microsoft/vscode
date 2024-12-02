@@ -14,6 +14,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { CursorColumns } from '../../../../common/core/cursorColumns.js';
 import { EditOperation } from '../../../../common/core/editOperation.js';
 import { LineRange } from '../../../../common/core/lineRange.js';
@@ -53,6 +54,8 @@ export class InlineCompletionsModel extends Disposable {
 
 	private readonly _editorObs = observableCodeEditor(this._editor);
 
+	private readonly onlyShowWhenCloseToCursor = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.experimental.onlyShowWhenCloseToCursor);
+
 	constructor(
 		public readonly textModel: ITextModel,
 		private readonly _selectedSuggestItem: IObservable<SuggestItemInfo | undefined>,
@@ -86,6 +89,11 @@ export class InlineCompletionsModel extends Disposable {
 					src.provider.handleItemDidShow?.(src.inlineCompletions, i.sourceInlineCompletion, i.insertText);
 				}
 			}
+		}));
+
+		this._register(autorun(reader => {
+			this._editorObs.versionId.read(reader);
+			this._inAcceptFlow.set(false, undefined);
 		}));
 	}
 
@@ -201,8 +209,13 @@ export class InlineCompletionsModel extends Disposable {
 		return this._source.fetch(cursorPosition, context, itemToPreserve);
 	});
 
-	public async trigger(tx?: ITransaction): Promise<void> {
-		this._isActive.set(true, tx);
+	public async trigger(tx?: ITransaction, onlyFetchInlineEdits: boolean = false): Promise<void> {
+		subtransaction(tx, tx => {
+			if (onlyFetchInlineEdits) {
+				this._onlyRequestInlineEditsSignal.trigger(tx);
+			}
+			this._isActive.set(true, tx);
+		});
 		await this._fetchInlineCompletionsPromise.get();
 	}
 
@@ -344,6 +357,10 @@ export class InlineCompletionsModel extends Disposable {
 			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber);
 
 			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this._primaryPosition.read(reader).lineNumber);
+
+			if (this.onlyShowWhenCloseToCursor.read(reader) && cursorDist > 3 && !item.inlineEdit.request.isExplicitRequest && !this._inAcceptFlow.read(reader)) {
+				return undefined;
+			}
 			const disableCollapsing = true;
 			const currentItemIsCollapsed = !disableCollapsing && (cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEdit.semanticId);
 
@@ -579,6 +596,8 @@ export class InlineCompletionsModel extends Disposable {
 				.then(undefined, onUnexpectedExternalError);
 			completion.source.removeRef();
 		}
+
+		this._inAcceptFlow.set(true, undefined);
 	}
 
 	public async acceptNextWord(editor: ICodeEditor): Promise<void> {
@@ -711,6 +730,7 @@ export class InlineCompletionsModel extends Disposable {
 	}
 
 	private _jumpedTo = observableValue(this, false);
+	private _inAcceptFlow = observableValue(this, false);
 
 	public jump(): void {
 		const s = this.inlineEditState.get();

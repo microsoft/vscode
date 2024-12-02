@@ -75,8 +75,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this.textArea = new FastDomNode(document.createElement('textarea'));
 		this.textArea.setClassName('native-edit-context-textarea');
 
-		this._register(NativeEditContextRegistry.registerTextArea(ownerID, this.textArea.domNode));
-
 		this._updateDomAttributes();
 
 		overflowGuardContainer.appendChild(this.domNode);
@@ -85,7 +83,12 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._selectionChangeListener = this._register(new MutableDisposable());
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
-			this._selectionChangeListener.value = newFocusValue ? this._setSelectionChangeListener(viewController) : undefined;
+			if (newFocusValue) {
+				this._selectionChangeListener.value = this._setSelectionChangeListener(viewController);
+				this._screenReaderSupport.setIgnoreSelectionChangeTime('onFocus');
+			} else {
+				this._selectionChangeListener.value = undefined;
+			}
 			this._context.viewModel.setHasFocus(newFocusValue);
 		}));
 
@@ -97,6 +100,9 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => this._ensureClipboardGetsEditorSelection(e)));
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
+			// Pretend here we touched the text area, as the `cut` event will most likely
+			// result in a `selectionchange` event which we want to ignore
+			this._screenReaderSupport.setIgnoreSelectionChangeTime('onCut');
 			this._ensureClipboardGetsEditorSelection(e);
 			viewController.cut();
 		}));
@@ -139,6 +145,9 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.onCompositionEnd();
 		}));
 		this._register(addDisposableListener(this.textArea.domNode, 'paste', (e) => {
+			// Pretend here we touched the text area, as the `paste` event will most likely
+			// result in a `selectionchange` event which we want to ignore
+			this._screenReaderSupport.setIgnoreSelectionChangeTime('onPaste');
 			e.preventDefault();
 			if (!e.clipboardData) {
 				return;
@@ -160,6 +169,7 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 			viewController.paste(text, pasteOnNewLine, multicursorText, mode);
 		}));
+		this._register(NativeEditContextRegistry.register(ownerID, this));
 	}
 
 	// --- Public methods ---
@@ -202,6 +212,10 @@ export class NativeEditContext extends AbstractEditContext {
 		this._screenReaderSupport.onConfigurationChanged(e);
 		this._updateDomAttributes();
 		return true;
+	}
+
+	public onWillPaste(): void {
+		this._screenReaderSupport.setIgnoreSelectionChangeTime('onWillPaste');
 	}
 
 	public writeScreenReaderContent(): void {
@@ -455,6 +469,9 @@ export class NativeEditContext extends AbstractEditContext {
 		// When using a Braille display or NVDA for example, it is possible for users to reposition the
 		// system caret. This is reflected in Chrome as a `selectionchange` event and needs to be reflected within the editor.
 
+		// `selectionchange` events often come multiple times for a single logical change
+		// so throttle multiple `selectionchange` events that burst in a short period of time.
+		let previousSelectionChangeEventTime = 0;
 		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', () => {
 			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 			if (!this.isFocused() || !isScreenReaderOptimized) {
@@ -462,6 +479,21 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 			const screenReaderContentState = this._screenReaderSupport.screenReaderContentState;
 			if (!screenReaderContentState) {
+				return;
+			}
+			const now = Date.now();
+			const delta1 = now - previousSelectionChangeEventTime;
+			previousSelectionChangeEventTime = now;
+			if (delta1 < 5) {
+				// received another `selectionchange` event within 5ms of the previous `selectionchange` event
+				// => ignore it
+				return;
+			}
+			const delta2 = now - this._screenReaderSupport.getIgnoreSelectionChangeTime();
+			this._screenReaderSupport.resetSelectionChangeTime();
+			if (delta2 < 100) {
+				// received a `selectionchange` event within 100ms since we touched the textarea
+				// => ignore it, since we caused it
 				return;
 			}
 			const activeDocument = getActiveWindow().document;
@@ -474,11 +506,14 @@ export class NativeEditContext extends AbstractEditContext {
 				return;
 			}
 			const range = activeDocumentSelection.getRangeAt(0);
-			const model = this._context.viewModel.model;
-			const offsetOfStartOfScreenReaderContent = model.getOffsetAt(screenReaderContentState.startPositionWithinEditor);
+			const viewModel = this._context.viewModel;
+			const model = viewModel.model;
+			const coordinatesConverter = viewModel.coordinatesConverter;
+			const modelScreenReaderContentStartPositionWithinEditor = coordinatesConverter.convertViewPositionToModelPosition(screenReaderContentState.startPositionWithinEditor);
+			const offsetOfStartOfScreenReaderContent = model.getOffsetAt(modelScreenReaderContentStartPositionWithinEditor);
 			let offsetOfSelectionStart = range.startOffset + offsetOfStartOfScreenReaderContent;
 			let offsetOfSelectionEnd = range.endOffset + offsetOfStartOfScreenReaderContent;
-			const modelUsesCRLF = this._context.viewModel.model.getEndOfLineSequence() === EndOfLineSequence.CRLF;
+			const modelUsesCRLF = model.getEndOfLineSequence() === EndOfLineSequence.CRLF;
 			if (modelUsesCRLF) {
 				const screenReaderContentText = screenReaderContentState.value;
 				const offsetTransformer = new PositionOffsetTransformer(screenReaderContentText);

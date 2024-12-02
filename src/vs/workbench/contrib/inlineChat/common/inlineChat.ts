@@ -65,12 +65,14 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		[InlineChatConfigKeys.LineEmptyHint]: {
 			description: localize('emptyLineHint', "Whether empty lines show a hint to generate code with inline chat."),
 			default: false,
-			type: 'boolean'
+			type: 'boolean',
+			tags: ['experimental'],
 		},
 		[InlineChatConfigKeys.LineSuffixHint]: {
 			description: localize('lineSuffixHint', "Whether a hint to complete a line with inline chat is shown."),
 			default: true,
-			type: 'boolean'
+			type: 'boolean',
+			tags: ['experimental'],
 		},
 	}
 });

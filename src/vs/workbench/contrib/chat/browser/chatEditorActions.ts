@@ -159,7 +159,7 @@ abstract class AcceptDiscardAction extends Action2 {
 			return;
 		}
 
-		const session = chatEditingService.getEditingSession(uri);
+		const session = chatEditingService.currentEditingSession;
 		if (!session) {
 			return;
 		}

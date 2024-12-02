@@ -500,14 +500,20 @@ async function processArtifact(artifact, filePath) {
         await releaseService.createRelease(version, filePath, friendlyFileName);
     }
     const asset = { platform, type, url, hash: hash.toString('hex'), sha256hash: sha256hash.toString('hex'), size, supportsFastUpdate: true };
-    log('Creating asset...', JSON.stringify(asset, undefined, 2));
-    await (0, retry_1.retry)(async (attempt) => {
+    log('Creating asset...');
+    const result = await (0, retry_1.retry)(async (attempt) => {
         log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
         const client = new cosmos_1.CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), tokenProvider: () => Promise.resolve(`type=aad&ver=1.0&sig=${cosmosDBAccessToken.token}`) });
         const scripts = client.database('builds').container(quality).scripts;
-        await scripts.storedProcedure('createAsset').execute('', [version, asset, true]);
+        const { resource: result } = await scripts.storedProcedure('createAsset').execute('', [version, asset, true]);
+        return result;
     });
-    log('Asset successfully created');
+    if (result === 'already exists') {
+        log('Asset already exists!');
+    }
+    else {
+        log('Asset successfully created: ', JSON.stringify(asset, undefined, 2));
+    }
 }
 // It is VERY important that we don't download artifacts too much too fast from AZDO.
 // AZDO throttles us SEVERELY if we do. Not just that, but they also close open

@@ -222,7 +222,6 @@ export function registerChatTitleActions() {
 			}
 
 			const chatService = accessor.get(IChatService);
-			const chatEditingService = accessor.get(IChatEditingService);
 			const chatModel = chatService.getSession(item.sessionId);
 			const chatRequests = chatModel?.getRequests();
 			if (!chatRequests) {
@@ -232,9 +231,14 @@ export function registerChatTitleActions() {
 			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession) {
 				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
+				const chatEditingService = accessor.get(IChatEditingService);
+				const currentEditingSession = chatEditingService.currentEditingSession;
+				if (!currentEditingSession) {
+					return;
+				}
 
 				// Prompt if the last request modified the working set and the user hasn't already disabled the dialog
-				const entriesModifiedInLastRequest = chatEditingService.currentEditingSessionObs.get()?.entries.get().filter((entry) => entry.lastModifyingRequestId === item.requestId) ?? [];
+				const entriesModifiedInLastRequest = currentEditingSession.entries.get().filter((entry) => entry.lastModifyingRequestId === item.requestId);
 				const shouldPrompt = entriesModifiedInLastRequest.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRetry') === true;
 				const confirmation = shouldPrompt
 					? await dialogService.confirm({
@@ -259,7 +263,7 @@ export function registerChatTitleActions() {
 				// Reset the snapshot
 				const snapshotRequest = chatRequests[itemIndex];
 				if (snapshotRequest) {
-					await chatEditingService.restoreSnapshot(snapshotRequest.id);
+					await currentEditingSession.restoreSnapshot(snapshotRequest.id);
 				}
 			}
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);

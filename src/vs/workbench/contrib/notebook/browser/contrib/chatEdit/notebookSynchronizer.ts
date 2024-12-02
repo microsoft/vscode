@@ -91,7 +91,7 @@ export class NotebookModelSynchronizer extends Disposable {
 			if (!session) {
 				return;
 			}
-			return session.entries.read(r).find(e => isEqual(e.modifiedURI, model.uri));
+			return session.readEntry(model.uri, r);
 		}).recomputeInitiallyAndOnChange(this._store);
 
 
@@ -239,6 +239,7 @@ export class NotebookModelSynchronizer extends Disposable {
 		const modifiedModel = (entry as ChatEditingModifiedFileEntry).modifiedModel;
 		const content = modifiedModel.getValue();
 		await this.updateNotebook(VSBuffer.fromString(content), false);
+		this._diffInfo.set(undefined, undefined);
 	}
 
 	async getNotebookSerializer() {

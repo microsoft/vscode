@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqual } from '../../../../../../base/common/resources.js';
 import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, autorunWithStore, derived, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { IChatEditingService, ChatEditingSessionState } from '../../../../chat/common/chatEditingService.js';
@@ -32,6 +31,7 @@ import { splitLines } from '../../../../../../base/common/strings.js';
 import { DefaultLineHeight } from '../../diff/diffElementViewModel.js';
 import { INotebookOriginalCellModelFactory } from './notebookOriginalCellModelFactory.js';
 import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 
 
 export class NotebookCellDiffDecorator extends DisposableStore {

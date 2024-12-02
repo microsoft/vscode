@@ -13,7 +13,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
-import { EditorAction, ServicesAccessor } from '../../../../browser/editorExtensions.js';
+import { EditorAction, EditorCommand, ServicesAccessor } from '../../../../browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../common/editorContextKeys.js';
 import { Context as SuggestContext } from '../../../suggest/browser/suggest.js';
 import { inlineSuggestCommitId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from './commandIds.js';
@@ -103,19 +103,17 @@ export class ExplicitTriggerInlineEditAction extends EditorAction {
 	}
 }
 
-export class TriggerInlineEditAction extends Action2 {
+export class TriggerInlineEditAction extends EditorCommand {
 	constructor() {
 		super({
 			id: 'editor.action.inlineSuggest.triggerInlineEdit',
-			title: nls.localize2('action.inlineSuggest.trigger.inlineEdit', "Trigger Inline Edit"),
 			precondition: EditorContextKeys.writable,
-			f1: false,
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public override async runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: { triggerKind?: 'automatic' | 'explicit' }): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
-		await controller?.model.get()?.triggerExplicitly(undefined, true);
+		await controller?.model.get()?.trigger(undefined, true);
 	}
 }
 
@@ -309,7 +307,7 @@ export class ToggleAlwaysShowInlineSuggestionToolbar extends Action2 {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor): Promise<void> {
 		const configService = accessor.get(IConfigurationService);
 		const currentValue = configService.getValue<'always' | 'onHover'>('editor.inlineSuggest.showToolbar');
 		const newValue = currentValue === 'always' ? 'onHover' : 'always';

@@ -17,7 +17,7 @@ import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionView
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IActionRunner } from '../../../../base/common/actions.js';
-import { getWindow, reset, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { EventLike, getWindow, reset, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -108,6 +108,10 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 							} else {
 								return localize('tooltip_nm', "{0} changes in {1} files", changeCount, entriesCount);
 							}
+						}
+
+						override onClick(event: EventLike, preserveFocus?: boolean): void {
+							ChatEditorController.get(that._editor)?.unlockScroll();
 						}
 					};
 				}
