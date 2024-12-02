@@ -20,26 +20,26 @@ import { RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { Range } from '../../../../../common/core/range.js';
 import { Position } from '../../../../../common/core/position.js';
 
-export function maxLeftInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader): number {
+export function maxContentWidthInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader): number {
 	editor.layoutInfo.read(reader);
 	editor.value.read(reader);
 
 	const model = editor.model.read(reader);
 	if (!model) { return 0; }
-	let maxLeft = 0;
+	let maxContentWidth = 0;
 
 	editor.scrollTop.read(reader);
 	for (let i = range.startLineNumber; i < range.endLineNumberExclusive; i++) {
 		const column = model.getLineMaxColumn(i);
-		const left = editor.editor.getOffsetForColumn(i, column);
-		maxLeft = Math.max(maxLeft, left);
+		const lineContentWidth = editor.editor.getOffsetForColumn(i, column);
+		maxContentWidth = Math.max(maxContentWidth, lineContentWidth);
 	}
 	const lines = range.mapToLineArray(l => model.getLineContent(l));
 
-	if (maxLeft < 5 && lines.some(l => l.length > 0) && model.uri.scheme !== 'file') {
+	if (maxContentWidth < 5 && lines.some(l => l.length > 0) && model.uri.scheme !== 'file') {
 		console.error('unexpected width');
 	}
-	return maxLeft;
+	return maxContentWidth;
 }
 
 export class StatusBarViewItem extends MenuEntryActionViewItem {
@@ -75,6 +75,10 @@ export class Point {
 
 	public deltaX(delta: number): Point {
 		return new Point(this.x + delta, this.y);
+	}
+
+	public deltaY(delta: number): Point {
+		return new Point(this.x, this.y + delta);
 	}
 }
 
