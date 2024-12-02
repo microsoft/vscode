@@ -294,10 +294,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._modelService.createModel(snapshotEntry.current, this._languageService.createById(snapshotEntry.languageId), snapshotUri, false);
 	}
 
-	public getSnapshot(requestId: string, uri: URI) {
+	public getSnapshot(requestId: string, uri: URI): ISnapshotEntry | undefined {
 		const snapshot = this._findSnapshot(requestId);
 		const snapshotEntries = snapshot?.entries;
 		return snapshotEntries?.get(uri);
+	}
+
+	public getSnapshotUri(requestId: string, uri: URI): URI | undefined {
+		return this.getSnapshot(requestId, uri)?.snapshotUri;
 	}
 
 	/**
