@@ -211,7 +211,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			lastWord = promptValue.substring(0, cursorPosition).trim().split(' ').at(-1) ?? '';
 		}
 
-		const hasFirstFolderDir = lastWord && lastWord.startsWith('.');
 		for (const stat of fileStat.children) {
 			let kind: TerminalCompletionItemKind | undefined;
 			if (foldersRequested && stat.isDirectory) {
@@ -229,7 +228,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
 				label = label + resourceRequestConfig.pathSeparator;
 			}
-			if (!hasFirstFolderDir) {
+			const startsWithDot = lastWord && lastWord.startsWith('.');
+			if (!startsWithDot) {
 				label = '.' + label;
 			}
 			resourceCompletions.push({
