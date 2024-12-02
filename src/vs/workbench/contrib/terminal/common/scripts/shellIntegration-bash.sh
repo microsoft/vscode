@@ -230,18 +230,22 @@ __vsc_update_env() {
 			fi
 			# Retrieve the value without executing it, and escape it for JSON
 			env_json+="\"$var\":\""
-			value=$(printf '%s' "${!var}") # | sed 's/"/\\"/g')
+			# TODO: Fix parsing of PS1 which can contain a lot of special characters
+			if [ "$var" != "PS1" ] && [ "$var" != "PS2" ]; then
+				value=$(builtin printf '%s' "${!var}")
+				env_json+="$(__vsc_escape_value $value)"
+			fi
+			# value=$(builtin printf '%s' "${!var}") #; s/"/\\"/g
 			# env_json+=$(printf '%s' "$value")
-			env_json+="$(__vsc_escape_value "$value")"
 			env_json+="\""
 			# Debugging statement
-			echo "Processed variable: $var, value: $value"
+			# echo "Processed variable: $var, value: $value"
 		fi
 	done
 	env_json+="}"
-	printf '\e]633;Env;%s;%s\a' "$(env_json)" "$__vsc_nonce"
+	builtin printf '\e]633;Env;%s;%s\a' "$env_json" "$__vsc_nonce"
 	# Debugging statement
-	echo "Final JSON: $env_json"
+	# echo "Final JSON: $env_json"
 }
 
 __vsc_command_output_start() {
