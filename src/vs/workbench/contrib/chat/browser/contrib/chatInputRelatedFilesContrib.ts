@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -65,13 +65,13 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 
 				// Pick up to 2 related files, or however many we can still fit in the working set
 				const maximumRelatedFiles = Math.min(2, this.chatEditingService.editingSessionFileLimit - widget.input.chatEditWorkingSetFiles.length);
-				const newSuggestions = new ResourceSet();
+				const newSuggestions = new ResourceMap<{ description: string; group: string }>();
 				for (const group of files) {
 					for (const file of group.files) {
 						if (newSuggestions.size >= maximumRelatedFiles) {
 							break;
 						}
-						newSuggestions.add(file.uri);
+						newSuggestions.set(file.uri, { group: group.group, description: file.description });
 					}
 				}
 
@@ -85,8 +85,8 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 				currentEditingSession?.remove(WorkingSetEntryRemovalReason.Programmatic, ...existingSuggestedEntriesToRemove);
 
 				// Add the new related file suggestions to the working set
-				for (const file of newSuggestions) {
-					currentEditingSession.addFileToWorkingSet(file, localize('relatedFile', "Suggested File"), WorkingSetEntryState.Suggested);
+				for (const [uri, data] of newSuggestions) {
+					currentEditingSession.addFileToWorkingSet(uri, localize('relatedFile', "{0} (Suggested)", data.description), WorkingSetEntryState.Suggested);
 				}
 			})
 			.finally(() => {
