@@ -191,15 +191,22 @@ export function registerChatCodeBlockActions() {
 				category: CHAT_CATEGORY,
 				icon: Codicon.gitPullRequestGoToChanges,
 
-				menu: {
-					id: MenuId.ChatCodeBlock,
-					group: 'navigation',
-					when: ContextKeyExpr.and(
-						ChatContextKeys.inChatSession,
-						...shellLangIds.map(e => ContextKeyExpr.notEquals(EditorContextKeys.languageId.key, e))
-					),
-					order: 10
-				},
+				menu: [
+					{
+						id: MenuId.ChatCodeBlock,
+						group: 'navigation',
+						when: ContextKeyExpr.and(
+							...shellLangIds.map(e => ContextKeyExpr.notEquals(EditorContextKeys.languageId.key, e))
+						),
+						order: 10
+					},
+					{
+						id: MenuId.ChatCodeBlock,
+						when: ContextKeyExpr.or(
+							...shellLangIds.map(e => ContextKeyExpr.equals(EditorContextKeys.languageId.key, e))
+						)
+					},
+				],
 				keybinding: {
 					when: ContextKeyExpr.or(ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()), accessibleViewInCodeBlock),
 					primary: KeyMod.CtrlCmd | KeyCode.Enter,
@@ -510,7 +517,7 @@ export function registerChatCodeCompareBlockActions() {
 				title: localize2('interactive.compare.apply', "Apply Edits"),
 				f1: false,
 				category: CHAT_CATEGORY,
-				icon: Codicon.check,
+				icon: Codicon.gitPullRequestGoToChanges,
 				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, ChatContextKeys.editApplied.negate()),
 				menu: {
 					id: MenuId.ChatCompareBlock,
@@ -522,16 +529,10 @@ export function registerChatCodeCompareBlockActions() {
 
 		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
 
-			const editorService = accessor.get(IEditorService);
 			const instaService = accessor.get(IInstantiationService);
 
 			const editor = instaService.createInstance(DefaultChatTextEditor);
-			await editor.apply(context.element, context.edit, context.diffEditor);
-
-			await editorService.openEditor({
-				resource: context.edit.uri,
-				options: { revealIfVisible: true },
-			});
+			await editor.preview(context.element, context.edit);
 		}
 	});
 

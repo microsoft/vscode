@@ -18,6 +18,8 @@ import { createRequire } from 'node:module';
 import type * as undiciType from 'undici-types';
 import type * as tlsType from 'tls';
 import type * as streamType from 'stream';
+import { lookupKerberosAuthorization } from '../../../platform/request/node/requestService.js';
+import * as proxyAgent from '@vscode/proxy-agent';
 
 const require = createRequire(import.meta.url);
 const http = require('http');
@@ -89,6 +91,8 @@ export function connectProxyResolver(
 		env: process.env,
 	};
 	const { resolveProxyWithRequest, resolveProxyURL } = createProxyResolver(params);
+	const target = (proxyAgent as any).default || proxyAgent;
+	target.resolveProxyURL = resolveProxyURL;
 
 	patchGlobalFetch(configProvider, mainThreadTelemetry, initData, resolveProxyURL, params.lookupProxyAuthorization!, getOrLoadAdditionalCertificates.bind(undefined, params), disposables);
 
@@ -347,7 +351,9 @@ function recordFetchFeatureUse(mainThreadTelemetry: MainThreadTelemetryShape, fe
 function createPatchedModules(params: ProxyAgentParams, resolveProxy: ResolveProxyWithRequest) {
 
 	function mergeModules(module: any, patch: any) {
-		return Object.assign(module.default || module, patch);
+		const target = module.default || module;
+		target.__vscodeOriginal = Object.assign({}, target);
+		return Object.assign(target, patch);
 	}
 
 	return {
@@ -480,13 +486,8 @@ async function lookupProxyAuthorization(
 		state.kerberosRequested = true;
 
 		try {
-			const kerberos = await import('kerberos');
-			const url = new URL(proxyURL);
-			const spn = configProvider.getConfiguration('http').get<string>('proxyKerberosServicePrincipal')
-				|| (process.platform === 'win32' ? `HTTP/${url.hostname}` : `HTTP@${url.hostname}`);
-			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication lookup', `proxyURL:${proxyURL}`, `spn:${spn}`);
-			const client = await kerberos.initializeClient(spn);
-			const response = await client.step('');
+			const spnConfig = configProvider.getConfiguration('http').get<string>('proxyKerberosServicePrincipal');
+			const response = await lookupKerberosAuthorization(proxyURL, spnConfig, extHostLogService, 'ProxyResolver#lookupProxyAuthorization');
 			return 'Negotiate ' + response;
 		} catch (err) {
 			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);

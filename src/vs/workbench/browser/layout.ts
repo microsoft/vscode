@@ -1618,6 +1618,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._onDidChangeMainEditorCenteredLayout.fire(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED));
 	}
 
+	getSize(part: Parts): IViewSize {
+		return this.workbenchGrid.getViewSize(this.getPart(part));
+	}
+
+	setSize(part: Parts, size: IViewSize): void {
+		this.workbenchGrid.resizeView(this.getPart(part), size);
+	}
+
 	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void {
 		const sizeChangePxWidth = Math.sign(sizeChangeWidth) * computeScreenAwareSize(getActiveWindow(), Math.abs(sizeChangeWidth));
 		const sizeChangePxHeight = Math.sign(sizeChangeHeight) * computeScreenAwareSize(getActiveWindow(), Math.abs(sizeChangeHeight));

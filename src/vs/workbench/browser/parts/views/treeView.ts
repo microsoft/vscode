@@ -1518,6 +1518,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		if (!this.manuallyManageCheckboxes()) {
 			allItems = setCascadingCheckboxUpdates(items);
+		} else {
+			allItems = items;
 		}
 
 		allItems.forEach(item => {

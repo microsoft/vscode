@@ -8,10 +8,11 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
-import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
 import { IChatResponseModel } from '../common/chatModel.js';
@@ -44,11 +45,24 @@ export interface IChatWidgetService {
 }
 
 export async function showChatView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
-	return (await viewsService.openView<ChatViewPane>(CHAT_VIEW_ID))?.widget;
+	return (await viewsService.openView<ChatViewPane>(ChatViewId))?.widget;
 }
 
 export async function showEditsView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
-	return (await viewsService.openView<ChatViewPane>(EDITS_VIEW_ID))?.widget;
+	return (await viewsService.openView<ChatViewPane>(EditsViewId))?.widget;
+}
+
+export function ensureSideBarChatViewSize(width: number, viewDescriptorService: IViewDescriptorService, layoutService: IWorkbenchLayoutService): void {
+	const location = viewDescriptorService.getViewLocationById(ChatViewId);
+	if (location === ViewContainerLocation.Panel) {
+		return; // panel is typically very wide
+	}
+
+	const viewPart = location === ViewContainerLocation.Sidebar ? Parts.SIDEBAR_PART : Parts.AUXILIARYBAR_PART;
+	const partSize = layoutService.getSize(viewPart);
+	if (partSize.width < width) {
+		layoutService.setSize(viewPart, { width: width, height: partSize.height });
+	}
 }
 
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
@@ -112,6 +126,7 @@ export interface IChatListItemRendererOptions {
 	readonly noPadding?: boolean;
 	readonly editableCodeBlock?: boolean;
 	readonly renderCodeBlockPills?: boolean;
+	readonly renderDetectedCommandsWithRequest?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 }
 
@@ -212,8 +227,6 @@ export interface IChatCodeBlockContextProviderService {
 	registerProvider(provider: ICodeBlockActionContextProvider, id: string): IDisposable;
 }
 
-export const GeneratingPhrase = localize('generating', "Generating");
+export const ChatViewId = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
 
-export const CHAT_VIEW_ID = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
-
-export const EDITS_VIEW_ID = 'workbench.panel.chat.view.edits';
+export const EditsViewId = 'workbench.panel.chat.view.edits';

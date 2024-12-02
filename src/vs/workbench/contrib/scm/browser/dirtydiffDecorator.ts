@@ -34,7 +34,7 @@ import { IDiffEditorOptions, EditorOption } from '../../../../editor/common/conf
 import { Action, IAction, ActionRunner } from '../../../../base/common/actions.js';
 import { IActionBarOptions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { basename, isEqual } from '../../../../base/common/resources.js';
+import { basename } from '../../../../base/common/resources.js';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ScrollType, IEditorContribution, IDiffEditorModel, IEditorModel, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
@@ -57,9 +57,10 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { IQuickDiffService, QuickDiff } from '../common/quickDiff.js';
+import { IQuickDiffService, QuickDiff, QuickDiffResult } from '../common/quickDiff.js';
 import { IQuickDiffSelectItem, SwitchQuickDiffBaseAction, SwitchQuickDiffViewItem } from './dirtyDiffSwitcher.js';
 import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
+import { lineRangeMappingFromChanges } from '../../../../editor/common/diff/rangeMapping.js';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -1121,40 +1122,44 @@ class DirtyDiffDecorator extends Disposable {
 			return;
 		}
 
+		const visibleQuickDiffs = this.model.quickDiffs.filter(quickDiff => quickDiff.visible);
 		const pattern = this.configurationService.getValue<{ added: boolean; modified: boolean }>('scm.diffDecorationsGutterPattern');
-		const decorations = this.model.changes.map((labeledChange) => {
-			const change = labeledChange.change;
-			const changeType = getChangeType(change);
-			const startLineNumber = change.modifiedStartLineNumber;
-			const endLineNumber = change.modifiedEndLineNumber || startLineNumber;
 
-			switch (changeType) {
-				case ChangeType.Add:
-					return {
-						range: {
-							startLineNumber: startLineNumber, startColumn: 1,
-							endLineNumber: endLineNumber, endColumn: 1
-						},
-						options: pattern.added ? this.addedPatternOptions : this.addedOptions
-					};
-				case ChangeType.Delete:
-					return {
-						range: {
-							startLineNumber: startLineNumber, startColumn: Number.MAX_VALUE,
-							endLineNumber: startLineNumber, endColumn: Number.MAX_VALUE
-						},
-						options: this.deletedOptions
-					};
-				case ChangeType.Modify:
-					return {
-						range: {
-							startLineNumber: startLineNumber, startColumn: 1,
-							endLineNumber: endLineNumber, endColumn: 1
-						},
-						options: pattern.modified ? this.modifiedPatternOptions : this.modifiedOptions
-					};
-			}
-		});
+		const decorations = this.model.changes
+			.filter(labeledChange => visibleQuickDiffs.some(quickDiff => quickDiff.label === labeledChange.label))
+			.map((labeledChange) => {
+				const change = labeledChange.change;
+				const changeType = getChangeType(change);
+				const startLineNumber = change.modifiedStartLineNumber;
+				const endLineNumber = change.modifiedEndLineNumber || startLineNumber;
+
+				switch (changeType) {
+					case ChangeType.Add:
+						return {
+							range: {
+								startLineNumber: startLineNumber, startColumn: 1,
+								endLineNumber: endLineNumber, endColumn: 1
+							},
+							options: pattern.added ? this.addedPatternOptions : this.addedOptions
+						};
+					case ChangeType.Delete:
+						return {
+							range: {
+								startLineNumber: startLineNumber, startColumn: Number.MAX_VALUE,
+								endLineNumber: startLineNumber, endColumn: Number.MAX_VALUE
+							},
+							options: this.deletedOptions
+						};
+					case ChangeType.Modify:
+						return {
+							range: {
+								startLineNumber: startLineNumber, startColumn: 1,
+								endLineNumber: endLineNumber, endColumn: 1
+							},
+							options: pattern.modified ? this.modifiedPatternOptions : this.modifiedOptions
+						};
+				}
+			});
 
 		if (!this.decorationsCollection) {
 			this.decorationsCollection = this.codeEditor.createDecorationsCollection(decorations);
@@ -1268,6 +1273,22 @@ export class DirtyDiffModel extends Disposable {
 
 	get quickDiffs(): readonly QuickDiff[] {
 		return this._quickDiffs;
+	}
+
+	public getQuickDiffResults(): QuickDiffResult[] {
+		return this._quickDiffs.map(quickDiff => {
+			const changes = this._changes
+				.filter(change => change.label === quickDiff.label)
+				.map(change => change.change);
+
+			// Convert IChange[] to LineRangeMapping[]
+			const lineRangeMappings = lineRangeMappingFromChanges(changes);
+			return {
+				original: quickDiff.originalResource,
+				modified: this._model.resource,
+				changes: lineRangeMappings
+			};
+		});
 	}
 
 	public getDiffEditorModel(originalUri: string): IDiffEditorModel | undefined {
@@ -1436,8 +1457,8 @@ export class DirtyDiffModel extends Disposable {
 		}
 		const uri = this._model.resource;
 
-		const session = this._chatEditingService.getEditingSession(uri);
-		if (session && session.entries.get().find(v => isEqual(v.modifiedURI, uri) && v.state.get() === WorkingSetEntryState.Modified)) {
+		const session = this._chatEditingService.currentEditingSession;
+		if (session && session.getEntry(uri)?.state.get() === WorkingSetEntryState.Modified) {
 			// disable dirty diff when doing chat edits
 			return Promise.resolve([]);
 		}

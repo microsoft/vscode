@@ -407,7 +407,7 @@ export class FileIconThemeLoader {
 					fontSizes.set(font.id, fontSize);
 				}
 			});
-			cssRules.push(css.inline`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: ${css.stringValue(fonts[0].id)}; font-size: ${css.identValue(defaultFontSize)}; }`);
+			cssRules.push(css.inline`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: ${css.stringValue(fonts[0].id)}; font-size: ${css.sizeValue(defaultFontSize)}; }`);
 		}
 
 		// Use emQuads to prevent the icon from collapsing to zero height for image icons
@@ -494,5 +494,5 @@ function handleParentFolder(key: string, selectors: css.Builder): string {
 
 function classSelectorPart(str: string): css.CssFragment {
 	str = fileIconSelectorEscape(str);
-	return css.className(str);
+	return css.className(str, true);
 }

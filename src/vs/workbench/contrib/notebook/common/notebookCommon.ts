@@ -36,6 +36,7 @@ import { ICellRange } from './notebookRange.js';
 import { RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { generateMetadataUri, generate as generateUri, parseMetadataUri, parse as parseUri } from '../../../services/notebook/common/notebookDocumentService.js';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from '../../../services/workingCopy/common/workingCopy.js';
+import { SnapshotContext } from '../../../services/workingCopy/common/fileWorkingCopy.js';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -276,6 +277,12 @@ export interface ICell {
 	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent>;
 }
 
+export interface INotebookSnapshotOptions {
+	context: SnapshotContext;
+	outputSizeLimit: number;
+	transientOptions?: TransientOptions;
+}
+
 export interface INotebookTextModel extends INotebookTextModelLike {
 	readonly notebookType: string;
 	readonly viewType: string;
@@ -286,6 +293,8 @@ export interface INotebookTextModel extends INotebookTextModelLike {
 	readonly length: number;
 	readonly cells: readonly ICell[];
 	reset(cells: ICellDto2[], metadata: NotebookDocumentMetadata, transientOptions: TransientOptions): void;
+	createSnapshot(options: INotebookSnapshotOptions): NotebookData;
+	restoreSnapshot(snapshot: NotebookData, transientOptions?: TransientOptions): void;
 	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo?: boolean): boolean;
 	onDidChangeContent: Event<NotebookTextModelChangedEvent>;
 	onWillDispose: Event<void>;

@@ -136,8 +136,8 @@ export class BulkEditPane extends ViewPane {
 		this._treeDataSource.groupByFile = this._storageService.getBoolean(BulkEditPane._memGroupByFile, StorageScope.PROFILE, true);
 		this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
 
-		this._tree = <WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>>this._instaService.createInstance(
-			WorkbenchAsyncDataTree, this.id, treeContainer,
+		this._tree = this._instaService.createInstance(
+			WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>, this.id, treeContainer,
 			new BulkEditDelegate(),
 			[this._instaService.createInstance(TextEditElementRenderer), this._instaService.createInstance(FileElementRenderer, resourceLabels), this._instaService.createInstance(CategoryElementRenderer)],
 			this._treeDataSource,
