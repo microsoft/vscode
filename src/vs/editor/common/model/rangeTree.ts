@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Position } from '../core/position.js';
-import { Range } from '../core/range.js';
-import { ITextModel } from '../model.js';
 import { StorableToken } from './treeSitterTokenStore.js';
 
 interface TreeRange {
@@ -39,9 +37,13 @@ interface NodeToInsert<T> {
 	startingSegmentRange: TreeRange;
 }
 
+interface IRangable {
+	getEnd(): number;
+}
+
 export class TokenRangeTree<T> {
 	private _root: RangeTreeBranchNode<T>;
-	constructor(private readonly _textModel: ITextModel, private readonly _endIncrement: number = 20) {
+	constructor(private readonly _rangable: IRangable, private readonly _endIncrement: number = 20) {
 		const range = { startInclusive: 0, endExclusive: this.getEnd() };
 		this._root = {
 			maxLeftStartInclusive: this.getMidPoint(range),
@@ -91,8 +93,7 @@ export class TokenRangeTree<T> {
 	private _end: number = 0;
 	private _lastEnd: number = 0;
 	private getEnd(): number {
-		const lineCount = this._textModel.getLineCount();
-		const currentEnd = this._textModel.getOffsetAt(new Position(lineCount, this._textModel.getLineMaxColumn(lineCount)));
+		const currentEnd = this._rangable.getEnd();
 		if ((currentEnd > this._end) || this._end === 0) {
 			this._end = currentEnd + this._endIncrement;
 		} else if (currentEnd < (this._end - this._endIncrement)) {
@@ -234,9 +235,7 @@ export class TokenRangeTree<T> {
 	}
 
 	// callback return value indicates if the traversal should stop going right
-	traverseInOrder(range: Range, callback: (node: RangeTreeLeafNode<T>) => void): void {
-		const startInclusive = this._textModel.getOffsetAt(range.getStartPosition());
-		const endExclusive = this._textModel.getOffsetAt(range.getEndPosition()) + 1;
+	traverseInOrder(startInclusive: number, endExclusive: number, callback: (node: RangeTreeLeafNode<T>) => void): void {
 		return this.traverseInOrderFromNode({ startInclusive, endExclusive }, this._root, callback,);
 	}
 

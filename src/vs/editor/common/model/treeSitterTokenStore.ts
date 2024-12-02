@@ -8,6 +8,7 @@ import { ITextModel } from '../model.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { RangeTreeLeafNode, TokenRangeTree } from './rangeTree.js';
+import { Position } from '../core/position.js';
 
 export class StorableToken<T> {
 	constructor(readonly offsetStartInclusive: number, readonly offsetEndExclusive: number, readonly metadata: T) { }
@@ -52,7 +53,9 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		}
 
 		let hasAccurate = true;
-		tree.traverseInOrder(accurateForRange, (node) => {
+		const [startInclusive, endExclusive] = this.rangeToOffsets(accurateForRange, model);
+
+		tree.traverseInOrder(startInclusive, endExclusive, (node) => {
 			if (node.data.needsRefresh) {
 				hasAccurate = false;
 			}
@@ -61,13 +64,20 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		return hasAccurate;
 	}
 
+	private rangeToOffsets(range: Range, model: ITextModel): [number, number] {
+		const startInclusive = model.getOffsetAt(range.getStartPosition());
+		const endExclusive = model.getOffsetAt(range.getEndPosition()) + 1;
+		return [startInclusive, endExclusive];
+	}
+
 	getTokens(model: ITextModel, range: Range): Uint32Array | undefined {
 		const tree = this.tokens.get(model);
 		if (!tree) {
 			return undefined;
 		}
 		const storableTokens: RangeTreeLeafNode<TokenInformation>[] = [];
-		tree.traverseInOrder(range, (node) => {
+		const [startInclusive, endExclusive] = this.rangeToOffsets(range, model);
+		tree.traverseInOrder(startInclusive, endExclusive, (node) => {
 			storableTokens.push(node);
 		});
 		const tokens: Uint32Array = new Uint32Array(storableTokens.length * 2);
@@ -83,7 +93,12 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		console.log(`Updating: ${tokens.map(token => `[${token.offsetStartInclusive}, ${token.offsetEndExclusive}]`).join(', ')}`);
 		let tree = this.tokens.get(model);
 		if (!tree) {
-			tree = new TokenRangeTree(model);
+			tree = new TokenRangeTree({
+				getEnd: () => {
+					const lineCount = model.getLineCount();
+					return model.getOffsetAt(new Position(lineCount, model.getLineMaxColumn(lineCount)));
+				}
+			});
 			this.tokens.set(model, tree);
 		}
 
@@ -95,7 +110,9 @@ class TreeSitterTokenizationStoreService implements ITreeSitterTokenizationStore
 		if (!tree) {
 			return;
 		}
-		tree.traverseInOrder(range, (node) => {
+		const [startInclusive, endExclusive] = this.rangeToOffsets(range, model);
+
+		tree.traverseInOrder(startInclusive, endExclusive, (node) => {
 			node.data.needsRefresh = true;
 		});
 	}
