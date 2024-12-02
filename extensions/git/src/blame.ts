@@ -315,8 +315,8 @@ export class GitBlameController {
 				throw new Error(`Unexpected ref: ${ref}`);
 			}
 		} else {
-			// Working tree diff information
-			const diffInformationWorkingTree = this._findDiffInformation(textEditor, '');
+			// Working tree diff information. Diff Editor (Working Tree) -> Text Editor
+			const diffInformationWorkingTree = this._findDiffInformation(textEditor, '~') ?? this._findDiffInformation(textEditor, '');
 
 			// Working tree diff information is not present or it is stale
 			if (!diffInformationWorkingTree || diffInformationWorkingTree.isStale) {
