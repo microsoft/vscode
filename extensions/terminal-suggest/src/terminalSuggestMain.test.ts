@@ -7,7 +7,7 @@ import { deepStrictEqual, strictEqual } from 'assert';
 import 'mocha';
 import { availableSpecs, getCompletionItemsFromSpecs } from './terminalSuggestMain';
 
-const availableCommands = ['cd', 'code', 'code-insiders', 'c++', 'c.test', 'dir', 'ls'];
+const availableCommands = ['cd', 'code', 'code-insiders', 'c++', 'c.test', 'dir', 'ls', 'git'];
 const codeOptions = ['-', '--add', '--category', '--diff', '--disable-extension', '--disable-extensions', '--disable-gpu', '--enable-proposed-api', '--extensions-dir', '--goto', '--help', '--inspect-brk-extensions', '--inspect-extensions', '--install-extension', '--list-extensions', '--locale', '--log', '--max-memory', '--merge', '--new-window', '--pre-release', '--prof-startup', '--profile', '--reuse-window', '--show-versions', '--status', '--sync', '--telemetry', '--uninstall-extension', '--user-data-dir', '--verbose', '--version', '--wait', '-a', '-d', '-g', '-h', '-m', '-n', '-r', '-s', '-v', '-w'];
 const localeOptions = ['bg', 'de', 'en', 'es', 'fr', 'hu', 'it', 'ja', 'ko', 'pt-br', 'ru', 'tr', 'zh-CN', 'zh-TW'];
 const categoryOptions = ['azure', 'data science', 'debuggers', 'extension packs', 'education', 'formatters', 'keymaps', 'language packs', 'linters', 'machine learning', 'notebooks', 'programming languages', 'scm providers', 'snippets', 'testing', 'themes', 'visualization', 'other'];
@@ -17,7 +17,7 @@ const syncOptions = ['on', 'off'];
 const testSpecs: ITestSpec[] = [
 	{ input: '|', expectedCompletionLabels: availableCommands, resourcesRequested: 'both' },
 	{ input: 'c|', expectedCompletionLabels: availableCommands.filter(c => c.startsWith('c')) },
-	{ input: 'ls && c|', expectedCompletionLabels: availableCommands.filter(c => c.startsWith('c')) },
+	{ input: 'ls && c|', resourcesRequested: 'both' },
 	{ input: 'cd |', expectedCompletionLabels: ['~', '-'], resourcesRequested: 'folders' },
 	{ input: 'cd .|', resourcesRequested: 'folders' },
 	{ input: 'cd ..|', resourcesRequested: 'folders' },
@@ -51,7 +51,9 @@ const testSpecs: ITestSpec[] = [
 	{ input: 'code | --locale', expectedCompletionLabels: codeOptions },
 	{ input: 'code --locale | && ls', expectedCompletionLabels: localeOptions },
 	{ input: 'code-insiders | --locale', expectedCompletionLabels: codeOptions },
-	{ input: 'code-insiders --locale | && ls', expectedCompletionLabels: localeOptions }
+	{ input: 'code-insiders --locale | && ls', expectedCompletionLabels: localeOptions },
+	{ input: 'git|', expectedCompletionLabels: ['git'] },
+	{ input: 'git c|', resourcesRequested: 'both' },
 ];
 
 interface ITestSpec {
