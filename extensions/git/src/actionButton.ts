@@ -49,10 +49,10 @@ export class ActionButton {
 			return;
 		}
 
+		this.logger.trace(`[ActionButton][setState] ${JSON.stringify(state)}`);
+
 		this._state = state;
 		this._onDidChange.fire();
-
-		this.logger.trace(`[ActionButton][setState] ${JSON.stringify(state)}`);
 	}
 
 	private disposables: Disposable[] = [];
