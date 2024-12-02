@@ -33,6 +33,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
 
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
+export const ctxHasRequestInProgress = new RawContextKey<boolean>('chat.ctxHasRequestInProgress', false, localize('chat.ctxHasRequestInProgress', "The current editor shows a file from an edit session which is still in progress"));
 
 export class ChatEditorController extends Disposable implements IEditorContribution {
 
@@ -47,6 +48,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	private _viewZones: string[] = [];
 	private readonly _ctxHasEditorModification: IContextKey<boolean>;
+	private readonly _ctxRequestInProgress: IContextKey<boolean>;
 
 	static get(editor: ICodeEditor): ChatEditorController | null {
 		const controller = editor.getContribution<ChatEditorController>(ChatEditorController.ID);
@@ -68,6 +70,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		super();
 
 		this._ctxHasEditorModification = ctxHasEditorModification.bindTo(contextKeyService);
+		this._ctxRequestInProgress = ctxHasRequestInProgress.bindTo(contextKeyService);
 
 		const fontInfoObs = observableCodeEditor(this._editor).getOption(EditorOption.fontInfo);
 		const lineHeightObs = observableCodeEditor(this._editor).getOption(EditorOption.lineHeight);
@@ -79,6 +82,11 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			if (e.scrollTopChanged && !ignoreScrollEvent) {
 				this._scrollLock = true;
 			}
+		}));
+
+		this._store.add(autorun(r => {
+			const session = this._chatEditingService.currentEditingSessionObs.read(r);
+			this._ctxRequestInProgress.set(session?.state.read(r) === ChatEditingSessionState.StreamingEdits);
 		}));
 
 		this._register(autorun(r => {
