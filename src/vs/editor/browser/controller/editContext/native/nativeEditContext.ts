@@ -83,7 +83,12 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._selectionChangeListener = this._register(new MutableDisposable());
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
-			this._selectionChangeListener.value = newFocusValue ? this._setSelectionChangeListener(viewController) : undefined;
+			if (newFocusValue) {
+				this._selectionChangeListener.value = this._setSelectionChangeListener(viewController);
+				this._screenReaderSupport.setIgnoreSelectionChangeTime('onFocus');
+			} else {
+				this._selectionChangeListener.value = undefined;
+			}
 			this._context.viewModel.setHasFocus(newFocusValue);
 		}));
 
@@ -95,6 +100,9 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => this._ensureClipboardGetsEditorSelection(e)));
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
+			// Pretend here we touched the text area, as the `cut` event will most likely
+			// result in a `selectionchange` event which we want to ignore
+			this._screenReaderSupport.setIgnoreSelectionChangeTime('onCut');
 			this._ensureClipboardGetsEditorSelection(e);
 			viewController.cut();
 		}));
@@ -137,6 +145,9 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.onCompositionEnd();
 		}));
 		this._register(addDisposableListener(this.textArea.domNode, 'paste', (e) => {
+			// Pretend here we touched the text area, as the `paste` event will most likely
+			// result in a `selectionchange` event which we want to ignore
+			this._screenReaderSupport.setIgnoreSelectionChangeTime('onPaste');
 			e.preventDefault();
 			if (!e.clipboardData) {
 				return;
@@ -204,7 +215,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public onWillPaste(): void {
-		this._screenReaderSupport.setIgnoreSelectionChangeTime();
+		this._screenReaderSupport.setIgnoreSelectionChangeTime('onWillPaste');
 	}
 
 	public writeScreenReaderContent(): void {

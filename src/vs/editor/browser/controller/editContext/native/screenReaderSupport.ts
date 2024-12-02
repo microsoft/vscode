@@ -44,7 +44,7 @@ export class ScreenReaderSupport {
 		this._updateDomAttributes();
 	}
 
-	public setIgnoreSelectionChangeTime(): void {
+	public setIgnoreSelectionChangeTime(reason: string): void {
 		this._ignoreSelectionChangeTime = Date.now();
 	}
 
@@ -142,7 +142,7 @@ export class ScreenReaderSupport {
 			return;
 		}
 		if (this._domNode.domNode.textContent !== this._screenReaderContentState.value) {
-			this.setIgnoreSelectionChangeTime();
+			this.setIgnoreSelectionChangeTime('setValue');
 			this._domNode.domNode.textContent = this._screenReaderContentState.value;
 		}
 		this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
@@ -189,7 +189,7 @@ export class ScreenReaderSupport {
 		const range = new globalThis.Range();
 		range.setStart(textContent, selectionOffsetStart);
 		range.setEnd(textContent, selectionOffsetEnd);
-		this.setIgnoreSelectionChangeTime();
+		this.setIgnoreSelectionChangeTime('setRange');
 		activeDocumentSelection.removeAllRanges();
 		activeDocumentSelection.addRange(range);
 	}
