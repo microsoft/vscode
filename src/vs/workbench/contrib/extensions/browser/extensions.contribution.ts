@@ -17,7 +17,7 @@ import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, 
 import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction, ToggleAutoUpdateForExtensionAction, ToggleAutoUpdatesForPublisherAction, TogglePreReleaseExtensionAction, InstallAnotherVersionAction, InstallAction } from './extensionsActions.js';
 import { ExtensionsInput } from '../common/extensionsInput.js';
 import { ExtensionEditor } from './extensionEditor.js';
-import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer, BuiltInExtensionsContext, SearchMarketplaceExtensionsContext, RecommendedExtensionsContext, DefaultViewsContext, ExtensionsSortByContext, SearchHasTextContext } from './extensionsViewlet.js';
+import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer, BuiltInExtensionsContext, SearchMarketplaceExtensionsContext, RecommendedExtensionsContext, DefaultViewsContext, ExtensionsSortByContext, SearchHasTextContext, ExtensionsSearchValueContext } from './extensionsViewlet.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import * as jsonContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from '../common/extensionsFileTemplate.js';
@@ -1192,7 +1192,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			this.registerExtensionAction({
 				id: `extensions.sort.${id}`,
 				title,
-				precondition: precondition,
+				precondition: ContextKeyExpr.and(precondition, ContextKeyExpr.regex(ExtensionsSearchValueContext.key, /^@feature:/).negate()),
 				menu: [{
 					id: extensionsSortSubMenu,
 					when: ContextKeyExpr.or(CONTEXT_HAS_GALLERY, DefaultViewsContext),
