@@ -145,7 +145,7 @@ export class ChatViewWelcomePart extends Disposable {
 			title.textContent = content.title;
 
 			// Preview indicator
-			if (options?.location === ChatAgentLocation.EditingSession) {
+			if (options?.location === ChatAgentLocation.EditingSession && typeof content.message !== 'function') {
 				const featureIndicator = dom.append(this.element, $('.chat-welcome-view-indicator'));
 				featureIndicator.textContent = localize('preview', 'PREVIEW');
 			}

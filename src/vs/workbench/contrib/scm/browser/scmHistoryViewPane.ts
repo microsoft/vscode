@@ -40,11 +40,11 @@ import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/lis
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IMenuService, MenuId, MenuItemAction, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Sequencer, Throttler } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ActionRunner, IAction, IActionRunner } from '../../../../base/common/actions.js';
+import { ActionRunner, IAction, IActionRunner, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import { delta, groupBy } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
@@ -63,6 +63,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { groupBy as groupBy2 } from '../../../../base/common/collections.js';
+import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
@@ -1213,6 +1214,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		options: IViewPaneOptions,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IMenuService private readonly _menuService: IMenuService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -1570,14 +1572,46 @@ export class SCMHistoryViewPane extends ViewPane {
 			return;
 		}
 
+		const historyItemMenuActions = this._menuService.getMenuActions(MenuId.SCMChangesContext, this.scopedContextKeyService, {
+			arg: element.repository.provider,
+			shouldForwardArgs: true
+		});
+
+		const actions = getFlatContextMenuActions(historyItemMenuActions);
+		if (element.historyItemViewModel.historyItem.references?.length) {
+			actions.push(new Separator());
+		}
+
+		const that = this;
+		for (const ref of element.historyItemViewModel.historyItem.references ?? []) {
+			const contextKeyService = this.scopedContextKeyService.createOverlay([
+				['scmHistoryItemRef', ref.id]
+			]);
+
+			const historyItemRefMenuActions = this._menuService.getMenuActions(MenuId.SCMHistoryItemRefContext, contextKeyService);
+			const historyItemRefSubMenuActions = getFlatContextMenuActions(historyItemRefMenuActions)
+				.map(action => new class extends MenuItemAction {
+					constructor() {
+						super(
+							{ id: action.id, title: action.label }, undefined,
+							{ arg: element!.repository.provider, shouldForwardArgs: true },
+							undefined, undefined, contextKeyService, that._commandService);
+					}
+
+					override run(): Promise<void> {
+						return super.run(element.historyItemViewModel.historyItem, ref.id);
+					}
+				});
+
+			if (historyItemRefSubMenuActions.length > 0) {
+				actions.push(new SubmenuAction(`scm.historyItemRef.${ref.id}`, ref.name, historyItemRefSubMenuActions));
+			}
+		}
+
 		this.contextMenuService.showContextMenu({
 			contextKeyService: this.scopedContextKeyService,
-			menuId: MenuId.SCMChangesContext,
-			menuActionOptions: {
-				arg: element.repository.provider,
-				shouldForwardArgs: true
-			},
 			getAnchor: () => e.anchor,
+			getActions: () => actions,
 			getActionsContext: () => element.historyItemViewModel.historyItem
 		});
 	}

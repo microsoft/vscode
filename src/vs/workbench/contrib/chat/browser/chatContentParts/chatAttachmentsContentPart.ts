@@ -15,7 +15,7 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { LanguageFeatureRegistry } from '../../../../../editor/common/languageFeatureRegistry.js';
-import { Location } from '../../../../../editor/common/languages.js';
+import { Location, SymbolKind } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -31,6 +31,7 @@ import { ITextEditorOptions } from '../../../../../platform/editor/common/editor
 import { FileKind, IFileService } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
@@ -61,6 +62,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IThemeService private readonly themeService: IThemeService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
@@ -74,9 +76,9 @@ export class ChatAttachmentsContentPart extends Disposable {
 		const hoverDelegate = this.attachedContextDisposables.add(createInstantHoverDelegate());
 
 		this.variables.forEach(async (attachment) => {
-			const resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
-			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
-			if (resource && attachment.isFile && this.workingSet.find(entry => entry.toString() === resource.toString())) {
+			let resource = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
+			let range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
+			if (resource && attachment.isFile && this.workingSet.find(entry => entry.toString() === resource?.toString())) {
 				// Don't render attachment if it's in the working set
 				return;
 			}
@@ -117,8 +119,11 @@ export class ChatAttachmentsContentPart extends Disposable {
 					icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
 				});
 
-				this.attachedContextDisposables.add(this.instantiationService.invokeFunction(accessor => hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource)));
-
+				this.instantiationService.invokeFunction(accessor => {
+					if (resource) {
+						this.attachedContextDisposables.add(hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource));
+					}
+				});
 			} else if (attachment.isImage) {
 				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 
@@ -152,21 +157,33 @@ export class ChatAttachmentsContentPart extends Disposable {
 			} else if (isPasteVariableEntry(attachment)) {
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
-				const hoverContent: IManagedHoverTooltipMarkdownString = {
-					markdown: {
-						value: `\`\`\`${attachment.language}\n${attachment.code}\n\`\`\``,
-					},
-					markdownNotSupportedFallback: attachment.code,
-				};
-
 				const classNames = ['file-icon', `${attachment.language}-lang-file-icon`];
-				label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
+				if (attachment.copiedFrom) {
+					resource = attachment.copiedFrom.uri;
+					range = attachment.copiedFrom.range;
+					const filename = basename(resource.path);
+					label.setLabel(filename, undefined, { extraClasses: classNames });
+				} else {
+					label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
+				}
 				widget.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.pastedLines}`));
 
 				widget.style.position = 'relative';
 
+				const hoverContent: IManagedHoverTooltipMarkdownString = {
+					markdown: {
+						value: `**${attachment.copiedFrom ? this.labelService.getUriLabel(attachment.copiedFrom.uri, { relative: true }) : attachment.fileName}**\n\n---\n\n\`\`\`${attachment.language}\n${attachment.code}\n\`\`\``,
+					},
+					markdownNotSupportedFallback: attachment.code,
+				};
+
 				if (!this.attachedContextDisposables.isDisposed) {
 					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverContent, { trapFocus: true }));
+
+					const resource = attachment.copiedFrom?.uri;
+					if (resource) {
+						this.attachedContextDisposables.add(this.instantiationService.invokeFunction(accessor => hookUpResourceAttachmentDragAndContextMenu(accessor, widget, resource)));
+					}
 				}
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
@@ -178,7 +195,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 
 			if (attachment.kind === 'symbol') {
 				const scopedContextKeyService = this.attachedContextDisposables.add(this.contextKeyService.createScoped(widget));
-				this.attachedContextDisposables.add(this.instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, widget, scopedContextKeyService, attachment, MenuId.ChatInputSymbolAttachmentContext)));
+				this.attachedContextDisposables.add(this.instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, widget, scopedContextKeyService, { ...attachment, kind: attachment.symbolKind }, MenuId.ChatInputSymbolAttachmentContext)));
 			}
 
 			if (isAttachmentPartialOrOmitted) {
@@ -273,7 +290,7 @@ export function hookUpResourceAttachmentDragAndContextMenu(accessor: ServicesAcc
 	return store;
 }
 
-export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, attachment: { name: string; value: Location }, contextMenuId: MenuId): IDisposable {
+export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, attachment: { name: string; value: Location; kind: SymbolKind }, contextMenuId: MenuId): IDisposable {
 	const instantiationService = accessor.get(IInstantiationService);
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const textModelService = accessor.get(ITextModelService);
@@ -295,7 +312,7 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 			fsPath: attachment.value.uri.fsPath,
 			range: attachment.value.range,
 			name: attachment.name,
-			kind: 0
+			kind: attachment.kind,
 		}], e);
 
 		e.dataTransfer?.setDragImage(widget, 0, 0);

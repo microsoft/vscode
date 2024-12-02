@@ -8,7 +8,7 @@ import './codeBlockPart.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -69,6 +69,8 @@ import { ChatTreeItem } from './chat.js';
 import { IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
+import { AsyncIterableObject } from '../../../../base/common/async.js';
+import { InlineChatController } from '../../inlineChat/browser/inlineChatController.js';
 
 const $ = dom.$;
 
@@ -764,11 +766,11 @@ export class CodeCompareBlockPart extends Disposable {
 
 			let template: string;
 			if (data.edit.state.applied === 1) {
-				template = localize('chat.edits.1', "Made 1 change in [[``{0}``]]", uriLabel);
+				template = localize('chat.edits.1', "Applied 1 change in [[``{0}``]]", uriLabel);
 			} else if (data.edit.state.applied < 0) {
 				template = localize('chat.edits.rejected', "Edits in [[``{0}``]] have been rejected", uriLabel);
 			} else {
-				template = localize('chat.edits.N', "Made {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel);
+				template = localize('chat.edits.N', "Applied {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel);
 			}
 
 			const message = renderFormattedText(template, {
@@ -937,5 +939,39 @@ export class DefaultChatTextEditor {
 		}
 
 		response.setEditApplied(item, -1);
+	}
+
+	async preview(response: IChatResponseModel | IChatResponseViewModel, item: IChatTextEditGroup) {
+		if (item.state?.applied) {
+			// already applied
+			return false;
+		}
+
+		if (!response.response.value.includes(item)) {
+			// bogous item
+			return false;
+		}
+
+		const firstEdit = item.edits[0]?.[0];
+		if (!firstEdit) {
+			return false;
+		}
+		const textEdits = AsyncIterableObject.fromArray(item.edits);
+
+		const editorToApply = await this.editorService.openCodeEditor({ resource: item.uri }, null);
+		if (editorToApply) {
+			const inlineChatController = InlineChatController.get(editorToApply);
+			if (inlineChatController) {
+				const tokenSource = new CancellationTokenSource();
+				editorToApply.revealLineInCenterIfOutsideViewport(firstEdit.range.startLineNumber);
+				const promise = inlineChatController.reviewEdits(firstEdit.range, textEdits, tokenSource.token);
+				response.setEditApplied(item, 1);
+				promise.finally(() => {
+					tokenSource.dispose();
+				});
+				return true;
+			}
+		}
+		return false;
 	}
 }

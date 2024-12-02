@@ -5,7 +5,6 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { basename } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -177,7 +176,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return itemsWithModifiedLabels;
 			}
 			if (completions.resourceRequestConfig) {
-				const resourceCompletions = await this._resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition);
+				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition);
 				if (resourceCompletions) {
 					itemsWithModifiedLabels.push(...resourceCompletions);
 				}
@@ -190,7 +189,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		return results.filter(result => !!result).flat();
 	}
 
-	private async _resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number): Promise<ITerminalCompletion[] | undefined> {
+	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number): Promise<ITerminalCompletion[] | undefined> {
 		const cwd = URI.revive(resourceRequestConfig.cwd);
 		const foldersRequested = resourceRequestConfig.foldersRequested ?? false;
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
@@ -198,73 +197,49 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return;
 		}
 
+		const fileStat = await this._fileService.resolve(cwd, { resolveSingleChildDescendants: true });
+		if (!fileStat || !fileStat?.children) {
+			return;
+		}
+
 		const resourceCompletions: ITerminalCompletion[] = [];
-
-		const parentDirPath = cwd.fsPath.split(resourceRequestConfig.pathSeparator).slice(0, -1).join(resourceRequestConfig.pathSeparator);
-		const dirToPrefixMap = new Map<URI, string>();
-
-		dirToPrefixMap.set(cwd, '.');
-		dirToPrefixMap.set(cwd.with({ path: parentDirPath }), '..');
-
 		const endsWithSpace = promptValue.substring(0, cursorPosition).endsWith(' ');
 		let lastWord;
 		if (endsWithSpace) {
 			lastWord = '';
 		} else {
-			lastWord = promptValue.substring(0, cursorPosition).trim().split(' ').pop() ?? '';
-		}
-		if (lastWord.includes(basename(cwd.fsPath))) {
-			lastWord = '';
+			lastWord = promptValue.substring(0, cursorPosition).trim().split(' ').at(-1) ?? '';
 		}
 
-		// This breaks folder completions because has a different replacement index
-		// which results in replacement index being set to 0
-		// const includeDirs = endsWithSpace || lastWord.match(/.*[\\\/]/);
-		// if (includeDirs) {
-		// 	resourceCompletions.push({
-		// 		label: '.' + resourceRequestConfig.pathSeparator,
-		// 		kind: TerminalCompletionItemKind.Folder,
-		// 		isDirectory: true,
-		// 		replacementIndex: cursorPosition,
-		// 		replacementLength: 2
-		// 	});
-		// 	resourceCompletions.push({
-		// 		label: '..' + resourceRequestConfig.pathSeparator,
-		// 		kind: TerminalCompletionItemKind.Folder,
-		// 		isDirectory: true,
-		// 		replacementIndex: cursorPosition,
-		// 		replacementLength: 3
-		// 	});
-		// }
-
-		for (const [dir, prefix] of dirToPrefixMap) {
-			const fileStat = await this._fileService.resolve(dir, { resolveSingleChildDescendants: true });
-			if (!fileStat || !fileStat?.children) {
-				return;
+		for (const stat of fileStat.children) {
+			let kind: TerminalCompletionItemKind | undefined;
+			if (foldersRequested && stat.isDirectory) {
+				kind = TerminalCompletionItemKind.Folder;
 			}
-
-			for (const stat of fileStat.children) {
-				let kind: TerminalCompletionItemKind | undefined;
-				if (foldersRequested && stat.isDirectory) {
-					kind = TerminalCompletionItemKind.Folder;
-				}
-				if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === Schemas.file)) {
-					kind = TerminalCompletionItemKind.File;
-				}
-				if (kind === undefined) {
-					continue;
-				}
-				const isDirectory = kind === TerminalCompletionItemKind.Folder;
-				const label = isDirectory ? prefix + stat.resource.fsPath.replace(dir.fsPath, '') + resourceRequestConfig.pathSeparator : prefix + stat.resource.fsPath.replace(dir.fsPath, '');
-				resourceCompletions.push({
-					label,
-					kind,
-					isDirectory,
-					isFile: kind === TerminalCompletionItemKind.File,
-					replacementIndex: cursorPosition - lastWord.length,
-					replacementLength: label.length
-				});
+			if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === Schemas.file)) {
+				kind = TerminalCompletionItemKind.File;
 			}
+			if (kind === undefined) {
+				continue;
+			}
+			const isDirectory = kind === TerminalCompletionItemKind.Folder;
+			const pathToResource = stat.resource.fsPath.replace(cwd.fsPath, '');
+			let label = pathToResource;
+			if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
+				label = label + resourceRequestConfig.pathSeparator;
+			}
+			const startsWithDot = lastWord && lastWord.startsWith('.');
+			if (!startsWithDot) {
+				label = '.' + label;
+			}
+			resourceCompletions.push({
+				label,
+				kind,
+				isDirectory,
+				isFile: kind === TerminalCompletionItemKind.File,
+				replacementIndex: promptValue[cursorPosition - 1] === ' ' ? cursorPosition : cursorPosition - 1,
+				replacementLength: label.length - lastWord.length > 0 ? label.length - lastWord.length : label.length,
+			});
 		}
 
 		return resourceCompletions.length ? resourceCompletions : undefined;

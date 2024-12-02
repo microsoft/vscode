@@ -517,7 +517,7 @@ export function registerChatCodeCompareBlockActions() {
 				title: localize2('interactive.compare.apply', "Apply Edits"),
 				f1: false,
 				category: CHAT_CATEGORY,
-				icon: Codicon.check,
+				icon: Codicon.gitPullRequestGoToChanges,
 				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, ChatContextKeys.editApplied.negate()),
 				menu: {
 					id: MenuId.ChatCompareBlock,
@@ -529,16 +529,10 @@ export function registerChatCodeCompareBlockActions() {
 
 		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
 
-			const editorService = accessor.get(IEditorService);
 			const instaService = accessor.get(IInstantiationService);
 
 			const editor = instaService.createInstance(DefaultChatTextEditor);
-			await editor.apply(context.element, context.edit, context.diffEditor);
-
-			await editorService.openEditor({
-				resource: context.edit.uri,
-				options: { revealIfVisible: true },
-			});
+			await editor.preview(context.element, context.edit);
 		}
 	});
 

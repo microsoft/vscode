@@ -454,6 +454,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.checkoutRef",
+        "title": "%command.checkoutRef%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.checkoutRefDetached",
         "title": "%command.checkoutRefDetached%",
         "category": "Git",
@@ -1471,6 +1477,10 @@
           "when": "false"
         },
         {
+          "command": "git.checkoutRef",
+          "when": "false"
+        },
+        {
           "command": "git.checkoutRefDetached",
           "when": "false"
         },
@@ -2028,6 +2038,7 @@
           "group": "9_copy@2"
         }
       ],
+      "scm/historyItemRef/context": [],
       "editor/title": [
         {
           "command": "git.openFile",

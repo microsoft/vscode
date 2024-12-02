@@ -232,6 +232,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 	let filesRequested = false;
 	let foldersRequested = false;
 	let specificSuggestionsProvided = false;
+	const firstCommand = getFirstCommand(terminalContext.commandLine);
 	for (const spec of specs) {
 		const specLabels = getLabel(spec);
 		if (!specLabels) {
@@ -245,8 +246,8 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 			if (
 				// If the prompt is empty
 				!terminalContext.commandLine
-				// or the prefix matches the command and the prefix is not equal to the command
-				|| !!prefix && specLabel.startsWith(prefix)
+				// or the first command matches the command
+				|| !!firstCommand && specLabel.startsWith(firstCommand)
 			) {
 				// push it to the completion items
 				items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, specLabel));
@@ -308,10 +309,10 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 		}
 	}
 
-	if (!specificSuggestionsProvided) {
+	if (!specificSuggestionsProvided && (filesRequested === foldersRequested)) {
 		// Include builitin/available commands in the results
 		for (const command of availableCommands) {
-			if ((!terminalContext.commandLine.trim() || !!prefix) && command.startsWith(prefix) && !items.find(item => item.label === command)) {
+			if ((!terminalContext.commandLine.trim() || firstCommand && command.startsWith(firstCommand)) && !items.find(item => item.label === command)) {
 				items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, prefix, command));
 			}
 		}
@@ -394,3 +395,13 @@ function osIsWindows(): boolean {
 	return os.platform() === 'win32';
 }
 
+function getFirstCommand(commandLine: string): string | undefined {
+	const wordsOnLine = commandLine.split(' ');
+	let firstCommand: string | undefined = wordsOnLine[0];
+	if (wordsOnLine.length > 1) {
+		firstCommand = undefined;
+	} else if (wordsOnLine.length === 0) {
+		firstCommand = commandLine;
+	}
+	return firstCommand;
+}

@@ -34,7 +34,7 @@ import { IDiffEditorOptions, EditorOption } from '../../../../editor/common/conf
 import { Action, IAction, ActionRunner } from '../../../../base/common/actions.js';
 import { IActionBarOptions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { basename, isEqual } from '../../../../base/common/resources.js';
+import { basename } from '../../../../base/common/resources.js';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ScrollType, IEditorContribution, IDiffEditorModel, IEditorModel, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
@@ -1457,8 +1457,8 @@ export class DirtyDiffModel extends Disposable {
 		}
 		const uri = this._model.resource;
 
-		const session = this._chatEditingService.getEditingSession(uri);
-		if (session && session.entries.get().find(v => isEqual(v.modifiedURI, uri) && v.state.get() === WorkingSetEntryState.Modified)) {
+		const session = this._chatEditingService.currentEditingSession;
+		if (session && session.getEntry(uri)?.state.get() === WorkingSetEntryState.Modified) {
 			// disable dirty diff when doing chat edits
 			return Promise.resolve([]);
 		}
