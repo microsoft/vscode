@@ -27,6 +27,7 @@ import { IFileWorkingCopyManager } from '../../../services/workingCopy/common/fi
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent, StoredFileWorkingCopyState } from '../../../services/workingCopy/common/storedFileWorkingCopy.js';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from '../../../services/workingCopy/common/untitledFileWorkingCopy.js';
 import { WorkingCopyCapabilities } from '../../../services/workingCopy/common/workingCopy.js';
+import { INotebookSynchronizerService } from './notebookSynchronizerService.js';
 
 //#region --- simple content provider
 
@@ -54,7 +55,8 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
 		scratchpad: boolean,
-		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
+		@INotebookSynchronizerService private readonly _notebookSynchronizerService: INotebookSynchronizerService
 	) {
 		super();
 
@@ -118,13 +120,19 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return false;
 	}
 
-	revert(options?: IRevertOptions): Promise<void> {
+	async revert(options?: IRevertOptions): Promise<void> {
 		assertType(this.isResolved());
+		if (this._workingCopy) {
+			await this._notebookSynchronizerService.revert(this._workingCopy);
+		}
 		return this._workingCopy!.revert(options);
 	}
 
-	save(options?: ISaveOptions): Promise<boolean> {
+	async save(options?: ISaveOptions): Promise<boolean> {
 		assertType(this.isResolved());
+		if (this._workingCopy) {
+			await this._notebookSynchronizerService.save(this._workingCopy);
+		}
 		return this._workingCopy!.save(options);
 	}
 
