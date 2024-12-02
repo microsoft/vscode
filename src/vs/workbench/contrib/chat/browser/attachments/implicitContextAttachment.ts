@@ -134,13 +134,13 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		file: URI,
 	): IMarkdownString[] {
 		const result = [new MarkdownString(
-			`• ${this.labelService.getUriLabel(file, { relative: true })}`,
+			`- ${this.labelService.getUriLabel(file, { relative: true })}`,
 		)];
 
 		// if file is a prompt that references other files, add them to the label
 		for (const child of this.attachment.validFileReferenceUris) {
 			result.push(new MarkdownString(
-				`  • ${this.labelService.getUriLabel(child, { relative: true })}`,
+				` - ${this.labelService.getUriLabel(child, { relative: true })}`,
 			));
 		}
 

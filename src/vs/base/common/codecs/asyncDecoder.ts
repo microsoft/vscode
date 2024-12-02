@@ -23,11 +23,16 @@ export class AsyncDecoder<T extends NonNullable<unknown>, K extends NonNullable<
 
 	/**
 	 * @param decoder The decoder instance to wrap.
+	 *
+	 * Note! Assumes ownership of the `decoder` object, hence will `dipose`
+	 * 		 it when the decoder stream is ended.
 	 */
 	constructor(
 		private readonly decoder: BaseDecoder<T, K>,
 	) {
 		super();
+
+		this._register(decoder);
 	}
 
 	/**
@@ -63,8 +68,10 @@ export class AsyncDecoder<T extends NonNullable<unknown>, K extends NonNullable<
 				continue;
 			}
 
-			// if no data and stream ended, so we're done
+			// if no data available and stream ended, we're done
 			if (this.decoder.isEnded) {
+				this.dispose();
+
 				return null;
 			}
 

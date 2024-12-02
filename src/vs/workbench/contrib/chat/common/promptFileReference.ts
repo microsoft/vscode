@@ -77,11 +77,10 @@ export class PromptFileReference extends Disposable {
 	 */
 	protected readonly children: PromptFileReference[] = [];
 
-	private readonly _onUpdate = this._register(new Emitter<void>());
 	/**
 	 * The event is fired when nested prompt snippet references are updated, if any.
 	 */
-	public readonly onUpdate = this._onUpdate.event;
+	private readonly _onUpdate = this._register(new Emitter<void>());
 
 	private _errorCondition?: TErrorCondition;
 	/**
@@ -124,6 +123,14 @@ export class PromptFileReference extends Disposable {
 	}
 
 	/**
+	 * Subscribe to the `onUpdate` event.
+	 * @param callback
+	 */
+	public onUpdate(callback: () => unknown) {
+		this._register(this._onUpdate.event(callback));
+	}
+
+	/**
 	 * Check if the prompt snippets feature is enabled.
 	 * @see {@link PROMPT_SNIPPETS_CONFIG_KEY}
 	 */
@@ -160,9 +167,9 @@ export class PromptFileReference extends Disposable {
 	}
 
 	/**
-	 * Get the parent folder of the file reference.
+	 * Get the directory name of the file reference.
 	 */
-	public get parentFolder() {
+	public get dirname() {
 		return URI.joinPath(this.uri, '..');
 	}
 
@@ -292,7 +299,7 @@ export class PromptFileReference extends Disposable {
 		// 		 the fact that the `resolve` method can be called multiple times on target file changes
 		const childPromises = [];
 		for (const reference of references) {
-			const childUri = extUri.resolvePath(this.parentFolder, reference.path);
+			const childUri = extUri.resolvePath(this.dirname, reference.path);
 
 			const child = new PromptFileReference(
 				childUri,
@@ -301,9 +308,9 @@ export class PromptFileReference extends Disposable {
 			);
 
 			// subscribe to child updates
-			this._register(child.onUpdate(
+			child.onUpdate(
 				this._onUpdate.fire.bind(this._onUpdate),
-			));
+			);
 			this.children.push(child);
 
 			// start resolving the child in the background, including its children

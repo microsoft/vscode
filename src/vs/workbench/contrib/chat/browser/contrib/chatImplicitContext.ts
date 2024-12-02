@@ -248,15 +248,11 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		// got a new `URI` value, so remove the existing prompt file
 		// reference object(if present) and create a new one
 		this.removePromptFileReference();
-		this.promptFileReference = this._register(
-			this.instantiationService.createInstance(PromptFileReference, value),
-		);
+		this.promptFileReference = this.instantiationService.createInstance(PromptFileReference, value);
 
 		// subscribe to updates of the prompt file reference
-		this._register(
-			this.promptFileReference.onUpdate(
-				this._onDidChangeValue.fire.bind(this._onDidChangeValue),
-			),
+		this.promptFileReference.onUpdate(
+			this._onDidChangeValue.fire.bind(this._onDidChangeValue),
 		);
 		// start resolving the nested prompt file references immediately
 		this.promptFileReference.resolve();
@@ -283,5 +279,11 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 			isDynamic: true,
 			modelDescription: this.modelDescription
 		};
+	}
+
+	public override dispose() {
+		this.removePromptFileReference();
+
+		super.dispose();
 	}
 }
