@@ -272,10 +272,6 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 				inlineClassName.push('embedded');
 			}
 
-			if (decos.length === 0) {
-				inlineClassName.push('first');
-			}
-
 			this._ctxShowingHint.set(true);
 
 			decos.set([{

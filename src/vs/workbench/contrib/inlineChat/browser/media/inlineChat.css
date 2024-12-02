@@ -361,32 +361,9 @@
 .monaco-workbench .monaco-editor .inline-chat-hint {
 	cursor: pointer;
 	color: var(--vscode-editorGhostText-foreground);
-	background-image: linear-gradient(45deg, var(--vscode-editorGhostText-foreground), 95%, transparent);
-	background-clip: text;
-	-webkit-text-fill-color: transparent;
 }
 
 .monaco-workbench .monaco-editor .inline-chat-hint.embedded {
 	border: 1px solid var(--vscode-editorSuggestWidget-border);
 	border-radius: 3px;
-}
-
-@property --inline-chat-hint-progress {
-	syntax: '<percentage>';
-	initial-value: 33%;
-	inherits: false;
-}
-
-@keyframes ltr {
-	0% {
-		--inline-chat-hint-progress: 33%;
-	}
-	100% {
-		--inline-chat-hint-progress: 95%;
-	}
-}
-
-.monaco-workbench .monaco-editor .inline-chat-hint.first {
-	background-image: linear-gradient(45deg, var(--vscode-editorGhostText-foreground), var(--inline-chat-hint-progress), transparent);
-	animation: 75ms ltr ease-in forwards;
 }
