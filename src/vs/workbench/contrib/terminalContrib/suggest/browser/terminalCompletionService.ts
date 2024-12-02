@@ -76,7 +76,7 @@ export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	readonly providers: IterableIterator<ITerminalCompletionProvider>;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider, ...triggerCharacters: string[]): IDisposable;
-	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean): Promise<ITerminalCompletion[] | undefined>;
+	provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean): Promise<ITerminalCompletion[] | undefined>;
 }
 
 export class TerminalCompletionService extends Disposable implements ITerminalCompletionService {
@@ -121,7 +121,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		});
 	}
 
-	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean): Promise<ITerminalCompletion[] | undefined> {
+	async provideCompletions(promptValue: string, cursorPosition: number, shellType: TerminalShellType, token: CancellationToken, triggerCharacter?: boolean, skipExtensionCompletions?: boolean): Promise<ITerminalCompletion[] | undefined> {
 		if (!this._providers || !this._providers.values) {
 			return undefined;
 		}
@@ -146,7 +146,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			providers = [...this._providers.values()].flatMap(providerMap => [...providerMap.values()]);
 		}
 
-		if (!extensionCompletionsEnabled) {
+		if (!extensionCompletionsEnabled || skipExtensionCompletions) {
 			providers = providers.filter(p => p.isBuiltin);
 		}
 
@@ -176,7 +176,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return itemsWithModifiedLabels;
 			}
 			if (completions.resourceRequestConfig) {
-				const resourceCompletions = await this._resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition);
+				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition);
 				if (resourceCompletions) {
 					itemsWithModifiedLabels.push(...resourceCompletions);
 				}
@@ -189,7 +189,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		return results.filter(result => !!result).flat();
 	}
 
-	private async _resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number): Promise<ITerminalCompletion[] | undefined> {
+	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number): Promise<ITerminalCompletion[] | undefined> {
 		const cwd = URI.revive(resourceRequestConfig.cwd);
 		const foldersRequested = resourceRequestConfig.foldersRequested ?? false;
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
@@ -197,46 +197,49 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return;
 		}
 
+		const fileStat = await this._fileService.resolve(cwd, { resolveSingleChildDescendants: true });
+		if (!fileStat || !fileStat?.children) {
+			return;
+		}
+
 		const resourceCompletions: ITerminalCompletion[] = [];
+		const endsWithSpace = promptValue.substring(0, cursorPosition).endsWith(' ');
+		let lastWord;
+		if (endsWithSpace) {
+			lastWord = '';
+		} else {
+			lastWord = promptValue.substring(0, cursorPosition).trim().split(' ').at(-1) ?? '';
+		}
 
-		const parentDirPath = cwd.fsPath.split(resourceRequestConfig.pathSeparator).slice(0, -1).join(resourceRequestConfig.pathSeparator);
-		const parentCwd = URI.from({ scheme: cwd.scheme, path: parentDirPath });
-		const dirToPrefixMap = new Map<URI, string>();
-
-		dirToPrefixMap.set(cwd, '.');
-		dirToPrefixMap.set(parentCwd, '..');
-
-		const lastWord = promptValue.substring(0, cursorPosition).split(' ').pop() ?? '';
-
-		for (const [dir, prefix] of dirToPrefixMap) {
-			const fileStat = await this._fileService.resolve(dir, { resolveSingleChildDescendants: true });
-
-			if (!fileStat || !fileStat?.children) {
-				return;
+		for (const stat of fileStat.children) {
+			let kind: TerminalCompletionItemKind | undefined;
+			if (foldersRequested && stat.isDirectory) {
+				kind = TerminalCompletionItemKind.Folder;
 			}
-
-			for (const stat of fileStat.children) {
-				let kind: TerminalCompletionItemKind | undefined;
-				if (foldersRequested && stat.isDirectory) {
-					kind = TerminalCompletionItemKind.Folder;
-				}
-				if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === Schemas.file)) {
-					kind = TerminalCompletionItemKind.File;
-				}
-				if (kind === undefined) {
-					continue;
-				}
-
-				const label = prefix + stat.resource.fsPath.replace(dir.fsPath, '');
-				resourceCompletions.push({
-					label,
-					kind,
-					isDirectory: kind === TerminalCompletionItemKind.Folder,
-					isFile: kind === TerminalCompletionItemKind.File,
-					replacementIndex: cursorPosition - lastWord.length,
-					replacementLength: label.length
-				});
+			if (filesRequested && !stat.isDirectory && (stat.isFile || stat.resource.scheme === Schemas.file)) {
+				kind = TerminalCompletionItemKind.File;
 			}
+			if (kind === undefined) {
+				continue;
+			}
+			const isDirectory = kind === TerminalCompletionItemKind.Folder;
+			const pathToResource = stat.resource.fsPath.replace(cwd.fsPath, '');
+			let label = pathToResource;
+			if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
+				label = label + resourceRequestConfig.pathSeparator;
+			}
+			const startsWithDot = lastWord && lastWord.startsWith('.');
+			if (!startsWithDot) {
+				label = '.' + label;
+			}
+			resourceCompletions.push({
+				label,
+				kind,
+				isDirectory,
+				isFile: kind === TerminalCompletionItemKind.File,
+				replacementIndex: promptValue[cursorPosition - 1] === ' ' ? cursorPosition : cursorPosition - 1,
+				replacementLength: label.length - lastWord.length > 0 ? label.length - lastWord.length : label.length,
+			});
 		}
 
 		return resourceCompletions.length ? resourceCompletions : undefined;

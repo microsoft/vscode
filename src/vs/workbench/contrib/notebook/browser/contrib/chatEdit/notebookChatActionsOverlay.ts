@@ -14,11 +14,12 @@ import { $ } from '../../../../../../base/browser/dom.js';
 import { IChatEditingService, IModifiedFileEntry } from '../../../../chat/common/chatEditingService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import { autorunWithStore, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, autorunWithStore, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
 import { INotebookDeletedCellDecorator } from './notebookCellDecorators.js';
 import { AcceptAction, RejectAction } from '../../../../chat/browser/chatEditorActions.js';
+import { navigationBearingFakeActionId } from '../../../../chat/browser/chatEditorOverlay.js';
 
 export class NotebookChatActionsOverlayController extends Disposable {
 	constructor(
@@ -54,8 +55,10 @@ export class NotebookChatActionsOverlayController extends Disposable {
 // Copied from src/vs/workbench/contrib/chat/browser/chatEditorOverlay.ts (until we unify these)
 export class NotebookChatActionsOverlay extends Disposable {
 	private readonly focusedDiff = observableValue<CellDiffInfo | undefined>('focusedDiff', undefined);
+	private readonly toolbarNode: HTMLElement;
+	private added: boolean = false;
 	constructor(
-		notebookEditor: INotebookEditor,
+		private readonly notebookEditor: INotebookEditor,
 		entry: IModifiedFileEntry,
 		cellDiffInfo: IObservable<CellDiffInfo[] | undefined, unknown>,
 		nextEntry: IModifiedFileEntry,
@@ -77,15 +80,21 @@ export class NotebookChatActionsOverlay extends Disposable {
 			}
 		}));
 
-		const toolbarNode = $('div');
-		toolbarNode.classList.add('notebook-chat-editor-overlay-widget');
-		notebookEditor.getDomNode().appendChild(toolbarNode);
+		this.toolbarNode = $('div');
+		this.toolbarNode.classList.add('notebook-chat-editor-overlay-widget');
+		this._register(toDisposable(() => this.hide()));
 
-		this._register(toDisposable(() => {
-			notebookEditor.getDomNode().removeChild(toolbarNode);
+		this._register(autorun(r => {
+			const diffs = cellDiffInfo.read(r);
+			if (diffs?.length) {
+				this.show();
+			} else {
+				this.hide();
+			}
 		}));
+
 		const focusedDiff = this.focusedDiff;
-		const _toolbar = instaService.createInstance(MenuWorkbenchToolBar, toolbarNode, MenuId.ChatEditingEditorContent, {
+		const _toolbar = instaService.createInstance(MenuWorkbenchToolBar, this.toolbarNode, MenuId.ChatEditingEditorContent, {
 			telemetrySource: 'chatEditor.overlayToolbar',
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
@@ -95,6 +104,15 @@ export class NotebookChatActionsOverlay extends Disposable {
 			menuOptions: { renderShortTitle: true },
 			actionViewItemProvider: (action, options) => {
 				const that = this;
+
+				if (action.id === navigationBearingFakeActionId) {
+					return new class extends ActionViewItem {
+						constructor() {
+							super(undefined, action, { ...options, icon: false, label: false, keybindingNotRenderedWithLabel: true });
+						}
+					};
+				}
+
 				if (action.id === AcceptAction.ID || action.id === RejectAction.ID) {
 					return new class extends ActionViewItem {
 						private readonly _reveal = this._store.add(new MutableDisposable());
@@ -156,6 +174,20 @@ export class NotebookChatActionsOverlay extends Disposable {
 		});
 
 		this._register(_toolbar);
+	}
+
+	private show() {
+		if (!this.added) {
+			this.notebookEditor.getDomNode().appendChild(this.toolbarNode);
+			this.added = true;
+		}
+	}
+
+	private hide() {
+		if (this.added) {
+			this.notebookEditor.getDomNode().removeChild(this.toolbarNode);
+			this.added = false;
+		}
 	}
 
 

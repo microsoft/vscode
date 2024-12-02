@@ -159,4 +159,31 @@ suite('WellDefinedPrefixTree', () => {
 		assert.deepStrictEqual([...tree.deleteRecursive(key4)], [45]);
 		assert.strictEqual(tree.size, 0);
 	});
+
+	test('insert and delete root', () => {
+		assert.strictEqual(tree.size, 0);
+		tree.insert([], 1234);
+		assert.strictEqual(tree.size, 1);
+		assert.strictEqual(tree.find([]), 1234);
+		assert.strictEqual(tree.delete([]), 1234);
+		assert.strictEqual(tree.size, 0);
+
+		assert.strictEqual(tree.find([]), undefined);
+		assert.strictEqual(tree.delete([]), undefined);
+		assert.strictEqual(tree.size, 0);
+	});
+
+	test('insert and deleteRecursive root', () => {
+		assert.strictEqual(tree.size, 0);
+		tree.insert([], 1234);
+		tree.insert(['a'], 4567);
+		assert.strictEqual(tree.size, 2);
+		assert.strictEqual(tree.find([]), 1234);
+		assert.deepStrictEqual([...tree.deleteRecursive([])], [1234, 4567]);
+		assert.strictEqual(tree.size, 0);
+
+		assert.strictEqual(tree.find([]), undefined);
+		assert.deepStrictEqual([...tree.deleteRecursive([])], []);
+		assert.strictEqual(tree.size, 0);
+	});
 });

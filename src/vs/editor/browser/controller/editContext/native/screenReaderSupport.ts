@@ -17,6 +17,7 @@ import { EndOfLinePreference } from '../../../../common/model.js';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent } from '../../../../common/viewEvents.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { applyFontInfo } from '../../../config/domFontInfo.js';
+import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { RestrictedRenderingContext, RenderingContext } from '../../../view/renderingContext.js';
 import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy, ScreenReaderContentState } from '../screenReaderUtils.js';
 
@@ -28,6 +29,7 @@ export class ScreenReaderSupport {
 	private _lineHeight: number = 1;
 	private _fontInfo: FontInfo | undefined;
 	private _accessibilityPageSize: number = 1;
+	private _ignoreSelectionChangeTime: number = 0;
 
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 	private _screenReaderContentState: ScreenReaderContentState | undefined;
@@ -40,6 +42,18 @@ export class ScreenReaderSupport {
 	) {
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
+	}
+
+	public setIgnoreSelectionChangeTime(reason: string): void {
+		this._ignoreSelectionChangeTime = Date.now();
+	}
+
+	public getIgnoreSelectionChangeTime(): number {
+		return this._ignoreSelectionChangeTime;
+	}
+
+	public resetSelectionChangeTime(): void {
+		this._ignoreSelectionChangeTime = 0;
 	}
 
 	public onConfigurationChanged(e: ViewConfigurationChangedEvent): void {
@@ -103,7 +117,20 @@ export class ScreenReaderSupport {
 		this._domNode.domNode.scrollTop = numberOfLinesOfContentBeforeSelection * this._lineHeight;
 	}
 
-	public setAriaOptions(): void { }
+	public setAriaOptions(options: IEditorAriaOptions): void {
+		if (options.activeDescendant) {
+			this._domNode.setAttribute('aria-haspopup', 'true');
+			this._domNode.setAttribute('aria-autocomplete', 'list');
+			this._domNode.setAttribute('aria-activedescendant', options.activeDescendant);
+		} else {
+			this._domNode.setAttribute('aria-haspopup', 'false');
+			this._domNode.setAttribute('aria-autocomplete', 'both');
+			this._domNode.removeAttribute('aria-activedescendant');
+		}
+		if (options.role) {
+			this._domNode.setAttribute('role', options.role);
+		}
+	}
 
 	public writeScreenReaderContent(): void {
 		const focusedElement = getActiveWindow().document.activeElement;
@@ -115,6 +142,7 @@ export class ScreenReaderSupport {
 			return;
 		}
 		if (this._domNode.domNode.textContent !== this._screenReaderContentState.value) {
+			this.setIgnoreSelectionChangeTime('setValue');
 			this._domNode.domNode.textContent = this._screenReaderContentState.value;
 		}
 		this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
@@ -161,6 +189,7 @@ export class ScreenReaderSupport {
 		const range = new globalThis.Range();
 		range.setStart(textContent, selectionOffsetStart);
 		range.setEnd(textContent, selectionOffsetEnd);
+		this.setIgnoreSelectionChangeTime('setRange');
 		activeDocumentSelection.removeAllRanges();
 		activeDocumentSelection.addRange(range);
 	}

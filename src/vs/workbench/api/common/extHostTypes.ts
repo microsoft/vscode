@@ -4150,6 +4150,14 @@ export enum TestRunProfileKind {
 	Coverage = 3,
 }
 
+export class TestRunProfileBase {
+	constructor(
+		public readonly controllerId: string,
+		public readonly profileId: number,
+		public readonly kind: vscode.TestRunProfileKind,
+	) { }
+}
+
 @es5ClassCompat
 export class TestRunRequest implements vscode.TestRunRequest {
 	constructor(
@@ -4262,7 +4270,7 @@ export class FileCoverage implements vscode.FileCoverage {
 		public statementCoverage: vscode.TestCoverageCount,
 		public branchCoverage?: vscode.TestCoverageCount,
 		public declarationCoverage?: vscode.TestCoverageCount,
-		public fromTests: vscode.TestItem[] = [],
+		public includesTests: vscode.TestItem[] = [],
 	) {
 	}
 }

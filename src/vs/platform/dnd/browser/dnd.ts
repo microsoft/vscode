@@ -16,7 +16,7 @@ import { isNative, isWeb } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IDialogService } from '../../dialogs/common/dialogs.js';
-import { IBaseTextResourceEditorInput } from '../../editor/common/editor.js';
+import { IBaseTextResourceEditorInput, ITextEditorSelection } from '../../editor/common/editor.js';
 import { HTMLFileSystemProvider } from '../../files/browser/htmlFileSystemProvider.js';
 import { WebFileSystemAccess } from '../../files/browser/webFileSystemAccess.js';
 import { ByteSize, IFileService } from '../../files/common/files.js';
@@ -309,8 +309,9 @@ export function containsDragType(event: DragEvent, ...dragTypesToFind: string[])
 //#region DND contributions
 
 export interface IResourceStat {
-	resource: URI;
-	isDirectory?: boolean;
+	readonly resource: URI;
+	readonly isDirectory?: boolean;
+	readonly selection?: ITextEditorSelection;
 }
 
 export interface IDragAndDropContributionRegistry {
@@ -424,6 +425,10 @@ export function extractSymbolDropData(e: DragEvent): DocumentSymbolTransferData[
 	}
 
 	return [];
+}
+
+export function fillInSymbolsDragData(symbolsData: readonly DocumentSymbolTransferData[], e: DragEvent): void {
+	e.dataTransfer?.setData(CodeDataTransfers.SYMBOLS, JSON.stringify(symbolsData));
 }
 
 /**

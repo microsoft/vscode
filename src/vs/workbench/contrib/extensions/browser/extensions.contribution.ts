@@ -9,15 +9,15 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuRegistry, MenuId, registerAction2, Action2, IMenuItem, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ExtensionsLocalizedLabel, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel, EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, UseUnpkgResourceApiConfigKey, AllowedExtensionsConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService, extensionsConfigurationNodeBase } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { EnablementState, IExtensionManagementServerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, UPDATE_ACTIONS_GROUP, IExtensionArg, ExtensionRuntimeActionType } from '../common/extensions.js';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, UPDATE_ACTIONS_GROUP, IExtensionArg, ExtensionRuntimeActionType, EXTENSIONS_CATEGORY } from '../common/extensions.js';
 import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction, ToggleAutoUpdateForExtensionAction, ToggleAutoUpdatesForPublisherAction, TogglePreReleaseExtensionAction, InstallAnotherVersionAction, InstallAction } from './extensionsActions.js';
 import { ExtensionsInput } from '../common/extensionsInput.js';
 import { ExtensionEditor } from './extensionEditor.js';
-import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer, BuiltInExtensionsContext, SearchMarketplaceExtensionsContext, RecommendedExtensionsContext, DefaultViewsContext, ExtensionsSortByContext, SearchHasTextContext } from './extensionsViewlet.js';
+import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer, BuiltInExtensionsContext, SearchMarketplaceExtensionsContext, RecommendedExtensionsContext, DefaultViewsContext, ExtensionsSortByContext, SearchHasTextContext, ExtensionsSearchValueContext } from './extensionsViewlet.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import * as jsonContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from '../common/extensionsFileTemplate.js';
@@ -122,7 +122,10 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
-		...extensionsConfigurationNodeBase,
+		id: 'extensions',
+		order: 30,
+		title: localize('extensionsConfigurationTitle', "Extensions"),
+		type: 'object',
 		properties: {
 			'extensions.autoUpdate': {
 				enum: [true, 'onlyEnabledExtensions', false,],
@@ -303,6 +306,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 							},
 							{
 								type: 'array',
+								items: {
+									type: 'string',
+								},
 								description: localize('extensions.allow.version.description', "Allow or disallow specific versions of the extension. To specifcy a platform specific version, use the format `platform@1.2.3`, e.g. `win32-x64@1.2.3`. Supported platforms are `win32-x64`, `win32-arm64`, `linux-x64`, `linux-arm64`, `linux-armhf`, `alpine-x64`, `alpine-arm64`, `darwin-x64`, `darwin-arm64`"),
 							},
 						]
@@ -1186,7 +1192,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			this.registerExtensionAction({
 				id: `extensions.sort.${id}`,
 				title,
-				precondition: precondition,
+				precondition: ContextKeyExpr.and(precondition, ContextKeyExpr.regex(ExtensionsSearchValueContext.key, /^@feature:/).negate()),
 				menu: [{
 					id: extensionsSortSubMenu,
 					when: ContextKeyExpr.or(CONTEXT_HAS_GALLERY, DefaultViewsContext),
@@ -1633,6 +1639,24 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
+			id: 'workbench.extensions.action.copyLink',
+			title: localize2('workbench.extensions.action.copyLink', 'Copy Link'),
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '1_copy',
+				when: ContextKeyExpr.has('isGalleryExtension'),
+			},
+			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				const clipboardService = accessor.get(IClipboardService);
+				const productService = accessor.get(IProductService);
+				if (productService.extensionsGallery?.itemUrl) {
+					const link = `${productService.extensionsGallery.itemUrl}?itemName=${extensionId}`;
+					await clipboardService.writeText(link);
+				}
+			}
+		});
+
+		this.registerExtensionAction({
 			id: 'workbench.extensions.action.configure',
 			title: localize2('workbench.extensions.action.configure', 'Settings'),
 			menu: {
@@ -1781,7 +1805,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.addToWorkspaceRecommendations',
 			title: localize2('workbench.extensions.action.addToWorkspaceRecommendations', "Add Extension to Workspace Recommendations"),
-			category: localize('extensions', "Extensions"),
+			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
 				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.equals('resourceScheme', Schemas.extension)),
@@ -1804,7 +1828,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.addToWorkspaceFolderRecommendations',
 			title: localize2('workbench.extensions.action.addToWorkspaceFolderRecommendations', "Add Extension to Workspace Folder Recommendations"),
-			category: localize('extensions', "Extensions"),
+			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
 				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('folder'), ContextKeyExpr.equals('resourceScheme', Schemas.extension)),
@@ -1815,7 +1839,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.addToWorkspaceIgnoredRecommendations',
 			title: localize2('workbench.extensions.action.addToWorkspaceIgnoredRecommendations', "Add Extension to Workspace Ignored Recommendations"),
-			category: localize('extensions', "Extensions"),
+			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
 				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.equals('resourceScheme', Schemas.extension)),
@@ -1838,7 +1862,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.addToWorkspaceFolderIgnoredRecommendations',
 			title: localize2('workbench.extensions.action.addToWorkspaceFolderIgnoredRecommendations', "Add Extension to Workspace Folder Ignored Recommendations"),
-			category: localize('extensions', "Extensions"),
+			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
 				when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('folder'), ContextKeyExpr.equals('resourceScheme', Schemas.extension)),
@@ -1849,7 +1873,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this.registerExtensionAction({
 			id: ConfigureWorkspaceRecommendedExtensionsAction.ID,
 			title: { value: ConfigureWorkspaceRecommendedExtensionsAction.LABEL, original: 'Configure Recommended Extensions (Workspace)' },
-			category: localize('extensions', "Extensions"),
+			category: EXTENSIONS_CATEGORY,
 			menu: {
 				id: MenuId.CommandPalette,
 				when: WorkbenchStateContext.isEqualTo('workspace'),

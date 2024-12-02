@@ -17,7 +17,7 @@ import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionView
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IActionRunner } from '../../../../base/common/actions.js';
-import { getWindow, reset, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { EventLike, getWindow, reset, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -27,6 +27,7 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ctxNotebookHasEditorModification } from '../../notebook/browser/contrib/chatEdit/notebookChatEditController.js';
 import { AcceptAction, RejectAction } from './chatEditorActions.js';
+import { ChatEditorController } from './chatEditorController.js';
 
 class ChatEditorOverlayWidget implements IOverlayWidget {
 
@@ -107,6 +108,10 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 							} else {
 								return localize('tooltip_nm', "{0} changes in {1} files", changeCount, entriesCount);
 							}
+						}
+
+						override onClick(event: EventLike, preserveFocus?: boolean): void {
+							ChatEditorController.get(that._editor)?.unlockScroll();
 						}
 					};
 				}
@@ -206,16 +211,9 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 			);
 		}));
 
-
-		const editorPositionObs = observableFromEvent(this._editor.onDidChangeCursorPosition, () => this._editor.getPosition());
-
 		this._showStore.add(autorun(r => {
-			const position = editorPositionObs.read(r);
 
-			if (!position) {
-				return;
-			}
-
+			const position = ChatEditorController.get(this._editor)?.currentChange.read(r);
 			const entries = session.entries.read(r);
 
 			let changes = 0;
@@ -229,7 +227,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 
 				} else {
 					for (const change of diffInfo.changes) {
-						if (change.modified.includes(position.lineNumber)) {
+						if (position && change.modified.includes(position.lineNumber)) {
 							activeIdx = changes;
 						}
 						changes += 1;
@@ -380,7 +378,7 @@ export class ChatEditorOverlayController implements IEditorContribution {
 		@IInstantiationService instaService: IInstantiationService,
 	) {
 		const modelObs = observableFromEvent(this._editor.onDidChangeModel, () => this._editor.getModel());
-		const widget = instaService.createInstance(ChatEditorOverlayWidget, this._editor);
+		const widget = this._store.add(instaService.createInstance(ChatEditorOverlayWidget, this._editor));
 
 		if (this._editor.getOption(EditorOption.inDiffEditor)) {
 			return;

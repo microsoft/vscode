@@ -17,9 +17,11 @@ import { ITreeContextMenuEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSort
 import { Action, ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
 import { mapFindFirst } from '../../../../base/common/arraysFind.js';
 import { RunOnceScheduler, disposableTimeout } from '../../../../base/common/async.js';
+import { groupBy } from '../../../../base/common/collections.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
@@ -65,7 +67,7 @@ import { ITestProfileService, canUseProfileWithTest } from '../common/testProfil
 import { LiveTestResult, TestResultItemChangeReason } from '../common/testResult.js';
 import { ITestResultService } from '../common/testResultService.js';
 import { IMainThreadTestCollection, ITestService, testCollectionIsEmpty } from '../common/testService.js';
-import { ITestRunProfile, InternalTestItem, TestControllerCapability, TestItemExpandState, TestResultState, TestRunProfileBitset, testResultStateToContextValues } from '../common/testTypes.js';
+import { ITestRunProfile, InternalTestItem, TestControllerCapability, TestItemExpandState, TestResultState, TestRunProfileBitset, testProfileBitset, testResultStateToContextValues } from '../common/testTypes.js';
 import { TestingContextKeys } from '../common/testingContextKeys.js';
 import { ITestingContinuousRunService } from '../common/testingContinuousRunService.js';
 import { ITestingPeekOpener } from '../common/testingPeekOpener.js';
@@ -118,6 +120,7 @@ export class TestingExplorerView extends ViewPane {
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
+		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
@@ -326,6 +329,9 @@ export class TestingExplorerView extends ViewPane {
 				return this.getRunGroupDropdown(TestRunProfileBitset.Run, action, options);
 			case TestCommandId.DebugSelectedAction:
 				return this.getRunGroupDropdown(TestRunProfileBitset.Debug, action, options);
+			case TestCommandId.StartContinousRun:
+			case TestCommandId.StopContinousRun:
+				return this.getContinuousRunDropdown(action, options);
 			default:
 				return super.getActionViewItem(action, options);
 		}
@@ -440,11 +446,79 @@ export class TestingExplorerView extends ViewPane {
 				: icons.testingDebugAllIcon,
 		}, undefined, undefined, undefined, undefined);
 
-		const dropdownAction = new Action('selectRunConfig', 'Select Configuration...', 'codicon-chevron-down', true);
+		return this.instantiationService.createInstance(
+			DropdownWithPrimaryActionViewItem,
+			primaryAction, this.getDropdownAction(), dropdownActions,
+			'',
+			options
+		);
+	}
+
+	private getDropdownAction() {
+		return new Action('selectRunConfig', localize('testingSelectConfig', 'Select Configuration...'), 'codicon-chevron-down', true);
+	}
+
+	private getContinuousRunDropdown(defaultAction: IAction, options: IActionViewItemOptions) {
+		const allProfiles = [...Iterable.flatMap(this.testProfileService.all(), (cr): Iterable<ITestRunProfile> => {
+			if (this.testService.collection.getNodeById(cr.controller.id)?.children.size) {
+				return Iterable.filter(cr.profiles, p => p.supportsContinuousRun);
+			}
+			return Iterable.empty();
+		})];
+
+		if (allProfiles.length <= 1) {
+			return super.getActionViewItem(defaultAction, options);
+		}
+
+		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
+			id: defaultAction.id,
+			title: defaultAction.label,
+			icon: defaultAction.id === TestCommandId.StartContinousRun ? icons.testingTurnContinuousRunOn : icons.testingTurnContinuousRunOff,
+		}, undefined, undefined, undefined, undefined);
+
+		const dropdownActions: IAction[] = [];
+		const groups = groupBy(allProfiles, p => p.group);
+		const crService = this.crService;
+		for (const group of [TestRunProfileBitset.Run, TestRunProfileBitset.Debug, TestRunProfileBitset.Coverage] as const) {
+			const profiles = groups[group];
+			if (!profiles) {
+				continue;
+			}
+
+			if (Object.keys(groups).length > 1) {
+				dropdownActions.push(new Action(
+					`${group}.label`,
+					testProfileBitset[group],
+					undefined,
+					false,
+				));
+			}
+
+			for (const profile of profiles) {
+				dropdownActions.push(new class extends Action {
+					constructor() {
+						super(
+							`${group}.${profile.profileId}`,
+							profile.label,
+							undefined,
+							true,
+							() => crService.isEnabledForProfile(profile)
+								? crService.stopProfile(profile)
+								: crService.start([profile]),
+						);
+						this.checked = crService.isEnabledForProfile(profile);
+						this._register(crService.onDidChange(() => {
+							this.checked = crService.isEnabledForProfile(profile);
+						}));
+					}
+				});
+			}
+		}
+
 
 		return this.instantiationService.createInstance(
 			DropdownWithPrimaryActionViewItem,
-			primaryAction, dropdownAction, dropdownActions,
+			primaryAction, this.getDropdownAction(), dropdownActions,
 			'',
 			options
 		);

@@ -795,6 +795,11 @@ export class NotebookService extends Disposable implements INotebookService {
 		const serializer = info.serializer;
 		const outputSizeLimit = this._configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) * 1024;
 		const data: NotebookData = model.createSnapshot({ context: context, outputSizeLimit: outputSizeLimit, transientOptions: serializer.options });
+		const indentAmount = model.metadata.indentAmount;
+		if (typeof indentAmount === 'string' && indentAmount) {
+			// This is required for ipynb serializer to preserve the whitespace in the notebook.
+			data.metadata.indentAmount = indentAmount;
+		}
 		const bytes = await serializer.notebookToData(data);
 
 		if (token.isCancellationRequested) {
@@ -863,6 +868,16 @@ export class NotebookService extends Disposable implements INotebookService {
 		}
 
 		return [...this.notebookProviderInfoStore];
+	}
+
+	hasSupportedNotebooks(resource: URI): boolean {
+		const contribution = this.notebookProviderInfoStore.getContributedNotebook(resource);
+		if (!contribution.length) {
+			return false;
+		}
+		return contribution.some(info => info.matches(resource) &&
+			(info.priority === RegisteredEditorPriority.default || info.priority === RegisteredEditorPriority.exclusive)
+		);
 	}
 
 	getContributedNotebookType(viewType: string): NotebookProviderInfo | undefined {
