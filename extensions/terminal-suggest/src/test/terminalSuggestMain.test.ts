@@ -6,15 +6,14 @@
 import * as vscode from 'vscode';
 import { deepStrictEqual, strictEqual } from 'assert';
 import 'mocha';
-import { asArray, getCompletionItemsFromSpecs } from './terminalSuggestMain';
-import cdSpec from './completions/cd';
-import codeCompletionSpec from './completions/code';
-import codeInsidersCompletionSpec from './completions/code-insiders';
+import { asArray, getCompletionItemsFromSpecs } from '../terminalSuggestMain';
+import cdSpec from '../completions/cd';
+import codeCompletionSpec from '../completions/code';
+import codeInsidersCompletionSpec from '../completions/code-insiders';
 import type { Uri } from 'vscode';
 import { basename } from 'path';
-import { platform } from 'os';
 
-const fixtureDir = vscode.Uri.joinPath(vscode.Uri.file(__dirname), '../fixtures');
+const fixtureDir = vscode.Uri.joinPath(vscode.Uri.file(__dirname), '../../testWorkspace');
 const testCwdParent = vscode.Uri.joinPath(fixtureDir, 'parent');
 const testCwd = vscode.Uri.joinPath(fixtureDir, 'parent/home');
 const testCwdChild = vscode.Uri.joinPath(fixtureDir, 'parent/home/child');
@@ -29,7 +28,6 @@ interface ISuiteSpec {
 }
 
 interface ITestSpec2 {
-	skip?: boolean;
 	input: string;
 	expectedResourceRequests?: {
 		type: 'files' | 'folders' | 'both';
@@ -116,10 +114,9 @@ const testSpecs2: ISuiteSpec[] = [
 			{ input: 'cd ..|', expectedResourceRequests: { type: 'folders', cwd: testCwd } },
 
 			// Relative directories (changes cwd due to /)
-			// TODO: These don't work on Linux currently
-			{ skip: platform() === 'linux', input: 'cd child/|', expectedResourceRequests: { type: 'folders', cwd: testCwdChild } },
-			{ skip: platform() === 'linux', input: 'cd ../|', expectedResourceRequests: { type: 'folders', cwd: testCwdParent } },
-			{ skip: platform() === 'linux', input: 'cd ../sibling|', expectedResourceRequests: { type: 'folders', cwd: testCwdParent } },
+			{ input: 'cd child/|', expectedResourceRequests: { type: 'folders', cwd: testCwdChild } },
+			{ input: 'cd ../|', expectedResourceRequests: { type: 'folders', cwd: testCwdParent } },
+			{ input: 'cd ../sibling|', expectedResourceRequests: { type: 'folders', cwd: testCwdParent } },
 		]
 	},
 	{
@@ -149,7 +146,7 @@ suite('Terminal Suggest', () => {
 						expectedString += ` @ ${basename(testSpec.expectedResourceRequests.cwd.fsPath)}/`;
 					}
 				}
-				(testSpec.skip ? test.skip : test)(`'${testSpec.input}' -> ${expectedString}`, async () => {
+				test(`'${testSpec.input}' -> ${expectedString}`, async () => {
 					const commandLine = testSpec.input.split('|')[0];
 					const cursorPosition = testSpec.input.indexOf('|');
 					const prefix = commandLine.slice(0, cursorPosition).split(' ').at(-1) || '';
