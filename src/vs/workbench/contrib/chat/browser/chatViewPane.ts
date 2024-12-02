@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $ } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
@@ -154,6 +155,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 			const locationBasedColors = this.getLocationBasedColors();
+			const editorOverflowNode = $('.chat-editor-overflow-widgets');
 			this._widget = this._register(scopedInstantiationService.createInstance(
 				ChatWidget,
 				this.chatOptions.location,
@@ -169,7 +171,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 							return this.chatOptions.location === ChatAgentLocation.EditingSession;
 						},
 					},
-					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel
+					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel,
+					editorOverflowWidgetsDomNode: editorOverflowNode,
 				},
 				{
 					listForeground: SIDE_BAR_FOREGROUND,
@@ -184,6 +187,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}));
 			this._register(this._widget.onDidClear(() => this.clear()));
 			this._widget.render(parent);
+			parent.appendChild(editorOverflowNode);
 
 			const sessionId = this.getSessionId();
 			const disposeListener = this._register(this.chatService.onDidDisposeSession((e) => {

@@ -3,56 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatViewSetup.css';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { IRequestService, asText } from '../../../../platform/request/common/request.js';
+import { $, getActiveElement, setVisibility } from '../../../../base/browser/dom.js';
+import { Button, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
+import { Barrier, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IRequestContext } from '../../../../base/parts/request/common/request.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Lazy } from '../../../../base/common/lazy.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import product from '../../../../platform/product/common/product.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { asText, IRequestService } from '../../../../platform/request/common/request.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
+import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { showChatView, ChatViewId, showEditsView, IChatWidget, EditsViewId, ensureSideBarChatViewSize } from './chat.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import product from '../../../../platform/product/common/product.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IChatViewsWelcomeContributionRegistry, ChatViewsWelcomeExtensions } from './viewsWelcome/chatViewsWelcome.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { $, getActiveElement, setVisibility } from '../../../../base/browser/dom.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { Button, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
-import { Barrier, timeout } from '../../../../base/common/async.js';
 import { IChatAgentService } from '../common/chatAgents.js';
-import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
-import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { IAction, toAction } from '../../../../base/common/actions.js';
-import { Lazy } from '../../../../base/common/lazy.js';
+import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, IChatWidget, showChatView, showEditsView } from './chat.js';
+import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
+import './media/chatViewSetup.css';
+import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -943,7 +944,8 @@ class ChatSetupContext extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
 		super();
 
@@ -969,7 +971,8 @@ class ChatSetupContext extends Disposable {
 		}));
 
 		const extensions = await this.extensionManagementService.getInstalled();
-		this.update({ installed: !!extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId)) });
+		const defaultChatExtension = extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.extensionId));
+		this.update({ installed: !!defaultChatExtension && this.extensionEnablementService.isEnabled(defaultChatExtension) });
 	}
 
 	update(context: { installed: boolean }): Promise<void>;

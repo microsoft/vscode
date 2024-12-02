@@ -972,13 +972,22 @@ export class SearchView extends ViewPane {
 
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
+		const selection = this.tree.getSelection();
+		let arg: any;
+		let context: any;
+		if (selection && selection.length > 0) {
+			arg = e.element;
+			context = selection;
+		} else {
+			context = e.element;
+		}
 
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.SearchContext,
-			menuActionOptions: { shouldForwardArgs: true },
+			menuActionOptions: { shouldForwardArgs: true, arg },
 			contextKeyService: this.contextKeyService,
 			getAnchor: () => e.anchor,
-			getActionsContext: () => e.element,
+			getActionsContext: () => context,
 		});
 	}
 
