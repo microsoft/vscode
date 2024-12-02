@@ -138,9 +138,9 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 			return;
 		}
 
-		prettyChanges(this.model, diffResult.cellsDiff);
+		prettyChanges(this.model.original.notebook, this.model.modified.notebook, diffResult.cellsDiff);
 
-		const { cellDiffInfo, firstChangeIndex } = computeDiff(this.model, diffResult);
+		const { cellDiffInfo, firstChangeIndex } = computeDiff(this.model.original.notebook, this.model.modified.notebook, diffResult);
 		if (isEqual(cellDiffInfo, this.originalCellViewModels, this.model)) {
 			return;
 		} else {
@@ -367,7 +367,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 /**
  * making sure that swapping cells are always translated to `insert+delete`.
  */
-export function prettyChanges(model: INotebookDiffEditorModel, diffResult: IDiffResult) {
+export function prettyChanges(original: NotebookTextModel, modified: NotebookTextModel, diffResult: IDiffResult) {
 	const changes = diffResult.changes;
 	for (let i = 0; i < diffResult.changes.length - 1; i++) {
 		// then we know there is another change after current one
@@ -383,8 +383,8 @@ export function prettyChanges(model: INotebookDiffEditorModel, diffResult: IDiff
 			&& next.originalLength === 0
 			&& next.modifiedStart === y + 1
 			&& next.modifiedLength === 1
-			&& model.original.notebook.cells[x].getHashValue() === model.modified.notebook.cells[y + 1].getHashValue()
-			&& model.original.notebook.cells[x + 1].getHashValue() === model.modified.notebook.cells[y].getHashValue()
+			&& original.cells[x].getHashValue() === modified.cells[y + 1].getHashValue()
+			&& original.cells[x + 1].getHashValue() === modified.cells[y].getHashValue()
 		) {
 			// this is a swap
 			curr.originalStart = x;
@@ -402,7 +402,7 @@ export function prettyChanges(model: INotebookDiffEditorModel, diffResult: IDiff
 	}
 }
 
-type CellDiffInfo = {
+export type CellDiffInfo = {
 	originalCellIndex: number;
 	modifiedCellIndex: number;
 	type: 'unchanged' | 'modified';
@@ -415,11 +415,9 @@ type CellDiffInfo = {
 	modifiedCellIndex: number;
 	type: 'insert';
 };
-function computeDiff(model: INotebookDiffEditorModel, diffResult: INotebookDiffResult) {
+export function computeDiff(originalModel: NotebookTextModel, modifiedModel: NotebookTextModel, diffResult: INotebookDiffResult) {
 	const cellChanges = diffResult.cellsDiff.changes;
 	const cellDiffInfo: CellDiffInfo[] = [];
-	const originalModel = model.original.notebook;
-	const modifiedModel = model.modified.notebook;
 	let originalCellIndex = 0;
 	let modifiedCellIndex = 0;
 

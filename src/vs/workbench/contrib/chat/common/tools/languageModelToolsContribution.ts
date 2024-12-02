@@ -27,12 +27,6 @@ export interface IRawToolContribution {
 	tags?: string[];
 	userDescription?: string;
 	inputSchema?: IJSONSchema;
-
-	/**
-	 * TODO@API backwards compat, remove
-	 * @deprecated
-	 */
-	parametersSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
 }
 
@@ -91,7 +85,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 				},
 				inputSchema: {
 					description: localize('parametersSchema', "A JSON schema for the input this tool accepts. The input must be an object at the top level. A particular language model may not support all JSON schema features. See the documentation for the language model family you are using for more information."),
-					$ref: toolsParametersSchemaSchemaId,
+					$ref: toolsParametersSchemaSchemaId
 				},
 				canBeReferencedInPrompt: {
 					markdownDescription: localize('canBeReferencedInPrompt', "If true, this tool shows up as an attachment that the user can add manually to their request. Chat participants will receive the tool in {0}.", '`ChatRequest#toolReferences`'),
@@ -179,7 +173,8 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 
 					const tool: IToolData = {
 						...rawTool,
-						inputSchema: rawTool.inputSchema ?? rawTool.parametersSchema, // BACKWARDS compatibility
+						extensionId: extension.description.identifier,
+						inputSchema: rawTool.inputSchema,
 						id: rawTool.name,
 						icon,
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,

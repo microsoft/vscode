@@ -7504,8 +7504,13 @@ declare module 'vscode' {
 		 * verify whether it was successful.
 		 *
 		 * @param executable A command to run.
-		 * @param args Arguments to launch the executable with which will be automatically escaped
-		 * based on the executable type.
+		 * @param args Arguments to launch the executable with. The arguments will be escaped such
+		 * that they are interpreted as single arguments when the argument both contains whitespace
+		 * and does not include any single quote, double quote or backtick characters.
+		 *
+		 * Note that this escaping is not intended to be a security measure, be careful when passing
+		 * untrusted data to this API as strings like `$(...)` can often be used in shells to
+		 * execute code within a string.
 		 *
 		 * @example
 		 * // Execute a command in a terminal immediately after being created
@@ -11901,7 +11906,7 @@ declare module 'vscode' {
 		 * When `falsy`, {@link ThemeIcon.Folder Folder Theme Icon} is assigned, if item is collapsible otherwise {@link ThemeIcon.File File Theme Icon}.
 		 * When a file or folder {@link ThemeIcon} is specified, icon is derived from the current file icon theme for the specified theme icon using {@link TreeItem.resourceUri resourceUri} (if provided).
 		 */
-		iconPath?: IconPath;
+		iconPath?: string | IconPath;
 
 		/**
 		 * A human-readable string which is rendered less prominent.
@@ -17610,6 +17615,29 @@ declare module 'vscode' {
 		loadDetailedCoverage?: (testRun: TestRun, fileCoverage: FileCoverage, token: CancellationToken) => Thenable<FileCoverageDetail[]>;
 
 		/**
+		 * An extension-provided function that provides detailed statement and
+		 * function-level coverage for a single test in a file. This is the per-test
+		 * sibling of {@link TestRunProfile.loadDetailedCoverage}, called only if
+		 * a test item is provided in {@link FileCoverage.includesTests} and only
+		 * for files where such data is reported.
+		 *
+		 * Often {@link TestRunProfile.loadDetailedCoverage} will be called first
+		 * when a user opens a file, and then this method will be called if they
+		 * drill down into specific per-test coverage information. This method
+		 * should then return coverage data only for constructs the given test item
+		 * executed during the test run.
+		 *
+		 * The {@link FileCoverage} object passed to this function is the same
+		 * instance emitted on {@link TestRun.addCoverage} calls associated with this profile.
+		 *
+		 * @param testRun The test run that generated the coverage data.
+		 * @param fileCoverage The file coverage object to load detailed coverage for.
+		 * @param fromTestItem The test item to request coverage information for.
+		 * @param token A cancellation token that indicates the operation should be cancelled.
+		 */
+		loadDetailedCoverageForTest?: (testRun: TestRun, fileCoverage: FileCoverage, fromTestItem: TestItem, token: CancellationToken) => Thenable<FileCoverageDetail[]>;
+
+		/**
 		 * Deletes the run profile.
 		 */
 		dispose(): void;
@@ -18203,6 +18231,13 @@ declare module 'vscode' {
 		declarationCoverage?: TestCoverageCount;
 
 		/**
+		 * A list of {@link TestItem test cases} that generated coverage in this
+		 * file. If set, then {@link TestRunProfile.loadDetailedCoverageForTest}
+		 * should also be defined in order to retrieve detailed coverage information.
+		 */
+		includesTests?: TestItem[];
+
+		/**
 		 * Creates a {@link FileCoverage} instance with counts filled in from
 		 * the coverage details.
 		 * @param uri Covered file URI
@@ -18217,12 +18252,14 @@ declare module 'vscode' {
 		 * used to represent line coverage.
 		 * @param branchCoverage Branch coverage information
 		 * @param declarationCoverage Declaration coverage information
+		 * @param includesTests Test cases included in this coverage report, see {@link includesTests}
 		 */
 		constructor(
 			uri: Uri,
 			statementCoverage: TestCoverageCount,
 			branchCoverage?: TestCoverageCount,
 			declarationCoverage?: TestCoverageCount,
+			includesTests?: TestItem[],
 		);
 	}
 
@@ -19961,7 +19998,7 @@ declare module 'vscode' {
 		/**
 		 * A customized progress message to show while the tool runs.
 		 */
-		invocationMessage?: string;
+		invocationMessage?: string | MarkdownString;
 
 		/**
 		 * The presence of this property indicates that the user should be asked to confirm before running the tool. The user

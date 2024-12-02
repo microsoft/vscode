@@ -522,6 +522,14 @@
 	opacity: 0.9;
 }
 
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .complex-object-edit-in-settings-button-container {
+	margin-top: 9px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .complex-object-edit-in-settings-button-container.hide {
+	display: none;
+}
+
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a,
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .edit-in-settings-button,
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a > code {

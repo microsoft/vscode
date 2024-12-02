@@ -11,10 +11,12 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export interface IToolData {
 	id: string;
+	extensionId?: ExtensionIdentifier;
 	toolReferenceName?: string;
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	when?: ContextKeyExpression;
@@ -62,7 +64,7 @@ export interface IToolConfirmationMessages {
 }
 
 export interface IPreparedToolInvocation {
-	invocationMessage?: string;
+	invocationMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 }
 

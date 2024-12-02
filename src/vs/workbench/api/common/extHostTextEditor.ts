@@ -412,6 +412,7 @@ export class ExtHostTextEditor {
 	private _viewColumn: vscode.ViewColumn | undefined;
 	private _disposed: boolean = false;
 	private _hasDecorationsForKey = new Set<string>();
+	private _diffInformation: vscode.TextEditorDiffInformation[] | undefined;
 
 	readonly value: vscode.TextEditor;
 
@@ -464,6 +465,9 @@ export class ExtHostTextEditor {
 			},
 			set visibleRanges(_value: Range[]) {
 				throw new ReadonlyError('visibleRanges');
+			},
+			get diffInformation() {
+				return that._diffInformation;
 			},
 			// --- options
 			get options(): vscode.TextEditorOptions {
@@ -598,6 +602,11 @@ export class ExtHostTextEditor {
 	_acceptSelections(selections: Selection[]): void {
 		ok(!this._disposed);
 		this._selections = selections;
+	}
+
+	_acceptDiffInformation(diffInformation: vscode.TextEditorDiffInformation[] | undefined): void {
+		ok(!this._disposed);
+		this._diffInformation = diffInformation;
 	}
 
 	private async _trySetSelection(): Promise<vscode.TextEditor | null | undefined> {

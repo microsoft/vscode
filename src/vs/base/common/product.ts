@@ -100,9 +100,12 @@ export interface IProductConfiguration {
 		readonly itemUrl: string;
 		readonly publisherUrl: string;
 		readonly resourceUrlTemplate: string;
+		readonly extensionUrlTemplate: string;
 		readonly controlUrl: string;
 		readonly nlsBaseUrl: string;
 	};
+
+	readonly extensionPublisherOrgs?: readonly string[];
 
 	readonly extensionRecommendations?: IStringDictionary<IExtensionRecommendations>;
 	readonly configBasedExtensionTips?: IStringDictionary<IConfigBasedExtensionTip>;
@@ -190,18 +193,11 @@ export interface IProductConfiguration {
 
 	readonly commonlyUsedSettings?: string[];
 	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
-	readonly gitHubEntitlement?: IGitHubEntitlement;
+
+	readonly defaultChatAgent?: IDefaultChatAgent;
 	readonly chatParticipantRegistry?: string;
 
 	readonly emergencyAlertUrl?: string;
-
-	readonly defaultChatAgent?: {
-		readonly extensionId: string;
-		readonly name: string;
-		readonly icon: string;
-		readonly documentationUrl: string;
-		readonly gettingStartedCommand: string;
-	};
 }
 
 export interface ITunnelApplicationConfig {
@@ -307,12 +303,17 @@ export interface IAiGeneratedWorkspaceTrust {
 	readonly startupTrustRequestLearnMore: string;
 }
 
-export interface IGitHubEntitlement {
-	providerId: string;
-	command: { title: string; titleWithoutPlaceHolder: string; action: string; when: string };
-	entitlementUrl: string;
-	extensionId: string;
-	enablementKey: string;
-	confirmationMessage: string;
-	confirmationAction: string;
+export interface IDefaultChatAgent {
+	readonly extensionId: string;
+	readonly chatExtensionId: string;
+	readonly documentationUrl: string;
+	readonly privacyStatementUrl: string;
+	readonly skusDocumentationUrl: string;
+	readonly manageSettingsUrl: string;
+	readonly managePlanUrl: string;
+	readonly providerId: string;
+	readonly providerName: string;
+	readonly providerScopes: string[][];
+	readonly entitlementUrl: string;
+	readonly entitlementSignupLimitedUrl: string;
 }
