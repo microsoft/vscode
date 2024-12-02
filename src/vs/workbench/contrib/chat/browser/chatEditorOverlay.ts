@@ -5,17 +5,16 @@
 
 import './media/chatEditorOverlay.css';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IReader, ISettableObservable, ITransaction, observableFromEvent, observableSignal, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, ISettableObservable, ITransaction, observableFromEvent, observableSignal, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { ChatEditingSessionState, ICellDiffInfo, IChatEditingService, IChatEditingSession, IModifiedFileEntry, isTextFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
-import { Range } from '../../../../editor/common/core/range.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IActionRunner } from '../../../../base/common/actions.js';
 import { EventLike, getWindow, reset, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
@@ -25,11 +24,12 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { assertType } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { ctxNotebookHasEditorModification } from '../../notebook/browser/contrib/chatEdit/notebookChatEditController.js';
-import { AcceptAction, RejectAction } from './chatEditorActions.js';
+import { AcceptAction, openChatEntry, RejectAction } from './chatEditorActions.js';
+import { getChatEditorController } from './chatEditorControllerHelper.js';
+import { Position } from '../../../../editor/common/core/position.js';
 import { ChatEditorController } from './chatEditorController.js';
 
-class ChatEditorOverlayWidget implements IOverlayWidget {
+export class ChatEditorOverlayWidget implements IOverlayWidget {
 
 	readonly allowEditorOverflow = false;
 
@@ -45,7 +45,9 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 	private readonly _navigationBearings = observableValue<{ changeCount: number; activeIdx: number; entriesCount: number }>(this, { changeCount: -1, activeIdx: -1, entriesCount: -1 });
 
 	constructor(
-		private readonly _editor: ICodeEditor,
+		private readonly currentChange: IObservable<{ diffInfo: ICellDiffInfo; cellPosition: Position | undefined } | Position | undefined, unknown>,
+		focusEditor: () => void,
+		unlockScroll: () => void,
 		@IEditorService editorService: IEditorService,
 		@IInstantiationService instaService: IInstantiationService,
 	) {
@@ -111,7 +113,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 						}
 
 						override onClick(event: EventLike, preserveFocus?: boolean): void {
-							ChatEditorController.get(that._editor)?.unlockScroll();
+							unlockScroll();
 						}
 					};
 				}
@@ -130,7 +132,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 							const store = new DisposableStore();
 
 							store.add(actionRunner.onWillRun(_e => {
-								that._editor.focus();
+								focusEditor();
 							}));
 
 							store.add(actionRunner.onDidRun(e => {
@@ -141,15 +143,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 								if (!d || d.entry === d.next) {
 									return;
 								}
-								const change = d.next.diffInfo.get().changes.at(0);
-								return editorService.openEditor({
-									resource: d.next.modifiedURI,
-									options: {
-										selection: change && Range.fromPositions({ lineNumber: change.original.startLineNumber, column: 1 }),
-										revealIfOpened: false,
-										revealIfVisible: false,
-									}
-								}, ACTIVE_GROUP);
+								return openChatEntry(d.next, true, editorService);
 							}));
 
 							this._reveal.value = store;
@@ -213,24 +207,50 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 
 		this._showStore.add(autorun(r => {
 
-			const position = ChatEditorController.get(this._editor)?.currentChange.read(r);
+			const position = this.currentChange.read(r);
 			const entries = session.entries.read(r);
 
 			let changes = 0;
 			let activeIdx = -1;
 			for (const entry of entries) {
-				const diffInfo = entry.diffInfo.read(r);
-
 				if (activeIdx !== -1 || entry !== activeEntry) {
-					// just add up
-					changes += diffInfo.changes.length;
+					if (isTextFileEntry(entry)) {
+						// just add up
+						changes += entry.diffInfo.read(r).changes.length;
+					}
+					else {
+						for (const diff of entry.cellDiffInfo.read(r)) {
+							if (diff.type !== 'unchanged') {
+								// just add up
+								changes += diff.diff.changes.length;
+							}
+						}
+					}
 
 				} else {
-					for (const change of diffInfo.changes) {
-						if (position && change.modified.includes(position.lineNumber)) {
-							activeIdx = changes;
+					// Check if we have a notebook position.
+					if (isTextFileEntry(entry)) {
+						for (const change of entry.diffInfo.read(r).changes) {
+							if (position && !('diffInfo' in position) && change.modified.includes(position.lineNumber)) {
+								activeIdx = changes;
+							}
+							changes += 1;
 						}
-						changes += 1;
+					} else {
+						for (const diff of entry.cellDiffInfo.read(r)) {
+							if (diff.type === 'modified' && position && 'diffInfo' in position && position.cellPosition) {
+								const cellLineNumber = position.cellPosition.lineNumber;
+								for (const change of diff.diff.changes) {
+									// For deleted lines, the diff will be empty line.
+									if (change.modified.includes(cellLineNumber) || (change.modified.isEmpty && change.modified.startLineNumber === cellLineNumber)) {
+										activeIdx = changes;
+									}
+									changes += 1;
+								}
+							} else if (diff.type !== 'unchanged') {
+								changes += diff.diff.changes.length;
+							}
+						}
 					}
 				}
 			}
@@ -239,7 +259,6 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 		}));
 
 		if (!this._isAdded) {
-			this._editor.addOverlayWidget(this);
 			this._isAdded = true;
 		}
 	}
@@ -252,7 +271,6 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 		});
 
 		if (this._isAdded) {
-			this._editor.removeOverlayWidget(this);
 			this._isAdded = false;
 			this._showStore.clear();
 		}
@@ -267,7 +285,6 @@ MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorContent, {
 		title: localize('label', "Navigation Status"),
 		precondition: ContextKeyExpr.false(),
 	},
-	when: ctxNotebookHasEditorModification.negate(),
 	group: 'navigate',
 	order: -1
 });
@@ -371,6 +388,7 @@ export class ChatEditorOverlayController implements IEditorContribution {
 	static get(editor: ICodeEditor) {
 		return editor.getContribution<ChatEditorOverlayController>(ChatEditorOverlayController.ID);
 	}
+	private _isAdded: boolean = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -378,43 +396,62 @@ export class ChatEditorOverlayController implements IEditorContribution {
 		@IInstantiationService instaService: IInstantiationService,
 	) {
 		const modelObs = observableFromEvent(this._editor.onDidChangeModel, () => this._editor.getModel());
-		const widget = this._store.add(instaService.createInstance(ChatEditorOverlayWidget, this._editor));
+		const currentChange = observableValue<Position | undefined>('currentChange', undefined);
+		const widget = this._store.add(instaService.createInstance(ChatEditorOverlayWidget, currentChange, () => _editor.focus(), () => ChatEditorController.get(_editor)?.unlockScroll()));
 
 		if (this._editor.getOption(EditorOption.inDiffEditor)) {
 			return;
+		}
+
+		const controller = getChatEditorController(this._editor);
+		if (controller instanceof ChatEditorController) {
+			this._store.add(autorun(r => {
+				currentChange.set(controller.currentChange.read(r), undefined);
+			}));
 		}
 
 		this._store.add(autorun(r => {
 			const model = modelObs.read(r);
 			const session = chatEditingService.currentEditingSessionObs.read(r);
 			if (!session || !model) {
-				widget.hide();
+				this.hide(widget);
 				return;
 			}
 
 			const state = session.state.read(r);
 			if (state === ChatEditingSessionState.Disposed) {
-				widget.hide();
+				this.hide(widget);
 				return;
 			}
 
 			const entries = session.entries.read(r);
 			const idx = entries.findIndex(e => isEqual(e.modifiedURI, model.uri));
 			if (idx < 0) {
-				widget.hide();
+				this.hide(widget);
 				return;
 			}
 
 			const isModifyingOrModified = entries.some(e => e.state.read(r) === WorkingSetEntryState.Modified || e.isCurrentlyBeingModified.read(r));
 			if (!isModifyingOrModified) {
-				widget.hide();
+				this.hide(widget);
 				return;
 			}
 
 			const entry = entries[idx];
 			widget.show(session, entry, entries[(idx + 1) % entries.length]);
-
+			if (!this._isAdded) {
+				this._editor.addOverlayWidget(widget);
+				this._isAdded = true;
+			}
 		}));
+	}
+
+	private hide(widget: ChatEditorOverlayWidget) {
+		widget.hide();
+		if (this._isAdded) {
+			this._editor.removeOverlayWidget(widget);
+			this._isAdded = false;
+		}
 	}
 
 	dispose() {

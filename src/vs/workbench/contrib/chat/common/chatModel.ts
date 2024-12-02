@@ -142,6 +142,7 @@ export interface IChatNotebookEditGroup {
 	edits: ICellEditReplaceOperation[][];
 	state?: IChatTextEditGroupState;
 	kind: 'notebookEditGroup';
+	done: boolean | undefined;
 }
 
 /**
@@ -380,6 +381,7 @@ export class Response extends Disposable implements IResponse {
 				const candidate = this._responseParts[i];
 				if (candidate.kind === 'notebookEditGroup' && isEqual(candidate.uri, progress.uri)) {
 					candidate.edits.push(progress.edits);
+					candidate.done = progress.done;
 					found = true;
 				}
 			}
@@ -388,6 +390,7 @@ export class Response extends Disposable implements IResponse {
 					kind: 'notebookEditGroup',
 					uri: progress.uri,
 					edits: [progress.edits],
+					done: progress.done
 				});
 			}
 			this._updateRepr(quiet);

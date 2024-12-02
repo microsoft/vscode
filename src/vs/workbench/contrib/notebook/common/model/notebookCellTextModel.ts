@@ -23,6 +23,9 @@ import { IModelContentChangedEvent } from '../../../../../editor/common/textMode
 import { splitLines } from '../../../../../base/common/strings.js';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
+	private readonly _onDidChangeTextModel = this._register(new Emitter<void>());
+	readonly onDidChangeTextModel: Event<void> = this._onDidChangeTextModel.event;
+
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
 	readonly onDidChangeOutputs: Event<NotebookCellOutputsSplice> = this._onDidChangeOutputs.event;
 
@@ -168,6 +171,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			this._textModel._overwriteVersionId(this._versionId);
 			this._textModel._overwriteAlternativeVersionId(this._versionId);
 		}
+		this._onDidChangeTextModel.fire();
 	}
 
 	private setRegisteredLanguage(languageService: ILanguageService, newLanguage: string, currentLanguage: string) {

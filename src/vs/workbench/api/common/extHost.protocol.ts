@@ -2142,6 +2142,7 @@ export interface IChatNotebookEditDto {
 	uri: URI;
 	edits: ICellEditReplaceOperationDto[];
 	kind: 'notebookEdit';
+	done?: boolean;
 }
 
 export type ICellEditReplaceOperationDto = {

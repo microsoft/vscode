@@ -198,6 +198,7 @@ export interface IChatNotebookEdit {
 	uri: URI;
 	edits: ICellEditReplaceOperation[];
 	kind: 'notebookEdit';
+	done?: boolean;
 }
 
 export interface IChatConfirmation {

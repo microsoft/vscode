@@ -4,14 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, autorunWithStore, derived, observableFromEvent } from '../../../../../../base/common/observable.js';
-import { IChatEditingService, ChatEditingSessionState } from '../../../../chat/common/chatEditingService.js';
-import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
+import { autorun, autorunWithStore, derived, IObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { IChatEditingService, ChatEditingSessionState, ICellDiffInfo } from '../../../../chat/common/chatEditingService.js';
 import { INotebookEditor } from '../../notebookBrowser.js';
-import { ThrottledDelayer } from '../../../../../../base/common/async.js';
-import { CellDiffInfo } from '../../diff/notebookDiffViewModel.js';
 import { ICodeEditor, IViewZone } from '../../../../../../editor/browser/editorBrowser.js';
-import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { EditorOption } from '../../../../../../editor/common/config/editorOptions.js';
 import { themeColorFromId } from '../../../../../../base/common/themables.js';
@@ -23,7 +19,6 @@ import { ModelDecorationOptions } from '../../../../../../editor/common/model/te
 import { InlineDecoration, InlineDecorationType } from '../../../../../../editor/common/viewModel.js';
 import { overviewRulerModifiedForeground, minimapGutterModifiedBackground, overviewRulerAddedForeground, minimapGutterAddedBackground, overviewRulerDeletedForeground, minimapGutterDeletedBackground } from '../../../../scm/browser/dirtydiffDecorator.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
 import { tokenizeToString } from '../../../../../../editor/common/languages/textToHtmlTokenizer.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { createTrustedTypesPolicy } from '../../../../../../base/browser/trustedTypes.js';
@@ -32,20 +27,20 @@ import { DefaultLineHeight } from '../../diff/diffElementViewModel.js';
 import { INotebookOriginalCellModelFactory } from './notebookOriginalCellModelFactory.js';
 import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { ICell, INotebookTextModel } from '../../../common/notebookCommon.js';
 
 
 export class NotebookCellDiffDecorator extends DisposableStore {
 	private _viewZones: string[] = [];
-	private readonly throttledDecorator = new ThrottledDelayer(50);
 	private diffForPreviouslyAppliedDecorators?: IDocumentDiff;
 
 	private readonly perEditorDisposables = this.add(new DisposableStore());
 	constructor(
 		notebookEditor: INotebookEditor,
-		public readonly modifiedCell: NotebookCellTextModel,
-		public readonly originalCell: NotebookCellTextModel,
+		public readonly modifiedCell: ICell,
+		public readonly originalCell: ICell,
+		public readonly diff: IObservable<IDocumentDiff>,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@INotebookOriginalCellModelFactory private readonly originalCellModelFactory: INotebookOriginalCellModelFactory,
 
 	) {
@@ -70,12 +65,6 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 			this.perEditorDisposables.clear();
 
 			if (editor) {
-				store.add(editor.onDidChangeModel(() => {
-					this.perEditorDisposables.clear();
-				}));
-				store.add(editor.onDidChangeModelContent(() => {
-					this.update(editor);
-				}));
 				store.add(editor.onDidChangeConfiguration((e) => {
 					if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.lineHeight)) {
 						this.update(editor);
@@ -129,10 +118,6 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 	}
 
 	public update(editor: ICodeEditor): void {
-		this.throttledDecorator.trigger(() => this._updateImpl(editor));
-	}
-
-	private async _updateImpl(editor: ICodeEditor) {
 		if (this.isDisposed) {
 			return;
 		}
@@ -151,21 +136,10 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 			this.perEditorDisposables.clear();
 			return;
 		}
-		const version = model.getVersionId();
-		const diff = await this._editorWorkerService.computeDiff(
-			originalModel.uri,
-			model.uri,
-			{ computeMoves: true, ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER },
-			'advanced'
-		);
+		const diff = this.diff.read(undefined);
 
 
-		if (this.isDisposed) {
-			return;
-		}
-
-
-		if (diff && !diff.identical && originalModel && model === editor.getModel() && editor.getModel()?.getVersionId() === version) {
+		if (diff && !diff.identical && originalModel) {
 			this._updateWithDiff(editor, originalModel, diff);
 		} else {
 			this.perEditorDisposables.clear();
@@ -302,19 +276,29 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 
 export class NotebookInsertedCellDecorator extends Disposable {
 	private readonly decorators = this._register(new DisposableStore());
+	private lastInsertedCells?: ICell[];
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
 	) {
 		super();
-
+		this._register(this.notebookEditor.onDidAttachViewModel(() => {
+			if (this.lastInsertedCells) {
+				this.applyImpl(this.lastInsertedCells);
+			}
+		}));
 	}
-	public apply(diffInfo: CellDiffInfo[]) {
+	public apply(insertedCells: ICell[]) {
 		const model = this.notebookEditor.textModel;
 		if (!model) {
+			/// Without text model attached, we canot render the viewzones.
+			this.lastInsertedCells = insertedCells;
 			return;
 		}
-		const cells = diffInfo.filter(diff => diff.type === 'insert').map((diff) => model.cells[diff.modifiedCellIndex]);
-		const ids = this.notebookEditor.deltaCellDecorations([], cells.map(cell => ({
+		this.applyImpl(insertedCells);
+	}
+	private applyImpl(insertedCells: ICell[]) {
+		this.lastInsertedCells = undefined;
+		const ids = this.notebookEditor.deltaCellDecorations([], insertedCells.map(cell => ({
 			handle: cell.handle,
 			options: { className: 'nb-insertHighlight', outputClassName: 'nb-insertHighlight' }
 		})));
@@ -340,11 +324,17 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 	private readonly zoneRemover = this._register(new DisposableStore());
 	private readonly createdViewZones = new Map<number, string>();
 	private readonly deletedCellInfos = new Map<number, { height: number; previousIndex: number; offset: number }>();
+	private lastAppliedDiff?: { diff: ICellDiffInfo[]; originalModel: INotebookTextModel };
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
 		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
+		this._register(this._notebookEditor.onDidAttachViewModel(() => {
+			if (this.lastAppliedDiff) {
+				this.applyImpl(this.lastAppliedDiff.diff, this.lastAppliedDiff.originalModel);
+			}
+		}));
 	}
 
 	public getTop(deletedIndex: number) {
@@ -362,11 +352,22 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 		return top + cellHeight + info.offset;
 	}
 
-	public apply(diffInfo: CellDiffInfo[], original: NotebookTextModel): void {
+	public apply(diffInfo: ICellDiffInfo[], original: INotebookTextModel): void {
+		const model = this._notebookEditor.textModel;
+		if (!model) {
+			/// Without text model attached, we canot render the viewzones.
+			this.lastAppliedDiff = { diff: diffInfo, originalModel: original };
+			return;
+		}
+		this.applyImpl(diffInfo, original);
+
+	}
+	private applyImpl(diffInfo: ICellDiffInfo[], original: INotebookTextModel): void {
+		this.lastAppliedDiff = undefined;
 		this.clear();
 
 		let currentIndex = 0;
-		const deletedCellsToRender: { cells: { cell: NotebookCellTextModel; originalIndex: number; previousIndex: number }[]; index: number } = { cells: [], index: 0 };
+		const deletedCellsToRender: { cells: { cell: ICell; originalIndex: number; previousIndex: number }[]; index: number } = { cells: [], index: 0 };
 		diffInfo.forEach(diff => {
 			if (diff.type === 'delete') {
 				const deletedCell = original.cells[diff.originalCellIndex];
@@ -393,10 +394,10 @@ export class NotebookDeletedCellDecorator extends Disposable implements INoteboo
 	}
 
 
-	private _createWidget(index: number, cells: { cell: NotebookCellTextModel; originalIndex: number; previousIndex: number }[]) {
+	private _createWidget(index: number, cells: { cell: ICell; originalIndex: number; previousIndex: number }[]) {
 		this._createWidgetImpl(index, cells);
 	}
-	private async _createWidgetImpl(index: number, cells: { cell: NotebookCellTextModel; originalIndex: number; previousIndex: number }[]) {
+	private async _createWidgetImpl(index: number, cells: { cell: ICell; originalIndex: number; previousIndex: number }[]) {
 		const rootContainer = document.createElement('div');
 		const widgets: NotebookDeletedCellWidget[] = [];
 		const heights = await Promise.all(cells.map(async cell => {
@@ -449,7 +450,6 @@ export class NotebookDeletedCellWidget extends Disposable {
 	private readonly container: HTMLElement;
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
-		// private readonly _index: number,
 		private readonly code: string,
 		private readonly language: string,
 		container: HTMLElement,

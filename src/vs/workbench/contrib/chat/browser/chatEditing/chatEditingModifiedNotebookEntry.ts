@@ -10,6 +10,7 @@ import { IEditorWorkerService } from '../../../../../editor/common/services/edit
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { IResolvedTextFileEditorModel } from '../../../../services/textfile/common/textfiles.js';
 import { ChatEditKind } from '../../common/chatEditingService.js';
@@ -32,8 +33,9 @@ export class ChatEditingModifiedNotebookEntry extends ChatEditingModifiedFileEnt
 		@IEditorWorkerService _editorWorkerService: IEditorWorkerService,
 		@IUndoRedoService _undoRedoService: IUndoRedoService,
 		@IFileService _fileService: IFileService,
+		@IInstantiationService _instantiationService: IInstantiationService,
 	) {
-		super(resourceRef, _multiDiffEntryDelegate, _telemetryInfo, kind, initialContent, modelService, textModelService, languageService, _chatService, _editorWorkerService, _undoRedoService, _fileService);
+		super(resourceRef, _multiDiffEntryDelegate, _telemetryInfo, kind, initialContent, modelService, textModelService, languageService, _chatService, _editorWorkerService, _undoRedoService, _fileService, _instantiationService);
 		this.resolveTextFileEditorModel = resourceRef.object as IResolvedTextFileEditorModel;
 	}
 
