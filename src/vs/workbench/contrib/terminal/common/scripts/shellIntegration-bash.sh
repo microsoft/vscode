@@ -217,35 +217,14 @@ __vsc_update_cwd() {
 }
 
 __vsc_update_env() {
-	local env_json="{"
-	local first=1
+	# TODO: EnvStart with nonce
 	for var in $(compgen -v); do
-		# Check if the variable is in the environment using 'printenv'
-		if printenv "$var" >/dev/null 2>&1; then # only exported env vars are included
-			# Add comma if not the first item
-			if [ $first -eq 1 ]; then
-				first=0
-			else
-				env_json+=","
-			fi
-			# Retrieve the value without executing it, and escape it for JSON
-			env_json+="\"$var\":\""
-			# TODO: Fix parsing of PS1 which can contain a lot of special characters
-			if [ "$var" != "PS1" ] && [ "$var" != "PS2" ]; then
-				value=$(builtin printf '%s' "${!var}")
-				env_json+="$(__vsc_escape_value $value)"
-			fi
-			# value=$(builtin printf '%s' "${!var}") #; s/"/\\"/g
-			# env_json+=$(printf '%s' "$value")
-			env_json+="\""
-			# Debugging statement
-			# echo "Processed variable: $var, value: $value"
+		if printenv "$var" >/dev/null 2>&1; then
+			value=$(builtin printf '%s' "${!var}")
+			builtin printf '\e]633;EnvVar;%s;%s\a' "$var" "$(__vsc_escape_value "$value")"
 		fi
 	done
-	env_json+="}"
-	builtin printf '\e]633;Env;%s;%s\a' "$env_json" "$__vsc_nonce"
-	# Debugging statement
-	# echo "Final JSON: $env_json"
+	# TODO: EnvEnd with nonce
 }
 
 __vsc_command_output_start() {

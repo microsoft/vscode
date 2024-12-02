@@ -239,6 +239,7 @@ const enum VSCodeOscPt {
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
 	Env = 'Env',
+	EnvSingleVar = 'EnvSingleVar',
 }
 
 /**
@@ -433,6 +434,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				this._createOrGetCommandDetection(this._terminal).handleContinuationEnd();
 				return true;
 			}
+			// TODO: Name EnvJson
 			case VSCodeOscPt.Env: {
 				const arg0 = args[0];
 				const arg1 = args[1];
@@ -444,6 +446,26 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						console.log('JSON.parse throw', { e, arg0 });
 						this._logService.warn('Failed to parse environment from shell integration sequence', arg0);
 					} // TODO: issue with double quotes. Dont worry about encoding variable name. Just escape the value
+				}
+				return true;
+			}
+			// TODO: Impl
+			// case VSCodeOscPt.EnvStart: {
+			// TODO: Clear out the current WIP env
+			// }
+			// case VSCodeOscPt.EnvEntry: {
+			// TODO: Add to the map cleared in EnvStart
+			// }
+			// case VSCodeOscPt.EnvEnd: {
+			// TODO: this._createOrGetShellEnvDetection().setEnvironment with the map
+			// }
+			case VSCodeOscPt.EnvSingleVar: {
+				const arg0 = args[0];
+				const arg1 = args[1];
+				if (arg1 !== undefined) {
+					const env = deserializeMessage(arg1);
+					console.log('value', env);
+					// this._createOrGetShellEnvDetection().setSingleEnvironmentVariable(env, arg1 === this._nonce);
 				}
 				return true;
 			}
