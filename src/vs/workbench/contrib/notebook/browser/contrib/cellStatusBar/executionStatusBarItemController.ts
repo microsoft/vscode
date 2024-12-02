@@ -7,6 +7,7 @@ import { disposableTimeout, RunOnceScheduler } from '../../../../../../base/comm
 import { Disposable, dispose, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { language } from '../../../../../../base/common/platform.js';
 import { localize } from '../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { themeColorFromId } from '../../../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -19,8 +20,6 @@ import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecuti
 import { INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
 import { INotebookService } from '../../../common/notebookService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-
 
 export function formatCellDuration(duration: number, showMilliseconds: boolean = true): string {
 	if (showMilliseconds && duration < 1000) {
