@@ -9,7 +9,7 @@ import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { rangeIsSingleLine } from '../../../../../browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
-import { diffLineDeleteDecorationBackgroundWithIndicator, diffLineDeleteDecorationBackground, diffLineAddDecorationBackgroundWithIndicator, diffLineAddDecorationBackground, diffWholeLineAddDecoration, diffAddDecorationEmpty, diffAddDecoration } from '../../../../../browser/widget/diffEditor/registrations.contribution.js';
+import { diffAddDecoration } from '../../../../../browser/widget/diffEditor/registrations.contribution.js';
 import { applyViewZones, IObservableViewZone } from '../../../../../browser/widget/diffEditor/utils.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { Range } from '../../../../../common/core/range.js';
@@ -113,31 +113,67 @@ export class OriginalEditorInlineDiffView extends Disposable {
 		const modified = diff.modifiedText;
 		const showInline = diff.mode === 'mixedLines';
 
-		const renderIndicators = false;
 		const showEmptyDecorations = true;
 
 		const originalDecorations: IModelDeltaDecoration[] = [];
 		const modifiedDecorations: IModelDeltaDecoration[] = [];
 
+		const diffLineAddDecorationBackground = ModelDecorationOptions.register({
+			className: 'inlineCompletions-line-insert',
+			description: 'line-insert',
+			isWholeLine: true,
+			marginClassName: 'gutter-insert',
+		});
+
+		const diffLineDeleteDecorationBackground = ModelDecorationOptions.register({
+			className: 'inlineCompletions-line-delete',
+			description: 'line-delete',
+			isWholeLine: true,
+			marginClassName: 'gutter-delete',
+		});
+
+		const diffWholeLineDeleteDecoration = ModelDecorationOptions.register({
+			className: 'inlineCompletions-char-delete',
+			description: 'char-delete',
+			isWholeLine: false,
+		});
+
+		const diffWholeLineAddDecoration = ModelDecorationOptions.register({
+			className: 'inlineCompletions-char-insert',
+			description: 'char-insert',
+			isWholeLine: true,
+		});
+
+		const diffAddDecoration = ModelDecorationOptions.register({
+			className: 'inlineCompletions-char-insert',
+			description: 'char-insert',
+			shouldFillLineOnLineBreak: true,
+		});
+
+		const diffAddDecorationEmpty = ModelDecorationOptions.register({
+			className: 'inlineCompletions-char-insert diff-range-empty',
+			description: 'char-insert diff-range-empty',
+		});
+
 		for (const m of diff.diff) {
 			const showFullLineDecorations = true;
 			if (showFullLineDecorations) {
 				if (!m.original.isEmpty) {
-					originalDecorations.push({ range: m.original.toInclusiveRange()!, options: renderIndicators ? diffLineDeleteDecorationBackgroundWithIndicator : diffLineDeleteDecorationBackground });
+					originalDecorations.push({
+						range: m.original.toInclusiveRange()!,
+						options: diffLineDeleteDecorationBackground,
+					});
 				}
 				if (!m.modified.isEmpty) {
-					modifiedDecorations.push({ range: m.modified.toInclusiveRange()!, options: renderIndicators ? diffLineAddDecorationBackgroundWithIndicator : diffLineAddDecorationBackground });
+					modifiedDecorations.push({
+						range: m.modified.toInclusiveRange()!,
+						options: diffLineAddDecorationBackground,
+					});
 				}
 			}
 
 			if (m.modified.isEmpty || m.original.isEmpty) {
 				if (!m.original.isEmpty) {
-					const diffWholeLineDeleteDecoration = ModelDecorationOptions.register({
-						className: 'char-delete',
-						description: 'char-delete',
-						isWholeLine: false,
-					});
-
 					originalDecorations.push({ range: m.original.toInclusiveRange()!, options: diffWholeLineDeleteDecoration });
 				}
 				if (!m.modified.isEmpty) {
@@ -149,11 +185,12 @@ export class OriginalEditorInlineDiffView extends Disposable {
 					// Don't show empty markers outside the line range
 					if (m.original.contains(i.originalRange.startLineNumber)) {
 						originalDecorations.push({
-							range: i.originalRange, options: {
+							range: i.originalRange,
+							options: {
 								description: 'char-delete',
 								shouldFillLineOnLineBreak: false,
 								className: classNames(
-									'char-delete',
+									'inlineCompletions-char-delete',
 									(i.originalRange.isEmpty() && showEmptyDecorations && !useInlineDiff) && 'diff-range-empty'
 								),
 								inlineClassName: useInlineDiff ? 'strike-through' : null,
@@ -162,7 +199,12 @@ export class OriginalEditorInlineDiffView extends Disposable {
 						});
 					}
 					if (m.modified.contains(i.modifiedRange.startLineNumber)) {
-						modifiedDecorations.push({ range: i.modifiedRange, options: (i.modifiedRange.isEmpty() && showEmptyDecorations && !useInlineDiff) ? diffAddDecorationEmpty : diffAddDecoration });
+						modifiedDecorations.push({
+							range: i.modifiedRange,
+							options: (i.modifiedRange.isEmpty() && showEmptyDecorations && !useInlineDiff)
+								? diffAddDecorationEmpty
+								: diffAddDecoration
+						});
 					}
 					if (useInlineDiff) {
 						const insertedText = modified.getValueOfRange(i.modifiedRange);
@@ -172,7 +214,7 @@ export class OriginalEditorInlineDiffView extends Disposable {
 								description: 'inserted-text',
 								before: {
 									content: insertedText,
-									inlineClassName: 'char-insert',
+									inlineClassName: 'inlineCompletions-char-insert',
 								},
 								zIndex: 2,
 								showIfCollapsed: true,
