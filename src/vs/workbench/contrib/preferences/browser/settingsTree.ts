@@ -171,7 +171,8 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 
 	const data = element.isConfigured ?
 		{ ...elementDefaultValue, ...elementScopeValue } :
-		elementDefaultValue;
+		element.hasPolicyValue ? element.scopeValue :
+			elementDefaultValue;
 
 	const { objectProperties, objectPatternProperties, objectAdditionalProperties } = element.setting;
 	const patternsAndSchemas = Object
@@ -1246,6 +1247,7 @@ class SettingComplexObjectRenderer extends SettingComplexRenderer implements ITr
 			showAddButton: false,
 			isReadOnly: true,
 		});
+		template.button.parentElement?.classList.toggle('hide', dataElement.hasPolicyValue);
 		super.renderValue(dataElement, template, onChange);
 	}
 }
