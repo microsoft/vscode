@@ -88,6 +88,7 @@ const SearchUnsupportedWorkspaceExtensionsContext = new RawContextKey<boolean>('
 const SearchDeprecatedExtensionsContext = new RawContextKey<boolean>('searchDeprecatedExtensions', false);
 export const RecommendedExtensionsContext = new RawContextKey<boolean>('recommendedExtensions', false);
 const SortByUpdateDateContext = new RawContextKey<boolean>('sortByUpdateDate', false);
+export const ExtensionsSearchValueContext = new RawContextKey<string>('extensionsSearchValue', '');
 
 const REMOTE_CATEGORY: ILocalizedString = localize2({ key: 'remote', comment: ['Remote as in remote machine'] }, "Remote");
 
@@ -478,24 +479,25 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 
 export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IExtensionsViewPaneContainer {
 
-	private defaultViewsContextKey: IContextKey<boolean>;
-	private sortByContextKey: IContextKey<string>;
-	private searchMarketplaceExtensionsContextKey: IContextKey<boolean>;
-	private searchHasTextContextKey: IContextKey<boolean>;
-	private sortByUpdateDateContextKey: IContextKey<boolean>;
-	private installedExtensionsContextKey: IContextKey<boolean>;
-	private searchInstalledExtensionsContextKey: IContextKey<boolean>;
-	private searchRecentlyUpdatedExtensionsContextKey: IContextKey<boolean>;
-	private searchExtensionUpdatesContextKey: IContextKey<boolean>;
-	private searchOutdatedExtensionsContextKey: IContextKey<boolean>;
-	private searchEnabledExtensionsContextKey: IContextKey<boolean>;
-	private searchDisabledExtensionsContextKey: IContextKey<boolean>;
-	private hasInstalledExtensionsContextKey: IContextKey<boolean>;
-	private builtInExtensionsContextKey: IContextKey<boolean>;
-	private searchBuiltInExtensionsContextKey: IContextKey<boolean>;
-	private searchWorkspaceUnsupportedExtensionsContextKey: IContextKey<boolean>;
-	private searchDeprecatedExtensionsContextKey: IContextKey<boolean>;
-	private recommendedExtensionsContextKey: IContextKey<boolean>;
+	private readonly extensionsSearchValueContextKey: IContextKey<string>;
+	private readonly defaultViewsContextKey: IContextKey<boolean>;
+	private readonly sortByContextKey: IContextKey<string>;
+	private readonly searchMarketplaceExtensionsContextKey: IContextKey<boolean>;
+	private readonly searchHasTextContextKey: IContextKey<boolean>;
+	private readonly sortByUpdateDateContextKey: IContextKey<boolean>;
+	private readonly installedExtensionsContextKey: IContextKey<boolean>;
+	private readonly searchInstalledExtensionsContextKey: IContextKey<boolean>;
+	private readonly searchRecentlyUpdatedExtensionsContextKey: IContextKey<boolean>;
+	private readonly searchExtensionUpdatesContextKey: IContextKey<boolean>;
+	private readonly searchOutdatedExtensionsContextKey: IContextKey<boolean>;
+	private readonly searchEnabledExtensionsContextKey: IContextKey<boolean>;
+	private readonly searchDisabledExtensionsContextKey: IContextKey<boolean>;
+	private readonly hasInstalledExtensionsContextKey: IContextKey<boolean>;
+	private readonly builtInExtensionsContextKey: IContextKey<boolean>;
+	private readonly searchBuiltInExtensionsContextKey: IContextKey<boolean>;
+	private readonly searchWorkspaceUnsupportedExtensionsContextKey: IContextKey<boolean>;
+	private readonly searchDeprecatedExtensionsContextKey: IContextKey<boolean>;
+	private readonly recommendedExtensionsContextKey: IContextKey<boolean>;
 
 	private searchDelayer: Delayer<void>;
 	private root: HTMLElement | undefined;
@@ -528,6 +530,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 
 		this.searchDelayer = new Delayer(500);
+		this.extensionsSearchValueContextKey = ExtensionsSearchValueContext.bindTo(contextKeyService);
 		this.defaultViewsContextKey = DefaultViewsContext.bindTo(contextKeyService);
 		this.sortByContextKey = ExtensionsSortByContext.bindTo(contextKeyService);
 		this.searchMarketplaceExtensionsContextKey = SearchMarketplaceExtensionsContext.bindTo(contextKeyService);
@@ -791,6 +794,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.contextKeyService.bufferChangeEvents(() => {
 			const isRecommendedExtensionsQuery = ExtensionsListView.isRecommendedExtensionsQuery(value);
 			this.searchHasTextContextKey.set(value.trim() !== '');
+			this.extensionsSearchValueContextKey.set(value);
 			this.installedExtensionsContextKey.set(ExtensionsListView.isInstalledExtensionsQuery(value));
 			this.searchInstalledExtensionsContextKey.set(ExtensionsListView.isSearchInstalledExtensionsQuery(value));
 			this.searchRecentlyUpdatedExtensionsContextKey.set(ExtensionsListView.isSearchRecentlyUpdatedQuery(value) && !ExtensionsListView.isSearchExtensionUpdatesQuery(value));
