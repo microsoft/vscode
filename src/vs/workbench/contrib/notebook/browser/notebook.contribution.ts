@@ -959,6 +959,16 @@ configurationRegistry.registerConfiguration({
 			default: 'visible',
 			tags: ['notebookLayout']
 		},
+		[NotebookSetting.cellExecutionTimeVerbosity]: {
+			description: nls.localize('notebook.cellExecutionTimeVerbosity.description', "Controls the verbosity of the cell execution time in the cell status bar."),
+			type: 'string',
+			enum: ['default', 'verbose'],
+			enumDescriptions: [
+				nls.localize('notebook.cellExecutionTimeVerbosity.default.description', "The cell execution duration is visible, with advanced information in the hover tooltip."),
+				nls.localize('notebook.cellExecutionTimeVerbosity.verbose.description', "The cell last execution timestamp and duration are visible, with advanced information in the hover tooltip.")],
+			default: 'default',
+			tags: ['notebookLayout']
+		},
 		[NotebookSetting.textDiffEditorPreview]: {
 			description: nls.localize('notebook.diff.enablePreview.description', "Whether to use the enhanced text diff editor for notebook."),
 			type: 'boolean',
