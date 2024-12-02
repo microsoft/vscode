@@ -520,13 +520,18 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@IHoverService hoverService: IHoverService,
 		@ILayoutService layoutService: ILayoutService
 	) {
+		const overflowWidgetsNode = layoutService.mainContainer.appendChild($('.inline-chat-overflow.monaco-editor'));
 		super(location, {
 			...options,
 			chatWidgetViewOptions: {
 				...options.chatWidgetViewOptions,
-				editorOverflowWidgetsDomNode: layoutService.mainContainer.appendChild($('.inline-chat-overflow.monaco-editor'))
+				editorOverflowWidgetsDomNode: overflowWidgetsNode
 			}
 		}, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
+
+		this._store.add(toDisposable(() => {
+			overflowWidgetsNode.remove();
+		}));
 	}
 
 	// --- layout
