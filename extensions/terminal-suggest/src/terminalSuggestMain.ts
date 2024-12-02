@@ -230,7 +230,7 @@ export function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalContext: 
 			if (
 				// If the prompt is empty
 				!terminalContext.commandLine
-				// or the prefix matches the command and the prefix is not equal to the command
+				// or the first command matches the command
 				|| !!firstCommand && specLabel.startsWith(firstCommand)
 			) {
 				// push it to the completion items
