@@ -157,10 +157,10 @@ class ObjectPolicy extends BasePolicy {
         super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
     }
     renderADMXElements() {
-        return [`<multiText id="${this.name}" valueName="${this.name}" required="true" />`];
+        return [`<text id="${this.name}" valueName="${this.name}" required="true" />`];
     }
     renderADMLPresentationContents() {
-        return `<multiTextBox refId="${this.name}" />`;
+        return `<textBox refId="${this.name}"><label>${this.name}:</label></textBox>`;
     }
 }
 class StringEnumPolicy extends BasePolicy {
