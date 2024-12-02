@@ -1011,7 +1011,6 @@ export class MenuBar extends Disposable {
 		customMenu.buttonElement.classList.add('open');
 
 		const titleBoundingRect = customMenu.titleElement.getBoundingClientRect();
-		const titleBoundingRectZoom = DOM.getDomNodeZoomLevel(customMenu.titleElement);
 
 		if (this.options.compactMode?.horizontal === HorizontalDirection.Right) {
 			menuHolder.style.left = `${titleBoundingRect.left + this.container.clientWidth}px`;
@@ -1020,7 +1019,7 @@ export class MenuBar extends Disposable {
 			menuHolder.style.right = `${windowWidth - titleBoundingRect.left}px`;
 			menuHolder.style.left = 'auto';
 		} else {
-			menuHolder.style.left = `${titleBoundingRect.left * titleBoundingRectZoom}px`;
+			menuHolder.style.left = `${titleBoundingRect.left}px`;
 		}
 
 		if (this.options.compactMode?.vertical === VerticalDirection.Above) {
@@ -1029,7 +1028,7 @@ export class MenuBar extends Disposable {
 		} else if (this.options.compactMode?.vertical === VerticalDirection.Below) {
 			menuHolder.style.top = `${titleBoundingRect.top}px`;
 		} else {
-			menuHolder.style.top = `${titleBoundingRect.bottom * titleBoundingRectZoom}px`;
+			menuHolder.style.top = `${titleBoundingRect.bottom}px`;
 		}
 
 		customMenu.buttonElement.appendChild(menuHolder);
