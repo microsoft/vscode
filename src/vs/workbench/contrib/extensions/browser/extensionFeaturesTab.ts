@@ -36,15 +36,24 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { Codicon } from '../../../../base/common/codicons.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
-import { fromNow } from '../../../../base/common/date.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { foreground, chartAxis, chartGuide, chartLine } from '../../../../platform/theme/common/colorRegistry.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
-class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeatureMarkdownRenderer {
+interface IExtensionFeatureElementRenderer extends IExtensionFeatureRenderer {
+	type: 'element';
+	render(manifest: IExtensionManifest): IRenderedData<HTMLElement>;
+}
+
+class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeatureElementRenderer {
 
 	static readonly ID = 'runtimeStatus';
-	readonly type = 'markdown';
+	readonly type = 'element';
 
 	constructor(
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 	) {
 		super();
@@ -58,24 +67,25 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 		return !!manifest.main || !!manifest.browser;
 	}
 
-	render(manifest: IExtensionManifest): IRenderedData<IMarkdownString> {
+	render(manifest: IExtensionManifest): IRenderedData<HTMLElement> {
 		const disposables = new DisposableStore();
 		const extensionId = new ExtensionIdentifier(getExtensionId(manifest.publisher, manifest.name));
-		const emitter = disposables.add(new Emitter<IMarkdownString>());
+		const emitter = disposables.add(new Emitter<HTMLElement>());
 		disposables.add(this.extensionService.onDidChangeExtensionsStatus(e => {
 			if (e.some(extension => ExtensionIdentifier.equals(extension, extensionId))) {
-				emitter.fire(this.getRuntimeStatusData(manifest));
+				emitter.fire(this.createElement(manifest, disposables));
 			}
 		}));
-		disposables.add(this.extensionFeaturesManagementService.onDidChangeAccessData(e => emitter.fire(this.getRuntimeStatusData(manifest))));
+		disposables.add(this.extensionFeaturesManagementService.onDidChangeAccessData(e => emitter.fire(this.createElement(manifest, disposables))));
 		return {
 			onDidChange: emitter.event,
-			data: this.getRuntimeStatusData(manifest),
+			data: this.createElement(manifest, disposables),
 			dispose: () => disposables.dispose()
 		};
 	}
 
-	private getRuntimeStatusData(manifest: IExtensionManifest): IMarkdownString {
+	private createElement(manifest: IExtensionManifest, disposables: DisposableStore): HTMLElement {
+		const container = $('.runtime-status');
 		const data = new MarkdownString();
 		const extensionId = new ExtensionIdentifier(getExtensionId(manifest.publisher, manifest.name));
 		const status = this.extensionService.getExtensionsStatus()[extensionId.value];
@@ -117,24 +127,187 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 						data.appendMarkdown(`$(${warningIcon.id}) ${status.message}\n\n`);
 					}
 				}
+			}
+		}
+		this.renderMarkdown(data, container, disposables);
+		for (const feature of features) {
+			const accessData = this.extensionFeaturesManagementService.getAccessData(extensionId, feature.id);
+			if (accessData?.accessTimes.length) {
 				if (accessData?.accessTimes.length) {
-					const now = new Date();
-					const counts = {
-						today: accessData.accessTimes.filter(time => time > new Date(now.setHours(0, 0, 0, 0))).length,
-						lastWeek: accessData.accessTimes.filter(time => time > new Date(now.setDate(now.getDate() - 7))).length,
-						lastMonth: accessData.accessTimes.filter(time => time > new Date(now.setMonth(now.getMonth() - 1))).length,
-					};
-					if (accessData.current) {
-						data.appendMarkdown(`${localize('last request', "Recent: `{0}`", fromNow(accessData.current.lastAccessed, true, true))}\n\n`);
-						data.appendMarkdown(`${localize('requests count session', "Session: `{0}` Requests", accessData.accessTimes.length)}\n\n`);
-					}
-					data.appendMarkdown(`${localize('requests count today', "Today: `{0}` Requests", counts.today)}\n\n`);
-					data.appendMarkdown(`${localize('requests count last week', "Last 7 Days: `{0}` Requests", counts.lastWeek)}\n\n`);
-					data.appendMarkdown(`${localize('requests count last month', "Last 30 Days: `{0}` Requests", counts.lastMonth)}\n\n`);
+					const description = append(container,
+						$('.feature-chart-description',
+							undefined,
+							localize('chartDescription', "There were {0} {1} requests from this extension in the last 30 days.", accessData?.accessTimes.length, feature.accessDataLabel ?? feature.label)));
+					description.style.marginBottom = '8px';
+					this.renderRequestsChart(container, accessData.accessTimes, disposables);
 				}
 			}
 		}
-		return data;
+		return container;
+	}
+
+	private renderMarkdown(markdown: IMarkdownString, container: HTMLElement, disposables: DisposableStore): void {
+		const { element, dispose } = renderMarkdown(
+			{
+				value: markdown.value,
+				isTrusted: markdown.isTrusted,
+				supportThemeIcons: true
+			},
+			{
+				actionHandler: {
+					callback: (content) => this.openerService.open(content, { allowCommands: !!markdown.isTrusted }).catch(onUnexpectedError),
+					disposables
+				},
+			});
+		disposables.add(toDisposable(dispose));
+		append(container, element);
+	}
+
+	private renderRequestsChart(container: HTMLElement, accessTimes: Date[], disposables: DisposableStore): void {
+		const width = 450;
+		const height = 250;
+		const margin = { top: 0, right: 4, bottom: 20, left: 4 };
+		const innerWidth = width - margin.left - margin.right;
+		const innerHeight = height - margin.top - margin.bottom;
+
+		const chartContainer = append(container, $('.feature-chart-container'));
+		chartContainer.style.position = 'relative';
+
+		const tooltip = append(chartContainer, $('.feature-chart-tooltip'));
+		tooltip.style.position = 'absolute';
+		tooltip.style.width = '0px';
+		tooltip.style.height = '0px';
+
+		let maxCount = 100;
+		const map = new Map<string, number>();
+		for (const accessTime of accessTimes) {
+			const day = `${accessTime.getDate()} ${accessTime.toLocaleString('default', { month: 'short' })}`;
+			map.set(day, (map.get(day) ?? 0) + 1);
+			maxCount = Math.max(maxCount, map.get(day)!);
+		}
+
+		const now = new Date();
+		type Point = { x: number; y: number; date: string; count: number };
+		const points: Point[] = [];
+		for (let i = 0; i <= 30; i++) {
+			const date = new Date(now);
+			date.setDate(now.getDate() - (30 - i));
+			const dateString = `${date.getDate()} ${date.toLocaleString('default', { month: 'short' })}`;
+			const count = map.get(dateString) ?? 0;
+			const x = (i / 30) * innerWidth;
+			const y = innerHeight - (count / maxCount) * innerHeight;
+			points.push({ x, y, date: dateString, count });
+		}
+
+		const chart = append(chartContainer, $('.feature-chart'));
+		const svg = append(chart, $.SVG('svg'));
+		svg.setAttribute('width', `${width}px`);
+		svg.setAttribute('height', `${height}px`);
+		svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+		const g = $.SVG('g');
+		g.setAttribute('transform', `translate(${margin.left},${margin.top})`);
+		svg.appendChild(g);
+
+		const xAxisLine = $.SVG('line');
+		xAxisLine.setAttribute('x1', '0');
+		xAxisLine.setAttribute('y1', `${innerHeight}`);
+		xAxisLine.setAttribute('x2', `${innerWidth}`);
+		xAxisLine.setAttribute('y2', `${innerHeight}`);
+		xAxisLine.setAttribute('stroke', asCssVariable(chartAxis));
+		xAxisLine.setAttribute('stroke-width', '1px');
+		g.appendChild(xAxisLine);
+
+		for (let i = 1; i <= 30; i += 7) {
+			const date = new Date(now);
+			date.setDate(now.getDate() - (30 - i));
+			const dateString = `${date.getDate()} ${date.toLocaleString('default', { month: 'short' })}`;
+			const x = (i / 30) * innerWidth;
+
+			// Add vertical line
+			const tick = $.SVG('line');
+			tick.setAttribute('x1', `${x}`);
+			tick.setAttribute('y1', `${innerHeight}`);
+			tick.setAttribute('x2', `${x}`);
+			tick.setAttribute('y2', `${innerHeight + 10}`);
+			tick.setAttribute('stroke', asCssVariable(chartAxis));
+			tick.setAttribute('stroke-width', '1px');
+			g.appendChild(tick);
+
+			const ruler = $.SVG('line');
+			ruler.setAttribute('x1', `${x}`);
+			ruler.setAttribute('y1', `0`);
+			ruler.setAttribute('x2', `${x}`);
+			ruler.setAttribute('y2', `${innerHeight}`);
+			ruler.setAttribute('stroke', asCssVariable(chartGuide));
+			ruler.setAttribute('stroke-width', '1px');
+			g.appendChild(ruler);
+
+			const xAxisDate = $.SVG('text');
+			xAxisDate.setAttribute('x', `${x}`);
+			xAxisDate.setAttribute('y', `${height}`); // Adjusted y position to be within the SVG view port
+			xAxisDate.setAttribute('text-anchor', 'middle');
+			xAxisDate.setAttribute('fill', asCssVariable(foreground));
+			xAxisDate.setAttribute('font-size', '10px');
+			xAxisDate.textContent = dateString;
+			g.appendChild(xAxisDate);
+		}
+
+		const line = $.SVG('polyline');
+		line.setAttribute('fill', 'none');
+		line.setAttribute('stroke', asCssVariable(chartLine));
+		line.setAttribute('stroke-width', `2px`);
+		line.setAttribute('points', points.map(p => `${p.x},${p.y}`).join(' '));
+		g.appendChild(line);
+
+		const highlightCircle = $.SVG('circle');
+		highlightCircle.setAttribute('r', `4px`);
+		highlightCircle.style.display = 'none';
+		g.appendChild(highlightCircle);
+
+		const hoverDisposable = disposables.add(new MutableDisposable<IDisposable>());
+		const mouseMoveListener = (event: MouseEvent): void => {
+			const rect = svg.getBoundingClientRect();
+			const mouseX = event.clientX - rect.left - margin.left;
+
+			let closestPoint: Point | undefined;
+			let minDistance = Infinity;
+
+			points.forEach(point => {
+				const distance = Math.abs(point.x - mouseX);
+				if (distance < minDistance) {
+					minDistance = distance;
+					closestPoint = point;
+				}
+			});
+
+			if (closestPoint) {
+				highlightCircle.setAttribute('cx', `${closestPoint.x}`);
+				highlightCircle.setAttribute('cy', `${closestPoint.y}`);
+				highlightCircle.style.display = 'block';
+				tooltip.style.left = `${closestPoint.x + 24}px`;
+				tooltip.style.top = `${closestPoint.y + 14}px`;
+				hoverDisposable.value = this.hoverService.showHover({
+					content: new MarkdownString(`${closestPoint.date}: ${closestPoint.count} requests`),
+					target: tooltip,
+					appearance: {
+						showPointer: true,
+						skipFadeInAnimation: true,
+					}
+				});
+			} else {
+				hoverDisposable.value = undefined;
+			}
+		};
+		svg.addEventListener('mousemove', mouseMoveListener);
+		disposables.add(toDisposable(() => svg.removeEventListener('mousemove', mouseMoveListener)));
+
+		const mouseLeaveListener = () => {
+			highlightCircle.style.display = 'none';
+			hoverDisposable.value = undefined;
+		};
+		svg.addEventListener('mouseleave', mouseLeaveListener);
+		disposables.add(toDisposable(() => svg.removeEventListener('mouseleave', mouseLeaveListener)));
 	}
 }
 
@@ -446,6 +619,8 @@ class ExtensionFeatureView extends Disposable {
 				this.renderMarkdownData(featureContentElement, <IExtensionFeatureMarkdownRenderer>renderer);
 			} else if (renderer.type === 'markdown+table') {
 				this.renderMarkdownAndTableData(featureContentElement, <IExtensionFeatureMarkdownAndTableRenderer>renderer);
+			} else if (renderer.type === 'element') {
+				this.renderElementData(featureContentElement, <IExtensionFeatureElementRenderer>renderer);
 			}
 		}
 	}
@@ -555,6 +730,17 @@ class ExtensionFeatureView extends Disposable {
 				this.renderTable(markdownOrTable, tableElement);
 			}
 		}
+	}
+
+	private renderElementData(container: HTMLElement, renderer: IExtensionFeatureElementRenderer): void {
+		const elementData = renderer.render(this.manifest);
+		if (elementData.onDidChange) {
+			this._register(elementData.onDidChange(data => {
+				clearNode(container);
+				container.appendChild(data);
+			}));
+		}
+		container.appendChild(elementData.data);
 	}
 
 	layout(height?: number, width?: number): void {

@@ -885,6 +885,10 @@ export class InlineChatController implements IEditorContribution {
 			widgetPosition = this._session.wholeRange.trackedInitialRange.getStartPosition().delta(-1);
 		}
 
+		if (initialRender && (this._editor.getOption(EditorOption.stickyScroll)).enabled) {
+			this._editor.revealLine(widgetPosition.lineNumber); // do NOT substract `this._editor.getOption(EditorOption.stickyScroll).maxLineCount` because the editor already does that
+		}
+
 		if (!headless) {
 			if (this._ui.rawValue?.position) {
 				this._ui.value.updatePositionAndHeight(widgetPosition);

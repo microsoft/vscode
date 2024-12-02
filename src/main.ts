@@ -294,8 +294,9 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 
 	// Blink features to configure.
 	// `FontMatchingCTMigration` - Siwtch font matching on macOS to Appkit (Refs https://github.com/microsoft/vscode/issues/224496#issuecomment-2270418470).
+	// `StandardizedBrowserZoom` - Disable zoom adjustment for bounding box (https://github.com/microsoft/vscode/issues/232750#issuecomment-2459495394)
 	const blinkFeaturesToDisable =
-		`FontMatchingCTMigration,${app.commandLine.getSwitchValue('disable-blink-features')}`;
+		`FontMatchingCTMigration,StandardizedBrowserZoom,${app.commandLine.getSwitchValue('disable-blink-features')}`;
 	app.commandLine.appendSwitch('disable-blink-features', blinkFeaturesToDisable);
 
 	// Support JS Flags

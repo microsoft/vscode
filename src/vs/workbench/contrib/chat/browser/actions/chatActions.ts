@@ -15,7 +15,7 @@ import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
-import { localize, localize2 } from '../../../../../nls.js';
+import { ILocalizedString, localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -88,7 +88,7 @@ class OpenChatGlobalAction extends Action2 {
 		super({
 			id: CHAT_OPEN_ACTION_ID,
 			title: OpenChatGlobalAction.TITLE,
-			icon: defaultChat.icon,
+			icon: Codicon.copilot,
 			f1: true,
 			precondition: ContextKeyExpr.or(
 				ChatContextKeys.Setup.installed,
@@ -462,62 +462,33 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(class LearnMoreChatAction extends Action2 {
-
-		static readonly ID = 'workbench.action.chat.learnMore';
-		static readonly TITLE = localize2('learnMore', "Learn More");
-
-		constructor() {
-			super({
-				id: LearnMoreChatAction.ID,
-				title: LearnMoreChatAction.TITLE,
-				category: CHAT_CATEGORY,
-				menu: [
-					{
+	function registerOpenLinkAction(id: string, title: ILocalizedString, url: string, order: number): void {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id,
+					title,
+					category: CHAT_CATEGORY,
+					f1: true,
+					precondition: ChatContextKeys.enabled,
+					menu: {
 						id: MenuId.ChatCommandCenter,
-						group: 'z_end',
-						order: 2
+						group: 'y_manage',
+						order
 					}
-				]
-			});
-		}
-
-		override async run(accessor: ServicesAccessor): Promise<void> {
-			const openerService = accessor.get(IOpenerService);
-			if (defaultChat.documentationUrl) {
-				openerService.open(URI.parse(defaultChat.documentationUrl));
+				});
 			}
-		}
-	});
 
-	registerAction2(class ManagePlanAction extends Action2 {
-
-		static readonly ID = 'workbench.action.chat.managePlan';
-		static readonly TITLE = localize2('managePlan', "Manage {0} Plan", defaultChat.name);
-
-		constructor() {
-			super({
-				id: ManagePlanAction.ID,
-				title: ManagePlanAction.TITLE,
-				f1: true,
-				category: CHAT_CATEGORY,
-				menu: [
-					{
-						id: MenuId.ChatCommandCenter,
-						group: 'z_end',
-						order: 1
-					}
-				]
-			});
-		}
-
-		override async run(accessor: ServicesAccessor): Promise<void> {
-			const openerService = accessor.get(IOpenerService);
-			if (defaultChat.documentationUrl) {
-				openerService.open(URI.parse(defaultChat.managePlanUrl));
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const openerService = accessor.get(IOpenerService);
+				openerService.open(URI.parse(url));
 			}
-		}
-	});
+		});
+	}
+
+	registerOpenLinkAction('workbench.action.chat.managePlan', localize2('managePlan', "Manage Copilot Plan"), defaultChat.managePlanUrl, 1);
+	registerOpenLinkAction('workbench.action.chat.manageSettings', localize2('manageSettings', "Manage Copilot Settings"), defaultChat.manageSettingsUrl, 2);
+	registerOpenLinkAction('workbench.action.chat.learnMore', localize2('learnMore', "Learn More"), defaultChat.documentationUrl, 3);
 
 	registerAction2(class ShowExtensionsUsingCopilit extends Action2 {
 
@@ -549,16 +520,15 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 // --- command center chat
 
 const defaultChat = {
-	name: product.defaultChatAgent?.name ?? '',
-	icon: Codicon[product.defaultChatAgent?.icon as keyof typeof Codicon ?? 'commentDiscussion'],
 	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
+	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
 	managePlanUrl: product.defaultChatAgent?.managePlanUrl ?? '',
 };
 
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	submenu: MenuId.ChatCommandCenter,
 	title: localize('title4', "Chat"),
-	icon: defaultChat.icon,
+	icon: Codicon.copilot,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
 		ContextKeyExpr.or(
@@ -571,12 +541,12 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	order: 10001,
 });
 
-registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
+registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(
 			'chat.commandCenter.enabled',
-			localize('toggle.chatControl', 'Chat Controls'),
-			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 4, false,
+			localize('toggle.chatControl', 'Copilot Controls'),
+			localize('toggle.chatControlsDescription', "Toggle visibility of the Copilot Controls in title bar"), 4, false,
 			ContextKeyExpr.and(
 				ContextKeyExpr.has('config.window.commandCenter'),
 				ContextKeyExpr.or(
@@ -614,8 +584,8 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 
 			const primaryAction = instantiationService.createInstance(MenuItemAction, {
 				id: chatExtensionInstalled ? CHAT_OPEN_ACTION_ID : 'workbench.action.chat.triggerSetup',
-				title: chatExtensionInstalled ? OpenChatGlobalAction.TITLE : localize2('triggerChatSetup', "Use AI features with {0}...", defaultChat.name),
-				icon: defaultChat.icon,
+				title: chatExtensionInstalled ? OpenChatGlobalAction.TITLE : localize2('triggerChatSetup', "Use AI Features with Copilot for Free"),
+				icon: Codicon.copilot,
 			}, undefined, undefined, undefined, undefined);
 
 			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, primaryAction, dropdownAction, action.actions, '', { ...options, skipTelemetry: true });

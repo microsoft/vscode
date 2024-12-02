@@ -18,6 +18,7 @@ import { ChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo } from './cha
 
 export class ChatEditingModifiedNotebookEntry extends ChatEditingModifiedFileEntry {
 	private readonly resolveTextFileEditorModel: IResolvedTextFileEditorModel;
+
 	constructor(
 		resourceRef: IReference<IResolvedTextEditorModel>,
 		_multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },

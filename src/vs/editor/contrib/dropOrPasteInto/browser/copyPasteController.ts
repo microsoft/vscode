@@ -685,11 +685,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			}
 		}
 
-		// Specific case for pasting code blocks.
-		if (edits.filter(edit => edit.kind.contains(new HierarchicalKind('chat.attach.text')))) {
-			return edits.findIndex(edit => edit.kind.contains(new HierarchicalKind('text.plain')));
-		}
-
 		return 0;
 	}
 }

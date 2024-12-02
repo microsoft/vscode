@@ -251,8 +251,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	public createSnapshot(requestId: string | undefined): void {
 		const snapshot = this._createSnapshot(requestId);
 		if (requestId) {
-			for (const workingSetItem of this._workingSet.keys()) {
-				this._workingSet.set(workingSetItem, { state: WorkingSetEntryState.Sent });
+			for (const [uri, data] of this._workingSet) {
+				if (data.state !== WorkingSetEntryState.Suggested) {
+					this._workingSet.set(uri, { state: WorkingSetEntryState.Sent });
+				}
 			}
 			const linearHistory = this._linearHistory.get();
 			const linearHistoryIndex = this._linearHistoryIndex.get();
@@ -297,10 +299,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._modelService.createModel(snapshotEntry.current, this._languageService.createById(snapshotEntry.languageId), snapshotUri, false);
 	}
 
-	public getSnapshot(requestId: string, uri: URI) {
+	public getSnapshot(requestId: string, uri: URI): ISnapshotEntry | undefined {
 		const snapshot = this._findSnapshot(requestId);
 		const snapshotEntries = snapshot?.entries;
 		return snapshotEntries?.get(uri);
+	}
+
+	public getSnapshotUri(requestId: string, uri: URI): URI | undefined {
+		return this.getSnapshot(requestId, uri)?.snapshotUri;
 	}
 
 	/**
@@ -641,6 +647,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			const newEntries = this._entriesObs.get().filter(e => !isEqual(e.modifiedURI, entry.modifiedURI));
 			this._entriesObs.set(newEntries, undefined);
 			this._workingSet.delete(entry.modifiedURI);
+			this._editorService.closeEditors(this._editorService.findEditors(entry.modifiedURI));
 			entry.dispose();
 			this._onDidChange.fire(ChatEditingSessionChangeType.WorkingSet);
 		}));

@@ -34,7 +34,7 @@ import { Event } from '../../../../base/common/event.js';
 import { ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
 import { AbstractTreeViewState, IAbstractTreeViewState, TreeFindMode } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ctxAllCollapsed, ctxFilterOnType, ctxFollowsCursor, ctxSortMode, IOutlinePane, OutlineSortOrder } from './outline.js';
+import { ctxAllCollapsed, ctxFilterOnType, ctxFocused, ctxFollowsCursor, ctxSortMode, IOutlinePane, OutlineSortOrder } from './outline.js';
 import { defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
@@ -269,6 +269,8 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			}
 		);
+
+		ctxFocused.bindTo(tree.contextKeyService);
 
 		// update tree, listen to changes
 		const updateTree = () => {

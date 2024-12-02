@@ -456,7 +456,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			}));
 
-		} else if (!element.isComplete) {
+		} else if (!element.isComplete && this.rendererOptions.renderStyle !== 'minimal') {
 			templateData.detail.textContent = localize('generating', "Generating");
 		}
 	}

@@ -80,9 +80,9 @@ export class ChatEditorAutoSaveDisabler extends Disposable implements IWorkbench
 
 		// listen to session changes and update auto save settings accordingly
 		const saveConfig = this._store.add(new MutableDisposable());
-		autorun(reader => {
+		this._store.add(autorun(reader => {
 			const store = new DisposableStore();
-			const autoSaveDisabled = [];
+			const autoSaveDisabled: string[] = [];
 			try {
 				if (alwaysSaveConfig.read(reader)) {
 					return;
@@ -101,7 +101,7 @@ export class ChatEditorAutoSaveDisabler extends Disposable implements IWorkbench
 				saveConfig.value = store; // disposes the previous store, after we have added the new one
 				this._autosaveDisabledUris = autoSaveDisabled;
 			}
-		});
+		}));
 	}
 }
 

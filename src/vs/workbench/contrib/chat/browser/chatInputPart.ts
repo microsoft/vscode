@@ -13,7 +13,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
-import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
@@ -24,7 +24,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { HistoryNavigator2 } from '../../../../base/common/history.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { basename, dirname } from '../../../../base/common/path.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
@@ -37,10 +37,13 @@ import { IDimension } from '../../../../editor/common/core/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { isLocation } from '../../../../editor/common/languages.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../editor/common/model.js';
+import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
+import { DropIntoEditorController } from '../../../../editor/contrib/dropOrPasteInto/browser/dropIntoEditorController.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
@@ -77,7 +80,7 @@ import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEd
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, WorkingSetEntryRemovalReason, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatRequestVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
 import { ChatRequestDynamicVariablePart } from '../common/chatParserTypes.js';
 import { IChatFollowup } from '../common/chatService.js';
@@ -266,6 +269,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		getContribsInputState: () => any,
 		@IChatWidgetHistoryService private readonly historyService: IChatWidgetHistoryService,
 		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -653,6 +657,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			inputContainer.classList.toggle('focused', false);
 
 			this._onDidBlur.fire();
+		}));
+		this._register(this._inputEditor.onDidBlurEditorWidget(() => {
+			CopyPasteController.get(this._inputEditor)?.clearWidgets();
+			DropIntoEditorController.get(this._inputEditor)?.clearWidgets();
 		}));
 
 		const hoverDelegate = this._register(createInstantHoverDelegate());
@@ -1061,12 +1069,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				seenEntries.add(attachment.value);
 			}
 		}
-		for (const [file, state] of chatEditingSession.workingSet.entries()) {
-			if (!seenEntries.has(file)) {
+		for (const [file, metadata] of chatEditingSession.workingSet.entries()) {
+			if (!seenEntries.has(file) && metadata.state !== WorkingSetEntryState.Suggested) {
 				entries.unshift({
 					reference: file,
-					state: state.state,
-					description: state.description,
+					state: metadata.state,
+					description: metadata.description,
 					kind: 'reference',
 				});
 				seenEntries.add(file);
@@ -1258,9 +1266,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const addFilesElement = innerContainer.querySelector('.chat-editing-session-toolbar-actions') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-toolbar-actions'));
 
+		const hoverDelegate = getDefaultHoverDelegate('element');
+
 		const button = this._chatEditsActionsDisposables.add(new Button(addFilesElement, {
 			supportIcons: true,
-			secondary: true
+			secondary: true,
+			hoverDelegate
 		}));
 		// Disable the button if the entries that are not suggested exceed the budget
 		button.enabled = remainingFileEntriesBudget > 0;
@@ -1270,6 +1281,54 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.commandService.executeCommand('workbench.action.chat.editing.attachFiles', { widget: chatWidget });
 		}));
 		dom.append(addFilesElement, button.element);
+
+		// REALTED files (after Add Files...)
+		for (const [uri, metadata] of chatEditingSession.workingSet) {
+			if (metadata.state !== WorkingSetEntryState.Suggested) {
+				continue;
+			}
+			const addBtn = this._chatEditsActionsDisposables.add(new Button(addFilesElement, {
+				supportIcons: true,
+				secondary: true,
+				hoverDelegate
+			}));
+			addBtn.enabled = remainingFileEntriesBudget > 0;
+			addBtn.label = this.labelService.getUriBasenameLabel(uri);
+			addBtn.element.classList.add(...getIconClasses(this.modelService, this.languageService, uri, FileKind.FILE));
+			addBtn.setTitle(localize('suggeste.title', "{0} - {1}", this.labelService.getUriLabel(uri, { relative: true }), metadata.description ?? ''));
+
+			this._chatEditsActionsDisposables.add(addBtn.onDidClick(() => {
+				group.remove(); // REMOVE asap
+				chatEditingSession.addFileToWorkingSet(uri);
+			}));
+
+			const rmBtn = this._chatEditsActionsDisposables.add(new Button(addFilesElement, {
+				supportIcons: false,
+				secondary: true,
+				hoverDelegate
+			}));
+			rmBtn.icon = Codicon.close;
+			rmBtn.setTitle(localize('chatEditingSession.removeSuggested', 'Remove suggestion'));
+			this._chatEditsActionsDisposables.add(rmBtn.onDidClick(() => {
+				group.remove(); // REMOVE asap
+				chatEditingSession.remove(WorkingSetEntryRemovalReason.User, uri);
+			}));
+
+			const sep = document.createElement('div');
+			sep.classList.add('separator');
+
+			const group = document.createElement('span');
+			group.classList.add('monaco-button-dropdown', 'sidebyside-button');
+			group.appendChild(addBtn.element);
+			group.appendChild(sep);
+			group.appendChild(rmBtn.element);
+			dom.append(addFilesElement, group);
+
+			this._chatEditsActionsDisposables.add(toDisposable(() => {
+				group.remove();
+			}));
+		}
+
 	}
 
 	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {

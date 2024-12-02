@@ -81,6 +81,11 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		return this._rewriteRatioObs;
 	}
 
+	private readonly _maxLineNumberObs = observableValue<number>(this, 0);
+	public get maxLineNumber(): IObservable<number> {
+		return this._maxLineNumberObs;
+	}
+
 	private _isFirstEditAfterStartOrSnapshot: boolean = true;
 	private _edit: OffsetEdit = OffsetEdit.empty;
 	private _isEditFromUs: boolean = false;
@@ -92,7 +97,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		return this._diffInfo;
 	}
 
-	private readonly _editDecorationClear = this._register(new RunOnceScheduler(() => { this._editDecorations = this.doc.deltaDecorations(this._editDecorations, []); }, 3000));
+	private readonly _editDecorationClear = this._register(new RunOnceScheduler(() => { this._editDecorations = this.doc.deltaDecorations(this._editDecorations, []); }, 500));
 	private _editDecorations: string[] = [];
 
 	private static readonly _editDecorationOptions = ModelDecorationOptions.register({
@@ -284,7 +289,6 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 				range: edit.range
 			} satisfies IModelDeltaDecoration;
 		}));
-		this._editDecorationClear.schedule();
 
 		// push stack element for the first edit
 		if (this._isFirstEditAfterStartOrSnapshot) {
@@ -295,19 +299,21 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		}
 
 		const ops = textEdits.map(TextEdit.asEditOperation);
-		this._applyEdits(ops);
+		const undoEdits = this._applyEdits(ops);
 
 		transaction((tx) => {
 			if (!isLastEdits) {
 				this._stateObs.set(WorkingSetEntryState.Modified, tx);
 				this._isCurrentlyBeingModifiedObs.set(true, tx);
-				const maxLineNumber = ops.reduce((max, op) => Math.max(max, op.range.endLineNumber), 0);
+				const maxLineNumber = undoEdits.reduce((max, op) => Math.max(max, op.range.startLineNumber), 0);
 				const lineCount = this.doc.getLineCount();
 				this._rewriteRatioObs.set(Math.min(1, maxLineNumber / lineCount), tx);
+				this._maxLineNumberObs.set(maxLineNumber, tx);
 			} else {
 				this._resetEditsState(tx);
 				this._updateDiffInfoSeq(true);
 				this._rewriteRatioObs.set(1, tx);
+				this._editDecorationClear.schedule();
 			}
 		});
 	}
@@ -316,7 +322,12 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		// make the actual edit
 		this._isEditFromUs = true;
 		try {
-			this.doc.pushEditOperations(null, edits, () => null);
+			let result: ISingleEditOperation[] = [];
+			this.doc.pushEditOperations(null, edits, (undoEdits) => {
+				result = undoEdits;
+				return null;
+			});
+			return result;
 		} finally {
 			this._isEditFromUs = false;
 		}
@@ -382,9 +393,8 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			return;
 		}
 
-		this._stateObs.set(WorkingSetEntryState.Rejected, transaction);
-		this._notifyAction('rejected');
 		if (this.createdInRequestId === this._telemetryInfo.requestId) {
+			await this.docFileEditorModel.revert({ soft: true });
 			await this._fileService.del(this.modifiedURI);
 			this._onDidDelete.fire();
 		} else {
@@ -396,6 +406,8 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			}
 			await this.collapse(transaction);
 		}
+		this._stateObs.set(WorkingSetEntryState.Rejected, transaction);
+		this._notifyAction('rejected');
 	}
 
 	private _setDocValue(value: string): void {
