@@ -455,9 +455,19 @@ registerAction2(class RemoveAction extends Action2 {
 			return;
 		}
 
+
+
+		const configurationService = accessor.get(IConfigurationService);
+		const dialogService = accessor.get(IDialogService);
+		const chatEditingService = accessor.get(IChatEditingService);
 		const chatService = accessor.get(IChatService);
 		const chatModel = chatService.getSession(item.sessionId);
 		if (chatModel?.initialLocation !== ChatAgentLocation.EditingSession) {
+			return;
+		}
+
+		const session = chatEditingService.currentEditingSession;
+		if (!session) {
 			return;
 		}
 
@@ -465,9 +475,6 @@ registerAction2(class RemoveAction extends Action2 {
 			isResponseVM(item) ? item.requestId : undefined;
 
 		if (requestId) {
-			const configurationService = accessor.get(IConfigurationService);
-			const dialogService = accessor.get(IDialogService);
-			const chatEditingService = accessor.get(IChatEditingService);
 			const chatRequests = chatModel.getRequests();
 			const itemIndex = chatRequests.findIndex(request => request.id === requestId);
 			const editsToUndo = chatRequests.length - itemIndex;
@@ -514,7 +521,7 @@ registerAction2(class RemoveAction extends Action2 {
 
 			// Restore the snapshot to what it was before the request(s) that we deleted
 			const snapshotRequestId = chatRequests[itemIndex].id;
-			await chatEditingService.restoreSnapshot(snapshotRequestId);
+			await session.restoreSnapshot(snapshotRequestId);
 
 			// Remove the request and all that come after it
 			for (const request of requestsToRemove) {
@@ -561,7 +568,7 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 		}
 		const snapshotRequestId = requests[snapshotRequestIndex]?.id;
 		if (snapshotRequestId) {
-			const snapshot = chatEditingService.getSnapshotUri(snapshotRequestId, context.uri);
+			const snapshot = chatEditingService.currentEditingSession?.getSnapshotUri(snapshotRequestId, context.uri);
 			if (snapshot) {
 				const editor = await editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Snapshot {1})', basename(context.uri), snapshotRequestIndex - 1), options: { transient: true, activation: EditorActivation.ACTIVATE } });
 				if (isCodeEditor(editor)) {

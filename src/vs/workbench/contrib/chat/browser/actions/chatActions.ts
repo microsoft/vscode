@@ -584,7 +584,7 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 
 			const primaryAction = instantiationService.createInstance(MenuItemAction, {
 				id: chatExtensionInstalled ? CHAT_OPEN_ACTION_ID : 'workbench.action.chat.triggerSetup',
-				title: chatExtensionInstalled ? OpenChatGlobalAction.TITLE : localize2('triggerChatSetup', "Use AI Features with Copilot"),
+				title: chatExtensionInstalled ? OpenChatGlobalAction.TITLE : localize2('triggerChatSetup', "Use AI Features with Copilot for Free"),
 				icon: Codicon.copilot,
 			}, undefined, undefined, undefined, undefined);
 

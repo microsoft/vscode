@@ -316,5 +316,4 @@ export interface IDefaultChatAgent {
 	readonly providerScopes: string[][];
 	readonly entitlementUrl: string;
 	readonly entitlementSignupLimitedUrl: string;
-	readonly entitlementSkuTypeLimitedName: string;
 }
