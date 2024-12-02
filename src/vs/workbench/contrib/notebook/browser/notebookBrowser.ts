@@ -18,7 +18,7 @@ import { FindMatch, IModelDeltaDecoration, IReadonlyTextBuffer, ITextModel, Trac
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ITextEditorOptions, ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { IConstructorSignature } from '../../../../platform/instantiation/common/instantiation.js';
-import { IEditorPane, IEditorPaneWithSelection } from '../../../common/editor.js';
+import { IEditorPane, IEditorPaneWithSelection, INotebookEditorOptions as INotebookEditorOptionsCore } from '../../../common/editor.js';
 import { CellViewModelStateChangeEvent, NotebookCellStateChangedEvent, NotebookLayoutInfo } from './notebookViewEvents.js';
 import { NotebookCellTextModel } from '../common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../common/model/notebookTextModel.js';
@@ -32,6 +32,7 @@ import { IEditorCommentsOptions, IEditorOptions } from '../../../../editor/commo
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IObservable } from '../../../../base/common/observable.js';
+
 
 //#region Shared commands
 export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
@@ -355,9 +356,10 @@ export enum CellRevealRangeType {
 	CenterIfOutsideViewport = 3,
 }
 
-export interface INotebookEditorOptions extends ITextEditorOptions {
+export interface INotebookEditorOptions extends ITextEditorOptions, INotebookEditorOptionsCore {
 	readonly cellOptions?: ITextResourceEditorInput;
 	readonly cellRevealType?: CellRevealType;
+	readonly cellSelection?: { index: number; selection?: IRange };
 	readonly cellSelections?: ICellRange[];
 	readonly isReadOnly?: boolean;
 	readonly viewState?: INotebookEditorViewState;

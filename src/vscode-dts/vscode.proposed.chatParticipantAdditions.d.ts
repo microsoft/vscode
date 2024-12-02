@@ -65,6 +65,8 @@ declare module 'vscode' {
 	export class ChatResponseNotebookEditPart {
 		uri: Uri;
 		edits: NotebookEdit[];
+		isDone?: boolean;
+		constructor(uri: Uri, done: true);
 		constructor(uri: Uri, edits: NotebookEdit | NotebookEdit[]);
 	}
 

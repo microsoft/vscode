@@ -28,6 +28,7 @@ import { IAction, toAction } from '../../base/common/actions.js';
 import Severity from '../../base/common/severity.js';
 import { IPreferencesService } from '../services/preferences/common/preferences.js';
 import { IReadonlyEditorGroupModel } from './editor/editorGroupModel.js';
+import { IRange } from '../../editor/common/core/range.js';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -589,6 +590,26 @@ export interface IResourceMergeEditorInput extends IBaseUntypedEditorInput {
 	 */
 	readonly result: IResourceEditorInput | ITextResourceEditorInput;
 }
+
+export interface INotebookEditorOptions extends IEditorOptions {
+	/**
+	 * Cell to be selected along with the range within the cell
+	 */
+	readonly cellSelection?: { index: number; selection?: IRange };
+}
+
+export interface INotebookEditorInput extends IBaseUntypedEditorInput {
+	/**
+	 * Optional options to use when opening the input.
+	 */
+	options?: INotebookEditorOptions;
+
+	/**
+	 * The resource URI of the resource to open.
+	 */
+	readonly resource: URI;
+}
+
 
 export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
 	if (isEditorInput(editor)) {

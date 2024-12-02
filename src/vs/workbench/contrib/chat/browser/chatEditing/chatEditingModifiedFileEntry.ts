@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { joinPath } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
-import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
+import { ISingleOffsetEdit, OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
@@ -23,18 +26,20 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { localize } from '../../../../../nls.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { SaveReason } from '../../../../common/editor.js';
 import { IResolvedTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
-import { IChatAgentResult } from '../../common/chatAgents.js';
-import { ChatEditKind, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedTextFileEntry, ITextSnapshotEntry, ITextSnapshotEntryDTO, STORAGE_CONTENTS_FOLDER, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
-export class ChatEditingModifiedFileEntry extends Disposable implements IModifiedFileEntry {
-
+export class ChatEditingModifiedFileEntry extends Disposable implements IModifiedTextFileEntry {
+	public readonly kind = 'text';
 	public static readonly scheme = 'modified-file-entry';
 	private static lastEntryId = 0;
 	public readonly entryId = `${ChatEditingModifiedFileEntry.scheme}::${++ChatEditingModifiedFileEntry.lastEntryId}`;
@@ -129,6 +134,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@IFileService private readonly _fileService: IFileService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		if (kind === ChatEditKind.Created) {
@@ -179,27 +185,19 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._telemetryInfo = telemetryInfo;
 	}
 
-	createSnapshot(requestId: string | undefined): ISnapshotEntry {
+	async createSnapshot(requestId: string | undefined): Promise<ITextSnapshotEntry> {
 		this._isFirstEditAfterStartOrSnapshot = true;
-		return {
-			resource: this.modifiedURI,
-			languageId: this.modifiedModel.getLanguageId(),
-			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(requestId, this.modifiedURI.path),
-			original: this.originalModel.getValue(),
-			current: this.modifiedModel.getValue(),
-			originalToCurrentEdit: this._edit,
-			state: this.state.get(),
-			telemetryInfo: this._telemetryInfo
-		};
+		return TextSnapshotEntry.create(this, requestId, this._edit, this.instantiationService);
 	}
-	restoreFromSnapshot(snapshot: ISnapshotEntry) {
+
+	async restoreFromSnapshot(snapshot: ITextSnapshotEntry) {
 		this._stateObs.set(snapshot.state, undefined);
 		this.docSnapshot.setValue(snapshot.original);
 		this._setDocValue(snapshot.current);
 		this._edit = snapshot.originalToCurrentEdit;
 	}
 
-	resetToInitialValue() {
+	async resetToInitialValue() {
 		this._setDocValue(this.initialContent);
 	}
 
@@ -425,21 +423,102 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	}
 }
 
-export interface IModifiedEntryTelemetryInfo {
-	readonly agentId: string | undefined;
-	readonly command: string | undefined;
-	readonly sessionId: string;
-	readonly requestId: string;
-	readonly result: IChatAgentResult | undefined;
+
+export class TextSnapshotEntry implements ITextSnapshotEntry {
+	public readonly kind = 'text';
+	constructor(
+		public readonly languageId: string,
+		public readonly original: string,
+		public readonly current: string,
+		public readonly originalToCurrentEdit: OffsetEdit,
+		public readonly resource: URI,
+		public readonly snapshotUri: URI,
+		public readonly state: WorkingSetEntryState,
+		public readonly telemetryInfo: IModifiedEntryTelemetryInfo,
+		@IFileService private readonly _fileService: IFileService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+	) {
+	}
+
+	public static create(entry: IModifiedTextFileEntry, requestId: string | undefined,
+		edit: OffsetEdit, instantiationService: IInstantiationService): TextSnapshotEntry {
+
+		return instantiationService.createInstance(TextSnapshotEntry,
+			entry.modifiedModel.getLanguageId(),
+			entry.originalModel.getValue(),
+			entry.modifiedModel.getValue(),
+			edit,
+			entry.modifiedURI,
+			ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(requestId, entry.modifiedURI.path),
+			entry.state.get(),
+			entry.telemetryInfo);
+	}
+
+	public static async deserialize(entry: ITextSnapshotEntryDTO, chatSessionId: string, instantiationService: IInstantiationService): Promise<TextSnapshotEntry> {
+		return instantiationService.invokeFunction(async accessor => {
+			const workspaceContextService = accessor.get(IWorkspaceContextService);
+			const environmentService = accessor.get(IEnvironmentService);
+			const fileService = accessor.get(IFileService);
+			const storageLocation = getStorageLocation(chatSessionId, workspaceContextService, environmentService);
+
+			const [original, current] = await Promise.all([
+				getFileContent(entry.originalHash, fileService, storageLocation),
+				getFileContent(entry.currentHash, fileService, storageLocation)
+			]);
+
+			return instantiationService.createInstance(TextSnapshotEntry,
+				entry.languageId,
+				original,
+				current,
+				OffsetEdit.fromJson(entry.originalToCurrentEdit),
+				URI.parse(entry.resource),
+				URI.parse(entry.snapshotUri),
+				entry.state,
+				{ requestId: entry.telemetryInfo.requestId, agentId: entry.telemetryInfo.agentId, command: entry.telemetryInfo.command, sessionId: chatSessionId, result: undefined }
+			);
+		});
+	}
+
+	async serialize(): Promise<ITextSnapshotEntryDTO> {
+		const fileContents = new Map<string, string>();
+		const serialized = {
+			kind: 'text',
+			resource: this.resource.toString(),
+			languageId: this.languageId,
+			originalHash: this.computeContentHash(this.original),
+			currentHash: this.computeContentHash(this.current),
+			originalToCurrentEdit: this.originalToCurrentEdit.edits.map(edit => ({ pos: edit.replaceRange.start, len: edit.replaceRange.length, txt: edit.newText } satisfies ISingleOffsetEdit)),
+			state: this.state,
+			snapshotUri: this.snapshotUri.toString(),
+			telemetryInfo: { requestId: this.telemetryInfo.requestId, agentId: this.telemetryInfo.agentId, command: this.telemetryInfo.command }
+		} satisfies ITextSnapshotEntryDTO;
+
+		const storageFolder = getStorageLocation(this.telemetryInfo.sessionId, this._workspaceContextService, this._environmentService);
+		const contentsFolder = URI.joinPath(storageFolder, STORAGE_CONTENTS_FOLDER);
+
+		await Promise.all(Array.from(fileContents.entries()).map(async ([hash, content]) => {
+			const file = joinPath(contentsFolder, hash);
+			if (!(await this._fileService.exists(file))) {
+				await this._fileService.writeFile(joinPath(contentsFolder, hash), VSBuffer.fromString(content));
+			}
+		}));
+
+		return serialized;
+	}
+	private computeContentHash(content: string): string {
+		const shaComputer = new StringSHA1();
+		shaComputer.update(content);
+		return shaComputer.digest().substring(0, 7);
+	}
 }
 
-export interface ISnapshotEntry {
-	readonly resource: URI;
-	readonly languageId: string;
-	readonly snapshotUri: URI;
-	readonly original: string;
-	readonly current: string;
-	readonly originalToCurrentEdit: OffsetEdit;
-	readonly state: WorkingSetEntryState;
-	telemetryInfo: IModifiedEntryTelemetryInfo;
+export function getStorageLocation(chatSessionId: string, workspaceContextService: IWorkspaceContextService, environmentService: IEnvironmentService): URI {
+	const workspaceId = workspaceContextService.getWorkspace().id;
+	return joinPath(environmentService.workspaceStorageHome, workspaceId, 'chatEditingSessions', chatSessionId);
 }
+
+function getFileContent(hash: string, fileService: IFileService, storageLocation: URI) {
+	return fileService.readFile(joinPath(storageLocation, STORAGE_CONTENTS_FOLDER, hash)).then(content => content.value.toString());
+}
+

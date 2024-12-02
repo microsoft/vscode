@@ -29,7 +29,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { IChatEditingService, isTextFileEntry } from '../../common/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatMarkdownContent } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
@@ -375,23 +375,52 @@ class CollapsedCodeBlock extends Disposable {
 				labelDetail.textContent = '';
 			}
 
-			if (!isStreaming && isComplete) {
+			if (!isStreaming && isComplete && modifiedEntry) {
 				const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
 				const labelRemoved = this.element.querySelector('.label-removed') ?? this.element.appendChild(dom.$('span.label-removed'));
-				const changes = modifiedEntry?.diffInfo.read(r);
-				if (changes && !changes?.identical && !changes?.quitEarly) {
-					let removedLines = 0;
-					let addedLines = 0;
+				let removedLines = 0;
+				let addedLines = 0;
+				if (isTextFileEntry(modifiedEntry)) {
+					const changes = modifiedEntry.diffInfo.read(r);
+					if (!changes || changes?.identical || changes?.quitEarly) {
+						return;
+					}
 					for (const change of changes.changes) {
 						removedLines += change.original.endLineNumberExclusive - change.original.startLineNumber;
 						addedLines += change.modified.endLineNumberExclusive - change.modified.startLineNumber;
 					}
-					labelAdded.textContent = `+${addedLines}`;
-					labelRemoved.textContent = `-${removedLines}`;
-					const insertionsFragment = addedLines === 1 ? localize('chat.codeblock.insertions.one', "{0} insertion") : localize('chat.codeblock.insertions', "{0} insertions", addedLines);
-					const deletionsFragment = removedLines === 1 ? localize('chat.codeblock.deletions.one', "{0} deletion") : localize('chat.codeblock.deletions', "{0} deletions", removedLines);
-					this.element.ariaLabel = this.element.title = localize('summary', 'Edited {0}, {1}, {2}', iconText, insertionsFragment, deletionsFragment);
+				} else {
+					const cellDiffs = modifiedEntry.cellDiffInfo.read(r);
+					for (const diff of cellDiffs) {
+						switch (diff.type) {
+							case 'modified': {
+								if (!diff.diff.identical && !diff.diff.quitEarly) {
+									for (const change of diff.diff.changes) {
+										removedLines += change.original.endLineNumberExclusive - change.original.startLineNumber;
+										addedLines += change.modified.endLineNumberExclusive - change.modified.startLineNumber;
+									}
+								}
+								break;
+							}
+							case 'insert': {
+								addedLines += diff.diff.changes[0].modified.endLineNumberExclusive - diff.diff.changes[0].modified.startLineNumber;
+								break;
+							}
+							case 'delete': {
+								removedLines += diff.diff.changes[0].original.endLineNumberExclusive - diff.diff.changes[0].original.startLineNumber;
+								break;
+							}
+						}
+					}
+					if (!removedLines && !addedLines) {
+						return;
+					}
 				}
+				labelAdded.textContent = `+${addedLines}`;
+				labelRemoved.textContent = `-${removedLines}`;
+				const insertionsFragment = addedLines === 1 ? localize('chat.codeblock.insertions.one', "{0} insertion") : localize('chat.codeblock.insertions', "{0} insertions", addedLines);
+				const deletionsFragment = removedLines === 1 ? localize('chat.codeblock.deletions.one', "{0} deletion") : localize('chat.codeblock.deletions', "{0} deletions", removedLines);
+				this.element.ariaLabel = this.element.title = localize('summary', 'Edited {0}, {1}, {2}', iconText, insertionsFragment, deletionsFragment);
 			}
 		}));
 	}

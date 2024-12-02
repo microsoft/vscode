@@ -10,16 +10,19 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
-import { ChatEditorController, ctxHasEditorModification } from './chatEditorController.js';
+import { ctxHasEditorModification } from './chatEditorController.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
-import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
-import { hasUndecidedChatEditingResourceContextKey, IChatEditingService } from '../common/chatEditingService.js';
+import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
+import { hasUndecidedChatEditingResourceContextKey, IChatEditingService, IModifiedFileEntry, isTextFileEntry } from '../common/chatEditingService.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
-import { ctxNotebookHasEditorModification } from '../../notebook/browser/contrib/chatEdit/notebookChatEditController.js';
+import { ctxNotebookHasEditorModification } from '../../notebook/browser/contrib/chatEdit/notebookChatEditorController.js';
+import { getChatEditorController } from './chatEditorControllerHelper.js';
+import { IEditorPane, INotebookEditorOptions } from '../../../common/editor.js';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 
 abstract class NavigateAction extends Action2 {
 
@@ -64,7 +67,7 @@ abstract class NavigateAction extends Action2 {
 			return;
 		}
 
-		const ctrl = ChatEditorController.get(editor);
+		const ctrl = getChatEditorController(editor);
 		if (!ctrl) {
 			return;
 		}
@@ -77,8 +80,9 @@ abstract class NavigateAction extends Action2 {
 			return;
 		}
 
+		const modelURI = ctrl.modelURI.get() || editor.getModel().uri;
 		const entries = session.entries.get();
-		const idx = entries.findIndex(e => isEqual(e.modifiedURI, editor.getModel().uri));
+		const idx = entries.findIndex(e => isEqual(e.modifiedURI, modelURI));
 		if (idx < 0) {
 			return;
 		}
@@ -95,21 +99,11 @@ abstract class NavigateAction extends Action2 {
 		}
 
 		const entry = entries[newIdx];
-		const change = entry.diffInfo.get().changes.at(this.next ? 0 : -1);
-
-		const newEditorPane = await editorService.openEditor({
-			resource: entry.modifiedURI,
-			options: {
-				selection: change && Range.fromPositions({ lineNumber: change.original.startLineNumber, column: 1 }),
-				revealIfOpened: false,
-				revealIfVisible: false,
-			}
-		}, ACTIVE_GROUP);
-
+		const newEditorPane = await openChatEntry(entry, this.next, editorService);
 
 		const newEditor = newEditorPane?.getControl();
 		if (isCodeEditor(newEditor)) {
-			ChatEditorController.get(newEditor)?.initNavigation();
+			getChatEditorController(newEditor)?.initNavigation();
 		}
 	}
 }
@@ -213,7 +207,7 @@ class UndoHunkAction extends EditorAction2 {
 	}
 
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
-		ChatEditorController.get(editor)?.undoNearestChange(args[0]);
+		getChatEditorController(editor)?.undoNearestChange(args[0]);
 	}
 }
 
@@ -233,7 +227,7 @@ class OpenDiffFromHunkAction extends EditorAction2 {
 	}
 
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
-		ChatEditorController.get(editor)?.openDiff(args[0]);
+		getChatEditorController(editor)?.openDiff(args[0]);
 	}
 }
 
@@ -244,4 +238,29 @@ export function registerChatEditorActions() {
 	registerAction2(RejectAction);
 	registerAction2(UndoHunkAction);
 	registerAction2(OpenDiffFromHunkAction);
+}
+
+export async function openChatEntry(entry: IModifiedFileEntry, nextChange: boolean, editorService: IEditorService, group: SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE = ACTIVE_GROUP): Promise<IEditorPane | undefined> {
+	const change = isTextFileEntry(entry) ? entry.diffInfo.get().changes.at(nextChange ? 0 : -1) : undefined;
+
+	let options: ITextEditorOptions | INotebookEditorOptions = {
+		selection: change && Range.fromPositions({ lineNumber: change.original.startLineNumber, column: 1 }),
+		revealIfOpened: false,
+		revealIfVisible: false,
+	};
+
+	if (!isTextFileEntry(entry)) {
+		const diff = entry.cellDiffInfo.get().filter(d => d.type === 'modified');
+		if (diff.length) {
+			const lineNumber = diff[0].diff.changes[0].modified.startLineNumber;
+			options = {
+				cellSelection: {
+					index: diff[0].modifiedCellIndex,
+					selection: Range.fromPositions({ lineNumber, column: 1 })
+				}
+			} satisfies INotebookEditorOptions;
+		}
+	}
+
+	return editorService.openEditor({ resource: entry.modifiedURI, options }, ACTIVE_GROUP);
 }
