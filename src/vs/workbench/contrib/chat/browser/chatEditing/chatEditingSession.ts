@@ -248,8 +248,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	public createSnapshot(requestId: string | undefined): void {
 		const snapshot = this._createSnapshot(requestId);
 		if (requestId) {
-			for (const workingSetItem of this._workingSet.keys()) {
-				this._workingSet.set(workingSetItem, { state: WorkingSetEntryState.Sent });
+			for (const [uri, data] of this._workingSet) {
+				if (data.state !== WorkingSetEntryState.Suggested) {
+					this._workingSet.set(uri, { state: WorkingSetEntryState.Sent });
+				}
 			}
 			const linearHistory = this._linearHistory.get();
 			const linearHistoryIndex = this._linearHistoryIndex.get();
