@@ -5,6 +5,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { basename } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -176,7 +177,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				return itemsWithModifiedLabels;
 			}
 			if (completions.resourceRequestConfig) {
-				const resourceCompletions = await this._resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition);
+				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition);
 				if (resourceCompletions) {
 					itemsWithModifiedLabels.push(...resourceCompletions);
 				}
@@ -189,11 +190,16 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		return results.filter(result => !!result).flat();
 	}
 
-	private async _resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number): Promise<ITerminalCompletion[] | undefined> {
+	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number): Promise<ITerminalCompletion[] | undefined> {
 		const cwd = URI.revive(resourceRequestConfig.cwd);
 		const foldersRequested = resourceRequestConfig.foldersRequested ?? false;
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
 		if (!cwd || (!foldersRequested && !filesRequested)) {
+			return;
+		}
+
+		const fileStat = await this._fileService.resolve(cwd, { resolveSingleChildDescendants: true });
+		if (!fileStat || !fileStat?.children) {
 			return;
 		}
 
@@ -205,36 +211,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		} else {
 			lastWord = promptValue.substring(0, cursorPosition).trim().split(' ').at(-1) ?? '';
 		}
-		const pathStartsWithSlash = /^(\.\/|\.\.\/)/.test(lastWord);
-		if (pathStartsWithSlash) {
-			lastWord = '';
-		}
 
-		// This breaks folder completions because has a different replacement index
-		// which results in replacement index being set to 0
-		// const includeDirs = endsWithSpace || lastWord.match(/.*[\\\/]/);
-		// if (includeDirs) {
-		// 	resourceCompletions.push({
-		// 		label: '.' + resourceRequestConfig.pathSeparator,
-		// 		kind: TerminalCompletionItemKind.Folder,
-		// 		isDirectory: true,
-		// 		replacementIndex: cursorPosition,
-		// 		replacementLength: 2
-		// 	});
-		// 	resourceCompletions.push({
-		// 		label: '..' + resourceRequestConfig.pathSeparator,
-		// 		kind: TerminalCompletionItemKind.Folder,
-		// 		isDirectory: true,
-		// 		replacementIndex: cursorPosition,
-		// 		replacementLength: 3
-		// 	});
-		// }
-
-		const fileStat = await this._fileService.resolve(cwd, { resolveSingleChildDescendants: true });
-		if (!fileStat || !fileStat?.children) {
-			return;
-		}
-
+		const hasFirstFolderDir = lastWord && lastWord.startsWith('.');
 		for (const stat of fileStat.children) {
 			let kind: TerminalCompletionItemKind | undefined;
 			if (foldersRequested && stat.isDirectory) {
@@ -247,19 +225,21 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				continue;
 			}
 			const isDirectory = kind === TerminalCompletionItemKind.Folder;
-			let label;
-			if (pathStartsWithSlash) {
-				label = isDirectory ? stat.resource.fsPath.replace(cwd.fsPath, '').substring(1) + resourceRequestConfig.pathSeparator : stat.resource.fsPath.replace(cwd.fsPath, '').substring(1).replace(cwd.fsPath, '');
-			} else {
-				label = isDirectory ? '.' + stat.resource.fsPath.replace(cwd.fsPath, '') + resourceRequestConfig.pathSeparator : '.' + stat.resource.fsPath.replace(cwd.fsPath, '');
+			const pathToResource = stat.resource.fsPath.replace(cwd.fsPath, '');
+			let label = pathToResource;
+			if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
+				label = label + resourceRequestConfig.pathSeparator;
+			}
+			if (!hasFirstFolderDir) {
+				label = '.' + label;
 			}
 			resourceCompletions.push({
 				label,
 				kind,
 				isDirectory,
 				isFile: kind === TerminalCompletionItemKind.File,
-				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: label.length
+				replacementIndex: promptValue[cursorPosition - 1] === ' ' ? cursorPosition : cursorPosition - 1,
+				replacementLength: label.length - lastWord.length > 0 ? label.length - lastWord.length : label.length,
 			});
 		}
 
