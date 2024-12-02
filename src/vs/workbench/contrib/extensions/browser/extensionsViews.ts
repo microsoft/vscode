@@ -1121,8 +1121,8 @@ export class ExtensionsListView extends ViewPane {
 
 	private setModel(model: IPagedModel<IExtension>, message?: Message, donotResetScrollTop?: boolean) {
 		if (this.list) {
-			this.updateBody(message);
 			this.list.model = new DelayedPagedModel(model);
+			this.updateBody(message);
 			if (!donotResetScrollTop) {
 				this.list.scrollTop = 0;
 			}
