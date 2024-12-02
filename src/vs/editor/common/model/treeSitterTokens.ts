@@ -82,6 +82,9 @@ export class TreeSitterTokens extends AbstractTokens {
 
 	public override forceTokenization(lineNumber: number): void {
 		if (this._tokenizationSupport) {
+			if (this.hasAccurateTokensForLine(lineNumber)) {
+				return;
+			}
 			this._tokenizationSupport.tokenizeEncoded(lineNumber, this._textModel);
 		}
 	}
