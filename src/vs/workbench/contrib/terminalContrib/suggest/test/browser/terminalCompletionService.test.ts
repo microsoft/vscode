@@ -171,7 +171,7 @@ suite('TerminalCompletionService', () => {
 			assert(!!result);
 			assert(result.length === 1);
 			assert.deepEqual(result![0], {
-				label: `..${pathSeparator}test${pathSeparator}`,
+				label: `..${pathSeparator}folder1${pathSeparator}`,
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,

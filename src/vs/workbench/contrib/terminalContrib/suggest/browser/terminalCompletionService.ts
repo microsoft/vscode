@@ -5,6 +5,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { basename } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -218,7 +219,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				continue;
 			}
 			const isDirectory = kind === TerminalCompletionItemKind.Folder;
-			const pathToResource = stat.resource.fsPath.replace(cwd.fsPath, '');
+			const pathToResource = resourceRequestConfig.pathSeparator + basename(stat.resource.fsPath);
 
 			let label;
 			if (!prefix.startsWith('.')) {
