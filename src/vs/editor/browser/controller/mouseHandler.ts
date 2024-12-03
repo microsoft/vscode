@@ -424,8 +424,10 @@ class MouseDownOperation extends Disposable {
 			if (position.type === MouseTargetType.OUTSIDE_EDITOR) {
 				if (position.outsidePosition === 'above' || position.outsidePosition === 'below') {
 					this._topBottomDragScrolling.start(position, e);
+					this._leftRightDragScrolling.stop();
 				} else {
 					this._leftRightDragScrolling.start(position, e);
+					this._topBottomDragScrolling.stop();
 				}
 			} else {
 				this._topBottomDragScrolling.stop();
@@ -562,18 +564,21 @@ class MouseDownOperation extends Disposable {
 
 		const possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + e.relativePos.y);
 
-		const buffer = 120;
-
-		const left = this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft;
-		const right = this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft + this._context.configuration.options.get(EditorOption.layoutInfo).width;
-		console.log("left: " + left + " right: " + right + " pos: " + e.relativePos.x)
-		if (e.relativePos.x <= left + buffer) {
-			const outsideDistance = left + buffer - e.relativePos.x;
+		const buffer = 10;
+		const layoutInfo = this._context.configuration.options.get(EditorOption.layoutInfo)
+		const contentLeft = layoutInfo.contentLeft;
+		let contentRight = layoutInfo.minimap.minimapLeft;
+		if (contentRight === 0) {
+			// Happens when minimap is hidden
+			contentRight = layoutInfo.width - layoutInfo.verticalScrollbarWidth
+		}
+		if (e.relativePos.x <= contentLeft + buffer) {
+			const outsideDistance = contentLeft + buffer - e.relativePos.x;
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, 1), 'left', outsideDistance);
 		}
 
-		if (e.relativePos.x >= right - buffer) {
-			const outsideDistance = e.relativePos.x - right - buffer;
+		if (e.relativePos.x >= contentRight - buffer) {
+			const outsideDistance = e.relativePos.x - (contentRight - buffer);
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)), 'right', outsideDistance);
 		}
 
@@ -889,20 +894,13 @@ class LeftRightDragScrollingOperation extends Disposable {
 			const relativePos = createCoordinatesRelativeToEditor(this._viewHelper.viewDomNode, editorPos, pos);
 			mouseTarget = this._mouseTargetFactory.createMouseTarget(this._viewHelper.getLastRenderData(), editorPos, pos, relativePos, null);
 		}
-		// const currentScrollPosition = this._context.viewModel.viewLayout.getCurrentScrollLeft()
-		// console.log("scroll " + currentScrollPosition)
-		// if (currentScrollPosition == 0) {
-		// 	return
-		// }
-		if (!mouseTarget.position) {
-			console.log("let go!")
-			return
-		}
+
 		if (this._position.outsidePosition === 'left') {
 			mouseTarget = MouseTarget.createOutsideEditor(this._position.mouseColumn, new Position(edgeLineNumber, this._position.mouseColumn), 'left', this._position.outsideDistance);
 		} else {
 			mouseTarget = MouseTarget.createOutsideEditor(this._position.mouseColumn, new Position(edgeLineNumber, this._position.mouseColumn), 'right', this._position.outsideDistance);
 		}
+
 
 		this._dispatchMouse(mouseTarget, true, NavigationCommandRevealType.None);
 		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(dom.getWindow(mouseTarget.element), () => this._execute());
