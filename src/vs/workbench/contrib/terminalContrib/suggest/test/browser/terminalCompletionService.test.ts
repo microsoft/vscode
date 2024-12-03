@@ -167,7 +167,7 @@ suite('TerminalCompletionService', () => {
 			const childFolder = { resource: URI.parse('file:///test/folder1/'), name: 'folder1', isDirectory: true, isFile: false, isSymbolicLink: false, mtime: 0, size: 0, children: [] };
 			const childFile = { resource: URI.parse('file:///test/file1.txt'), name: 'file1.txt', isDirectory: false, isFile: true, isSymbolicLink: true, mtime: 0, size: 0, children: [] };
 			fileService.setChildren([childFolder, childFile]);
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ../', 5);
+			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ../', 6);
 			assert(!!result);
 			assert(result.length === 1);
 			assert.deepEqual(result![0], {
@@ -175,7 +175,7 @@ suite('TerminalCompletionService', () => {
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,
-				replacementIndex: 2,
+				replacementIndex: 3,
 				replacementLength: 3 // replacing ../
 			});
 		});
