@@ -14,6 +14,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -66,6 +67,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IChatService private readonly chatService: IChatService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ILogService private readonly logService: ILogService,
+		@ILayoutService private readonly layoutService: ILayoutService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
@@ -155,7 +157,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 			const locationBasedColors = this.getLocationBasedColors();
-			const editorOverflowNode = $('.chat-editor-overflow-widgets');
+			const editorOverflowNode = this.layoutService.mainContainer.appendChild($('.chat-editor-overflow.monaco-editor'));
+			this._register({ dispose: () => editorOverflowNode.remove() });
+
 			this._widget = this._register(scopedInstantiationService.createInstance(
 				ChatWidget,
 				this.chatOptions.location,
@@ -172,7 +176,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						},
 					},
 					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel,
-					// editorOverflowWidgetsDomNode: editorOverflowNode,
+					editorOverflowWidgetsDomNode: editorOverflowNode,
 				},
 				{
 					listForeground: SIDE_BAR_FOREGROUND,
@@ -187,7 +191,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}));
 			this._register(this._widget.onDidClear(() => this.clear()));
 			this._widget.render(parent);
-			parent.appendChild(editorOverflowNode);
 
 			const sessionId = this.getSessionId();
 			const disposeListener = this._register(this.chatService.onDidDisposeSession((e) => {
