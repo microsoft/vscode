@@ -204,7 +204,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		const resourceCompletions: ITerminalCompletion[] = [];
-		const cursorPrefix = promptValue.substring(0, cursorPosition + 1);
+		const cursorPrefix = promptValue.substring(0, cursorPosition);
 		const endsWithSpace = cursorPrefix.endsWith(' ');
 		const lastWord = endsWithSpace ? '' : cursorPrefix.split(' ').at(-1) ?? '';
 
