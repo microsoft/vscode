@@ -162,8 +162,8 @@ function createCompletionItem(commandLine: string, cursorPosition: number, prefi
 	return {
 		label,
 		detail: description ?? '',
-		replacementIndex: commandLine[cursorPosition - 1] === ' ' ? cursorPosition : cursorPosition - 1,
-		replacementLength: label.length - prefix.length > 0 ? label.length - prefix.length : label.length,
+		replacementIndex: commandLine.length - prefix.length >= 0 ? commandLine.length - prefix.length : commandLine[cursorPosition - 1] === ' ' ? cursorPosition : cursorPosition - 1,
+		replacementLength: prefix.length,
 		kind: kind ?? vscode.TerminalCompletionItemKind.Method
 	};
 }
@@ -273,7 +273,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 						}
 						const indexOfPrecedingText = terminalContext.commandLine.lastIndexOf(expectedText);
 						const currentPrefix = precedingText.slice(indexOfPrecedingText + expectedText.length);
-						const argsCompletions = getCompletionItemsFromArgs(option.args, currentPrefix, terminalContext, precedingText);
+						const argsCompletions = getCompletionItemsFromArgs(option.args, currentPrefix, terminalContext);
 						if (!argsCompletions) {
 							continue;
 						}
@@ -297,7 +297,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 				}
 				const indexOfPrecedingText = terminalContext.commandLine.lastIndexOf(expectedText);
 				const currentPrefix = precedingText.slice(indexOfPrecedingText + expectedText.length);
-				const argsCompletions = getCompletionItemsFromArgs(spec.args, currentPrefix, terminalContext, precedingText);
+				const argsCompletions = getCompletionItemsFromArgs(spec.args, currentPrefix, terminalContext);
 				if (!argsCompletions) {
 					continue;
 				}
@@ -341,7 +341,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 	return { items, filesRequested, foldersRequested, cwd };
 }
 
-function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined, currentPrefix: string, terminalContext: { commandLine: string; cursorPosition: number }, precedingText: string): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; specificSuggestionsProvided: boolean } | undefined {
+function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined, currentPrefix: string, terminalContext: { commandLine: string; cursorPosition: number }): { items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; specificSuggestionsProvided: boolean } | undefined {
 	if (!args) {
 		return;
 	}
@@ -379,7 +379,7 @@ function getCompletionItemsFromArgs(args: Fig.SingleOrArray<Fig.Arg> | undefined
 					}
 					if (suggestionLabel && suggestionLabel.startsWith(currentPrefix.trim())) {
 						const description = typeof suggestion !== 'string' ? suggestion.description : '';
-						items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, precedingText, suggestionLabel, description, vscode.TerminalCompletionItemKind.Argument));
+						items.push(createCompletionItem(terminalContext.commandLine, terminalContext.cursorPosition, wordBefore ?? '', suggestionLabel, description, vscode.TerminalCompletionItemKind.Argument));
 					}
 				}
 			}
