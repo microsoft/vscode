@@ -221,7 +221,7 @@ __vsc_update_env() {
 	for var in $(compgen -v); do
 		if printenv "$var" >/dev/null 2>&1; then
 			value=$(builtin printf '%s' "${!var}")
-			builtin printf '\e]633;EnvVar;%s;%s\a' "$var" "$(__vsc_escape_value "$value")"
+			builtin printf '\e]633;EnvSingleVar;%s;%s\a' "$var" "$(__vsc_escape_value "$value")"
 		fi
 	done
 	# TODO: EnvEnd with nonce
