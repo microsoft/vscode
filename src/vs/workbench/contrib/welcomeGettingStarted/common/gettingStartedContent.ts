@@ -12,6 +12,7 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { NotebookSetting } from '../../notebook/common/notebookCommon.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 import { URI } from '../../../../base/common/uri.js';
+import product from '../../../../platform/product/common/product.js';
 
 interface IGettingStartedContentProvider {
 	(): string;
@@ -209,6 +210,29 @@ export const startEntries: GettingStartedStartEntryContent = [
 
 const Button = (title: string, href: string) => `[${title}](${href})`;
 
+const CopilotStepTitle = localize('gettingStarted.copilotSetup.title', "Use AI features with Copilot for free");
+const CopilotDescription = localize('gettingStarted.copilotSetup.description', "Write code faster and smarter with Copilot for free.");
+const CopilotTermsString = localize({ key: 'copilotTerms', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to Copilot [Terms]({0}) and [Privacy Policy]({1}).", product.defaultChatAgent?.termsStatementUrl ?? '', product.defaultChatAgent?.privacyStatementUrl ?? '');
+const CopilotSignedOutButton = Button(localize('setupCopilotButton.signIn', "Sign in to use Copilot"), `command:workbench.action.chat.triggerSetup?${encodeURIComponent(JSON.stringify([true]))}`);
+const CopilotSignedInButton = Button(localize('setupCopilotButton.setup', "Setup Copilot"), `command:workbench.action.chat.triggerSetup?${encodeURIComponent(JSON.stringify([true]))}`);
+const CopilotCompleteButton = Button(localize('setupCopilotButton.chatWithCopilot', "Chat with Copilot"), 'command:workbench.action.chat.open');
+
+function createCopilotSetupStep(id: string, button: string, when: string): BuiltinGettingStartedStep {
+	const description = `${CopilotDescription}\n\n${CopilotTermsString}\n${button}`;
+
+	return {
+		id,
+		title: CopilotStepTitle,
+		description,
+		when,
+		media: {
+			type: 'markdown',
+			path: 'empty'
+		}
+	};
+}
+
+
 export const walkthroughs: GettingStartedWalkthroughContent = [
 	{
 		id: 'Setup',
@@ -222,6 +246,9 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		content: {
 			type: 'steps',
 			steps: [
+				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, 'config.chat.experimental.offerSetup && chatSetupSignedOut'),
+				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, 'config.chat.experimental.offerSetup && chatSetupInstalled && (chatSetupEntitled || chatSetupLimited)'),
+				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, 'config.chat.experimental.offerSetup && (!chatSetupInstalled || chatSetupCanSignUp)'),
 				{
 					id: 'pickColorTheme',
 					title: localize('gettingStarted.pickColor.title', "Choose your theme"),
