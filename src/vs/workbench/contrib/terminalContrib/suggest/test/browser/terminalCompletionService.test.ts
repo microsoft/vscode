@@ -82,14 +82,13 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3);
 			assert(!!result);
 			assert(result.length === 1);
-			const label = `.${pathSeparator}folder1${pathSeparator}`;
 			assert.deepEqual(result![0], {
-				label,
+				label: `.${pathSeparator}folder1${pathSeparator}`,
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,
 				replacementIndex: 3,
-				replacementLength: label.length
+				replacementLength: 10
 			});
 		});
 		test('cd .', async () => {
@@ -105,9 +104,8 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd .', 4);
 			assert(!!result);
 			assert(result.length === 1);
-			const label = `.${pathSeparator}folder1${pathSeparator}`;
 			assert.deepEqual(result![0], {
-				label,
+				label: `.${pathSeparator}folder1${pathSeparator}`,
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,
@@ -128,9 +126,8 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./', 5);
 			assert(!!result);
 			assert(result.length === 1);
-			const label = `.${pathSeparator}folder1${pathSeparator}`;
 			assert.deepEqual(result![0], {
-				label,
+				label: `.${pathSeparator}folder1${pathSeparator}`,
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,
@@ -151,9 +148,8 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ./f', 6);
 			assert(!!result);
 			assert(result.length === 1);
-			const label = `.${pathSeparator}folder1${pathSeparator}`;
 			assert.deepEqual(result![0], {
-				label,
+				label: `.${pathSeparator}folder1${pathSeparator}`,
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,
@@ -174,9 +170,8 @@ suite('TerminalCompletionService', () => {
 			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ../', 5);
 			assert(!!result);
 			assert(result.length === 1);
-			const label = `..${pathSeparator}test${pathSeparator}`;
 			assert.deepEqual(result![0], {
-				label,
+				label: `..${pathSeparator}test${pathSeparator}`,
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,
