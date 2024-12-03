@@ -92,7 +92,8 @@ const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
 class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly context = this._register(this.instantiationService.createInstance(ChatSetupContext));
-	private readonly controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, this.context)));
+	private readonly requests = this._register(this.instantiationService.createInstance(ChatSetupRequests, this.context));
+	private readonly controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, this.context, this.requests)));
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
@@ -648,10 +649,9 @@ class ChatSetupController extends Disposable {
 		return this._step;
 	}
 
-	private readonly requests = this._register(this.instantiationService.createInstance(ChatSetupRequests, this.context));
-
 	constructor(
 		private readonly context: ChatSetupContext,
+		private readonly requests: ChatSetupRequests,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IViewsService private readonly viewsService: IViewsService,
@@ -661,8 +661,7 @@ class ChatSetupController extends Disposable {
 		@IProgressService private readonly progressService: IProgressService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IActivityService private readonly activityService: IActivityService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 
