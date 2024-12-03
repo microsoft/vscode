@@ -69,7 +69,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			tags: ['experimental'],
 		},
 		[InlineChatConfigKeys.LineSuffixHint]: {
-			description: localize('lineSuffixHint', "Whether a hint to complete a line with inline chat is shown."),
+			markdownDescription: localize('lineSuffixHint', "Whether a hint to complete a line with inline chat is shown. Only shows when at the end of a line that is dominated by natural language, like `class Person with name and hobbies`"),
 			default: true,
 			type: 'boolean',
 			tags: ['experimental'],
