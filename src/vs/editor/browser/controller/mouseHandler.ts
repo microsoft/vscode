@@ -421,20 +421,17 @@ class MouseDownOperation extends Disposable {
 				target: position
 			});
 		} else {
-			console.log(position.type)
-			if (position.type === MouseTargetType.OUTSIDE_EDITOR && (position.outsidePosition === 'left' || position.outsidePosition === 'right')) {
-				this._leftRightDragScrolling.start(position, e);
-				return
-			} else {
-				this._leftRightDragScrolling.stop();
-			}
-			if (position.type === MouseTargetType.OUTSIDE_EDITOR && (position.outsidePosition === 'above' || position.outsidePosition === 'below')) {
-				this._topBottomDragScrolling.start(position, e);
-				return
+			if (position.type === MouseTargetType.OUTSIDE_EDITOR) {
+				if (position.outsidePosition === 'above' || position.outsidePosition === 'below') {
+					this._topBottomDragScrolling.start(position, e);
+				} else {
+					this._leftRightDragScrolling.start(position, e);
+				}
 			} else {
 				this._topBottomDragScrolling.stop();
+				this._leftRightDragScrolling.stop();
+				this._dispatchMouse(position, true, NavigationCommandRevealType.Minimal);
 			}
-			this._dispatchMouse(position, true, NavigationCommandRevealType.Minimal);
 		}
 	}
 
@@ -513,6 +510,7 @@ class MouseDownOperation extends Disposable {
 	private _stop(): void {
 		this._isActive = false;
 		this._topBottomDragScrolling.stop();
+		this._leftRightDragScrolling.stop();
 	}
 
 	public onHeightChanged(): void {
@@ -567,14 +565,14 @@ class MouseDownOperation extends Disposable {
 		const buffer = 120;
 
 		const left = this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft;
-		const right = this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft + this._context.configuration.options.get(EditorOption.layoutInfo).contentWidth;
+		const right = this._context.configuration.options.get(EditorOption.layoutInfo).contentLeft + this._context.configuration.options.get(EditorOption.layoutInfo).width;
 		console.log("left: " + left + " right: " + right + " pos: " + e.relativePos.x)
-		if (e.relativePos.x < left + buffer) {
+		if (e.relativePos.x <= left + buffer) {
 			const outsideDistance = left + buffer - e.relativePos.x;
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, 1), 'left', outsideDistance);
 		}
 
-		if (e.relativePos.x > right - buffer) {
+		if (e.relativePos.x >= right - buffer) {
 			const outsideDistance = e.relativePos.x - right - buffer;
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)), 'right', outsideDistance);
 		}
@@ -891,15 +889,19 @@ class LeftRightDragScrollingOperation extends Disposable {
 			const relativePos = createCoordinatesRelativeToEditor(this._viewHelper.viewDomNode, editorPos, pos);
 			mouseTarget = this._mouseTargetFactory.createMouseTarget(this._viewHelper.getLastRenderData(), editorPos, pos, relativePos, null);
 		}
-		const currentScrollPosition = this._context.viewModel.viewLayout.getCurrentScrollLeft()
-		console.log(currentScrollPosition)
-		if (!mouseTarget.position || mouseTarget.position.lineNumber !== edgeLineNumber) {
-			//console.log(this._position.mouseColumn + " " + edgeLineNumber + " " + this._position.position.column + " " + this._position.outsideDistance)
-			if (this._position.outsidePosition === 'left') {
-				mouseTarget = MouseTarget.createOutsideEditor(this._position.mouseColumn, new Position(edgeLineNumber, this._position.mouseColumn), 'left', this._position.outsideDistance);
-			} else {
-				mouseTarget = MouseTarget.createOutsideEditor(this._position.mouseColumn, new Position(edgeLineNumber, this._position.mouseColumn), 'right', this._position.outsideDistance);
-			}
+		// const currentScrollPosition = this._context.viewModel.viewLayout.getCurrentScrollLeft()
+		// console.log("scroll " + currentScrollPosition)
+		// if (currentScrollPosition == 0) {
+		// 	return
+		// }
+		if (!mouseTarget.position) {
+			console.log("let go!")
+			return
+		}
+		if (this._position.outsidePosition === 'left') {
+			mouseTarget = MouseTarget.createOutsideEditor(this._position.mouseColumn, new Position(edgeLineNumber, this._position.mouseColumn), 'left', this._position.outsideDistance);
+		} else {
+			mouseTarget = MouseTarget.createOutsideEditor(this._position.mouseColumn, new Position(edgeLineNumber, this._position.mouseColumn), 'right', this._position.outsideDistance);
 		}
 
 		this._dispatchMouse(mouseTarget, true, NavigationCommandRevealType.None);
