@@ -25,11 +25,8 @@ import { IChatService } from '../../../../chat/common/chatService.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { INotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
 import { autorunWithStore, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { IModelService } from '../../../../../../editor/common/services/model.js';
-import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
-import { Event } from '../../../../../../base/common/event.js';
-import { TextModel } from '../../../../../../editor/common/model/textModel.js';
 import { SaveReason } from '../../../../../common/editor.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 
 
 export const INotebookModelSynchronizerFactory = createDecorator<INotebookModelSynchronizerFactory>('INotebookModelSynchronizerFactory');
@@ -79,7 +76,7 @@ export class NotebookModelSynchronizer extends Disposable {
 		@IChatEditingService _chatEditingService: IChatEditingService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IChatService chatService: IChatService,
-		@IModelService private readonly modelService: IModelService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 		@INotebookLoggingService private readonly logService: INotebookLoggingService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
@@ -303,9 +300,6 @@ export class NotebookModelSynchronizer extends Disposable {
 			await Promise.all(cellDiffInfoToApplyEdits.reverse().map(async diff => {
 				if (diff.type === 'delete') {
 					deletedIndexes.push(diff.originalCellIndex);
-					const cell = currentModel.cells[diff.originalCellIndex];
-					// Ensure the models of these cells have been loaded before we delete them.
-					await this.waitForCellModelToBeAvailable(cell);
 					edits.push({
 						editType: CellEditType.Replace,
 						index: diff.originalCellIndex,
@@ -358,11 +352,16 @@ export class NotebookModelSynchronizer extends Disposable {
 				if (diff.type === 'modified') {
 					const cell = currentModel.cells[diff.originalCellIndex];
 					// Ensure the models of these cells have been loaded before we update them.
-					const textModel = await this.waitForCellModelToBeAvailable(cell);
-					const newText = modelWithChatEdits.cells[diff.modifiedCellIndex].getValue();
-					textModel.pushEditOperations(null, [
-						EditOperation.replace(textModel.getFullModelRange(), newText)
-					], () => null);
+					const cellModelRef = await this.textModelService.createModelReference(cell.uri);
+					try {
+						const textModel = cellModelRef.object.textEditorModel;
+						const newText = modelWithChatEdits.cells[diff.modifiedCellIndex].getValue();
+						textModel.pushEditOperations(null, [
+							EditOperation.replace(textModel.getFullModelRange(), newText)
+						], () => null);
+					} finally {
+						cellModelRef.dispose();
+					}
 				}
 			}));
 
@@ -377,13 +376,6 @@ export class NotebookModelSynchronizer extends Disposable {
 	}
 	private previousUriOfModelForDiff?: URI;
 
-	private async waitForCellModelToBeAvailable(cell: NotebookCellTextModel): Promise<TextModel> {
-		if (cell.textModel) {
-			return cell.textModel;
-		}
-		await Event.toPromise(this.modelService.onModelAdded);
-		return this.waitForCellModelToBeAvailable(cell);
-	}
 	private async getModifiedModelForDiff(entry: IModifiedFileEntry, token: CancellationToken): Promise<NotebookTextModel | undefined> {
 		const text = (entry as ChatEditingModifiedFileEntry).modifiedModel.getValue();
 		const bytes = VSBuffer.fromString(text);
