@@ -263,7 +263,7 @@ suitability for any purpose.
 
 ---------------------------------------------------------
 
-autocomplete 2.684.0 - [object Object]
+autocomplete 2.684.0 - MIT
 https://github.com/withfig/autocomplete
 
 MIT License
