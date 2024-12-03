@@ -89,7 +89,7 @@ export class WatchExpressionsView extends ViewPane {
 		const treeContainer = renderViewTree(container);
 
 		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer, this.expressionRenderer);
-		this.tree = <WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'WatchExpressions', treeContainer, new WatchExpressionsDelegate(),
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>, 'WatchExpressions', treeContainer, new WatchExpressionsDelegate(),
 			[
 				expressionsRenderer,
 				this.instantiationService.createInstance(VariablesRenderer, this.expressionRenderer),

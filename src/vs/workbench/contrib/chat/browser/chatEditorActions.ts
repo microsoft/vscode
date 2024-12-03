@@ -10,7 +10,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
-import { ChatEditorController, ctxHasEditorModification } from './chatEditorController.js';
+import { ChatEditorController, ctxHasEditorModification, ctxHasRequestInProgress } from './chatEditorController.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
@@ -19,7 +19,7 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
-import { ctxNotebookHasEditorModification } from '../../notebook/browser/chatEdit/notebookChatEditController.js';
+import { ctxNotebookHasEditorModification } from '../../notebook/browser/contrib/chatEdit/notebookChatEditController.js';
 
 abstract class NavigateAction extends Action2 {
 
@@ -49,7 +49,7 @@ abstract class NavigateAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor) {
+	override async run(accessor: ServicesAccessor) {
 
 		const chatEditingService = accessor.get(IChatEditingService);
 		const editorService = accessor.get(IEditorService);
@@ -97,7 +97,7 @@ abstract class NavigateAction extends Action2 {
 		const entry = entries[newIdx];
 		const change = entry.diffInfo.get().changes.at(this.next ? 0 : -1);
 
-		return editorService.openEditor({
+		const newEditorPane = await editorService.openEditor({
 			resource: entry.modifiedURI,
 			options: {
 				selection: change && Range.fromPositions({ lineNumber: change.original.startLineNumber, column: 1 }),
@@ -105,6 +105,12 @@ abstract class NavigateAction extends Action2 {
 				revealIfVisible: false,
 			}
 		}, ACTIVE_GROUP);
+
+
+		const newEditor = newEditorPane?.getControl();
+		if (isCodeEditor(newEditor)) {
+			ChatEditorController.get(newEditor)?.initNavigation();
+		}
 	}
 }
 
@@ -120,7 +126,7 @@ abstract class AcceptDiscardAction extends Action2 {
 				? localize2('accept2', 'Accept')
 				: localize2('discard2', 'Discard'),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification)),
+			precondition: ContextKeyExpr.and(ctxHasRequestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ContextKeyExpr.or(ctxHasEditorModification, ctxNotebookHasEditorModification)),
 			icon: accept
 				? Codicon.check
 				: Codicon.discard,
@@ -153,7 +159,7 @@ abstract class AcceptDiscardAction extends Action2 {
 			return;
 		}
 
-		const session = chatEditingService.getEditingSession(uri);
+		const session = chatEditingService.currentEditingSession;
 		if (!session) {
 			return;
 		}

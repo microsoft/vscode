@@ -84,7 +84,7 @@ import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from '../../servic
 import * as search from '../../services/search/common/search.js';
 import { TextSearchCompleteMessage } from '../../services/search/common/searchExtTypes.js';
 import { ISaveProfileResult } from '../../services/userDataProfile/common/userDataProfile.js';
-import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
+import { TerminalCompletionItem, TerminalCompletionList, TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
@@ -537,6 +537,7 @@ export interface TerminalLaunchConfig {
 	isTransient?: boolean;
 }
 
+
 export interface MainThreadTerminalServiceShape extends IDisposable {
 	$createTerminal(extHostTerminalId: string, config: TerminalLaunchConfig): Promise<void>;
 	$dispose(id: ExtHostTerminalIdentifier): void;
@@ -546,6 +547,8 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$registerProcessSupport(isSupported: boolean): void;
 	$registerProfileProvider(id: string, extensionIdentifier: string): void;
 	$unregisterProfileProvider(id: string): void;
+	$registerCompletionProvider(id: string, extensionIdentifier: string, ...triggerCharacters: string[]): void;
+	$unregisterCompletionProvider(id: string): void;
 	$registerQuickFixProvider(id: string, extensionIdentifier: string): void;
 	$unregisterQuickFixProvider(id: string): void;
 	$setEnvironmentVariableCollection(extensionIdentifier: string, persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined, descriptionMap: ISerializableEnvironmentDescriptionMap): void;
@@ -1543,7 +1546,7 @@ export interface SCMProviderFeatures {
 	count?: number;
 	commitTemplate?: string;
 	acceptInputCommand?: languages.Command;
-	actionButton?: SCMActionButtonDto;
+	actionButton?: SCMActionButtonDto | null;
 	statusBarCommands?: ICommandDto[];
 }
 
@@ -1643,7 +1646,7 @@ export interface MainThreadSCMShape extends IDisposable {
 }
 
 export interface MainThreadQuickDiffShape extends IDisposable {
-	$registerQuickDiffProvider(handle: number, selector: IDocumentFilterDto[], label: string, rootUri: UriComponents | undefined): Promise<void>;
+	$registerQuickDiffProvider(handle: number, selector: IDocumentFilterDto[], label: string, rootUri: UriComponents | undefined, visible: boolean): Promise<void>;
 	$unregisterQuickDiffProvider(handle: number): Promise<void>;
 }
 
@@ -1818,18 +1821,18 @@ export interface ITextEditorPositionData {
 	[id: string]: EditorGroupColumn;
 }
 
-export type ITextEditorDiff = [
+export type ITextEditorChange = [
 	originalStartLineNumber: number,
-	originalEndLineNumber: number,
+	originalEndLineNumberExclusive: number,
 	modifiedStartLineNumber: number,
-	modifiedEndLineNumber: number
+	modifiedEndLineNumberExclusive: number
 ];
 
 export interface ITextEditorDiffInformation {
 	readonly documentVersion: number;
 	readonly original: UriComponents | undefined;
 	readonly modified: UriComponents;
-	readonly diff: readonly ITextEditorDiff[];
+	readonly changes: readonly ITextEditorChange[];
 }
 
 export interface IEditorPropertiesChangeData {
@@ -1845,7 +1848,7 @@ export interface ISelectionChangeEvent {
 export interface ExtHostEditorsShape {
 	$acceptEditorPropertiesChanged(id: string, props: IEditorPropertiesChangeData): void;
 	$acceptEditorPositionData(data: ITextEditorPositionData): void;
-	$acceptEditorDiffInformation(id: string, diffInformation: ITextEditorDiffInformation | undefined): void;
+	$acceptEditorDiffInformation(id: string, diffInformation: ITextEditorDiffInformation[] | undefined): void;
 }
 
 export interface IDocumentsAndEditorsDelta {
@@ -2396,6 +2399,11 @@ export interface ITerminalCommandDto {
 	output: string | undefined;
 }
 
+export interface ITerminalCompletionContextDto {
+	commandLine: string;
+	cursorPosition: number;
+}
+
 export interface ExtHostTerminalServiceShape {
 	$acceptTerminalClosed(id: number, exitCode: number | undefined, exitReason: TerminalExitReason): void;
 	$acceptTerminalOpened(id: number, extHostTerminalId: string | undefined, name: string, shellLaunchConfig: IShellLaunchConfigDto): void;
@@ -2422,6 +2430,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
 	$createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
 	$provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto, token: CancellationToken): Promise<SingleOrMany<TerminalQuickFix> | undefined>;
+	$provideTerminalCompletions(id: string, options: ITerminalCompletionContextDto, token: CancellationToken): Promise<TerminalCompletionItem[] | TerminalCompletionList | undefined>;
 }
 
 export interface ExtHostTerminalShellIntegrationShape {
@@ -2587,6 +2596,7 @@ export interface ExtHostDecorationsShape {
 export interface ExtHostWindowShape {
 	$onDidChangeWindowFocus(value: boolean): void;
 	$onDidChangeWindowActive(value: boolean): void;
+	$onDidChangeActiveNativeWindowHandle(handle: string | undefined): void;
 }
 
 export interface ExtHostLogLevelServiceShape {

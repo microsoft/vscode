@@ -486,11 +486,12 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				let errorDetails: IChatResponseErrorDetails | undefined;
 				if (result?.errorDetails) {
 					errorDetails = {
-						...result.errorDetails,
+						...typeConvert.ChatErrorDetails.from(result.errorDetails, this._commands.converter, sessionDisposables),
 						responseIsIncomplete: true
 					};
 				}
-				if (errorDetails?.responseIsRedacted) {
+
+				if (errorDetails?.responseIsRedacted || errorDetails?.quotaExceededDetails) {
 					checkProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
 				}
 

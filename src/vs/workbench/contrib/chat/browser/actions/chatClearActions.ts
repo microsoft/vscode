@@ -119,8 +119,15 @@ export function registerNewChatActions() {
 					when: ContextKeyExpr.equals('view', EditsViewId),
 					group: 'navigation',
 					order: -1
-				},
-				]
+				}],
+				keybinding: {
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyMod.CtrlCmd | KeyCode.KeyL,
+					mac: {
+						primary: KeyMod.WinCtrl | KeyCode.KeyL
+					},
+					when: ChatContextKeys.inChatSession
+				}
 			});
 		}
 
@@ -181,7 +188,7 @@ export function registerNewChatActions() {
 				announceChatCleared(accessibilitySignalService);
 				const widget = widgetService.getWidgetBySessionId(context.sessionId);
 				if (widget) {
-					chatEditingService.currentEditingSessionObs.get()?.stop();
+					chatEditingService.currentEditingSessionObs.get()?.stop(true);
 					widget.clear();
 					widget.attachmentModel.clear();
 					widget.focusInput();
@@ -192,7 +199,7 @@ export function registerNewChatActions() {
 				const widget = chatView.widget;
 
 				announceChatCleared(accessibilitySignalService);
-				chatEditingService.currentEditingSessionObs.get()?.stop();
+				chatEditingService.currentEditingSessionObs.get()?.stop(true);
 				widget.clear();
 				widget.attachmentModel.clear();
 				widget.focusInput();
@@ -265,15 +272,11 @@ export function registerNewChatActions() {
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const chatEditingService = accessor.get(IChatEditingService);
-			const chatWidgetService = accessor.get(IChatWidgetService);
 			const currentEditingSession = chatEditingService.currentEditingSession;
 			if (!currentEditingSession) {
 				return;
 			}
-
-			const widget = chatWidgetService.getWidgetBySessionId(currentEditingSession.chatSessionId);
 			await currentEditingSession.undoInteraction();
-			widget?.viewModel?.model.disableRequests(currentEditingSession.hiddenRequestIds.get());
 		}
 	});
 
@@ -297,15 +300,11 @@ export function registerNewChatActions() {
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const chatEditingService = accessor.get(IChatEditingService);
-			const chatWidgetService = accessor.get(IChatWidgetService);
 			const currentEditingSession = chatEditingService.currentEditingSession;
 			if (!currentEditingSession) {
 				return;
 			}
-
-			const widget = chatWidgetService.getWidgetBySessionId(currentEditingSession.chatSessionId);
 			await chatEditingService.currentEditingSession?.redoInteraction();
-			widget?.viewModel?.model.disableRequests(currentEditingSession.hiddenRequestIds.get());
 		}
 	});
 
@@ -330,7 +329,6 @@ export function registerNewChatActions() {
 					order: 1
 				}, {
 					id: MenuId.ChatCommandCenter,
-					when: ChatContextKeys.editingParticipantRegistered,
 					group: 'a_open',
 					order: 2
 				}, {

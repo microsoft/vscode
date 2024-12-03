@@ -59,7 +59,7 @@ function renderADMLString(prefix: string, moduleName: string, nlsString: NlsStri
 		value = nlsString.value;
 	}
 
-	return `<string id="${prefix}_${nlsString.nlsKey}">${value}</string>`;
+	return `<string id="${prefix}_${nlsString.nlsKey.replace(/\./g, '_')}">${value}</string>`;
 }
 
 abstract class BasePolicy implements Policy {
@@ -78,7 +78,7 @@ abstract class BasePolicy implements Policy {
 
 	renderADMX(regKey: string) {
 		return [
-			`<policy name="${this.name}" class="Both" displayName="$(string.${this.name})" explainText="$(string.${this.name}_${this.description.nlsKey})" key="Software\\Policies\\Microsoft\\${regKey}" presentation="$(presentation.${this.name})">`,
+			`<policy name="${this.name}" class="Both" displayName="$(string.${this.name})" explainText="$(string.${this.name}_${this.description.nlsKey.replace(/\./g, '_')})" key="Software\\Policies\\Microsoft\\${regKey}" presentation="$(presentation.${this.name})">`,
 			`	<parentCategory ref="${this.category.name.nlsKey}" />`,
 			`	<supportedOn ref="Supported_${this.minimumVersion.replace(/\./g, '_')}" />`,
 			`	<elements>`,
@@ -211,6 +211,44 @@ class StringPolicy extends BasePolicy {
 		}
 
 		return new StringPolicy(name, category, minimumVersion, description, moduleName);
+	}
+
+	private constructor(
+		name: string,
+		category: Category,
+		minimumVersion: string,
+		description: NlsString,
+		moduleName: string,
+	) {
+		super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
+	}
+
+	protected renderADMXElements(): string[] {
+		return [`<text id="${this.name}" valueName="${this.name}" required="true" />`];
+	}
+
+	renderADMLPresentationContents() {
+		return `<textBox refId="${this.name}"><label>${this.name}:</label></textBox>`;
+	}
+}
+
+class ObjectPolicy extends BasePolicy {
+
+	static from(
+		name: string,
+		category: Category,
+		minimumVersion: string,
+		description: NlsString,
+		moduleName: string,
+		settingNode: Parser.SyntaxNode
+	): ObjectPolicy | undefined {
+		const type = getStringProperty(settingNode, 'type');
+
+		if (type !== 'object' && type !== 'array') {
+			return undefined;
+		}
+
+		return new ObjectPolicy(name, category, minimumVersion, description, moduleName);
 	}
 
 	private constructor(
@@ -402,6 +440,7 @@ const PolicyTypes = [
 	IntPolicy,
 	StringEnumPolicy,
 	StringPolicy,
+	ObjectPolicy
 ];
 
 function getPolicy(
@@ -474,7 +513,7 @@ function getPolicies(moduleName: string, node: Parser.SyntaxNode): Policy[] {
 				arguments: (arguments	(object	(pair
 					key: [(property_identifier)(string)] @propertiesKey (#eq? @propertiesKey properties)
 					value: (object (pair
-						key: [(property_identifier)(string)]
+						key: [(property_identifier)(string)(computed_property_name)]
 						value: (object (pair
 							key: [(property_identifier)(string)] @policyKey (#eq? @policyKey policy)
 							value: (object) @policy

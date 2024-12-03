@@ -565,6 +565,18 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('viewVisibility', "Controls the visibility of view header actions. View header actions may either be always visible, or only visible when that view is focused or hovered over.")
 			},
+			'workbench.view.showQuietly': {
+				'type': 'object',
+				'description': localize('workbench.view.showQuietly', "If an extension requests a hidden view to be shown, display a clickable status bar indicator instead."),
+				'scope': ConfigurationScope.WINDOW,
+				'properties': {
+					'workbench.panel.output': {
+						'type': 'boolean',
+						'description': localize('workbench.panel.output', "Output view")
+					}
+				},
+				'additionalProperties': false
+			},
 			'workbench.fontAliasing': {
 				'type': 'string',
 				'enum': ['default', 'antialiased', 'none', 'auto'],
@@ -632,7 +644,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('layoutcontrol.type.toggles', "Shows several buttons for toggling the visibility of the panels and side bar."),
 					localize('layoutcontrol.type.both', "Shows both the dropdown and toggle buttons."),
 				],
-				'default': 'toggles',
+				'default': 'both',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
 			},
 			'workbench.tips.enabled': {

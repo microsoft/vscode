@@ -454,6 +454,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.checkoutRef",
+        "title": "%command.checkoutRef%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.checkoutRefDetached",
         "title": "%command.checkoutRefDetached%",
         "category": "Git",
@@ -1471,12 +1477,24 @@
           "when": "false"
         },
         {
+          "command": "git.checkoutRef",
+          "when": "false"
+        },
+        {
           "command": "git.checkoutRefDetached",
           "when": "false"
         },
         {
           "command": "git.cherryPickRef",
           "when": "false"
+        },
+        {
+          "command": "git.diff.stageHunk",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && diffEditorOriginalUri =~ /^git\\:.*%22ref%22%3A%22~%22%7D$/"
+        },
+        {
+          "command": "git.diff.stageSelection",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && diffEditorOriginalUri =~ /^git\\:.*%22ref%22%3A%22~%22%7D$/"
         }
       ],
       "scm/title": [
@@ -2020,6 +2038,7 @@
           "group": "9_copy@2"
         }
       ],
+      "scm/historyItemRef/context": [],
       "editor/title": [
         {
           "command": "git.openFile",
@@ -3180,6 +3199,42 @@
           "maximum": 100,
           "markdownDescription": "%config.similarityThreshold%",
           "scope": "resource"
+        },
+        "git.blame.editorDecoration.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.blameEditorDecoration.enabled%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "git.blame.editorDecoration.template": {
+          "type": "string",
+          "default": "${subject}, ${authorName} (${authorDateAgo})",
+          "markdownDescription": "%config.blameEditorDecoration.template%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "git.blame.statusBarItem.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.blameStatusBarItem.enabled%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "git.blame.statusBarItem.template": {
+          "type": "string",
+          "default": "${authorName} (${authorDateAgo})",
+          "markdownDescription": "%config.blameStatusBarItem.template%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },
@@ -3282,6 +3337,16 @@
           "dark": "#8db9e2",
           "highContrast": "#8db9e2",
           "highContrastLight": "#1258a7"
+        }
+      },
+      {
+        "id": "git.blame.editorDecorationForeground",
+        "description": "%colors.blameEditorDecoration%",
+        "defaults": {
+          "dark": "editorCodeLens.foreground",
+          "light": "editorCodeLens.foreground",
+          "highContrast": "editorCodeLens.foreground",
+          "highContrastLight": "editorCodeLens.foreground"
         }
       }
     ],

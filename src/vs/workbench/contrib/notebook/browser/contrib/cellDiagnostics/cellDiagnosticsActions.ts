@@ -40,7 +40,7 @@ registerAction2(class extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		if (context.cell instanceof CodeCellViewModel) {
-			const error = context.cell.executionError.get();
+			const error = context.cell.executionErrorDiagnostic.get();
 			if (error?.location) {
 				const location = Range.lift({
 					startLineNumber: error.location.startLineNumber + 1,
@@ -74,7 +74,7 @@ registerAction2(class extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		if (context.cell instanceof CodeCellViewModel) {
-			const error = context.cell.executionError.get();
+			const error = context.cell.executionErrorDiagnostic.get();
 			if (error?.location) {
 				const location = Range.lift({
 					startLineNumber: error.location.startLineNumber + 1,
@@ -108,7 +108,7 @@ registerAction2(class extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		if (context.cell instanceof CodeCellViewModel) {
-			const error = context.cell.executionError.get();
+			const error = context.cell.executionErrorDiagnostic.get();
 			if (error?.message) {
 				const viewsService = accessor.get(IViewsService);
 				const chatWidget = await showChatView(viewsService);

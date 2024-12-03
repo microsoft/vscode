@@ -34,6 +34,7 @@ import {
 	EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT,
 	ExtensionSignatureVerificationCode,
 	computeSize,
+	IAllowedExtensionsService,
 } from '../common/extensionManagement.js';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from '../common/extensionManagementUtil.js';
 import { IExtensionsProfileScannerService, IScannedProfileExtension } from '../common/extensionsProfileScannerService.js';
@@ -87,10 +88,11 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService productService: IProductService,
+		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService
 	) {
-		super(galleryService, telemetryService, uriIdentityService, logService, productService, userDataProfilesService);
+		super(galleryService, telemetryService, uriIdentityService, logService, productService, allowedExtensionsService, userDataProfilesService);
 		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
 		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner, extension => extensionLifecycle.postUninstall(extension)));
 		this.manifestCache = this._register(new ExtensionsManifestCache(userDataProfilesService, fileService, uriIdentityService, this, this.logService));
@@ -148,6 +150,11 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
 			if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode, this.productService.version, this.productService.date)) {
 				throw new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", extensionId, this.productService.version));
+			}
+
+			const allowedToInstall = this.allowedExtensionsService.isAllowed({ id: extensionId, version: manifest.version, publisherDisplayName: undefined });
+			if (allowedToInstall !== true) {
+				throw new Error(nls.localize('notAllowed', "This extension cannot be installed because {0}", allowedToInstall.value));
 			}
 
 			const results = await this.installExtensions([{ manifest, extension: location, options }]);
@@ -361,16 +368,12 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		}
 		const { location, verificationStatus } = await this.extensionsDownloader.download(extension, operation, verifySignature, clientTargetPlatform);
 
-		if (verificationStatus !== ExtensionSignatureVerificationCode.Success && verifySignature && this.environmentService.isBuilt && !isLinux) {
+		if (verificationStatus !== ExtensionSignatureVerificationCode.Success && verificationStatus !== ExtensionSignatureVerificationCode.NotSigned && verifySignature && this.environmentService.isBuilt && !isLinux) {
 			try {
 				await this.extensionsDownloader.delete(location);
 			} catch (e) {
 				/* Ignore */
 				this.logService.warn(`Error while deleting the downloaded file`, location.toString(), getErrorMessage(e));
-			}
-
-			if (!extension.isSigned) {
-				throw new ExtensionManagementError(nls.localize('not signed', "Extension is not signed."), ExtensionManagementErrorCode.PackageNotSigned);
 			}
 
 			if (!verificationStatus) {
@@ -896,7 +899,7 @@ export class ExtensionsScanner extends Disposable {
 			isMachineScoped: !!extension.metadata?.isMachineScoped,
 			isPreReleaseVersion: !!extension.metadata?.isPreReleaseVersion,
 			hasPreReleaseVersion: !!extension.metadata?.hasPreReleaseVersion,
-			preRelease: !!extension.metadata?.preRelease,
+			preRelease: extension.preRelease,
 			installedTimestamp: extension.metadata?.installedTimestamp,
 			updated: !!extension.metadata?.updated,
 			pinned: !!extension.metadata?.pinned,
