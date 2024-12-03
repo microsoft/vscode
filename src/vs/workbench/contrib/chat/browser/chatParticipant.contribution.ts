@@ -313,9 +313,8 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			when: ContextKeyExpr.or(
 				ContextKeyExpr.and(
 					ContextKeyExpr.has('config.chat.experimental.offerSetup'),
-					ContextKeyExpr.or(
-						ChatContextKeys.Setup.triggered,
-						ChatContextKeys.Setup.installed)),
+					ChatContextKeys.Setup.triggered),
+				ChatContextKeys.Setup.installed,
 				ChatContextKeys.panelParticipantRegistered,
 				ChatContextKeys.extensionInvalid
 			)
@@ -364,9 +363,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			},
 			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.EditingSession }]),
 			when: ContextKeyExpr.or(
-				ContextKeyExpr.and(
-					ContextKeyExpr.has('config.chat.experimental.offerSetup'),
-					ChatContextKeys.Setup.installed),
+				ChatContextKeys.Setup.installed,
 				ChatContextKeys.editingParticipantRegistered
 			)
 		}];
