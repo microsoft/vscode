@@ -205,7 +205,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		const resourceCompletions: ITerminalCompletion[] = [];
 		const endsWithSpace = promptValue.substring(0, cursorPosition).endsWith(' ');
-		const prefix = endsWithSpace ? '' : promptValue.substring(0, cursorPosition).trim().split(' ').at(-1) ?? '';
+		const prefix = endsWithSpace ? '' : promptValue.substring(0, cursorPosition + 1).trim().split(' ').at(-1) ?? '';
 
 		for (const stat of fileStat.children) {
 			let kind: TerminalCompletionItemKind | undefined;
@@ -222,7 +222,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			const pathToResource = resourceRequestConfig.pathSeparator + basename(stat.resource.fsPath);
 
 			let label;
-			if (!prefix.startsWith('.')) {
+			if (!prefix.startsWith('.' + resourceRequestConfig.pathSeparator) && !prefix.startsWith('..' + resourceRequestConfig.pathSeparator)) {
 				// add a dot to the beginning of the label if it doesn't already have one
 				label = '.' + pathToResource;
 			} else {

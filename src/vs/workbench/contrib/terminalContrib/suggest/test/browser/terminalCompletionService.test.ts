@@ -175,8 +175,8 @@ suite('TerminalCompletionService', () => {
 				kind: TerminalCompletionItemKind.Folder,
 				isDirectory: true,
 				isFile: false,
-				replacementIndex: 3,
-				replacementLength: 2 // replacing .., the slash is not replaced
+				replacementIndex: 2,
+				replacementLength: 3 // replacing ../
 			});
 		});
 	});
