@@ -17,7 +17,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable, textLinkForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IChatService } from '../../common/chatService.js';
-import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
+import { IChatResponseViewModel } from '../../common/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { IChatContentPart } from './chatContentParts.js';
 
