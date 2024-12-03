@@ -129,7 +129,7 @@ configurationRegistry.registerConfiguration({
 		'chat.editing.alwaysSaveWithGeneratedChanges': {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
-			markdownDescription: nls.localize('chat.editing.alwaysSaveWithGeneratedChanges', "Whether to always ask before saving files with changes made by chat."),
+			markdownDescription: nls.localize('chat.editing.alwaysSaveWithGeneratedChanges', "Whether files that have changes made by chat can be saved without confirmation."),
 			default: false,
 		},
 		'chat.editing.confirmEditRequestRemoval': {

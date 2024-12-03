@@ -21,7 +21,6 @@ import { EditOperation } from '../../../../../../editor/common/core/editOperatio
 import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
 import { filter } from '../../../../../../base/common/objects.js';
 import { INotebookEditorModelResolverService } from '../../../common/notebookEditorModelResolverService.js';
-import { SaveReason } from '../../../../../common/editor.js';
 import { IChatService } from '../../../../chat/common/chatService.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { INotebookOriginalModelReferenceFactory } from './notebookOriginalModelRefFactory.js';
@@ -169,6 +168,12 @@ export class NotebookModelSynchronizer extends Disposable {
 				cells: [],
 			};
 
+			const indentAmount = this.model.metadata.indentAmount || ref.object.notebook.metadata.indentAmount || undefined;
+			if (typeof indentAmount === 'string' && indentAmount) {
+				// This is required for ipynb serializer to preserve the whitespace in the notebook.
+				data.metadata.indentAmount = indentAmount;
+			}
+
 			let outputSize = 0;
 			for (const cell of this.model.cells) {
 				const cellData: ICellDto2 = {
@@ -213,23 +218,20 @@ export class NotebookModelSynchronizer extends Disposable {
 		if (!this.snapshot) {
 			return;
 		}
-		await this.updateNotebook(this.snapshot.bytes, !this.snapshot.dirty);
+
+		// Even when reverting, we will never save,
+		// When reverting we expect the JSON file to be reverted,
+		// & as a result of that, we expect the JSON to be eventually saved to disc.
+		await this.updateNotebook(this.snapshot.bytes);
 		this._diffInfo.set(undefined, undefined);
 	}
 
-	private async updateNotebook(bytes: VSBuffer, save: boolean) {
+	private async updateNotebook(bytes: VSBuffer) {
 		const ref = await this.notebookModelResolverService.resolve(this.model.uri);
 		try {
 			const serializer = await this.getNotebookSerializer();
 			const data = await serializer.dataToNotebook(bytes);
 			this.model.reset(data.cells, data.metadata, serializer.options);
-
-			if (save) {
-				// save the file after discarding so that the dirty indicator goes away
-				// and so that an intermediate saved state gets reverted
-				// await this.notebookEditor.textModel.save({ reason: SaveReason.EXPLICIT });
-				await ref.object.save({ reason: SaveReason.EXPLICIT });
-			}
 		} finally {
 			ref.dispose();
 		}
@@ -238,7 +240,7 @@ export class NotebookModelSynchronizer extends Disposable {
 	private async accept(entry: IModifiedFileEntry) {
 		const modifiedModel = (entry as ChatEditingModifiedFileEntry).modifiedModel;
 		const content = modifiedModel.getValue();
-		await this.updateNotebook(VSBuffer.fromString(content), false);
+		await this.updateNotebook(VSBuffer.fromString(content));
 		this._diffInfo.set(undefined, undefined);
 	}
 
