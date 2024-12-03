@@ -896,9 +896,9 @@ class LeftRightDragScrollingOperation extends Disposable {
 		}
 
 		if (this._position.outsidePosition === 'left') {
-			mouseTarget = MouseTarget.createOutsideEditor(this._position.mouseColumn, new Position(edgeLineNumber, this._position.mouseColumn), 'left', this._position.outsideDistance);
+			mouseTarget = MouseTarget.createOutsideEditor(mouseTarget.mouseColumn, new Position(edgeLineNumber, mouseTarget.mouseColumn), 'left', this._position.outsideDistance);
 		} else {
-			mouseTarget = MouseTarget.createOutsideEditor(this._position.mouseColumn, new Position(edgeLineNumber, this._position.mouseColumn), 'right', this._position.outsideDistance);
+			mouseTarget = MouseTarget.createOutsideEditor(mouseTarget.mouseColumn, new Position(edgeLineNumber, mouseTarget.mouseColumn), 'right', this._position.outsideDistance);
 		}
 
 
