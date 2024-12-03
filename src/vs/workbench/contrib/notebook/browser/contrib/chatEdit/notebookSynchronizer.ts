@@ -27,6 +27,7 @@ import { INotebookOriginalModelReferenceFactory } from './notebookOriginalModelR
 import { autorunWithStore, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { SaveReason } from '../../../../../common/editor.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { AutoSaveMode, IFilesConfigurationService } from '../../../../../services/filesConfiguration/common/filesConfigurationService.js';
 
 
 export const INotebookModelSynchronizerFactory = createDecorator<INotebookModelSynchronizerFactory>('INotebookModelSynchronizerFactory');
@@ -79,6 +80,7 @@ export class NotebookModelSynchronizer extends Disposable {
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@INotebookLoggingService private readonly logService: INotebookLoggingService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
 		@INotebookEditorModelResolverService private readonly notebookModelResolverService: INotebookEditorModelResolverService,
 		@INotebookOriginalModelReferenceFactory private readonly originalModelRefFactory: INotebookOriginalModelReferenceFactory,
@@ -218,7 +220,8 @@ export class NotebookModelSynchronizer extends Disposable {
 			// As a result of this, reverting (creating new edit sessions), result in ipynb files without new line at the end meaning we still end up with a saved ipynb file with changes.
 			// Hence we must ensure ipynb notebooks are always saved through serializer.
 			// But do this only if the notebook model was not already dirty.
-			await this.updateNotebook(this.snapshot.bytes, !this.snapshot.dirty);
+			// @rebornix: if auto save is enabled, we should always save the notebook model
+			await this.updateNotebook(this.snapshot.bytes, !this.snapshot.dirty || this.filesConfigurationService.getAutoSaveMode(this.model.uri).mode !== AutoSaveMode.OFF);
 		}
 		finally {
 			this.isReverting = false;

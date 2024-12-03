@@ -11,6 +11,7 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { SaveReason } from '../../../../common/editor.js';
 import { IResolvedTextFileEditorModel } from '../../../../services/textfile/common/textfiles.js';
 import { ChatEditKind } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
@@ -38,7 +39,7 @@ export class ChatEditingModifiedNotebookEntry extends ChatEditingModifiedFileEnt
 	}
 
 	async saveMirrorDocument(): Promise<void> {
-		await this.resolveTextFileEditorModel.save();
+		await this.resolveTextFileEditorModel.save({ reason: SaveReason.EXPLICIT, ignoreModifiedSince: true });
 	}
 
 	async revertMirrorDocument(): Promise<void> {
