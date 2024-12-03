@@ -806,14 +806,14 @@ class ChatSetupWelcomeContent extends Disposable {
 
 		switch (this.context.state.entitlement) {
 			case ChatEntitlement.Unknown:
+				showLimitedSkuHeader = true;
+				buttonLabel = this.context.state.registered ? localize('signUp', "Sign in to Use Copilot") : localize('signUpFree', "Sign in to Use Copilot for Free");
+				break;
 			case ChatEntitlement.Unresolved:
 			case ChatEntitlement.Available:
-				showLimitedSkuHeader = true;
-				buttonLabel = localize('signInUp', "Sign in to Use Copilot for Free");
-				break;
 			case ChatEntitlement.Limited:
 				showLimitedSkuHeader = true;
-				buttonLabel = localize('startUpLimited', "Use Copilot for Free");
+				buttonLabel = this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot for Free");
 				break;
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.Unavailable:
@@ -861,6 +861,7 @@ interface IChatSetupContextState {
 	entitlement: ChatEntitlement;
 	triggered?: boolean;
 	installed?: boolean;
+	registered?: boolean;
 }
 
 class ChatSetupContext extends Disposable {
@@ -939,6 +940,12 @@ class ChatSetupContext extends Disposable {
 
 		if (typeof context.entitlement === 'number') {
 			this._state.entitlement = context.entitlement;
+
+			if (this._state.entitlement === ChatEntitlement.Limited || this._state.entitlement === ChatEntitlement.Pro) {
+				this._state.registered = true; // remember that the user did register to improve setup screen
+			} else if (this._state.entitlement === ChatEntitlement.Available) {
+				this._state.registered = false; // only restore when signed-in user can sign-up for limited
+			}
 		}
 
 		this.storageService.store(ChatSetupContext.CHAT_SETUP_CONTEXT_STORAGE_KEY, this._state, StorageScope.PROFILE, StorageTarget.MACHINE);
