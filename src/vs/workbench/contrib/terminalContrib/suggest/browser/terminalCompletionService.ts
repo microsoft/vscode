@@ -204,12 +204,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		const resourceCompletions: ITerminalCompletion[] = [];
 		const endsWithSpace = promptValue.substring(0, cursorPosition).endsWith(' ');
-		let lastWord;
-		if (endsWithSpace) {
-			lastWord = '';
-		} else {
-			lastWord = promptValue.substring(0, cursorPosition).trim().split(' ').at(-1) ?? '';
-		}
+		const prefix = endsWithSpace ? '' : promptValue.substring(0, cursorPosition).trim().split(' ').at(-1) ?? '';
 
 		for (const stat of fileStat.children) {
 			let kind: TerminalCompletionItemKind | undefined;
@@ -224,21 +219,33 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			}
 			const isDirectory = kind === TerminalCompletionItemKind.Folder;
 			const pathToResource = stat.resource.fsPath.replace(cwd.fsPath, '');
-			let label = pathToResource;
+
+			let label;
+			if (!prefix.startsWith('.')) {
+				// add a dot to the beginning of the label if it doesn't already have one
+				label = '.' + pathToResource;
+			} else {
+				if (prefix.endsWith(resourceRequestConfig.pathSeparator)) {
+					// prevent a double path separator
+					label = prefix + pathToResource.substring(1);
+				} else {
+					label = prefix + pathToResource;
+				}
+				if (prefix.length && prefix.at(-1) !== resourceRequestConfig.pathSeparator && prefix.at(-1) !== '.') {
+					// prefix has text, so get closest path prefix
+					label = getPathPrefix(prefix, resourceRequestConfig.pathSeparator) + pathToResource;
+				}
+			}
 			if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
 				label = label + resourceRequestConfig.pathSeparator;
-			}
-			const startsWithDot = lastWord && lastWord.startsWith('.');
-			if (!startsWithDot) {
-				label = '.' + label;
 			}
 			resourceCompletions.push({
 				label,
 				kind,
 				isDirectory,
 				isFile: kind === TerminalCompletionItemKind.File,
-				replacementIndex: promptValue[cursorPosition - 1] === ' ' ? cursorPosition : cursorPosition - 1,
-				replacementLength: label.length - lastWord.length > 0 ? label.length - lastWord.length : label.length,
+				replacementIndex: cursorPosition - prefix.length > 0 ? cursorPosition - prefix.length : cursorPosition,
+				replacementLength: prefix.length > 0 ? prefix.length : label.length
 			});
 		}
 
@@ -246,3 +253,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 }
 
+function getPathPrefix(word: string, pathSeparator: string): string {
+	const lastSlashIndex = Math.max(word.lastIndexOf(pathSeparator));
+	return lastSlashIndex !== -1 ? word.substring(0, lastSlashIndex) : '';
+}
