@@ -307,6 +307,7 @@ export interface IDefaultChatAgent {
 	readonly extensionId: string;
 	readonly chatExtensionId: string;
 	readonly documentationUrl: string;
+	readonly termsStatementUrl: string;
 	readonly privacyStatementUrl: string;
 	readonly skusDocumentationUrl: string;
 	readonly manageSettingsUrl: string;

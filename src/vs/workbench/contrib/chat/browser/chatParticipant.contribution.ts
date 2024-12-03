@@ -313,7 +313,8 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			when: ContextKeyExpr.or(
 				ContextKeyExpr.and(
 					ContextKeyExpr.has('config.chat.experimental.offerSetup'),
-					ChatContextKeys.Setup.triggered),
+					ChatContextKeys.Setup.triggered
+				),
 				ChatContextKeys.Setup.installed,
 				ChatContextKeys.panelParticipantRegistered,
 				ChatContextKeys.extensionInvalid
