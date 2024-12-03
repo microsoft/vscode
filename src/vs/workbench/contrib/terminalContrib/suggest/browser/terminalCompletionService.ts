@@ -220,22 +220,20 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				continue;
 			}
 			const isDirectory = kind === TerminalCompletionItemKind.Folder;
-			const pathToResource = resourceRequestConfig.pathSeparator + basename(stat.resource.fsPath);
+			const fileName = basename(stat.resource.fsPath);
 
 			let label;
 			if (!lastWord.startsWith('.' + resourceRequestConfig.pathSeparator) && !lastWord.startsWith('..' + resourceRequestConfig.pathSeparator)) {
 				// add a dot to the beginning of the label if it doesn't already have one
-				label = '.' + pathToResource;
+				label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
 			} else {
 				if (lastWord.endsWith(resourceRequestConfig.pathSeparator)) {
-					// prevent a double path separator
-					label = lastWord + pathToResource.substring(1);
+					label = `${lastWord}${fileName}`;
 				} else {
-					label = lastWord + pathToResource;
+					label = `${lastWord}${resourceRequestConfig.pathSeparator}${fileName}`;
 				}
 				if (lastWord.length && lastWord.at(-1) !== resourceRequestConfig.pathSeparator && lastWord.at(-1) !== '.') {
-					// prefix has text, so get closest path prefix
-					label = findBasePath(lastWord, resourceRequestConfig.pathSeparator) + pathToResource;
+					label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
 				}
 			}
 			if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
@@ -253,9 +251,4 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		return resourceCompletions.length ? resourceCompletions : undefined;
 	}
-}
-
-function findBasePath(word: string, pathSeparator: string): string {
-	const lastSlashIndex = word.lastIndexOf(pathSeparator);
-	return lastSlashIndex !== -1 ? word.substring(0, lastSlashIndex) : '';
 }
