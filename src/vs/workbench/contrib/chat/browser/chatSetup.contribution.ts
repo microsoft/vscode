@@ -164,7 +164,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, startSetup: string | undefined): Promise<void> {
+			override async run(accessor: ServicesAccessor, startSetup: boolean | undefined): Promise<void> {
 				const viewsService = accessor.get(IViewsService);
 				const viewDescriptorService = accessor.get(IViewDescriptorService);
 				const configurationService = accessor.get(IConfigurationService);
