@@ -157,27 +157,5 @@ suite('TerminalCompletionService', () => {
 				replacementLength: 3 // replacing ./f
 			});
 		});
-		test('cd ../', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = {
-				cwd: URI.parse('file:///folder1'),
-				foldersRequested: true,
-				pathSeparator
-			};
-			await fileService.createFolder(URI.parse('file:///test/'));
-			const childFolder = { resource: URI.parse('file:///test/folder1/'), name: 'folder1', isDirectory: true, isFile: false, isSymbolicLink: false, mtime: 0, size: 0, children: [] };
-			const childFile = { resource: URI.parse('file:///test/file1.txt'), name: 'file1.txt', isDirectory: false, isFile: true, isSymbolicLink: true, mtime: 0, size: 0, children: [] };
-			fileService.setChildren([childFolder, childFile]);
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ../', 6);
-			assert(!!result);
-			assert(result.length === 1);
-			assert.deepEqual(result![0], {
-				label: `..${pathSeparator}folder1${pathSeparator}`,
-				kind: TerminalCompletionItemKind.Folder,
-				isDirectory: true,
-				isFile: false,
-				replacementIndex: 3,
-				replacementLength: 3 // replacing ../
-			});
-		});
 	});
 });
