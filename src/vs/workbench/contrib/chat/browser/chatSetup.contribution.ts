@@ -226,60 +226,6 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 			}
 		}
 
-		class ChatSetupDisableAction extends Action2 {
-
-			static readonly ID = 'workbench.action.chat.disableCopilot';
-			static readonly TITLE = localize2('disableCopilot', "Stop Using Copilot");
-
-			constructor() {
-				super({
-					id: ChatSetupDisableAction.ID,
-					title: ChatSetupDisableAction.TITLE,
-					f1: true,
-					category: CHAT_CATEGORY,
-					precondition: ContextKeyExpr.and(
-						ChatContextKeys.Setup.installed,
-						ChatContextKeys.Setup.limited
-					),
-					menu: {
-						id: MenuId.ChatCommandCenter,
-						group: 'z_hide',
-						order: 1,
-						when: ContextKeyExpr.and(
-							ChatContextKeys.Setup.installed,
-							ChatContextKeys.Setup.limited
-						)
-					}
-				});
-			}
-
-			override async run(accessor: ServicesAccessor): Promise<void> {
-				const dialogService = accessor.get(IDialogService);
-				const extensionManagementService = accessor.get(IExtensionManagementService);
-				const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-				const viewsDescriptorService = accessor.get(IViewDescriptorService);
-				const layoutService = accessor.get(IWorkbenchLayoutService);
-
-				const { confirmed } = await dialogService.confirm({
-					message: localize('disableCopilotConfirm', "Are you sure you want to stop using Copilot?"),
-					detail: localize('hideChatSetupDetail', "You can restore Copilot by running the '{0}' command.", ChatSetupTriggerAction.TITLE.value),
-					primaryButton: localize('stopUsingCopilotButton', "Stop Using Copilot")
-				});
-
-				if (!confirmed) {
-					return;
-				}
-
-				const installed = await extensionManagementService.getInstalled();
-				const extensionsToDisable = installed.filter(e => ExtensionIdentifier.equals(e.identifier.id, defaultChat.extensionId));
-				await extensionManagementService.uninstall(extensionsToDisable[0]);
-
-				await extensionsWorkbenchService.updateRunningExtensions();
-
-				await hideSetupView(viewsDescriptorService, layoutService);
-			}
-		}
-
 		async function hideSetupView(viewsDescriptorService: IViewDescriptorService, layoutService: IWorkbenchLayoutService): Promise<void> {
 			const location = viewsDescriptorService.getViewLocationById(ChatViewId);
 
@@ -295,7 +241,6 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 		registerAction2(ChatSetupTriggerAction);
 		registerAction2(ChatSetupHideAction);
-		registerAction2(ChatSetupDisableAction);
 	}
 }
 
