@@ -877,7 +877,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-notification-widget .chat-error-codicon .codicon-error,
-.chat-quota-error-widget .chat-error-codicon .codicon-error,
 .interactive-response .interactive-response-error-details .codicon-error {
 	color: var(--vscode-errorForeground) !important; /* Have to override default styles which apply to all lists */
 }
