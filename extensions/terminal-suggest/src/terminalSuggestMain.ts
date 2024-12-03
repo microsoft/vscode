@@ -338,7 +338,7 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 	if (shellIntegrationCwd && (filesRequested || foldersRequested)) {
 		cwd = await resolveCwdFromPrefix(prefix, shellIntegrationCwd) ?? shellIntegrationCwd;
 	}
-	if (foldersRequested) {
+	if (foldersRequested && prefix.endsWith(osIsWindows() ? '\\' : '/')) {
 		items.push({
 			label: '.',
 			kind: vscode.TerminalCompletionItemKind.Folder,
