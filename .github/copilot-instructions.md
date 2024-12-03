@@ -46,7 +46,6 @@ x => x + x
 * Open curly braces always go on the same line as whatever necessitates them
 * Parenthesized constructs should have no surrounding whitespace. A single space follows commas, colons, and semicolons in those constructs. For example:
 
-```javascript
 for (let i = 0, n = str.length; i < 10; i++) {
     if (x < 10) {
         foo();
