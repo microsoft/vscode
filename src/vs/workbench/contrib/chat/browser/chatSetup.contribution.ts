@@ -236,11 +236,12 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 			}
 		}
 
-		const outOfFreeChatResponses = localize('out of free chat responses', "You've run out of free chat responses, but free code completions are still available.");
-		// const outOfCompletions = localize('out of completions', "You've run out of free code completions, but free chat responses are still available.");
-		// const outOfQuota = localize('out of quota', "You've reached your free plan limit.");
-		const limitRefresh = localize('limit refresh', "Your limits will refresh on {0}.", 'January 13, 2025 at 3:35 PM');
-		const showExtensionsUsingCopilot = localize('showExtensionsUsingCopilot', "[Click here](command:workbench.action.chat.showExtensionsUsingCopilot) to get insights on how extensions might be using up your {0} free quota.", defaultChat.name);
+		// const outOfFreeChatResponses = localize('out of free chat responses', "You've run out of free chat responses, but free code completions are still available as part of the {0} Free plan.", defaultChat.name);
+		// const outOfCompletions = localize('out of completions', "You've run out of free code completions, but free chat responses are still available as part of the {0} Free plan.", defaultChat.name);
+		const outOfQuota = localize('out of quota', "You've reached the limits of the {0} Free plan.", defaultChat.name);
+		const limitReset = localize('limit reset', "Your limits will reset on {0}.", 'January 13, 2025 at 3:35 PM');
+		const upgradeToPro = localize('upgradeToPro', "Here's what you can expect when upgrading to {0} Pro:\n- Unlimited code completions\n- Unlimited chat interactions\n- 30 day free trial", defaultChat.name);
+		// const showExtensionsUsingCopilot = localize('showExtensionsUsingCopilot', "[Click here](command:workbench.action.chat.showExtensionsUsingCopilot) to get insights on how extensions might be using up your {0} free quota.", defaultChat.name);
 
 		class ShowLimitReachedDialogAction extends Action2 {
 			constructor() {
@@ -249,6 +250,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 					title: localize2('showLimitReachedDialog', "Show Limit Reached Dialog"),
 					f1: true,
 					category: CHAT_CATEGORY,
+					// TODO@bpasero
 					// precondition: ContextKeyExpr.and(
 					// 	ChatContextKeys.Setup.installed.negate(),
 					// 	ContextKeyExpr.or(
@@ -264,23 +266,23 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 				await accessor.get(IDialogService).prompt({
 					type: 'none',
-					message: localize('limit reached', "{0} Plan Limit(s) Reached", defaultChat.name),
+					message: localize('limit reached', "{0} Free", defaultChat.name),
 					cancelButton: {
 						label: localize('dismiss', "Dismiss"),
-						run: ({ checkboxChecked }) => { /* noop */ }
+						run: () => { /* noop */ }
 					},
 					buttons: [
 						{
-							label: localize('managePlan', "Manage {0} Plan", defaultChat.name),
-							run: ({ checkboxChecked }) => commandService.executeCommand('workbench.action.chat.managePlan')
+							label: localize('managePlan', "Upgrade to {0} Pro", defaultChat.name),
+							run: () => commandService.executeCommand('workbench.action.chat.managePlan')
 						},
 					],
 					custom: {
 						closeOnLinkClick: true,
 						icon: Codicon.copilot,
 						markdownDetails: [
-							{ markdown: new MarkdownString(`${outOfFreeChatResponses} ${limitRefresh}`, true) },
-							{ markdown: new MarkdownString(showExtensionsUsingCopilot, true) }
+							{ markdown: new MarkdownString(`${outOfQuota} ${limitReset}`, true) },
+							{ markdown: new MarkdownString(upgradeToPro, true) }
 						]
 					}
 				});
