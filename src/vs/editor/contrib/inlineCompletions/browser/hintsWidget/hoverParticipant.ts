@@ -138,15 +138,15 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		const $ = dom.$;
 		const markdownHoverElement = $('div.hover-row.markdown-hover');
 		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents', { ['aria-live']: 'assertive' }));
-		const renderer = disposables.add(new MarkdownRenderer({ editor: this._editor }, this._languageService, this._openerService));
+		const renderer = new MarkdownRenderer({ editor: this._editor }, this._languageService, this._openerService);
 		const render = (code: string) => {
-			disposables.add(renderer.onDidRenderAsync(() => {
-				hoverContentsElement.className = 'hover-contents code-hover-contents';
-				context.onContentsChanged();
-			}));
-
 			const inlineSuggestionAvailable = nls.localize('inlineSuggestionFollows', "Suggestion:");
-			const renderedContents = disposables.add(renderer.render(new MarkdownString().appendText(inlineSuggestionAvailable).appendCodeblock('text', code)));
+			const renderedContents = disposables.add(renderer.render(new MarkdownString().appendText(inlineSuggestionAvailable).appendCodeblock('text', code), {
+				asyncRenderCallback: () => {
+					hoverContentsElement.className = 'hover-contents code-hover-contents';
+					context.onContentsChanged();
+				}
+			}));
 			hoverContentsElement.replaceChildren(renderedContents.element);
 		};
 
