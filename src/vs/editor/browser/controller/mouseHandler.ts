@@ -415,6 +415,7 @@ class MouseDownOperation extends Disposable {
 			// Ignoring because position is unknown
 			return;
 		}
+
 		if (this._mouseState.isDragAndDrop) {
 			this._viewController.emitMouseDrag({
 				event: e,
@@ -531,7 +532,9 @@ class MouseDownOperation extends Disposable {
 		const editorContent = e.editorPos;
 		const model = this._context.viewModel;
 		const viewLayout = this._context.viewLayout;
+
 		const mouseColumn = this._getMouseColumn(e);
+
 		if (e.posy < editorContent.y) {
 			const outsideDistance = editorContent.y - e.posy;
 			const verticalOffset = Math.max(viewLayout.getCurrentScrollTop() - outsideDistance, 0);
@@ -564,21 +567,21 @@ class MouseDownOperation extends Disposable {
 
 		const possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + e.relativePos.y);
 
-		const buffer = 10;
-		const layoutInfo = this._context.configuration.options.get(EditorOption.layoutInfo)
+		const horizontalScrollPadding = 10;
+		const layoutInfo = this._context.configuration.options.get(EditorOption.layoutInfo);
 		const contentLeft = layoutInfo.contentLeft;
 		let contentRight = layoutInfo.minimap.minimapLeft;
 		if (contentRight === 0) {
 			// Happens when minimap is hidden
-			contentRight = layoutInfo.width - layoutInfo.verticalScrollbarWidth
+			contentRight = layoutInfo.width - layoutInfo.verticalScrollbarWidth;
 		}
-		if (e.relativePos.x <= contentLeft + buffer) {
-			const outsideDistance = contentLeft + buffer - e.relativePos.x;
+		if (e.relativePos.x <= contentLeft + horizontalScrollPadding) {
+			const outsideDistance = contentLeft + horizontalScrollPadding - e.relativePos.x;
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, 1), 'left', outsideDistance);
 		}
 
-		if (e.relativePos.x >= contentRight - buffer) {
-			const outsideDistance = e.relativePos.x - (contentRight - buffer);
+		if (e.relativePos.x >= contentRight - horizontalScrollPadding) {
+			const outsideDistance = e.relativePos.x - (contentRight - horizontalScrollPadding);
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)), 'right', outsideDistance);
 		}
 
@@ -874,7 +877,6 @@ class LeftRightDragScrollingOperation extends Disposable {
 	private _execute(): void {
 		const charWidth = this._context.configuration.options.get(EditorOption.fontInfo).typicalFullwidthCharacterWidth;
 		const scrollSpeedInChars = this._getScrollSpeed();
-		console.log(scrollSpeedInChars)
 		const elapsed = this._tick();
 		const scrollInPixels = scrollSpeedInChars * (elapsed / 1000) * charWidth * 0.5;
 		const scrollValue = (this._position.outsidePosition === 'left' ? -scrollInPixels : scrollInPixels);
@@ -883,9 +885,9 @@ class LeftRightDragScrollingOperation extends Disposable {
 		this._viewHelper.renderNow();
 
 		if (!this._position.position) {
-			return
+			return;
 		}
-		const edgeLineNumber = this._position.position.lineNumber
+		const edgeLineNumber = this._position.position.lineNumber;
 
 		// First, try to find a position that matches the horizontal position of the mouse
 		let mouseTarget: IMouseTarget;
