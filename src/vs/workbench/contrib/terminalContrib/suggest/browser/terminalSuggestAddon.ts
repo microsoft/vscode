@@ -214,6 +214,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			if (!completion.icon && completion.kind !== undefined) {
 				completion.icon = this._kindToIconMap.get(completion.kind);
 			}
+			if (completion.kind === TerminalCompletionItemKind.Folder && !completion.label.endsWith(this._pathSeparator)) {
+				completion.label = completion.label + this._pathSeparator;
+			}
 		}
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
 		const model = new SimpleCompletionModel(completions.filter(c => !!c.label).map(c => new SimpleCompletionItem(c)), lineContext);

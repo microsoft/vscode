@@ -338,6 +338,20 @@ export async function getCompletionItemsFromSpecs(specs: Fig.Spec[], terminalCon
 	if (shellIntegrationCwd && (filesRequested || foldersRequested)) {
 		cwd = await resolveCwdFromPrefix(prefix, shellIntegrationCwd) ?? shellIntegrationCwd;
 	}
+	if (foldersRequested) {
+		items.push({
+			label: '.',
+			kind: vscode.TerminalCompletionItemKind.Folder,
+			replacementIndex: terminalContext.cursorPosition,
+			replacementLength: 2,
+		});
+		items.push({
+			label: '..',
+			kind: vscode.TerminalCompletionItemKind.Folder,
+			replacementIndex: terminalContext.cursorPosition,
+			replacementLength: 3,
+		});
+	}
 	return { items, filesRequested, foldersRequested, cwd };
 }
 
