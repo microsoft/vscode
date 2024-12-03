@@ -205,7 +205,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		const resourceCompletions: ITerminalCompletion[] = [];
 		const endsWithSpace = promptValue.substring(0, cursorPosition).endsWith(' ');
-		const prefix = endsWithSpace ? '' : promptValue.substring(0, cursorPosition + 1).trim().split(' ').at(-1) ?? '';
+		const lastWord = endsWithSpace ? '' : promptValue.substring(0, cursorPosition + 1).trim().split(' ').at(-1) ?? '';
 
 		for (const stat of fileStat.children) {
 			let kind: TerminalCompletionItemKind | undefined;
@@ -222,19 +222,19 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			const pathToResource = resourceRequestConfig.pathSeparator + basename(stat.resource.fsPath);
 
 			let label;
-			if (!prefix.startsWith('.' + resourceRequestConfig.pathSeparator) && !prefix.startsWith('..' + resourceRequestConfig.pathSeparator)) {
+			if (!lastWord.startsWith('.' + resourceRequestConfig.pathSeparator) && !lastWord.startsWith('..' + resourceRequestConfig.pathSeparator)) {
 				// add a dot to the beginning of the label if it doesn't already have one
 				label = '.' + pathToResource;
 			} else {
-				if (prefix.endsWith(resourceRequestConfig.pathSeparator)) {
+				if (lastWord.endsWith(resourceRequestConfig.pathSeparator)) {
 					// prevent a double path separator
-					label = prefix + pathToResource.substring(1);
+					label = lastWord + pathToResource.substring(1);
 				} else {
-					label = prefix + pathToResource;
+					label = lastWord + pathToResource;
 				}
-				if (prefix.length && prefix.at(-1) !== resourceRequestConfig.pathSeparator && prefix.at(-1) !== '.') {
+				if (lastWord.length && lastWord.at(-1) !== resourceRequestConfig.pathSeparator && lastWord.at(-1) !== '.') {
 					// prefix has text, so get closest path prefix
-					label = getPathPrefix(prefix, resourceRequestConfig.pathSeparator) + pathToResource;
+					label = findBasePath(lastWord, resourceRequestConfig.pathSeparator) + pathToResource;
 				}
 			}
 			if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
@@ -245,8 +245,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				kind,
 				isDirectory,
 				isFile: kind === TerminalCompletionItemKind.File,
-				replacementIndex: cursorPosition - prefix.length > 0 ? cursorPosition - prefix.length : cursorPosition,
-				replacementLength: prefix.length > 0 ? prefix.length : label.length
+				replacementIndex: cursorPosition - lastWord.length > 0 ? cursorPosition - lastWord.length : cursorPosition,
+				replacementLength: lastWord.length > 0 ? lastWord.length : label.length
 			});
 		}
 
@@ -254,7 +254,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 	}
 }
 
-function getPathPrefix(word: string, pathSeparator: string): string {
+function findBasePath(word: string, pathSeparator: string): string {
 	const lastSlashIndex = Math.max(word.lastIndexOf(pathSeparator));
 	return lastSlashIndex !== -1 ? word.substring(0, lastSlashIndex) : '';
 }
