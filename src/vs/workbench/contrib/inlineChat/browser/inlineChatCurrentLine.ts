@@ -258,7 +258,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 				return;
 			}
 
-			const agentName = chatAgentService.getDefaultAgent(ChatAgentLocation.Editor)?.fullName ?? localize('defaultTitle', "Chat");
+			const agentName = chatAgentService.getDefaultAgent(ChatAgentLocation.Editor)?.name ?? localize('defaultTitle', "Chat");
 			const { position, isEol, isWhitespace, kb, model } = showData;
 
 			const inlineClassName: string[] = ['inline-chat-hint'];
@@ -270,10 +270,6 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 			} else {
 				content = '\u200a' + kb + '\u200a';
 				inlineClassName.push('embedded');
-			}
-
-			if (decos.length === 0) {
-				inlineClassName.push('first');
 			}
 
 			this._ctxShowingHint.set(true);

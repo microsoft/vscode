@@ -250,6 +250,7 @@ export const LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID = 'workbench.exten
 // Context Keys
 export const HasOutdatedExtensionsContext = new RawContextKey<boolean>('hasOutdatedExtensions', false);
 export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', false);
+export const ExtensionResultsListFocused = new RawContextKey<boolean>('extensionResultListFocused ', true);
 
 // Context Menu Groups
 export const THEME_ACTIONS_GROUP = '_theme_';

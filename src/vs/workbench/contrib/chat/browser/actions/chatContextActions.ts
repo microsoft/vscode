@@ -13,7 +13,7 @@ import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { IRange } from '../../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { EditorType } from '../../../../../editor/common/editorCommon.js';
 import { Command } from '../../../../../editor/common/languages.js';
 import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from '../../../../../editor/contrib/quickAccess/browser/gotoSymbolQuickAccess.js';
@@ -250,26 +250,56 @@ class AttachSelectionToChatAction extends Action2 {
 			title: localize2('workbench.action.chat.attachSelection.label', "Add Selection to Chat"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor')),
-			menu: {
+			precondition: ChatContextKeys.enabled,
+			menu: [{
 				id: MenuId.ChatCommandCenter,
 				group: 'b_chat_context',
+				when: ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor'),
 				order: 15,
-			}
+			}, {
+				id: MenuId.SearchContext,
+				group: 'z_chat',
+				order: 2
+			}]
 		});
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const variablesService = accessor.get(IChatVariablesService);
 		const textEditorService = accessor.get(IEditorService);
-
-		const activeEditor = textEditorService.activeTextEditorControl;
-		const activeUri = textEditorService.activeEditor?.resource;
-		if (textEditorService.activeTextEditorControl?.getEditorType() === EditorType.ICodeEditor && activeUri && [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(activeUri.scheme)) {
-			const selection = activeEditor?.getSelection();
-			if (selection) {
-				(await showChatView(accessor.get(IViewsService)))?.focusInput();
-				variablesService.attachContext('file', { uri: activeUri, range: selection }, ChatAgentLocation.Panel);
+		const [_, matches] = args;
+		// If we have search matches, it means this is coming from the search widget
+		if (matches && matches.length > 0) {
+			const uris = new Map<URI, Range | undefined>();
+			for (const match of matches) {
+				if (isSearchTreeFileMatch(match)) {
+					uris.set(match.resource, undefined);
+				} else {
+					const context = { uri: match._parent.resource, range: match._range };
+					const range = uris.get(context.uri);
+					if (!range ||
+						range.startLineNumber !== context.range.startLineNumber && range.endLineNumber !== context.range.endLineNumber) {
+						uris.set(context.uri, context.range);
+						variablesService.attachContext('file', context, ChatAgentLocation.Panel);
+					}
+				}
+			}
+			// Add the root files for all of the ones that didn't have a match
+			for (const uri of uris) {
+				const [resource, range] = uri;
+				if (!range) {
+					variablesService.attachContext('file', { uri: resource }, ChatAgentLocation.Panel);
+				}
+			}
+		} else {
+			const activeEditor = textEditorService.activeTextEditorControl;
+			const activeUri = textEditorService.activeEditor?.resource;
+			if (textEditorService.activeTextEditorControl?.getEditorType() === EditorType.ICodeEditor && activeUri && [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(activeUri.scheme)) {
+				const selection = activeEditor?.getSelection();
+				if (selection) {
+					(await showChatView(accessor.get(IViewsService)))?.focusInput();
+					variablesService.attachContext('file', { uri: activeUri, range: selection }, ChatAgentLocation.Panel);
+				}
 			}
 		}
 	}
