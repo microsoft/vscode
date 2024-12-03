@@ -44,7 +44,6 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IChatService } from '../../common/chatService.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
 import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
 import { ChatEditingModifiedNotebookFileEntry } from '../../../notebook/browser/contrib/chatEdit/chatEditingModifiedNotebookFileEntry.js';
 import { parse } from '../../../../services/notebook/common/notebookDocumentService.js';
@@ -662,7 +661,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 		// This gets manually disposed in .dispose() or in .restoreSnapshot()
 		let entry: IModifiedFileEntry;
-		if (resource.toString().endsWith('.ipynb')) {
+		if (this._notebookService.hasSupportedNotebooks(resource)) {
 			entry = await this._createModifiedNotebookFileEntry(parse(resource)?.notebook || resource, responseModel);
 		} else {
 			const initialContent = this._initialFileContents.get(resource);
@@ -692,10 +691,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	private async _createModifiedTextFileEntry(resource: URI, responseModel: IModifiedEntryTelemetryInfo, mustExist = false, initialContent: string | undefined): Promise<IModifiedFileEntry> {
 		try {
 			const ref = await this._textModelService.createModelReference(resource);
-
-			if (this._notebookService.hasSupportedNotebooks(resource)) {
-				return this._instantiationService.createInstance(ChatEditingModifiedNotebookEntry, ref, { collapse: (transaction: ITransaction | undefined) => this._collapse(resource, transaction) }, responseModel, mustExist ? ChatEditKind.Created : ChatEditKind.Modified, initialContent);
-			}
 			return this._instantiationService.createInstance(ChatEditingModifiedFileEntry, ref, { collapse: (transaction: ITransaction | undefined) => this._collapse(resource, transaction) }, responseModel, mustExist ? ChatEditKind.Created : ChatEditKind.Modified, initialContent);
 		} catch (err) {
 			if (mustExist) {
