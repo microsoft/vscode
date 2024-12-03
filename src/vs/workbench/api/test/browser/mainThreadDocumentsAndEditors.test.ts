@@ -125,7 +125,10 @@ suite('MainThreadDocumentsAndEditors', () => {
 			new TestPathService(),
 			new TestConfigurationService(),
 			new class extends mock<IDirtyDiffModelService>() {
-				override getOrCreateModel() {
+				override getDirtyDiffModel() {
+					return undefined;
+				}
+				override getDiffModel() {
 					return undefined;
 				}
 			}
