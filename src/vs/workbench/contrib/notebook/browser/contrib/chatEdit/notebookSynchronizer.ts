@@ -327,6 +327,7 @@ export class NotebookModelSynchronizer extends Disposable {
 				if (diff.type === 'insert') {
 					const originalIndex = mappings.get(diff.modifiedCellIndex - 1) ?? 0;
 					mappings.set(diff.modifiedCellIndex, originalIndex);
+					const index = currentModel.cells.length ? originalIndex + 1 : originalIndex;
 					const cell = modelWithChatEdits.cells[diff.modifiedCellIndex];
 					const newCell: ICellDto2 =
 					{
@@ -341,7 +342,7 @@ export class NotebookModelSynchronizer extends Disposable {
 					};
 					edits.push({
 						editType: CellEditType.Replace,
-						index: originalIndex + 1,
+						index,
 						cells: [newCell],
 						count: 0
 					});
