@@ -16,7 +16,7 @@ import { EditOperation, ISingleEditOperation } from '../../../../editor/common/c
 import { Range } from '../../../../editor/common/core/range.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { IEditorContribution, ScrollType } from '../../../../editor/common/editorCommon.js';
-import { IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../../editor/common/model.js';
+import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../../editor/common/model.js';
 import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../editor/common/viewModel.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../scm/browser/dirtydiffDecorator.js';
@@ -30,6 +30,7 @@ import { Selection } from '../../../../editor/common/core/selection.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { URI } from '../../../../base/common/uri.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 
 export interface IChatEditorController {
 	modelURI: IObservable<URI | undefined>;
@@ -41,7 +42,6 @@ export interface IChatEditorController {
 }
 
 export class ChatEditorControllerBase extends Disposable implements IEditorContribution, IChatEditorController {
-	protected readonly originalModel = observableValue<ITextModel | undefined>(this, undefined);
 	protected readonly diff = observableValue<IDocumentDiff>(this, nullDocumentDiff);
 	protected readonly _entry = observableValue<IModifiedFileEntry | undefined>(this, undefined);
 	protected readonly maxLineNumber = observableValue<number>(this, 0);
@@ -76,7 +76,8 @@ export class ChatEditorControllerBase extends Disposable implements IEditorContr
 		protected readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@IEditorService private readonly _editorService: IEditorService
+		@IEditorService private readonly _editorService: IEditorService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
 		super();
 
@@ -110,9 +111,8 @@ export class ChatEditorControllerBase extends Disposable implements IEditorContr
 				return;
 			}
 
-			const originalModel = this.originalModel.read(r);
 			const diff = this.diff.read(r);
-			if (!originalModel || diff.identical) {
+			if (diff.identical) {
 				this.clearRendering();
 				return;
 			}
@@ -123,7 +123,7 @@ export class ChatEditorControllerBase extends Disposable implements IEditorContr
 					const maxLineNumber = this.maxLineNumber.read(r);
 					this._editor.revealLineNearTop(maxLineNumber, ScrollType.Immediate);
 				}
-				this._updateWithDiff(entry.modifiedURI, entry.originalURI, originalModel, diff);
+				this._updateWithDiff(entry.modifiedURI, entry.originalURI, diff);
 				this.initNavigation();
 				if (this._currentChange.get() === undefined) {
 					this.revealNext();
@@ -201,220 +201,225 @@ export class ChatEditorControllerBase extends Disposable implements IEditorContr
 		this._hasEditorModification.set(false, undefined);
 	}
 
-	private _updateWithDiff(modifiedURI: URI, originalURI: URI, originalModel: ITextModel, diff: IDocumentDiff | null | undefined): void {
+	private async _updateWithDiff(modifiedURI: URI, originalURI: URI, diff: IDocumentDiff | null | undefined): Promise<void> {
 		if (!diff) {
 			this.clearRendering();
 			return;
 		}
+		const originalModelRef = await this.textModelService.createModelReference(originalURI);
+		const originalModel = originalModelRef.object.textEditorModel;
+		try {
+			this._hasEditorModification.set(true, undefined);
 
-		this._hasEditorModification.set(true, undefined);
-
-		const chatDiffAddDecoration = ModelDecorationOptions.createDynamic({
-			...diffAddDecoration,
-			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-		});
-		const chatDiffWholeLineAddDecoration = ModelDecorationOptions.createDynamic({
-			...diffWholeLineAddDecoration,
-			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		});
-		const createOverviewDecoration = (overviewRulerColor: string, minimapColor: string) => {
-			return ModelDecorationOptions.createDynamic({
-				description: 'chat-editing-decoration',
-				overviewRuler: { color: themeColorFromId(overviewRulerColor), position: OverviewRulerLane.Left },
-				minimap: { color: themeColorFromId(minimapColor), position: MinimapPosition.Gutter },
+			const chatDiffAddDecoration = ModelDecorationOptions.createDynamic({
+				...diffAddDecoration,
+				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 			});
-		};
-		const modifiedDecoration = createOverviewDecoration(overviewRulerModifiedForeground, minimapGutterModifiedBackground);
-		const addedDecoration = createOverviewDecoration(overviewRulerAddedForeground, minimapGutterAddedBackground);
-		const deletedDecoration = createOverviewDecoration(overviewRulerDeletedForeground, minimapGutterDeletedBackground);
+			const chatDiffWholeLineAddDecoration = ModelDecorationOptions.createDynamic({
+				...diffWholeLineAddDecoration,
+				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			});
+			const createOverviewDecoration = (overviewRulerColor: string, minimapColor: string) => {
+				return ModelDecorationOptions.createDynamic({
+					description: 'chat-editing-decoration',
+					overviewRuler: { color: themeColorFromId(overviewRulerColor), position: OverviewRulerLane.Left },
+					minimap: { color: themeColorFromId(minimapColor), position: MinimapPosition.Gutter },
+				});
+			};
+			const modifiedDecoration = createOverviewDecoration(overviewRulerModifiedForeground, minimapGutterModifiedBackground);
+			const addedDecoration = createOverviewDecoration(overviewRulerAddedForeground, minimapGutterAddedBackground);
+			const deletedDecoration = createOverviewDecoration(overviewRulerDeletedForeground, minimapGutterDeletedBackground);
 
-		this._diffHunksRenderStore.clear();
-		this._diffHunkWidgets.length = 0;
-		const diffHunkDecorations: IModelDeltaDecoration[] = [];
+			this._diffHunksRenderStore.clear();
+			this._diffHunkWidgets.length = 0;
+			const diffHunkDecorations: IModelDeltaDecoration[] = [];
 
-		this._editor.changeViewZones((viewZoneChangeAccessor) => {
-			for (const id of this._viewZones) {
-				viewZoneChangeAccessor.removeZone(id);
-			}
-			this._viewZones = [];
-			const modifiedVisualDecorations: IModelDeltaDecoration[] = [];
-			const modifiedLineDecorations: IModelDeltaDecoration[] = [];
-			const mightContainNonBasicASCII = originalModel.mightContainNonBasicASCII();
-			const mightContainRTL = originalModel.mightContainRTL();
-			const renderOptions = RenderOptions.fromEditor(this._editor);
-			const editorLineCount = this._editor.getModel()?.getLineCount();
+			this._editor.changeViewZones((viewZoneChangeAccessor) => {
+				for (const id of this._viewZones) {
+					viewZoneChangeAccessor.removeZone(id);
+				}
+				this._viewZones = [];
+				const modifiedVisualDecorations: IModelDeltaDecoration[] = [];
+				const modifiedLineDecorations: IModelDeltaDecoration[] = [];
+				const mightContainNonBasicASCII = originalModel.mightContainNonBasicASCII();
+				const mightContainRTL = originalModel.mightContainRTL();
+				const renderOptions = RenderOptions.fromEditor(this._editor);
+				const editorLineCount = this._editor.getModel()?.getLineCount();
 
-			for (const diffEntry of diff.changes) {
+				for (const diffEntry of diff.changes) {
 
-				const originalRange = diffEntry.original;
-				originalModel.tokenization.forceTokenization(Math.max(1, originalRange.endLineNumberExclusive - 1));
-				const source = new LineSource(
-					originalRange.mapToLineArray(l => originalModel.tokenization.getLineTokens(l)),
-					[],
-					mightContainNonBasicASCII,
-					mightContainRTL,
-				);
-				const decorations: InlineDecoration[] = [];
-				for (const i of diffEntry.innerChanges || []) {
-					decorations.push(new InlineDecoration(
-						i.originalRange.delta(-(diffEntry.original.startLineNumber - 1)),
-						diffDeleteDecoration.className!,
-						InlineDecorationType.Regular
-					));
+					const originalRange = diffEntry.original;
+					originalModel.tokenization.forceTokenization(Math.max(1, originalRange.endLineNumberExclusive - 1));
+					const source = new LineSource(
+						originalRange.mapToLineArray(l => originalModel.tokenization.getLineTokens(l)),
+						[],
+						mightContainNonBasicASCII,
+						mightContainRTL,
+					);
+					const decorations: InlineDecoration[] = [];
+					for (const i of diffEntry.innerChanges || []) {
+						decorations.push(new InlineDecoration(
+							i.originalRange.delta(-(diffEntry.original.startLineNumber - 1)),
+							diffDeleteDecoration.className!,
+							InlineDecorationType.Regular
+						));
 
-					// If the original range is empty, the start line number is 1 and the new range spans the entire file, don't draw an Added decoration
-					if (!(i.originalRange.isEmpty() && i.originalRange.startLineNumber === 1 && i.modifiedRange.endLineNumber === editorLineCount) && !i.modifiedRange.isEmpty()) {
+						// If the original range is empty, the start line number is 1 and the new range spans the entire file, don't draw an Added decoration
+						if (!(i.originalRange.isEmpty() && i.originalRange.startLineNumber === 1 && i.modifiedRange.endLineNumber === editorLineCount) && !i.modifiedRange.isEmpty()) {
+							modifiedVisualDecorations.push({
+								range: i.modifiedRange, options: chatDiffAddDecoration
+							});
+						}
+					}
+
+					// Render an added decoration but don't also render a deleted decoration for newly inserted content at the start of the file
+					// Note, this is a workaround for the `LineRange.isEmpty()` in diffEntry.original being `false` for newly inserted content
+					const isCreatedContent = decorations.length === 1 && decorations[0].range.isEmpty() && diffEntry.original.startLineNumber === 1;
+
+					if (!diffEntry.modified.isEmpty && !(isCreatedContent && (diffEntry.modified.endLineNumberExclusive - 1) === editorLineCount)) {
 						modifiedVisualDecorations.push({
-							range: i.modifiedRange, options: chatDiffAddDecoration
+							range: diffEntry.modified.toInclusiveRange()!,
+							options: chatDiffWholeLineAddDecoration
 						});
 					}
-				}
 
-				// Render an added decoration but don't also render a deleted decoration for newly inserted content at the start of the file
-				// Note, this is a workaround for the `LineRange.isEmpty()` in diffEntry.original being `false` for newly inserted content
-				const isCreatedContent = decorations.length === 1 && decorations[0].range.isEmpty() && diffEntry.original.startLineNumber === 1;
-
-				if (!diffEntry.modified.isEmpty && !(isCreatedContent && (diffEntry.modified.endLineNumberExclusive - 1) === editorLineCount)) {
-					modifiedVisualDecorations.push({
-						range: diffEntry.modified.toInclusiveRange()!,
-						options: chatDiffWholeLineAddDecoration
-					});
-				}
-
-				if (diffEntry.original.isEmpty) {
-					// insertion
-					modifiedVisualDecorations.push({
-						range: diffEntry.modified.toInclusiveRange()!,
-						options: addedDecoration
-					});
-				} else if (diffEntry.modified.isEmpty) {
-					// deletion
-					modifiedVisualDecorations.push({
-						range: new Range(diffEntry.modified.startLineNumber - 1, 1, diffEntry.modified.startLineNumber, 1),
-						options: deletedDecoration
-					});
-				} else {
-					// modification
-					modifiedVisualDecorations.push({
-						range: diffEntry.modified.toInclusiveRange()!,
-						options: modifiedDecoration
-					});
-				}
-				const domNode = document.createElement('div');
-				domNode.className = 'chat-editing-original-zone view-lines line-delete monaco-mouse-cursor-text';
-				const result = renderLines(source, renderOptions, decorations, domNode);
-
-				if (!isCreatedContent) {
-					const viewZoneData: IViewZone = {
-						afterLineNumber: diffEntry.modified.startLineNumber - 1,
-						heightInLines: result.heightInLines,
-						domNode,
-						ordinal: 50000 + 2 // more than https://github.com/microsoft/vscode/blob/bf52a5cfb2c75a7327c9adeaefbddc06d529dcad/src/vs/workbench/contrib/inlineChat/browser/inlineChatZoneWidget.ts#L42
-					};
-
-					this._viewZones.push(viewZoneChangeAccessor.addZone(viewZoneData));
-				}
-
-				// Add content widget for each diff change
-				const undoEdits: ISingleEditOperation[] = [];
-				for (const c of diffEntry.innerChanges ?? []) {
-					const oldText = originalModel.getValueInRange(c.originalRange);
-					undoEdits.push(EditOperation.replace(c.modifiedRange, oldText));
-				}
-
-				const widget = this._instantiationService.createInstance(DiffHunkWidget, originalURI, modifiedURI, undoEdits, this._editor.getModel()!.getVersionId(), this._editor, isCreatedContent ? 0 : result.heightInLines);
-				widget.layout(diffEntry.modified.startLineNumber);
-
-				this._diffHunkWidgets.push(widget);
-				diffHunkDecorations.push({
-					range: diffEntry.modified.toInclusiveRange() ?? new Range(diffEntry.modified.startLineNumber, 1, diffEntry.modified.startLineNumber, Number.MAX_SAFE_INTEGER),
-					options: {
-						description: 'diff-hunk-widget',
-						stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+					if (diffEntry.original.isEmpty) {
+						// insertion
+						modifiedVisualDecorations.push({
+							range: diffEntry.modified.toInclusiveRange()!,
+							options: addedDecoration
+						});
+					} else if (diffEntry.modified.isEmpty) {
+						// deletion
+						modifiedVisualDecorations.push({
+							range: new Range(diffEntry.modified.startLineNumber - 1, 1, diffEntry.modified.startLineNumber, 1),
+							options: deletedDecoration
+						});
+					} else {
+						// modification
+						modifiedVisualDecorations.push({
+							range: diffEntry.modified.toInclusiveRange()!,
+							options: modifiedDecoration
+						});
 					}
-				});
+					const domNode = document.createElement('div');
+					domNode.className = 'chat-editing-original-zone view-lines line-delete monaco-mouse-cursor-text';
+					const result = renderLines(source, renderOptions, decorations, domNode);
 
-				// Add line decorations for diff navigation
-				modifiedLineDecorations.push({
-					range: diffEntry.modified.toInclusiveRange() ?? new Range(diffEntry.modified.startLineNumber, 1, diffEntry.modified.startLineNumber, Number.MAX_SAFE_INTEGER),
-					options: ChatEditorControllerBase._diffLineDecorationData
-				});
-			}
+					if (!isCreatedContent) {
+						const viewZoneData: IViewZone = {
+							afterLineNumber: diffEntry.modified.startLineNumber - 1,
+							heightInLines: result.heightInLines,
+							domNode,
+							ordinal: 50000 + 2 // more than https://github.com/microsoft/vscode/blob/bf52a5cfb2c75a7327c9adeaefbddc06d529dcad/src/vs/workbench/contrib/inlineChat/browser/inlineChatZoneWidget.ts#L42
+						};
 
-			this._diffVisualDecorations.set(modifiedVisualDecorations);
-			this._diffLineDecorations.set(modifiedLineDecorations);
-		});
+						this._viewZones.push(viewZoneChangeAccessor.addZone(viewZoneData));
+					}
 
-		const diffHunkDecoCollection = this._editor.createDecorationsCollection(diffHunkDecorations);
+					// Add content widget for each diff change
+					const undoEdits: ISingleEditOperation[] = [];
+					for (const c of diffEntry.innerChanges ?? []) {
+						const oldText = originalModel.getValueInRange(c.originalRange);
+						undoEdits.push(EditOperation.replace(c.modifiedRange, oldText));
+					}
 
-		this._diffHunksRenderStore.add(toDisposable(() => {
-			dispose(this._diffHunkWidgets);
-			this._diffHunkWidgets.length = 0;
-			diffHunkDecoCollection.clear();
-		}));
+					const widget = this._instantiationService.createInstance(DiffHunkWidget, originalURI, modifiedURI, undoEdits, this._editor.getModel()!.getVersionId(), this._editor, isCreatedContent ? 0 : result.heightInLines);
+					widget.layout(diffEntry.modified.startLineNumber);
 
+					this._diffHunkWidgets.push(widget);
+					diffHunkDecorations.push({
+						range: diffEntry.modified.toInclusiveRange() ?? new Range(diffEntry.modified.startLineNumber, 1, diffEntry.modified.startLineNumber, Number.MAX_SAFE_INTEGER),
+						options: {
+							description: 'diff-hunk-widget',
+							stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+						}
+					});
 
-
-		const positionObs = observableFromEvent(this._editor.onDidChangeCursorPosition, _ => this._editor.getPosition());
-
-		const activeWidgetIdx = derived(r => {
-			const position = positionObs.read(r);
-			if (!position) {
-				return -1;
-			}
-			const idx = diffHunkDecoCollection.getRanges().findIndex(r => r.containsPosition(position));
-			return idx;
-		});
-		const toggleWidget = (activeWidget: DiffHunkWidget | undefined) => {
-			const positionIdx = activeWidgetIdx.get();
-			for (let i = 0; i < this._diffHunkWidgets.length; i++) {
-				const widget = this._diffHunkWidgets[i];
-				widget.toggle(widget === activeWidget || i === positionIdx);
-			}
-		};
-
-		this._diffHunksRenderStore.add(autorun(r => {
-			// reveal when cursor inside
-			const idx = activeWidgetIdx.read(r);
-			const widget = this._diffHunkWidgets[idx];
-			toggleWidget(widget);
-		}));
-
-
-		this._diffHunksRenderStore.add(this._editor.onMouseMove(e => {
-
-			// reveal when hovering over
-			if (e.target.type === MouseTargetType.OVERLAY_WIDGET) {
-				const id = e.target.detail;
-				const widget = this._diffHunkWidgets.find(w => w.getId() === id);
-				toggleWidget(widget);
-
-			} else if (e.target.type === MouseTargetType.CONTENT_VIEW_ZONE) {
-				const zone = e.target.detail;
-				const idx = this._viewZones.findIndex(id => id === zone.viewZoneId);
-				toggleWidget(this._diffHunkWidgets[idx]);
-
-			} else if (e.target.position) {
-				const { position } = e.target;
-				const idx = diffHunkDecoCollection.getRanges().findIndex(r => r.containsPosition(position));
-				toggleWidget(this._diffHunkWidgets[idx]);
-
-			} else {
-				toggleWidget(undefined);
-			}
-		}));
-
-		this._diffHunksRenderStore.add(Event.any(this._editor.onDidScrollChange, this._editor.onDidLayoutChange)(() => {
-			for (let i = 0; i < this._diffHunkWidgets.length; i++) {
-				const widget = this._diffHunkWidgets[i];
-				const range = diffHunkDecoCollection.getRange(i);
-				if (range) {
-					widget.layout(range?.startLineNumber);
-				} else {
-					widget.dispose();
+					// Add line decorations for diff navigation
+					modifiedLineDecorations.push({
+						range: diffEntry.modified.toInclusiveRange() ?? new Range(diffEntry.modified.startLineNumber, 1, diffEntry.modified.startLineNumber, Number.MAX_SAFE_INTEGER),
+						options: ChatEditorControllerBase._diffLineDecorationData
+					});
 				}
-			}
-		}));
+
+				this._diffVisualDecorations.set(modifiedVisualDecorations);
+				this._diffLineDecorations.set(modifiedLineDecorations);
+			});
+
+			const diffHunkDecoCollection = this._editor.createDecorationsCollection(diffHunkDecorations);
+
+			this._diffHunksRenderStore.add(toDisposable(() => {
+				dispose(this._diffHunkWidgets);
+				this._diffHunkWidgets.length = 0;
+				diffHunkDecoCollection.clear();
+			}));
+
+
+
+			const positionObs = observableFromEvent(this._editor.onDidChangeCursorPosition, _ => this._editor.getPosition());
+
+			const activeWidgetIdx = derived(r => {
+				const position = positionObs.read(r);
+				if (!position) {
+					return -1;
+				}
+				const idx = diffHunkDecoCollection.getRanges().findIndex(r => r.containsPosition(position));
+				return idx;
+			});
+			const toggleWidget = (activeWidget: DiffHunkWidget | undefined) => {
+				const positionIdx = activeWidgetIdx.get();
+				for (let i = 0; i < this._diffHunkWidgets.length; i++) {
+					const widget = this._diffHunkWidgets[i];
+					widget.toggle(widget === activeWidget || i === positionIdx);
+				}
+			};
+
+			this._diffHunksRenderStore.add(autorun(r => {
+				// reveal when cursor inside
+				const idx = activeWidgetIdx.read(r);
+				const widget = this._diffHunkWidgets[idx];
+				toggleWidget(widget);
+			}));
+
+
+			this._diffHunksRenderStore.add(this._editor.onMouseMove(e => {
+
+				// reveal when hovering over
+				if (e.target.type === MouseTargetType.OVERLAY_WIDGET) {
+					const id = e.target.detail;
+					const widget = this._diffHunkWidgets.find(w => w.getId() === id);
+					toggleWidget(widget);
+
+				} else if (e.target.type === MouseTargetType.CONTENT_VIEW_ZONE) {
+					const zone = e.target.detail;
+					const idx = this._viewZones.findIndex(id => id === zone.viewZoneId);
+					toggleWidget(this._diffHunkWidgets[idx]);
+
+				} else if (e.target.position) {
+					const { position } = e.target;
+					const idx = diffHunkDecoCollection.getRanges().findIndex(r => r.containsPosition(position));
+					toggleWidget(this._diffHunkWidgets[idx]);
+
+				} else {
+					toggleWidget(undefined);
+				}
+			}));
+
+			this._diffHunksRenderStore.add(Event.any(this._editor.onDidScrollChange, this._editor.onDidLayoutChange)(() => {
+				for (let i = 0; i < this._diffHunkWidgets.length; i++) {
+					const widget = this._diffHunkWidgets[i];
+					const range = diffHunkDecoCollection.getRange(i);
+					if (range) {
+						widget.layout(range?.startLineNumber);
+					} else {
+						widget.dispose();
+					}
+				}
+			}));
+		} finally {
+			originalModelRef.dispose();
+		}
 	}
 
 	initNavigation(): void {

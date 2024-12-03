@@ -17,7 +17,6 @@ import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentD
 import { Event } from '../../../../../../base/common/event.js';
 import { ChatEditorControllerBase, IChatEditorController } from '../../../../chat/browser/chatEditorControllerBase.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { ITextModel } from '../../../../../../editor/common/model.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { parse } from '../../../../../services/notebook/common/notebookDocumentService.js';
@@ -285,9 +284,9 @@ export class NotebookCellChatEditorController extends ChatEditorControllerBase {
 		@IInstantiationService _instantiationService: IInstantiationService,
 		@IChatEditingService _chatEditingService: IChatEditingService,
 		@IEditorService _editorService: IEditorService,
-		@ITextModelService private readonly modelService: ITextModelService,
+		@ITextModelService modelService: ITextModelService,
 	) {
-		super(_editor, _instantiationService, _chatEditingService, _editorService);
+		super(_editor, _instantiationService, _chatEditingService, _editorService, modelService);
 		const modelObs = observableFromEvent(_editor.onDidChangeModel, e => _editor.getModel());
 		const onDidChangeContent = derived(r => {
 			const model = modelObs.read(r);
@@ -313,24 +312,16 @@ export class NotebookCellChatEditorController extends ChatEditorControllerBase {
 			}
 			onDidChangeContent.read(r);
 			const diffInfo = entry.cellDiffInfo.read(r).filter(d => d.type === 'modified').find(d => d.modifiedCellIndex === cellIndex);
-			const originalCellModel = diffInfo ? await this.getCellTextModel(entry.originalModel.cells[diffInfo.originalCellIndex]) : undefined;
-			transaction((tx) => {
-				if (originalCellModel) {
-					this.originalModel.set(originalCellModel, tx);
-				}
-				this._entry.set(entry, tx);
-				this.maxLineNumber.set(diffInfo?.maxLineNumber || 0, tx);
-				this.diff.set(diffInfo?.diff || nullDocumentDiff, tx);
-			});
+
+			try {
+				transaction((tx) => {
+					this._entry.set(entry, tx);
+					this.maxLineNumber.set(diffInfo?.maxLineNumber || 0, tx);
+					this.diff.set(diffInfo?.diff || nullDocumentDiff, tx);
+				});
+			} finally {
+
+			}
 		}));
 	}
-	private async getCellTextModel(cell: ICell): Promise<ITextModel | undefined> {
-		if (cell.textModel) {
-			return cell.textModel;
-		}
-		const ref = await this.modelService.createModelReference(cell.uri);
-		this._register(ref);
-		return cell.textModel || ref.object.textEditorModel;
-	}
-
 }

@@ -14,6 +14,7 @@ import { ChatEditingSessionState, IChatEditingService, isTextFileEntry } from '.
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ChatEditorControllerBase } from './chatEditorControllerBase.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
 export const ctxHasRequestInProgress = new RawContextKey<boolean>('chat.ctxHasRequestInProgress', false, localize('chat.ctxHasRequestInProgress', "The current editor shows a file from an edit session which is still in progress"));
@@ -36,8 +37,9 @@ export class ChatEditorController extends ChatEditorControllerBase {
 		@IChatEditingService _chatEditingService: IChatEditingService,
 		@IEditorService _editorService: IEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ITextModelService modelService: ITextModelService,
 	) {
-		super(_editor, _instantiationService, _chatEditingService, _editorService);
+		super(_editor, _instantiationService, _chatEditingService, _editorService, modelService);
 
 		this._ctxHasEditorModification = ctxHasEditorModification.bindTo(contextKeyService);
 		this._ctxRequestInProgress = ctxHasRequestInProgress.bindTo(contextKeyService);
@@ -67,7 +69,6 @@ export class ChatEditorController extends ChatEditorControllerBase {
 				const maxLineNumber = entry?.maxLineNumber.read(r) ?? 0;
 				transaction(tx => {
 					this._entry.set(entry, tx);
-					this.originalModel.set(entry.originalModel, tx);
 					this.diff.set(diff, tx);
 					this.maxLineNumber.set(maxLineNumber, tx);
 				});

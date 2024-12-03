@@ -17,7 +17,7 @@ import { INotebookService } from '../../../common/notebookService.js';
 import { ChatEditKind, ICellDiffInfo, IModifiedEntryTelemetryInfo, IModifiedNotebookFileEntry, INotebookSnapshotEntry, INotebookSnapshotEntryDTO, ISnapshotEntry, STORAGE_CONTENTS_FOLDER, WorkingSetEntryState } from '../../../../chat/common/chatEditingService.js';
 import { getStorageLocation } from '../../../../chat/browser/chatEditing/chatEditingModifiedFileEntry.js';
 import { ChatEditingNotebookFileSystemProvider } from './chatEditingNotebookFileSytemProviders.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { IObservable, ITransaction, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { INotebookTextModel, ICellEditOperation, IResolvedNotebookEditorModel, ICell, CellEditType } from '../../../common/notebookCommon.js';

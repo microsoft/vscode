@@ -25,6 +25,7 @@ import { autorunWithStore, derived, IObservable, observableValue } from '../../.
 import { SaveReason } from '../../../../../common/editor.js';
 import { filter } from '../../../../../../base/common/objects.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 
 
 export const INotebookModelSynchronizerFactory = createDecorator<INotebookModelSynchronizerFactory>('INotebookModelSynchronizerFactory');
