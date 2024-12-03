@@ -164,7 +164,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				});
 			}
 
-			override async run(accessor: ServicesAccessor): Promise<void> {
+			override async run(accessor: ServicesAccessor, startSetup: string | undefined): Promise<void> {
 				const viewsService = accessor.get(IViewsService);
 				const viewDescriptorService = accessor.get(IViewDescriptorService);
 				const configurationService = accessor.get(IConfigurationService);
@@ -174,6 +174,12 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 				showCopilotView(viewsService);
 				ensureSideBarChatViewSize(400, viewDescriptorService, layoutService);
+
+				// Setup should be kicked off immediately
+				if (typeof startSetup === 'boolean' && startSetup) {
+					const controller = that.controller.value;
+					controller.setup();
+				}
 
 				configurationService.updateValue('chat.commandCenter.enabled', true);
 			}
