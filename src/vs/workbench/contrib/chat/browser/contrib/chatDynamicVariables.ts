@@ -25,18 +25,23 @@ import { IChatWidget } from '../chat.js';
 import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
 import { IChatRequestVariableValue, IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
 import { ISymbolQuickPickItem } from '../../../search/browser/symbolsQuickAccess.js';
-import { ChatDynamicVariable } from './chatDynamicVariable.js';
-import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { ChatFileReference } from './chatDynamicVariables/chatFileReference.js';
+import { PromptFileReference } from '../../common/promptFileReference.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
+
+/**
+ * Type of dynamic variables. Can be either a file reference or
+ * another dynamic variable (e.g., a `#sym`, `#kb`, etc.).
+ */
+type TDynamicVariable = IDynamicVariable | ChatFileReference;
 
 export class ChatDynamicVariableModel extends Disposable implements IChatWidgetContrib {
 	public static readonly ID = 'chatDynamicVariableModel';
 
-	private _variables: ChatDynamicVariable[] = [];
-	get variables(): ReadonlyArray<ChatDynamicVariable> {
-	private _variables: ChatDynamicVariable[] = [];
-	get variables(): ReadonlyArray<ChatDynamicVariable> {
+	private _variables: TDynamicVariable[] = [];
+	get variables(): ReadonlyArray<TDynamicVariable> {
 		return [...this._variables];
 	}
 
@@ -47,28 +52,20 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	constructor(
 		private readonly widget: IChatWidget,
 		@ILabelService private readonly labelService: ILabelService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this.onVariablesChanged = this.onVariablesChanged.bind(this);
+		this.updateDecorations = this.updateDecorations.bind(this);
 
 
-		this.onVariablesChanged = this.onVariablesChanged.bind(this);
+		this.updateDecorations = this.updateDecorations.bind(this);
 
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
 			e.changes.forEach(c => {
 				// Don't mutate entries in _variables, since they will be returned from the getter
 				this._variables = coalesce(this._variables.map(ref => {
-					if (c.text === `#file:${ref.filenameWithReferences}`) {
-						return ref;
-					}
-
-					if (c.text === `#file:${ref.filenameWithReferences}`) {
-						return ref;
-					}
-
 					const intersection = Range.intersectRanges(ref.range, c.range);
 					if (intersection && !intersection.isEmpty()) {
 						// The reference text was changed, it's broken.
@@ -82,9 +79,11 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 							this.widget.refreshParsedInput();
 						}
 
-						ref.dispose();
+						// dispose the reference if possible before dropping it off
+						if ('dispose' in ref) {
+							ref.dispose();
+						}
 
-						ref.dispose();
 						return null;
 					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
 						const delta = c.text.length - c.rangeLength;
@@ -129,101 +128,23 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	addReference(ref: IDynamicVariable): void {
-		const variable = this.instantiationService.createInstance(ChatDynamicVariable, ref);
+		// use `ChatFileReference` for file references and `IDynamicVariable` for other variables
+		const promptSnippetsEnabled = PromptFileReference.promptSnippetsEnabled(this.configService);
+		const variable = (ref.id === 'vscode.file' && promptSnippetsEnabled)
+			? this.instantiationService.createInstance(ChatFileReference, ref)
+			: ref;
 
 		this._variables.push(variable);
-		this.onVariablesChanged();
-
-		// if the `prompt snippets` feature is enabled, start resolving
-		// nested file references immediatelly and subscribe to updates
-		if (variable.isPromptSnippetFile) {
-			// subscribe to variable changes
-			variable.onUpdate(this.onVariablesChanged);
-			// start resolving the file references
-			variable.resolve();
-		}
-	}
-
-	/**
-	 * Function to run when a variable list or a single variable has changed.
-	 */
-	private onVariablesChanged(): void {
-		this.updateVariableTexts();
-		const variable = this.instantiationService.createInstance(ChatDynamicVariable, ref);
-
-		this._variables.push(variable);
-		this.onVariablesChanged();
-
-		// if the `prompt snippets` feature is enabled, start resolving
-		// nested file references immediatelly and subscribe to updates
-		if (variable.isPromptSnippetFile) {
-			// subscribe to variable changes
-			variable.onUpdate(this.onVariablesChanged);
-			// start resolving the file references
-			variable.resolve();
-		}
-	}
-
-	/**
-	 * Function to run when a variable list or a single variable has changed.
-	 */
-	private onVariablesChanged(): void {
-		this.updateVariableTexts();
 		this.updateDecorations();
 		this.widget.refreshParsedInput();
-	}
 
-	/**
-	 * Update variables text inside input editor to add the `(+N more)`
-	 * suffix if the variable has nested child file references.
-	 */
-	private updateVariableTexts(): void {
-		for (const variable of this._variables) {
-			const text = `#file:${variable.filenameWithReferences}`;
-			const range = variable.range;
-
-			const success = this.widget.inputEditor.executeEdits(
-				'chatUpdateFileReference',
-				[EditOperation.replaceMove(new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn), text)],
-			);
-
-			if (!success) {
-				continue;
-			}
-
-			variable.range = new Range(
-				range.startLineNumber,
-				range.startColumn,
-				range.endLineNumber,
-				range.startColumn + text.length,
-			);
-		}
-	}
-
-	/**
-	 * Update variables text inside input editor to add the `(+N more)`
-	 * suffix if the variable has nested child file references.
-	 */
-	private updateVariableTexts(): void {
-		for (const variable of this._variables) {
-			const text = `#file:${variable.filenameWithReferences}`;
-			const range = variable.range;
-
-			const success = this.widget.inputEditor.executeEdits(
-				'chatUpdateFileReference',
-				[EditOperation.replaceMove(new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn), text)],
-			);
-
-			if (!success) {
-				continue;
-			}
-
-			variable.range = new Range(
-				range.startLineNumber,
-				range.startColumn,
-				range.endLineNumber,
-				range.startColumn + text.length,
-			);
+		// if the `prompt snippets` feature is enabled, and file is a `prompt snippet`,
+		// start resolving nested file references immediatelly and subscribe to updates
+		if (variable instanceof ChatFileReference && variable.isPromptSnippetFile) {
+			// subscribe to variable changes
+			variable.onUpdate(this.updateDecorations);
+			// start resolving the file references
+			variable.resolve();
 		}
 	}
 
@@ -267,7 +188,9 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	 */
 	private disposeVariables(): void {
 		for (const variable of this._variables) {
-			variable.dispose();
+			if ('dispose' in variable) {
+				variable.dispose();
+			}
 		}
 	}
 

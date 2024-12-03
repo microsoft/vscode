@@ -152,13 +152,6 @@ export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 		return this.variable.validFileReferenceUris;
 	}
 
-	/**
-	 * Convert current object to an `IDynamicVariable` object.
-	 */
-	public toDynamicVariable(): IDynamicVariable {
-		return this.variable;
-	}
-
 	public get id(): string {
 		return this.variable.id;
 	}
@@ -245,8 +238,15 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					(part as ChatRequestSlashCommandPart).slashCommand
 				);
 			} else if (part.kind === ChatRequestDynamicVariablePart.Kind) {
-				const variable = (part as ChatRequestDynamicVariablePart).toDynamicVariable();
-				variable.data = revive(variable.data);
+				const variable: IDynamicVariable = {
+					range: part.editorRange,
+					id: (part as ChatRequestDynamicVariablePart).id,
+					modelDescription: (part as ChatRequestDynamicVariablePart).modelDescription,
+					fullName: (part as ChatRequestDynamicVariablePart).fullName,
+					icon: (part as ChatRequestDynamicVariablePart).icon,
+					isFile: (part as ChatRequestDynamicVariablePart).isFile,
+					data: revive((part as ChatRequestDynamicVariablePart).data),
+				};
 
 				return new ChatRequestDynamicVariablePart(
 					new OffsetRange(part.range.start, part.range.endExclusive),

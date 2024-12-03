@@ -82,8 +82,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		this.domNode.ariaLabel = ariaLabel;
 		this.domNode.tabIndex = 0;
 
-		const hintTitle = localize('current file', 'Current file');
-		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, `${hintTitle}${this.getReferencesSuffix()}`));
+		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, localize('current file', 'Current file')));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
 		const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current file context") : localize('enable', "Enable current file context");
@@ -113,18 +112,6 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 				},
 			});
 		}));
-	}
-
-	/**
-	 * If file is a prompt that references other files, include the number of
-	 * child references in the label as a `(+N more)` suffix.
-	 */
-	private getReferencesSuffix(): string {
-		const referencesCount = this.attachment.validFileReferenceUris.length;
-
-		return referencesCount
-			? ` (+${referencesCount} ${localize('more', 'more')})`
-			: '';
 	}
 
 	/**
