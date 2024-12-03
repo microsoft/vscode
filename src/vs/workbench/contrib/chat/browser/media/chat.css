@@ -1202,8 +1202,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-response-progress-tree,
-.interactive-item-container .chat-notification-widget,
-.interactive-session .chat-used-context-list {
+.chat-notification-widget,
+.chat-used-context-list,
+.chat-quota-error-widget {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
 	margin-bottom: 8px;
@@ -1400,4 +1401,36 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session.show-scroll-down .chat-scroll-down {
 	display: initial;
+}
+
+.chat-quota-error-widget {
+	padding: 8px 12px;
+	display: flex;
+	gap: 6px;
+
+	.monaco-button {
+		width: fit-content;
+	}
+
+	.chat-quota-error-button {
+		margin-top: 6px;
+		margin-bottom: 2px;
+	}
+
+	.chat-quota-error-secondary-button {
+		margin-top: 6px;
+		font-size: 12px;
+		padding: 0px;
+		border: none;
+	}
+
+	.codicon.codicon-sparkle-filled {
+		color: var(--vscode-editorLightBulbAi-foreground, var(--vscode-icon-foreground));
+	}
+
+	.chat-quota-error-message {
+		.rendered-markdown p {
+			margin: 0px;
+		}
+	}
 }
