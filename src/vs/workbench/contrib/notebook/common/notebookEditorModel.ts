@@ -130,9 +130,6 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 	async save(options?: ISaveOptions): Promise<boolean> {
 		assertType(this.isResolved());
-		if (this._workingCopy) {
-			await this._notebookSynchronizerService.save(this._workingCopy);
-		}
 		return this._workingCopy!.save(options);
 	}
 
