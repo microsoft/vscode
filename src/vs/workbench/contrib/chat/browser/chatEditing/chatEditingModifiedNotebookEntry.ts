@@ -38,7 +38,7 @@ export class ChatEditingModifiedNotebookEntry extends ChatEditingModifiedFileEnt
 	}
 
 	async saveMirrorDocument(): Promise<void> {
-		await this.resolveTextFileEditorModel.save();
+		await this.resolveTextFileEditorModel.save({ ignoreModifiedSince: true });
 	}
 
 	async revertMirrorDocument(): Promise<void> {
