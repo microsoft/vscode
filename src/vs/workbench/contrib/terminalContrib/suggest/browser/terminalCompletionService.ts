@@ -204,8 +204,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		const resourceCompletions: ITerminalCompletion[] = [];
-		const endsWithSpace = promptValue.substring(0, cursorPosition).endsWith(' ');
-		const lastWord = endsWithSpace ? '' : promptValue.substring(0, cursorPosition + 1).trim().split(' ').at(-1) ?? '';
+		const cursorPrefix = promptValue.substring(0, cursorPosition + 1);
+		const endsWithSpace = cursorPrefix.endsWith(' ');
+		const lastWord = endsWithSpace ? '' : cursorPrefix.split(' ').at(-1) ?? '';
 
 		for (const stat of fileStat.children) {
 			let kind: TerminalCompletionItemKind | undefined;
@@ -255,6 +256,6 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 }
 
 function findBasePath(word: string, pathSeparator: string): string {
-	const lastSlashIndex = Math.max(word.lastIndexOf(pathSeparator));
+	const lastSlashIndex = word.lastIndexOf(pathSeparator);
 	return lastSlashIndex !== -1 ? word.substring(0, lastSlashIndex) : '';
 }
