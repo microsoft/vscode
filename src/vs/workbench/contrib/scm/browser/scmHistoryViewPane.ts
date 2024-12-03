@@ -1460,7 +1460,7 @@ export class SCMHistoryViewPane extends ViewPane {
 			return;
 		}
 
-		if (this._isCurrentHistoryItemInFilter(historyItemRef.id)) {
+		if (!this._isCurrentHistoryItemInFilter(historyItemRef.id)) {
 			return;
 		}
 
