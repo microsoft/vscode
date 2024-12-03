@@ -75,14 +75,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 						return;
 					}
 
-
-					const request = widget.viewModel?.getItems().find((item): item is IChatRequestViewModel => isRequestVM(item) && item.id === element.requestId);
-					if (!request) {
-						return;
-					}
-
-					// TODO rerun, not new request
-					widget.acceptInput(request.messageText);
+					widget.rerunLastRequest();
 				}));
 			}
 		}));
