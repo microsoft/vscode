@@ -859,22 +859,24 @@ class LeftRightDragScrollingOperation extends Disposable {
 	 * get the number of cols per second to auto-scroll
 	 */
 	private _getScrollSpeed(): number {
-		const lineHeight = this._context.configuration.options.get(EditorOption.lineHeight);
-		const viewportInCols = this._context.configuration.options.get(EditorOption.layoutInfo).width / lineHeight;
-		const outsideDistanceInLines = this._position.outsideDistance / lineHeight;
-		if (outsideDistanceInLines <= 1.5) {
-			return Math.max(30, viewportInCols * (1 + outsideDistanceInLines));
+		const charWidth = this._context.configuration.options.get(EditorOption.fontInfo).typicalFullwidthCharacterWidth;
+		const viewportInChars = this._context.configuration.options.get(EditorOption.layoutInfo).contentWidth / charWidth;
+		const outsideDistanceInChars = this._position.outsideDistance / charWidth;
+		if (outsideDistanceInChars <= 1.5) {
+			return Math.max(30, viewportInChars * (1 + outsideDistanceInChars));
 		}
-		if (outsideDistanceInLines <= 3) {
-			return Math.max(60, viewportInCols * (2 + outsideDistanceInLines));
+		if (outsideDistanceInChars <= 3) {
+			return Math.max(60, viewportInChars * (2 + outsideDistanceInChars));
 		}
-		return Math.max(200, viewportInCols * (7 + outsideDistanceInLines));
+		return Math.max(200, viewportInChars * (7 + outsideDistanceInChars));
 	}
 
 	private _execute(): void {
-		const scrollSpeedInLines = this._getScrollSpeed();
+		const charWidth = this._context.configuration.options.get(EditorOption.fontInfo).typicalFullwidthCharacterWidth;
+		const scrollSpeedInChars = this._getScrollSpeed();
+		console.log(scrollSpeedInChars)
 		const elapsed = this._tick();
-		const scrollInPixels = scrollSpeedInLines * (elapsed / 1000);
+		const scrollInPixels = scrollSpeedInChars * (elapsed / 1000) * charWidth * 0.5;
 		const scrollValue = (this._position.outsidePosition === 'left' ? -scrollInPixels : scrollInPixels);
 
 		this._context.viewModel.viewLayout.deltaScrollNow(scrollValue, 0);
