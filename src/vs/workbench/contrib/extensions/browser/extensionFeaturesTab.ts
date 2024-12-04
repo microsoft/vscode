@@ -86,10 +86,10 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 
 	private createElement(manifest: IExtensionManifest, disposables: DisposableStore): HTMLElement {
 		const container = $('.runtime-status');
-		const data = new MarkdownString();
 		const extensionId = new ExtensionIdentifier(getExtensionId(manifest.publisher, manifest.name));
 		const status = this.extensionService.getExtensionsStatus()[extensionId.value];
 		if (this.extensionService.extensions.some(extension => ExtensionIdentifier.equals(extension.identifier, extensionId))) {
+			const data = new MarkdownString();
 			data.appendMarkdown(`### ${localize('activation', "Activation")}\n\n`);
 			if (status.activationTimes) {
 				if (status.activationTimes.activationReason.startup) {
@@ -100,6 +100,38 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 			} else {
 				data.appendMarkdown('Not yet activated');
 			}
+			this.renderMarkdown(data, container, disposables);
+		}
+		const features = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeatures();
+		for (const feature of features) {
+			const accessData = this.extensionFeaturesManagementService.getAccessData(extensionId, feature.id);
+			if (accessData) {
+				this.renderMarkdown(new MarkdownString(`\n ### ${localize('label', "{0} Usage", feature.label)}\n\n`), container, disposables);
+				if (accessData.accessTimes.length) {
+					const description = append(container,
+						$('.feature-chart-description',
+							undefined,
+							localize('chartDescription', "There were {0} {1} requests from this extension in the last 30 days.", accessData?.accessTimes.length, feature.accessDataLabel ?? feature.label)));
+					description.style.marginBottom = '8px';
+					this.renderRequestsChart(container, accessData.accessTimes, disposables);
+				}
+				const status = accessData?.current?.status;
+				if (status) {
+					const data = new MarkdownString();
+					if (status?.severity === Severity.Error) {
+						data.appendMarkdown(`$(${errorIcon.id}) ${status.message}\n\n`);
+					}
+					if (status?.severity === Severity.Warning) {
+						data.appendMarkdown(`$(${warningIcon.id}) ${status.message}\n\n`);
+					}
+					if (data.value) {
+						this.renderMarkdown(data, container, disposables);
+					}
+				}
+			}
+		}
+		if (status.runtimeErrors.length || status.messages.length) {
+			const data = new MarkdownString();
 			if (status.runtimeErrors.length) {
 				data.appendMarkdown(`\n ### ${localize('uncaught errors', "Uncaught Errors ({0})", status.runtimeErrors.length)}\n`);
 				for (const error of status.runtimeErrors) {
@@ -112,35 +144,8 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 					data.appendMarkdown(`$(${(message.type === Severity.Error ? Codicon.error : message.type === Severity.Warning ? Codicon.warning : Codicon.info).id})&nbsp;${message.message}\n\n`);
 				}
 			}
-		}
-		const features = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeatures();
-		for (const feature of features) {
-			const accessData = this.extensionFeaturesManagementService.getAccessData(extensionId, feature.id);
-			if (accessData) {
-				data.appendMarkdown(`\n ### ${localize('label', "{0} Usage", feature.label)}\n\n`);
-				const status = accessData?.current?.status;
-				if (status) {
-					if (status?.severity === Severity.Error) {
-						data.appendMarkdown(`$(${errorIcon.id}) ${status.message}\n\n`);
-					}
-					if (status?.severity === Severity.Warning) {
-						data.appendMarkdown(`$(${warningIcon.id}) ${status.message}\n\n`);
-					}
-				}
-			}
-		}
-		this.renderMarkdown(data, container, disposables);
-		for (const feature of features) {
-			const accessData = this.extensionFeaturesManagementService.getAccessData(extensionId, feature.id);
-			if (accessData?.accessTimes.length) {
-				if (accessData?.accessTimes.length) {
-					const description = append(container,
-						$('.feature-chart-description',
-							undefined,
-							localize('chartDescription', "There were {0} {1} requests from this extension in the last 30 days.", accessData?.accessTimes.length, feature.accessDataLabel ?? feature.label)));
-					description.style.marginBottom = '8px';
-					this.renderRequestsChart(container, accessData.accessTimes, disposables);
-				}
+			if (data.value) {
+				this.renderMarkdown(data, container, disposables);
 			}
 		}
 		return container;
