@@ -61,7 +61,7 @@ export class ScreenReaderSupport {
 	public onConfigurationChanged(e: ViewConfigurationChangedEvent): void {
 		this._updateConfigurationSettings();
 		this._updateDomAttributes();
-		if (this._accessibilityService.isScreenReaderOptimized() && e.hasChanged(EditorOption.accessibilitySupport)) {
+		if (e.hasChanged(EditorOption.accessibilitySupport)) {
 			this.writeScreenReaderContent();
 		}
 	}
@@ -174,25 +174,25 @@ export class ScreenReaderSupport {
 		if (!focusedElement || focusedElement !== this._domNode.domNode) {
 			return;
 		}
-		this._screenReaderContentState = this._getScreenReaderContentState();
-		if (!this._screenReaderContentState) {
-			return;
+		const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
+		if (isScreenReaderOptimized) {
+			this._screenReaderContentState = this._getScreenReaderContentState();
+			if (this._domNode.domNode.textContent !== this._screenReaderContentState.value) {
+				this.setIgnoreSelectionChangeTime('setValue');
+				this._domNode.domNode.textContent = this._screenReaderContentState.value;
+			}
+			this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
+		} else {
+			this._screenReaderContentState = undefined;
+			this._domNode.domNode.textContent = '';
 		}
-		if (this._domNode.domNode.textContent !== this._screenReaderContentState.value) {
-			this.setIgnoreSelectionChangeTime('setValue');
-			this._domNode.domNode.textContent = this._screenReaderContentState.value;
-		}
-		this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
 	}
 
 	public get screenReaderContentState(): ScreenReaderContentState | undefined {
 		return this._screenReaderContentState;
 	}
 
-	private _getScreenReaderContentState(): ScreenReaderContentState | undefined {
-		if (!this._accessibilityService.isScreenReaderOptimized()) {
-			return;
-		}
+	private _getScreenReaderContentState(): ScreenReaderContentState {
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
 				return this._context.viewModel.getLineCount();
