@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../base/browser/dom.js';
+import { $, getWindow } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
@@ -157,7 +157,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 			const locationBasedColors = this.getLocationBasedColors();
-			const editorOverflowNode = this.layoutService.mainContainer.appendChild($('.chat-editor-overflow.monaco-editor'));
+			const editorOverflowNode = this.layoutService.getContainer(getWindow(parent)).appendChild($('.chat-editor-overflow.monaco-editor'));
 			this._register({ dispose: () => editorOverflowNode.remove() });
 
 			this._widget = this._register(scopedInstantiationService.createInstance(
