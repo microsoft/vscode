@@ -28,7 +28,6 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 import { ChatAgentLocation, IChatAgentService } from '../../chat/common/chatAgents.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { toAction } from '../../../../base/common/actions.js';
@@ -280,7 +279,6 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 					description: 'inline-chat-hint-line',
 					showIfCollapsed: true,
 					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-					hoverMessage: new MarkdownString(localize('toolttip', "Continue this with {0}...", agentName)),
 					after: {
 						content,
 						inlineClassName: inlineClassName.join(' '),
