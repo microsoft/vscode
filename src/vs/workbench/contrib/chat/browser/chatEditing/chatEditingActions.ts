@@ -538,11 +538,11 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 		super({
 			id: OpenWorkingSetHistoryAction.id,
 			title: localize('chat.openSnapshot.label', "Open File Snapshot"),
+			precondition: ContextKeyExpr.notIn(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key),
 			menu: [{
 				id: MenuId.ChatEditingCodeBlockContext,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.notIn(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key),
 			},]
 		});
 	}
