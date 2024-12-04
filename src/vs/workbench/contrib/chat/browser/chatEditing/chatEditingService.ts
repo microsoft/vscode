@@ -278,8 +278,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					const newEdits = allEdits.slice(entry.seen);
 					entry.seen += newEdits.length;
 
-					editsSource ??= new AsyncIterableSource();
-					editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'textEditGroup', done: part.kind === 'textEditGroup' && part.done });
+					if (newEdits.length > 0 || entry.seen === 0) {
+						// only allow empty edits when having just started, ignore otherwise to avoid unneccessary work
+						editsSource ??= new AsyncIterableSource();
+						editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'textEditGroup', done: part.kind === 'textEditGroup' && part.done });
+					}
 
 					if (first) {
 
@@ -289,6 +292,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 							for await (const item of editsSource!.asyncIterable) {
 								if (token.isCancellationRequested) {
 									break;
+								}
+								if (item.edits.length === 0) {
+									// EMPTY edit, just signal via empty edits that work is starting
+									builder.textEdits(item.uri, [], item.done ?? false, responseModel);
+									continue;
 								}
 								for (let i = 0; i < item.edits.length; i++) {
 									const group = item.edits[i];
