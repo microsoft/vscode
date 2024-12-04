@@ -19,6 +19,7 @@ import { IRequestContext } from '../../../../base/parts/request/common/request.j
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize, localize2 } from '../../../../nls.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -32,6 +33,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import product from '../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { asText, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -320,11 +322,37 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 			}
 		}
 
+		class SimulateCopilotQuotaExceeded extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.chat.simulateCopilotQuotaExceeded',
+					title: localize2('simulateCopilotQuotaExceeded', "Simulate Copilot Quota Exceeded"),
+					// f1: true,
+					category: Categories.Developer
+				});
+			}
+
+			override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+				const contextKeyService = accessor.get(IContextKeyService);
+				const inputService = accessor.get(IQuickInputService);
+				const result = await inputService.pick([
+					{ label: 'Chat' },
+					{ label: 'Completions' }
+				], { canPickMany: true, placeHolder: 'Pick the quotas to exceed' });
+				if (result) {
+					const resultSet = new Set(result.map(r => r.label));
+					contextKeyService.createKey(ChatContextKeys.Quota.overChatQuota, resultSet.has('Chat'));
+					contextKeyService.createKey(ChatContextKeys.Quota.overCompletionsQuota, resultSet.has('Completions'));
+				}
+			}
+		}
+
 		registerAction2(ChatSetupTriggerAction);
 		registerAction2(ChatSetupHideAction);
 		registerAction2(ShowOutOfFreeChatResponsesDialogAction);
 		registerAction2(ShowOutOfCompletionsDialogAction);
 		registerAction2(ShowOutOfLimitsDialogAction);
+		registerAction2(SimulateCopilotQuotaExceeded);
 	}
 }
 
