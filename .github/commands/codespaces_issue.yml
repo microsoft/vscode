@@ -1,6 +1,6 @@
 # Learn more about the syntax here:
 # https://docs.github.com/en/early-access/github/save-time-with-slash-commands/syntax-for-user-defined-slash-commands
----
+
 trigger: codespaces_issue
 title: Codespaces Issue
 description: Report downstream
