@@ -166,7 +166,6 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 	private readonly _editor: ICodeEditor;
 	private readonly _ctxShowingHint: IContextKey<boolean>;
 	private readonly _visibilityObs = observableValue<boolean>(this, false);
-	private readonly _ctxMenuVisibleObs = observableValue<boolean>(this, false);
 
 	constructor(
 		editor: ICodeEditor,
@@ -235,7 +234,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 				return undefined;
 			}
 
-			const visible = this._visibilityObs.read(r);// || this._ctxMenuVisibleObs.read(r);
+			const visible = this._visibilityObs.read(r);
 			const isEol = model.getLineMaxColumn(position.lineNumber) === position.column;
 			const isWhitespace = model.getLineLastNonWhitespaceColumn(position.lineNumber) === 0 && model.getValueLength() > 0 && position.column > 1;
 
@@ -299,10 +298,8 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 	}
 
 	private _showContextMenu(event: IMouseEvent, setting: string): void {
-		this._ctxMenuVisibleObs.set(true, undefined);
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => ({ x: event.posx, y: event.posy }),
-			onHide: () => this._ctxMenuVisibleObs.set(false, undefined),
 			getActions: () => [
 				toAction({
 					id: 'inlineChat.disableHint',
