@@ -661,6 +661,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-shrink: 0;
 }
 
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary.monaco-icon-label::before {
+	display: inline-flex;
+	align-items: center;
+}
+
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary:only-child {
 	width: 100%;
 }
