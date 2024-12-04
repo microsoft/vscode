@@ -15,6 +15,7 @@ import { ILogService, NullLogService } from '../../log/common/log.js';
 import { IPolicyService, PolicyDefinition, PolicyName } from '../../policy/common/policy.js';
 import { Registry } from '../../registry/common/platform.js';
 import { getErrorMessage } from '../../../base/common/errors.js';
+import * as json from '../../../base/common/json.js';
 
 export class DefaultConfiguration extends Disposable {
 
@@ -159,7 +160,7 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 				let policyValue = this.policyService.getPolicyValue(policyName);
 				if (isString(policyValue) && proprety.type !== 'string') {
 					try {
-						policyValue = JSON.parse(policyValue);
+						policyValue = this.parse(policyValue);
 					} catch (e) {
 						this.logService.error(`Error parsing policy value ${policyName}:`, getErrorMessage(e));
 						continue;
@@ -195,5 +196,63 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		}
 	}
 
+	private parse(content: string): any {
+		let raw: any = {};
+		let currentProperty: string | null = null;
+		let currentParent: any = [];
+		const previousParents: any[] = [];
+		const parseErrors: json.ParseError[] = [];
 
+		function onValue(value: any) {
+			if (Array.isArray(currentParent)) {
+				(<any[]>currentParent).push(value);
+			} else if (currentProperty !== null) {
+				if (currentParent[currentProperty] !== undefined) {
+					throw new Error(`Duplicate property found: ${currentProperty}`);
+				}
+				currentParent[currentProperty] = value;
+			}
+		}
+
+		const visitor: json.JSONVisitor = {
+			onObjectBegin: () => {
+				const object = {};
+				onValue(object);
+				previousParents.push(currentParent);
+				currentParent = object;
+				currentProperty = null;
+			},
+			onObjectProperty: (name: string) => {
+				currentProperty = name;
+			},
+			onObjectEnd: () => {
+				currentParent = previousParents.pop();
+			},
+			onArrayBegin: () => {
+				const array: any[] = [];
+				onValue(array);
+				previousParents.push(currentParent);
+				currentParent = array;
+				currentProperty = null;
+			},
+			onArrayEnd: () => {
+				currentParent = previousParents.pop();
+			},
+			onLiteralValue: onValue,
+			onError: (error: json.ParseErrorCode, offset: number, length: number) => {
+				parseErrors.push({ error, offset, length });
+			}
+		};
+
+		if (content) {
+			json.visit(content, visitor);
+			raw = currentParent[0] || {};
+		}
+
+		if (parseErrors.length > 0) {
+			throw new Error(parseErrors.map(e => getErrorMessage(e.error)).join('\n'));
+		}
+
+		return raw;
+	}
 }

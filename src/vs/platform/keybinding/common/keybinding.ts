@@ -85,7 +85,7 @@ export interface IKeybindingService {
 	 * Look up the preferred (last defined) keybinding for a command.
 	 * @returns The preferred keybinding or null if the command is not bound.
 	 */
-	lookupKeybinding(commandId: string, context?: IContextKeyService): ResolvedKeybinding | undefined;
+	lookupKeybinding(commandId: string, context?: IContextKeyService, enforceContextCheck?: boolean): ResolvedKeybinding | undefined;
 
 	getDefaultKeybindingsContent(): string;
 

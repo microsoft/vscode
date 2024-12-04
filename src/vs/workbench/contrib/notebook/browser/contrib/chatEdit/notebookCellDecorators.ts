@@ -188,6 +188,7 @@ export class NotebookCellDiffDecorator extends DisposableStore {
 		if (areDiffsEqual(diff, this.diffForPreviouslyAppliedDecorators)) {
 			return;
 		}
+		this.perEditorDisposables.clear();
 		const decorations = editor.createDecorationsCollection();
 		this.perEditorDisposables.add(toDisposable(() => {
 			editor.changeViewZones((viewZoneChangeAccessor) => {

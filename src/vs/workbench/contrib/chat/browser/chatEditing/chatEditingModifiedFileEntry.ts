@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -11,6 +11,7 @@ import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
@@ -100,7 +101,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	private readonly _editDecorationClear = this._register(new RunOnceScheduler(() => { this._editDecorations = this.doc.deltaDecorations(this._editDecorations, []); }, 500));
 	private _editDecorations: string[] = [];
 
-	private static readonly _editDecorationOptions = ModelDecorationOptions.register({
+	private static readonly _lastEditDecorationOptions = ModelDecorationOptions.register({
 		isWholeLine: true,
 		description: 'chat-editing',
 		className: 'rangeHighlight',
@@ -109,6 +110,12 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			position: OverviewRulerLane.Full,
 			color: themeColorFromId(editorSelectionBackground)
 		},
+	});
+
+	private static readonly _pendingEditDecorationOptions = ModelDecorationOptions.register({
+		isWholeLine: true,
+		description: 'chat-pending-editing',
+		className: 'chat-editing-pending-edit',
 	});
 
 	get telemetryInfo(): IModifiedEntryTelemetryInfo {
@@ -203,6 +210,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this.docSnapshot.setValue(snapshot.original);
 		this._setDocValue(snapshot.current);
 		this._edit = snapshot.originalToCurrentEdit;
+		this._updateDiffInfoSeq();
 	}
 
 	resetToInitialValue() {
@@ -264,7 +272,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			}
 
 			this._allEditsAreFromUs = false;
-			this._updateDiffInfoSeq(true);
+			this._updateDiffInfoSeq();
 		}
 
 		if (!this.isCurrentlyBeingModified.get()) {
@@ -282,13 +290,6 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 	acceptAgentEdits(textEdits: TextEdit[], isLastEdits: boolean): void {
 
-		// highlight edits
-		this._editDecorations = this.doc.deltaDecorations(this._editDecorations, textEdits.map(edit => {
-			return {
-				options: ChatEditingModifiedFileEntry._editDecorationOptions,
-				range: edit.range
-			} satisfies IModelDeltaDecoration;
-		}));
 
 		// push stack element for the first edit
 		if (this._isFirstEditAfterStartOrSnapshot) {
@@ -301,17 +302,37 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		const ops = textEdits.map(TextEdit.asEditOperation);
 		const undoEdits = this._applyEdits(ops);
 
+		const maxLineNumber = undoEdits.reduce((max, op) => Math.max(max, op.range.startLineNumber), 0);
+
+		const newDecorations: IModelDeltaDecoration[] = [
+			// decorate pending edit (region)
+			{
+				options: ChatEditingModifiedFileEntry._pendingEditDecorationOptions,
+				range: new Range(maxLineNumber + 1, 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER)
+			}
+		];
+
+		if (maxLineNumber > 0) {
+			// decorate last edit
+			newDecorations.push({
+				options: ChatEditingModifiedFileEntry._lastEditDecorationOptions,
+				range: new Range(maxLineNumber, 1, maxLineNumber, Number.MAX_SAFE_INTEGER)
+			});
+		}
+
+		this._editDecorations = this.doc.deltaDecorations(this._editDecorations, newDecorations);
+
+
 		transaction((tx) => {
 			if (!isLastEdits) {
 				this._stateObs.set(WorkingSetEntryState.Modified, tx);
 				this._isCurrentlyBeingModifiedObs.set(true, tx);
-				const maxLineNumber = undoEdits.reduce((max, op) => Math.max(max, op.range.startLineNumber), 0);
 				const lineCount = this.doc.getLineCount();
 				this._rewriteRatioObs.set(Math.min(1, maxLineNumber / lineCount), tx);
 				this._maxLineNumberObs.set(maxLineNumber, tx);
 			} else {
 				this._resetEditsState(tx);
-				this._updateDiffInfoSeq(true);
+				this._updateDiffInfoSeq();
 				this._rewriteRatioObs.set(1, tx);
 				this._editDecorationClear.schedule();
 			}
@@ -333,16 +354,16 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		}
 	}
 
-	private _updateDiffInfoSeq(fast: boolean) {
+	private _updateDiffInfoSeq() {
 		const myDiffOperationId = ++this._diffOperationIds;
 		Promise.resolve(this._diffOperation).then(() => {
 			if (this._diffOperationIds === myDiffOperationId) {
-				this._diffOperation = this._updateDiffInfo(fast);
+				this._diffOperation = this._updateDiffInfo();
 			}
 		});
 	}
 
-	private async _updateDiffInfo(fast: boolean): Promise<void> {
+	private async _updateDiffInfo(): Promise<void> {
 
 		if (this.docSnapshot.isDisposed() || this.doc.isDisposed()) {
 			return;
@@ -351,15 +372,12 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		const docVersionNow = this.doc.getVersionId();
 		const snapshotVersionNow = this.docSnapshot.getVersionId();
 
-		const [diff] = await Promise.all([
-			this._editorWorkerService.computeDiff(
-				this.docSnapshot.uri,
-				this.doc.uri,
-				{ computeMoves: true, ignoreTrimWhitespace: false, maxComputationTimeMs: 3000 },
-				'advanced'
-			),
-			timeout(fast ? 0 : 800) // DON't diff too fast
-		]);
+		const diff = await this._editorWorkerService.computeDiff(
+			this.docSnapshot.uri,
+			this.doc.uri,
+			{ computeMoves: true, ignoreTrimWhitespace: false, maxComputationTimeMs: 3000 },
+			'advanced'
+		);
 
 		if (this.docSnapshot.isDisposed() || this.doc.isDisposed()) {
 			return;
@@ -417,7 +435,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			const edit = EditOperation.replace(this.doc.getFullModelRange(), value);
 
 			this._applyEdits([edit]);
-
+			this._updateDiffInfoSeq();
 			this.doc.pushStackElement();
 		}
 	}

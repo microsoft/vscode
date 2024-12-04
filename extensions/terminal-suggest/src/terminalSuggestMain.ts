@@ -18,7 +18,7 @@ export const availableSpecs = [codeCompletionSpec, codeInsidersCompletionSpec, c
 
 function getBuiltinCommands(shell: string): string[] | undefined {
 	try {
-		const shellType = path.basename(shell);
+		const shellType = path.basename(shell, path.extname(shell));
 		const cachedCommands = cachedBuiltinCommands?.get(shellType);
 		if (cachedCommands) {
 			return cachedCommands;
@@ -76,7 +76,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			// TODO: Leverage shellType when available https://github.com/microsoft/vscode/issues/230165
-			const shellPath = 'shellPath' in terminal.creationOptions ? terminal.creationOptions.shellPath : vscode.env.shell;
+			const shellPath = ('shellPath' in terminal.creationOptions ? terminal.creationOptions.shellPath : undefined) ?? vscode.env.shell;
 			if (!shellPath) {
 				return;
 			}

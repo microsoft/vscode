@@ -45,7 +45,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 
 		this.domNode = $('.chat-quota-error-widget');
 		const icon = dom.append(this.domNode, $('span'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.sparkleFilled));
+		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
 
 		const messageContainer = dom.append(this.domNode, $('.chat-quota-error-message'));
 		const markdownContent = renderer.render(new MarkdownString(errorDetails.message));

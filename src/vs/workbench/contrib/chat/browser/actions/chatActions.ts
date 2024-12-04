@@ -7,9 +7,9 @@ import { toAction } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay } from '../../../../../base/common/date.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -20,7 +20,7 @@ import { ILocalizedString, localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -32,11 +32,13 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
+import { IChatQuotasService, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG } from '../chatQuotasService.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
@@ -565,23 +567,13 @@ export class ChatCommandCenterRendering extends Disposable implements IWorkbench
 
 	static readonly ID = 'chat.commandCenterRendering';
 
-	private readonly _onDidUpdateQuotaContextKeys = new Emitter<void>();
-	readonly onDidUpdateQuotaContextKeys: Event<void> = this._onDidUpdateQuotaContextKeys.event;
-
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatAgentService agentService: IChatAgentService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatQuotasService chatQuotasService: IChatQuotasService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-
-		// This is used below to not over re-render the view when the context keys change
-		this._register(contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set([ChatContextKeys.Quota.overChatQuota, ChatContextKeys.Quota.overCompletionsQuota]))) {
-				this._onDidUpdateQuotaContextKeys.fire();
-			}
-		}));
 
 		actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {
@@ -595,13 +587,10 @@ export class ChatCommandCenterRendering extends Disposable implements IWorkbench
 			});
 
 			const chatExtensionInstalled = agentService.getAgents().some(agent => agent.isDefault);
+			const { chatQuotaExceeded, completionsQuotaExceeded } = chatQuotasService.quotas;
 
 			let primaryAction: MenuItemAction;
-
-			const completionsOverQuota = contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Quota.overCompletionsQuota) ?? false;
-			const chatOverQuota = contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Quota.overChatQuota) ?? false;
-
-			if (chatExtensionInstalled && !chatOverQuota && !completionsOverQuota) {
+			if (chatExtensionInstalled && !chatQuotaExceeded && !completionsQuotaExceeded) {
 				primaryAction = instantiationService.createInstance(MenuItemAction, {
 					id: CHAT_OPEN_ACTION_ID,
 					title: OpenChatGlobalAction.TITLE,
@@ -614,26 +603,61 @@ export class ChatCommandCenterRendering extends Disposable implements IWorkbench
 					icon: Codicon.copilot,
 				}, undefined, undefined, undefined, undefined);
 			} else {
-				primaryAction = this.createQuotaPrimaryAction(chatOverQuota, completionsOverQuota);
+				primaryAction = instantiationService.createInstance(MenuItemAction, {
+					id: OPEN_CHAT_QUOTA_EXCEEDED_DIALOG,
+					title: quotaToMessage({ chatQuotaExceeded, completionsQuotaExceeded }),
+					icon: Codicon.copilotWarning,
+				}, undefined, undefined, undefined, undefined);
 			}
 
 			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, primaryAction, dropdownAction, action.actions, '', { ...options, skipTelemetry: true });
-		}, Event.any(agentService.onDidChangeAgents, this.onDidUpdateQuotaContextKeys));
+		}, Event.any(agentService.onDidChangeAgents, chatQuotasService.onDidChangeQuotas));
+	}
+}
+
+export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'chat.quotasStatusBarEntry';
+
+	private readonly _entry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+
+	constructor(
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService
+	) {
+		super();
+
+		this._register(this.chatQuotasService.onDidChangeQuotas(() => this.updateStatusbarEntry()));
 	}
 
-	private createQuotaPrimaryAction(chatOverQuota: boolean, completionsOverQuota: boolean): MenuItemAction {
-		let id: string;
-		if (chatOverQuota && !completionsOverQuota) {
-			id = 'workbench.action.chat.showOutOfFreeChatResponsesDialog';
-		} else if (completionsOverQuota && !chatOverQuota) {
-			id = 'workbench.action.chat.showOutOfCompletions';
+	private updateStatusbarEntry(): void {
+		const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatQuotasService.quotas;
+		if (chatQuotaExceeded || completionsQuotaExceeded) {
+			// Some quota exceeded, show indicator
+			this._entry.value = this.statusbarService.addEntry({
+				name: localize('indicator', "Copilot Quota Indicator"),
+				text: `$(copilot-warning) ${localize('limitReached', "Limit Reached")}`,
+				ariaLabel: localize('copilotQuotaExceeded', "Copilot Limit Reached"),
+				command: OPEN_CHAT_QUOTA_EXCEEDED_DIALOG,
+				kind: 'prominent',
+				showInAllWindows: true,
+				tooltip: quotaToMessage({ chatQuotaExceeded, completionsQuotaExceeded }),
+			}, ChatQuotasStatusBarEntry.ID, StatusbarAlignment.RIGHT, { id: 'GitHub.copilot.status', alignment: StatusbarAlignment.RIGHT });
 		} else {
-			id = 'workbench.action.chat.showOutOfLimits';
+			// No quota exceeded, remove indicator
+			if (this._entry.value) {
+				this._entry.clear();
+			}
 		}
-		return this.instantiationService.createInstance(MenuItemAction, {
-			id,
-			title: localize2('upgradeChat', "Upgrade to Copilot Pro"),
-			icon: Codicon.copilotWarning,
-		}, undefined, undefined, undefined, undefined);
+	}
+}
+
+function quotaToMessage({ chatQuotaExceeded, completionsQuotaExceeded }: { chatQuotaExceeded: boolean; completionsQuotaExceeded: boolean }): string {
+	if (chatQuotaExceeded && !completionsQuotaExceeded) {
+		return localize('chatQuotaExceeded', "You've reached the monthly chat messages limit, click for details");
+	} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
+		return localize('completionsQuotaExceeded', "You've reached the monthly code completions limit, click for details");
+	} else {
+		return localize('chatAndCompletionsQuotaExceeded', "You've reached the limits of the Copilot Free plan, click for details");
 	}
 }
