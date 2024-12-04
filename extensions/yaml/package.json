@@ -44,7 +44,8 @@
           ".cff",
           ".yaml-tmlanguage",
           ".yaml-tmpreferences",
-          ".yaml-tmtheme"
+          ".yaml-tmtheme",
+          ".winget"
         ],
         "firstLine": "^#cloud-config",
         "configuration": "./language-configuration.json"
@@ -67,7 +68,8 @@
         "editor.insertSpaces": true,
         "editor.tabSize": 2,
         "editor.autoIndent": "advanced",
-        "diffEditor.ignoreTrimWhitespace": false
+        "diffEditor.ignoreTrimWhitespace": false,
+        "editor.defaultColorDecorators": false
       },
       "[dockercompose]": {
         "editor.insertSpaces": true,

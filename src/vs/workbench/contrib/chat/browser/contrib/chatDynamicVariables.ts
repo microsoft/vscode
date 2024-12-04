@@ -10,7 +10,7 @@ import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../editor/common/editorCommon.js';
-import { Command } from '../../../../../editor/common/languages.js';
+import { Command, isLocation } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -23,6 +23,7 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { IChatWidget } from '../chat.js';
 import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
 import { IChatRequestVariableValue, IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
+import { ISymbolQuickPickItem } from '../../../search/browser/symbolsQuickAccess.js';
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
@@ -57,6 +58,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 								range: rangeToDelete,
 								text: '',
 							}]);
+							this.widget.refreshParsedInput();
 						}
 						return null;
 					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
@@ -89,13 +91,14 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			s = [];
 		}
 
-		this._variables = s;
+		this._variables = s.filter(isDynamicVariable);
 		this.updateDecorations();
 	}
 
 	addReference(ref: IDynamicVariable): void {
 		this._variables.push(ref);
 		this.updateDecorations();
+		this.widget.refreshParsedInput();
 	}
 
 	private updateDecorations(): void {
@@ -109,20 +112,34 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		const value = ref.data;
 		if (URI.isUri(value)) {
 			return new MarkdownString(this.labelService.getUriLabel(value, { relative: true }));
+		} else if (isLocation(value)) {
+			const prefix = ref.fullName ? ` ${ref.fullName}` : '';
+			const rangeString = `#${value.range.startLineNumber}-${value.range.endLineNumber}`;
+			return new MarkdownString(prefix + this.labelService.getUriLabel(value.uri, { relative: true }) + rangeString);
 		} else {
 			return undefined;
 		}
 	}
 }
 
+/**
+ * Loose check to filter objects that are obviously missing data
+ */
+function isDynamicVariable(obj: any): obj is IDynamicVariable {
+	return obj &&
+		typeof obj.id === 'string' &&
+		Range.isIRange(obj.range) &&
+		'data' in obj;
+}
+
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
 
-interface SelectAndInsertFileActionContext {
+interface SelectAndInsertActionContext {
 	widget: IChatWidget;
 	range: IRange;
 }
 
-function isSelectAndInsertFileActionContext(context: any): context is SelectAndInsertFileActionContext {
+function isSelectAndInsertActionContext(context: any): context is SelectAndInsertActionContext {
 	return 'widget' in context && 'range' in context;
 }
 
@@ -148,7 +165,7 @@ export class SelectAndInsertFileAction extends Action2 {
 		const chatVariablesService = accessor.get(IChatVariablesService);
 
 		const context = args[0];
-		if (!isSelectAndInsertFileActionContext(context)) {
+		if (!isSelectAndInsertActionContext(context)) {
 			return;
 		}
 
@@ -216,6 +233,69 @@ export class SelectAndInsertFileAction extends Action2 {
 	}
 }
 registerAction2(SelectAndInsertFileAction);
+
+export class SelectAndInsertSymAction extends Action2 {
+	static readonly Name = 'symbols';
+	static readonly ID = 'workbench.action.chat.selectAndInsertSym';
+
+	constructor() {
+		super({
+			id: SelectAndInsertSymAction.ID,
+			title: '' // not displayed
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		const textModelService = accessor.get(ITextModelService);
+		const logService = accessor.get(ILogService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		const context = args[0];
+		if (!isSelectAndInsertActionContext(context)) {
+			return;
+		}
+
+		const doCleanup = () => {
+			// Failed, remove the dangling `sym`
+			context.widget.inputEditor.executeEdits('chatInsertSym', [{ range: context.range, text: `` }]);
+		};
+
+		// TODO: have dedicated UX for this instead of using the quick access picker
+		const picks = await quickInputService.quickAccess.pick('#', { enabledProviderPrefixes: ['#'] });
+		if (!picks?.length) {
+			logService.trace('SelectAndInsertSymAction: no symbol selected');
+			doCleanup();
+			return;
+		}
+
+		const editor = context.widget.inputEditor;
+		const range = context.range;
+
+		// Handle the case of selecting a specific file
+		const symbol = (picks[0] as ISymbolQuickPickItem).symbol;
+		if (!symbol || !textModelService.canHandleResource(symbol.location.uri)) {
+			logService.trace('SelectAndInsertSymAction: non-text resource selected');
+			doCleanup();
+			return;
+		}
+
+		const text = `#sym:${symbol.name}`;
+		const success = editor.executeEdits('chatInsertSym', [{ range, text: text + ' ' }]);
+		if (!success) {
+			logService.trace(`SelectAndInsertSymAction: failed to insert "${text}"`);
+			doCleanup();
+			return;
+		}
+
+		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
+			id: 'vscode.symbol',
+			prefix: 'symbol',
+			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
+			data: symbol.location
+		});
+	}
+}
+registerAction2(SelectAndInsertSymAction);
 
 export interface IAddDynamicVariableContext {
 	id: string;

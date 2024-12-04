@@ -33,7 +33,7 @@ import { Lazy } from '../../../base/common/lazy.js';
 import { IParsedLabelWithIcons, getCodiconAriaLabel, matchesFuzzyIconAware, parseLabelWithIcons } from '../../../base/common/iconLabels.js';
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { compareAnything } from '../../../base/common/comparers.js';
-import { ltrim } from '../../../base/common/strings.js';
+import { escape, ltrim } from '../../../base/common/strings.js';
 import { RenderIndentGuides } from '../../../base/browser/ui/tree/abstractTree.js';
 import { ThrottledDelayer } from '../../../base/common/async.js';
 import { isCancellationError } from '../../../base/common/errors.js';
@@ -443,7 +443,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		if (!element.saneTooltip && element.saneDescription) {
 			descriptionTitle = {
 				markdown: {
-					value: element.saneDescription,
+					value: escape(element.saneDescription),
 					supportThemeIcons: true
 				},
 				markdownNotSupportedFallback: element.saneDescription
@@ -472,7 +472,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 			if (!element.saneTooltip) {
 				title = {
 					markdown: {
-						value: element.saneDetail,
+						value: escape(element.saneDetail),
 						supportThemeIcons: true
 					},
 					markdownNotSupportedFallback: element.saneDetail
@@ -567,7 +567,7 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 		element.element.classList.toggle('focus-inside', !!element.focusInsideSeparator);
 		const mainItem: IQuickPickSeparator = element.separator;
 
-		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
+		const { labelHighlights, descriptionHighlights } = element;
 
 		// Icon
 		data.icon.style.backgroundImage = '';
@@ -581,7 +581,7 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 		if (!element.saneTooltip && element.saneDescription) {
 			descriptionTitle = {
 				markdown: {
-					value: element.saneDescription,
+					value: escape(element.saneDescription),
 					supportThemeIcons: true
 				},
 				markdownNotSupportedFallback: element.saneDescription
@@ -596,29 +596,6 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 		};
 		data.entry.classList.add('quick-input-list-separator-as-item');
 		data.label.setLabel(element.saneLabel, element.saneDescription, options);
-
-		// Detail
-		if (element.saneDetail) {
-			let title: IManagedHoverTooltipMarkdownString | undefined;
-			// If we have a tooltip, we want that to be shown and not any other hover
-			if (!element.saneTooltip) {
-				title = {
-					markdown: {
-						value: element.saneDetail,
-						supportThemeIcons: true
-					},
-					markdownNotSupportedFallback: element.saneDetail
-				};
-			}
-			data.detail.element.style.display = '';
-			data.detail.setLabel(element.saneDetail, undefined, {
-				matches: detailHighlights,
-				title,
-				labelEscapeNewLines: true
-			});
-		} else {
-			data.detail.element.style.display = 'none';
-		}
 
 		// Separator
 		data.separator.style.display = 'none';

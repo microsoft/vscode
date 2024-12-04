@@ -188,6 +188,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribSourceControlHistoryItemMenu'
 	},
 	{
+		key: 'scm/historyItemRef/context',
+		id: MenuId.SCMHistoryItemRefContext,
+		description: localize('menus.historyItemRefContext', "The Source Control history item reference context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
 		key: 'statusBar/remoteIndicator',
 		id: MenuId.StatusBarRemoteIndicatorMenu,
 		description: localize('menus.statusBarRemoteIndicator', "The remote indicator menu in the status bar"),
@@ -306,8 +312,7 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'issue/reporter',
 		id: MenuId.IssueReporter,
-		description: localize('issue.reporter', "The contributed issue reporter menu"),
-		proposed: 'contribIssueReporter'
+		description: localize('issue.reporter', "The contributed issue reporter menu")
 	},
 	{
 		key: 'testing/item/context',

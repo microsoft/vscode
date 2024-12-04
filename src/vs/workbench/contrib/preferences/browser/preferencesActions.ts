@@ -18,6 +18,7 @@ import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExten
 import { MenuId, MenuRegistry, isIMenuItem } from '../../../../platform/actions/common/actions.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { isLocalizedString } from '../../../../platform/action/common/action.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 export class ConfigureLanguageBasedSettingsAction extends Action {
 
@@ -82,11 +83,15 @@ CommandsRegistry.registerCommand({
 });
 
 //#region --- Register a command to get all actions from the command palette
-CommandsRegistry.registerCommand('_getAllCommands', function (accessor) {
+CommandsRegistry.registerCommand('_getAllCommands', function (accessor, filterByPrecondition?: boolean) {
 	const keybindingService = accessor.get(IKeybindingService);
+	const contextKeyService = accessor.get(IContextKeyService);
 	const actions: { command: string; label: string; keybinding: string; description?: string; precondition?: string }[] = [];
 	for (const editorAction of EditorExtensionsRegistry.getEditorActions()) {
 		const keybinding = keybindingService.lookupKeybinding(editorAction.id);
+		if (filterByPrecondition && !contextKeyService.contextMatchesRules(editorAction.precondition)) {
+			continue;
+		}
 		actions.push({
 			command: editorAction.id,
 			label: editorAction.label,
@@ -97,6 +102,9 @@ CommandsRegistry.registerCommand('_getAllCommands', function (accessor) {
 	}
 	for (const menuItem of MenuRegistry.getMenuItems(MenuId.CommandPalette)) {
 		if (isIMenuItem(menuItem)) {
+			if (filterByPrecondition && !contextKeyService.contextMatchesRules(menuItem.when)) {
+				continue;
+			}
 			const title = typeof menuItem.command.title === 'string' ? menuItem.command.title : menuItem.command.title.value;
 			const category = menuItem.command.category ? typeof menuItem.command.category === 'string' ? menuItem.command.category : menuItem.command.category.value : undefined;
 			const label = category ? `${category}: ${title}` : title;

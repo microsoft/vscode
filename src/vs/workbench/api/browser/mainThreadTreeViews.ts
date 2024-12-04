@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, CheckboxUpdate } from '../common/extHost.protocol.js';
-import { ITreeViewDataProvider, ITreeItem, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge, NoTreeViewError } from '../../common/views.js';
+import { ITreeItem, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge, NoTreeViewError, ITreeViewDataProvider } from '../../common/views.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { distinct } from '../../../base/common/arrays.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
@@ -270,13 +270,21 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		this.hasResolve = this._proxy.$hasResolve(this.treeViewId);
 	}
 
-	getChildren(treeItem?: ITreeItem): Promise<ITreeItem[] | undefined> {
-		if (!treeItem) {
+	async getChildren(treeItem?: ITreeItem): Promise<ITreeItem[] | undefined> {
+		const batches = await this.getChildrenBatch(treeItem ? [treeItem] : undefined);
+		return batches?.[0];
+	}
+
+	getChildrenBatch(treeItems?: ITreeItem[]): Promise<ITreeItem[][] | undefined> {
+		if (!treeItems) {
 			this.itemsMap.clear();
 		}
-		return this._proxy.$getChildren(this.treeViewId, treeItem ? treeItem.handle : undefined)
+		return this._proxy.$getChildren(this.treeViewId, treeItems ? treeItems.map(item => item.handle) : undefined)
 			.then(
-				children => this.postGetChildren(children),
+				children => {
+					const convertedChildren = this.convertTransferChildren(treeItems ?? [], children);
+					return this.postGetChildren(convertedChildren);
+				},
 				err => {
 					// It can happen that a tree view is disposed right as `getChildren` is called. This results in an error because the data provider gets removed.
 					// The tree will shortly get cleaned up in this case. We just need to handle the error here.
@@ -285,6 +293,17 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 					}
 					return [];
 				});
+	}
+
+	private convertTransferChildren(parents: ITreeItem[], children: (number | ITreeItem)[][] | undefined) {
+		const convertedChildren: (ITreeItem[] | undefined)[] = Array(parents.length);
+		if (children) {
+			for (const childGroup of children) {
+				const childGroupIndex = childGroup[0] as number;
+				convertedChildren[childGroupIndex] = childGroup.slice(1) as ITreeItem[];
+			}
+		}
+		return convertedChildren;
 	}
 
 	getItemsToRefresh(itemsToRefreshByHandle: { [treeItemHandle: string]: ITreeItem }): { items: ITreeItem[]; checkboxes: ITreeItem[] } {
@@ -325,22 +344,29 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		return this.itemsMap.size === 0;
 	}
 
-	private async postGetChildren(elements: ITreeItem[] | undefined): Promise<ResolvableTreeItem[] | undefined> {
-		if (elements === undefined) {
+	private async postGetChildren(elementGroups: (ITreeItem[] | undefined)[] | undefined): Promise<ResolvableTreeItem[][] | undefined> {
+		if (elementGroups === undefined) {
 			return undefined;
 		}
-		const result: ResolvableTreeItem[] = [];
+		const resultGroups: ResolvableTreeItem[][] = [];
 		const hasResolve = await this.hasResolve;
-		if (elements) {
-			for (const element of elements) {
-				const resolvable = new ResolvableTreeItem(element, hasResolve ? (token) => {
-					return this._proxy.$resolve(this.treeViewId, element.handle, token);
-				} : undefined);
-				this.itemsMap.set(element.handle, resolvable);
-				result.push(resolvable);
+		if (elementGroups) {
+			for (const elements of elementGroups) {
+				const result: ResolvableTreeItem[] = [];
+				resultGroups.push(result);
+				if (!elements) {
+					continue;
+				}
+				for (const element of elements) {
+					const resolvable = new ResolvableTreeItem(element, hasResolve ? (token) => {
+						return this._proxy.$resolve(this.treeViewId, element.handle, token);
+					} : undefined);
+					this.itemsMap.set(element.handle, resolvable);
+					result.push(resolvable);
+				}
 			}
 		}
-		return result;
+		return resultGroups;
 	}
 
 	private updateTreeItem(current: ITreeItem, treeItem: ITreeItem): void {

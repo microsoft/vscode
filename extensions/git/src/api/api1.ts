@@ -12,7 +12,7 @@ import { toGitUri } from '../uri';
 import { GitExtensionImpl } from './extension';
 import { GitBaseApi } from '../git-base';
 import { PickRemoteSourceOptions } from './git-base';
-import { Operation, OperationResult } from '../operation';
+import { OperationKind, OperationResult } from '../operation';
 
 class ApiInputBox implements InputBox {
 	set value(value: string) { this._inputBox.value = value; }
@@ -67,7 +67,11 @@ export class ApiRepository implements Repository {
 	readonly state: RepositoryState = new ApiRepositoryState(this.repository);
 	readonly ui: RepositoryUIState = new ApiRepositoryUIState(this.repository.sourceControl);
 
-	readonly onDidCommit: Event<void> = mapEvent<OperationResult, void>(filterEvent(this.repository.onDidRunOperation, e => e.operation === Operation.Commit), () => null);
+	readonly onDidCommit: Event<void> = mapEvent<OperationResult, void>(
+		filterEvent(this.repository.onDidRunOperation, e => e.operation.kind === OperationKind.Commit), () => null);
+
+	readonly onDidCheckout: Event<void> = mapEvent<OperationResult, void>(
+		filterEvent(this.repository.onDidRunOperation, e => e.operation.kind === OperationKind.Checkout || e.operation.kind === OperationKind.CheckoutTracking), () => null);
 
 	constructor(readonly repository: BaseRepository) { }
 

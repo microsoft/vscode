@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../editor/browser/editorExtensions.js';
 import { EmbeddedDiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/embeddedDiffEditorWidget.js';
 import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { InlineChatController, InlineChatRunOptions } from './inlineChatController.js';
-import { ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_EDIT_MODE, EditMode, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatResponseType, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, MENU_INLINE_CHAT_ZONE, ACTION_DISCARD_CHANGES, CTX_INLINE_CHAT_POSSIBLE } from '../common/inlineChat.js';
+import { ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_EDIT_MODE, EditMode, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatResponseType, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, MENU_INLINE_CHAT_ZONE, ACTION_DISCARD_CHANGES, CTX_INLINE_CHAT_POSSIBLE, ACTION_START } from '../common/inlineChat.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IAction2Options, MenuId } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -25,7 +25,7 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatService } from '../../chat/common/chatService.js';
-import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { HunkInformation } from './inlineChatSession.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 
@@ -45,36 +45,55 @@ export function setHoldForSpeech(holdForSpeech: IHoldForSpeech) {
 	_holdForSpeech = holdForSpeech;
 }
 
-export class StartSessionAction extends EditorAction2 {
+export class StartSessionAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'inlineChat.start',
+			id: ACTION_START,
 			title: localize2('run', 'Editor Inline Chat'),
 			category: AbstractInlineChatAction.category,
 			f1: true,
 			precondition: ContextKeyExpr.and(
 				CTX_INLINE_CHAT_HAS_AGENT,
 				CTX_INLINE_CHAT_POSSIBLE,
-				EditorContextKeys.writable
+				EditorContextKeys.writable,
+				EditorContextKeys.editorSimpleInput.negate()
 			),
 			keybinding: {
 				when: EditorContextKeys.focus,
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KeyI,
-				secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyI)],
+				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
 			icon: START_INLINE_CHAT,
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'b_inlineChat',
+				group: 'd_inlineChat',
 				order: 10,
 			}
 		});
 	}
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const editor = codeEditorService.getActiveCodeEditor();
+		if (!editor || editor.isSimpleWidget) {
+			// well, at least we tried...
+			return;
+		}
 
+		// precondition does hold
+		return editor.invokeWithinContext((editorAccessor) => {
+			const kbService = editorAccessor.get(IContextKeyService);
+			const logService = editorAccessor.get(ILogService);
+			const enabled = kbService.contextMatchesRules(this.desc.precondition ?? undefined);
+			if (!enabled) {
+				logService.debug(`[EditorAction2] NOT running command because its precondition is FALSE`, this.desc.id, this.desc.precondition?.serialize());
+				return;
+			}
+			return this._runEditorCommand(editorAccessor, editor, ...args);
+		});
+	}
 
-	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
+	private _runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
 
 		const ctrl = InlineChatController.get(editor);
 		if (!ctrl) {
@@ -255,7 +274,7 @@ export class AcceptChanges extends AbstractInlineChatAction {
 				group: '0_main',
 				order: 1,
 				when: ContextKeyExpr.and(
-					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
+					ChatContextKeys.inputHasText.toNegated(),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.MessagesAndEdits)
 				),
@@ -285,7 +304,7 @@ export class DiscardHunkAction extends AbstractInlineChatAction {
 				group: '0_main',
 				order: 2,
 				when: ContextKeyExpr.and(
-					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
+					ChatContextKeys.inputHasText.toNegated(),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.MessagesAndEdits),
 					CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Live)
@@ -322,7 +341,7 @@ export class RerunAction extends AbstractInlineChatAction {
 				group: '0_main',
 				order: 5,
 				when: ContextKeyExpr.and(
-					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
+					ChatContextKeys.inputHasText.toNegated(),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.notEqualsTo(InlineChatResponseType.None)
 				)
@@ -465,7 +484,7 @@ export class ViewInChatAction extends AbstractInlineChatAction {
 				group: '0_main',
 				order: 1,
 				when: ContextKeyExpr.and(
-					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
+					ChatContextKeys.inputHasText.toNegated(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.Messages),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate()
 				)
@@ -473,7 +492,7 @@ export class ViewInChatAction extends AbstractInlineChatAction {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-				when: CONTEXT_IN_CHAT_INPUT
+				when: ChatContextKeys.inChatInput
 			}
 		});
 	}

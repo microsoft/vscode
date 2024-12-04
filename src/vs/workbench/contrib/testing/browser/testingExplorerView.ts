@@ -17,9 +17,11 @@ import { ITreeContextMenuEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSort
 import { Action, ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
 import { mapFindFirst } from '../../../../base/common/arraysFind.js';
 import { RunOnceScheduler, disposableTimeout } from '../../../../base/common/async.js';
+import { groupBy } from '../../../../base/common/collections.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
@@ -30,7 +32,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../nls.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { MenuEntryActionViewItem, createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuEntryActionViewItem, createActionViewItem, getActionBarActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -65,7 +67,7 @@ import { ITestProfileService, canUseProfileWithTest } from '../common/testProfil
 import { LiveTestResult, TestResultItemChangeReason } from '../common/testResult.js';
 import { ITestResultService } from '../common/testResultService.js';
 import { IMainThreadTestCollection, ITestService, testCollectionIsEmpty } from '../common/testService.js';
-import { ITestRunProfile, InternalTestItem, TestControllerCapability, TestItemExpandState, TestResultState, TestRunProfileBitset, testResultStateToContextValues } from '../common/testTypes.js';
+import { ITestRunProfile, InternalTestItem, TestControllerCapability, TestItemExpandState, TestResultState, TestRunProfileBitset, testProfileBitset, testResultStateToContextValues } from '../common/testTypes.js';
 import { TestingContextKeys } from '../common/testingContextKeys.js';
 import { ITestingContinuousRunService } from '../common/testingContinuousRunService.js';
 import { ITestingPeekOpener } from '../common/testingPeekOpener.js';
@@ -118,6 +120,7 @@ export class TestingExplorerView extends ViewPane {
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
+		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
@@ -326,6 +329,9 @@ export class TestingExplorerView extends ViewPane {
 				return this.getRunGroupDropdown(TestRunProfileBitset.Run, action, options);
 			case TestCommandId.DebugSelectedAction:
 				return this.getRunGroupDropdown(TestRunProfileBitset.Debug, action, options);
+			case TestCommandId.StartContinousRun:
+			case TestCommandId.StopContinousRun:
+				return this.getContinuousRunDropdown(action, options);
 			default:
 				return super.getActionViewItem(action, options);
 		}
@@ -374,7 +380,6 @@ export class TestingExplorerView extends ViewPane {
 			}
 		}
 
-		const menuActions: IAction[] = [];
 		const contextKeys: [string, unknown][] = [];
 		// allow extension author to define context for when to show the test menu actions for run or debug menus
 		if (group === TestRunProfileBitset.Run) {
@@ -390,7 +395,7 @@ export class TestingExplorerView extends ViewPane {
 		const menu = this.menuService.getMenuActions(MenuId.TestProfilesContext, key);
 
 		// fill if there are any actions
-		createAndFillInContextMenuActions(menu, menuActions);
+		const menuActions = getFlatContextMenuActions(menu);
 
 		const postActions: IAction[] = [];
 		if (profileActions.length > 1) {
@@ -441,11 +446,79 @@ export class TestingExplorerView extends ViewPane {
 				: icons.testingDebugAllIcon,
 		}, undefined, undefined, undefined, undefined);
 
-		const dropdownAction = new Action('selectRunConfig', 'Select Configuration...', 'codicon-chevron-down', true);
+		return this.instantiationService.createInstance(
+			DropdownWithPrimaryActionViewItem,
+			primaryAction, this.getDropdownAction(), dropdownActions,
+			'',
+			options
+		);
+	}
+
+	private getDropdownAction() {
+		return new Action('selectRunConfig', localize('testingSelectConfig', 'Select Configuration...'), 'codicon-chevron-down', true);
+	}
+
+	private getContinuousRunDropdown(defaultAction: IAction, options: IActionViewItemOptions) {
+		const allProfiles = [...Iterable.flatMap(this.testProfileService.all(), (cr): Iterable<ITestRunProfile> => {
+			if (this.testService.collection.getNodeById(cr.controller.id)?.children.size) {
+				return Iterable.filter(cr.profiles, p => p.supportsContinuousRun);
+			}
+			return Iterable.empty();
+		})];
+
+		if (allProfiles.length <= 1) {
+			return super.getActionViewItem(defaultAction, options);
+		}
+
+		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
+			id: defaultAction.id,
+			title: defaultAction.label,
+			icon: defaultAction.id === TestCommandId.StartContinousRun ? icons.testingTurnContinuousRunOn : icons.testingTurnContinuousRunOff,
+		}, undefined, undefined, undefined, undefined);
+
+		const dropdownActions: IAction[] = [];
+		const groups = groupBy(allProfiles, p => p.group);
+		const crService = this.crService;
+		for (const group of [TestRunProfileBitset.Run, TestRunProfileBitset.Debug, TestRunProfileBitset.Coverage] as const) {
+			const profiles = groups[group];
+			if (!profiles) {
+				continue;
+			}
+
+			if (Object.keys(groups).length > 1) {
+				dropdownActions.push(new Action(
+					`${group}.label`,
+					testProfileBitset[group],
+					undefined,
+					false,
+				));
+			}
+
+			for (const profile of profiles) {
+				dropdownActions.push(new class extends Action {
+					constructor() {
+						super(
+							`${group}.${profile.profileId}`,
+							profile.label,
+							undefined,
+							true,
+							() => crService.isEnabledForProfile(profile)
+								? crService.stopProfile(profile)
+								: crService.start([profile]),
+						);
+						this.checked = crService.isEnabledForProfile(profile);
+						this._register(crService.onDidChange(() => {
+							this.checked = crService.isEnabledForProfile(profile);
+						}));
+					}
+				});
+			}
+		}
+
 
 		return this.instantiationService.createInstance(
 			DropdownWithPrimaryActionViewItem,
-			primaryAction, dropdownAction, dropdownActions,
+			primaryAction, this.getDropdownAction(), dropdownActions,
 			'',
 			options
 		);
@@ -728,7 +801,6 @@ class TestingExplorerViewModel extends Disposable {
 				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
 				filter: this.filter,
 				findWidgetEnabled: false,
-				openOnSingleClick: false,
 			}) as TestingObjectTree<FuzzyScore>;
 
 
@@ -772,11 +844,34 @@ class TestingExplorerViewModel extends Disposable {
 			filterState.text.onDidChange,
 			filterState.fuzzy.onDidChange,
 			testService.excluded.onTestExclusionsChanged,
-		)(this.tree.refilter, this.tree));
+		)(() => {
+			if (!filterState.text.value) {
+				return this.tree.refilter();
+			}
+
+			const items = this.filter.lastIncludedTests = new Set();
+			this.tree.refilter();
+			this.filter.lastIncludedTests = undefined;
+
+			for (const test of items) {
+				this.tree.expandTo(test);
+			}
+		}));
 
 		this._register(this.tree.onDidOpen(e => {
-			if (e.element instanceof TestItemTreeElement && !e.element.children.size && e.element.test.item.uri) {
-				commandService.executeCommand('vscode.revealTest', e.element.test.item.extId);
+			if (!(e.element instanceof TestItemTreeElement)) {
+				return;
+			}
+
+			filterState.didSelectTestInExplorer(e.element.test.item.extId);
+
+			if (!e.element.children.size && e.element.test.item.uri) {
+				if (!this.tryPeekError(e.element)) {
+					commandService.executeCommand('vscode.revealTest', e.element.test.item.extId, {
+						openToSide: e.sideBySide,
+						preserveFocus: true,
+					});
+				}
 			}
 		}));
 
@@ -802,20 +897,6 @@ class TestingExplorerViewModel extends Disposable {
 		this._register(onDidChangeVisibility(visible => {
 			if (visible) {
 				filterState.focusInput();
-			}
-		}));
-
-		this._register(this.tree.onDidChangeSelection(evt => {
-			if (dom.isMouseEvent(evt.browserEvent) && (evt.browserEvent.altKey || evt.browserEvent.shiftKey)) {
-				return; // don't focus when alt-clicking to multi select
-			}
-
-			const selected = evt.elements[0];
-			if (selected && evt.browserEvent && selected instanceof TestItemTreeElement) {
-				filterState.didSelectTestInExplorer(selected.test.item.extId);
-				if (selected.children.size === 0 && selected.test.expand === TestItemExpandState.NotExpandable) {
-					this.tryPeekError(selected);
-				}
 			}
 		}));
 
@@ -1125,6 +1206,8 @@ const hasNodeInOrParentOfUri = (collection: IMainThreadTestCollection, ident: IU
 class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 	private documentUris: URI[] = [];
 
+	public lastIncludedTests?: Set<TestExplorerTreeElement>;
+
 	constructor(
 		private readonly collection: IMainThreadTestCollection,
 		@ITestExplorerFilterState private readonly state: ITestExplorerFilterState,
@@ -1152,6 +1235,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 			case FilterResult.Exclude:
 				return TreeVisibility.Hidden;
 			case FilterResult.Include:
+				this.lastIncludedTests?.add(element);
 				return TreeVisibility.Visible;
 			default:
 				return TreeVisibility.Recurse;
@@ -1597,13 +1681,9 @@ const getActionableElementActions = (
 		shouldForwardArgs: true,
 	});
 
-	const primary: IAction[] = [];
-	const secondary: IAction[] = [];
-	const result = { primary, secondary };
-	createAndFillInActionBarActions(menu, result, 'inline');
+	const actions = getActionBarActions(menu, 'inline');
 
-	return { actions: result, contextOverlay };
-
+	return { actions, contextOverlay };
 };
 
 registerThemingParticipant((theme, collector) => {

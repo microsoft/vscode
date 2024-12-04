@@ -62,6 +62,9 @@
 			margin: 0 2px;
 			transform: none;
 			transition: transform 0.2s ease-in-out;
+			.codicon {
+				color: var(--vscode-inlineEdit-indicator-foreground);
+			}
 		}
 
 		.label {
@@ -74,10 +77,7 @@
 	}
 
 	.inline-edits-view {
-		--widget-color: var(--vscode-editorHoverWidget-background);
-
-		&.toolbarDropdownVisible,
-		.editorContainer:hover {
+		&.toolbarDropdownVisible, .editorContainer:hover {
 			.toolbar {
 				display: block;
 			}
@@ -85,9 +85,6 @@
 
 		.editorContainer {
 			color: var(--vscode-editorHoverWidget-foreground);
-			background-color: var(--vscode-editorHoverWidget-background);
-			/*border: 1px solid var(--vscode-editorHoverWidget-border);*/
-			/*border-radius: 3px;*/
 
 			.toolbar {
 				display: none;
@@ -135,7 +132,7 @@
 						border: none;
 					}
 
-					--vscode-editor-background: var(--widget-color);
+					--vscode-editor-background: transparent;
 				}
 			}
 		}
@@ -143,5 +140,30 @@
 
 	.strike-through {
 		text-decoration: line-through;
+	}
+
+	.inlineCompletions-line-insert {
+		background: var(--vscode-inlineEdit-modifiedChangedLineBackground);
+	}
+
+	.inlineCompletions-line-delete {
+		background: var(--vscode-inlineEdit-originalChangedLineBackground);
+	}
+
+	.inlineCompletions-char-insert {
+		background: var(--vscode-inlineEdit-modifiedChangedTextBackground);
+	}
+
+	.inlineCompletions-char-delete {
+		background: var(--vscode-inlineEdit-originalChangedTextBackground);
+	}
+
+	.inlineCompletions-char-delete.diff-range-empty {
+		margin-left: -1px;
+		border-left: solid var(--vscode-inlineEdit-originalChangedTextBackground) 3px;
+	}
+
+	.inlineCompletions-char-insert.diff-range-empty {
+		border-left: solid var(--vscode-inlineEdit-modifiedChangedTextBackground) 3px;
 	}
 }

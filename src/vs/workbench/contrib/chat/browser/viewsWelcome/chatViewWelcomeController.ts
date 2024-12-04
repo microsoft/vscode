@@ -52,18 +52,19 @@ export class ChatViewWelcomeController extends Disposable {
 
 	private update(force?: boolean): void {
 		const enabled = this.delegate.shouldShowWelcome();
-		if (this.enabled === enabled || force) {
+		if (this.enabled === enabled && !force) {
 			return;
 		}
 
+		this.enabled = enabled;
 		this.enabledDisposables.clear();
+
 		if (!enabled) {
 			this.container.classList.toggle('chat-view-welcome-visible', false);
 			this.renderDisposables.clear();
 			return;
 		}
 
-		this.enabled = true;
 		const descriptors = chatViewsWelcomeRegistry.get();
 		if (descriptors.length) {
 			this.render(descriptors);
@@ -81,12 +82,20 @@ export class ChatViewWelcomeController extends Disposable {
 		this.renderDisposables.clear();
 		dom.clearNode(this.element!);
 
-		const enabledDescriptor = descriptors.find(d => this.contextKeyService.contextMatchesRules(d.when));
+		const matchingDescriptors = descriptors.filter(descriptor => this.contextKeyService.contextMatchesRules(descriptor.when));
+		let enabledDescriptor: IChatViewsWelcomeDescriptor | undefined;
+		for (const descriptor of matchingDescriptors) {
+			if (typeof descriptor.content === 'function') {
+				enabledDescriptor = descriptor; // when multiple descriptors match, prefer a "core" one over a "descriptive" one
+				break;
+			}
+		}
+		enabledDescriptor = enabledDescriptor ?? matchingDescriptors.at(0);
 		if (enabledDescriptor) {
 			const content: IChatViewWelcomeContent = {
 				icon: enabledDescriptor.icon,
 				title: enabledDescriptor.title,
-				message: enabledDescriptor.content,
+				message: enabledDescriptor.content
 			};
 			const welcomeView = this.renderDisposables.add(this.instantiationService.createInstance(ChatViewWelcomePart, content, { firstLinkToButton: true, location: this.location }));
 			this.element!.appendChild(welcomeView.element);
@@ -100,7 +109,7 @@ export class ChatViewWelcomeController extends Disposable {
 export interface IChatViewWelcomeContent {
 	icon?: ThemeIcon;
 	title: string;
-	message: IMarkdownString;
+	message: IMarkdownString | ((disposables: DisposableStore) => HTMLElement);
 	tips?: IMarkdownString;
 }
 
@@ -123,39 +132,49 @@ export class ChatViewWelcomePart extends Disposable {
 		this.element = dom.$('.chat-welcome-view');
 
 		try {
-			const icon = dom.append(this.element!, $('.chat-welcome-view-icon'));
-			const title = dom.append(this.element!, $('.chat-welcome-view-title'));
+			const renderer = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
 
-			if (options?.location === ChatAgentLocation.EditingSession) {
-				const featureIndicator = dom.append(this.element!, $('.chat-welcome-view-indicator'));
-				featureIndicator.textContent = localize('preview', 'PREVIEW');
-			}
-			const message = dom.append(this.element!, $('.chat-welcome-view-message'));
-
+			// Icon
+			const icon = dom.append(this.element, $('.chat-welcome-view-icon'));
 			if (content.icon) {
 				icon.appendChild(renderIcon(content.icon));
 			}
 
+			// Title
+			const title = dom.append(this.element, $('.chat-welcome-view-title'));
 			title.textContent = content.title;
-			const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
-			const messageResult = this._register(renderer.render(content.message));
-			const firstLink = options?.firstLinkToButton ? messageResult.element.querySelector('a') : undefined;
-			if (firstLink) {
-				const target = firstLink.getAttribute('data-href');
-				const button = this._register(new Button(firstLink.parentElement!, defaultButtonStyles));
-				button.label = firstLink.textContent ?? '';
-				if (target) {
-					this._register(button.onDidClick(() => {
-						this.openerService.open(target, { allowCommands: true });
-					}));
-				}
-				firstLink.replaceWith(button.element);
+
+			// Preview indicator
+			if (options?.location === ChatAgentLocation.EditingSession && typeof content.message !== 'function') {
+				const featureIndicator = dom.append(this.element, $('.chat-welcome-view-indicator'));
+				featureIndicator.textContent = localize('preview', 'PREVIEW');
 			}
 
-			dom.append(message, messageResult.element);
+			// Message
+			const message = dom.append(this.element, $('.chat-welcome-view-message'));
+			if (typeof content.message === 'function') {
+				dom.append(message, content.message(this._register(new DisposableStore())));
+			} else {
+				const messageResult = this._register(renderer.render(content.message));
+				const firstLink = options?.firstLinkToButton ? messageResult.element.querySelector('a') : undefined;
+				if (firstLink) {
+					const target = firstLink.getAttribute('data-href');
+					const button = this._register(new Button(firstLink.parentElement!, defaultButtonStyles));
+					button.label = firstLink.textContent ?? '';
+					if (target) {
+						this._register(button.onDidClick(() => {
+							this.openerService.open(target, { allowCommands: true });
+						}));
+					}
+					firstLink.replaceWith(button.element);
+				}
 
+				dom.append(message, messageResult.element);
+			}
+
+			// Tips
 			if (content.tips) {
-				const tips = dom.append(this.element!, $('.chat-welcome-view-tips'));
+				const tips = dom.append(this.element, $('.chat-welcome-view-tips'));
 				const tipsResult = this._register(renderer.render(content.tips));
 				tips.appendChild(tipsResult.element);
 			}
