@@ -87,7 +87,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	private readonly _onDidChangeHistoryItemRefs = new EventEmitter<SourceControlHistoryItemRefsChangeEvent>();
 	readonly onDidChangeHistoryItemRefs: Event<SourceControlHistoryItemRefsChangeEvent> = this._onDidChangeHistoryItemRefs.event;
 
-	private _HEAD: Branch | undefined;
 	private historyItemRefs: SourceControlHistoryItemRef[] = [];
 
 	private historyItemDecorations = new Map<string, FileDecoration>();
@@ -128,19 +127,16 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						icon: new ThemeIcon('cloud')
 					} : undefined;
 
-					// Base - compute only if the branch has changed
-					if (this._HEAD?.name !== this.repository.HEAD.name) {
-						const mergeBase = await this.resolveHEADMergeBase();
-
-						this._currentHistoryItemBaseRef = mergeBase &&
-							(mergeBase.remote !== this.repository.HEAD.upstream?.remote ||
-								mergeBase.name !== this.repository.HEAD.upstream?.name) ? {
-							id: `refs/remotes/${mergeBase.remote}/${mergeBase.name}`,
-							name: `${mergeBase.remote}/${mergeBase.name}`,
-							revision: mergeBase.commit,
-							icon: new ThemeIcon('cloud')
-						} : undefined;
-					}
+					// Base
+					const mergeBase = await this.resolveHEADMergeBase();
+					this._currentHistoryItemBaseRef = mergeBase &&
+						(mergeBase.remote !== this.repository.HEAD.upstream?.remote ||
+							mergeBase.name !== this.repository.HEAD.upstream?.name) ? {
+						id: `refs/remotes/${mergeBase.remote}/${mergeBase.name}`,
+						name: `${mergeBase.remote}/${mergeBase.name}`,
+						revision: mergeBase.commit,
+						icon: new ThemeIcon('cloud')
+					} : undefined;
 				} else {
 					// Detached commit
 					historyItemRefId = this.repository.HEAD.commit ?? '';
@@ -161,8 +157,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				break;
 			}
 		}
-
-		this._HEAD = this.repository.HEAD;
 
 		this._currentHistoryItemRef = {
 			id: historyItemRefId,
