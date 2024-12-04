@@ -207,13 +207,8 @@ export class GitBlameController {
 		markdownString.appendMarkdown(`---\n\n`);
 
 		markdownString.appendMarkdown(`[$(eye) View Commit](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformation.hash]))} "${l10n.t('View Commit')}")`);
-		markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
+		markdownString.appendMarkdown('&nbsp;&nbsp;&nbsp;&nbsp;');
 		markdownString.appendMarkdown(`[$(copy) ${blameInformation.hash.substring(0, 8)}](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.hash))} "${l10n.t('Copy Commit Hash')}")`);
-
-		if (blameInformation.subject) {
-			markdownString.appendMarkdown('&nbsp;&nbsp;');
-			markdownString.appendMarkdown(`[$(copy) Subject](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.subject))} "${l10n.t('Copy Commit Subject')}")`);
-		}
 
 		return markdownString;
 	}
