@@ -473,7 +473,14 @@ class HitTestRequest extends BareHitTestRequest {
 				const lineWidth = visibleRange.originalLeft;
 				const spaceWidth = this._ctx.spaceWidth;
 				const offset = this.mouseContentHorizontalOffset - lineWidth - spaceWidth / 2;
-				const leftoverVisibleColumns = Math.max(0, MouseTargetFactory._getMouseColumn(offset, spaceWidth) - 1);
+				let leftoverVisibleColumns = Math.max(0, MouseTargetFactory._getMouseColumn(offset, spaceWidth) - 1);
+				if (
+					leftoverVisibleColumns > 0
+					&& this._ctx.viewModel.normalizePosition(new Position(lineNumber, maxColumn), PositionAffinity.Right).lineNumber !== lineNumber
+				) {
+					leftoverVisibleColumns = 0;
+				}
+
 				const fixedPosition = new Position(lineNumber, maxColumn + leftoverVisibleColumns);
 				return {
 					fixedPosition,

@@ -102,10 +102,8 @@ export class MoveOperations {
 			// for possibly negative columns.
 			const clippedPos = MoveOperations.clipPositionColumn(pos, minColumn, maxColumn);
 			const normalizedPos = model.normalizePosition(clippedPos, PositionAffinity.Left);
-			// If normalization moves us to the previous line, we're in the middle of a wrapped line
-			// We're neither at the beginning of the line, nor at the end
 			const sameLine = clippedPos.lineNumber === normalizedPos.lineNumber;
-			if (virtualSpace && sameLine && pos.column > maxColumn) { // Are we in virtual space?
+			if (virtualSpace && pos.column > maxColumn) { // Are we in virtual space?
 				lineNumber = pos.lineNumber;
 				column = pos.column - 1;
 			} else if (virtualSpace && sameLine && normalizedPos.column <= minColumn) { // Are we at the beginning of a line?
@@ -192,6 +190,9 @@ export class MoveOperations {
 			if (virtualSpace && sameLine && normalizedPos.column >= maxColumn) {
 				lineNumber = normalizedPos.lineNumber;
 				column = Math.max(pos.column, normalizedPos.column) + 1;
+			} else if (virtualSpace && !sameLine && normalizedPos.column === model.getLineMaxColumn(normalizedPos.lineNumber)) {
+				lineNumber = normalizedPos.lineNumber;
+				column = normalizedPos.column + 1;
 			} else {
 				const r = MoveOperations.right(config, model, normalizedPos);
 				lineNumber = r.lineNumber;
@@ -202,7 +203,7 @@ export class MoveOperations {
 		return cursor.move(inSelectionMode, lineNumber, column, 0, null);
 	}
 
-	public static vertical(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, columnHint: number | null, newLineNumber: number, allowMoveOnEdgeLine: boolean, normalizationAffinity?: PositionAffinity): CursorPosition {
+	public static vertical(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, columnHint: number | null, newLineNumber: number, allowMoveOnEdgeLine: boolean): CursorPosition {
 		const virtualSpace = config.virtualSpace;
 
 		let currentVisibleColumn;
@@ -254,17 +255,49 @@ export class MoveOperations {
 			}
 		}
 
-		if (normalizationAffinity !== undefined) {
-			const position = new Position(lineNumber, column);
-			const newPosition = model.normalizePosition(position, normalizationAffinity);
-			lineNumber = newPosition.lineNumber;
-			column = newPosition.column;
-		}
 		return new CursorPosition(lineNumber, column, columnHint);
 	}
 
 	public static down(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, columnHint: number | null, count: number, allowMoveOnLastLine: boolean): CursorPosition {
-		return this.vertical(config, model, lineNumber, column, columnHint, lineNumber + count, allowMoveOnLastLine, PositionAffinity.RightOfInjectedText);
+		let pos = this.vertical(config, model, lineNumber, column, columnHint, lineNumber + count, allowMoveOnLastLine);
+		let clippedColumn = Math.min(model.getLineMaxColumn(pos.lineNumber), pos.column);
+		let left = model.normalizePosition(new Position(pos.lineNumber, clippedColumn), PositionAffinity.LeftOfInjectedText);
+		let right = model.normalizePosition(new Position(pos.lineNumber, clippedColumn), PositionAffinity.RightOfInjectedText);
+
+		// If left pos took us back to the starting position and right pos is at the end of its line, we may be looking at injected copilot hint and need to skip it.
+		if (
+			left.lineNumber === lineNumber && left.column === column
+			&& right.column >= model.getLineMaxColumn(right.lineNumber)
+		) {
+			pos = this.vertical(config, model, right.lineNumber, right.column, pos.columnHint, right.lineNumber + 1, false);
+			clippedColumn = Math.min(model.getLineMaxColumn(pos.lineNumber), pos.column);
+			left = model.normalizePosition(new Position(pos.lineNumber, clippedColumn), PositionAffinity.LeftOfInjectedText);
+			right = model.normalizePosition(new Position(pos.lineNumber, clippedColumn), PositionAffinity.RightOfInjectedText);
+		}
+
+		if (
+			right.lineNumber === pos.lineNumber
+			&& (left.lineNumber !== pos.lineNumber || left.column !== pos.column)
+		) {
+			// If right norm didn't take us to the next line, we're done. This is the fast path.
+			return new CursorPosition(pos.lineNumber, Math.max(pos.column, right.column), pos.columnHint);
+		} else if (left.lineNumber === pos.lineNumber) {
+			// Right norm took us to the next line, but left norm stayed. Try to keep the line and go with the left norm.
+			return new CursorPosition(left.lineNumber, left.column, pos.columnHint);
+		} else {
+			// Both norms change line. Go to right.lineNumber and try to preserve the column
+			const column = pos.columnHint || 0;
+			if (column <= right.column) {
+				return new CursorPosition(right.lineNumber, right.column, pos.columnHint);
+			}
+			const newRight = model.normalizePosition(new Position(right.lineNumber, column), PositionAffinity.RightOfInjectedText);
+			if (newRight.lineNumber === right.lineNumber) {
+				return new CursorPosition(newRight.lineNumber, newRight.column, pos.columnHint);
+			} else {
+				const newLeft = model.normalizePosition(new Position(right.lineNumber, column), PositionAffinity.LeftOfInjectedText);
+				return new CursorPosition(newLeft.lineNumber, newLeft.column, pos.columnHint);
+			}
+		}
 	}
 
 	public static moveDown(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, linesCount: number): SingleCursorState {
@@ -287,16 +320,7 @@ export class MoveOperations {
 			columnHint = cursor.columnHint;
 		}
 
-		let i = 0;
-		let r: CursorPosition;
-		do {
-			r = MoveOperations.down(config, model, lineNumber + i, column, columnHint, linesCount, true);
-			const np = model.normalizePosition(new Position(r.lineNumber, r.column), PositionAffinity.None);
-			if (np.lineNumber > lineNumber) {
-				break;
-			}
-		} while (i++ < 10 && lineNumber + i < model.getLineCount());
-
+		const r = MoveOperations.down(config, model, lineNumber, column, columnHint, linesCount, true);
 		return cursor.move(inSelectionMode, r.lineNumber, r.column, 0, r.columnHint);
 	}
 
@@ -317,7 +341,38 @@ export class MoveOperations {
 	}
 
 	public static up(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, columnHint: number | null, count: number, allowMoveOnFirstLine: boolean): CursorPosition {
-		return this.vertical(config, model, lineNumber, column, columnHint, lineNumber - count, allowMoveOnFirstLine, PositionAffinity.LeftOfInjectedText);
+		const pos = this.vertical(config, model, lineNumber, column, columnHint, lineNumber - count, allowMoveOnFirstLine);
+		const clippedColumn = Math.min(model.getLineMaxColumn(pos.lineNumber), pos.column);
+		const left = model.normalizePosition(new Position(pos.lineNumber, clippedColumn), PositionAffinity.LeftOfInjectedText);
+		const right = model.normalizePosition(new Position(pos.lineNumber, clippedColumn), PositionAffinity.RightOfInjectedText);
+
+		if (
+			// When going up, preferentially use the left norm. Unless it would change line, or the right norm is exact match.
+			left.lineNumber === pos.lineNumber
+			&& (right.lineNumber !== pos.lineNumber || right.column !== pos.column)
+		) {
+			if (right.lineNumber === pos.lineNumber && pos.column > right.column) {
+				// If right norm didn't change line either and pos is after right, we're in virtual space.
+				return pos;
+			} else {
+				return new CursorPosition(left.lineNumber, left.column, pos.columnHint);
+			}
+		} else if (right.lineNumber === pos.lineNumber) {
+			return new CursorPosition(pos.lineNumber, Math.max(pos.column, right.column), pos.columnHint);
+		} else {
+			// Both norms change line. Go to left.lineNumber and try to preserve the column
+			const column = pos.columnHint || 0;
+			if (column >= left.column) {
+				return new CursorPosition(left.lineNumber, left.column, pos.columnHint);
+			}
+			const newLeft = model.normalizePosition(new Position(left.lineNumber, column), PositionAffinity.LeftOfInjectedText);
+			if (newLeft.lineNumber === left.lineNumber) {
+				return new CursorPosition(newLeft.lineNumber, newLeft.column, pos.columnHint);
+			} else {
+				const newRight = model.normalizePosition(new Position(left.lineNumber, column), PositionAffinity.RightOfInjectedText);
+				return new CursorPosition(newRight.lineNumber, newRight.column, pos.columnHint);
+			}
+		}
 	}
 
 	public static moveUp(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, linesCount: number): SingleCursorState {
@@ -339,7 +394,6 @@ export class MoveOperations {
 		}
 
 		const r = MoveOperations.up(config, model, lineNumber, column, columnHint, linesCount, true);
-
 		return cursor.move(inSelectionMode, r.lineNumber, r.column, 0, r.columnHint);
 	}
 

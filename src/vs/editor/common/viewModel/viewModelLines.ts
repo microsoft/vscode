@@ -810,22 +810,20 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const computedModelColumn = line.getModelColumnOfViewPosition(remainder, viewColumn);
 		const computedModelPosition = this.model.validatePosition(new Position(lineIndex + 1, computedModelColumn));
 
-		if (computedModelPosition.equals(expectedModelPosition) && viewLeftoverVisibleColumns === 0) {
-			return new Position(viewLineNumber, viewColumn);
-		}
+		const modelLeftoverVisibleColumns = virtualSpace ? Math.max(0, expectedModelPosition.column - this.model.getLineMaxColumn(lineIndex + 1)) : 0;
 
-		const modelLeftoverVisibleColumns = virtualSpace ? expectedModelPosition.column - computedModelPosition.column : 0;
 		if (
-			computedModelPosition.lineNumber === expectedModelPosition.lineNumber
-			&& computedModelPosition.column <= expectedModelPosition.column
-			&& modelLeftoverVisibleColumns === viewLeftoverVisibleColumns
+			viewLeftoverVisibleColumns === modelLeftoverVisibleColumns
+			&& computedModelPosition.delta(0, modelLeftoverVisibleColumns).equals(expectedModelPosition)
 		) {
-			return new Position(viewLineNumber, viewColumn + modelLeftoverVisibleColumns);
+			return new Position(viewLineNumber, viewColumn + viewLeftoverVisibleColumns);
 		}
 
 		const viewPosition = this.convertModelPositionToViewPosition(expectedModelPosition.lineNumber, expectedModelPosition.column);
 		if (modelLeftoverVisibleColumns > 0) {
 			const r = this.projectedModelLineLineCounts.getIndexOf(viewPosition.lineNumber - 1);
+			const lineIndex = r.index;
+			const remainder = r.remainder;
 			const line = this.modelLineProjections[r.index];
 			const maxColumn = line.getViewLineMaxColumn(this.model, lineIndex + 1, remainder);
 			return new Position(viewPosition.lineNumber, maxColumn + modelLeftoverVisibleColumns);
