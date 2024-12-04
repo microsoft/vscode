@@ -38,7 +38,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatModel.js';
-import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseErrorDetails, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IToolData, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
@@ -1646,7 +1646,7 @@ export namespace MappedEditsContext {
 					{
 						type: 'response',
 						message: item.message,
-						result: item.result ? ChatAgentResult.from(item.result, undefined, undefined) : undefined,
+						result: item.result ? ChatAgentResult.from(item.result) : undefined,
 						references: item.references?.map(DocumentContextItem.from)
 					}
 			))
@@ -2903,17 +2903,14 @@ export namespace ChatAgentCompletionItem {
 export namespace ChatAgentResult {
 	export function to(result: IChatAgentResult): vscode.ChatResult {
 		return {
-			errorDetails: result.errorDetails ? {
-				...result.errorDetails,
-				quotaExceededDetails: undefined
-			} : undefined,
+			errorDetails: result.errorDetails,
 			metadata: reviveMetadata(result.metadata),
 			nextQuestion: result.nextQuestion,
 		};
 	}
-	export function from(result: vscode.ChatResult, commandsConverter: CommandsConverter | undefined, disposables: DisposableStore | undefined): Dto<IChatAgentResult> {
+	export function from(result: vscode.ChatResult): Dto<IChatAgentResult> {
 		return {
-			errorDetails: result.errorDetails ? ChatErrorDetails.from(result.errorDetails, commandsConverter!, disposables!) : undefined,
+			errorDetails: result.errorDetails,
 			metadata: result.metadata,
 			nextQuestion: result.nextQuestion,
 		};
@@ -2931,18 +2928,6 @@ export namespace ChatAgentResult {
 
 			return undefined;
 		});
-	}
-}
-
-export namespace ChatErrorDetails {
-	export function from(vscodeErrorDetails: vscode.ChatErrorDetails, commandsConverter: CommandsConverter | undefined, disposables: DisposableStore | undefined): Dto<IChatResponseErrorDetails> {
-		return {
-			...vscodeErrorDetails,
-			quotaExceededDetails: vscodeErrorDetails.quotaExceededDetails && commandsConverter && disposables ? {
-				command: commandsConverter.toInternal(vscodeErrorDetails.quotaExceededDetails.command, disposables),
-				rerunButtonLabel: vscodeErrorDetails.quotaExceededDetails.rerunButtonLabel,
-			} : undefined
-		};
 	}
 }
 
