@@ -352,7 +352,7 @@ export class GitBlameController {
 		}
 
 		const lineBlameInformation: LineBlameInformation[] = [];
-		for (const lineNumber of textEditor.selections.map(s => s.active.line)) {
+		for (const lineNumber of new Set(textEditor.selections.map(s => s.active.line))) {
 			// Check if the line is contained in the working tree diff information
 			if (lineRangesContainLine(workingTreeChanges, lineNumber + 1)) {
 				lineBlameInformation.push({ lineNumber, blameInformation: l10n.t('Not Committed Yet') });
