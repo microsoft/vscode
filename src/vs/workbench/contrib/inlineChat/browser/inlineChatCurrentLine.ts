@@ -35,6 +35,7 @@ import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Event } from '../../../../base/common/event.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
 
 export const CTX_INLINE_CHAT_SHOWING_HINT = new RawContextKey<boolean>('inlineChatShowingHint', false, localize('inlineChatShowingHint', "Whether inline chat shows a contextual hint"));
 
@@ -227,6 +228,10 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 			configSignal.read(r);
 
 			if (ghostState !== undefined || !kb || !position || !model || !textFocus) {
+				return undefined;
+			}
+
+			if (model.getLanguageId() === PLAINTEXT_LANGUAGE_ID || model.getLanguageId() === 'markdown') {
 				return undefined;
 			}
 
