@@ -44,8 +44,8 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 
 	declare _serviceBrand: undefined;
 
-	private readonly _onDidChangeChatQuota = this._register(new Emitter<void>());
-	readonly onDidChangeQuotas: Event<void> = this._onDidChangeChatQuota.event;
+	private readonly _onDidChangeQuotas = this._register(new Emitter<void>());
+	readonly onDidChangeQuotas: Event<void> = this._onDidChangeQuotas.event;
 
 	private _quotas = { chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: new Date(0) };
 	get quotas(): IChatQuotas { return this._quotas; }
@@ -87,7 +87,7 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 			}
 
 			if (fireEvent) {
-				this._onDidChangeChatQuota.fire();
+				this._onDidChangeQuotas.fire();
 			}
 		}));
 	}
@@ -183,6 +183,6 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 	acceptQuotas(quotas: IChatQuotas): void {
 		this._quotas = quotas;
 
-		this._onDidChangeChatQuota.fire();
+		this._onDidChangeQuotas.fire();
 	}
 }
