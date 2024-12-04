@@ -523,14 +523,13 @@ export class AttachContextAction extends Action2 {
 				const itemsPromise = chatEditingService.getRelatedFiles(chatSessionId, widget.getInput(), CancellationToken.None)
 					.then((files) => (files ?? []).reduce<((IQuickPickItem & { value: URI }) | IQuickPickSeparator)[]>((acc, cur) => {
 						acc.push({ type: 'separator', label: cur.group });
-						const workingSet = chatEditingService.currentEditingSessionObs.get()?.workingSet;
 						for (const file of cur.files) {
 							acc.push({
 								type: 'item',
 								label: labelService.getUriBasenameLabel(file.uri),
 								description: labelService.getUriLabel(dirname(file.uri), { relative: true }),
 								value: file.uri,
-								disabled: workingSet?.has(file.uri) || attachments.has(this._getFileContextId({ resource: file.uri })),
+								disabled: attachments.has(this._getFileContextId({ resource: file.uri })),
 								picked: true
 							});
 						}
