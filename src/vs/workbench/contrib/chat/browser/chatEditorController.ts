@@ -185,7 +185,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	private _updateWithDiff(entry: IModifiedFileEntry, diff: IDocumentDiff): void {
 
-		this._ctxHasEditorModification.set(true);
+		this._ctxHasEditorModification.set(!diff.identical);
 		const originalModel = entry.originalModel;
 
 		const chatDiffAddDecoration = ModelDecorationOptions.createDynamic({
