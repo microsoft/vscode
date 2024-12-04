@@ -11,6 +11,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { DiffAlgorithmName } from '../../../../editor/common/services/editorWorker.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -19,13 +20,26 @@ export const IDirtyDiffModelService = createDecorator<IDirtyDiffModelService>('I
 
 export interface IDirtyDiffModelService {
 	_serviceBrand: undefined;
-	getOrCreateModel(uri: URI): DirtyDiffModel | undefined;
+
+	/**
+	 * Returns `undefined` if the editor model is not resolved
+	 * @param uri
+	 */
+	getDirtyDiffModel(uri: URI): DirtyDiffModel | undefined;
+
+	/**
+	 * Returns `undefined` if the editor model is not resolved
+	 * @param uri
+	 * @param algorithm
+	 */
+	getDiffModel(uri: URI, algorithm: DiffAlgorithmName): DirtyDiffModel | undefined;
 }
 
 export class DirtyDiffModelService extends Disposable implements IDirtyDiffModelService {
 	_serviceBrand: undefined;
 
-	private _models = new ResourceMap<DirtyDiffModel>();
+	private readonly _dirtyDiffModels = new ResourceMap<DirtyDiffModel>();
+	private readonly _diffModels = new ResourceMap<Map<DiffAlgorithmName, DirtyDiffModel>>();
 
 	private _visibleTextEditorControls = observableFromEvent(
 		this.editorService.onDidVisibleEditorsChange,
@@ -42,37 +56,72 @@ export class DirtyDiffModelService extends Disposable implements IDirtyDiffModel
 		this._register(autorun(reader => {
 			const visibleTextEditorControls = this._visibleTextEditorControls.read(reader);
 
-			// Dispose models for editors that are not visible
-			for (const [uri, dirtyDiffModel] of this._models) {
+			// Dispose dirty diff models for text editors that are not visible
+			for (const [uri, dirtyDiffModel] of this._dirtyDiffModels) {
 				const textEditorControl = visibleTextEditorControls
 					.find(editor => isCodeEditor(editor) &&
 						this.uriIdentityService.extUri.isEqual(editor.getModel()?.uri, uri));
 
-				const diffEditorControl = visibleTextEditorControls
-					.find(editor => isDiffEditor(editor) &&
-						this.uriIdentityService.extUri.isEqual(editor.getModel()?.modified.uri, uri));
-
-				if (textEditorControl || diffEditorControl) {
+				if (textEditorControl) {
 					continue;
 				}
 
 				dirtyDiffModel.dispose();
-				this._models.delete(uri);
+				this._dirtyDiffModels.delete(uri);
+			}
+
+			// Dispose diff models for diff editors that are not visible
+			for (const [uri, dirtyDiffModel] of this._diffModels) {
+				const diffEditorControl = visibleTextEditorControls
+					.find(editor => isDiffEditor(editor) &&
+						this.uriIdentityService.extUri.isEqual(editor.getModel()?.modified.uri, uri));
+
+				if (diffEditorControl) {
+					continue;
+				}
+
+				for (const algorithm of dirtyDiffModel.keys()) {
+					dirtyDiffModel.get(algorithm)?.dispose();
+					dirtyDiffModel.delete(algorithm);
+				}
+				this._diffModels.delete(uri);
 			}
 		}));
 	}
 
-	getOrCreateModel(uri: URI): DirtyDiffModel | undefined {
-		let model = this._models.get(uri);
-		if (!model) {
-			const textFileModel = this.textFileService.files.get(uri);
-			if (!textFileModel?.isResolved()) {
-				return undefined;
-			}
-
-			model = this.instantiationService.createInstance(DirtyDiffModel, textFileModel);
-			this._models.set(uri, model);
+	getDirtyDiffModel(uri: URI): DirtyDiffModel | undefined {
+		let model = this._dirtyDiffModels.get(uri);
+		if (model) {
+			return model;
 		}
+
+		const textFileModel = this.textFileService.files.get(uri);
+		if (!textFileModel?.isResolved()) {
+			return undefined;
+		}
+
+		model = this.instantiationService.createInstance(DirtyDiffModel, textFileModel, undefined);
+		this._dirtyDiffModels.set(uri, model);
+
+		return model;
+	}
+
+	getDiffModel(uri: URI, algorithm: DiffAlgorithmName): DirtyDiffModel | undefined {
+		let model = this._diffModels.get(uri)?.get(algorithm);
+		if (model) {
+			return model;
+		}
+
+		const textFileModel = this.textFileService.files.get(uri);
+		if (!textFileModel?.isResolved()) {
+			return undefined;
+		}
+
+		model = this.instantiationService.createInstance(DirtyDiffModel, textFileModel, algorithm);
+		if (!this._diffModels.has(uri)) {
+			this._diffModels.set(uri, new Map());
+		}
+		this._diffModels.get(uri)!.set(algorithm, model);
 
 		return model;
 	}

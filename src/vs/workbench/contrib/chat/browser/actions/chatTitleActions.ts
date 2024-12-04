@@ -557,9 +557,9 @@ export function registerChatTitleActions() {
 			return await new Promise<IChatRequestModel[]>(_resolve => {
 
 				const resolve = (value: IChatRequestModel[]) => {
-					qp.hide();
 					store.dispose();
 					_resolve(value);
+					qp.hide();
 				};
 
 				const store = new DisposableStore();
@@ -577,9 +577,26 @@ export function registerChatTitleActions() {
 					ignore = true;
 					try {
 						const [first] = e;
-						const idx = first ? customPicks.indexOf(first) : -1;
-						const selected = idx >= 0 ? customPicks.slice(idx) : [];
+
+						const selected: typeof customPicks = [];
+						let disabled = false;
+
+						for (let i = 0; i < customPicks.length; i++) {
+							const oldItem = customPicks[i];
+							customPicks[i] = {
+								...oldItem,
+								disabled,
+							};
+
+							disabled = disabled || oldItem === first;
+
+							if (disabled) {
+								selected.push(customPicks[i]);
+							}
+						}
+						qp.items = customPicks;
 						qp.selectedItems = selected;
+
 					} finally {
 						ignore = false;
 					}

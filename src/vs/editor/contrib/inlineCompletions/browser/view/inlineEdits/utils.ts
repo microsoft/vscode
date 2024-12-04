@@ -42,6 +42,19 @@ export function maxContentWidthInRange(editor: ObservableCodeEditor, range: Line
 	return maxContentWidth;
 }
 
+export function getOffsetForPos(editor: ObservableCodeEditor, pos: Position, reader: IReader): number {
+	editor.layoutInfo.read(reader);
+	editor.value.read(reader);
+
+	const model = editor.model.read(reader);
+	if (!model) { return 0; }
+
+	editor.scrollTop.read(reader);
+	const lineContentWidth = editor.editor.getOffsetForColumn(pos.lineNumber, pos.column);
+
+	return lineContentWidth;
+}
+
 export class StatusBarViewItem extends MenuEntryActionViewItem {
 	protected override updateLabel() {
 		const kb = this._keybindingService.lookupKeybinding(this._action.id, this._contextKeyService);

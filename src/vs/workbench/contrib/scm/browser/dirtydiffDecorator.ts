@@ -12,7 +12,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import * as ext from '../../../common/contributions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
-import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { DiffAlgorithmName, IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ISCMService, ISCMRepository } from '../common/scm.js';
@@ -61,6 +61,8 @@ import { IQuickDiffService, QuickDiff, QuickDiffResult } from '../common/quickDi
 import { IQuickDiffSelectItem, SwitchQuickDiffBaseAction, SwitchQuickDiffViewItem } from './dirtyDiffSwitcher.js';
 import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
 import { lineRangeMappingFromChanges } from '../../../../editor/common/diff/rangeMapping.js';
+import { DiffState } from '../../../../editor/browser/widget/diffEditor/diffEditorViewModel.js';
+import { toLineChanges } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -1234,6 +1236,7 @@ export class DirtyDiffModel extends Disposable {
 
 	constructor(
 		textFileModel: IResolvedTextFileEditorModel,
+		private readonly algorithm: DiffAlgorithmName | undefined,
 		@ISCMService private readonly scmService: ISCMService,
 		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
@@ -1370,7 +1373,7 @@ export class DirtyDiffModel extends Disposable {
 
 			const allDiffs: LabeledChange[] = [];
 			for (const quickDiff of filteredToDiffable) {
-				const dirtyDiff = await this.editorWorkerService.computeDirtyDiff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace);
+				const dirtyDiff = await this._diff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace);
 				if (dirtyDiff) {
 					for (const diff of dirtyDiff) {
 						if (diff) {
@@ -1390,6 +1393,24 @@ export class DirtyDiffModel extends Disposable {
 			}
 			return { changes: sorted, mapChanges: map };
 		});
+	}
+
+	private async _diff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> {
+		if (this.algorithm === undefined) {
+			return this.editorWorkerService.computeDirtyDiff(original, modified, ignoreTrimWhitespace);
+		}
+
+		const diffResult = await this.editorWorkerService.computeDiff(original, modified, {
+			computeMoves: false,
+			ignoreTrimWhitespace,
+			maxComputationTimeMs: Number.MAX_SAFE_INTEGER
+		}, this.algorithm);
+
+		if (!diffResult) {
+			return null;
+		}
+
+		return toLineChanges(DiffState.fromDiffResult(diffResult));
 	}
 
 	private getQuickDiffsPromise(): Promise<QuickDiff[]> {
@@ -1462,7 +1483,17 @@ export class DirtyDiffModel extends Disposable {
 			// disable dirty diff when doing chat edits
 			return Promise.resolve([]);
 		}
-		return this.quickDiffService.getQuickDiffs(uri, this._model.getLanguageId(), this._model.textEditorModel ? shouldSynchronizeModel(this._model.textEditorModel) : undefined);
+
+		const isSynchronized = this._model.textEditorModel ? shouldSynchronizeModel(this._model.textEditorModel) : undefined;
+		const quickDiffs = await this.quickDiffService.getQuickDiffs(uri, this._model.getLanguageId(), isSynchronized);
+
+		// TODO@lszomoru - find a long term solution for this
+		// When the DirtyDiffModel is created for a diff editor, there is no
+		// need to compute the diff information for the `isSCM` quick diff
+		// provider as that information will be provided by the diff editor
+		return this.algorithm !== undefined
+			? quickDiffs.filter(quickDiff => !quickDiff.isSCM)
+			: quickDiffs;
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true, provider?: string): number {
@@ -1669,7 +1700,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 					const textFileModel = this.textFileService.files.get(textModel.uri);
 
 					if (textFileModel?.isResolved()) {
-						const dirtyDiffModel = this.instantiationService.createInstance(DirtyDiffModel, textFileModel);
+						const dirtyDiffModel = this.instantiationService.createInstance(DirtyDiffModel, textFileModel, undefined);
 						const decorator = new DirtyDiffDecorator(textFileModel.textEditorModel, editor, dirtyDiffModel, this.configurationService);
 						if (!this.items.has(textModel.uri)) {
 							this.items.set(textModel.uri, new Map());

@@ -86,7 +86,7 @@ export class NotebookChatActionsOverlay extends Disposable {
 
 		this._register(autorun(r => {
 			const diffs = cellDiffInfo.read(r);
-			if (diffs?.length) {
+			if (diffs?.some(d => d.type !== 'unchanged')) {
 				this.show();
 			} else {
 				this.hide();

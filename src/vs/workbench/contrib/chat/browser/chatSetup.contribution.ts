@@ -19,7 +19,8 @@ import { IRequestContext } from '../../../../base/parts/request/common/request.j
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -32,6 +33,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import product from '../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { asText, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -97,7 +99,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -164,7 +166,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				});
 			}
 
-			override async run(accessor: ServicesAccessor): Promise<void> {
+			override async run(accessor: ServicesAccessor, startSetup: boolean | undefined): Promise<void> {
 				const viewsService = accessor.get(IViewsService);
 				const viewDescriptorService = accessor.get(IViewDescriptorService);
 				const configurationService = accessor.get(IConfigurationService);
@@ -174,6 +176,12 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 				showCopilotView(viewsService);
 				ensureSideBarChatViewSize(400, viewDescriptorService, layoutService);
+
+				// Setup should be kicked off immediately
+				if (typeof startSetup === 'boolean' && startSetup) {
+					const controller = that.controller.value;
+					controller.setup();
+				}
 
 				configurationService.updateValue('chat.commandCenter.enabled', true);
 			}
@@ -241,20 +249,22 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 			}
 		}
 
-		const outOfFreeChatResponses = localize('out of free chat responses', "You've run out of free chat responses, but free code completions are still available as part of the Copilot Free plan.");
-		const outOfCompletions = localize('out of completions', "You've run out of free code completions, but free chat responses are still available as part of the Copilot Free plan.");
-		const outOfLimits = localize('out of limits', "You've reached the limits of the Copilot Free plan.");
 		const limitReset = localize('limit reset', "Your limits will reset on {0}.", 'January 13, 2025 at 3:35 PM');
 		const upgradeToPro = localize('upgradeToPro', "Here's what you can expect when upgrading to Copilot Pro:\n- Unlimited code completions\n- Unlimited chat interactions\n- 30 day free trial");
 
-		abstract class AbstractShowLimitReachedDialogAction extends Action2 {
+		class ShowLimitReachedDialogAction extends Action2 {
 
-			constructor(private readonly message: string, desc: Readonly<IAction2Options>) {
-				super(desc);
+			constructor() {
+				super({
+					id: 'workbench.action.chat.showOutOfLimits',
+					title: localize('upgradeChat', "Upgrade to Copilot Pro"),
+					category: CHAT_CATEGORY
+				});
 			}
 
 			override async run(accessor: ServicesAccessor, ...args: any[]) {
 				const commandService = accessor.get(ICommandService);
+				const message = this.getMessage(accessor.get(IContextKeyService));
 
 				await accessor.get(IDialogService).prompt({
 					type: 'none',
@@ -273,52 +283,58 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 						closeOnLinkClick: true,
 						icon: Codicon.copilot,
 						markdownDetails: [
-							{ markdown: new MarkdownString(`${this.message} ${limitReset}`, true) },
+							{ markdown: new MarkdownString(`${message} ${limitReset}`, true) },
 							{ markdown: new MarkdownString(upgradeToPro, true) }
 						]
 					}
 				});
 			}
-		}
 
-		class ShowOutOfFreeChatResponsesDialogAction extends AbstractShowLimitReachedDialogAction {
-			constructor() {
-				super(outOfFreeChatResponses, {
-					id: 'workbench.action.chat.showOutOfFreeChatResponsesDialog',
-					title: localize2('showLimitReachedDialog', "Show Out of Free Chat Responses Dialog"),
-					// f1: true,
-					category: CHAT_CATEGORY
-				});
+			private getMessage(contextKeyService: IContextKeyService): string {
+				const outOfFreeChatResponses = localize('out of free chat responses', "You've run out of free chat responses, but free code completions are still available as part of the Copilot Free plan.");
+				const outOfCompletions = localize('out of completions', "You've run out of free code completions, but free chat responses are still available as part of the Copilot Free plan.");
+				const outOfLimits = localize('out of limits', "You've reached the limits of the Copilot Free plan.");
+				const completionsOverQuota = contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Quota.overCompletionsQuota) ?? false;
+				const chatOverQuota = contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Quota.overChatQuota) ?? false;
+				if (chatOverQuota && !completionsOverQuota) {
+					return outOfFreeChatResponses;
+				} else if (completionsOverQuota && !chatOverQuota) {
+					return outOfCompletions;
+				} else {
+					return outOfLimits;
+				}
 			}
 		}
 
-		class ShowOutOfCompletionsDialogAction extends AbstractShowLimitReachedDialogAction {
+		class SimulateCopilotQuotaExceeded extends Action2 {
 			constructor() {
-				super(outOfCompletions, {
-					id: 'workbench.action.chat.showOutOfCompletions',
-					title: localize2('showOutOfCompletions', "Show Out of Completions Dialog"),
+				super({
+					id: 'workbench.action.chat.simulateCopilotQuotaExceeded',
+					title: localize2('simulateCopilotQuotaExceeded', "Simulate Copilot Quota Exceeded"),
 					// f1: true,
-					category: CHAT_CATEGORY
+					category: Categories.Developer
 				});
 			}
-		}
 
-		class ShowOutOfLimitsDialogAction extends AbstractShowLimitReachedDialogAction {
-			constructor() {
-				super(outOfLimits, {
-					id: 'workbench.action.chat.showOutOfLimits',
-					title: localize2('showOutOfLimits', "Show Out of Limits Dialog"),
-					// f1: true,
-					category: CHAT_CATEGORY
-				});
+			override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+				const contextKeyService = accessor.get(IContextKeyService);
+				const inputService = accessor.get(IQuickInputService);
+				const result = await inputService.pick([
+					{ label: 'Chat' },
+					{ label: 'Completions' }
+				], { canPickMany: true, placeHolder: 'Pick the quotas to exceed' });
+				if (result) {
+					const resultSet = new Set(result.map(r => r.label));
+					contextKeyService.createKey(ChatContextKeys.Quota.overChatQuota, resultSet.has('Chat'));
+					contextKeyService.createKey(ChatContextKeys.Quota.overCompletionsQuota, resultSet.has('Completions'));
+				}
 			}
 		}
 
 		registerAction2(ChatSetupTriggerAction);
 		registerAction2(ChatSetupHideAction);
-		registerAction2(ShowOutOfFreeChatResponsesDialogAction);
-		registerAction2(ShowOutOfCompletionsDialogAction);
-		registerAction2(ShowOutOfLimitsDialogAction);
+		registerAction2(ShowLimitReachedDialogAction);
+		registerAction2(SimulateCopilotQuotaExceeded);
 	}
 }
 
