@@ -39,7 +39,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
@@ -89,8 +89,11 @@ enum ChatEntitlement {
 //#region Contribution
 
 const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
+const TRIGGER_SETUP_COMMAND_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
 
-class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
+export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.chat.setup';
 
 	private readonly context = this._register(this.instantiationService.createInstance(ChatSetupContext));
 	private readonly requests = this._register(this.instantiationService.createInstance(ChatSetupRequests, this.context));
@@ -140,13 +143,10 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 		class ChatSetupTriggerAction extends Action2 {
 
-			static readonly ID = TRIGGER_SETUP_COMMAND_ID;
-			static readonly TITLE = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
-
 			constructor() {
 				super({
-					id: ChatSetupTriggerAction.ID,
-					title: ChatSetupTriggerAction.TITLE,
+					id: TRIGGER_SETUP_COMMAND_ID,
+					title: TRIGGER_SETUP_COMMAND_LABEL,
 					category: CHAT_CATEGORY,
 					f1: true,
 					precondition: ContextKeyExpr.and(
@@ -221,7 +221,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 				const { confirmed } = await dialogService.confirm({
 					message: localize('hideChatSetupConfirm', "Are you sure you want to hide Copilot?"),
-					detail: localize('hideChatSetupDetail', "You can restore Copilot by running the '{0}' command.", ChatSetupTriggerAction.TITLE.value),
+					detail: localize('hideChatSetupDetail', "You can restore Copilot by running the '{0}' command.", TRIGGER_SETUP_COMMAND_LABEL.value),
 					primaryButton: localize('hideChatSetupButton', "Hide Copilot")
 				});
 
@@ -1011,5 +1011,3 @@ function showCopilotView(viewsService: IViewsService): Promise<IChatWidget | und
 		return showChatView(viewsService);
 	}
 }
-
-registerWorkbenchContribution2('workbench.chat.setup', ChatSetupContribution, WorkbenchPhase.BlockRestore);
