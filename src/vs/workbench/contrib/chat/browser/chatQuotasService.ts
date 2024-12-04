@@ -177,7 +177,9 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 		}
 
 		registerAction2(ShowLimitReachedDialogAction);
-		registerAction2(SimulateCopilotQuotaExceeded);
+		if (product.quality !== 'stable') {
+			registerAction2(SimulateCopilotQuotaExceeded);
+		}
 	}
 
 	acceptQuotas(quotas: IChatQuotas): void {
