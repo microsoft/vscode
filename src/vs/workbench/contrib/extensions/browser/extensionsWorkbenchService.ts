@@ -19,7 +19,8 @@ import {
 	InstallOptions, IProductVersion,
 	UninstallExtensionInfo,
 	TargetPlatformToString,
-	IAllowedExtensionsService
+	IAllowedExtensionsService,
+	AllowedExtensionsConfigKey
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -1445,7 +1446,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const disallowedExtensions = this.local.filter(e => e.enablementState === EnablementState.DisabledByAllowlist);
 		if (disallowedExtensions.length) {
 			computedNotificiations.push({
-				message: nls.localize('disallowed extensions', "Some extensions are disabled because they are configured not to be in the allowed list."),
+				message: this.configurationService.inspect(AllowedExtensionsConfigKey).policy
+					? nls.localize('disallowed extensions by policy', "Some extensions are disabled because they are not allowed by your system administrator.")
+					: nls.localize('disallowed extensions', "Some extensions are disabled because they are configured not to be allowed."),
 				severity: Severity.Warning,
 				extensions: disallowedExtensions,
 				key: 'disallowedExtensions:' + disallowedExtensions.sort((a, b) => a.identifier.id.localeCompare(b.identifier.id)).map(e => e.identifier.id.toLowerCase()).join('-'),
