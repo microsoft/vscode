@@ -133,7 +133,7 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 					buttons: [
 						{
 							label: localize('managePlan', "Upgrade to Copilot Pro"),
-							run: () => { openerService.open(URI.parse(product.defaultChatAgent?.managePlanUrl ?? '')); }
+							run: () => { openerService.open(URI.parse(product.defaultChatAgent?.upgradePlanUrl ?? '')); }
 						},
 					],
 					custom: {

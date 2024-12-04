@@ -50,4 +50,19 @@
 		width: 100%;
 		padding: 4px 7px;
 	}
+
+	/** Checkboxes */
+	.checkbox-container {
+		display: flex;
+		padding-top: 20px;
+	}
+
+	.checkbox-label {
+		flex-basis: fit-content;
+		cursor: pointer;
+	}
+
+	.checkbox-label p {
+		display: inline;
+	}
 }
