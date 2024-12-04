@@ -38,7 +38,7 @@ import { ILanguageModelToolsService } from '../common/languageModelToolsService.
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
 import { PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
-import { ChatCommandCenterRendering, registerChatActions } from './actions/chatActions.js';
+import { ChatCommandCenterRendering, ChatStatusBarEntry, registerChatActions } from './actions/chatActions.js';
 import { ACTION_ID_NEW_CHAT, registerNewChatActions } from './actions/chatClearActions.js';
 import { registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
 import { registerChatContextActions } from './actions/chatContextActions.js';
@@ -129,7 +129,7 @@ configurationRegistry.registerConfiguration({
 		'chat.editing.alwaysSaveWithGeneratedChanges': {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
-			markdownDescription: nls.localize('chat.editing.alwaysSaveWithGeneratedChanges', "Whether to always ask before saving files with changes made by chat."),
+			markdownDescription: nls.localize('chat.editing.alwaysSaveWithGeneratedChanges', "Whether files that have changes made by chat can be saved without confirmation."),
 			default: false,
 		},
 		'chat.editing.confirmEditRequestRemoval': {
@@ -321,6 +321,7 @@ registerWorkbenchContribution2(ChatEditorSaving.ID, ChatEditorSaving, WorkbenchP
 registerWorkbenchContribution2(ChatEditorAutoSaveDisabler.ID, ChatEditorAutoSaveDisabler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatViewsWelcomeHandler.ID, ChatViewsWelcomeHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingStartedContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.Eventually);
 
 registerChatActions();
 registerChatCopyActions();

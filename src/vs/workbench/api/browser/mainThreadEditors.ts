@@ -36,6 +36,7 @@ import { isITextModel } from '../../../editor/common/model.js';
 import { LineRangeMapping } from '../../../editor/common/diff/rangeMapping.js';
 import { equals } from '../../../base/common/arrays.js';
 import { Event } from '../../../base/common/event.js';
+import { DiffAlgorithmName } from '../../../editor/common/services/editorWorker.js';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -157,22 +158,27 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 				? editorModel.uri
 				: editorModel.modified.uri;
 
-			// DirtyDiffModel - we create a dirty diff model for both the text editor and the
-			// diff editor so that we can provide multiple "original resources" to diff with
-			// the modified resource.
-			const dirtyDiffModel = this._dirtyDiffModelService.getOrCreateModel(editorModelUri);
-			if (!dirtyDiffModel) {
-				return constObservable(undefined);
-			}
-
 			// TextEditor
 			if (isITextModel(editorModel)) {
+				const dirtyDiffModel = this._dirtyDiffModelService.getDirtyDiffModel(editorModelUri);
+				if (!dirtyDiffModel) {
+					return constObservable(undefined);
+				}
+
 				return observableFromEvent(this, dirtyDiffModel.onDidChange, () => {
 					return dirtyDiffModel.getQuickDiffResults();
 				});
 			}
 
-			// DiffEditor
+			// DirtyDiffModel - we create a dirty diff model for diff editor so that
+			// we can provide multiple "original resources" to diff with the modified
+			// resource.
+			const diffAlgorithm = this._configurationService.getValue<DiffAlgorithmName>('diffEditor.diffAlgorithm');
+			const dirtyDiffModel = this._dirtyDiffModelService.getDiffModel(editorModelUri, diffAlgorithm);
+			if (!dirtyDiffModel) {
+				return constObservable(undefined);
+			}
+
 			return observableFromEvent(Event.any(dirtyDiffModel.onDidChange, diffEditor.onDidUpdateDiff), () => {
 				const dirtyDiffInformation = dirtyDiffModel.getQuickDiffResults();
 

@@ -91,7 +91,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			s = [];
 		}
 
-		this._variables = s;
+		this._variables = s.filter(isDynamicVariable);
 		this.updateDecorations();
 	}
 
@@ -120,6 +120,16 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			return undefined;
 		}
 	}
+}
+
+/**
+ * Loose check to filter objects that are obviously missing data
+ */
+function isDynamicVariable(obj: any): obj is IDynamicVariable {
+	return obj &&
+		typeof obj.id === 'string' &&
+		Range.isIRange(obj.range) &&
+		'data' in obj;
 }
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

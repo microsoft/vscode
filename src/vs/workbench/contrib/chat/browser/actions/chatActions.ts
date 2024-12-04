@@ -7,8 +7,9 @@ import { toAction } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay } from '../../../../../base/common/date.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -19,7 +20,7 @@ import { ILocalizedString, localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -31,6 +32,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
@@ -560,15 +562,28 @@ registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 	}
 });
 
-export class ChatCommandCenterRendering implements IWorkbenchContribution {
+export class ChatCommandCenterRendering extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'chat.commandCenterRendering';
+
+	private readonly _onDidUpdateQuotaContextKeys = new Emitter<void>();
+	readonly onDidUpdateQuotaContextKeys: Event<void> = this._onDidUpdateQuotaContextKeys.event;
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatAgentService agentService: IChatAgentService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
+		super();
+
+		// This is used below to not over re-render the view when the context keys change
+		this._register(contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([ChatContextKeys.Quota.overChatQuota, ChatContextKeys.Quota.overCompletionsQuota]))) {
+				this._onDidUpdateQuotaContextKeys.fire();
+			}
+		}));
+
 		actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
@@ -582,13 +597,99 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 
 			const chatExtensionInstalled = agentService.getAgents().some(agent => agent.isDefault);
 
-			const primaryAction = instantiationService.createInstance(MenuItemAction, {
-				id: chatExtensionInstalled ? CHAT_OPEN_ACTION_ID : 'workbench.action.chat.triggerSetup',
-				title: chatExtensionInstalled ? OpenChatGlobalAction.TITLE : localize2('triggerChatSetup', "Use AI Features with Copilot"),
-				icon: Codicon.copilot,
-			}, undefined, undefined, undefined, undefined);
+			let primaryAction: MenuItemAction;
+
+			const completionsOverQuota = contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Quota.overCompletionsQuota) ?? false;
+			const chatOverQuota = contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Quota.overChatQuota) ?? false;
+
+			if (chatExtensionInstalled && !chatOverQuota && !completionsOverQuota) {
+				primaryAction = instantiationService.createInstance(MenuItemAction, {
+					id: CHAT_OPEN_ACTION_ID,
+					title: OpenChatGlobalAction.TITLE,
+					icon: Codicon.copilot,
+				}, undefined, undefined, undefined, undefined);
+			} else if (!chatExtensionInstalled) {
+				primaryAction = instantiationService.createInstance(MenuItemAction, {
+					id: 'workbench.action.chat.triggerSetup',
+					title: localize2('triggerChatSetup', "Use AI Features with Copilot for Free"),
+					icon: Codicon.copilot,
+				}, undefined, undefined, undefined, undefined);
+			} else {
+				primaryAction = this.createQuotaPrimaryAction(chatOverQuota, completionsOverQuota);
+			}
 
 			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, primaryAction, dropdownAction, action.actions, '', { ...options, skipTelemetry: true });
-		}, agentService.onDidChangeAgents);
+		}, Event.any(agentService.onDidChangeAgents, this.onDidUpdateQuotaContextKeys));
+	}
+
+	private createQuotaPrimaryAction(chatOverQuota: boolean, completionsOverQuota: boolean): MenuItemAction {
+		let id: string;
+		if (chatOverQuota && !completionsOverQuota) {
+			id = 'workbench.action.chat.showOutOfFreeChatResponsesDialog';
+		} else if (completionsOverQuota && !chatOverQuota) {
+			id = 'workbench.action.chat.showOutOfCompletions';
+		} else {
+			id = 'workbench.action.chat.showOutOfLimits';
+		}
+		return this.instantiationService.createInstance(MenuItemAction, {
+			id,
+			title: localize2('upgradeChat', "Upgrade to Copilot Pro"),
+			icon: Codicon.copilotWarning,
+		}, undefined, undefined, undefined, undefined);
+	}
+}
+
+export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'chat.statusBarEntry';
+
+	private readonly _entry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+
+	constructor(
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+	) {
+		super();
+
+		this._register(contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([ChatContextKeys.Quota.overChatQuota, ChatContextKeys.Quota.overCompletionsQuota]))) {
+				this.updateStatusbarEntry();
+			}
+		}));
+	}
+
+	private updateStatusbarEntry() {
+		const completionsOverQuota = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Quota.overCompletionsQuota) ?? false;
+		const chatOverQuota = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Quota.overChatQuota) ?? false;
+		if (chatOverQuota || completionsOverQuota) {
+			let command: string;
+			let tooltip: string;
+			if (chatOverQuota && !completionsOverQuota) {
+				command = 'workbench.action.chat.showOutOfFreeChatResponsesDialog';
+				tooltip = localize('chatQuotaExceeded', "Out of free chat messages, click for details");
+			} else if (completionsOverQuota && !chatOverQuota) {
+				command = 'workbench.action.chat.showOutOfCompletions';
+				tooltip = localize('completionsQuotaExceeded', "Out of free code completions, click for details");
+			} else {
+				command = 'workbench.action.chat.showOutOfLimits';
+				tooltip = localize('chatAndCompletionsQuotaExceeded', "Out of free chat messages and code completions, click for details");
+			}
+
+			// Some quota exceeded, show indicator
+			this._entry.value = this.statusbarService.addEntry({
+				ariaLabel: localize('copilotQuotaExceeded', "Copilot limit exceeded"),
+				name: localize('indicator', "Copilot limit indicator"),
+				text: '$(copilot-warning) ' + localize('limitHit', "Limit hit"),
+				command,
+				kind: 'prominent',
+				showInAllWindows: true,
+				tooltip
+			}, 'chat.quota', StatusbarAlignment.RIGHT, 50);
+		} else {
+			// No quota exceeded, remove indicator
+			if (this._entry.value) {
+				this._entry.clear();
+			}
+		}
 	}
 }

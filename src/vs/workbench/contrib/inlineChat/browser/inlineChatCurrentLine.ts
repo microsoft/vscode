@@ -28,7 +28,6 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 import { ChatAgentLocation, IChatAgentService } from '../../chat/common/chatAgents.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { toAction } from '../../../../base/common/actions.js';
@@ -258,7 +257,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 				return;
 			}
 
-			const agentName = chatAgentService.getDefaultAgent(ChatAgentLocation.Editor)?.fullName ?? localize('defaultTitle', "Chat");
+			const agentName = chatAgentService.getDefaultAgent(ChatAgentLocation.Editor)?.name ?? localize('defaultTitle', "Chat");
 			const { position, isEol, isWhitespace, kb, model } = showData;
 
 			const inlineClassName: string[] = ['inline-chat-hint'];
@@ -272,10 +271,6 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 				inlineClassName.push('embedded');
 			}
 
-			if (decos.length === 0) {
-				inlineClassName.push('first');
-			}
-
 			this._ctxShowingHint.set(true);
 
 			decos.set([{
@@ -284,7 +279,6 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 					description: 'inline-chat-hint-line',
 					showIfCollapsed: true,
 					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-					hoverMessage: new MarkdownString(localize('toolttip', "Continue this with {0}...", agentName)),
 					after: {
 						content,
 						inlineClassName: inlineClassName.join(' '),

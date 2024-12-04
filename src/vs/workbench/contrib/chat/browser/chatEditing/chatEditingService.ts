@@ -177,14 +177,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return this.currentEditingSessionObs.get();
 	}
 
-	getSnapshotUri(id: string, uri: URI) {
-		const session = this._currentSessionObs.get();
-		if (!session) {
-			return undefined;
-		}
-		return session.getSnapshot(id, uri)?.snapshotUri;
-	}
-
 	override dispose(): void {
 		this._currentSessionObs.get()?.dispose();
 		super.dispose();
@@ -231,14 +223,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		this._onDidCreateEditingSession.fire(session);
 		this._onDidChangeEditingSession.fire();
 		return session;
-	}
-
-	public createSnapshot(requestId: string): void {
-		this._currentSessionObs.get()?.createSnapshot(requestId);
-	}
-
-	public async restoreSnapshot(requestId: string | undefined): Promise<void> {
-		await this._currentSessionObs.get()?.restoreSnapshot(requestId);
 	}
 
 	private installAutoApplyObserver(session: ChatEditingSession): IDisposable {
@@ -294,8 +278,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					const newEdits = allEdits.slice(entry.seen);
 					entry.seen += newEdits.length;
 
-					editsSource ??= new AsyncIterableSource();
-					editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'textEditGroup', done: part.kind === 'textEditGroup' && part.done });
+					if (newEdits.length > 0 || entry.seen === 0) {
+						// only allow empty edits when having just started, ignore otherwise to avoid unneccessary work
+						editsSource ??= new AsyncIterableSource();
+						editsSource.emitOne({ uri: part.uri, edits: newEdits, kind: 'textEditGroup', done: part.kind === 'textEditGroup' && part.done });
+					}
 
 					if (first) {
 
@@ -305,6 +292,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 							for await (const item of editsSource!.asyncIterable) {
 								if (token.isCancellationRequested) {
 									break;
+								}
+								if (item.edits.length === 0) {
+									// EMPTY edit, just signal via empty edits that work is starting
+									builder.textEdits(item.uri, [], item.done ?? false, responseModel);
+									continue;
 								}
 								for (let i = 0; i < item.edits.length; i++) {
 									const group = item.edits[i];
@@ -394,11 +386,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			return undefined;
 		}
 		const userAddedWorkingSetEntries: URI[] = [];
-		for (const entry of currentSession.workingSet) {
+		for (const [uri, metadata] of currentSession.workingSet) {
 			// Don't incorporate suggested files into the related files request
 			// but do consider transient entries like open editors
-			if (entry[1].state !== WorkingSetEntryState.Suggested) {
-				userAddedWorkingSetEntries.push(entry[0]);
+			if (metadata.state !== WorkingSetEntryState.Suggested) {
+				userAddedWorkingSetEntries.push(uri);
 			}
 		}
 

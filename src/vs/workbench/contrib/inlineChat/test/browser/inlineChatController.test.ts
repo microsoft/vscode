@@ -290,7 +290,7 @@ suite('InlineChatController', function () {
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
-		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 10 /* line length */));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 11 /* line length */));
 
 		editor.setSelection(new Range(2, 1, 2, 1));
 		editor.trigger('test', 'type', { text: 'a' });

@@ -37,9 +37,7 @@ export class NotebookChatEditorControllerContrib extends Disposable implements I
 
 	) {
 		super();
-		if (configurationService.getValue<boolean>('notebook.experimental.chatEdits')) {
-			this._register(instantiationService.createInstance(NotebookChatEditorController, notebookEditor));
-		}
+		this._register(instantiationService.createInstance(NotebookChatEditorController, notebookEditor));
 	}
 }
 

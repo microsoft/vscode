@@ -43,8 +43,8 @@ suite('AllowedExtensionsService', () => {
 		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined }) === true, true);
 	});
 
-	test('should not allow pre-release extension if only release is allowed', () => {
-		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': 'release' });
+	test('should not allow pre-release extension if only stable is allowed', () => {
+		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': 'stable' });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
 		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, prerelease: true }) === true, false);
 	});
@@ -67,20 +67,20 @@ suite('AllowedExtensionsService', () => {
 		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined }) === true, true);
 	});
 
-	test('should allow any version of an extension when release is configured', () => {
-		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': 'release' });
+	test('should allow any version of an extension when stable is configured', () => {
+		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': 'stable' });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
 		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined }) === true, true);
 	});
 
-	test('should allow a version of an extension when release is configured', () => {
-		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': 'release' });
+	test('should allow a version of an extension when stable is configured', () => {
+		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': 'stable' });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
 		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, version: '1.2.3' }) === true, true);
 	});
 
-	test('should allow a pre-release version of an extension when release is configured', () => {
-		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': 'release' });
+	test('should allow a pre-release version of an extension when stable is configured', () => {
+		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test.extension': 'stable' });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
 		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, version: '1.2.3', prerelease: true }) === true, false);
 	});
@@ -151,8 +151,8 @@ suite('AllowedExtensionsService', () => {
 		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined }) === true, false);
 	});
 
-	test('should not allow prerelease extension if publisher is allowed only to release', () => {
-		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test': 'release' });
+	test('should not allow prerelease extension if publisher is allowed only to stable', () => {
+		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'test': 'stable' });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
 		assert.strictEqual(testObject.isAllowed({ id: 'test.extension', publisherDisplayName: undefined, prerelease: true }) === true, false);
 	});

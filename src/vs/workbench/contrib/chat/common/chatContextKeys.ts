@@ -51,4 +51,10 @@ export namespace ChatContextKeys {
 		triggered: new RawContextKey<boolean>('chatSetupTriggered', false, { type: 'boolean', description: localize('chatSetupTriggered', "True when chat setup is triggered.") }),
 		installed: new RawContextKey<boolean>('chatSetupInstalled', false, { type: 'boolean', description: localize('chatSetupInstalled', "True when the chat extension is installed.") }),
 	};
+
+	// These are contributed by the respective extensions
+	export const Quota = {
+		overChatQuota: 'github.copilot.chat.quotaExceeded',
+		overCompletionsQuota: 'TBD',
+	};
 }
