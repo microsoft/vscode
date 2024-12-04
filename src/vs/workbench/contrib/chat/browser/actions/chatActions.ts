@@ -611,7 +611,7 @@ export class ChatCommandCenterRendering extends Disposable implements IWorkbench
 			}
 
 			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, primaryAction, dropdownAction, action.actions, '', { ...options, skipTelemetry: true });
-		}, Event.any(agentService.onDidChangeAgents, chatQuotasService.onDidChangeChatQuota));
+		}, Event.any(agentService.onDidChangeAgents, chatQuotasService.onDidChangeQuotas));
 	}
 }
 
@@ -627,7 +627,7 @@ export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
-		this._register(this.chatQuotasService.onDidChangeChatQuota(() => this.updateStatusbarEntry()));
+		this._register(this.chatQuotasService.onDidChangeQuotas(() => this.updateStatusbarEntry()));
 	}
 
 	private updateStatusbarEntry(): void {

@@ -26,7 +26,7 @@ export const IChatQuotasService = createDecorator<IChatQuotasService>('chatQuota
 export interface IChatQuotasService {
 	_serviceBrand: undefined;
 
-	readonly onDidChangeChatQuota: Event<void>;
+	readonly onDidChangeQuotas: Event<void>;
 	readonly quotas: IChatQuotas;
 
 	acceptQuotas(quotas: IChatQuotas): void;
@@ -45,7 +45,7 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 	declare _serviceBrand: undefined;
 
 	private readonly _onDidChangeChatQuota = this._register(new Emitter<void>());
-	readonly onDidChangeChatQuota: Event<void> = this._onDidChangeChatQuota.event;
+	readonly onDidChangeQuotas: Event<void> = this._onDidChangeChatQuota.event;
 
 	private _quotas = { chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: new Date(0) };
 	get quotas(): IChatQuotas { return this._quotas; }
