@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -32,13 +32,12 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
-import { IChatQuotasService, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG } from '../chatQuotasService.js';
+import { IChatQuotasService, OPEN_CHAT_QUOTA_EXCEEDED_DIALOG, quotaToButtonMessage } from '../chatQuotasService.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
@@ -50,6 +49,7 @@ import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
+import { TRIGGER_SETUP_COMMAND_ID, TRIGGER_SETUP_COMMAND_LABEL } from '../chatSetup.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -598,14 +598,14 @@ export class ChatCommandCenterRendering extends Disposable implements IWorkbench
 				}, undefined, undefined, undefined, undefined);
 			} else if (!chatExtensionInstalled) {
 				primaryAction = instantiationService.createInstance(MenuItemAction, {
-					id: 'workbench.action.chat.triggerSetup',
-					title: localize2('triggerChatSetup', "Use AI Features with Copilot for Free"),
+					id: TRIGGER_SETUP_COMMAND_ID,
+					title: TRIGGER_SETUP_COMMAND_LABEL,
 					icon: Codicon.copilot,
 				}, undefined, undefined, undefined, undefined);
 			} else {
 				primaryAction = instantiationService.createInstance(MenuItemAction, {
 					id: OPEN_CHAT_QUOTA_EXCEEDED_DIALOG,
-					title: quotaToMessage({ chatQuotaExceeded, completionsQuotaExceeded }),
+					title: quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded }),
 					icon: Codicon.copilotWarning,
 				}, undefined, undefined, undefined, undefined);
 			}
@@ -615,49 +615,3 @@ export class ChatCommandCenterRendering extends Disposable implements IWorkbench
 	}
 }
 
-export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'chat.quotasStatusBarEntry';
-
-	private readonly _entry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-
-	constructor(
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService
-	) {
-		super();
-
-		this._register(this.chatQuotasService.onDidChangeQuotas(() => this.updateStatusbarEntry()));
-	}
-
-	private updateStatusbarEntry(): void {
-		const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatQuotasService.quotas;
-		if (chatQuotaExceeded || completionsQuotaExceeded) {
-			// Some quota exceeded, show indicator
-			this._entry.value = this.statusbarService.addEntry({
-				name: localize('indicator', "Copilot Quota Indicator"),
-				text: `$(copilot-warning) ${localize('limitReached', "Limit Reached")}`,
-				ariaLabel: localize('copilotQuotaExceeded', "Copilot Limit Reached"),
-				command: OPEN_CHAT_QUOTA_EXCEEDED_DIALOG,
-				kind: 'prominent',
-				showInAllWindows: true,
-				tooltip: quotaToMessage({ chatQuotaExceeded, completionsQuotaExceeded }),
-			}, ChatQuotasStatusBarEntry.ID, StatusbarAlignment.RIGHT, { id: 'GitHub.copilot.status', alignment: StatusbarAlignment.RIGHT });
-		} else {
-			// No quota exceeded, remove indicator
-			if (this._entry.value) {
-				this._entry.clear();
-			}
-		}
-	}
-}
-
-function quotaToMessage({ chatQuotaExceeded, completionsQuotaExceeded }: { chatQuotaExceeded: boolean; completionsQuotaExceeded: boolean }): string {
-	if (chatQuotaExceeded && !completionsQuotaExceeded) {
-		return localize('chatQuotaExceeded', "You've reached the monthly chat messages limit, click for details");
-	} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-		return localize('completionsQuotaExceeded', "You've reached the monthly code completions limit, click for details");
-	} else {
-		return localize('chatAndCompletionsQuotaExceeded', "You've reached the limits of the Copilot Free plan, click for details");
-	}
-}
