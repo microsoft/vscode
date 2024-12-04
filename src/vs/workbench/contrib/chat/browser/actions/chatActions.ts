@@ -573,7 +573,7 @@ export class ChatCommandCenterRendering extends Disposable implements IWorkbench
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatAgentService agentService: IChatAgentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -615,27 +615,15 @@ export class ChatCommandCenterRendering extends Disposable implements IWorkbench
 					icon: Codicon.copilot,
 				}, undefined, undefined, undefined, undefined);
 			} else {
-				primaryAction = this.createQuotaPrimaryAction(chatOverQuota, completionsOverQuota);
+				primaryAction = instantiationService.createInstance(MenuItemAction, {
+					id: 'workbench.action.chat.showOutOfLimits',
+					title: localize2('upgradeChat', "Upgrade to Copilot Pro"),
+					icon: Codicon.copilotWarning,
+				}, undefined, undefined, undefined, undefined);
 			}
 
 			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, primaryAction, dropdownAction, action.actions, '', { ...options, skipTelemetry: true });
 		}, Event.any(agentService.onDidChangeAgents, this.onDidUpdateQuotaContextKeys));
-	}
-
-	private createQuotaPrimaryAction(chatOverQuota: boolean, completionsOverQuota: boolean): MenuItemAction {
-		let id: string;
-		if (chatOverQuota && !completionsOverQuota) {
-			id = 'workbench.action.chat.showOutOfFreeChatResponsesDialog';
-		} else if (completionsOverQuota && !chatOverQuota) {
-			id = 'workbench.action.chat.showOutOfCompletions';
-		} else {
-			id = 'workbench.action.chat.showOutOfLimits';
-		}
-		return this.instantiationService.createInstance(MenuItemAction, {
-			id,
-			title: localize2('upgradeChat', "Upgrade to Copilot Pro"),
-			icon: Codicon.copilotWarning,
-		}, undefined, undefined, undefined, undefined);
 	}
 }
 
@@ -662,16 +650,12 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		const completionsOverQuota = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Quota.overCompletionsQuota) ?? false;
 		const chatOverQuota = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Quota.overChatQuota) ?? false;
 		if (chatOverQuota || completionsOverQuota) {
-			let command: string;
 			let tooltip: string;
 			if (chatOverQuota && !completionsOverQuota) {
-				command = 'workbench.action.chat.showOutOfFreeChatResponsesDialog';
 				tooltip = localize('chatQuotaExceeded', "Out of free chat messages, click for details");
 			} else if (completionsOverQuota && !chatOverQuota) {
-				command = 'workbench.action.chat.showOutOfCompletions';
 				tooltip = localize('completionsQuotaExceeded', "Out of free code completions, click for details");
 			} else {
-				command = 'workbench.action.chat.showOutOfLimits';
 				tooltip = localize('chatAndCompletionsQuotaExceeded', "Out of free chat messages and code completions, click for details");
 			}
 
@@ -680,7 +664,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				ariaLabel: localize('copilotQuotaExceeded', "Copilot limit exceeded"),
 				name: localize('indicator', "Copilot limit indicator"),
 				text: '$(copilot-warning) ' + localize('limitHit', "Limit hit"),
-				command,
+				command: 'workbench.action.chat.showOutOfLimits',
 				kind: 'prominent',
 				showInAllWindows: true,
 				tooltip
