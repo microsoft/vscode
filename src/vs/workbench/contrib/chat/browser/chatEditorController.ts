@@ -89,6 +89,8 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			this._ctxRequestInProgress.set(session?.state.read(r) === ChatEditingSessionState.StreamingEdits);
 		}));
 
+		let didReveal = false;
+
 		this._register(autorun(r => {
 
 			if (this._editor.getOption(EditorOption.inDiffEditor)) {
@@ -106,20 +108,30 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 			if (!entry || entry.state.read(r) !== WorkingSetEntryState.Modified) {
 				this._clearRendering();
+				didReveal = false;
 				return;
 			}
 
 			try {
 				ignoreScrollEvent = true;
-				if (!this._scrollLock) {
+				if (!this._scrollLock && !didReveal) {
 					const maxLineNumber = entry.maxLineNumber.read(r);
 					this._editor.revealLineNearTop(maxLineNumber, ScrollType.Immediate);
 				}
 				const diff = entry?.diffInfo.read(r);
 				this._updateWithDiff(entry, diff);
-				this.initNavigation();
-				if (this._currentChange.get() === undefined) {
-					this.revealNext();
+				if (!entry.isCurrentlyBeingModified.read(r)) {
+					this.initNavigation();
+
+					if (!didReveal) {
+						const currentPosition = this._currentChange.read(r);
+						if (currentPosition) {
+							this._editor.revealLine(currentPosition.lineNumber, ScrollType.Immediate);
+							didReveal = true;
+						} else {
+							didReveal = this.revealNext();
+						}
+					}
 				}
 			} finally {
 				ignoreScrollEvent = false;
@@ -185,7 +197,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	private _updateWithDiff(entry: IModifiedFileEntry, diff: IDocumentDiff): void {
 
-		this._ctxHasEditorModification.set(true);
+		this._ctxHasEditorModification.set(!diff.identical);
 		const originalModel = entry.originalModel;
 
 		const chatDiffAddDecoration = ModelDecorationOptions.createDynamic({

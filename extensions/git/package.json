@@ -3229,7 +3229,7 @@
         },
         "git.blame.statusBarItem.template": {
           "type": "string",
-          "default": "$(git-commit) ${authorName} (${authorDateAgo})",
+          "default": "${authorName} (${authorDateAgo})",
           "markdownDescription": "%config.blameStatusBarItem.template%",
           "scope": "resource",
           "tags": [

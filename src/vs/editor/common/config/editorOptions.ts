@@ -1666,7 +1666,6 @@ export interface IEditorFindOptions {
 	 */
 	loop?: boolean;
 	/**
-+	 * @internal
 	 * Controls how the find widget search history should be stored
 	 */
 	history?: 'never' | 'workspace';

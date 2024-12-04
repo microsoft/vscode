@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatViewSetup.css';
 import { $, getActiveElement, setVisibility } from '../../../../base/browser/dom.js';
 import { Button, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -19,7 +20,7 @@ import { IRequestContext } from '../../../../base/parts/request/common/request.j
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -52,8 +53,8 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, IChatWidget, showChatView, showEditsView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
-import './media/chatViewSetup.css';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
+import { IChatQuotasService } from './chatQuotasService.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -97,7 +98,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -164,7 +165,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 				});
 			}
 
-			override async run(accessor: ServicesAccessor): Promise<void> {
+			override async run(accessor: ServicesAccessor, startSetup: boolean | undefined): Promise<void> {
 				const viewsService = accessor.get(IViewsService);
 				const viewDescriptorService = accessor.get(IViewDescriptorService);
 				const configurationService = accessor.get(IConfigurationService);
@@ -174,6 +175,12 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 				showCopilotView(viewsService);
 				ensureSideBarChatViewSize(400, viewDescriptorService, layoutService);
+
+				// Setup should be kicked off immediately
+				if (typeof startSetup === 'boolean' && startSetup) {
+					const controller = that.controller.value;
+					controller.setup();
+				}
 
 				configurationService.updateValue('chat.commandCenter.enabled', true);
 			}
@@ -241,84 +248,8 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 			}
 		}
 
-		const outOfFreeChatResponses = localize('out of free chat responses', "You've run out of free chat responses, but free code completions are still available as part of the Copilot Free plan.");
-		const outOfCompletions = localize('out of completions', "You've run out of free code completions, but free chat responses are still available as part of the Copilot Free plan.");
-		const outOfLimits = localize('out of limits', "You've reached the limits of the Copilot Free plan.");
-		const limitReset = localize('limit reset', "Your limits will reset on {0}.", 'January 13, 2025 at 3:35 PM');
-		const upgradeToPro = localize('upgradeToPro', "Here's what you can expect when upgrading to Copilot Pro:\n- Unlimited code completions\n- Unlimited chat interactions\n- 30 day free trial");
-
-		abstract class AbstractShowLimitReachedDialogAction extends Action2 {
-
-			constructor(private readonly message: string, desc: Readonly<IAction2Options>) {
-				super(desc);
-			}
-
-			override async run(accessor: ServicesAccessor, ...args: any[]) {
-				const commandService = accessor.get(ICommandService);
-
-				await accessor.get(IDialogService).prompt({
-					type: 'none',
-					message: localize('limit reached', "Copilot Free"),
-					cancelButton: {
-						label: localize('dismiss', "Dismiss"),
-						run: () => { /* noop */ }
-					},
-					buttons: [
-						{
-							label: localize('managePlan', "Upgrade to Copilot Pro"),
-							run: () => commandService.executeCommand('workbench.action.chat.managePlan')
-						},
-					],
-					custom: {
-						closeOnLinkClick: true,
-						icon: Codicon.copilot,
-						markdownDetails: [
-							{ markdown: new MarkdownString(`${this.message} ${limitReset}`, true) },
-							{ markdown: new MarkdownString(upgradeToPro, true) }
-						]
-					}
-				});
-			}
-		}
-
-		class ShowOutOfFreeChatResponsesDialogAction extends AbstractShowLimitReachedDialogAction {
-			constructor() {
-				super(outOfFreeChatResponses, {
-					id: 'workbench.action.chat.showOutOfFreeChatResponsesDialog',
-					title: localize2('showLimitReachedDialog', "Show Out of Free Chat Responses Dialog"),
-					// f1: true,
-					category: CHAT_CATEGORY
-				});
-			}
-		}
-
-		class ShowOutOfCompletionsDialogAction extends AbstractShowLimitReachedDialogAction {
-			constructor() {
-				super(outOfCompletions, {
-					id: 'workbench.action.chat.showOutOfCompletions',
-					title: localize2('showOutOfCompletions', "Show Out of Completions Dialog"),
-					// f1: true,
-					category: CHAT_CATEGORY
-				});
-			}
-		}
-
-		class ShowOutOfLimitsDialogAction extends AbstractShowLimitReachedDialogAction {
-			constructor() {
-				super(outOfLimits, {
-					id: 'workbench.action.chat.showOutOfLimits',
-					title: localize2('showOutOfLimits', "Show Out of Limits Dialog"),
-					// f1: true,
-					category: CHAT_CATEGORY
-				});
-			}
-		}
-
 		registerAction2(ChatSetupTriggerAction);
 		registerAction2(ChatSetupHideAction);
-		registerAction2(ShowOutOfFreeChatResponsesDialogAction);
-		registerAction2(ShowOutOfCompletionsDialogAction);
-		registerAction2(ShowOutOfLimitsDialogAction);
 	}
 }
 
@@ -376,6 +307,7 @@ class ChatSetupRequests extends Disposable {
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@ILogService private readonly logService: ILogService,
 		@IRequestService private readonly requestService: IRequestService,
+		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService,
 	) {
 		super();
 
@@ -560,6 +492,14 @@ class ChatSetupRequests extends Disposable {
 		this.state = state;
 
 		this.context.update({ entitlement: this.state.entitlement });
+
+		if (state.quotas) {
+			this.chatQuotasService.acceptQuotas({
+				chatQuotaExceeded: typeof state.quotas.chat === 'number' ? state.quotas.chat <= 0 : false,
+				completionsQuotaExceeded: typeof state.quotas.completions === 'number' ? state.quotas.completions <= 0 : false,
+				quotaResetDate: state.quotas.resetDate ? new Date(state.quotas.resetDate) : new Date(0)
+			});
+		}
 	}
 
 	async forceResolveEntitlement(session: AuthenticationSession): Promise<ChatEntitlement | undefined> {
@@ -921,18 +861,6 @@ class ChatSetupWelcomeContent extends Disposable {
 
 //#region Context
 
-function isCopilotEditsViewActive(viewsService: IViewsService): boolean {
-	return viewsService.getFocusedView()?.id === EditsViewId;
-}
-
-function showCopilotView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
-	if (isCopilotEditsViewActive(viewsService)) {
-		return showEditsView(viewsService);
-	} else {
-		return showChatView(viewsService);
-	}
-}
-
 interface IChatSetupContextState {
 	entitlement: ChatEntitlement;
 	triggered?: boolean;
@@ -1071,5 +999,17 @@ class ChatSetupContext extends Disposable {
 }
 
 //#endregion
+
+function isCopilotEditsViewActive(viewsService: IViewsService): boolean {
+	return viewsService.getFocusedView()?.id === EditsViewId;
+}
+
+function showCopilotView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
+	if (isCopilotEditsViewActive(viewsService)) {
+		return showEditsView(viewsService);
+	} else {
+		return showChatView(viewsService);
+	}
+}
 
 registerWorkbenchContribution2('workbench.chat.setup', ChatSetupContribution, WorkbenchPhase.BlockRestore);

@@ -17,7 +17,7 @@ import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionView
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IActionRunner } from '../../../../base/common/actions.js';
-import { EventLike, getWindow, reset, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { $, append, EventLike, getWindow, reset, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -52,9 +52,11 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('chat-editor-overlay-widget');
 
-		this._progressNode = document.createElement('div');
-		this._progressNode.classList.add('chat-editor-overlay-progress');
-		this._domNode.appendChild(this._progressNode);
+		const progressNode = document.createElement('div');
+		progressNode.classList.add('chat-editor-overlay-progress');
+		append(progressNode, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
+		this._progressNode = append(progressNode, $('SPAN.busy-label'));
+		this._domNode.appendChild(progressNode);
 
 		const toolbarNode = document.createElement('div');
 		toolbarNode.classList.add('chat-editor-overlay-toolbar');
@@ -205,10 +207,10 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 			}, undefined);
 
 			const value2 = slickRatio.getValue(r);
-			reset(this._progressNode, value === 0
-				? renderIcon(ThemeIcon.modify(Codicon.loading, 'spin'))
-				: `${Math.round(value2 * 100)}%`
-			);
+
+			reset(this._progressNode, (value === 0
+				? localize('generating', "Generating edits...")
+				: localize('applyingPercentage', "{0}% Applying edits...", Math.round(value2 * 100))));
 		}));
 
 		this._showStore.add(autorun(r => {

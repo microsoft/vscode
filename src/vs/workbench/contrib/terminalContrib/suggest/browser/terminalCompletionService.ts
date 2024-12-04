@@ -162,15 +162,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (!completions) {
 				return undefined;
 			}
-			const devModeEnabled = this._configurationService.getValue(TerminalSettingId.DevMode);
 			const completionItems = Array.isArray(completions) ? completions : completions.items ?? [];
-
-			const itemsWithModifiedLabels = completionItems.map(completion => {
-				if (devModeEnabled && !completion.detail?.includes(provider.id)) {
-					completion.detail = `(${provider.id}) ${completion.detail ?? ''}`;
-				}
-				return completion;
-			});
+			const itemsWithModifiedLabels = this._addDevModeLabel(completionItems, provider.id);
 
 			if (Array.isArray(completions)) {
 				return itemsWithModifiedLabels;
@@ -178,7 +171,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (completions.resourceRequestConfig) {
 				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition);
 				if (resourceCompletions) {
-					itemsWithModifiedLabels.push(...resourceCompletions);
+					itemsWithModifiedLabels.push(...this._addDevModeLabel(resourceCompletions, provider.id));
 				}
 				return itemsWithModifiedLabels;
 			}
@@ -187,6 +180,18 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 		const results = await Promise.all(completionPromises);
 		return results.filter(result => !!result).flat();
+	}
+
+	private _addDevModeLabel(completions: ITerminalCompletion[], providerId: string): ITerminalCompletion[] {
+		const devModeEnabled = this._configurationService.getValue(TerminalSettingId.DevMode);
+		return completions.map(completion => {
+			// TODO: This providerId check shouldn't be necessary, instead we should ensure this
+			//       function is never called twice
+			if (devModeEnabled && !completion.detail?.includes(providerId)) {
+				completion.detail = `(${providerId}) ${completion.detail ?? ''}`;
+			}
+			return completion;
+		});
 	}
 
 	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number): Promise<ITerminalCompletion[] | undefined> {
