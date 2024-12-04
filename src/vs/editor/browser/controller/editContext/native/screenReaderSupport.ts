@@ -184,6 +184,7 @@ export class ScreenReaderSupport {
 			this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
 		} else {
 			this._screenReaderContentState = undefined;
+			this.setIgnoreSelectionChangeTime('setValue');
 			this._domNode.domNode.textContent = '';
 		}
 	}
