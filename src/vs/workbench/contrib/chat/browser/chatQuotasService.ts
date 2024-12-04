@@ -16,7 +16,6 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -103,7 +102,6 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 				super({
 					id: OPEN_CHAT_QUOTA_EXCEEDED_DIALOG,
 					title: localize('upgradeChat', "Upgrade to Copilot Pro"),
-					category: CHAT_CATEGORY
 				});
 			}
 

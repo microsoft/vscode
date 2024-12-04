@@ -49,7 +49,6 @@ import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
-import { TRIGGER_SETUP_COMMAND_ID, TRIGGER_SETUP_COMMAND_LABEL } from '../chatSetup.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -598,8 +597,8 @@ export class ChatCommandCenterRendering extends Disposable implements IWorkbench
 				}, undefined, undefined, undefined, undefined);
 			} else if (!chatExtensionInstalled) {
 				primaryAction = instantiationService.createInstance(MenuItemAction, {
-					id: TRIGGER_SETUP_COMMAND_ID,
-					title: TRIGGER_SETUP_COMMAND_LABEL,
+					id: 'workbench.action.chat.triggerSetup',
+					title: localize2('triggerChatSetup', "Use AI Features with Copilot for Free..."),
 					icon: Codicon.copilot,
 				}, undefined, undefined, undefined, undefined);
 			} else {

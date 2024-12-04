@@ -88,8 +88,8 @@ enum ChatEntitlement {
 
 //#region Contribution
 
-export const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
-export const TRIGGER_SETUP_COMMAND_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
+const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
+const TRIGGER_SETUP_COMMAND_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
 
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
