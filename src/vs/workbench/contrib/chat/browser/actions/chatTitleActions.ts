@@ -557,9 +557,9 @@ export function registerChatTitleActions() {
 			return await new Promise<IChatRequestModel[]>(_resolve => {
 
 				const resolve = (value: IChatRequestModel[]) => {
-					qp.hide();
 					store.dispose();
 					_resolve(value);
+					qp.hide();
 				};
 
 				const store = new DisposableStore();
