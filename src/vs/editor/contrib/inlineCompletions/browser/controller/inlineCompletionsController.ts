@@ -48,11 +48,11 @@ export class InlineCompletionsController extends Disposable {
 	private readonly _editorObs = observableCodeEditor(this.editor);
 	private readonly _positions = derived(this, reader => this._editorObs.selections.read(reader)?.map(s => s.getEndPosition()) ?? [new Position(1, 1)]);
 
-	private readonly _suggestWidgetAdapter = new ObservableSuggestWidgetAdapter(
+	private readonly _suggestWidgetAdapter = this._register(new ObservableSuggestWidgetAdapter(
 		this._editorObs,
 		item => this.model.get()?.handleSuggestAccepted(item),
 		() => this.model.get()?.selectedInlineCompletion.get()?.toSingleTextEdit(undefined),
-	);
+	));
 
 	private readonly _enabledInConfig = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
 	private readonly _isScreenReaderEnabled = observableFromEvent(this, this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
