@@ -28,7 +28,7 @@ export class ScreenReaderSupport {
 	private _contentWidth: number = 1;
 	private _contentHeight: number = 1;
 	private _lineHeight: number = 1;
-	private _fontInfo: FontInfo | undefined;
+	private _fontInfo!: FontInfo;
 	private _accessibilityPageSize: number = 1;
 	private _ignoreSelectionChangeTime: number = 0;
 
@@ -136,7 +136,7 @@ export class ScreenReaderSupport {
 
 	private _doRender(top: number, left: number, width: number, height: number): void {
 		// For correct alignment of the screen reader content, we need to apply the correct font
-		applyFontInfo(this._domNode, this._fontInfo!);
+		applyFontInfo(this._domNode, this._fontInfo);
 
 		this._domNode.setTop(top);
 		this._domNode.setLeft(left);
