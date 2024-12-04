@@ -177,12 +177,12 @@ export class AcceptInlineCompletion extends EditorAction {
 				menuId: MenuId.InlineSuggestionToolbar,
 				title: nls.localize('accept', "Accept"),
 				group: 'primary',
-				order: 1,
+				order: 2,
 			}, {
 				menuId: MenuId.InlineEditsActions,
 				title: nls.localize('accept', "Accept"),
 				group: 'primary',
-				order: 1,
+				order: 2,
 			}],
 			kbOpts: [
 				{
@@ -205,17 +205,6 @@ export class AcceptInlineCompletion extends EditorAction {
 
 							InlineCompletionContextKeys.tabShouldAcceptInlineEdit,
 						)
-					),
-				},
-				{
-					primary: KeyMod.CtrlCmd | KeyCode.Enter,
-					weight: 200,
-					kbExpr: ContextKeyExpr.and(
-						EditorContextKeys.editorTextFocus,
-						InlineCompletionContextKeys.inlineEditVisible,
-						SuggestContext.Visible.toNegated(),
-						EditorContextKeys.hoverFocused.toNegated(),
-						EditorContextKeys.tabMovesFocus.toNegated(),
 					),
 				}
 			],
@@ -241,7 +230,7 @@ export class JumpToNextInlineEdit extends EditorAction {
 				menuId: MenuId.InlineEditsActions,
 				title: nls.localize('jump', "Jump"),
 				group: 'primary',
-				order: 2,
+				order: 1,
 				when: InlineCompletionContextKeys.cursorAtInlineEdit.toNegated(),
 			}],
 			kbOpts: {
@@ -277,7 +266,13 @@ export class HideInlineCompletion extends EditorAction {
 			kbOpts: {
 				weight: 100,
 				primary: KeyCode.Escape,
-			}
+			},
+			menuOpts: [{
+				menuId: MenuId.InlineEditsActions,
+				title: nls.localize('reject', "Reject"),
+				group: 'primary',
+				order: 3,
+			}]
 		});
 	}
 

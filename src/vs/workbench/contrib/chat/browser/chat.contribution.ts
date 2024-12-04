@@ -7,7 +7,7 @@ import { timeout } from '../../../../base/common/async.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isMacintosh } from '../../../../base/common/platform.js';
+import { isMacintosh, isNative } from '../../../../base/common/platform.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -38,7 +38,7 @@ import { ILanguageModelToolsService } from '../common/languageModelToolsService.
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
 import { PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
-import { ChatCommandCenterRendering, ChatStatusBarEntry, registerChatActions } from './actions/chatActions.js';
+import { ChatCommandCenterRendering, registerChatActions } from './actions/chatActions.js';
 import { ACTION_ID_NEW_CHAT, registerNewChatActions } from './actions/chatClearActions.js';
 import { registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
 import { registerChatContextActions } from './actions/chatContextActions.js';
@@ -80,6 +80,8 @@ import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js'
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { ChatEditorOverlayController } from './chatEditorOverlay.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
+import { ChatQuotasService, ChatQuotasStatusBarEntry, IChatQuotasService } from './chatQuotasService.js';
+import { ChatSetupContribution } from './chatSetup.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -321,7 +323,11 @@ registerWorkbenchContribution2(ChatEditorSaving.ID, ChatEditorSaving, WorkbenchP
 registerWorkbenchContribution2(ChatEditorAutoSaveDisabler.ID, ChatEditorAutoSaveDisabler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatViewsWelcomeHandler.ID, ChatViewsWelcomeHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingStartedContribution, WorkbenchPhase.Eventually);
-registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.Eventually);
+
+if (isNative) {
+	registerWorkbenchContribution2(ChatSetupContribution.ID, ChatSetupContribution, WorkbenchPhase.BlockRestore);
+	registerWorkbenchContribution2(ChatQuotasStatusBarEntry.ID, ChatQuotasStatusBarEntry, WorkbenchPhase.Eventually);
+}
 
 registerChatActions();
 registerChatCopyActions();
@@ -360,3 +366,4 @@ registerSingleton(ICodeMapperService, CodeMapperService, InstantiationType.Delay
 registerSingleton(IChatEditingService, ChatEditingService, InstantiationType.Delayed);
 registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
+registerSingleton(IChatQuotasService, ChatQuotasService, InstantiationType.Delayed);

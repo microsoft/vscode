@@ -211,14 +211,16 @@ export const startEntries: GettingStartedStartEntryContent = [
 const Button = (title: string, href: string) => `[${title}](${href})`;
 
 const CopilotStepTitle = localize('gettingStarted.copilotSetup.title', "Use AI features with Copilot for free");
-const CopilotDescription = localize('gettingStarted.copilotSetup.description', "Write code faster and smarter with Copilot for free.");
+const CopilotDescription = localize({ key: 'gettingStarted.copilotSetup.description', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "Write code faster and smarter with [Copilot]({0}) for free.", product.defaultChatAgent?.documentationUrl ?? '');
 const CopilotTermsString = localize({ key: 'copilotTerms', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to Copilot [Terms]({0}) and [Privacy Policy]({1}).", product.defaultChatAgent?.termsStatementUrl ?? '', product.defaultChatAgent?.privacyStatementUrl ?? '');
 const CopilotSignedOutButton = Button(localize('setupCopilotButton.signIn', "Sign in to use Copilot"), `command:workbench.action.chat.triggerSetup?${encodeURIComponent(JSON.stringify([true]))}`);
 const CopilotSignedInButton = Button(localize('setupCopilotButton.setup', "Setup Copilot"), `command:workbench.action.chat.triggerSetup?${encodeURIComponent(JSON.stringify([true]))}`);
 const CopilotCompleteButton = Button(localize('setupCopilotButton.chatWithCopilot', "Chat with Copilot"), 'command:workbench.action.chat.open');
 
-function createCopilotSetupStep(id: string, button: string, when: string): BuiltinGettingStartedStep {
-	const description = `${CopilotDescription}\n\n${CopilotTermsString}\n${button}`;
+function createCopilotSetupStep(id: string, button: string, when: string, includeTerms: boolean): BuiltinGettingStartedStep {
+	const description = includeTerms ?
+		`${CopilotDescription}\n\n${CopilotTermsString}\n${button}` :
+		`${CopilotDescription}\n${button}`;
 
 	return {
 		id,
@@ -246,9 +248,9 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		content: {
 			type: 'steps',
 			steps: [
-				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, 'config.chat.experimental.offerSetup && chatSetupSignedOut'),
-				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, 'config.chat.experimental.offerSetup && chatSetupInstalled && (chatSetupEntitled || chatSetupLimited)'),
-				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, 'config.chat.experimental.offerSetup && (!chatSetupInstalled || chatSetupCanSignUp)'),
+				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, 'config.chat.experimental.offerSetup && chatSetupSignedOut', true),
+				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, 'config.chat.experimental.offerSetup && chatSetupInstalled && (chatSetupEntitled || chatSetupLimited)', false),
+				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, 'config.chat.experimental.offerSetup && !chatSetupSignedOut && (!chatSetupInstalled || chatSetupCanSignUp)', true),
 				{
 					id: 'pickColorTheme',
 					title: localize('gettingStarted.pickColor.title', "Choose your theme"),

@@ -14,6 +14,10 @@
 	z-index: 10;
 }
 
+.chat-editor-overlay-widget:has(.action-item:not(.disabled)) {
+	padding: 0px 9px;
+}
+
 .chat-editor-overlay-widget .chat-editor-overlay-progress {
 	align-items: center;
 	display: none;
@@ -38,14 +42,6 @@
 .chat-editor-overlay-widget .action-item > .action-label {
 	padding: 5px;
 	font-size: 12px;
-}
-
-.chat-editor-overlay-widget .action-item:first-child > .action-label {
-	padding-left: 9px;
-}
-
-.chat-editor-overlay-widget .action-item:last-child > .action-label {
-	padding-right: 9px;
 }
 
 .chat-editor-overlay-widget.busy .chat-editor-overlay-progress .codicon,

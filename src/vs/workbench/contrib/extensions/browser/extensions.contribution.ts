@@ -274,7 +274,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			[AllowedExtensionsConfigKey]: {
 				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.
 				type: 'object',
-				description: localize('extensions.allowed', "List of extensions that are allowed."),
+				markdownDescription: localize('extensions.allowed', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. For more information on how to configure this setting, please visit the [Configure Allowed Extensions](https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions) section."),
 				default: '*',
 				defaultSnippets: [{
 					body: {},
