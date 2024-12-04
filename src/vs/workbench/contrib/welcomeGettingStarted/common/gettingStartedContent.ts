@@ -217,8 +217,10 @@ const CopilotSignedOutButton = Button(localize('setupCopilotButton.signIn', "Sig
 const CopilotSignedInButton = Button(localize('setupCopilotButton.setup', "Setup Copilot"), `command:workbench.action.chat.triggerSetup?${encodeURIComponent(JSON.stringify([true]))}`);
 const CopilotCompleteButton = Button(localize('setupCopilotButton.chatWithCopilot', "Chat with Copilot"), 'command:workbench.action.chat.open');
 
-function createCopilotSetupStep(id: string, button: string, when: string): BuiltinGettingStartedStep {
-	const description = `${CopilotDescription}\n\n${CopilotTermsString}\n${button}`;
+function createCopilotSetupStep(id: string, button: string, when: string, includeTerms: boolean): BuiltinGettingStartedStep {
+	const description = includeTerms ?
+		`${CopilotDescription}\n\n${CopilotTermsString}\n${button}` :
+		`${CopilotDescription}\n${button}`;
 
 	return {
 		id,
@@ -246,9 +248,9 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		content: {
 			type: 'steps',
 			steps: [
-				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, 'config.chat.experimental.offerSetup && chatSetupSignedOut'),
-				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, 'config.chat.experimental.offerSetup && chatSetupInstalled && (chatSetupEntitled || chatSetupLimited)'),
-				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, 'config.chat.experimental.offerSetup && !chatSetupSignedOut && (!chatSetupInstalled || chatSetupCanSignUp)'),
+				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, 'config.chat.experimental.offerSetup && chatSetupSignedOut', true),
+				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, 'config.chat.experimental.offerSetup && chatSetupInstalled && (chatSetupEntitled || chatSetupLimited)', false),
+				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, 'config.chat.experimental.offerSetup && !chatSetupSignedOut && (!chatSetupInstalled || chatSetupCanSignUp)', true),
 				{
 					id: 'pickColorTheme',
 					title: localize('gettingStarted.pickColor.title', "Choose your theme"),
