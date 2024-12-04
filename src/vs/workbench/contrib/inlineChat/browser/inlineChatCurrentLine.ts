@@ -35,6 +35,7 @@ import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Event } from '../../../../base/common/event.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
 
 export const CTX_INLINE_CHAT_SHOWING_HINT = new RawContextKey<boolean>('inlineChatShowingHint', false, localize('inlineChatShowingHint', "Whether inline chat shows a contextual hint"));
 
@@ -165,7 +166,6 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 	private readonly _editor: ICodeEditor;
 	private readonly _ctxShowingHint: IContextKey<boolean>;
 	private readonly _visibilityObs = observableValue<boolean>(this, false);
-	private readonly _ctxMenuVisibleObs = observableValue<boolean>(this, false);
 
 	constructor(
 		editor: ICodeEditor,
@@ -230,7 +230,11 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 				return undefined;
 			}
 
-			const visible = this._visibilityObs.read(r);// || this._ctxMenuVisibleObs.read(r);
+			if (model.getLanguageId() === PLAINTEXT_LANGUAGE_ID || model.getLanguageId() === 'markdown') {
+				return undefined;
+			}
+
+			const visible = this._visibilityObs.read(r);
 			const isEol = model.getLineMaxColumn(position.lineNumber) === position.column;
 			const isWhitespace = model.getLineLastNonWhitespaceColumn(position.lineNumber) === 0 && model.getValueLength() > 0 && position.column > 1;
 
@@ -294,10 +298,8 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 	}
 
 	private _showContextMenu(event: IMouseEvent, setting: string): void {
-		this._ctxMenuVisibleObs.set(true, undefined);
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => ({ x: event.posx, y: event.posy }),
-			onHide: () => this._ctxMenuVisibleObs.set(false, undefined),
 			getActions: () => [
 				toAction({
 					id: 'inlineChat.disableHint',
