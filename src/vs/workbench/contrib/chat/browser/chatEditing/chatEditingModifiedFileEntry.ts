@@ -210,6 +210,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this.docSnapshot.setValue(snapshot.original);
 		this._setDocValue(snapshot.current);
 		this._edit = snapshot.originalToCurrentEdit;
+		this._updateDiffInfoSeq();
 	}
 
 	resetToInitialValue() {
