@@ -461,10 +461,12 @@ class GitBlameEditorDecoration {
 
 		// Set decorations for the editor
 		const decorations = blameInformation.map(blame => {
-			const contentText = typeof blame.blameInformation === 'string'
-				? blame.blameInformation
-				: this._controller.formatBlameInformationMessage(template, blame.blameInformation);
-			const hoverMessage = this._controller.getBlameInformationHover(textEditor.document.uri, blame.blameInformation);
+			const contentText = typeof blame.blameInformation !== 'string'
+				? this._controller.formatBlameInformationMessage(template, blame.blameInformation)
+				: blame.blameInformation;
+			const hoverMessage = typeof blame.blameInformation !== 'string'
+				? this._controller.getBlameInformationHover(textEditor.document.uri, blame.blameInformation)
+				: undefined;
 
 			return this._createDecoration(blame.lineNumber, contentText, hoverMessage);
 		});
@@ -472,7 +474,7 @@ class GitBlameEditorDecoration {
 		textEditor.setDecorations(this._decorationType, decorations);
 	}
 
-	private _createDecoration(lineNumber: number, contentText: string, hoverMessage: MarkdownString): DecorationOptions {
+	private _createDecoration(lineNumber: number, contentText: string, hoverMessage: MarkdownString | undefined): DecorationOptions {
 		const position = new Position(lineNumber, Number.MAX_SAFE_INTEGER);
 
 		return {
@@ -566,7 +568,7 @@ class GitBlameStatusBarItem {
 
 		if (typeof blameInformation[0].blameInformation === 'string') {
 			this._statusBarItem.text = `$(git-commit) ${blameInformation[0].blameInformation}`;
-			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
+			this._statusBarItem.tooltip = l10n.t('Git Blame Information');
 			this._statusBarItem.command = undefined;
 		} else {
 			this._statusBarItem.text = `$(git-commit) ${this._controller.formatBlameInformationMessage(template, blameInformation[0].blameInformation)}`;
