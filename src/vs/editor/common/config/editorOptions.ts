@@ -1688,7 +1688,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
 			loop: true,
-			history: 'never',
+			history: 'workspace',
 		};
 		super(
 			EditorOption.find, 'find', defaults,
