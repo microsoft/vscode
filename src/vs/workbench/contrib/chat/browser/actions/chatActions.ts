@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay } from '../../../../../base/common/date.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -32,6 +32,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
@@ -635,5 +636,60 @@ export class ChatCommandCenterRendering extends Disposable implements IWorkbench
 			title: localize2('upgradeChat', "Upgrade to Copilot Pro"),
 			icon: Codicon.copilotWarning,
 		}, undefined, undefined, undefined, undefined);
+	}
+}
+
+export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'chat.statusBarEntry';
+
+	private readonly _entry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+
+	constructor(
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+	) {
+		super();
+
+		this._register(contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([ChatContextKeys.Quota.overChatQuota, ChatContextKeys.Quota.overCompletionsQuota]))) {
+				this.updateStatusbarEntry();
+			}
+		}));
+	}
+
+	private updateStatusbarEntry() {
+		const completionsOverQuota = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Quota.overCompletionsQuota) ?? false;
+		const chatOverQuota = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Quota.overChatQuota) ?? false;
+		if (chatOverQuota || completionsOverQuota) {
+			let command: string;
+			let tooltip: string;
+			if (chatOverQuota && !completionsOverQuota) {
+				command = 'workbench.action.chat.showOutOfFreeChatResponsesDialog';
+				tooltip = localize('chatQuotaExceeded', "Out of free chat messages, click for details");
+			} else if (completionsOverQuota && !chatOverQuota) {
+				command = 'workbench.action.chat.showOutOfCompletions';
+				tooltip = localize('completionsQuotaExceeded', "Out of free code completions, click for details");
+			} else {
+				command = 'workbench.action.chat.showOutOfLimits';
+				tooltip = localize('chatAndCompletionsQuotaExceeded', "Out of free chat messages and code completions, click for details");
+			}
+
+			// Some quota exceeded, show indicator
+			this._entry.value = this.statusbarService.addEntry({
+				ariaLabel: localize('copilotQuotaExceeded', "Copilot limit exceeded"),
+				name: localize('indicator', "Copilot limit indicator"),
+				text: '$(copilot-warning) ' + localize('limitHit', "Limit hit"),
+				command,
+				kind: 'prominent',
+				showInAllWindows: true,
+				tooltip
+			}, 'chat.quota', StatusbarAlignment.RIGHT, 50);
+		} else {
+			// No quota exceeded, remove indicator
+			if (this._entry.value) {
+				this._entry.clear();
+			}
+		}
 	}
 }
