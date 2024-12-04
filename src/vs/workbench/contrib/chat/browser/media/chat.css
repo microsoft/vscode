@@ -826,6 +826,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-inline-start: unset;
 }
 
+.monaco-editor .chat-editing-pending-edit {
+	z-index: 1;
+	opacity: 0.6;
+	background-color: var(--vscode-editor-background);
+}
+
 .chat-notification-widget .chat-info-codicon,
 .chat-notification-widget .chat-error-codicon,
 .chat-notification-widget .chat-warning-codicon {

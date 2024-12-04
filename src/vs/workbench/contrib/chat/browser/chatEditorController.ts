@@ -89,6 +89,8 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			this._ctxRequestInProgress.set(session?.state.read(r) === ChatEditingSessionState.StreamingEdits);
 		}));
 
+		let shouldReveal = true;
+
 		this._register(autorun(r => {
 
 			if (this._editor.getOption(EditorOption.inDiffEditor)) {
@@ -106,6 +108,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 			if (!entry || entry.state.read(r) !== WorkingSetEntryState.Modified) {
 				this._clearRendering();
+				shouldReveal = true;
 				return;
 			}
 
@@ -117,9 +120,18 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 				}
 				const diff = entry?.diffInfo.read(r);
 				this._updateWithDiff(entry, diff);
-				this.initNavigation();
-				if (this._currentChange.get() === undefined) {
-					this.revealNext();
+				if (!entry.isCurrentlyBeingModified.read(r)) {
+					this.initNavigation();
+
+					if (shouldReveal) {
+						shouldReveal = false;
+						const currentPosition = this._currentChange.read(r);
+						if (currentPosition) {
+							this._editor.revealLine(currentPosition.lineNumber, ScrollType.Immediate);
+						} else {
+							this.revealNext();
+						}
+					}
 				}
 			} finally {
 				ignoreScrollEvent = false;
