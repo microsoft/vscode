@@ -1483,7 +1483,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: INSTALL_ACTIONS_GROUP,
 				order: 2,
-				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.has('galleryExtensionHasPreReleaseVersion'), ContextKeyExpr.has('installedExtensionIsOptedToPreRelease'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
+				when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.has('galleryExtensionHasPreReleaseVersion'), ContextKeyExpr.has('isExtensionAllowed'), ContextKeyExpr.has('installedExtensionIsOptedToPreRelease'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {
 				const instantiationService = accessor.get(IInstantiationService);

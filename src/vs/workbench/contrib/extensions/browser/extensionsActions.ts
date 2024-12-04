@@ -1455,8 +1455,10 @@ export class TogglePreReleaseExtensionAction extends ExtensionAction {
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 	) {
 		super(TogglePreReleaseExtensionAction.ID, TogglePreReleaseExtensionAction.LABEL, TogglePreReleaseExtensionAction.DisabledClass);
+		this._register(allowedExtensionsService.onDidChangeAllowedExtensions(() => this.update()));
 		this.update();
 	}
 
@@ -1478,11 +1480,21 @@ export class TogglePreReleaseExtensionAction extends ExtensionAction {
 		if (!this.extension.gallery) {
 			return;
 		}
-		if (this.extension.preRelease && !this.extension.isPreReleaseVersion) {
-			return;
+		if (this.extension.preRelease) {
+			if (!this.extension.isPreReleaseVersion) {
+				return;
+			}
+			if (this.allowedExtensionsService.isAllowed({ id: this.extension.identifier.id, publisherDisplayName: this.extension.publisherDisplayName }) !== true) {
+				return;
+			}
 		}
-		if (!this.extension.preRelease && !this.extension.gallery.hasPreReleaseVersion) {
-			return;
+		if (!this.extension.preRelease) {
+			if (!this.extension.gallery.hasPreReleaseVersion) {
+				return;
+			}
+			if (this.allowedExtensionsService.isAllowed(this.extension.gallery) !== true) {
+				return;
+			}
 		}
 		this.enabled = true;
 		this.class = TogglePreReleaseExtensionAction.EnabledClass;
@@ -1519,14 +1531,17 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 	) {
 		super(InstallAnotherVersionAction.ID, InstallAnotherVersionAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
+		this._register(allowedExtensionsService.onDidChangeAllowedExtensions(() => this.update()));
 		this.extension = extension;
 		this.update();
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.identifier.uuid && !this.extension.deprecationInfo;
+		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.identifier.uuid && !this.extension.deprecationInfo
+			&& this.allowedExtensionsService.isAllowed({ id: this.extension.identifier.id, publisherDisplayName: this.extension.publisherDisplayName }) === true;
 		if (this.enabled && this.whenInstalled) {
 			this.enabled = !!this.extension?.local && !!this.extension.server && this.extension.state === ExtensionState.Installed;
 		}
