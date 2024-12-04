@@ -12,6 +12,5 @@ export const INotebookSynchronizerService = createDecorator<INotebookSynchronize
 
 export interface INotebookSynchronizerService {
 	readonly _serviceBrand: undefined;
-	save(workingCopy: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>): Promise<void>;
 	revert(workingCopy: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>): Promise<void>;
 }

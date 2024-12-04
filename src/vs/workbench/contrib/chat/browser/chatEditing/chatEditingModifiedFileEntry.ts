@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -264,7 +264,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			}
 
 			this._allEditsAreFromUs = false;
-			this._updateDiffInfoSeq(true);
+			this._updateDiffInfoSeq();
 		}
 
 		if (!this.isCurrentlyBeingModified.get()) {
@@ -311,7 +311,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 				this._maxLineNumberObs.set(maxLineNumber, tx);
 			} else {
 				this._resetEditsState(tx);
-				this._updateDiffInfoSeq(true);
+				this._updateDiffInfoSeq();
 				this._rewriteRatioObs.set(1, tx);
 				this._editDecorationClear.schedule();
 			}
@@ -333,16 +333,16 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		}
 	}
 
-	private _updateDiffInfoSeq(fast: boolean) {
+	private _updateDiffInfoSeq() {
 		const myDiffOperationId = ++this._diffOperationIds;
 		Promise.resolve(this._diffOperation).then(() => {
 			if (this._diffOperationIds === myDiffOperationId) {
-				this._diffOperation = this._updateDiffInfo(fast);
+				this._diffOperation = this._updateDiffInfo();
 			}
 		});
 	}
 
-	private async _updateDiffInfo(fast: boolean): Promise<void> {
+	private async _updateDiffInfo(): Promise<void> {
 
 		if (this.docSnapshot.isDisposed() || this.doc.isDisposed()) {
 			return;
@@ -351,15 +351,12 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		const docVersionNow = this.doc.getVersionId();
 		const snapshotVersionNow = this.docSnapshot.getVersionId();
 
-		const [diff] = await Promise.all([
-			this._editorWorkerService.computeDiff(
-				this.docSnapshot.uri,
-				this.doc.uri,
-				{ computeMoves: true, ignoreTrimWhitespace: false, maxComputationTimeMs: 3000 },
-				'advanced'
-			),
-			timeout(fast ? 0 : 800) // DON't diff too fast
-		]);
+		const diff = await this._editorWorkerService.computeDiff(
+			this.docSnapshot.uri,
+			this.doc.uri,
+			{ computeMoves: true, ignoreTrimWhitespace: false, maxComputationTimeMs: 3000 },
+			'advanced'
+		);
 
 		if (this.docSnapshot.isDisposed() || this.doc.isDisposed()) {
 			return;
@@ -417,7 +414,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			const edit = EditOperation.replace(this.doc.getFullModelRange(), value);
 
 			this._applyEdits([edit]);
-
+			this._updateDiffInfoSeq();
 			this.doc.pushStackElement();
 		}
 	}

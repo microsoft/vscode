@@ -1294,7 +1294,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 			addBtn.enabled = remainingFileEntriesBudget > 0;
 			addBtn.label = this.labelService.getUriBasenameLabel(uri);
-			addBtn.element.classList.add(...getIconClasses(this.modelService, this.languageService, uri, FileKind.FILE));
+			addBtn.element.classList.add('monaco-icon-label', ...getIconClasses(this.modelService, this.languageService, uri, FileKind.FILE));
 			addBtn.setTitle(localize('suggeste.title', "{0} - {1}", this.labelService.getUriLabel(uri, { relative: true }), metadata.description ?? ''));
 
 			this._chatEditsActionsDisposables.add(addBtn.onDidClick(() => {

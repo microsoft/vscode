@@ -27,7 +27,7 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ctxNotebookHasEditorModification } from '../../notebook/browser/contrib/chatEdit/notebookChatEditController.js';
 import { AcceptAction, RejectAction } from './chatEditorActions.js';
-import { ChatEditorController } from './chatEditorController.js';
+import { ChatEditorController, ctxHasEditorModification } from './chatEditorController.js';
 
 class ChatEditorOverlayWidget implements IOverlayWidget {
 
@@ -267,7 +267,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorContent, {
 		title: localize('label', "Navigation Status"),
 		precondition: ContextKeyExpr.false(),
 	},
-	when: ctxNotebookHasEditorModification.negate(),
+	when: ContextKeyExpr.and(ctxHasEditorModification, ctxNotebookHasEditorModification.negate()),
 	group: 'navigate',
 	order: -1
 });
