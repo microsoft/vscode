@@ -10,6 +10,7 @@
 	color: var(--vscode-button-foreground);
 	background-color: var(--vscode-button-background);
 	overflow: hidden;
+	z-index: 10;
 }
 
 .post-edit-widget .monaco-button {
