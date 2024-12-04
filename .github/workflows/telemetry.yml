@@ -5,7 +5,7 @@ jobs:
   check-metdata:
     name: 'Check metadata'
     runs-on: 'ubuntu-latest'
-
+.
     steps:
       - uses: 'actions/checkout@v4'
 
