@@ -443,7 +443,7 @@ export class FindController extends CommonFindController implements IFindControl
 
 	private _widget: FindWidget | null;
 	private _findOptionsWidget: FindOptionsWidget | null;
-	private findWidgetSearchHistory: FindWidgetSearchHistory;
+	private _findWidgetSearchHistory: FindWidgetSearchHistory;
 
 	constructor(
 		editor: ICodeEditor,
@@ -459,7 +459,7 @@ export class FindController extends CommonFindController implements IFindControl
 		super(editor, _contextKeyService, _storageService, clipboardService, notificationService, hoverService);
 		this._widget = null;
 		this._findOptionsWidget = null;
-		this.findWidgetSearchHistory = new FindWidgetSearchHistory(this._storageService);
+		this._findWidgetSearchHistory = FindWidgetSearchHistory.getOrCreate(_storageService);
 	}
 
 	protected override async _start(opts: IFindStartOptions, newState?: INewFindReplaceState): Promise<void> {
@@ -511,7 +511,7 @@ export class FindController extends CommonFindController implements IFindControl
 	}
 
 	private _createFindWidget() {
-		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService, this._storageService, this._notificationService, this._hoverService, this.findWidgetSearchHistory));
+		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService, this._storageService, this._notificationService, this._hoverService, this._findWidgetSearchHistory));
 		this._findOptionsWidget = this._register(new FindOptionsWidget(this._editor, this._state, this._keybindingService));
 	}
 

@@ -13,6 +13,17 @@ export class FindWidgetSearchHistory implements IHistory<string> {
 	public onDidChange?: Event<string[]>;
 	private _onDidChangeEmitter: Emitter<string[]>;
 
+	private static _instance: FindWidgetSearchHistory | null = null;
+
+	static getOrCreate(
+		storageService: IStorageService,
+	): FindWidgetSearchHistory {
+		if (!FindWidgetSearchHistory._instance) {
+			FindWidgetSearchHistory._instance = new FindWidgetSearchHistory(storageService);
+		}
+		return FindWidgetSearchHistory._instance;
+	}
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 	) {
@@ -74,7 +85,6 @@ export class FindWidgetSearchHistory implements IHistory<string> {
 	save(): Promise<void> {
 		const elements: string[] = [];
 		this.inMemoryValues.forEach(e => elements.push(e));
-		this._onDidChangeEmitter.fire(elements);
 		return new Promise<void>(resolve => {
 			this.storageService.store(
 				FindWidgetSearchHistory.FIND_HISTORY_KEY,
@@ -82,6 +92,7 @@ export class FindWidgetSearchHistory implements IHistory<string> {
 				StorageScope.WORKSPACE,
 				StorageTarget.USER,
 			);
+			this._onDidChangeEmitter.fire(elements);
 			resolve();
 		});
 	}
