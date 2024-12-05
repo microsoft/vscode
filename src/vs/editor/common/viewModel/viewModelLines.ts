@@ -789,11 +789,6 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		const lineIndex = r.index;
 		const remainder = r.remainder;
 
-		// On wrapped lines, disable virtual space on all but the last view line
-		const virtualSpace =
-			this.model.getOptions().virtualSpace
-			&& viewLineNumber === this.projectedModelLineLineCounts.getPrefixSum(lineIndex + 1);
-
 		const line = this.modelLineProjections[lineIndex];
 
 		const minColumn = line.getViewLineMinColumn(this.model, lineIndex + 1, remainder);
@@ -801,35 +796,37 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		if (viewColumn < minColumn) {
 			viewColumn = minColumn;
 		}
-		let viewLeftoverVisibleColumns = 0;
 		if (viewColumn > maxColumn) {
-			viewLeftoverVisibleColumns = virtualSpace ? viewColumn - maxColumn : 0;
 			viewColumn = maxColumn;
 		}
 
 		const computedModelColumn = line.getModelColumnOfViewPosition(remainder, viewColumn);
 		const computedModelPosition = this.model.validatePosition(new Position(lineIndex + 1, computedModelColumn));
 
-		const modelLeftoverVisibleColumns = virtualSpace ? Math.max(0, expectedModelPosition.column - this.model.getLineMaxColumn(lineIndex + 1)) : 0;
+		const leftoverVisibleColumns = Math.max(0, expectedModelPosition.column - this.model.getLineMaxColumn(expectedModelPosition.lineNumber));
 
 		if (
-			viewLeftoverVisibleColumns === modelLeftoverVisibleColumns
-			&& computedModelPosition.delta(0, modelLeftoverVisibleColumns).equals(expectedModelPosition)
+			computedModelPosition.lineNumber === expectedModelPosition.lineNumber
+			&& computedModelPosition.column + leftoverVisibleColumns === expectedModelPosition.column
+			&& (
+				// On wrapped lines, disable virtual space on all but the last view line
+				leftoverVisibleColumns === 0
+				|| viewLineNumber === this.projectedModelLineLineCounts.getPrefixSum(lineIndex + 1)
+			)
 		) {
-			return new Position(viewLineNumber, viewColumn + viewLeftoverVisibleColumns);
+			return new Position(viewLineNumber, viewColumn + leftoverVisibleColumns);
 		}
 
-		const viewPosition = this.convertModelPositionToViewPosition(expectedModelPosition.lineNumber, expectedModelPosition.column);
-		if (modelLeftoverVisibleColumns > 0) {
-			const r = this.projectedModelLineLineCounts.getIndexOf(viewPosition.lineNumber - 1);
-			const lineIndex = r.index;
-			const remainder = r.remainder;
-			const line = this.modelLineProjections[r.index];
+		if (leftoverVisibleColumns > 0) {
+			const lineIndex = expectedModelPosition.lineNumber - 1;
+			const sum = this.projectedModelLineLineCounts.getPrefixSum(lineIndex);
+			const nextSum = this.projectedModelLineLineCounts.getPrefixSum(lineIndex + 1);
+			const remainder = nextSum - sum - 1;
+			const line = this.modelLineProjections[lineIndex];
 			const maxColumn = line.getViewLineMaxColumn(this.model, lineIndex + 1, remainder);
-			return new Position(viewPosition.lineNumber, maxColumn + modelLeftoverVisibleColumns);
-		} else {
-			return viewPosition;
+			return new Position(sum + remainder + 1, maxColumn + leftoverVisibleColumns);
 		}
+		return this.convertModelPositionToViewPosition(expectedModelPosition.lineNumber, expectedModelPosition.column);
 	}
 
 	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
