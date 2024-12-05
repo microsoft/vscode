@@ -182,11 +182,13 @@ export class ObservableCodeEditor extends Disposable {
 	public readonly inComposition = observableFromEvent(this, e => {
 		const d1 = this.editor.onDidCompositionStart(() => {
 			this._inComposition = true;
-			e(undefined);
+			console.log('composition start');
+			e(true);
 		});
 		const d2 = this.editor.onDidCompositionEnd(() => {
 			this._inComposition = false;
-			e(undefined);
+			console.log('composition end');
+			e(false);
 		});
 		return {
 			dispose() {
@@ -194,7 +196,10 @@ export class ObservableCodeEditor extends Disposable {
 				d2.dispose();
 			}
 		};
-	}, () => this._inComposition);
+	}, () => {
+		console.log('this._inComposition', this._inComposition);
+		return this._inComposition;
+	});
 
 	public readonly value = derivedWithSetter(this,
 		reader => { this.versionId.read(reader); return this.model.read(reader)?.getValue() ?? ''; },

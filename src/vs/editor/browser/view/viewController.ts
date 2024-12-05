@@ -77,10 +77,12 @@ export class ViewController {
 	}
 
 	public compositionStart(): void {
+		console.log('compositionStart of ViewController');
 		this.commandDelegate.startComposition();
 	}
 
 	public compositionEnd(): void {
+		console.log('compositionEnd of ViewController');
 		this.commandDelegate.endComposition();
 	}
 
