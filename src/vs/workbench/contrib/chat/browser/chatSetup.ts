@@ -139,7 +139,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
 			title: localize('welcomeChat', "Welcome to Copilot"),
 			when: SetupWelcomeViewCondition,
-			icon: Codicon.copilot,
+			icon: Codicon.copilotLarge,
 			content: disposables => disposables.add(this.instantiationService.createInstance(ChatSetupWelcomeContent, this.controller.value, this.context)).element,
 		});
 	}
