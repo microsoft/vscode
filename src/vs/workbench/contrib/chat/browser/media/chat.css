@@ -1423,6 +1423,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.monaco-button {
 		width: fit-content;
+		padding: 2px 11px;
 	}
 
 	.chat-quota-error-button {

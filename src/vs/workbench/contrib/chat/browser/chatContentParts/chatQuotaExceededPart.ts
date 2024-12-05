@@ -57,7 +57,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 		let didAddSecondary = false;
 		this._register(button1.onDidClick(async () => {
 			const url = productService.defaultChatAgent?.upgradePlanUrl;
-			await commandService.executeCommand('vscode.open', url ? URI.parse(productService.defaultChatAgent?.upgradePlanUrl) : undefined);
+			await commandService.executeCommand('vscode.open', url ? URI.parse(url) : undefined);
 
 			if (!didAddSecondary) {
 				didAddSecondary = true;
