@@ -472,20 +472,17 @@ class HitTestRequest extends BareHitTestRequest {
 			if (visibleRange !== null) {
 				const lineWidth = visibleRange.originalLeft;
 				const spaceWidth = this._ctx.spaceWidth;
-				const offset = this.mouseContentHorizontalOffset - lineWidth - spaceWidth / 2;
-				let leftoverVisibleColumns = Math.max(0, MouseTargetFactory._getMouseColumn(offset, spaceWidth) - 1);
-				if (
-					leftoverVisibleColumns > 0
-					&& this._ctx.viewModel.normalizePosition(new Position(lineNumber, maxColumn), PositionAffinity.Right).lineNumber !== lineNumber
-				) {
-					leftoverVisibleColumns = 0;
-				}
-
-				const fixedPosition = new Position(lineNumber, maxColumn + leftoverVisibleColumns);
+				const offset = this.mouseContentHorizontalOffset - lineWidth;
+				const leftoverMouseColumns = Math.max(0, MouseTargetFactory._getMouseColumn(offset, spaceWidth) - 1);
+				const virtualSpace = leftoverMouseColumns > 0
+					&& this._ctx.viewModel.model.getOptions().virtualSpace
+					// If we are on wrapped line, it's the last view line
+					&& this._ctx.viewModel.normalizePosition(new Position(lineNumber, maxColumn), PositionAffinity.Right).lineNumber === lineNumber;
+				const leftoverVisibleColumns = virtualSpace ? leftoverMouseColumns : 0;
 				return {
-					fixedPosition,
+					fixedPosition: new Position(lineNumber, maxColumn + leftoverVisibleColumns),
 					leftoverVisibleColumns,
-					mouseColumn: visibleColumn + leftoverVisibleColumns,
+					mouseColumn: visibleColumn + leftoverMouseColumns,
 				};
 			}
 		}
