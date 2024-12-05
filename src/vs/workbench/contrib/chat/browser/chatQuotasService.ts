@@ -239,7 +239,7 @@ export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
-		this._register(this.chatQuotasService.onDidChangeQuotas(() => this.updateStatusbarEntry()));
+		this._register(Event.runAndSubscribe(this.chatQuotasService.onDidChangeQuotas, () => this.updateStatusbarEntry()));
 	}
 
 	private updateStatusbarEntry(): void {
