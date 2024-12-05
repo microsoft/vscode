@@ -852,10 +852,13 @@ class ChatSetupWelcomeContent extends Disposable {
 				buttonLabel = this.context.state.registered ? localize('signUp', "Sign in to Use Copilot") : localize('signUpFree', "Sign in to Use Copilot for Free");
 				break;
 			case ChatEntitlement.Unresolved:
+				showLimitedSkuHeader = true;
+				buttonLabel = this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot for Free");
+				break;
 			case ChatEntitlement.Available:
 			case ChatEntitlement.Limited:
 				showLimitedSkuHeader = true;
-				buttonLabel = this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot for Free");
+				buttonLabel = localize('startUpLimited', "Use Copilot for Free");
 				break;
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.Unavailable:
@@ -931,7 +934,8 @@ class ChatSetupContext extends Disposable {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -965,6 +969,8 @@ class ChatSetupContext extends Disposable {
 	update(context: { triggered: boolean }): Promise<void>;
 	update(context: { entitlement: ChatEntitlement }): Promise<void>;
 	update(context: { installed?: boolean; triggered?: boolean; entitlement?: ChatEntitlement }): Promise<void> {
+		this.logService.trace(`[chat setup] update(): ${JSON.stringify(context)}`);
+
 		if (typeof context.installed === 'boolean') {
 			this._state.installed = context.installed;
 
@@ -994,6 +1000,8 @@ class ChatSetupContext extends Disposable {
 
 	private async updateContext(): Promise<void> {
 		await this.updateBarrier?.wait();
+
+		this.logService.trace(`[chat setup] updateContext(): ${JSON.stringify(this._state)}`);
 
 		if (this._state.triggered && !this._state.installed) {
 			// this is ugly but fixes flicker from a previous chat install

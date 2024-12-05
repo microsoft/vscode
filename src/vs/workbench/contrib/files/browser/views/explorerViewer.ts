@@ -226,6 +226,10 @@ class ExplorerFindHighlightTree implements IExplorerFindHighlightTree {
 			throw new Error('Resource is not a child of the root');
 		}
 
+		if (relPath === '') {
+			return { treeLayer: rootLayer, relPath };
+		}
+
 		let treeLayer = rootLayer;
 		for (const segment of relPath.split('/')) {
 			if (!treeLayer.stats[segment]) {
@@ -244,11 +248,14 @@ class ExplorerFindHighlightTree implements IExplorerFindHighlightTree {
 			throw new Error('Resource is not a child of the root');
 		}
 
-		if (!this._tree.get(root.name)) {
-			this._tree.set(root.name, { childMatches: 0, stats: {}, isMatch: false });
+		let rootLayer = this._tree.get(root.name);
+		if (!rootLayer) {
+			rootLayer = { childMatches: 0, stats: {}, isMatch: false };
+			this._tree.set(root.name, rootLayer);
 		}
+		rootLayer.childMatches++;
 
-		let treeLayer = this._tree.get(root.name)!;
+		let treeLayer = rootLayer;
 		for (const stat of relPath.split('/')) {
 			if (!treeLayer.stats[stat]) {
 				treeLayer.stats[stat] = { childMatches: 0, stats: {}, isMatch: false };

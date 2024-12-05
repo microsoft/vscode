@@ -145,18 +145,18 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 				let message: string;
 				const { chatQuotaExceeded, completionsQuotaExceeded } = that.quotas;
 				if (chatQuotaExceeded && !completionsQuotaExceeded) {
-					message = localize('chatQuotaExceeded', "You've run out of free chat interactions. You still have free code completions available in the Copilot Free plan. These limits will reset on {0}", dateFormatter.format(that.quotas.quotaResetDate));
+					message = localize('chatQuotaExceeded', "You've run out of free chat messages. You still have free code completions available in the Copilot Free plan. These limits will reset on {0}", dateFormatter.format(that.quotas.quotaResetDate));
 				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-					message = localize('completionsQuotaExceeded', "You've run out of free code completions. You still have free chat interactions available in the Copilot Free plan. These limits will reset on {0}", dateFormatter.format(that.quotas.quotaResetDate));
+					message = localize('completionsQuotaExceeded', "You've run out of free code completions. You still have free chat messages available in the Copilot Free plan. These limits will reset on {0}", dateFormatter.format(that.quotas.quotaResetDate));
 				} else {
 					message = localize('chatAndCompletionsQuotaExceeded', "You've reached the limit of the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(that.quotas.quotaResetDate));
 				}
 
-				const upgradeToPro = localize('upgradeToPro', "Here's what you can expect when upgrading to Copilot Pro:\n- Unlimited code completions\n- Unlimited chat interactions\n- 30-day free trial");
+				const upgradeToPro = localize('upgradeToPro', "Here's what you can expect when upgrading to Copilot Pro:\n- Unlimited code completions\n- Unlimited chat messages\n- 30-day free trial");
 
 				await dialogService.prompt({
 					type: 'none',
-					message: localize('copilotFree', "Copilot Free"),
+					message: localize('copilotFree', "Copilot Limit Reached"),
 					cancelButton: {
 						label: localize('dismiss', "Dismiss"),
 						run: () => { /* noop */ }
@@ -264,10 +264,10 @@ export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchCo
 
 export function quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded }: { chatQuotaExceeded: boolean; completionsQuotaExceeded: boolean }): string {
 	if (chatQuotaExceeded && !completionsQuotaExceeded) {
-		return localize('chatQuotaExceededButton', "You've reached your monthly chat interactions limit, click for details");
+		return localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
 	} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-		return localize('completionsQuotaExceededButton', "You've reached your monthly code completions limit, click for details");
+		return localize('completionsQuotaExceededButton', "Monthly code completions limit reached. Click for details.");
 	} else {
-		return localize('chatAndCompletionsQuotaExceededButton', "You've reached the limit of your Copilot Free plan, click for details");
+		return localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
 	}
 }
