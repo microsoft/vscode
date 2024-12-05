@@ -584,4 +584,5 @@ export const codiconsLibrary = {
 	codeReview: register('code-review', 0xec37),
 	copilotWarning: register('copilot-warning', 0xec38),
 	python: register('python', 0xec39),
+	copilotLarge: register('copilot-large', 0xec3a),
 } as const;
