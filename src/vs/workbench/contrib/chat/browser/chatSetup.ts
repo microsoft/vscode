@@ -852,10 +852,13 @@ class ChatSetupWelcomeContent extends Disposable {
 				buttonLabel = this.context.state.registered ? localize('signUp', "Sign in to Use Copilot") : localize('signUpFree', "Sign in to Use Copilot for Free");
 				break;
 			case ChatEntitlement.Unresolved:
+				showLimitedSkuHeader = true;
+				buttonLabel = this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot for Free");
+				break;
 			case ChatEntitlement.Available:
 			case ChatEntitlement.Limited:
 				showLimitedSkuHeader = true;
-				buttonLabel = this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot for Free");
+				buttonLabel = localize('startUpLimited', "Use Copilot for Free");
 				break;
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.Unavailable:
