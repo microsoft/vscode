@@ -264,10 +264,10 @@ export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchCo
 
 export function quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded }: { chatQuotaExceeded: boolean; completionsQuotaExceeded: boolean }): string {
 	if (chatQuotaExceeded && !completionsQuotaExceeded) {
-		return localize('chatQuotaExceededButton', "You've reached your monthly chat messages limit, click for details");
+		return localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
 	} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-		return localize('completionsQuotaExceededButton', "You've reached your monthly code completions limit, click for details");
+		return localize('completionsQuotaExceededButton', "Monthly code completions limit reached. Click for details.");
 	} else {
-		return localize('chatAndCompletionsQuotaExceededButton', "You've reached the limit of your Copilot Free plan, click for details");
+		return localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
 	}
 }

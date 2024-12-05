@@ -213,7 +213,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 
 		const keyObs = observableFromEvent(keybindingService.onDidUpdateKeybindings, _ => keybindingService.lookupKeybinding(ACTION_START)?.getLabel());
 
-		const configSignal = observableFromEvent(Event.filter(_configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(InlineChatConfigKeys.LineEmptyHint) || e.affectsConfiguration(InlineChatConfigKeys.LineSuffixHint)), () => undefined);
+		const configSignal = observableFromEvent(Event.filter(_configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(InlineChatConfigKeys.LineEmptyHint) || e.affectsConfiguration(InlineChatConfigKeys.LineNLHint)), () => undefined);
 
 		const showDataObs = derived(r => {
 			const ghostState = ghostCtrl?.model.read(r)?.state.read(r);
@@ -244,7 +244,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 					: undefined;
 			}
 
-			if (visible && isEol && _configurationService.getValue(InlineChatConfigKeys.LineSuffixHint)) {
+			if (visible && isEol && _configurationService.getValue(InlineChatConfigKeys.LineNLHint)) {
 				return { isEol, isWhitespace, kb, position, model };
 			}
 
@@ -288,7 +288,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 						inlineClassName: inlineClassName.join(' '),
 						inlineClassNameAffectsLetterSpacing: true,
 						cursorStops: InjectedTextCursorStops.None,
-						attachedData: new HintData(isWhitespace ? InlineChatConfigKeys.LineEmptyHint : InlineChatConfigKeys.LineSuffixHint)
+						attachedData: new HintData(isWhitespace ? InlineChatConfigKeys.LineEmptyHint : InlineChatConfigKeys.LineNLHint)
 					}
 				}
 			}]);

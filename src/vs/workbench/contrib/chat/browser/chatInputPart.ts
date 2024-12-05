@@ -888,7 +888,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				const hoverContent: IManagedHoverTooltipMarkdownString = {
 					markdown: {
-						value: `**${attachment.copiedFrom ? this.labelService.getUriLabel(attachment.copiedFrom.uri, { relative: true }) : attachment.fileName}**\n\n---\n\n\`\`\`${attachment.language}\n${attachment.code}\n\`\`\``,
+						value: `${attachment.copiedFrom ? this.labelService.getUriLabel(attachment.copiedFrom.uri, { relative: true }) : attachment.fileName}\n\n---\n\n\`\`\`${attachment.language}\n\n${attachment.code}\n\`\`\``,
 					},
 					markdownNotSupportedFallback: attachment.code,
 				};
