@@ -833,6 +833,38 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-editor-background);
 }
 
+.monaco-editor .chat-editing-last-edit {
+	background-color: var(--vscode-editor-rangeHighlightBackground);
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-editor-rangeHighlightBorder);
+}
+
+@property --chat-editing-last-edit-shift {
+	syntax: '<percentage>';
+	initial-value: 100%;
+	inherits: false;
+}
+
+@keyframes kf-chat-editing-last-edit-shift {
+	0% {
+		--chat-editing-last-edit-shift: 100%;
+	}
+	50% {
+		--chat-editing-last-edit-shift: 7%;
+	}
+	100% {
+		--chat-editing-last-edit-shift: 100%;
+	}
+}
+
+.monaco-editor .chat-editing-last-edit-line {
+	--chat-editing-last-edit-shift: 100%;
+	background: linear-gradient(45deg, var(--vscode-editor-rangeHighlightBackground), var(--chat-editing-last-edit-shift), transparent);
+	animation: 2.3s kf-chat-editing-last-edit-shift ease-in-out infinite;
+	animation-delay: 330ms;
+}
+
+
 .chat-notification-widget .chat-info-codicon,
 .chat-notification-widget .chat-error-codicon,
 .chat-notification-widget .chat-warning-codicon {
