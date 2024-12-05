@@ -493,72 +493,42 @@ export class SearchService extends Disposable implements ISearchService {
 		const openEditorResults = new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		let limitHit = false;
 
-		if (query.type === QueryType.Text) {
-			const canonicalToOriginalResources = new ResourceMap<URI>();
-			for (const editorInput of this.editorService.editors) {
-				const canonical = EditorResourceAccessor.getCanonicalUri(editorInput, { supportSideBySide: SideBySideEditor.PRIMARY });
-				const original = EditorResourceAccessor.getOriginalUri(editorInput, { supportSideBySide: SideBySideEditor.PRIMARY });
-
-				if (canonical) {
-					canonicalToOriginalResources.set(canonical, original ?? canonical);
-				}
+		const models = this.modelService.getModels(); // Get all models
+		models.forEach((model) => {
+			const resource = model.uri;
+			if (!resource) {
+				return;
 			}
 
-			const models = this.modelService.getModels();
-			models.forEach((model) => {
-				const resource = model.uri;
-				if (!resource) {
-					return;
+			if (limitHit) {
+				return;
+			}
+
+			// Include both open and closed files in the results
+			const askMax = (isNumber(query.maxResults) ? query.maxResults : DEFAULT_MAX_SEARCH_RESULTS) + 1;
+			let matches = model.findMatches(
+				query.contentPattern.pattern, false,
+				!!query.contentPattern.isRegExp,
+				!!query.contentPattern.isCaseSensitive,
+				query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators! : null,
+				false, askMax
+			);
+
+			if (matches.length) {
+				if (askMax && matches.length >= askMax) {
+					limitHit = true;
+					matches = matches.slice(0, askMax - 1);
 				}
 
-				if (limitHit) {
-					return;
-				}
+				const fileMatch = new FileMatch(resource);
+				openEditorResults.set(resource, fileMatch);
 
-				const originalResource = canonicalToOriginalResources.get(resource);
-				if (!originalResource) {
-					return;
-				}
-
-				// Skip search results
-				if (model.getLanguageId() === SEARCH_RESULT_LANGUAGE_ID && !(query.includePattern && query.includePattern['**/*.code-search'])) {
-					// TODO: untitled search editors will be excluded from search even when include *.code-search is specified
-					return;
-				}
-
-				// Block walkthrough, webview, etc.
-				if (originalResource.scheme !== Schemas.untitled && !this.fileService.hasProvider(originalResource)) {
-					return;
-				}
-
-				// Exclude files from the git FileSystemProvider, e.g. to prevent open staged files from showing in search results
-				if (originalResource.scheme === 'git') {
-					return;
-				}
-
-				if (!this.matches(originalResource, query)) {
-					return; // respect user filters
-				}
-
-				// Use editor API to find matches
-				const askMax = (isNumber(query.maxResults) ? query.maxResults : DEFAULT_MAX_SEARCH_RESULTS) + 1;
-				let matches = model.findMatches(query.contentPattern.pattern, false, !!query.contentPattern.isRegExp, !!query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators! : null, false, askMax);
-				if (matches.length) {
-					if (askMax && matches.length >= askMax) {
-						limitHit = true;
-						matches = matches.slice(0, askMax - 1);
-					}
-
-					const fileMatch = new FileMatch(originalResource);
-					openEditorResults.set(originalResource, fileMatch);
-
-					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
-					fileMatch.results = getTextSearchMatchWithModelContext(textSearchResults, model, query);
-				} else {
-					openEditorResults.set(originalResource, null);
-				}
-			});
-		}
+				const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
+				fileMatch.results = getTextSearchMatchWithModelContext(textSearchResults, model, query);
+			} else {
+				openEditorResults.set(resource, null);
+			}
+		});
 
 		return {
 			results: openEditorResults,
