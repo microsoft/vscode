@@ -138,7 +138,7 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 					],
 					custom: {
 						closeOnLinkClick: true,
-						icon: Codicon.copilot,
+						icon: Codicon.copilotWarning,
 						markdownDetails: [
 							{ markdown: new MarkdownString(`${message} ${resetMessage}`, true) },
 							{ markdown: new MarkdownString(upgradeToPro, true) }
