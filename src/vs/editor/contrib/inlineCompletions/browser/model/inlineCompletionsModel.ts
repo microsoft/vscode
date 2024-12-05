@@ -424,12 +424,9 @@ export class InlineCompletionsModel extends Disposable {
 		if (!s || s.kind !== 'ghostText') {
 			return undefined;
 		}
-		console.log('inComposition : ', this._editorObs.inComposition.read(reader));
 		if (this._editorObs.inComposition.read(reader)) {
-			console.log('early return');
 			return undefined;
 		}
-		console.log('s : ', s);
 		return s;
 	});
 

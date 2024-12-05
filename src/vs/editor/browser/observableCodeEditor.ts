@@ -178,17 +178,12 @@ export class ObservableCodeEditor extends Disposable {
 		};
 	}, () => this.editor.hasTextFocus());
 
-	private _inComposition = false;
 	public readonly inComposition = observableFromEvent(this, e => {
 		const d1 = this.editor.onDidCompositionStart(() => {
-			this._inComposition = true;
-			console.log('composition start');
-			e(true);
+			e(undefined);
 		});
 		const d2 = this.editor.onDidCompositionEnd(() => {
-			this._inComposition = false;
-			console.log('composition end');
-			e(false);
+			e(undefined);
 		});
 		return {
 			dispose() {
@@ -196,10 +191,7 @@ export class ObservableCodeEditor extends Disposable {
 				d2.dispose();
 			}
 		};
-	}, () => {
-		console.log('this._inComposition', this._inComposition);
-		return this._inComposition;
-	});
+	}, () => this.editor.inComposition);
 
 	public readonly value = derivedWithSetter(this,
 		reader => { this.versionId.read(reader); return this.model.read(reader)?.getValue() ?? ''; },

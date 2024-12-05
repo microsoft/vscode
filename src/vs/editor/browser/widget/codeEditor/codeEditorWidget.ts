@@ -247,6 +247,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private _dropIntoEditorDecorations: EditorDecorationsCollection = this.createDecorationsCollection();
 
+	public inComposition: boolean = false;
+
 	constructor(
 		domElement: HTMLElement,
 		_options: Readonly<IEditorConstructionOptions>,
@@ -1058,11 +1060,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 			switch (handlerId) {
 				case editorCommon.Handler.CompositionStart:
-					console.log('CompositionStart');
 					this._startComposition();
 					return;
 				case editorCommon.Handler.CompositionEnd:
-					console.log('CompositionEnd');
 					this._endComposition(source);
 					return;
 				case editorCommon.Handler.Type: {
@@ -1115,23 +1115,19 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _startComposition(): void {
-		console.log('startComposition of CodeEditorWidget');
 		if (!this._modelData) {
-			console.log('early return');
 			return;
 		}
+		this.inComposition = true;
 		this._modelData.viewModel.startComposition();
-		console.log('firing onDidCompositionStart');
 		this._onDidCompositionStart.fire();
 	}
 
 	private _endComposition(source: string | null | undefined): void {
-		console.log('endComposition of CodeEditorWidget');
 		if (!this._modelData) {
-			console.log('early return');
 			return;
 		}
-		console.log('firing _onDidCompositionEnd');
+		this.inComposition = false;
 		this._modelData.viewModel.endComposition(source);
 		this._onDidCompositionEnd.fire();
 	}
@@ -1816,11 +1812,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					this._compositionType('keyboard', text, replacePrevCharCnt, replaceNextCharCnt, positionDelta);
 				},
 				startComposition: () => {
-					console.log('startComposition');
 					this._startComposition();
 				},
 				endComposition: () => {
-					console.log('endComposition');
 					this._endComposition('keyboard');
 				},
 				cut: () => {
