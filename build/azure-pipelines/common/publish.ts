@@ -792,25 +792,17 @@ async function processArtifact(
 	artifact: Artifact,
 	filePath: string
 ) {
+	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
 	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
 
 	if (!match) {
 		throw new Error(`Invalid artifact name: ${artifact.name}`);
 	}
 
-	// getPlatform needs the unprocessedType
 	const { cosmosDBAccessToken, blobServiceAccessToken } = JSON.parse(e('PUBLISH_AUTH_TOKENS'));
 	const quality = e('VSCODE_QUALITY');
 	const version = e('BUILD_SOURCEVERSION');
-	const { product, os, arch, unprocessedType } = match.groups!;
-	const isLegacy = artifact.name.includes('_legacy');
-	const platform = getPlatform(product, os, arch, unprocessedType, isLegacy);
-	const type = getRealType(unprocessedType);
-	const size = fs.statSync(filePath).size;
-	const stream = fs.createReadStream(filePath);
-	const [hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]); // CodeQL [SM04514] Using SHA1 only for legacy reasons, we are actually only respecting SHA256
 
-	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
 	const blobServiceClient = new BlobServiceClient(`https://${e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')}.blob.core.windows.net/`, { getToken: async () => blobServiceAccessToken });
 	const containerClient = blobServiceClient.getContainerClient('staging');
 
@@ -833,6 +825,13 @@ async function processArtifact(
 		await releaseService.createRelease(version, filePath, friendlyFileName);
 	}
 
+	const { product, os, arch, unprocessedType } = match.groups!;
+	const isLegacy = artifact.name.includes('_legacy');
+	const platform = getPlatform(product, os, arch, unprocessedType, isLegacy);
+	const type = getRealType(unprocessedType);
+	const size = fs.statSync(filePath).size;
+	const stream = fs.createReadStream(filePath);
+	const [hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]); // CodeQL [SM04514] Using SHA1 only for legacy reasons, we are actually only respecting SHA256
 	const asset: Asset = { platform, type, url, hash: hash.toString('hex'), sha256hash: sha256hash.toString('hex'), size, supportsFastUpdate: true };
 	log('Creating asset...');
 
