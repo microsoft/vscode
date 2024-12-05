@@ -102,6 +102,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _cancelSchedulerAndHide(): void {
+		console.log('_cancelSchedulerAndHide')
 		this._cancelScheduler();
 		this.hideContentHover();
 	}
@@ -112,14 +113,18 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _onEditorScrollChanged(e: IScrollEvent): void {
+		console.log('_onEditorScrollChanged')
 		if (e.scrollTopChanged || e.scrollLeftChanged) {
 			this.hideContentHover();
 		}
 	}
 
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
+		console.log('_onEditorMouseDown')
+		console.log('mouseEvent', mouseEvent)
 		this._isMouseDown = true;
 		const shouldKeepHoverWidgetVisible = this._shouldKeepHoverWidgetVisible(mouseEvent);
+		console.log('shouldKeepHoverWidgetVisible : ', shouldKeepHoverWidgetVisible);
 		if (shouldKeepHoverWidgetVisible) {
 			return;
 		}
@@ -142,6 +147,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
+		console.log('_onEditorMouseLeave');
 		if (this.shouldKeepOpenOnEditorMouseMoveOrLeave) {
 			return;
 		}
@@ -226,6 +232,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _reactToEditorMouseMove(mouseEvent: IEditorMouseEvent | undefined): void {
+		console.log('_reactToEditorMouseMove')
 		if (!mouseEvent) {
 			return;
 		}
@@ -240,6 +247,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
+		console.log('_onKeyDown')
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -273,6 +281,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	public hideContentHover(): void {
+		console.log('hideContentHover')
 		if (_sticky) {
 			return;
 		}

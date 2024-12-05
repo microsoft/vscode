@@ -240,12 +240,10 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 					label: nls.localize('quick fixes', "Quick Fix..."),
 					commandId: quickFixCommandId,
 					run: (target) => {
+						console.log('run of renderMarkerStatusbar 2');
 						showing = true;
 						const controller = CodeActionController.get(this._editor);
 						const elementPosition = dom.getDomNodePagePosition(target);
-						// Hide the hover pre-emptively, otherwise the editor can close the code actions
-						// context menu as well when using keyboard navigation
-						context.hide();
 						controller?.showCodeActions(markerCodeActionTrigger, actions, {
 							x: elementPosition.left,
 							y: elementPosition.top,
@@ -269,6 +267,11 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 
 			}, onUnexpectedError);
 		}
+	}
+
+	public handleHide(): void {
+		const controller = CodeActionController.get(this._editor);
+		controller?.hideCodeActions();
 	}
 
 	private getCodeActions(marker: IMarker): CancelablePromise<CodeActionSet> {
