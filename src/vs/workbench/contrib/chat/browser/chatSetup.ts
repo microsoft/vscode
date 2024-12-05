@@ -136,7 +136,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					)
 				)
 			)!,
-			icon: Codicon.copilot,
+			icon: Codicon.copilotLarge,
 			content: disposables => disposables.add(this.instantiationService.createInstance(ChatSetupWelcomeContent, this.controller.value, this.context)).element,
 		});
 	}
