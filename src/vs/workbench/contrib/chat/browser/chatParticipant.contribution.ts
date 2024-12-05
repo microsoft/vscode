@@ -287,14 +287,12 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 	}
 
 	private registerDefaultParticipantView(): IDisposable {
-		// Register View. Name must be hardcoded because we want to show it even when the extension fails to load due to an API version incompatibility.
-		const name = 'GitHub Copilot';
 		const viewDescriptor: IViewDescriptor[] = [{
 			id: ChatViewId,
 			containerIcon: this._viewContainer.icon,
 			containerTitle: this._viewContainer.title.value,
 			singleViewPaneContainerTitle: this._viewContainer.title.value,
-			name: { value: name, original: name },
+			name: localize2('chat.viewContainer.label', "Chat"),
 			canToggleVisibility: false,
 			canMoveView: true,
 			openCommandActionDescriptor: {

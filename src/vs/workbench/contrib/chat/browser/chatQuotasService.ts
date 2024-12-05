@@ -216,12 +216,10 @@ export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchCo
 				kind: 'prominent',
 				showInAllWindows: true,
 				tooltip: quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded }),
-			}, ChatQuotasStatusBarEntry.ID, StatusbarAlignment.RIGHT, { id: 'GitHub.copilot.status', alignment: StatusbarAlignment.RIGHT });
+			}, ChatQuotasStatusBarEntry.ID, StatusbarAlignment.RIGHT, { id: 'GitHub.copilot.status', alignment: StatusbarAlignment.RIGHT }); // TODO@bpasero unify into 1 core indicator
 		} else {
 			// No quota exceeded, remove indicator
-			if (this._entry.value) {
-				this._entry.clear();
-			}
+			this._entry.clear();
 		}
 	}
 }
