@@ -11,8 +11,8 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
@@ -21,6 +21,7 @@ import product from '../../../../platform/product/common/product.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 
 export const IChatQuotasService = createDecorator<IChatQuotasService>('chatQuotasService');
 
@@ -51,7 +52,10 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 	private _quotas = { chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: new Date(0) };
 	get quotas(): IChatQuotas { return this._quotas; }
 
-	private QuotaContextKeys = { // TODO@bpasero move into product.json or turn into core keys
+	private readonly chatQuotaExceededContextKey = ChatContextKeys.chatQuotaExceeded.bindTo(this.contextKeyService);
+	private readonly completionsQuotaExceededContextKey = ChatContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
+
+	private ExtensionQuotaContextKeys = { // TODO@bpasero move into product.json or turn into core keys
 		chatQuotaExceeded: 'github.copilot.chat.quotaExceeded',
 		completionsQuotaExceeded: 'github.copilot.completions.quotaExceeded',
 	};
@@ -66,28 +70,29 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 	}
 
 	private registerListeners(): void {
-		const chatQuotaExceededSet = new Set([this.QuotaContextKeys.chatQuotaExceeded]);
-		const completionsQuotaExceededSet = new Set([this.QuotaContextKeys.completionsQuotaExceeded]);
+		const chatQuotaExceededSet = new Set([this.ExtensionQuotaContextKeys.chatQuotaExceeded]);
+		const completionsQuotaExceededSet = new Set([this.ExtensionQuotaContextKeys.completionsQuotaExceeded]);
 
 		this._register(this.contextKeyService.onDidChangeContext(e => {
-			let fireEvent = false;
+			let changed = false;
 			if (e.affectsSome(chatQuotaExceededSet)) {
-				const newChatQuotaExceeded = this.contextKeyService.getContextKeyValue<boolean>(this.QuotaContextKeys.chatQuotaExceeded);
+				const newChatQuotaExceeded = this.contextKeyService.getContextKeyValue<boolean>(this.ExtensionQuotaContextKeys.chatQuotaExceeded);
 				if (typeof newChatQuotaExceeded === 'boolean' && newChatQuotaExceeded !== this._quotas.chatQuotaExceeded) {
 					this._quotas.chatQuotaExceeded = newChatQuotaExceeded;
-					fireEvent = true;
+					changed = true;
 				}
 			}
 
 			if (e.affectsSome(completionsQuotaExceededSet)) {
-				const newCompletionsQuotaExceeded = this.contextKeyService.getContextKeyValue<boolean>(this.QuotaContextKeys.completionsQuotaExceeded);
+				const newCompletionsQuotaExceeded = this.contextKeyService.getContextKeyValue<boolean>(this.ExtensionQuotaContextKeys.completionsQuotaExceeded);
 				if (typeof newCompletionsQuotaExceeded === 'boolean' && newCompletionsQuotaExceeded !== this._quotas.completionsQuotaExceeded) {
 					this._quotas.completionsQuotaExceeded = newCompletionsQuotaExceeded;
-					fireEvent = true;
+					changed = true;
 				}
 			}
 
-			if (fireEvent) {
+			if (changed) {
+				this.updateContextKeys();
 				this._onDidChangeQuotas.fire();
 			}
 		}));
@@ -95,6 +100,32 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 
 	private registerActions(): void {
 		const that = this;
+
+		class UpgradePlanAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.chat.upgradePlan',
+					title: localize2('managePlan', "Upgrade to Copilot Pro"),
+					category: localize2('chat.category', 'Chat'),
+					f1: true,
+					precondition: ChatContextKeys.enabled,
+					menu: {
+						id: MenuId.ChatCommandCenter,
+						group: 'a_first',
+						order: 1,
+						when: ContextKeyExpr.or(
+							ChatContextKeys.chatQuotaExceeded,
+							ChatContextKeys.completionsQuotaExceeded
+						)
+					}
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const openerService = accessor.get(IOpenerService);
+				openerService.open(URI.parse(product.defaultChatAgent?.upgradePlanUrl ?? ''));
+			}
+		}
 
 		class ShowLimitReachedDialogAction extends Action2 {
 
@@ -176,6 +207,7 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 			}
 		}
 
+		registerAction2(UpgradePlanAction);
 		registerAction2(ShowLimitReachedDialogAction);
 		if (product.quality !== 'stable') {
 			registerAction2(SimulateCopilotQuotaExceeded);
@@ -184,8 +216,14 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 
 	acceptQuotas(quotas: IChatQuotas): void {
 		this._quotas = quotas;
+		this.updateContextKeys();
 
 		this._onDidChangeQuotas.fire();
+	}
+
+	private updateContextKeys(): void {
+		this.chatQuotaExceededContextKey.set(this._quotas.chatQuotaExceeded);
+		this.completionsQuotaExceededContextKey.set(this._quotas.completionsQuotaExceeded);
 	}
 }
 

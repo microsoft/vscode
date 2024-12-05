@@ -161,7 +161,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					),
 					menu: {
 						id: MenuId.ChatCommandCenter,
-						group: 'a_first',
+						group: 'a_last',
 						order: 1,
 						when: ChatContextKeys.Setup.installed.negate()
 					}
