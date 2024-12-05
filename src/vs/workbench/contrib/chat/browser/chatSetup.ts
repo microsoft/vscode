@@ -161,7 +161,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					),
 					menu: {
 						id: MenuId.ChatCommandCenter,
-						group: 'a_first',
+						group: 'a_last',
 						order: 1,
 						when: ChatContextKeys.Setup.installed.negate()
 					}
@@ -797,7 +797,10 @@ class ChatSetupWelcomeContent extends Disposable {
 
 		// Terms
 		const terms = localize({ key: 'termsLabel', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to our [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
-		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element);
+		const termsContainer = this.element.appendChild($('p'));
+		termsContainer.classList.add('terms-container');
+		termsContainer.classList.toggle('is-standalone', !ASK_FOR_PUBLIC_CODE_MATCHES);
+		termsContainer.appendChild(this._register(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element);
 
 		// Setup Button
 		const actions: IAction[] = [];

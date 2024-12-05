@@ -613,4 +613,3 @@ export class ChatCommandCenterRendering extends Disposable implements IWorkbench
 		}, Event.any(agentService.onDidChangeAgents, chatQuotasService.onDidChangeQuotas));
 	}
 }
-
