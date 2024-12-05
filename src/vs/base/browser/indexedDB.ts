@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { mark } from 'vs/base/common/performance';
-import { isArray } from 'vs/base/common/types';
+import { toErrorMessage } from '../common/errorMessage.js';
+import { ErrorNoTelemetry, getErrorMessage } from '../common/errors.js';
+import { mark } from '../common/performance.js';
 
 class MissingStoresError extends Error {
 	constructor(readonly db: IDBDatabase) {
@@ -28,7 +27,7 @@ export class IndexedDB {
 		return new IndexedDB(database, name);
 	}
 
-	static async openDatabase(name: string, version: number | undefined, stores: string[]): Promise<IDBDatabase> {
+	private static async openDatabase(name: string, version: number | undefined, stores: string[]): Promise<IDBDatabase> {
 		mark(`code/willOpenDatabase/${name}`);
 		try {
 			return await IndexedDB.doOpenDatabase(name, version, stores);
@@ -55,7 +54,7 @@ export class IndexedDB {
 
 	private static doOpenDatabase(name: string, version: number | undefined, stores: string[]): Promise<IDBDatabase> {
 		return new Promise((c, e) => {
-			const request = window.indexedDB.open(name, version);
+			const request = indexedDB.open(name, version);
 			request.onerror = () => e(request.error);
 			request.onsuccess = () => {
 				const db = request.result;
@@ -79,13 +78,13 @@ export class IndexedDB {
 		});
 	}
 
-	private static deleteDatabase(indexedDB: IDBDatabase): Promise<void> {
+	private static deleteDatabase(database: IDBDatabase): Promise<void> {
 		return new Promise((c, e) => {
 			// Close any opened connections
-			indexedDB.close();
+			database.close();
 
 			// Delete the db
-			const deleteRequest = window.indexedDB.deleteDatabase(indexedDB.name);
+			const deleteRequest = indexedDB.deleteDatabase(database.name);
 			deleteRequest.onerror = (err) => e(deleteRequest.error);
 			deleteRequest.onsuccess = () => c();
 		});
@@ -106,9 +105,7 @@ export class IndexedDB {
 		if (this.pendingTransactions.length) {
 			this.pendingTransactions.splice(0, this.pendingTransactions.length).forEach(transaction => transaction.abort());
 		}
-		if (this.database) {
-			this.database.close();
-		}
+		this.database?.close();
 		this.database = null;
 	}
 
@@ -122,13 +119,14 @@ export class IndexedDB {
 		this.pendingTransactions.push(transaction);
 		return new Promise<T | T[]>((c, e) => {
 			transaction.oncomplete = () => {
-				if (isArray(request)) {
+				if (Array.isArray(request)) {
 					c(request.map(r => r.result));
 				} else {
 					c(request.result);
 				}
 			};
-			transaction.onerror = () => e(transaction.error);
+			transaction.onerror = () => e(transaction.error ? ErrorNoTelemetry.fromError(transaction.error) : new ErrorNoTelemetry('unknown error'));
+			transaction.onabort = () => e(transaction.error ? ErrorNoTelemetry.fromError(transaction.error) : new ErrorNoTelemetry('unknown error'));
 			const request = dbRequestFn(transaction.objectStore(store));
 		}).finally(() => this.pendingTransactions.splice(this.pendingTransactions.indexOf(transaction), 1));
 	}

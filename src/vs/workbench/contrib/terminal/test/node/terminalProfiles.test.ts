@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, fail, ok, strictEqual } from 'assert';
-import { isWindows } from 'vs/base/common/platform';
-import { ITerminalProfile, ProfileSource } from 'vs/platform/terminal/common/terminal';
-import { ITerminalConfiguration, ITerminalProfiles } from 'vs/workbench/contrib/terminal/common/terminal';
-import { detectAvailableProfiles, IFsProvider } from 'vs/platform/terminal/node/terminalProfiles';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { ITerminalProfile, ProfileSource } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalConfiguration, ITerminalProfiles } from '../../common/terminal.js';
+import { detectAvailableProfiles, IFsProvider } from '../../../../../platform/terminal/node/terminalProfiles.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 /**
  * Assets that two profiles objects are equal, this will treat explicit undefined and unset
@@ -28,6 +29,8 @@ function profilesEqual(actualProfiles: ITerminalProfile[], expectedProfiles: ITe
 }
 
 suite('Workbench - TerminalProfiles', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('detectAvailableProfiles', () => {
 		if (isWindows) {
 			test('should detect Git Bash and provide login args', async () => {
@@ -47,7 +50,7 @@ suite('Workbench - TerminalProfiles', () => {
 				const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
 				const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, process.env, fsProvider, undefined, undefined, undefined);
 				const expected = [
-					{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: ['--login'], isDefault: true }
+					{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: ['--login', '-i'], isDefault: true }
 				];
 				profilesEqual(profiles, expected);
 			});
@@ -92,7 +95,7 @@ suite('Workbench - TerminalProfiles', () => {
 				const expected = [{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: [], isAutoDetected: undefined, overrideName: undefined, isDefault: true }];
 				profilesEqual(profiles, expected);
 			});
-			suite('pwsh source detection/fallback', async () => {
+			suite('pwsh source detection/fallback', () => {
 				const pwshSourceConfig = ({
 					profiles: {
 						windows: {

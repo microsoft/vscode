@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
-import { timeout } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
-import { extUri } from 'vs/base/common/resources';
+import assert from 'assert';
+import { BoundModelReferenceCollection } from '../../browser/mainThreadDocuments.js';
+import { timeout } from '../../../../base/common/async.js';
+import { URI } from '../../../../base/common/uri.js';
+import { extUri } from '../../../../base/common/resources.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('BoundModelReferenceCollection', function () {
 
@@ -20,6 +21,8 @@ suite('BoundModelReferenceCollection', function () {
 	teardown(function () {
 		col.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('max age', async function () {
 
@@ -40,7 +43,7 @@ suite('BoundModelReferenceCollection', function () {
 
 	test('max size', function () {
 
-		let disposed: number[] = [];
+		const disposed: number[] = [];
 
 		col.add(
 			URI.parse('test://farboo'),
@@ -76,7 +79,7 @@ suite('BoundModelReferenceCollection', function () {
 		col.dispose();
 		col = new BoundModelReferenceCollection(extUri, 10000, 10000, 2);
 
-		let disposed: number[] = [];
+		const disposed: number[] = [];
 
 		col.add(
 			URI.parse('test://xxxxxxx'),

@@ -3,84 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
+import * as fs from 'fs';
 import * as path from 'path';
 import * as cp from 'child_process';
-import * as _ from 'underscore';
-const parseSemver = require('parse-semver');
+const root = fs.realpathSync(path.dirname(path.dirname(__dirname)));
 
-interface Tree {
-	readonly name: string;
-	readonly children?: Tree[];
-}
-
-interface FlatDependency {
-	readonly name: string;
-	readonly version: string;
-	readonly path: string;
-}
-
-interface Dependency extends FlatDependency {
-	readonly children: Dependency[];
-}
-
-function asYarnDependency(prefix: string, tree: Tree): Dependency | null {
-	let parseResult;
+function getNpmProductionDependencies(folder: string): string[] {
+	let raw: string;
 
 	try {
-		parseResult = parseSemver(tree.name);
+		raw = cp.execSync('npm ls --all --omit=dev --parseable', { cwd: folder, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, null] });
 	} catch (err) {
-		err.message += `: ${tree.name}`;
-		console.warn(`Could not parse semver: ${tree.name}`);
-		return null;
-	}
+		const regex = /^npm ERR! .*$/gm;
+		let match: RegExpExecArray | null;
 
-	// not an actual dependency in disk
-	if (parseResult.version !== parseResult.range) {
-		return null;
-	}
-
-	const name = parseResult.name;
-	const version = parseResult.version;
-	const dependencyPath = path.join(prefix, name);
-	const children = [];
-
-	for (const child of (tree.children || [])) {
-		const dep = asYarnDependency(path.join(prefix, name, 'node_modules'), child);
-
-		if (dep) {
-			children.push(dep);
+		while (match = regex.exec(err.message)) {
+			if (/ELSPROBLEMS/.test(match[0])) {
+				continue;
+			} else if (/invalid: xterm/.test(match[0])) {
+				continue;
+			} else if (/A complete log of this run/.test(match[0])) {
+				continue;
+			} else {
+				throw err;
+			}
 		}
+
+		raw = err.stdout;
 	}
 
-	return { name, version, path: dependencyPath, children };
+	return raw.split(/\r?\n/).filter(line => {
+		return !!line.trim() && path.relative(root, line) !== path.relative(root, folder);
+	});
 }
 
-function getYarnProductionDependencies(cwd: string): Dependency[] {
-	const raw = cp.execSync('yarn list --json', { cwd, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, 'inherit'] });
-	const match = /^{"type":"tree".*$/m.exec(raw);
+export function getProductionDependencies(folderPath: string): string[] {
+	const result = getNpmProductionDependencies(folderPath);
+	// Account for distro npm dependencies
+	const realFolderPath = fs.realpathSync(folderPath);
+	const relativeFolderPath = path.relative(root, realFolderPath);
+	const distroFolderPath = `${root}/.build/distro/npm/${relativeFolderPath}`;
 
-	if (!match || match.length !== 1) {
-		throw new Error('Could not parse result of `yarn list --json`');
+	if (fs.existsSync(distroFolderPath)) {
+		result.push(...getNpmProductionDependencies(distroFolderPath));
 	}
 
-	const trees = JSON.parse(match[0]).data.trees as Tree[];
-
-	return trees
-		.map(tree => asYarnDependency(path.join(cwd, 'node_modules'), tree))
-		.filter<Dependency>((dep): dep is Dependency => !!dep);
-}
-
-export function getProductionDependencies(cwd: string): FlatDependency[] {
-	const result: FlatDependency[] = [];
-	const deps = getYarnProductionDependencies(cwd);
-	const flatten = (dep: Dependency) => { result.push({ name: dep.name, version: dep.version, path: dep.path }); dep.children.forEach(flatten); };
-	deps.forEach(flatten);
-	return _.uniq(result);
+	return [...new Set(result)];
 }
 
 if (require.main === module) {
-	const root = path.dirname(path.dirname(__dirname));
 	console.log(JSON.stringify(getProductionDependencies(root), null, '  '));
 }

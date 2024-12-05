@@ -11,7 +11,7 @@ require('events').EventEmitter.defaultMaxListeners = 100;
 const gulp = require('gulp');
 const util = require('./lib/util');
 const task = require('./lib/task');
-const { compileTask, watchTask, compileApiProposalNamesTask, watchApiProposalNamesTask } = require('./lib/compilation');
+const { transpileClientSWC, transpileTask, compileTask, watchTask, compileApiProposalNamesTask, watchApiProposalNamesTask } = require('./lib/compilation');
 const { monacoTypecheckTask/* , monacoTypecheckWatchTask */ } = require('./gulpfile.editor');
 const { compileExtensionsTask, watchExtensionsTask, compileExtensionMediaTask } = require('./gulpfile.extensions');
 
@@ -19,11 +19,19 @@ const { compileExtensionsTask, watchExtensionsTask, compileExtensionMediaTask } 
 gulp.task(compileApiProposalNamesTask);
 gulp.task(watchApiProposalNamesTask);
 
+// SWC Client Transpile
+const transpileClientSWCTask = task.define('transpile-client-esbuild', task.series(util.rimraf('out'), transpileTask('src', 'out', true)));
+gulp.task(transpileClientSWCTask);
+
+// Transpile only
+const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), transpileTask('src', 'out')));
+gulp.task(transpileClientTask);
+
 // Fast compile for development time
-const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), compileApiProposalNamesTask, compileTask('src', 'out', false)));
+const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compileApiProposalNamesTask, compileTask('src', 'out', false)));
 gulp.task(compileClientTask);
 
-const watchClientTask = task.define('watch-client', task.series(util.rimraf('out'), util.buildWebNodePaths('out'), task.parallel(watchTask('out', false), watchApiProposalNamesTask)));
+const watchClientTask = task.define('watch-client', task.series(util.rimraf('out'), task.parallel(watchTask('out', false), watchApiProposalNamesTask)));
 gulp.task(watchClientTask);
 
 // All

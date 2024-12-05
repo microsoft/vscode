@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { SyncDescriptor } from './descriptors';
+import { ServiceIdentifier } from './instantiation.js';
+import { SyncDescriptor } from './descriptors.js';
 
 export class ServiceCollection {
 
 	private _entries = new Map<ServiceIdentifier<any>, any>();
 
 	constructor(...entries: [ServiceIdentifier<any>, any][]) {
-		for (let [id, service] of entries) {
+		for (const [id, service] of entries) {
 			this.set(id, service);
 		}
 	}

@@ -4,7 +4,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bundle = void 0;
+exports.bundle = bundle;
+exports.removeAllTSBoilerplate = removeAllTSBoilerplate;
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
@@ -36,26 +37,24 @@ function bundle(entryPoints, config, callback) {
     const loader = loaderModule.exports;
     config.isBuild = true;
     config.paths = config.paths || {};
-    if (!config.paths['vs/nls']) {
-        config.paths['vs/nls'] = 'out-build/vs/nls.build';
-    }
     if (!config.paths['vs/css']) {
         config.paths['vs/css'] = 'out-build/vs/css.build';
     }
+    config.buildForceInvokeFactory = config.buildForceInvokeFactory || {};
+    config.buildForceInvokeFactory['vs/css'] = true;
     loader.config(config);
     loader(['require'], (localRequire) => {
-        const resolvePath = (path) => {
-            const r = localRequire.toUrl(path);
-            if (!/\.js/.test(r)) {
-                return r + '.js';
+        const resolvePath = (entry) => {
+            let r = localRequire.toUrl(entry.path);
+            if (!r.endsWith('.js')) {
+                r += '.js';
             }
-            return r;
+            // avoid packaging the build version of plugins:
+            r = r.replace('vs/css.build.js', 'vs/css.js');
+            return { path: r, amdModuleId: entry.amdModuleId };
         };
         for (const moduleId in entryPointsMap) {
             const entryPoint = entryPointsMap[moduleId];
-            if (entryPoint.append) {
-                entryPoint.append = entryPoint.append.map(resolvePath);
-            }
             if (entryPoint.prepend) {
                 entryPoint.prepend = entryPoint.prepend.map(resolvePath);
             }
@@ -72,7 +71,6 @@ function bundle(entryPoints, config, callback) {
         });
     }, (err) => callback(err, null));
 }
-exports.bundle = bundle;
 function emitEntryPoints(modules, entryPoints) {
     const modulesMap = {};
     modules.forEach((m) => {
@@ -104,7 +102,7 @@ function emitEntryPoints(modules, entryPoints) {
             return allDependencies[module];
         });
         bundleData.bundles[moduleToBundle] = includedModules;
-        const res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules, info.prepend || [], info.append || [], info.dest);
+        const res = emitEntryPoint(modulesMap, modulesGraph, moduleToBundle, includedModules, info.prepend || [], info.dest);
         result = result.concat(res.files);
         for (const pluginName in res.usedPlugins) {
             usedPlugins[pluginName] = usedPlugins[pluginName] || res.usedPlugins[pluginName];
@@ -127,7 +125,7 @@ function emitEntryPoints(modules, entryPoints) {
     });
     return {
         // TODO@TS 2.1.2
-        files: extractStrings(removeDuplicateTSBoilerplate(result)),
+        files: extractStrings(removeAllDuplicateTSBoilerplate(result)),
         bundleData: bundleData
     };
 }
@@ -216,58 +214,68 @@ function extractStrings(destFiles) {
     });
     return destFiles;
 }
-function removeDuplicateTSBoilerplate(destFiles) {
-    // Taken from typescript compiler => emitFiles
-    const BOILERPLATE = [
-        { start: /^var __extends/, end: /^}\)\(\);$/ },
-        { start: /^var __assign/, end: /^};$/ },
-        { start: /^var __decorate/, end: /^};$/ },
-        { start: /^var __metadata/, end: /^};$/ },
-        { start: /^var __param/, end: /^};$/ },
-        { start: /^var __awaiter/, end: /^};$/ },
-        { start: /^var __generator/, end: /^};$/ },
-    ];
+function removeAllDuplicateTSBoilerplate(destFiles) {
     destFiles.forEach((destFile) => {
         const SEEN_BOILERPLATE = [];
         destFile.sources.forEach((source) => {
-            const lines = source.contents.split(/\r\n|\n|\r/);
-            const newLines = [];
-            let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE;
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                if (IS_REMOVING_BOILERPLATE) {
-                    newLines.push('');
-                    if (END_BOILERPLATE.test(line)) {
-                        IS_REMOVING_BOILERPLATE = false;
-                    }
-                }
-                else {
-                    for (let j = 0; j < BOILERPLATE.length; j++) {
-                        const boilerplate = BOILERPLATE[j];
-                        if (boilerplate.start.test(line)) {
-                            if (SEEN_BOILERPLATE[j]) {
-                                IS_REMOVING_BOILERPLATE = true;
-                                END_BOILERPLATE = boilerplate.end;
-                            }
-                            else {
-                                SEEN_BOILERPLATE[j] = true;
-                            }
-                        }
-                    }
-                    if (IS_REMOVING_BOILERPLATE) {
-                        newLines.push('');
-                    }
-                    else {
-                        newLines.push(line);
-                    }
-                }
-            }
-            source.contents = newLines.join('\n');
+            source.contents = removeDuplicateTSBoilerplate(source.contents, SEEN_BOILERPLATE);
         });
     });
     return destFiles;
 }
-function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, append, dest) {
+function removeAllTSBoilerplate(source) {
+    const seen = new Array(BOILERPLATE.length).fill(true, 0, 10);
+    return removeDuplicateTSBoilerplate(source, seen);
+}
+// Taken from typescript compiler => emitFiles
+const BOILERPLATE = [
+    { start: /^var __extends/, end: /^}\)\(\);$/ },
+    { start: /^var __assign/, end: /^};$/ },
+    { start: /^var __decorate/, end: /^};$/ },
+    { start: /^var __metadata/, end: /^};$/ },
+    { start: /^var __param/, end: /^};$/ },
+    { start: /^var __awaiter/, end: /^};$/ },
+    { start: /^var __generator/, end: /^};$/ },
+    { start: /^var __createBinding/, end: /^}\)\);$/ },
+    { start: /^var __setModuleDefault/, end: /^}\);$/ },
+    { start: /^var __importStar/, end: /^};$/ },
+];
+function removeDuplicateTSBoilerplate(source, SEEN_BOILERPLATE = []) {
+    const lines = source.split(/\r\n|\n|\r/);
+    const newLines = [];
+    let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE;
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (IS_REMOVING_BOILERPLATE) {
+            newLines.push('');
+            if (END_BOILERPLATE.test(line)) {
+                IS_REMOVING_BOILERPLATE = false;
+            }
+        }
+        else {
+            for (let j = 0; j < BOILERPLATE.length; j++) {
+                const boilerplate = BOILERPLATE[j];
+                if (boilerplate.start.test(line)) {
+                    if (SEEN_BOILERPLATE[j]) {
+                        IS_REMOVING_BOILERPLATE = true;
+                        END_BOILERPLATE = boilerplate.end;
+                    }
+                    else {
+                        SEEN_BOILERPLATE[j] = true;
+                    }
+                }
+            }
+            if (IS_REMOVING_BOILERPLATE) {
+                newLines.push('');
+            }
+            else {
+                newLines.push(line);
+            }
+        }
+    }
+    return newLines.join('\n');
+}
+function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, dest) {
     if (!dest) {
         dest = entryPoint + '.js';
     }
@@ -298,8 +306,17 @@ function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, 
         if (module.shim) {
             mainResult.sources.push(emitShimmedModule(c, deps[c], module.shim, module.path, contents));
         }
-        else {
+        else if (module.defineLocation) {
             mainResult.sources.push(emitNamedModule(c, module.defineLocation, module.path, contents));
+        }
+        else {
+            const moduleCopy = {
+                id: module.id,
+                path: module.path,
+                defineLocation: module.defineLocation,
+                dependencies: module.dependencies
+            };
+            throw new Error(`Cannot bundle module '${module.id}' for entry point '${entryPoint}' because it has no shim and it lacks a defineLocation: ${JSON.stringify(moduleCopy)}`);
         }
     });
     Object.keys(usedPlugins).forEach((pluginName) => {
@@ -321,16 +338,18 @@ function emitEntryPoint(modulesMap, deps, entryPoint, includedModules, prepend, 
             plugin.writeFile(pluginName, entryPoint, req, write, {});
         }
     });
-    const toIFile = (path) => {
-        const contents = readFileAndRemoveBOM(path);
+    const toIFile = (entry) => {
+        let contents = readFileAndRemoveBOM(entry.path);
+        if (entry.amdModuleId) {
+            contents = contents.replace(/^define\(/m, `define("${entry.amdModuleId}",`);
+        }
         return {
-            path: path,
+            path: entry.path,
             contents: contents
         };
     };
     const toPrepend = (prepend || []).map(toIFile);
-    const toAppend = (append || []).map(toIFile);
-    mainResult.sources = toPrepend.concat(mainResult.sources).concat(toAppend);
+    mainResult.sources = toPrepend.concat(mainResult.sources);
     return {
         files: results,
         usedPlugins: usedPlugins
@@ -465,3 +484,4 @@ function topologicalSort(graph) {
     }
     return L;
 }
+//# sourceMappingURL=bundle.js.map

@@ -55,6 +55,31 @@
 						}
 					}
 				}
+			},
+			{
+				"type": "object",
+				"required": [
+					"name",
+					"fullLicenseTextUri"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "The name of the dependency"
+					},
+					"fullLicenseTextUri": {
+						"type": "string",
+						"description": "The URI to the license text of this repository",
+						"format": "uri"
+					},
+					"prependLicenseText": {
+						"type": "array",
+						"description": "A piece of text to prepend to the auto-detected license text of the dependency",
+						"items": {
+							"type": "string"
+						}
+					}
+				}
 			}
 		]
 	}

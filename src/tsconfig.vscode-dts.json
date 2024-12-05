@@ -13,7 +13,7 @@
 		"forceConsistentCasingInFileNames": true,
 		"types": [],
 		"lib": [
-			"es5",
+			"ES2022"
 		],
 	},
 	"include": [

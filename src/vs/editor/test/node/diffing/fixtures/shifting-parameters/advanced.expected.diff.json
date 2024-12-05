@@ -1,0 +1,22 @@
+{
+	"original": {
+		"content": "function x(alignments: RangeMapping[]): x[] { }\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "function x(alignments: RangeMapping[], originalLines: string[], modifiedLines: string[]): x[] { }\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[1,2)",
+			"modifiedRange": "[1,2)",
+			"innerChanges": [
+				{
+					"originalRange": "[1,38 -> 1,38]",
+					"modifiedRange": "[1,38 -> 1,88]"
+				}
+			]
+		}
+	]
+}

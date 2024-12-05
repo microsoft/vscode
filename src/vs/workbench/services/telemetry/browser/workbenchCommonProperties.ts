@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import * as Platform from 'vs/base/common/platform';
-import * as uuid from 'vs/base/common/uuid';
-import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
-import { mixin } from 'vs/base/common/objects';
-import { firstSessionDateStorageKey, lastSessionDateStorageKey, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
-import { Gesture } from 'vs/base/browser/touch';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import * as Platform from '../../../../base/common/platform.js';
+import * as uuid from '../../../../base/common/uuid.js';
+import { cleanRemoteAuthority } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { mixin } from '../../../../base/common/objects.js';
+import { ICommonProperties, firstSessionDateStorageKey, lastSessionDateStorageKey, machineIdKey } from '../../../../platform/telemetry/common/telemetry.js';
+import { Gesture } from '../../../../base/browser/touch.js';
 
 /**
  * General function to help reduce the individuality of user agents
@@ -20,25 +20,26 @@ function cleanUserAgent(userAgent: string): string {
 	return userAgent.replace(/(\d+\.\d+)(\.\d+)+/g, '$1');
 }
 
-export async function resolveWorkbenchCommonProperties(
+export function resolveWorkbenchCommonProperties(
 	storageService: IStorageService,
 	commit: string | undefined,
 	version: string | undefined,
+	isInternalTelemetry: boolean,
 	remoteAuthority?: string,
 	productIdentifier?: string,
 	removeMachineId?: boolean,
 	resolveAdditionalProperties?: () => { [key: string]: any }
-): Promise<{ [name: string]: string | undefined }> {
-	const result: { [name: string]: string | undefined } = Object.create(null);
-	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL)!;
-	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL)!;
+): ICommonProperties {
+	const result: ICommonProperties = Object.create(null);
+	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION)!;
+	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.APPLICATION)!;
 
 	let machineId: string | undefined;
 	if (!removeMachineId) {
-		machineId = storageService.get(machineIdKey, StorageScope.GLOBAL);
+		machineId = storageService.get(machineIdKey, StorageScope.APPLICATION);
 		if (!machineId) {
 			machineId = uuid.generateUuid();
-			storageService.store(machineIdKey, machineId, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			storageService.store(machineIdKey, machineId, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 	} else {
 		machineId = `Redacted-${productIdentifier ?? 'web'}`;
@@ -74,6 +75,11 @@ export async function resolveWorkbenchCommonProperties(
 	result['common.userAgent'] = Platform.userAgent ? cleanUserAgent(Platform.userAgent) : undefined;
 	// __GDPR__COMMON__ "common.isTouchDevice" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.isTouchDevice'] = String(Gesture.isTouchDevice());
+
+	if (isInternalTelemetry) {
+		// __GDPR__COMMON__ "common.msftInternal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+		result['common.msftInternal'] = isInternalTelemetry;
+	}
 
 	// dynamic properties which value differs on each call
 	let seq = 0;

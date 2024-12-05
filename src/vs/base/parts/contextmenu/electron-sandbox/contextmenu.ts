@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CONTEXT_MENU_CHANNEL, CONTEXT_MENU_CLOSE_CHANNEL, IContextMenuEvent, IContextMenuItem, IPopupOptions, ISerializableContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { CONTEXT_MENU_CHANNEL, CONTEXT_MENU_CLOSE_CHANNEL, IContextMenuEvent, IContextMenuItem, IPopupOptions, ISerializableContextMenuItem } from '../common/contextmenu.js';
+import { ipcRenderer } from '../../sandbox/electron-sandbox/globals.js';
 
 let contextMenuIdPool = 0;
 
@@ -15,9 +15,7 @@ export function popup(items: IContextMenuItem[], options?: IPopupOptions, onHide
 	const onClickChannel = `vscode:onContextMenu${contextMenuId}`;
 	const onClickChannelHandler = (event: unknown, itemId: number, context: IContextMenuEvent) => {
 		const item = processedItems[itemId];
-		if (item.click) {
-			item.click(context);
-		}
+		item.click?.(context);
 	};
 
 	ipcRenderer.once(onClickChannel, onClickChannelHandler);
@@ -28,9 +26,7 @@ export function popup(items: IContextMenuItem[], options?: IPopupOptions, onHide
 
 		ipcRenderer.removeListener(onClickChannel, onClickChannelHandler);
 
-		if (onHide) {
-			onHide();
-		}
+		onHide?.();
 	});
 
 	ipcRenderer.send(CONTEXT_MENU_CHANNEL, contextMenuId, items.map(item => createItem(item, processedItems)), onClickChannel, options);

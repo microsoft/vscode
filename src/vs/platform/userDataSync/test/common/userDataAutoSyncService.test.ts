@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { joinPath } from 'vs/base/common/resources';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
-import { IUserDataSyncService, SyncResource, UserDataAutoSyncError, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
-import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Event } from '../../../../base/common/event.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { IFileService } from '../../../files/common/files.js';
+import { IUserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
+import { UserDataAutoSyncService } from '../../common/userDataAutoSyncService.js';
+import { IUserDataSyncService, SyncResource, UserDataAutoSyncError, UserDataSyncErrorCode, UserDataSyncStoreError } from '../../common/userDataSync.js';
+import { IUserDataSyncMachinesService } from '../../common/userDataSyncMachines.js';
+import { UserDataSyncClient, UserDataSyncTestServer } from './userDataSyncClient.js';
 
 class TestUserDataAutoSyncService extends UserDataAutoSyncService {
 	protected override startAutoSync(): boolean { return false; }
@@ -27,12 +28,10 @@ class TestUserDataAutoSyncService extends UserDataAutoSyncService {
 
 suite('UserDataAutoSyncService', () => {
 
-	const disposableStore = new DisposableStore();
-
-	teardown(() => disposableStore.clear());
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('test auto sync with sync resource change triggers sync', async () => {
-		await runWithFakedTimers({ useSetImmediate: true }, async () => {
+		await runWithFakedTimers({}, async () => {
 			// Setup the client
 			const target = new UserDataSyncTestServer();
 			const client = disposableStore.add(new UserDataSyncClient(target));
@@ -56,7 +55,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test auto sync with sync resource change triggers sync for every change', async () => {
-		await runWithFakedTimers({ useSetImmediate: true }, async () => {
+		await runWithFakedTimers({}, async () => {
 			// Setup the client
 			const target = new UserDataSyncTestServer();
 			const client = disposableStore.add(new UserDataSyncClient(target));
@@ -84,7 +83,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test auto sync with non sync resource change triggers sync', async () => {
-		await runWithFakedTimers({ useSetImmediate: true }, async () => {
+		await runWithFakedTimers({}, async () => {
 			// Setup the client
 			const target = new UserDataSyncTestServer();
 			const client = disposableStore.add(new UserDataSyncClient(target));
@@ -108,7 +107,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test auto sync with non sync resource change does not trigger continuous syncs', async () => {
-		await runWithFakedTimers({ useSetImmediate: true }, async () => {
+		await runWithFakedTimers({}, async () => {
 			// Setup the client
 			const target = new UserDataSyncTestServer();
 			const client = disposableStore.add(new UserDataSyncClient(target));
@@ -134,7 +133,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test first auto sync requests', async () => {
-		await runWithFakedTimers({ useSetImmediate: true }, async () => {
+		await runWithFakedTimers({}, async () => {
 			// Setup the client
 			const target = new UserDataSyncTestServer();
 			const client = disposableStore.add(new UserDataSyncClient(target));
@@ -165,6 +164,8 @@ suite('UserDataAutoSyncService', () => {
 				{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
 				// Extensions
 				{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+				// Profiles
+				{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 				// Manifest
 				{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 				// Machines
@@ -174,7 +175,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test further auto sync requests without changes', async () => {
-		await runWithFakedTimers({ useSetImmediate: true }, async () => {
+		await runWithFakedTimers({}, async () => {
 			// Setup the client
 			const target = new UserDataSyncTestServer();
 			const client = disposableStore.add(new UserDataSyncClient(target));
@@ -195,7 +196,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test further auto sync requests with changes', async () => {
-		await runWithFakedTimers({ useSetImmediate: true }, async () => {
+		await runWithFakedTimers({}, async () => {
 			// Setup the client
 			const target = new UserDataSyncTestServer();
 			const client = disposableStore.add(new UserDataSyncClient(target));
@@ -209,9 +210,10 @@ suite('UserDataAutoSyncService', () => {
 			// Do changes in the client
 			const fileService = client.instantiationService.get(IFileService);
 			const environmentService = client.instantiationService.get(IEnvironmentService);
-			await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
-			await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
-			await fileService.writeFile(joinPath(environmentService.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
+			const userDataProfilesService = client.instantiationService.get(IUserDataProfilesService);
+			await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
+			await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+			await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
 			await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
 			await testObject.sync();
 
@@ -231,7 +233,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test auto sync send execution id header', async () => {
-		await runWithFakedTimers({ useSetImmediate: true }, async () => {
+		await runWithFakedTimers({}, async () => {
 			// Setup the client
 			const target = new UserDataSyncTestServer();
 			const client = disposableStore.add(new UserDataSyncClient(target));
@@ -256,7 +258,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test delete on one client throws turned off error on other client while syncing', async () => {
-		await runWithFakedTimers({ useSetImmediate: true }, async () => {
+		await runWithFakedTimers({}, async () => {
 			const target = new UserDataSyncTestServer();
 
 			// Set up and sync from the client
@@ -292,7 +294,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test disabling the machine turns off sync', async () => {
-		await runWithFakedTimers({ useSetImmediate: true }, async () => {
+		await runWithFakedTimers({}, async () => {
 			const target = new UserDataSyncTestServer();
 
 			// Set up and sync from the test client
@@ -326,7 +328,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test removing the machine adds machine back', async () => {
-		await runWithFakedTimers({ useSetImmediate: true }, async () => {
+		await runWithFakedTimers({}, async () => {
 			const target = new UserDataSyncTestServer();
 
 			// Set up and sync from the test client
@@ -351,7 +353,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test creating new session from one client throws session expired error on another client while syncing', async () => {
-		await runWithFakedTimers({ useSetImmediate: true }, async () => {
+		await runWithFakedTimers({}, async () => {
 			const target = new UserDataSyncTestServer();
 
 			// Set up and sync from the client
@@ -390,7 +392,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test rate limit on server', async () => {
-		await runWithFakedTimers({ useSetImmediate: true }, async () => {
+		await runWithFakedTimers({}, async () => {
 			const target = new UserDataSyncTestServer(5);
 
 			// Set up and sync from the test client
@@ -410,7 +412,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test auto sync is suspended when server donot accepts requests', async () => {
-		await runWithFakedTimers({ useSetImmediate: true }, async () => {
+		await runWithFakedTimers({}, async () => {
 			const target = new UserDataSyncTestServer(5, 1);
 
 			// Set up and sync from the test client
@@ -430,7 +432,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test cache control header with no cache is sent when triggered with disable cache option', async () => {
-		await runWithFakedTimers({ useSetImmediate: true }, async () => {
+		await runWithFakedTimers({}, async () => {
 			const target = new UserDataSyncTestServer(5, 1);
 
 			// Set up and sync from the test client
@@ -444,7 +446,7 @@ suite('UserDataAutoSyncService', () => {
 	});
 
 	test('test cache control header is not sent when triggered without disable cache option', async () => {
-		await runWithFakedTimers({ useSetImmediate: true }, async () => {
+		await runWithFakedTimers({}, async () => {
 			const target = new UserDataSyncTestServer(5, 1);
 
 			// Set up and sync from the test client

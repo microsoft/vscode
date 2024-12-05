@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
-import { FontStyle, ColorId, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { tokenizeLineToHTML, _tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
-import { TestLineToken, TestLineTokens } from 'vs/editor/test/common/core/testLineToken';
-import { createModelServices } from 'vs/editor/test/common/testTextModel';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import assert from 'assert';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ColorId, FontStyle, MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import { EncodedTokenizationResult, IState, TokenizationRegistry } from '../../../common/languages.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { _tokenizeToString, tokenizeLineToHTML } from '../../../common/languages/textToHtmlTokenizer.js';
+import { LanguageIdCodec } from '../../../common/services/languagesRegistry.js';
+import { TestLineToken, TestLineTokens } from '../core/testLineToken.js';
+import { createModelServices } from '../testTextModel.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 suite('Editor Modes - textToHtmlTokenizer', () => {
 
@@ -28,17 +29,19 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		disposables.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function toStr(pieces: { className: string; text: string }[]): string {
-		let resultArr = pieces.map((t) => `<span class="${t.className}">${t.text}</span>`);
+		const resultArr = pieces.map((t) => `<span class="${t.className}">${t.text}</span>`);
 		return resultArr.join('');
 	}
 
 	test('TextToHtmlTokenizer 1', () => {
 		const mode = disposables.add(instantiationService.createInstance(Mode));
-		let support = TokenizationRegistry.get(mode.languageId)!;
+		const support = TokenizationRegistry.get(mode.languageId)!;
 
-		let actual = _tokenizeToString('.abc..def...gh', new LanguageIdCodec(), support);
-		let expected = [
+		const actual = _tokenizeToString('.abc..def...gh', new LanguageIdCodec(), support);
+		const expected = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },
 			{ className: 'mtk7', text: '..' },
@@ -46,17 +49,17 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			{ className: 'mtk7', text: '...' },
 			{ className: 'mtk9', text: 'gh' },
 		];
-		let expectedStr = `<div class="monaco-tokenized-source">${toStr(expected)}</div>`;
+		const expectedStr = `<div class="monaco-tokenized-source">${toStr(expected)}</div>`;
 
 		assert.strictEqual(actual, expectedStr);
 	});
 
 	test('TextToHtmlTokenizer 2', () => {
 		const mode = disposables.add(instantiationService.createInstance(Mode));
-		let support = TokenizationRegistry.get(mode.languageId)!;
+		const support = TokenizationRegistry.get(mode.languageId)!;
 
-		let actual = _tokenizeToString('.abc..def...gh\n.abc..def...gh', new LanguageIdCodec(), support);
-		let expected1 = [
+		const actual = _tokenizeToString('.abc..def...gh\n.abc..def...gh', new LanguageIdCodec(), support);
+		const expected1 = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },
 			{ className: 'mtk7', text: '..' },
@@ -64,7 +67,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			{ className: 'mtk7', text: '...' },
 			{ className: 'mtk9', text: 'gh' },
 		];
-		let expected2 = [
+		const expected2 = [
 			{ className: 'mtk7', text: '.' },
 			{ className: 'mtk9', text: 'abc' },
 			{ className: 'mtk7', text: '..' },
@@ -72,9 +75,9 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			{ className: 'mtk7', text: '...' },
 			{ className: 'mtk9', text: 'gh' },
 		];
-		let expectedStr1 = toStr(expected1);
-		let expectedStr2 = toStr(expected2);
-		let expectedStr = `<div class="monaco-tokenized-source">${expectedStr1}<br/>${expectedStr2}</div>`;
+		const expectedStr1 = toStr(expected1);
+		const expectedStr2 = toStr(expected2);
+		const expectedStr = `<div class="monaco-tokenized-source">${expectedStr1}<br/>${expectedStr2}</div>`;
 
 		assert.strictEqual(actual, expectedStr);
 	});
@@ -293,7 +296,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 class Mode extends Disposable {
 
-	private readonly languageId = 'textToHtmlTokenizerMode';
+	public readonly languageId = 'textToHtmlTokenizerMode';
 
 	constructor(
 		@ILanguageService languageService: ILanguageService
@@ -304,10 +307,10 @@ class Mode extends Disposable {
 			getInitialState: (): IState => null!,
 			tokenize: undefined!,
 			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
-				let tokensArr: number[] = [];
-				let prevColor: ColorId = -1;
+				const tokensArr: number[] = [];
+				let prevColor = -1 as ColorId;
 				for (let i = 0; i < line.length; i++) {
-					let colorId = line.charAt(i) === '.' ? 7 : 9;
+					const colorId = (line.charAt(i) === '.' ? 7 : 9) as ColorId;
 					if (prevColor !== colorId) {
 						tokensArr.push(i);
 						tokensArr.push((
@@ -317,7 +320,7 @@ class Mode extends Disposable {
 					prevColor = colorId;
 				}
 
-				let tokens = new Uint32Array(tokensArr.length);
+				const tokens = new Uint32Array(tokensArr.length);
 				for (let i = 0; i < tokens.length; i++) {
 					tokens[i] = tokensArr[i];
 				}

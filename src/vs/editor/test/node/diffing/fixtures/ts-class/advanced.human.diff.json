@@ -1,0 +1,100 @@
+{
+	"original": {
+		"content": "\nclass Slice implements ISequence {\n\tprivate readonly elements: Int32Array;\n\tprivate readonly firstCharOnLineOffsets: Int32Array;\n\n\tconstructor(public readonly lines: string[], public readonly lineRange: OffsetRange) {\n\t\tlet chars = 0;\n\t\tthis.firstCharOnLineOffsets = new Int32Array(lineRange.length);\n\n\t\tfor (let i = lineRange.start; i < lineRange.endExclusive; i++) {\n\t\t\tconst line = lines[i];\n\t\t\tchars += line.length;\n\t\t\tthis.firstCharOnLineOffsets[i - lineRange.start] = chars + 1;\n\t\t\tchars++;\n\t\t}\n\n\t\tthis.elements = new Int32Array(chars);\n\t\tlet offset = 0;\n\t\tfor (let i = lineRange.start; i < lineRange.endExclusive; i++) {\n\t\t\tconst line = lines[i];\n\n\t\t\tfor (let i = 0; i < line.length; i++) {\n\t\t\t\tthis.elements[offset + i] = line.charCodeAt(i);\n\t\t\t}\n\t\t\toffset += line.length;\n\t\t\tif (i < lines.length - 1) {\n\t\t\t\tthis.elements[offset] = '\\n'.charCodeAt(0);\n\t\t\t\toffset += 1;\n\t\t\t}\n\t\t}\n\t}\n}\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "class Slice implements ISequence {\n\tprivate readonly elements: number[] = [];\n\tprivate readonly firstCharOnLineOffsets: number[] = [];\n\tprivate readonly trimStartLength: number[] = [];\n\n\tconstructor(public readonly lines: string[], public readonly lineRange: OffsetRange, public readonly considerWhitespaceChanges: boolean) {\n\t\tfor (let i = lineRange.start; i < lineRange.endExclusive; i++) {\n\t\t\tconst l = lines[i];\n\t\t\tconst l1 = considerWhitespaceChanges ? l : l.trimStart();\n\t\t\tconst line = considerWhitespaceChanges ? l1 : l1.trimEnd();\n\t\t\tthis.trimStartLength.push(l.length - l1.length);\n\n\t\t\tfor (let i = 0; i < line.length; i++) {\n\t\t\t\tthis.elements.push(line.charCodeAt(i));\n\t\t\t}\n\t\t\tif (i < lines.length - 1) {\n\t\t\t\tthis.elements.push('\\n'.charCodeAt(0));\n\t\t\t}\n\n\t\t\tthis.firstCharOnLineOffsets[i - lineRange.start] = this.elements.length;\n\t\t}\n\t}\n}\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[1,2)",
+			"modifiedRange": "[1,1)",
+			"innerChanges": null
+		},
+		{
+			"originalRange": "[3,5)",
+			"modifiedRange": "[2,5)",
+			"innerChanges": [
+				{
+					"originalRange": "[3,29 -> 3,39]",
+					"modifiedRange": "[2,29 -> 2,42]"
+				},
+				{
+					"originalRange": "[4,43 -> 4,53]",
+					"modifiedRange": "[3,43 -> 4,49]"
+				}
+			]
+		},
+
+		{
+			"originalRange": "[6,7)",
+			"modifiedRange": "[6,7)",
+			"innerChanges": [
+				{
+					"originalRange": "[6,85 -> 6,85]",
+					"modifiedRange": "[6,85 -> 6,137]"
+				}
+			]
+		},
+		{
+			"originalRange": "[7,10)",
+			"modifiedRange": "[7,7)",
+			"innerChanges": null
+		},
+		{
+			"originalRange": "[11,12)",
+			"modifiedRange": "[8,9)",
+			"innerChanges": [
+				{
+					"originalRange": "[11,11 -> 11,14]",
+					"modifiedRange": "[8,11 -> 8,11]"
+				}
+			]
+		},
+		{
+			"originalRange": "[12,21)",
+			"modifiedRange": "[9,12)",
+			"innerChanges": null
+		},
+		{
+			"originalRange": "[23,24)",
+			"modifiedRange": "[14,15)",
+			"innerChanges": [
+				{
+					"originalRange": "[23,18 -> 23,33]",
+					"modifiedRange": "[14,18 -> 14,24]"
+				},
+				{
+					"originalRange": "[23,51 -> 23,51]",
+					"modifiedRange": "[14,42 -> 14,43]"
+				}
+			]
+		},
+		{
+			"originalRange": "[25,26)",
+			"modifiedRange": "[16,16)",
+			"innerChanges": null
+		},
+		{
+			"originalRange": "[27,29)",
+			"modifiedRange": "[17,18)",
+			"innerChanges": [
+				{
+					"originalRange": "[27,18 -> 27,29]",
+					"modifiedRange": "[17,18 -> 17,24]"
+				},
+				{
+					"originalRange": "[27,47 -> 28,16]",
+					"modifiedRange": "[17,42 -> 17,43]"
+				}
+			]
+		},
+		{
+			"originalRange": "[30,30)",
+			"modifiedRange": "[19,21)",
+			"innerChanges": null
+		}
+	]
+}

@@ -3,37 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { BracketPairColorizationOptions, DefaultEndOfLine, ITextBufferFactory, ITextModelCreationOptions } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { BracketPairColorizationOptions, DefaultEndOfLine, ITextBufferFactory, ITextModelCreationOptions } from '../../common/model.js';
+import { TextModel } from '../../common/model/textModel.js';
+import { ILanguageConfigurationService } from '../../common/languages/languageConfigurationRegistry.js';
+import { ILanguageService } from '../../common/languages/language.js';
+import { LanguageService } from '../../common/services/languageService.js';
+import { ITextResourcePropertiesService } from '../../common/services/textResourceConfiguration.js';
+import { TestLanguageConfigurationService } from './modes/testLanguageConfigurationService.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../platform/dialogs/test/common/testDialogService.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ILogService, NullLogService } from '../../../platform/log/common/log.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../platform/notification/test/common/testNotificationService.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
+import { IUndoRedoService } from '../../../platform/undoRedo/common/undoRedo.js';
+import { UndoRedoService } from '../../../platform/undoRedo/common/undoRedoService.js';
+import { TestTextResourcePropertiesService } from './services/testTextResourcePropertiesService.js';
+import { IModelService } from '../../common/services/model.js';
+import { ModelService } from '../../common/services/modelService.js';
+import { createServices, ServiceIdCtorPair, TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../common/languages/modesRegistry.js';
+import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from '../../common/services/languageFeatureDebounce.js';
+import { ILanguageFeaturesService } from '../../common/services/languageFeatures.js';
+import { LanguageFeaturesService } from '../../common/services/languageFeaturesService.js';
+import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { mock } from '../../../base/test/common/mock.js';
+import { ITreeSitterParserService } from '../../common/services/treeSitterParserService.js';
+import { TestTreeSitterParserService } from './services/testTreeSitterService.js';
 
 class TestTextModel extends TextModel {
 	public registerDisposable(disposable: IDisposable): void {
@@ -49,7 +51,7 @@ export function withEditorModel(text: string[], callback: (model: TextModel) => 
 
 export interface IRelaxedTextModelCreationOptions {
 	tabSize?: number;
-	indentSize?: number;
+	indentSize?: number | 'tabSize';
 	insertSpaces?: boolean;
 	detectIndentation?: boolean;
 	trimAutoWhitespace?: boolean;
@@ -87,36 +89,24 @@ export function instantiateTextModel(instantiationService: IInstantiationService
 	return instantiationService.createInstance(TestTextModel, text, languageId || PLAINTEXT_LANGUAGE_ID, options, uri);
 }
 
-export function createModelServices(disposables: DisposableStore, services: ServiceCollection = new ServiceCollection()): TestInstantiationService {
-	const serviceIdentifiers: ServiceIdentifier<any>[] = [];
-	const define = <T>(id: ServiceIdentifier<T>, ctor: new (...args: any[]) => T) => {
-		if (!services.has(id)) {
-			services.set(id, new SyncDescriptor(ctor));
-		}
-		serviceIdentifiers.push(id);
-	};
-
-	define(INotificationService, TestNotificationService);
-	define(IDialogService, TestDialogService);
-	define(IUndoRedoService, UndoRedoService);
-	define(ILanguageService, LanguageService);
-	define(ILanguageConfigurationService, TestLanguageConfigurationService);
-	define(IConfigurationService, TestConfigurationService);
-	define(ITextResourcePropertiesService, TestTextResourcePropertiesService);
-	define(IThemeService, TestThemeService);
-	define(ILogService, NullLogService);
-	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
-	define(ILanguageFeaturesService, LanguageFeaturesService);
-	define(IModelService, ModelService);
-
-	const instantiationService = new TestInstantiationService(services, true);
-	disposables.add(toDisposable(() => {
-		for (const id of serviceIdentifiers) {
-			const instanceOrDescriptor = services.get(id);
-			if (typeof instanceOrDescriptor.dispose === 'function') {
-				instanceOrDescriptor.dispose();
-			}
-		}
-	}));
-	return instantiationService;
+export function createModelServices(disposables: DisposableStore, services: ServiceIdCtorPair<any>[] = []): TestInstantiationService {
+	return createServices(disposables, services.concat([
+		[INotificationService, TestNotificationService],
+		[IDialogService, TestDialogService],
+		[IUndoRedoService, UndoRedoService],
+		[ILanguageService, LanguageService],
+		[ILanguageConfigurationService, TestLanguageConfigurationService],
+		[IConfigurationService, TestConfigurationService],
+		[ITextResourcePropertiesService, TestTextResourcePropertiesService],
+		[IThemeService, TestThemeService],
+		[ILogService, NullLogService],
+		[IEnvironmentService, new class extends mock<IEnvironmentService>() {
+			override isBuilt: boolean = true;
+			override isExtensionDevelopment: boolean = false;
+		}],
+		[ILanguageFeatureDebounceService, LanguageFeatureDebounceService],
+		[ILanguageFeaturesService, LanguageFeaturesService],
+		[IModelService, ModelService],
+		[ITreeSitterParserService, TestTreeSitterParserService]
+	]));
 }

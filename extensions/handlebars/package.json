@@ -11,6 +11,11 @@
   "scripts": {
     "update-grammar": "node ../node_modules/vscode-grammar-updater/bin daaain/Handlebars grammars/Handlebars.json ./syntaxes/Handlebars.tmLanguage.json"
   },
+  "categories": ["Programming Languages"],
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
   "contributes": {
     "languages": [
       {
@@ -35,6 +40,12 @@
         "language": "handlebars",
         "scopeName": "text.html.handlebars",
         "path": "./syntaxes/Handlebars.tmLanguage.json"
+      }
+    ],
+    "htmlLanguageParticipants": [
+      {
+        "languageId": "handlebars",
+        "autoInsert": true
       }
     ]
   },

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Searcher } from 'vs/editor/common/model/textModelSearch';
-import * as strings from 'vs/base/common/strings';
-import { IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
-import { assertNever } from 'vs/base/common/types';
-import { DEFAULT_WORD_REGEXP, getWordAtText } from 'vs/editor/common/core/wordHelper';
+import { IRange, Range } from '../core/range.js';
+import { Searcher } from '../model/textModelSearch.js';
+import * as strings from '../../../base/common/strings.js';
+import { IUnicodeHighlightsResult } from './editorWorker.js';
+import { assertNever } from '../../../base/common/assert.js';
+import { DEFAULT_WORD_REGEXP, getWordAtText } from '../core/wordHelper.js';
 
 export class UnicodeTextModelHighlighter {
 	public static computeUnicodeHighlights(model: IUnicodeCharacterSearcherTarget, options: UnicodeHighlighterOptions, range?: IRange): IUnicodeHighlightsResult {
@@ -61,7 +61,11 @@ export class UnicodeTextModelHighlighter {
 						}
 					}
 					const str = lineContent.substring(startIndex, endIndex);
-					const word = getWordAtText(startIndex + 1, DEFAULT_WORD_REGEXP, lineContent, 0);
+					let word = getWordAtText(startIndex + 1, DEFAULT_WORD_REGEXP, lineContent, 0);
+					if (word && word.endColumn <= startIndex + 1) {
+						// The word does not include the problematic character, ignore the word
+						word = null;
+					}
 					const highlightReason = codePointHighlighter.shouldHighlightNonBasicASCII(str, word ? word.word : null);
 
 					if (highlightReason !== SimpleHighlightReason.None) {
@@ -194,7 +198,7 @@ class CodePointHighlighter {
 		let hasBasicASCIICharacters = false;
 		let hasNonConfusableNonBasicAsciiCharacter = false;
 		if (wordContext) {
-			for (let char of wordContext) {
+			for (const char of wordContext) {
 				const codePoint = char.codePointAt(0)!;
 				const isBasicASCII = strings.isBasicASCII(char);
 				hasBasicASCIICharacters = hasBasicASCIICharacters || isBasicASCII;

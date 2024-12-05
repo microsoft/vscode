@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { URI } from 'vs/base/common/uri';
-import { isMacintosh } from 'vs/base/common/platform';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 
 export class NativeClipboardService implements IClipboardService {
 
@@ -19,6 +19,10 @@ export class NativeClipboardService implements IClipboardService {
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) { }
+
+	async readImage(): Promise<Uint8Array> {
+		return this.nativeHostService.readImage();
+	}
 
 	async writeText(text: string, type?: 'selection' | 'clipboard'): Promise<void> {
 		return this.nativeHostService.writeClipboardText(text, type);
@@ -56,11 +60,11 @@ export class NativeClipboardService implements IClipboardService {
 		return this.nativeHostService.hasClipboard(NativeClipboardService.FILE_FORMAT);
 	}
 
-	private resourcesToBuffer(resources: URI[]): Uint8Array {
-		return VSBuffer.fromString(resources.map(r => r.toString()).join('\n')).buffer;
+	private resourcesToBuffer(resources: URI[]): VSBuffer {
+		return VSBuffer.fromString(resources.map(r => r.toString()).join('\n'));
 	}
 
-	private bufferToResources(buffer: Uint8Array): URI[] {
+	private bufferToResources(buffer: VSBuffer): URI[] {
 		if (!buffer) {
 			return [];
 		}
@@ -78,4 +82,4 @@ export class NativeClipboardService implements IClipboardService {
 	}
 }
 
-registerSingleton(IClipboardService, NativeClipboardService, true);
+registerSingleton(IClipboardService, NativeClipboardService, InstantiationType.Delayed);

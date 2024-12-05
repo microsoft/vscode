@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import assert from 'assert';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { dispose } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { SyncDescriptor } from '../../common/descriptors.js';
+import { createDecorator, IInstantiationService, ServicesAccessor } from '../../common/instantiation.js';
+import { InstantiationService } from '../../common/instantiationService.js';
+import { ServiceCollection } from '../../common/serviceCollection.js';
 
-let IService1 = createDecorator<IService1>('service1');
+const IService1 = createDecorator<IService1>('service1');
 
 interface IService1 {
 	readonly _serviceBrand: undefined;
@@ -21,7 +24,7 @@ class Service1 implements IService1 {
 	c = 1;
 }
 
-let IService2 = createDecorator<IService2>('service2');
+const IService2 = createDecorator<IService2>('service2');
 
 interface IService2 {
 	readonly _serviceBrand: undefined;
@@ -33,7 +36,7 @@ class Service2 implements IService2 {
 	d = true;
 }
 
-let IService3 = createDecorator<IService3>('service3');
+const IService3 = createDecorator<IService3>('service3');
 
 interface IService3 {
 	readonly _serviceBrand: undefined;
@@ -45,7 +48,7 @@ class Service3 implements IService3 {
 	s = 'farboo';
 }
 
-let IDependentService = createDecorator<IDependentService>('dependentService');
+const IDependentService = createDecorator<IDependentService>('dependentService');
 
 interface IDependentService {
 	readonly _serviceBrand: undefined;
@@ -125,7 +128,7 @@ class ServiceLoop2 implements IService2 {
 suite('Instantiation Service', () => {
 
 	test('service collection, cannot overwrite', function () {
-		let collection = new ServiceCollection();
+		const collection = new ServiceCollection();
 		let result = collection.set(IService1, null!);
 		assert.strictEqual(result, undefined);
 		result = collection.set(IService1, new Service1());
@@ -133,7 +136,7 @@ suite('Instantiation Service', () => {
 	});
 
 	test('service collection, add/has', function () {
-		let collection = new ServiceCollection();
+		const collection = new ServiceCollection();
 		collection.set(IService1, null!);
 		assert.ok(collection.has(IService1));
 
@@ -143,8 +146,8 @@ suite('Instantiation Service', () => {
 	});
 
 	test('@Param - simple clase', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new Service1());
 		collection.set(IService2, new Service2());
 		collection.set(IService3, new Service3());
@@ -153,8 +156,8 @@ suite('Instantiation Service', () => {
 	});
 
 	test('@Param - fixed args', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new Service1());
 		collection.set(IService2, new Service2());
 		collection.set(IService3, new Service3());
@@ -164,10 +167,10 @@ suite('Instantiation Service', () => {
 
 	test('service collection is live', function () {
 
-		let collection = new ServiceCollection();
+		const collection = new ServiceCollection();
 		collection.set(IService1, new Service1());
 
-		let service = new InstantiationService(collection);
+		const service = new InstantiationService(collection);
 		service.createInstance(Service1Consumer);
 
 		collection.set(IService2, new Service2());
@@ -199,50 +202,50 @@ suite('Instantiation Service', () => {
 	// });
 
 	test('SyncDesc - no dependencies', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new SyncDescriptor<IService1>(Service1));
 
 		service.invokeFunction(accessor => {
 
-			let service1 = accessor.get(IService1);
+			const service1 = accessor.get(IService1);
 			assert.ok(service1);
 			assert.strictEqual(service1.c, 1);
 
-			let service2 = accessor.get(IService1);
+			const service2 = accessor.get(IService1);
 			assert.ok(service1 === service2);
 		});
 	});
 
 	test('SyncDesc - service with service dependency', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new SyncDescriptor<IService1>(Service1));
 		collection.set(IDependentService, new SyncDescriptor<IDependentService>(DependentService));
 
 		service.invokeFunction(accessor => {
-			let d = accessor.get(IDependentService);
+			const d = accessor.get(IDependentService);
 			assert.ok(d);
 			assert.strictEqual(d.name, 'farboo');
 		});
 	});
 
 	test('SyncDesc - target depends on service future', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new SyncDescriptor<IService1>(Service1));
 		collection.set(IDependentService, new SyncDescriptor<IDependentService>(DependentService));
 
-		let d = service.createInstance(DependentServiceTarget);
+		const d = service.createInstance(DependentServiceTarget);
 		assert.ok(d instanceof DependentServiceTarget);
 
-		let d2 = service.createInstance(DependentServiceTarget2);
+		const d2 = service.createInstance(DependentServiceTarget2);
 		assert.ok(d2 instanceof DependentServiceTarget2);
 	});
 
 	test('SyncDesc - explode on loop', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new SyncDescriptor<IService1>(ServiceLoop1));
 		collection.set(IService2, new SyncDescriptor<IService2>(ServiceLoop2));
 
@@ -268,8 +271,8 @@ suite('Instantiation Service', () => {
 	});
 
 	test('Invoke - get services', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new Service1());
 		collection.set(IService2, new Service2());
 
@@ -284,8 +287,8 @@ suite('Instantiation Service', () => {
 	});
 
 	test('Invoke - get service, optional', function () {
-		let collection = new ServiceCollection([IService1, new Service1()]);
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection([IService1, new Service1()]);
+		const service = new InstantiationService(collection);
 
 		function test(accessor: ServicesAccessor) {
 			assert.ok(accessor.get(IService1) instanceof Service1);
@@ -296,8 +299,8 @@ suite('Instantiation Service', () => {
 	});
 
 	test('Invoke - keeping accessor NOT allowed', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new Service1());
 		collection.set(IService2, new Service2());
 
@@ -316,8 +319,8 @@ suite('Instantiation Service', () => {
 	});
 
 	test('Invoke - throw error', function () {
-		let collection = new ServiceCollection();
-		let service = new InstantiationService(collection);
+		const collection = new ServiceCollection();
+		const service = new InstantiationService(collection);
 		collection.set(IService1, new Service1());
 		collection.set(IService2, new Service2());
 
@@ -380,7 +383,7 @@ suite('Instantiation Service', () => {
 		// and then Servce2 should not be created a second time
 		const Service21 = createDecorator<any>('service21');
 		class Service21Impl {
-			constructor(@Service2 readonly service2: Service2Impl, @Service1 readonly service1: Service1Impl) { }
+			constructor(@Service2 public readonly service2: Service2Impl, @Service1 public readonly service1: Service1Impl) { }
 		}
 
 		const insta = new InstantiationService(new ServiceCollection(
@@ -393,4 +396,422 @@ suite('Instantiation Service', () => {
 		assert.ok(obj);
 	});
 
+	test('Sync/Async dependency loop', async function () {
+
+		const A = createDecorator<A>('A');
+		const B = createDecorator<B>('B');
+		interface A { _serviceBrand: undefined; doIt(): void }
+		interface B { _serviceBrand: undefined; b(): boolean }
+
+		class BConsumer {
+			constructor(@B private readonly b: B) {
+
+			}
+			doIt() {
+				return this.b.b();
+			}
+		}
+
+		class AService implements A {
+			_serviceBrand: undefined;
+			prop: BConsumer;
+			constructor(@IInstantiationService insta: IInstantiationService) {
+				this.prop = insta.createInstance(BConsumer);
+			}
+			doIt() {
+				return this.prop.doIt();
+			}
+		}
+
+		class BService implements B {
+			_serviceBrand: undefined;
+			constructor(@A a: A) {
+				assert.ok(a);
+			}
+			b() { return true; }
+		}
+
+		// SYNC -> explodes AImpl -> [insta:BConsumer] -> BImpl -> AImpl
+		{
+			const insta1 = new InstantiationService(new ServiceCollection(
+				[A, new SyncDescriptor(AService)],
+				[B, new SyncDescriptor(BService)],
+			), true, undefined, true);
+
+			try {
+				insta1.invokeFunction(accessor => accessor.get(A));
+				assert.ok(false);
+
+			} catch (error) {
+				assert.ok(error instanceof Error);
+				assert.ok(error.message.includes('RECURSIVELY'));
+			}
+		}
+
+		// ASYNC -> doesn't explode but cycle is tracked
+		{
+			const insta2 = new InstantiationService(new ServiceCollection(
+				[A, new SyncDescriptor(AService, undefined, true)],
+				[B, new SyncDescriptor(BService, undefined)],
+			), true, undefined, true);
+
+			const a = insta2.invokeFunction(accessor => accessor.get(A));
+			a.doIt();
+
+			const cycle = insta2._globalGraph?.findCycleSlow();
+			assert.strictEqual(cycle, 'A -> B -> A');
+		}
+	});
+
+	test('Delayed and events', function () {
+		const A = createDecorator<A>('A');
+		interface A {
+			_serviceBrand: undefined;
+			onDidDoIt: Event<any>;
+			doIt(): void;
+		}
+
+		let created = false;
+		class AImpl implements A {
+			_serviceBrand: undefined;
+			_doIt = 0;
+
+			_onDidDoIt = new Emitter<this>();
+			onDidDoIt: Event<this> = this._onDidDoIt.event;
+
+			constructor() {
+				created = true;
+			}
+
+			doIt(): void {
+				this._doIt += 1;
+				this._onDidDoIt.fire(this);
+			}
+		}
+
+		const insta = new InstantiationService(new ServiceCollection(
+			[A, new SyncDescriptor(AImpl, undefined, true)],
+		), true, undefined, true);
+
+		class Consumer {
+			constructor(@A public readonly a: A) {
+				// eager subscribe -> NO service instance
+			}
+		}
+
+		const c: Consumer = insta.createInstance(Consumer);
+		let eventCount = 0;
+
+		// subscribing to event doesn't trigger instantiation
+		const listener = (e: any) => {
+			assert.ok(e instanceof AImpl);
+			eventCount++;
+		};
+		const d1 = c.a.onDidDoIt(listener);
+		const d2 = c.a.onDidDoIt(listener);
+		assert.strictEqual(created, false);
+		assert.strictEqual(eventCount, 0);
+		d2.dispose();
+
+		// instantiation happens on first call
+		c.a.doIt();
+		assert.strictEqual(created, true);
+		assert.strictEqual(eventCount, 1);
+
+
+		const d3 = c.a.onDidDoIt(listener);
+		c.a.doIt();
+		assert.strictEqual(eventCount, 3);
+
+		dispose([d1, d3]);
+	});
+
+
+	test('Capture event before init, use after init', function () {
+		const A = createDecorator<A>('A');
+		interface A {
+			_serviceBrand: undefined;
+			onDidDoIt: Event<any>;
+			doIt(): void;
+			noop(): void;
+		}
+
+		let created = false;
+		class AImpl implements A {
+			_serviceBrand: undefined;
+			_doIt = 0;
+
+			_onDidDoIt = new Emitter<this>();
+			onDidDoIt: Event<this> = this._onDidDoIt.event;
+
+			constructor() {
+				created = true;
+			}
+
+			doIt(): void {
+				this._doIt += 1;
+				this._onDidDoIt.fire(this);
+			}
+
+			noop(): void {
+			}
+		}
+
+		const insta = new InstantiationService(new ServiceCollection(
+			[A, new SyncDescriptor(AImpl, undefined, true)],
+		), true, undefined, true);
+
+		class Consumer {
+			constructor(@A public readonly a: A) {
+				// eager subscribe -> NO service instance
+			}
+		}
+
+		const c: Consumer = insta.createInstance(Consumer);
+		let eventCount = 0;
+
+		// subscribing to event doesn't trigger instantiation
+		const listener = (e: any) => {
+			assert.ok(e instanceof AImpl);
+			eventCount++;
+		};
+
+		const event = c.a.onDidDoIt;
+
+		// const d1 = c.a.onDidDoIt(listener);
+		assert.strictEqual(created, false);
+
+		c.a.noop();
+		assert.strictEqual(created, true);
+
+		const d1 = event(listener);
+
+		c.a.doIt();
+
+
+		// instantiation happens on first call
+		assert.strictEqual(eventCount, 1);
+
+		dispose(d1);
+	});
+
+	test('Dispose early event listener', function () {
+		const A = createDecorator<A>('A');
+		interface A {
+			_serviceBrand: undefined;
+			onDidDoIt: Event<any>;
+			doIt(): void;
+		}
+		let created = false;
+		class AImpl implements A {
+			_serviceBrand: undefined;
+			_doIt = 0;
+
+			_onDidDoIt = new Emitter<this>();
+			onDidDoIt: Event<this> = this._onDidDoIt.event;
+
+			constructor() {
+				created = true;
+			}
+
+			doIt(): void {
+				this._doIt += 1;
+				this._onDidDoIt.fire(this);
+			}
+		}
+
+		const insta = new InstantiationService(new ServiceCollection(
+			[A, new SyncDescriptor(AImpl, undefined, true)],
+		), true, undefined, true);
+
+		class Consumer {
+			constructor(@A public readonly a: A) {
+				// eager subscribe -> NO service instance
+			}
+		}
+
+		const c: Consumer = insta.createInstance(Consumer);
+		let eventCount = 0;
+
+		// subscribing to event doesn't trigger instantiation
+		const listener = (e: any) => {
+			assert.ok(e instanceof AImpl);
+			eventCount++;
+		};
+
+		const d1 = c.a.onDidDoIt(listener);
+		assert.strictEqual(created, false);
+		assert.strictEqual(eventCount, 0);
+
+		c.a.doIt();
+
+		// instantiation happens on first call
+		assert.strictEqual(created, true);
+		assert.strictEqual(eventCount, 1);
+
+		dispose(d1);
+
+		c.a.doIt();
+		assert.strictEqual(eventCount, 1);
+	});
+
+
+	test('Dispose services it created', function () {
+		let disposedA = false;
+		let disposedB = false;
+
+		const A = createDecorator<A>('A');
+		interface A {
+			_serviceBrand: undefined;
+			value: 1;
+		}
+		class AImpl implements A {
+			_serviceBrand: undefined;
+			value: 1 = 1;
+			dispose() {
+				disposedA = true;
+			}
+		}
+
+		const B = createDecorator<B>('B');
+		interface B {
+			_serviceBrand: undefined;
+			value: 1;
+		}
+		class BImpl implements B {
+			_serviceBrand: undefined;
+			value: 1 = 1;
+			dispose() {
+				disposedB = true;
+			}
+		}
+
+		const insta = new InstantiationService(new ServiceCollection(
+			[A, new SyncDescriptor(AImpl, undefined, true)],
+			[B, new BImpl()],
+		), true, undefined, true);
+
+		class Consumer {
+			constructor(
+				@A public readonly a: A,
+				@B public readonly b: B
+			) {
+				assert.strictEqual(a.value, b.value);
+			}
+		}
+
+		const c: Consumer = insta.createInstance(Consumer);
+
+		insta.dispose();
+		assert.ok(c);
+		assert.strictEqual(disposedA, true);
+		assert.strictEqual(disposedB, false);
+	});
+
+	test('Disposed service cannot be used anymore', function () {
+
+
+		const B = createDecorator<B>('B');
+		interface B {
+			_serviceBrand: undefined;
+			value: 1;
+		}
+		class BImpl implements B {
+			_serviceBrand: undefined;
+			value: 1 = 1;
+		}
+
+		const insta = new InstantiationService(new ServiceCollection(
+			[B, new BImpl()],
+		), true, undefined, true);
+
+		class Consumer {
+			constructor(
+				@B public readonly b: B
+			) {
+				assert.strictEqual(b.value, 1);
+			}
+		}
+
+		const c: Consumer = insta.createInstance(Consumer);
+		assert.ok(c);
+
+		insta.dispose();
+
+		assert.throws(() => insta.createInstance(Consumer));
+		assert.throws(() => insta.invokeFunction(accessor => { }));
+		assert.throws(() => insta.createChild(new ServiceCollection()));
+	});
+
+	test('Child does not dispose parent', function () {
+
+		const B = createDecorator<B>('B');
+		interface B {
+			_serviceBrand: undefined;
+			value: 1;
+		}
+		class BImpl implements B {
+			_serviceBrand: undefined;
+			value: 1 = 1;
+		}
+
+		const insta1 = new InstantiationService(new ServiceCollection(
+			[B, new BImpl()],
+		), true, undefined, true);
+
+		const insta2 = insta1.createChild(new ServiceCollection());
+
+		class Consumer {
+			constructor(
+				@B public readonly b: B
+			) {
+				assert.strictEqual(b.value, 1);
+			}
+		}
+
+		assert.ok(insta1.createInstance(Consumer));
+		assert.ok(insta2.createInstance(Consumer));
+
+		insta2.dispose();
+
+		assert.ok(insta1.createInstance(Consumer)); // parent NOT disposed by child
+		assert.throws(() => insta2.createInstance(Consumer));
+	});
+
+	test('Parent does dispose children', function () {
+
+		const B = createDecorator<B>('B');
+		interface B {
+			_serviceBrand: undefined;
+			value: 1;
+		}
+		class BImpl implements B {
+			_serviceBrand: undefined;
+			value: 1 = 1;
+		}
+
+		const insta1 = new InstantiationService(new ServiceCollection(
+			[B, new BImpl()],
+		), true, undefined, true);
+
+		const insta2 = insta1.createChild(new ServiceCollection());
+
+		class Consumer {
+			constructor(
+				@B public readonly b: B
+			) {
+				assert.strictEqual(b.value, 1);
+			}
+		}
+
+		assert.ok(insta1.createInstance(Consumer));
+		assert.ok(insta2.createInstance(Consumer));
+
+		insta1.dispose();
+
+		assert.throws(() => insta2.createInstance(Consumer)); // child is disposed by parent
+		assert.throws(() => insta1.createInstance(Consumer));
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

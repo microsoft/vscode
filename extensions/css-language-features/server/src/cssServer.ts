@@ -7,7 +7,7 @@ import {
 	Connection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder, TextDocumentSyncKind, NotificationType, Disposable, TextDocumentIdentifier, Range, FormattingOptions, TextEdit, Diagnostic
 } from 'vscode-languageserver';
 import { URI } from 'vscode-uri';
-import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, TextDocument, Position, CSSFormatConfiguration } from 'vscode-css-languageservice';
+import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, TextDocument, Position } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { runSafeAsync } from './utils/runner';
 import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation';
@@ -74,7 +74,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		if (!Array.isArray(workspaceFolders)) {
 			workspaceFolders = [];
 			if (params.rootPath) {
-				workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString() });
+				workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString(true) });
 			}
 		}
 
@@ -223,7 +223,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			if (document) {
 				await dataProvidersReady;
 				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).findDocumentSymbols(document, stylesheet);
+				return getLanguageService(document).findDocumentSymbols2(document, stylesheet);
 			}
 			return [];
 		}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);
@@ -356,8 +356,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	async function onFormat(textDocument: TextDocumentIdentifier, range: Range | undefined, options: FormattingOptions): Promise<TextEdit[]> {
 		const document = documents.get(textDocument.uri);
 		if (document) {
-			console.log(JSON.stringify(options));
-			const edits = getLanguageService(document).format(document, range ?? getFullRange(document), options as CSSFormatConfiguration);
+			const edits = getLanguageService(document).format(document, range ?? getFullRange(document), options);
 			if (edits.length > formatterMaxNumberOfEdits) {
 				const newText = TextDocument.applyEdits(document, edits);
 				return [TextEdit.replace(getFullRange(document), newText)];

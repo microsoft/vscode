@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'vs/base/common/assert';
+import * as assert from '../../../base/common/assert.js';
 import * as vscode from 'vscode';
-import { Emitter, Event } from 'vs/base/common/event';
-import { dispose } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IModelAddedData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
-import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { Iterable } from 'vs/base/common/iterator';
-import { Lazy } from 'vs/base/common/lazy';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { dispose } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, MainContext } from './extHost.protocol.js';
+import { ExtHostDocumentData } from './extHostDocumentData.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { ExtHostTextEditor } from './extHostTextEditor.js';
+import * as typeConverters from './extHostTypeConverters.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { Schemas } from '../../../base/common/network.js';
+import { Iterable } from '../../../base/common/iterator.js';
+import { Lazy } from '../../../base/common/lazy.js';
 
 class Reference<T> {
 	private _count = 0;
@@ -31,14 +31,6 @@ class Reference<T> {
 	}
 }
 
-export interface IExtHostModelAddedData extends IModelAddedData {
-	notebook?: vscode.NotebookDocument;
-}
-
-export interface IExtHostDocumentsAndEditorsDelta extends IDocumentsAndEditorsDelta {
-	addedDocuments?: IExtHostModelAddedData[];
-}
-
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 
 	readonly _serviceBrand: undefined;
@@ -48,14 +40,14 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	private readonly _editors = new Map<string, ExtHostTextEditor>();
 	private readonly _documents = new ResourceMap<Reference<ExtHostDocumentData>>();
 
-	private readonly _onDidAddDocuments = new Emitter<ExtHostDocumentData[]>();
-	private readonly _onDidRemoveDocuments = new Emitter<ExtHostDocumentData[]>();
-	private readonly _onDidChangeVisibleTextEditors = new Emitter<vscode.TextEditor[]>();
+	private readonly _onDidAddDocuments = new Emitter<readonly ExtHostDocumentData[]>();
+	private readonly _onDidRemoveDocuments = new Emitter<readonly ExtHostDocumentData[]>();
+	private readonly _onDidChangeVisibleTextEditors = new Emitter<readonly vscode.TextEditor[]>();
 	private readonly _onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor | undefined>();
 
-	readonly onDidAddDocuments: Event<ExtHostDocumentData[]> = this._onDidAddDocuments.event;
-	readonly onDidRemoveDocuments: Event<ExtHostDocumentData[]> = this._onDidRemoveDocuments.event;
-	readonly onDidChangeVisibleTextEditors: Event<vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
+	readonly onDidAddDocuments: Event<readonly ExtHostDocumentData[]> = this._onDidAddDocuments.event;
+	readonly onDidRemoveDocuments: Event<readonly ExtHostDocumentData[]> = this._onDidRemoveDocuments.event;
+	readonly onDidChangeVisibleTextEditors: Event<readonly vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
 	readonly onDidChangeActiveTextEditor: Event<vscode.TextEditor | undefined> = this._onDidChangeActiveTextEditor.event;
 
 	constructor(
@@ -67,7 +59,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 		this.acceptDocumentsAndEditorsDelta(delta);
 	}
 
-	acceptDocumentsAndEditorsDelta(delta: IExtHostDocumentsAndEditorsDelta): void {
+	acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void {
 
 		const removedDocuments: ExtHostDocumentData[] = [];
 		const addedDocuments: ExtHostDocumentData[] = [];
@@ -105,7 +97,6 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 						data.versionId,
 						data.languageId,
 						data.isDirty,
-						data.notebook
 					));
 					this._documents.set(resource, ref);
 					addedDocuments.push(ref.value);

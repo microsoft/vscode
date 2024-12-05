@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { IOutline, IOutlineCreator, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { Event, Emitter } from 'vs/base/common/event';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../../base/common/linkedList.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IEditorPane } from '../../../common/editor.js';
+import { IOutline, IOutlineCreator, IOutlineService, OutlineTarget } from './outline.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
 
 class OutlineService implements IOutlineService {
 
@@ -21,7 +21,7 @@ class OutlineService implements IOutlineService {
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	canCreateOutline(pane: IEditorPane): boolean {
-		for (let factory of this._factories) {
+		for (const factory of this._factories) {
 			if (factory.matches(pane)) {
 				return true;
 			}
@@ -30,7 +30,7 @@ class OutlineService implements IOutlineService {
 	}
 
 	async createOutline(pane: IEditorPane, target: OutlineTarget, token: CancellationToken): Promise<IOutline<any> | undefined> {
-		for (let factory of this._factories) {
+		for (const factory of this._factories) {
 			if (factory.matches(pane)) {
 				return await factory.createOutline(pane, target, token);
 			}
@@ -49,4 +49,4 @@ class OutlineService implements IOutlineService {
 }
 
 
-registerSingleton(IOutlineService, OutlineService, true);
+registerSingleton(IOutlineService, OutlineService, InstantiationType.Delayed);

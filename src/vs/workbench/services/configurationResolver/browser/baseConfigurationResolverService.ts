@@ -2,28 +2,36 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { URI as uri } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import * as Types from 'vs/base/common/types';
-import { Schemas } from 'vs/base/common/network';
-import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { IStringDictionary, forEach, fromMap } from 'vs/base/common/collections';
-import { IConfigurationService, IConfigurationOverrides, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkspaceFolder, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
-import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { Queue } from '../../../../base/common/async.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { LRUCache } from '../../../../base/common/map.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IProcessEnvironment } from '../../../../base/common/platform.js';
+import * as Types from '../../../../base/common/types.js';
+import { URI as uri } from '../../../../base/common/uri.js';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import * as nls from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IInputOptions, IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
+import { ConfiguredInput } from '../common/configurationResolver.js';
+import { AbstractVariableResolverService } from '../common/variableResolver.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { IPathService } from '../../path/common/pathService.js';
+
+const LAST_INPUT_STORAGE_KEY = 'configResolveInputLru';
+const LAST_INPUT_CACHE_SIZE = 5;
 
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
 	static readonly INPUT_OR_COMMAND_VARIABLES_PATTERN = /\${((input|command):(.*?))}/g;
+
+	private userInputAccessQueue = new Queue<string | IQuickPickItem | undefined>();
 
 	constructor(
 		context: {
@@ -39,6 +47,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		private readonly labelService: ILabelService,
 		private readonly pathService: IPathService,
 		extensionService: IExtensionService,
+		private readonly storageService: IStorageService,
 	) {
 		super({
 			getFolderUri: (folderName: string): uri | undefined => {
@@ -128,7 +137,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			if (!mapping) {
 				return null;
 			} else if (mapping.size > 0) {
-				return this.resolveAnyAsync(folder, config, fromMap(mapping));
+				return this.resolveAnyAsync(folder, config, Object.fromEntries(mapping));
 			} else {
 				return config;
 			}
@@ -157,9 +166,9 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		if (!newMapping) {
 			return false;
 		}
-		forEach(newMapping, (entry) => {
-			fullMapping.set(entry.key, entry.value);
-		});
+		for (const [key, value] of Object.entries(newMapping)) {
+			fullMapping.set(key, value);
+		}
 		return true;
 	}
 
@@ -181,7 +190,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		let inputs: ConfiguredInput[] = [];
 		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && section) {
 			const overrides: IConfigurationOverrides = folder ? { resource: folder.uri } : {};
-			let result = this.configurationService.inspect(section, overrides);
+			const result = this.configurationService.inspect(section, overrides);
 			if (result && (result.userValue || result.workspaceValue || result.workspaceFolderValue)) {
 				switch (target) {
 					case ConfigurationTarget.USER: inputs = (<any>result.userValue)?.inputs; break;
@@ -211,7 +220,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			switch (type) {
 
 				case 'input':
-					result = await this.showUserInput(name, inputs);
+					result = await this.showUserInput(section, name, inputs);
 					break;
 
 				case 'command': {
@@ -256,20 +265,21 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					}
 				}
 			}
-			this._contributedVariables.forEach((value, contributed: string) => {
+			for (const contributed of this._contributedVariables.keys()) {
 				if ((variables.indexOf(contributed) < 0) && (object.indexOf('${' + contributed + '}') >= 0)) {
 					variables.push(contributed);
 				}
-			});
-		} else if (Types.isArray(object)) {
-			object.forEach(value => {
+			}
+		} else if (Array.isArray(object)) {
+			for (const value of object) {
 				this.findVariables(value, variables);
-			});
+
+			}
 		} else if (object) {
-			Object.keys(object).forEach(key => {
-				const value = object[key];
+			for (const value of Object.values(object)) {
 				this.findVariables(value, variables);
-			});
+
+			}
 		}
 	}
 
@@ -278,10 +288,10 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 	 * @param variable Name of the input variable.
 	 * @param inputInfos Information about each possible input variable.
 	 */
-	private showUserInput(variable: string, inputInfos: ConfiguredInput[]): Promise<string | undefined> {
+	private showUserInput(section: string | undefined, variable: string, inputInfos: ConfiguredInput[]): Promise<string | undefined> {
 
 		if (!inputInfos) {
-			return Promise.reject(new Error(nls.localize('inputVariable.noInputSection', "Variable '{0}' must be defined in an '{1}' section of the debug or task configuration.", variable, 'input')));
+			return Promise.reject(new Error(nls.localize('inputVariable.noInputSection', "Variable '{0}' must be defined in an '{1}' section of the debug or task configuration.", variable, 'inputs')));
 		}
 
 		// find info for the given input variable
@@ -292,21 +302,28 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				throw new Error(nls.localize('inputVariable.missingAttribute', "Input variable '{0}' is of type '{1}' and must include '{2}'.", variable, info.type, attrName));
 			};
 
+			const defaultValueMap = this.readInputLru();
+			const defaultValueKey = `${section}.${variable}`;
+			const previousPickedValue = defaultValueMap.get(defaultValueKey);
+
 			switch (info.type) {
 
 				case 'promptString': {
 					if (!Types.isString(info.description)) {
 						missingAttribute('description');
 					}
-					const inputOptions: IInputOptions = { prompt: info.description, ignoreFocusLost: true };
+					const inputOptions: IInputOptions = { prompt: info.description, ignoreFocusLost: true, value: previousPickedValue };
 					if (info.default) {
 						inputOptions.value = info.default;
 					}
 					if (info.password) {
 						inputOptions.password = info.password;
 					}
-					return this.quickInputService.input(inputOptions).then(resolvedInput => {
-						return resolvedInput;
+					return this.userInputAccessQueue.queue(() => this.quickInputService.input(inputOptions)).then(resolvedInput => {
+						if (typeof resolvedInput === 'string') {
+							this.storeInputLru(defaultValueMap.set(defaultValueKey, resolvedInput));
+						}
+						return resolvedInput as string;
 					});
 				}
 
@@ -314,12 +331,12 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					if (!Types.isString(info.description)) {
 						missingAttribute('description');
 					}
-					if (Types.isArray(info.options)) {
-						info.options.forEach(pickOption => {
+					if (Array.isArray(info.options)) {
+						for (const pickOption of info.options) {
 							if (!Types.isString(pickOption) && !Types.isString(pickOption.value)) {
 								missingAttribute('value');
 							}
-						});
+						}
 					} else {
 						missingAttribute('options');
 					}
@@ -327,7 +344,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						value: string;
 					}
 					const picks = new Array<PickStringItem>();
-					info.options.forEach(pickOption => {
+					for (const pickOption of info.options) {
 						const value = Types.isString(pickOption) ? pickOption : pickOption.value;
 						const label = Types.isString(pickOption) ? undefined : pickOption.label;
 
@@ -340,14 +357,18 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						if (value === info.default) {
 							item.description = nls.localize('inputVariable.defaultInputValue', "(Default)");
 							picks.unshift(item);
+						} else if (!info.default && value === previousPickedValue) {
+							picks.unshift(item);
 						} else {
 							picks.push(item);
 						}
-					});
+					}
 					const pickOptions: IPickOptions<PickStringItem> = { placeHolder: info.description, matchOnDetail: true, ignoreFocusLost: true };
-					return this.quickInputService.pick(picks, pickOptions, undefined).then(resolvedInput => {
+					return this.userInputAccessQueue.queue(() => this.quickInputService.pick(picks, pickOptions, undefined)).then(resolvedInput => {
 						if (resolvedInput) {
-							return resolvedInput.value;
+							const value = (resolvedInput as PickStringItem).value;
+							this.storeInputLru(defaultValueMap.set(defaultValueKey, value));
+							return value;
 						}
 						return undefined;
 					});
@@ -357,7 +378,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					if (!Types.isString(info.command)) {
 						missingAttribute('command');
 					}
-					return this.commandService.executeCommand<string>(info.command, info.args).then(result => {
+					return this.userInputAccessQueue.queue(() => this.commandService.executeCommand<string>(info.command, info.args)).then(result => {
 						if (typeof result === 'string' || Types.isUndefinedOrNull(result)) {
 							return result;
 						}
@@ -370,5 +391,23 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			}
 		}
 		return Promise.reject(new Error(nls.localize('inputVariable.undefinedVariable', "Undefined input variable '{0}' encountered. Remove or define '{0}' to continue.", variable)));
+	}
+
+	private storeInputLru(lru: LRUCache<string, string>): void {
+		this.storageService.store(LAST_INPUT_STORAGE_KEY, JSON.stringify(lru.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
+	private readInputLru(): LRUCache<string, string> {
+		const contents = this.storageService.get(LAST_INPUT_STORAGE_KEY, StorageScope.WORKSPACE);
+		const lru = new LRUCache<string, string>(LAST_INPUT_CACHE_SIZE);
+		try {
+			if (contents) {
+				lru.fromJSON(JSON.parse(contents));
+			}
+		} catch {
+			// ignored
+		}
+
+		return lru;
 	}
 }

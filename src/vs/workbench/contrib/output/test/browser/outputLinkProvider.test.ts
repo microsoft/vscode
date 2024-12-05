@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
-import { OutputLinkComputer } from 'vs/workbench/contrib/output/common/outputLinkComputer';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
+import { isMacintosh, isLinux, isWindows } from '../../../../../base/common/platform.js';
+import { OutputLinkComputer } from '../../common/outputLinkComputer.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('OutputLinkProvider', () => {
 
@@ -23,9 +24,9 @@ suite('OutputLinkProvider', () => {
 		const rootFolder = isWindows ? URI.file('C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala') :
 			URI.file('C:/Users/someone/AppData/Local/Temp/_monacodata_9888/workspaces/mankala');
 
-		let patterns = OutputLinkComputer.createPatterns(rootFolder);
+		const patterns = OutputLinkComputer.createPatterns(rootFolder);
 
-		let contextService = new TestContextService();
+		const contextService = new TestContextService();
 
 		let line = toOSPath('Foo bar');
 		let result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
@@ -276,25 +277,27 @@ suite('OutputLinkProvider', () => {
 		line = toOSPath(' at \'C:\\Users\\someone\\AppData\\Local\\Temp\\_monacodata_9888\\workspaces\\mankala\\Game.ts\' in');
 		result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
 		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts\'').toString());
+		assert.strictEqual(result[0].url, contextService.toResource('/Game.ts').toString());
 		assert.strictEqual(result[0].range.startColumn, 6);
-		assert.strictEqual(result[0].range.endColumn, 86);
+		assert.strictEqual(result[0].range.endColumn, 85);
 	});
 
 	test('OutputLinkProvider - #106847', function () {
 		const rootFolder = isWindows ? URI.file('C:\\Users\\username\\Desktop\\test-ts') :
 			URI.file('C:/Users/username/Desktop');
 
-		let patterns = OutputLinkComputer.createPatterns(rootFolder);
+		const patterns = OutputLinkComputer.createPatterns(rootFolder);
 
-		let contextService = new TestContextService();
+		const contextService = new TestContextService();
 
-		let line = toOSPath('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa C:\\Users\\username\\Desktop\\test-ts\\prj.conf C:\\Users\\username\\Desktop\\test-ts\\prj.conf C:\\Users\\username\\Desktop\\test-ts\\prj.conf');
-		let result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
+		const line = toOSPath('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa C:\\Users\\username\\Desktop\\test-ts\\prj.conf C:\\Users\\username\\Desktop\\test-ts\\prj.conf C:\\Users\\username\\Desktop\\test-ts\\prj.conf');
+		const result = OutputLinkComputer.detectLinks(line, 1, patterns, contextService);
 		assert.strictEqual(result.length, 3);
 
 		for (const res of result) {
 			assert.ok(res.range.startColumn > 0 && res.range.endColumn > 0);
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

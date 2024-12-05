@@ -3,37 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { AbstractRemoteAgentService } from 'vs/workbench/services/remote/common/abstractRemoteAgentService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IWebSocketFactory, BrowserSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Severity } from 'vs/platform/notification/common/notification';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import * as nls from '../../../../nls.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IRemoteAgentService } from '../common/remoteAgentService.js';
+import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { AbstractRemoteAgentService } from '../common/abstractRemoteAgentService.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ISignService } from '../../../../platform/sign/common/sign.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { Severity } from '../../../../platform/notification/common/notification.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { IHostService } from '../../host/browser/host.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { IRemoteSocketFactoryService } from '../../../../platform/remote/common/remoteSocketFactoryService.js';
 
 export class RemoteAgentService extends AbstractRemoteAgentService implements IRemoteAgentService {
 
 	constructor(
-		webSocketFactory: IWebSocketFactory | null | undefined,
+		@IRemoteSocketFactoryService remoteSocketFactoryService: IRemoteSocketFactoryService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ISignService signService: ISignService,
 		@ILogService logService: ILogService
 	) {
-		super(new BrowserSocketFactory(webSocketFactory), environmentService, productService, remoteAuthorityResolverService, signService, logService);
+		super(remoteSocketFactoryService, userDataProfileService, environmentService, productService, remoteAuthorityResolverService, signService, logService);
 	}
 }
 
 class RemoteConnectionFailureNotificationContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.browserRemoteConnectionFailureNotification';
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
@@ -50,23 +52,19 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 	}
 
 	private async _presentConnectionError(err: any): Promise<void> {
-		const res = await this._dialogService.show(
-			Severity.Error,
-			nls.localize('connectionError', "An unexpected error occurred that requires a reload of this page."),
-			[
-				nls.localize('reload', "Reload")
-			],
-			{
-				detail: nls.localize('connectionErrorDetail', "The workbench failed to connect to the server (Error: {0})", err ? err.message : '')
-			}
-		);
-
-		if (res.choice === 0) {
-			this._hostService.reload();
-		}
+		await this._dialogService.prompt({
+			type: Severity.Error,
+			message: nls.localize('connectionError', "An unexpected error occurred that requires a reload of this page."),
+			detail: nls.localize('connectionErrorDetail', "The workbench failed to connect to the server (Error: {0})", err ? err.message : ''),
+			buttons: [
+				{
+					label: nls.localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload"),
+					run: () => this._hostService.reload()
+				}
+			]
+		});
 	}
 
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(RemoteConnectionFailureNotificationContribution, LifecyclePhase.Ready);
+registerWorkbenchContribution2(RemoteConnectionFailureNotificationContribution.ID, RemoteConnectionFailureNotificationContribution, WorkbenchPhase.BlockRestore);

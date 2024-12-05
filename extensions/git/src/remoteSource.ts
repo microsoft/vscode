@@ -11,3 +11,7 @@ export async function pickRemoteSource(options: PickRemoteSourceOptions & { bran
 export async function pickRemoteSource(options: PickRemoteSourceOptions = {}): Promise<string | PickRemoteSourceResult | undefined> {
 	return GitBaseApi.getAPI().pickRemoteSource(options);
 }
+
+export async function getRemoteSourceActions(url: string) {
+	return GitBaseApi.getAPI().getRemoteSourceActions(url);
+}

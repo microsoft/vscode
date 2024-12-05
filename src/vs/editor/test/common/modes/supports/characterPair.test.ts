@@ -3,52 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { CharacterPairSupport } from 'vs/editor/common/languages/supports/characterPair';
-import { TokenText, createFakeScopedLineTokens } from 'vs/editor/test/common/modesTestUtils';
-import { StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { StandardTokenType } from '../../../../common/encodedTokenAttributes.js';
+import { StandardAutoClosingPairConditional } from '../../../../common/languages/languageConfiguration.js';
+import { CharacterPairSupport } from '../../../../common/languages/supports/characterPair.js';
+import { TokenText, createFakeScopedLineTokens } from '../../modesTestUtils.js';
 
 suite('CharacterPairSupport', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('only autoClosingPairs', () => {
-		let characaterPairSupport = new CharacterPairSupport({ autoClosingPairs: [{ open: 'a', close: 'b' }] });
+		const characaterPairSupport = new CharacterPairSupport({ autoClosingPairs: [{ open: 'a', close: 'b' }] });
 		assert.deepStrictEqual(characaterPairSupport.getAutoClosingPairs(), [new StandardAutoClosingPairConditional({ open: 'a', close: 'b' })]);
 		assert.deepStrictEqual(characaterPairSupport.getSurroundingPairs(), [new StandardAutoClosingPairConditional({ open: 'a', close: 'b' })]);
 	});
 
 	test('only empty autoClosingPairs', () => {
-		let characaterPairSupport = new CharacterPairSupport({ autoClosingPairs: [] });
+		const characaterPairSupport = new CharacterPairSupport({ autoClosingPairs: [] });
 		assert.deepStrictEqual(characaterPairSupport.getAutoClosingPairs(), []);
 		assert.deepStrictEqual(characaterPairSupport.getSurroundingPairs(), []);
 	});
 
 	test('only brackets', () => {
-		let characaterPairSupport = new CharacterPairSupport({ brackets: [['a', 'b']] });
+		const characaterPairSupport = new CharacterPairSupport({ brackets: [['a', 'b']] });
 		assert.deepStrictEqual(characaterPairSupport.getAutoClosingPairs(), [new StandardAutoClosingPairConditional({ open: 'a', close: 'b' })]);
 		assert.deepStrictEqual(characaterPairSupport.getSurroundingPairs(), [new StandardAutoClosingPairConditional({ open: 'a', close: 'b' })]);
 	});
 
 	test('only empty brackets', () => {
-		let characaterPairSupport = new CharacterPairSupport({ brackets: [] });
+		const characaterPairSupport = new CharacterPairSupport({ brackets: [] });
 		assert.deepStrictEqual(characaterPairSupport.getAutoClosingPairs(), []);
 		assert.deepStrictEqual(characaterPairSupport.getSurroundingPairs(), []);
 	});
 
 	test('only surroundingPairs', () => {
-		let characaterPairSupport = new CharacterPairSupport({ surroundingPairs: [{ open: 'a', close: 'b' }] });
+		const characaterPairSupport = new CharacterPairSupport({ surroundingPairs: [{ open: 'a', close: 'b' }] });
 		assert.deepStrictEqual(characaterPairSupport.getAutoClosingPairs(), []);
 		assert.deepStrictEqual(characaterPairSupport.getSurroundingPairs(), [{ open: 'a', close: 'b' }]);
 	});
 
 	test('only empty surroundingPairs', () => {
-		let characaterPairSupport = new CharacterPairSupport({ surroundingPairs: [] });
+		const characaterPairSupport = new CharacterPairSupport({ surroundingPairs: [] });
 		assert.deepStrictEqual(characaterPairSupport.getAutoClosingPairs(), []);
 		assert.deepStrictEqual(characaterPairSupport.getSurroundingPairs(), []);
 	});
 
 	test('brackets is ignored when having autoClosingPairs', () => {
-		let characaterPairSupport = new CharacterPairSupport({ autoClosingPairs: [], brackets: [['a', 'b']] });
+		const characaterPairSupport = new CharacterPairSupport({ autoClosingPairs: [], brackets: [['a', 'b']] });
 		assert.deepStrictEqual(characaterPairSupport.getAutoClosingPairs(), []);
 		assert.deepStrictEqual(characaterPairSupport.getSurroundingPairs(), []);
 	});

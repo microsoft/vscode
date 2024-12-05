@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindWidget';
-import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
+import { Event } from '../../../../base/common/event.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { SimpleFindWidget } from '../../codeEditor/browser/find/simpleFindWidget.js';
+import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from './webview.js';
 
 export interface WebviewFindDelegate {
 	readonly hasFindResult: Event<boolean>;
@@ -31,9 +32,14 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		private readonly _delegate: WebviewFindDelegate,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHoverService hoverService: IHoverService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(undefined, { showOptionButtons: false, checkImeCompletionState: _delegate.checkImeCompletionState }, contextViewService, contextKeyService, keybindingService);
+		super({
+			showCommonFindToggles: false,
+			checkImeCompletionState: _delegate.checkImeCompletionState,
+			enableSash: true,
+		}, contextViewService, contextKeyService, hoverService, keybindingService);
 		this._findWidgetFocused = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 
 		this._register(_delegate.hasFindResult(hasResult => {
@@ -53,8 +59,8 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		}
 	}
 
-	public override hide() {
-		super.hide();
+	public override hide(animated = true) {
+		super.hide(animated);
 		this._delegate.stopFind(true);
 		this._delegate.focus();
 	}
@@ -81,5 +87,5 @@ export class WebviewFindWidget extends SimpleFindWidget {
 
 	protected _onFindInputFocusTrackerBlur() { }
 
-	protected findFirst() { }
+	findFirst() { }
 }

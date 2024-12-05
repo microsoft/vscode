@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { StoredValue } from './storedValue.js';
 
 export interface IObservableValue<T> {
 	onDidChange: Event<T>;
@@ -35,7 +35,8 @@ export class MutableObservableValue<T> extends Disposable implements IObservable
 
 	public static stored<T>(stored: StoredValue<T>, defaultValue: T) {
 		const o = new MutableObservableValue(stored.get(defaultValue));
-		o.onDidChange(value => stored.store(value));
+		o._register(stored);
+		o._register(o.onDidChange(value => stored.store(value)));
 		return o;
 	}
 

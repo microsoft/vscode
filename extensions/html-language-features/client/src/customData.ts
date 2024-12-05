@@ -125,7 +125,7 @@ function collectInWorkspaces(workspaceUris: Set<string>): Set<string> {
 }
 
 function collectInExtensions(localExtensionUris: Set<string>, externalUris: Set<string>): void {
-	for (const extension of extensions.all) {
+	for (const extension of extensions.allAcrossExtensionHosts) {
 		const customData = extension.packageJSON?.contributes?.html?.customData;
 		if (Array.isArray(customData)) {
 			for (const uriOrPath of customData) {

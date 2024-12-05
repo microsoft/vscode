@@ -1,8 +1,8 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const path = require("path");
 const es = require("event-stream");
@@ -13,8 +13,8 @@ const deps = require("../lib/dependencies");
 const identity_1 = require("@azure/identity");
 const azure = require('gulp-azure-storage');
 const root = path.dirname(path.dirname(__dirname));
-const commit = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
-const credential = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
+const commit = process.env['BUILD_SOURCEVERSION'];
+const credential = new identity_1.ClientAssertionCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], () => Promise.resolve(process.env['AZURE_ID_TOKEN']));
 // optionally allow to pass in explicit base/maps to upload
 const [, , base, maps] = process.argv;
 function src(base, maps = `${base}/**/*.map`) {
@@ -31,9 +31,10 @@ function main() {
         const vs = src('out-vscode-min'); // client source-maps only
         sources.push(vs);
         const productionDependencies = deps.getProductionDependencies(root);
-        const productionDependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => `./${d}/**/*.map`);
+        const productionDependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => `./${d}/**/*.map`);
         const nodeModules = vfs.src(productionDependenciesSrc, { base: '.' })
-            .pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')));
+            .pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
+            .pipe(util.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)));
         sources.push(nodeModules);
         const extensionsOut = vfs.src(['.build/extensions/**/*.js.map', '!**/node_modules/**'], { base: '.build' });
         sources.push(extensionsOut);
@@ -62,3 +63,4 @@ main().catch(err => {
     console.error(err);
     process.exit(1);
 });
+//# sourceMappingURL=upload-sourcemaps.js.map

@@ -1,15 +1,16 @@
 {
 	"compilerOptions": {
 		"module": "commonjs",
-		"target": "es2017",
+		"target": "es2020",
 		"strict": true,
 		"noUnusedParameters": false,
 		"noUnusedLocals": true,
 		"outDir": "out",
 		"sourceMap": true,
 		"declaration": true,
+		"skipLibCheck": true,
 		"lib": [
-			"es2016",
+			"esnext", // for #201187
 			"dom"
 		]
 	},

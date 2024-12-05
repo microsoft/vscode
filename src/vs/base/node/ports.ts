@@ -150,7 +150,7 @@ export const BROWSER_RESTRICTED_PORTS: any = {
 /**
  * Uses listen instead of connect. Is faster, but if there is another listener on 0.0.0.0 then this will take 127.0.0.1 from that listener.
  */
-export function findFreePortFaster(startPort: number, giveUpAfter: number, timeout: number): Promise<number> {
+export function findFreePortFaster(startPort: number, giveUpAfter: number, timeout: number, hostname: string = '127.0.0.1'): Promise<number> {
 	let resolved: boolean = false;
 	let timeoutHandle: NodeJS.Timeout | undefined = undefined;
 	let countTried: number = 1;
@@ -178,7 +178,7 @@ export function findFreePortFaster(startPort: number, giveUpAfter: number, timeo
 			if (err && ((<any>err).code === 'EADDRINUSE' || (<any>err).code === 'EACCES') && (countTried < giveUpAfter)) {
 				startPort++;
 				countTried++;
-				server.listen(startPort, '127.0.0.1');
+				server.listen(startPort, hostname);
 			} else {
 				doResolve(0, resolve);
 			}
@@ -186,7 +186,7 @@ export function findFreePortFaster(startPort: number, giveUpAfter: number, timeo
 		server.on('close', () => {
 			doResolve(0, resolve);
 		});
-		server.listen(startPort, '127.0.0.1');
+		server.listen(startPort, hostname);
 	});
 }
 

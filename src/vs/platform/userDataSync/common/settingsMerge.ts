@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { JSONVisitor, parse, visit } from 'vs/base/common/json';
-import { applyEdits, setProperty, withFormatting } from 'vs/base/common/jsonEdit';
-import { Edit, FormattingOptions, getEOL } from 'vs/base/common/jsonFormatter';
-import * as objects from 'vs/base/common/objects';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import * as contentUtil from 'vs/platform/userDataSync/common/content';
-import { getDisallowedIgnoredSettings, IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
+import { distinct } from '../../../base/common/arrays.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { JSONVisitor, parse, visit } from '../../../base/common/json.js';
+import { applyEdits, setProperty, withFormatting } from '../../../base/common/jsonEdit.js';
+import { Edit, FormattingOptions, getEOL } from '../../../base/common/jsonFormatter.js';
+import * as objects from '../../../base/common/objects.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import * as contentUtil from './content.js';
+import { getDisallowedIgnoredSettings, IConflictSetting } from './userDataSync.js';
 
 export interface IMergeResult {
 	localContent: string | null;
@@ -37,7 +37,7 @@ export function getIgnoredSettings(defaultIgnoredSettings: string[], configurati
 			}
 		}
 	}
-	return distinct([...defaultIgnoredSettings, ...added,].filter(setting => removed.indexOf(setting) === -1));
+	return distinct([...defaultIgnoredSettings, ...added,].filter(setting => !removed.includes(setting)));
 }
 
 function getIgnoredSettingsFromConfig(configurationService: IConfigurationService): ReadonlyArray<string> {
@@ -250,7 +250,7 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 	return { localContent: hasLocalChanged ? localContent : null, remoteContent: hasRemoteChanged ? remoteContent : null, conflictsSettings: [...conflicts.values()], hasConflicts };
 }
 
-export function areSame(localContent: string, remoteContent: string, ignoredSettings: string[]): boolean {
+function areSame(localContent: string, remoteContent: string, ignoredSettings: string[]): boolean {
 	if (localContent === remoteContent) {
 		return true;
 	}
@@ -298,8 +298,8 @@ export function isEmpty(content: string): boolean {
 function compare(from: IStringDictionary<any> | null, to: IStringDictionary<any>, ignored: Set<string>): { added: Set<string>; removed: Set<string>; updated: Set<string> } {
 	const fromKeys = from ? Object.keys(from).filter(key => !ignored.has(key)) : [];
 	const toKeys = Object.keys(to).filter(key => !ignored.has(key));
-	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+	const added = toKeys.filter(key => !fromKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+	const removed = fromKeys.filter(key => !toKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 	const updated: Set<string> = new Set<string>();
 
 	if (from) {
@@ -477,7 +477,7 @@ function getEditToInsertAtLocation(content: string, key: string, value: any, loc
 
 			const isPreviouisSettingIncludesComment = previousSettingCommaOffset !== undefined && previousSettingCommaOffset > node.endOffset;
 			edits.push({
-				offset: isPreviouisSettingIncludesComment ? previousSettingCommaOffset! + 1 : node.endOffset,
+				offset: isPreviouisSettingIncludesComment ? previousSettingCommaOffset + 1 : node.endOffset,
 				length: 0,
 				content: nextSettingNode ? eol + newProperty + ',' : eol + newProperty
 			});

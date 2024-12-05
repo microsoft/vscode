@@ -7,18 +7,21 @@ import { SettingsManager } from './settings';
 
 const codeLineClass = 'code-line';
 
-function clamp(min: number, max: number, value: number) {
-	return Math.min(max, Math.max(min, value));
-}
 
-function clampLine(line: number, lineCount: number) {
-	return clamp(0, lineCount - 1, line);
-}
+export class CodeLineElement {
+	private readonly _detailParentElements: readonly HTMLDetailsElement[];
 
+	constructor(
+		readonly element: HTMLElement,
+		readonly line: number,
+		readonly codeElement?: HTMLElement,
+	) {
+		this._detailParentElements = Array.from(getParentsWithTagName<HTMLDetailsElement>(element, 'DETAILS'));
+	}
 
-export interface CodeLineElement {
-	element: HTMLElement;
-	line: number;
+	get isVisible(): boolean {
+		return !this._detailParentElements.some(x => !x.open);
+	}
 }
 
 const getCodeLineElements = (() => {
@@ -27,19 +30,26 @@ const getCodeLineElements = (() => {
 	return (documentVersion: number) => {
 		if (!cachedElements || documentVersion !== cachedVersion) {
 			cachedVersion = documentVersion;
-			cachedElements = [{ element: document.body, line: 0 }];
+			cachedElements = [new CodeLineElement(document.body, -1)];
 			for (const element of document.getElementsByClassName(codeLineClass)) {
+				if (!(element instanceof HTMLElement)) {
+					continue;
+				}
+
 				const line = +element.getAttribute('data-line')!;
 				if (isNaN(line)) {
 					continue;
 				}
 
+
 				if (element.tagName === 'CODE' && element.parentElement && element.parentElement.tagName === 'PRE') {
-					// Fenched code blocks are a special case since the `code-line` can only be marked on
+					// Fenced code blocks are a special case since the `code-line` can only be marked on
 					// the `<code>` element and not the parent `<pre>` element.
-					cachedElements.push({ element: element.parentElement as HTMLElement, line });
+					cachedElements.push(new CodeLineElement(element.parentElement, line, element));
+				} else if (element.tagName === 'UL' || element.tagName === 'OL') {
+					// Skip adding list elements since the first child has the same code line (and should be preferred)
 				} else {
-					cachedElements.push({ element: element as HTMLElement, line });
+					cachedElements.push(new CodeLineElement(element, line));
 				}
 			}
 		}
@@ -72,7 +82,7 @@ export function getElementsForSourceLine(targetLine: number, documentVersion: nu
  * Find the html elements that are at a specific pixel offset on the page.
  */
 export function getLineElementsAtPageOffset(offset: number, documentVersion: number): { previous: CodeLineElement; next?: CodeLineElement } {
-	const lines = getCodeLineElements(documentVersion);
+	const lines = getCodeLineElements(documentVersion).filter(x => x.isVisible);
 	const position = offset - window.scrollY;
 	let lo = -1;
 	let hi = lines.length - 1;
@@ -139,8 +149,9 @@ export function scrollToRevealSourceLine(line: number, documentVersion: number, 
 	if (next && next.line !== previous.line) {
 		// Between two elements. Go to percentage offset between them.
 		const betweenProgress = (line - previous.line) / (next.line - previous.line);
-		const elementOffset = next.element.getBoundingClientRect().top - previousTop;
-		scrollTo = previousTop + betweenProgress * elementOffset;
+		const previousEnd = previousTop + rect.height;
+		const betweenHeight = next.element.getBoundingClientRect().top - previousEnd;
+		scrollTo = previousEnd + betweenProgress * betweenHeight;
 	} else {
 		const progressInElement = line - Math.floor(line);
 		scrollTo = previousTop + (rect.height * progressInElement);
@@ -149,20 +160,20 @@ export function scrollToRevealSourceLine(line: number, documentVersion: number, 
 	window.scroll(window.scrollX, Math.max(1, window.scrollY + scrollTo));
 }
 
-export function getEditorLineNumberForPageOffset(offset: number, documentVersion: number, settingsManager: SettingsManager) {
-	const lineCount = settingsManager.settings?.lineCount ?? 0;
+export function getEditorLineNumberForPageOffset(offset: number, documentVersion: number): number | null {
 	const { previous, next } = getLineElementsAtPageOffset(offset, documentVersion);
 	if (previous) {
+		if (previous.line < 0) {
+			return 0;
+		}
 		const previousBounds = getElementBounds(previous);
 		const offsetFromPrevious = (offset - window.scrollY - previousBounds.top);
 		if (next) {
 			const progressBetweenElements = offsetFromPrevious / (getElementBounds(next).top - previousBounds.top);
-			const line = previous.line + progressBetweenElements * (next.line - previous.line);
-			return clampLine(line, lineCount);
+			return previous.line + progressBetweenElements * (next.line - previous.line);
 		} else {
 			const progressWithinElement = offsetFromPrevious / (previousBounds.height);
-			const line = previous.line + progressWithinElement;
-			return clampLine(line, lineCount);
+			return previous.line + progressWithinElement;
 		}
 	}
 	return null;
@@ -175,4 +186,12 @@ export function getLineElementForFragment(fragment: string, documentVersion: num
 	return getCodeLineElements(documentVersion).find((element) => {
 		return element.element.id === fragment;
 	});
+}
+
+function* getParentsWithTagName<T extends HTMLElement>(element: HTMLElement, tagName: string): Iterable<T> {
+	for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+		if (parent.tagName === tagName) {
+			yield parent as T;
+		}
+	}
 }

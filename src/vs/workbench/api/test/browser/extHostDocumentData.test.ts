@@ -3,30 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
-import { Position } from 'vs/workbench/api/common/extHostTypes';
-import { Range } from 'vs/editor/common/core/range';
-import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { mock } from 'vs/base/test/common/mock';
-import * as perfData from './extHostDocumentData.test.perf-data';
-import { setDefaultGetWordAtTextConfig } from 'vs/editor/common/core/wordHelper';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import { ExtHostDocumentData } from '../../common/extHostDocumentData.js';
+import { Position } from '../../common/extHostTypes.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { MainThreadDocumentsShape } from '../../common/extHost.protocol.js';
+import { IModelChangedEvent } from '../../../../editor/common/model/mirrorTextModel.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import * as perfData from './extHostDocumentData.test.perf-data.js';
+import { setDefaultGetWordAtTextConfig } from '../../../../editor/common/core/wordHelper.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('ExtHostDocumentData', () => {
 
 	let data: ExtHostDocumentData;
 
 	function assertPositionAt(offset: number, line: number, character: number) {
-		let position = data.document.positionAt(offset);
+		const position = data.document.positionAt(offset);
 		assert.strictEqual(position.line, line);
 		assert.strictEqual(position.character, character);
 	}
 
 	function assertOffsetAt(line: number, character: number, offset: number) {
-		let pos = new Position(line, character);
-		let actual = data.document.offsetAt(pos);
+		const pos = new Position(line, character);
+		const actual = data.document.offsetAt(pos);
 		assert.strictEqual(actual, offset);
 	}
 
@@ -39,6 +40,8 @@ suite('ExtHostDocumentData', () => {
 		], '\n', 1, 'text', false);
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('readonly-ness', () => {
 		assert.throws(() => (data as any).document.uri = null);
 		assert.throws(() => (data as any).document.fileName = 'foofile');
@@ -50,7 +53,7 @@ suite('ExtHostDocumentData', () => {
 
 	test('save, when disposed', function () {
 		let saved: URI;
-		let data = new ExtHostDocumentData(new class extends mock<MainThreadDocumentsShape>() {
+		const data = new ExtHostDocumentData(new class extends mock<MainThreadDocumentsShape>() {
 			override $trySaveDocument(uri: URI) {
 				assert.ok(!saved);
 				saved = uri;
@@ -344,7 +347,7 @@ suite('ExtHostDocumentData', () => {
 			line
 		], '\n', 1, 'text', false);
 
-		let range = data.document.getWordRangeAtPosition(new Position(0, 27), regex)!;
+		const range = data.document.getWordRangeAtPosition(new Position(0, 27), regex)!;
 		assert.strictEqual(range.start.line, 0);
 		assert.strictEqual(range.end.line, 0);
 		assert.strictEqual(range.start.character, 4);
@@ -379,7 +382,7 @@ suite('ExtHostDocumentData updates line mapping', () => {
 	}
 
 	function assertDocumentLineMapping(doc: ExtHostDocumentData, direction: AssertDocumentLineMappingDirection): void {
-		let allText = doc.getText();
+		const allText = doc.getText();
 
 		let line = 0, character = 0, previousIsCarriageReturn = false;
 		for (let offset = 0; offset <= allText.length; offset++) {
@@ -387,12 +390,12 @@ suite('ExtHostDocumentData updates line mapping', () => {
 			const position: Position = new Position(line, character + (previousIsCarriageReturn ? -1 : 0));
 
 			if (direction === AssertDocumentLineMappingDirection.OffsetToPosition) {
-				let actualPosition = doc.document.positionAt(offset);
+				const actualPosition = doc.document.positionAt(offset);
 				assert.strictEqual(positionToStr(actualPosition), positionToStr(position), 'positionAt mismatch for offset ' + offset);
 			} else {
 				// The position coordinate system cannot express the position between \r and \n
-				let expectedOffset: number = offset + (previousIsCarriageReturn ? -1 : 0);
-				let actualOffset = doc.document.offsetAt(position);
+				const expectedOffset: number = offset + (previousIsCarriageReturn ? -1 : 0);
+				const actualOffset = doc.document.offsetAt(position);
 				assert.strictEqual(actualOffset, expectedOffset, 'offsetAt mismatch for position ' + positionToStr(position));
 			}
 
@@ -423,7 +426,7 @@ suite('ExtHostDocumentData updates line mapping', () => {
 	}
 
 	function testLineMappingDirectionAfterEvents(lines: string[], eol: string, direction: AssertDocumentLineMappingDirection, e: IModelChangedEvent): void {
-		let myDocument = new ExtHostDocumentData(undefined!, URI.file(''), lines.slice(0), eol, 1, 'text', false);
+		const myDocument = new ExtHostDocumentData(undefined!, URI.file(''), lines.slice(0), eol, 1, 'text', false);
 		assertDocumentLineMapping(myDocument, direction);
 
 		myDocument.onEvents(e);
@@ -437,6 +440,8 @@ suite('ExtHostDocumentData updates line mapping', () => {
 		testLineMappingDirectionAfterEvents(lines, '\r\n', AssertDocumentLineMappingDirection.PositionToOffset, e);
 		testLineMappingDirectionAfterEvents(lines, '\r\n', AssertDocumentLineMappingDirection.OffsetToPosition, e);
 	}
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('line mapping', () => {
 		testLineMappingAfterEvents([

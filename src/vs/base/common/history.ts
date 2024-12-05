@@ -3,18 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ArrayNavigator, INavigator } from 'vs/base/common/navigator';
+import { SetWithKey } from './collections.js';
+import { Event } from './event.js';
+import { ArrayNavigator, INavigator } from './navigator.js';
+
+export interface IHistory<T> {
+	delete(t: T): boolean;
+	add(t: T): this;
+	has(t: T): boolean;
+	clear(): void;
+	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void;
+	replace?(t: T[]): void;
+	onDidChange?: Event<string[]>;
+}
 
 export class HistoryNavigator<T> implements INavigator<T> {
-
-	private _history!: Set<T>;
 	private _limit: number;
 	private _navigator!: ArrayNavigator<T>;
 
-	constructor(history: readonly T[] = [], limit: number = 10) {
-		this._initialize(history);
+	constructor(
+		private _history: IHistory<T> = new Set(),
+		limit: number = 10,
+	) {
 		this._limit = limit;
 		this._onChange();
+		if (this._history.onDidChange) {
+			this._history.onDidChange(() => this._onChange());
+		}
 	}
 
 	public getHistory(): T[] {
@@ -28,10 +43,8 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	}
 
 	public next(): T | null {
-		if (this._currentPosition() !== this._elements.length - 1) {
-			return this._navigator.next();
-		}
-		return null;
+		// This will navigate past the end of the last element, and in that case the input should be cleared
+		return this._navigator.next();
 	}
 
 	public previous(): T | null {
@@ -53,12 +66,24 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		return this._navigator.last();
 	}
 
+	public isFirst(): boolean {
+		return this._currentPosition() === 0;
+	}
+
+	public isLast(): boolean {
+		return this._currentPosition() >= this._elements.length - 1;
+	}
+
+	public isNowhere(): boolean {
+		return this._navigator.current() === null;
+	}
+
 	public has(t: T): boolean {
 		return this._history.has(t);
 	}
 
 	public clear(): void {
-		this._initialize([]);
+		this._history.clear();
 		this._onChange();
 	}
 
@@ -71,7 +96,12 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	private _reduceToLimit() {
 		const data = this._elements;
 		if (data.length > this._limit) {
-			this._initialize(data.slice(data.length - this._limit));
+			const replaceValue = data.slice(data.length - this._limit);
+			if (this._history.replace) {
+				this._history.replace(replaceValue);
+			} else {
+				this._history = new Set(replaceValue);
+			}
 		}
 	}
 
@@ -82,13 +112,6 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		}
 
 		return this._elements.indexOf(currentElement);
-	}
-
-	private _initialize(history: readonly T[]): void {
-		this._history = new Set();
-		for (const entry of history) {
-			this._history.add(entry);
-		}
 	}
 
 	private get _elements(): T[] {
@@ -104,25 +127,32 @@ interface HistoryNode<T> {
 	next: HistoryNode<T> | undefined;
 }
 
+/**
+ * The right way to use HistoryNavigator2 is for the last item in the list to be the user's uncommitted current text. eg empty string, or whatever has been typed. Then
+ * the user can navigate away from the last item through the list, and back to it. When updating the last item, call replaceLast.
+ */
 export class HistoryNavigator2<T> {
 
+	private valueSet: Set<T>;
 	private head: HistoryNode<T>;
 	private tail: HistoryNode<T>;
 	private cursor: HistoryNode<T>;
-	private size: number;
+	private _size: number;
+	get size(): number { return this._size; }
 
-	constructor(history: readonly T[], private capacity: number = 10) {
+	constructor(history: readonly T[], private capacity: number = 10, private identityFn: (t: T) => unknown = t => t) {
 		if (history.length < 1) {
 			throw new Error('not supported');
 		}
 
-		this.size = 1;
+		this._size = 1;
 		this.head = this.tail = this.cursor = {
 			value: history[0],
 			previous: undefined,
 			next: undefined
 		};
 
+		this.valueSet = new SetWithKey<T>([history[0]], identityFn);
 		for (let i = 1; i < history.length; i++) {
 			this.add(history[i]);
 		}
@@ -138,12 +168,20 @@ export class HistoryNavigator2<T> {
 		this.tail.next = node;
 		this.tail = node;
 		this.cursor = this.tail;
-		this.size++;
+		this._size++;
 
-		while (this.size > this.capacity) {
+		if (this.valueSet.has(value)) {
+			this._deleteFromList(value);
+		} else {
+			this.valueSet.add(value);
+		}
+
+		while (this._size > this.capacity) {
+			this.valueSet.delete(this.head.value);
+
 			this.head = this.head.next!;
 			this.head.previous = undefined;
-			this.size--;
+			this._size--;
 		}
 	}
 
@@ -151,9 +189,39 @@ export class HistoryNavigator2<T> {
 	 * @returns old last value
 	 */
 	replaceLast(value: T): T {
+		if (this.identityFn(this.tail.value) === this.identityFn(value)) {
+			return value;
+		}
+
 		const oldValue = this.tail.value;
+		this.valueSet.delete(oldValue);
 		this.tail.value = value;
+
+		if (this.valueSet.has(value)) {
+			this._deleteFromList(value);
+		} else {
+			this.valueSet.add(value);
+		}
+
 		return oldValue;
+	}
+
+	prepend(value: T): void {
+		if (this._size === this.capacity || this.valueSet.has(value)) {
+			return;
+		}
+
+		const node: HistoryNode<T> = {
+			value,
+			previous: undefined,
+			next: this.head
+		};
+
+		this.head.previous = node;
+		this.head = node;
+		this._size++;
+
+		this.valueSet.add(value);
 	}
 
 	isAtEnd(): boolean {
@@ -181,14 +249,7 @@ export class HistoryNavigator2<T> {
 	}
 
 	has(t: T): boolean {
-		let temp: HistoryNode<T> | undefined = this.head;
-		while (temp) {
-			if (temp.value === t) {
-				return true;
-			}
-			temp = temp.next;
-		}
-		return false;
+		return this.valueSet.has(t);
 	}
 
 	resetCursor(): T {
@@ -202,6 +263,27 @@ export class HistoryNavigator2<T> {
 		while (node) {
 			yield node.value;
 			node = node.next;
+		}
+	}
+
+	private _deleteFromList(value: T): void {
+		let temp = this.head;
+
+		const valueKey = this.identityFn(value);
+		while (temp !== this.tail) {
+			if (this.identityFn(temp.value) === valueKey) {
+				if (temp === this.head) {
+					this.head = this.head.next!;
+					this.head.previous = undefined;
+				} else {
+					temp.previous!.next = temp.next;
+					temp.next!.previous = temp.previous;
+				}
+
+				this._size--;
+			}
+
+			temp = temp.next!;
 		}
 	}
 }

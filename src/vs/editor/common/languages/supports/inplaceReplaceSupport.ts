@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/editor/common/core/range';
-import { IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
+import { IRange } from '../../core/range.js';
+import { IInplaceReplaceSupportResult } from '../../languages.js';
 
 export class BasicInplaceReplace {
 
@@ -46,7 +46,7 @@ export class BasicInplaceReplace {
 	private numberReplace(value: string, up: boolean): string | null {
 		const precision = Math.pow(10, value.length - (value.lastIndexOf('.') + 1));
 		let n1 = Number(value);
-		let n2 = parseFloat(value);
+		const n2 = parseFloat(value);
 
 		if (!isNaN(n1) && !isNaN(n2) && n1 === n2) {
 

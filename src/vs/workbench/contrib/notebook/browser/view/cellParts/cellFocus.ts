@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { INotebookEditor } from '../../notebookBrowser.js';
+import { CellContentPart } from '../cellPart.js';
+import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
 
-export class CellFocusPart extends CellPart {
+export class CellFocusPart extends CellContentPart {
 	constructor(
 		containerElement: HTMLElement,
 		focusSinkElement: HTMLElement | undefined,

@@ -1,44 +1,31 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "16.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
-  - task: AzureKeyVault@1
+  - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
+      azureSubscription: vscode
+      KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
-  - script: |
-      set -e
-      cat << EOF > ~/.netrc
-      machine github.com
-      login vscode
-      password $(github-distro-mixin-password)
-      EOF
+  - task: AzureKeyVault@2
+    displayName: "Azure Key Vault: Get ESRP Secrets"
+    inputs:
+      azureSubscription: vscode-esrp
+      KeyVaultName: vscode-esrp
+      SecretsFilter: esrp-auth,esrp-sign
 
-      git config user.email "vscode@microsoft.com"
-      git config user.name "VSCode"
-    displayName: Prepare tooling
-
-  - script: |
-      set -e
-      git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
-      echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-      git checkout FETCH_HEAD
-    condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-    displayName: Checkout override commit
-
-  - script: |
-      set -e
-      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-    displayName: Merge distro
+  # allow-any-unicode-next-line
+  - pwsh: Write-Host "##vso[build.addbuildtag]🚀"
+    displayName: Add build tag
 
   - pwsh: |
-      . build/azure-pipelines/win32/exec.ps1
-      cd build
-      exec { yarn }
+      npm ci
+    workingDirectory: build
     displayName: Install build dependencies
 
   - download: current
@@ -46,26 +33,16 @@ steps:
     displayName: Download all artifacts_processed text files
 
   - task: AzureCLI@2
+    displayName: Fetch secrets
     inputs:
-      azureSubscription: "vscode-builds-subscription"
+      azureSubscription: vscode
       scriptType: pscore
       scriptLocation: inlineScript
       addSpnToEnvironment: true
       inlineScript: |
         Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
         Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
-        Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
-
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: "vscode-builds-mooncake-subscription"
-      scriptType: pscore
-      scriptLocation: inlineScript
-      addSpnToEnvironment: true
-      inlineScript: |
-        Write-Host "##vso[task.setvariable variable=AZURE_MOONCAKE_TENANT_ID]$env:tenantId"
-        Write-Host "##vso[task.setvariable variable=AZURE_MOONCAKE_CLIENT_ID]$env:servicePrincipalId"
-        Write-Host "##vso[task.setvariable variable=AZURE_MOONCAKE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
+        Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
 
   - pwsh: |
       . build/azure-pipelines/win32/exec.ps1
@@ -75,30 +52,45 @@ steps:
         return
       }
 
-      $env:AZURE_TENANT_ID = "$(AZURE_TENANT_ID)"
-      $env:AZURE_CLIENT_ID = "$(AZURE_CLIENT_ID)"
-      $env:AZURE_CLIENT_SECRET = "$(AZURE_CLIENT_SECRET)"
       $VERSION = node -p "require('./package.json').version"
       Write-Host "Creating build with version: $VERSION"
       exec { node build/azure-pipelines/common/createBuild.js $VERSION }
+    env:
+      AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
+      AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
+      AZURE_ID_TOKEN: "$(AZURE_ID_TOKEN)"
     displayName: Create build if it hasn't been created before
 
   - pwsh: |
-      $env:VSCODE_MIXIN_PASSWORD = "$(github-distro-mixin-password)"
-      $env:AZURE_TENANT_ID = "$(AZURE_TENANT_ID)"
-      $env:AZURE_CLIENT_ID = "$(AZURE_CLIENT_ID)"
-      $env:AZURE_CLIENT_SECRET = "$(AZURE_CLIENT_SECRET)"
-      $env:AZURE_MOONCAKE_TENANT_ID = "$(AZURE_MOONCAKE_TENANT_ID)"
-      $env:AZURE_MOONCAKE_CLIENT_ID = "$(AZURE_MOONCAKE_CLIENT_ID)"
-      $env:AZURE_MOONCAKE_CLIENT_SECRET = "$(AZURE_MOONCAKE_CLIENT_SECRET)"
-      build/azure-pipelines/product-publish.ps1
+      $publishAuthTokens = (node build/azure-pipelines/common/getPublishAuthTokens)
+      Write-Host "##vso[task.setvariable variable=PUBLISH_AUTH_TOKENS;issecret=true]$publishAuthTokens"
     env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: Process artifacts
+      AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
+      AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
+      AZURE_ID_TOKEN: "$(AZURE_ID_TOKEN)"
+    displayName: Get publish auth tokens
 
-  - publish: $(Pipeline.Workspace)/artifacts_processed_$(System.StageAttempt)/artifacts_processed_$(System.StageAttempt).txt
-    artifact: artifacts_processed_$(System.StageAttempt)
-    displayName: Publish what artifacts were published for this stage attempt
+  - pwsh: node build/azure-pipelines/common/publish.js
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
+      AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
+      AZURE_ID_TOKEN: "$(AZURE_ID_TOKEN)"
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      PUBLISH_AUTH_TOKENS: "$(PUBLISH_AUTH_TOKENS)"
+      RELEASE_TENANT_ID: "$(ESRP_TENANT_ID)"
+      RELEASE_CLIENT_ID: "$(ESRP_CLIENT_ID)"
+      RELEASE_AUTH_CERT: "$(esrp-auth)"
+      RELEASE_REQUEST_SIGNING_CERT: "$(esrp-sign)"
+    displayName: Process artifacts
+    retryCountOnTaskFailure: 3
+
+  - task: 1ES.PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(Pipeline.Workspace)/artifacts_processed_$(System.StageAttempt)/artifacts_processed_$(System.StageAttempt).txt
+      artifactName: artifacts_processed_$(System.StageAttempt)
+      sbomEnabled: false
+    displayName: Publish the artifacts processed for this stage attempt
     condition: always()
 
   - pwsh: |
@@ -108,7 +100,10 @@ steps:
       $stages = @(
         if ($env:VSCODE_BUILD_STAGE_WINDOWS -eq 'True') { 'Windows' }
         if ($env:VSCODE_BUILD_STAGE_LINUX -eq 'True') { 'Linux' }
+        if ($env:VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER -eq 'True') { 'LinuxLegacyServer' }
+        if ($env:VSCODE_BUILD_STAGE_ALPINE -eq 'True') { 'Alpine' }
         if ($env:VSCODE_BUILD_STAGE_MACOS -eq 'True') { 'macOS' }
+        if ($env:VSCODE_BUILD_STAGE_WEB -eq 'True') { 'Web' }
       )
       Write-Host "Stages to check: $stages"
 
@@ -125,6 +120,8 @@ steps:
 
         if($didStageFail) {
           $failedStages += $stage
+          Write-Host "'$stage' failed!"
+          Write-Host $didStageFail
         } else {
           Write-Host "'$stage' did not fail."
         }

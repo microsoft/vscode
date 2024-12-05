@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NotificationsFilter, Severity } from 'vs/platform/notification/common/notification';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { INotification, INotificationHandle, INotificationService, INotificationSource, INotificationSourceFilter, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NotificationsFilter, Severity } from '../../common/notification.js';
 
 export class TestNotificationService implements INotificationService {
 
 	readonly onDidAddNotification: Event<INotification> = Event.None;
 
 	readonly onDidRemoveNotification: Event<INotification> = Event.None;
+
+	readonly onDidChangeFilter: Event<void> = Event.None;
 
 	declare readonly _serviceBrand: undefined;
 
@@ -41,5 +43,15 @@ export class TestNotificationService implements INotificationService {
 		return Disposable.None;
 	}
 
-	setFilter(filter: NotificationsFilter): void { }
+	setFilter(): void { }
+
+	getFilter(source?: INotificationSource | undefined): NotificationsFilter {
+		return NotificationsFilter.OFF;
+	}
+
+	getFilters(): INotificationSourceFilter[] {
+		return [];
+	}
+
+	removeFilter(sourceId: string): void { }
 }

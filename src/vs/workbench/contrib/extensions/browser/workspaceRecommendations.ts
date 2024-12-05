@@ -3,16 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EXTENSION_IDENTIFIER_PATTERN, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { distinct, flatten } from 'vs/base/common/arrays';
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { localize } from 'vs/nls';
-import { Emitter } from 'vs/base/common/event';
-import { IExtensionsConfigContent, IWorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
+import { EXTENSION_IDENTIFIER_PATTERN } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { distinct, equals } from '../../../../base/common/arrays.js';
+import { ExtensionRecommendations, ExtensionRecommendation } from './extensionRecommendations.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { ExtensionRecommendationReason } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
+import { localize } from '../../../../nls.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IExtensionsConfigContent, IWorkspaceExtensionsConfigService } from '../../../services/extensionRecommendations/common/workspaceExtensionsConfig.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { FileChangeType, IFileService } from '../../../../platform/files/common/files.js';
+import { URI } from '../../../../base/common/uri.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+
+const WORKSPACE_EXTENSIONS_FOLDER = '.vscode/extensions';
 
 export class WorkspaceRecommendations extends ExtensionRecommendations {
 
@@ -25,18 +31,70 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 	private _ignoredRecommendations: string[] = [];
 	get ignoredRecommendations(): ReadonlyArray<string> { return this._ignoredRecommendations; }
 
+	private workspaceExtensions: URI[] = [];
+	private readonly onDidChangeWorkspaceExtensionsScheduler: RunOnceScheduler;
+
 	constructor(
 		@IWorkspaceExtensionsConfigService private readonly workspaceExtensionsConfigService: IWorkspaceExtensionsConfigService,
-		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
-		@ILogService private readonly logService: ILogService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IFileService private readonly fileService: IFileService,
+		@IWorkbenchExtensionManagementService private readonly workbenchExtensionManagementService: IWorkbenchExtensionManagementService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
+		this.onDidChangeWorkspaceExtensionsScheduler = this._register(new RunOnceScheduler(() => this.onDidChangeWorkspaceExtensionsFolders(), 1000));
 	}
 
 	protected async doActivate(): Promise<void> {
+		this.workspaceExtensions = await this.fetchWorkspaceExtensions();
 		await this.fetch();
+
 		this._register(this.workspaceExtensionsConfigService.onDidChangeExtensionsConfigs(() => this.onDidChangeExtensionsConfigs()));
+		for (const folder of this.contextService.getWorkspace().folders) {
+			this._register(this.fileService.watch(this.uriIdentityService.extUri.joinPath(folder.uri, WORKSPACE_EXTENSIONS_FOLDER)));
+		}
+
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceExtensionsScheduler.schedule()));
+
+		this._register(this.fileService.onDidFilesChange(e => {
+			if (this.contextService.getWorkspace().folders.some(folder =>
+				e.affects(this.uriIdentityService.extUri.joinPath(folder.uri, WORKSPACE_EXTENSIONS_FOLDER), FileChangeType.ADDED, FileChangeType.DELETED))
+			) {
+				this.onDidChangeWorkspaceExtensionsScheduler.schedule();
+			}
+		}));
+	}
+
+	private async onDidChangeWorkspaceExtensionsFolders(): Promise<void> {
+		const existing = this.workspaceExtensions;
+		this.workspaceExtensions = await this.fetchWorkspaceExtensions();
+		if (!equals(existing, this.workspaceExtensions, (a, b) => this.uriIdentityService.extUri.isEqual(a, b))) {
+			this.onDidChangeExtensionsConfigs();
+		}
+	}
+
+	private async fetchWorkspaceExtensions(): Promise<URI[]> {
+		const workspaceExtensions: URI[] = [];
+		for (const workspaceFolder of this.contextService.getWorkspace().folders) {
+			const extensionsLocaiton = this.uriIdentityService.extUri.joinPath(workspaceFolder.uri, WORKSPACE_EXTENSIONS_FOLDER);
+			try {
+				const stat = await this.fileService.resolve(extensionsLocaiton);
+				for (const extension of stat.children ?? []) {
+					if (!extension.isDirectory) {
+						continue;
+					}
+					workspaceExtensions.push(extension.resource);
+				}
+			} catch (error) {
+				// ignore
+			}
+		}
+		if (workspaceExtensions.length) {
+			const resourceExtensions = await this.workbenchExtensionManagementService.getExtensions(workspaceExtensions);
+			return resourceExtensions.map(extension => extension.location);
+		}
+		return [];
 	}
 
 	/**
@@ -66,7 +124,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 				for (const extensionId of extensionsConfig.recommendations) {
 					if (invalidRecommendations.indexOf(extensionId) === -1) {
 						this._recommendations.push({
-							extensionId,
+							extension: extensionId,
 							reason: {
 								reasonId: ExtensionRecommendationReason.Workspace,
 								reasonText: localize('workspaceRecommendation', "This extension is recommended by users of the current workspace.")
@@ -76,42 +134,32 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 				}
 			}
 		}
+
+		for (const extension of this.workspaceExtensions) {
+			this._recommendations.push({
+				extension,
+				reason: {
+					reasonId: ExtensionRecommendationReason.Workspace,
+					reasonText: localize('workspaceRecommendation', "This extension is recommended by users of the current workspace.")
+				}
+			});
+		}
 	}
 
 	private async validateExtensions(contents: IExtensionsConfigContent[]): Promise<{ validRecommendations: string[]; invalidRecommendations: string[]; message: string }> {
 
 		const validExtensions: string[] = [];
 		const invalidExtensions: string[] = [];
-		const extensionsToQuery: string[] = [];
 		let message = '';
 
-		const allRecommendations = distinct(flatten(contents.map(({ recommendations }) => recommendations || [])));
+		const allRecommendations = distinct(contents.flatMap(({ recommendations }) => recommendations || []));
 		const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 		for (const extensionId of allRecommendations) {
 			if (regEx.test(extensionId)) {
-				extensionsToQuery.push(extensionId);
+				validExtensions.push(extensionId);
 			} else {
 				invalidExtensions.push(extensionId);
 				message += `${extensionId} (bad format) Expected: <provider>.<name>\n`;
-			}
-		}
-
-		if (extensionsToQuery.length) {
-			try {
-				const galleryExtensions = await this.galleryService.getExtensions(extensionsToQuery.map(id => ({ id })), CancellationToken.None);
-				const extensions = galleryExtensions.map(extension => extension.identifier.id.toLowerCase());
-
-				for (const extensionId of extensionsToQuery) {
-					if (extensions.indexOf(extensionId) === -1) {
-						invalidExtensions.push(extensionId);
-						message += `${extensionId} (not found in marketplace)\n`;
-					} else {
-						validExtensions.push(extensionId);
-					}
-				}
-
-			} catch (e) {
-				this.logService.warn('Error querying extensions gallery', e);
 			}
 		}
 

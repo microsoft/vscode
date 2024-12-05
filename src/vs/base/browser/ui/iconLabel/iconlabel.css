@@ -31,6 +31,17 @@
 	flex-shrink: 0; /* fix for https://github.com/microsoft/vscode/issues/13787 */
 }
 
+.monaco-icon-label-iconpath {
+	width: 16px;
+	height: 16px;
+	padding-left: 2px;
+	margin-top: 2px;
+	display: flex;
+}
+
+.monaco-icon-label-container.disabled {
+	color: var(--vscode-disabledForeground);
+}
 .monaco-icon-label > .monaco-icon-label-container {
 	min-width: 0;
 	overflow: hidden;
@@ -46,6 +57,11 @@
 .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name > .label-separator {
 	margin: 0 2px;
 	opacity: 0.5;
+}
+
+.monaco-icon-label > .monaco-icon-label-container > .monaco-icon-suffix-container > .label-suffix {
+	opacity: .7;
+	white-space: pre;
 }
 
 .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {

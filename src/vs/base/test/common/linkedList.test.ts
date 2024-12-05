@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { LinkedList } from 'vs/base/common/linkedList';
+import assert from 'assert';
+import { LinkedList } from '../../common/linkedList.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('LinkedList', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertElements<E>(list: LinkedList<E>, ...elements: E[]) {
 
@@ -66,7 +69,7 @@ suite('LinkedList', function () {
 	});
 
 	test('Push/toArray', () => {
-		let list = new LinkedList<string>();
+		const list = new LinkedList<string>();
 		list.push('foo');
 		list.push('bar');
 		list.push('far');
@@ -107,7 +110,7 @@ suite('LinkedList', function () {
 	});
 
 	test('unshift/toArray', () => {
-		let list = new LinkedList<string>();
+		const list = new LinkedList<string>();
 		list.unshift('foo');
 		list.unshift('bar');
 		list.unshift('far');
@@ -116,20 +119,20 @@ suite('LinkedList', function () {
 	});
 
 	test('pop/unshift', function () {
-		let list = new LinkedList<string>();
+		const list = new LinkedList<string>();
 		list.push('a');
 		list.push('b');
 
 		assertElements(list, 'a', 'b');
 
-		let a = list.shift();
+		const a = list.shift();
 		assert.strictEqual(a, 'a');
 		assertElements(list, 'b');
 
 		list.unshift('a');
 		assertElements(list, 'a', 'b');
 
-		let b = list.pop();
+		const b = list.pop();
 		assert.strictEqual(b, 'b');
 		assertElements(list, 'a');
 	});

@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as path from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionStoragePaths as CommonExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { IntervalTimer, timeout } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Promises } from 'vs/base/node/pfs';
+import * as path from '../../../base/common/path.js';
+import { URI } from '../../../base/common/uri.js';
+import { ExtensionStoragePaths as CommonExtensionStoragePaths } from '../common/extHostStoragePaths.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { IntervalTimer, timeout } from '../../../base/common/async.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { Promises } from '../../../base/node/pfs.js';
 
 export class ExtensionStoragePaths extends CommonExtensionStoragePaths {
 
@@ -63,22 +63,20 @@ export class ExtensionStoragePaths extends CommonExtensionStoragePaths {
 
 	override onWillDeactivateAll(): void {
 		// the lock will be released soon
-		if (this._workspaceStorageLock) {
-			this._workspaceStorageLock.setWillRelease(6000);
-		}
+		this._workspaceStorageLock?.setWillRelease(6000);
 	}
 }
 
 async function mkdir(dir: string): Promise<void> {
 	try {
-		await Promises.stat(dir);
+		await fs.promises.stat(dir);
 		return;
 	} catch {
 		// doesn't exist, that's OK
 	}
 
 	try {
-		await Promises.mkdir(dir, { recursive: true });
+		await fs.promises.mkdir(dir, { recursive: true });
 	} catch {
 	}
 }
@@ -105,7 +103,7 @@ class Lock extends Disposable {
 				this._timer.cancel();
 			}
 			try {
-				await Promises.utimes(filename, new Date(), new Date());
+				await fs.promises.utimes(filename, new Date(), new Date());
 			} catch (err) {
 				logService.error(err);
 				logService.info(`Lock '${filename}': Could not update mtime.`);
@@ -176,7 +174,7 @@ interface ILockfileContents {
 async function readLockfileContents(logService: ILogService, filename: string): Promise<ILockfileContents | null> {
 	let contents: Buffer;
 	try {
-		contents = await Promises.readFile(filename);
+		contents = await fs.promises.readFile(filename);
 	} catch (err) {
 		// cannot read the file
 		logService.error(err);
@@ -198,7 +196,7 @@ async function readLockfileContents(logService: ILogService, filename: string): 
 async function readmtime(logService: ILogService, filename: string): Promise<number> {
 	let stats: fs.Stats;
 	try {
-		stats = await Promises.stat(filename);
+		stats = await fs.promises.stat(filename);
 	} catch (err) {
 		// cannot read the file stats to check if it is stale or not
 		logService.error(err);
@@ -281,7 +279,7 @@ async function checkStaleAndTryAcquireLock(logService: ILogService, filename: st
 async function tryDeleteAndAcquireLock(logService: ILogService, filename: string): Promise<Lock | null> {
 	logService.info(`Lock '${filename}': Deleting a stale lock.`);
 	try {
-		await Promises.unlink(filename);
+		await fs.promises.unlink(filename);
 	} catch (err) {
 		// cannot delete the file
 		// maybe the file is already deleted

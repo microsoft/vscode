@@ -2,18 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
-import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
+import type { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { EditorAction } from '../../../../browser/editorExtensions.js';
+import { Position } from '../../../../common/core/position.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { Handler } from '../../../../common/editorCommon.js';
+import { ITextModel } from '../../../../common/model.js';
+import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
+import { CamelCaseAction, PascalCaseAction, DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, KebabCaseAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction } from '../../browser/linesOperations.js';
+import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
 
 function assertSelection(editor: ICodeEditor, expected: Selection | Selection[]): void {
 	if (!Array.isArray(expected)) {
@@ -27,6 +28,9 @@ function executeAction(action: EditorAction, editor: ICodeEditor): void {
 }
 
 suite('Editor Contrib - Line Operations', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('SortLinesAscendingAction', () => {
 		test('should sort selected lines in ascending order', function () {
 			withTestCodeEditor(
@@ -35,8 +39,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'beta',
 					'alpha'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let sortLinesAscendingAction = new SortLinesAscendingAction();
+					const model = editor.getModel()!;
+					const sortLinesAscendingAction = new SortLinesAscendingAction();
 
 					editor.setSelection(new Selection(1, 1, 3, 5));
 					executeAction(sortLinesAscendingAction, editor);
@@ -46,6 +50,25 @@ suite('Editor Contrib - Line Operations', () => {
 						'omicron'
 					]);
 					assertSelection(editor, new Selection(1, 1, 3, 7));
+				});
+		});
+
+		test('should sort lines in ascending order', function () {
+			withTestCodeEditor(
+				[
+					'omicron',
+					'beta',
+					'alpha'
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const sortLinesAscendingAction = new SortLinesAscendingAction();
+
+					executeAction(sortLinesAscendingAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), [
+						'alpha',
+						'beta',
+						'omicron'
+					]);
 				});
 		});
 
@@ -60,8 +83,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'beta',
 					'alpha'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let sortLinesAscendingAction = new SortLinesAscendingAction();
+					const model = editor.getModel()!;
+					const sortLinesAscendingAction = new SortLinesAscendingAction();
 
 					editor.setSelections([new Selection(1, 1, 3, 5), new Selection(5, 1, 7, 5)]);
 					executeAction(sortLinesAscendingAction, editor);
@@ -74,7 +97,7 @@ suite('Editor Contrib - Line Operations', () => {
 						'beta',
 						'omicron'
 					]);
-					let expectedSelections = [
+					const expectedSelections = [
 						new Selection(1, 1, 3, 7),
 						new Selection(5, 1, 7, 7)
 					];
@@ -93,8 +116,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'beta',
 					'omicron'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let sortLinesDescendingAction = new SortLinesDescendingAction();
+					const model = editor.getModel()!;
+					const sortLinesDescendingAction = new SortLinesDescendingAction();
 
 					editor.setSelection(new Selection(1, 1, 3, 7));
 					executeAction(sortLinesDescendingAction, editor);
@@ -118,8 +141,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'beta',
 					'omicron'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let sortLinesDescendingAction = new SortLinesDescendingAction();
+					const model = editor.getModel()!;
+					const sortLinesDescendingAction = new SortLinesDescendingAction();
 
 					editor.setSelections([new Selection(1, 1, 3, 7), new Selection(5, 1, 7, 7)]);
 					executeAction(sortLinesDescendingAction, editor);
@@ -132,7 +155,7 @@ suite('Editor Contrib - Line Operations', () => {
 						'beta',
 						'alpha'
 					]);
-					let expectedSelections = [
+					const expectedSelections = [
 						new Selection(1, 1, 3, 5),
 						new Selection(5, 1, 7, 5)
 					];
@@ -144,6 +167,30 @@ suite('Editor Contrib - Line Operations', () => {
 	});
 
 	suite('DeleteDuplicateLinesAction', () => {
+		test('should remove duplicate lines within selection', function () {
+			withTestCodeEditor(
+				[
+					'alpha',
+					'beta',
+					'beta',
+					'beta',
+					'alpha',
+					'omicron',
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const deleteDuplicateLinesAction = new DeleteDuplicateLinesAction();
+
+					editor.setSelection(new Selection(1, 3, 6, 4));
+					executeAction(deleteDuplicateLinesAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), [
+						'alpha',
+						'beta',
+						'omicron',
+					]);
+					assertSelection(editor, new Selection(1, 1, 3, 7));
+				});
+		});
+
 		test('should remove duplicate lines', function () {
 			withTestCodeEditor(
 				[
@@ -154,17 +201,16 @@ suite('Editor Contrib - Line Operations', () => {
 					'alpha',
 					'omicron',
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let deleteDuplicateLinesAction = new DeleteDuplicateLinesAction();
+					const model = editor.getModel()!;
+					const deleteDuplicateLinesAction = new DeleteDuplicateLinesAction();
 
-					editor.setSelection(new Selection(1, 3, 6, 4));
 					executeAction(deleteDuplicateLinesAction, editor);
 					assert.deepStrictEqual(model.getLinesContent(), [
 						'alpha',
 						'beta',
 						'omicron',
 					]);
-					assertSelection(editor, new Selection(1, 1, 3, 7));
+					assert.ok(editor.getSelection().isEmpty());
 				});
 		});
 
@@ -180,8 +226,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'alpha',
 					'beta'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let deleteDuplicateLinesAction = new DeleteDuplicateLinesAction();
+					const model = editor.getModel()!;
+					const deleteDuplicateLinesAction = new DeleteDuplicateLinesAction();
 
 					editor.setSelections([new Selection(1, 2, 4, 3), new Selection(6, 2, 8, 3)]);
 					executeAction(deleteDuplicateLinesAction, editor);
@@ -193,7 +239,7 @@ suite('Editor Contrib - Line Operations', () => {
 						'alpha',
 						'beta'
 					]);
-					let expectedSelections = [
+					const expectedSelections = [
 						new Selection(1, 1, 3, 7),
 						new Selection(5, 1, 6, 4)
 					];
@@ -213,8 +259,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'two',
 					'three'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let deleteAllLeftAction = new DeleteAllLeftAction();
+					const model = editor.getModel()!;
+					const deleteAllLeftAction = new DeleteAllLeftAction();
 
 					editor.setSelection(new Selection(1, 2, 1, 2));
 					executeAction(deleteAllLeftAction, editor);
@@ -234,8 +280,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'two',
 					'three'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let deleteAllLeftAction = new DeleteAllLeftAction();
+					const model = editor.getModel()!;
+					const deleteAllLeftAction = new DeleteAllLeftAction();
 
 					editor.setSelection(new Selection(2, 1, 2, 1));
 					executeAction(deleteAllLeftAction, editor);
@@ -262,8 +308,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'nonononono',
 					'bitconneeeect'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let deleteAllLeftAction = new DeleteAllLeftAction();
+					const model = editor.getModel()!;
+					const deleteAllLeftAction = new DeleteAllLeftAction();
 
 					const beforeSecondWasoSelection = new Selection(3, 5, 3, 5);
 					const endOfBCCSelection = new Selection(2, 4, 2, 4);
@@ -333,8 +379,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'world',
 					'hello world',
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let deleteAllLeftAction = new DeleteAllLeftAction();
+					const model = editor.getModel()!;
+					const deleteAllLeftAction = new DeleteAllLeftAction();
 
 					editor.setSelections([new Selection(1, 2, 1, 2), new Selection(1, 4, 1, 4)]);
 					executeAction(deleteAllLeftAction, editor);
@@ -365,8 +411,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'two',
 					'three'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let deleteAllLeftAction = new DeleteAllLeftAction();
+					const model = editor.getModel()!;
+					const deleteAllLeftAction = new DeleteAllLeftAction();
 
 					editor.setSelection(new Selection(1, 1, 1, 1));
 
@@ -401,8 +447,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'',
 					'hello world'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let joinLinesAction = new JoinLinesAction();
+					const model = editor.getModel()!;
+					const joinLinesAction = new JoinLinesAction();
 
 					editor.setSelection(new Selection(1, 2, 1, 2));
 					executeAction(joinLinesAction, editor);
@@ -437,8 +483,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'hello',
 					'world'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let joinLinesAction = new JoinLinesAction();
+					const model = editor.getModel()!;
+					const joinLinesAction = new JoinLinesAction();
 
 					editor.setSelection(new Selection(2, 1, 2, 1));
 					executeAction(joinLinesAction, editor);
@@ -463,8 +509,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'',
 					'hello world'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let joinLinesAction = new JoinLinesAction();
+					const model = editor.getModel()!;
+					const joinLinesAction = new JoinLinesAction();
 
 					editor.setSelections([
 						/** primary cursor */
@@ -495,8 +541,8 @@ suite('Editor Contrib - Line Operations', () => {
 					'hello',
 					'world'
 				], {}, (editor) => {
-					let model = editor.getModel()!;
-					let joinLinesAction = new JoinLinesAction();
+					const model = editor.getModel()!;
+					const joinLinesAction = new JoinLinesAction();
 
 					editor.setSelection(new Selection(1, 6, 1, 6));
 
@@ -523,8 +569,8 @@ suite('Editor Contrib - Line Operations', () => {
 				'',
 				'   ',
 			], {}, (editor) => {
-				let model = editor.getModel()!;
-				let transposeAction = new TransposeAction();
+				const model = editor.getModel()!;
+				const transposeAction = new TransposeAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 1));
 				executeAction(transposeAction, editor);
@@ -565,8 +611,8 @@ suite('Editor Contrib - Line Operations', () => {
 				'',
 				'hello world'
 			], {}, (editor) => {
-				let model = editor.getModel()!;
-				let transposeAction = new TransposeAction();
+				const model = editor.getModel()!;
+				const transposeAction = new TransposeAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 1));
 				executeAction(transposeAction, editor);
@@ -615,11 +661,11 @@ suite('Editor Contrib - Line Operations', () => {
 				'parseHTML4String',
 				'_accessor: ServicesAccessor'
 			], {}, (editor) => {
-				let model = editor.getModel()!;
-				let uppercaseAction = new UpperCaseAction();
-				let lowercaseAction = new LowerCaseAction();
-				let titlecaseAction = new TitleCaseAction();
-				let snakecaseAction = new SnakeCaseAction();
+				const model = editor.getModel()!;
+				const uppercaseAction = new UpperCaseAction();
+				const lowercaseAction = new LowerCaseAction();
+				const titlecaseAction = new TitleCaseAction();
+				const snakecaseAction = new SnakeCaseAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 12));
 				executeAction(uppercaseAction, editor);
@@ -751,8 +797,8 @@ suite('Editor Contrib - Line Operations', () => {
 				'foO$baR!BaZ',
 				'\'physician\'s assistant\''
 			], {}, (editor) => {
-				let model = editor.getModel()!;
-				let titlecaseAction = new TitleCaseAction();
+				const model = editor.getModel()!;
+				const titlecaseAction = new TitleCaseAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 12));
 				executeAction(titlecaseAction, editor);
@@ -786,12 +832,55 @@ suite('Editor Contrib - Line Operations', () => {
 
 		withTestCodeEditor(
 			[
+				'camel from words',
+				'from_snake_case',
+				'from-kebab-case',
+				'alreadyCamel',
+				'ReTain_any_CAPitalization',
+				'my_var.test_function()',
+				'öçş_öç_şğü_ğü'
+			], {}, (editor) => {
+				const model = editor.getModel()!;
+				const camelcaseAction = new CamelCaseAction();
+
+				editor.setSelection(new Selection(1, 1, 1, 18));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(1), 'camelFromWords');
+
+				editor.setSelection(new Selection(2, 1, 2, 15));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(2), 'fromSnakeCase');
+
+				editor.setSelection(new Selection(3, 1, 3, 15));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(3), 'fromKebabCase');
+
+				editor.setSelection(new Selection(4, 1, 4, 12));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(4), 'alreadyCamel');
+
+				editor.setSelection(new Selection(5, 1, 5, 26));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(5), 'ReTainAnyCAPitalization');
+
+				editor.setSelection(new Selection(6, 1, 6, 23));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(6), 'myVar.testFunction()');
+
+				editor.setSelection(new Selection(7, 1, 7, 14));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(7), 'öçşÖçŞğüĞü');
+			}
+		);
+
+		withTestCodeEditor(
+			[
 				'',
 				'   '
 			], {}, (editor) => {
-				let model = editor.getModel()!;
-				let uppercaseAction = new UpperCaseAction();
-				let lowercaseAction = new LowerCaseAction();
+				const model = editor.getModel()!;
+				const uppercaseAction = new UpperCaseAction();
+				const lowercaseAction = new LowerCaseAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 1));
 				executeAction(uppercaseAction, editor);
@@ -812,6 +901,148 @@ suite('Editor Contrib - Line Operations', () => {
 				executeAction(lowercaseAction, editor);
 				assert.strictEqual(model.getLineContent(2), '   ');
 				assertSelection(editor, new Selection(2, 2, 2, 2));
+			}
+		);
+
+		withTestCodeEditor(
+			[
+				'hello world',
+				'öçşğü',
+				'parseHTMLString',
+				'getElementById',
+				'PascalCase',
+				'öçşÖÇŞğüĞÜ',
+				'audioConverter.convertM4AToMP3();',
+				'Capital_Snake_Case',
+				'parseHTML4String',
+				'_accessor: ServicesAccessor',
+				'Kebab-Case',
+			], {}, (editor) => {
+				const model = editor.getModel()!;
+				const kebabCaseAction = new KebabCaseAction();
+
+				editor.setSelection(new Selection(1, 1, 1, 12));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(1), 'hello world');
+				assertSelection(editor, new Selection(1, 1, 1, 12));
+
+				editor.setSelection(new Selection(2, 1, 2, 6));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(2), 'öçşğü');
+				assertSelection(editor, new Selection(2, 1, 2, 6));
+
+				editor.setSelection(new Selection(3, 1, 3, 16));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(3), 'parse-html-string');
+				assertSelection(editor, new Selection(3, 1, 3, 18));
+
+				editor.setSelection(new Selection(4, 1, 4, 15));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(4), 'get-element-by-id');
+				assertSelection(editor, new Selection(4, 1, 4, 18));
+
+				editor.setSelection(new Selection(5, 1, 5, 11));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(5), 'pascal-case');
+				assertSelection(editor, new Selection(5, 1, 5, 12));
+
+				editor.setSelection(new Selection(6, 1, 6, 11));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(6), 'öçş-öç-şğü-ğü');
+				assertSelection(editor, new Selection(6, 1, 6, 14));
+
+				editor.setSelection(new Selection(7, 1, 7, 34));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(7), 'audio-converter.convert-m4a-to-mp3();');
+				assertSelection(editor, new Selection(7, 1, 7, 38));
+
+				editor.setSelection(new Selection(8, 1, 8, 19));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(8), 'capital-snake-case');
+				assertSelection(editor, new Selection(8, 1, 8, 19));
+
+				editor.setSelection(new Selection(9, 1, 9, 17));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(9), 'parse-html4-string');
+				assertSelection(editor, new Selection(9, 1, 9, 19));
+
+				editor.setSelection(new Selection(10, 1, 10, 28));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(10), '_accessor: services-accessor');
+				assertSelection(editor, new Selection(10, 1, 10, 29));
+
+				editor.setSelection(new Selection(11, 1, 11, 11));
+				executeAction(kebabCaseAction, editor);
+				assert.strictEqual(model.getLineContent(11), 'kebab-case');
+				assertSelection(editor, new Selection(11, 1, 11, 11));
+			}
+		);
+
+		withTestCodeEditor(
+			[
+				'hello world',
+				'öçşğü',
+				'parseHTMLString',
+				'getElementById',
+				'PascalCase',
+				'öçşÖÇŞğüĞÜ',
+				'audioConverter.convertM4AToMP3();',
+				'Capital_Snake_Case',
+				'parseHTML4String',
+				'Kebab-Case',
+			], {}, (editor) => {
+				const model = editor.getModel()!;
+				const pascalCaseAction = new PascalCaseAction();
+
+				editor.setSelection(new Selection(1, 1, 1, 12));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(1), 'HelloWorld');
+				assertSelection(editor, new Selection(1, 1, 1, 11));
+
+				editor.setSelection(new Selection(2, 1, 2, 6));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(2), 'Öçşğü');
+				assertSelection(editor, new Selection(2, 1, 2, 6));
+
+				editor.setSelection(new Selection(3, 1, 3, 16));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(3), 'ParseHTMLString');
+				assertSelection(editor, new Selection(3, 1, 3, 16));
+
+				editor.setSelection(new Selection(4, 1, 4, 15));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(4), 'GetElementById');
+				assertSelection(editor, new Selection(4, 1, 4, 15));
+
+				editor.setSelection(new Selection(5, 1, 5, 11));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(5), 'PascalCase');
+				assertSelection(editor, new Selection(5, 1, 5, 11));
+
+				editor.setSelection(new Selection(6, 1, 6, 11));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(6), 'ÖçşÖÇŞğüĞÜ');
+				assertSelection(editor, new Selection(6, 1, 6, 11));
+
+				editor.setSelection(new Selection(7, 1, 7, 34));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(7), 'AudioConverter.ConvertM4AToMP3();');
+				assertSelection(editor, new Selection(7, 1, 7, 34));
+
+				editor.setSelection(new Selection(8, 1, 8, 19));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(8), 'CapitalSnakeCase');
+				assertSelection(editor, new Selection(8, 1, 8, 17));
+
+				editor.setSelection(new Selection(9, 1, 9, 17));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(9), 'ParseHTML4String');
+				assertSelection(editor, new Selection(9, 1, 9, 17));
+
+				editor.setSelection(new Selection(10, 1, 10, 11));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(10), 'KebabCase');
+				assertSelection(editor, new Selection(10, 1, 10, 10));
 			}
 		);
 	});
@@ -1002,7 +1233,7 @@ suite('Editor Contrib - Line Operations', () => {
 			];
 			withTestCodeEditor(TEXT, {}, (editor, viewModel) => {
 				editor.setPosition(new Position(lineNumber, column));
-				let insertLineBeforeAction = new InsertLineBeforeAction();
+				const insertLineBeforeAction = new InsertLineBeforeAction();
 
 				executeAction(insertLineBeforeAction, editor);
 				callback(editor.getModel()!, viewModel);
@@ -1043,7 +1274,7 @@ suite('Editor Contrib - Line Operations', () => {
 			];
 			withTestCodeEditor(TEXT, {}, (editor, viewModel) => {
 				editor.setPosition(new Position(lineNumber, column));
-				let insertLineAfterAction = new InsertLineAfterAction();
+				const insertLineAfterAction = new InsertLineAfterAction();
 
 				executeAction(insertLineAfterAction, editor);
 				callback(editor.getModel()!, viewModel);
@@ -1077,7 +1308,7 @@ suite('Editor Contrib - Line Operations', () => {
 
 	test('Bug 18276:[editor] Indentation broken when selection is empty', () => {
 
-		let model = createTextModel(
+		const model = createTextModel(
 			[
 				'function baz() {'
 			].join('\n'),
@@ -1088,7 +1319,7 @@ suite('Editor Contrib - Line Operations', () => {
 		);
 
 		withTestCodeEditor(model, {}, (editor) => {
-			let indentLinesAction = new IndentLinesAction();
+			const indentLinesAction = new IndentLinesAction();
 			editor.setPosition(new Position(1, 2));
 
 			executeAction(indentLinesAction, editor);

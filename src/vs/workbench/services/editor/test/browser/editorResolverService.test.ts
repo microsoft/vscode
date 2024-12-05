@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorResolverService, ResolvedStatus, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { createEditorPart, ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
+import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { EditorResolverService } from '../../browser/editorResolverService.js';
+import { IEditorGroupsService } from '../../common/editorGroupsService.js';
+import { IEditorResolverService, ResolvedStatus, RegisteredEditorPriority } from '../../common/editorResolverService.js';
+import { createEditorPart, ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('EditorResolverService', () => {
 
@@ -21,14 +22,23 @@ suite('EditorResolverService', () => {
 
 	teardown(() => disposables.clear());
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	async function createEditorResolverService(instantiationService: ITestInstantiationService = workbenchInstantiationService(undefined, disposables)): Promise<[EditorPart, EditorResolverService, TestServiceAccessor]> {
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
 		const editorResolverService = instantiationService.createInstance(EditorResolverService);
 		instantiationService.stub(IEditorResolverService, editorResolverService);
+		disposables.add(editorResolverService);
 
 		return [part, editorResolverService, instantiationService.createInstance(TestServiceAccessor)];
+	}
+
+	function constructDisposableFileEditorInput(uri: URI, typeId: string, store: DisposableStore): TestFileEditorInput {
+		const editor = new TestFileEditorInput(uri, typeId);
+		store.add(editor);
+		return editor;
 	}
 
 	test('Simple Resolve', async () => {
@@ -40,8 +50,10 @@ suite('EditorResolverService', () => {
 				detail: 'Test Editor Details',
 				priority: RegisteredEditorPriority.default
 			},
-			{ canHandleDiff: false },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			{},
+			{
+				createEditorInput: ({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			}
 		);
 
 		const resultingResolution = await service.resolveEditor({ resource: URI.file('my://resource-basics.test') }, part.activeGroup);
@@ -64,9 +76,11 @@ suite('EditorResolverService', () => {
 				detail: 'Test Editor Details',
 				priority: RegisteredEditorPriority.default
 			},
-			{ canHandleDiff: false },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput((resource ? resource : URI.from({ scheme: Schemas.untitled })), UNTITLED_TEST_EDITOR_INPUT_ID) }),
+			{},
+			{
+				createEditorInput: ({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+				createUntitledEditorInput: ({ resource, options }, group) => ({ editor: new TestFileEditorInput((resource ? resource : URI.from({ scheme: Schemas.untitled })), UNTITLED_TEST_EDITOR_INPUT_ID) }),
+			}
 		);
 
 		// Untyped untitled - no resource
@@ -105,8 +119,10 @@ suite('EditorResolverService', () => {
 				detail: 'Test Editor Details Primary',
 				priority: RegisteredEditorPriority.default
 			},
-			{ canHandleDiff: false },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			{},
+			{
+				createEditorInput: ({ resource, options }, group) => ({ editor: constructDisposableFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID, disposables) }),
+			}
 		);
 
 		const registeredEditorSecondary = service.registerEditor('*.test-secondary',
@@ -116,8 +132,10 @@ suite('EditorResolverService', () => {
 				detail: 'Test Editor Details Secondary',
 				priority: RegisteredEditorPriority.default
 			},
-			{ canHandleDiff: false },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			{},
+			{
+				createEditorInput: ({ resource, options }, group) => ({ editor: constructDisposableFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID, disposables) }),
+			}
 		);
 
 		const resultingResolution = await service.resolveEditor({
@@ -145,18 +163,19 @@ suite('EditorResolverService', () => {
 				detail: 'Test Editor Details',
 				priority: RegisteredEditorPriority.default
 			},
-			{ canHandleDiff: true },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
-			undefined,
-			({ modified, original, options }, group) => ({
-				editor: accessor.instantiationService.createInstance(
-					DiffEditorInput,
-					'name',
-					'description',
-					new TestFileEditorInput(URI.parse(original.toString()), TEST_EDITOR_INPUT_ID),
-					new TestFileEditorInput(URI.parse(modified.toString()), TEST_EDITOR_INPUT_ID),
-					undefined)
-			})
+			{},
+			{
+				createEditorInput: ({ resource, options }, group) => ({ editor: constructDisposableFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID, disposables) }),
+				createDiffEditorInput: ({ modified, original, options }, group) => ({
+					editor: accessor.instantiationService.createInstance(
+						DiffEditorInput,
+						'name',
+						'description',
+						constructDisposableFileEditorInput(URI.parse(original.toString()), TEST_EDITOR_INPUT_ID, disposables),
+						constructDisposableFileEditorInput(URI.parse(modified.toString()), TEST_EDITOR_INPUT_ID, disposables),
+						undefined)
+				})
+			}
 		);
 
 		const resultingResolution = await service.resolveEditor({
@@ -186,20 +205,21 @@ suite('EditorResolverService', () => {
 				detail: 'Test Editor Details',
 				priority: RegisteredEditorPriority.default
 			},
-			{ canHandleDiff: true },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
-			undefined,
-			({ modified, original, options }, group) => {
-				diffOneCounter++;
-				return {
-					editor: accessor.instantiationService.createInstance(
-						DiffEditorInput,
-						'name',
-						'description',
-						new TestFileEditorInput(URI.parse(original.toString()), TEST_EDITOR_INPUT_ID),
-						new TestFileEditorInput(URI.parse(modified.toString()), TEST_EDITOR_INPUT_ID),
-						undefined)
-				};
+			{},
+			{
+				createEditorInput: ({ resource, options }, group) => ({ editor: constructDisposableFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID, disposables) }),
+				createDiffEditorInput: ({ modified, original, options }, group) => {
+					diffOneCounter++;
+					return {
+						editor: accessor.instantiationService.createInstance(
+							DiffEditorInput,
+							'name',
+							'description',
+							constructDisposableFileEditorInput(URI.parse(original.toString()), TEST_EDITOR_INPUT_ID, disposables),
+							constructDisposableFileEditorInput(URI.parse(modified.toString()), TEST_EDITOR_INPUT_ID, disposables),
+							undefined)
+					};
+				}
 			}
 		);
 
@@ -210,20 +230,21 @@ suite('EditorResolverService', () => {
 				detail: 'Test Editor Details',
 				priority: RegisteredEditorPriority.default
 			},
-			{ canHandleDiff: true },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
-			undefined,
-			({ modified, original, options }, group) => {
-				diffTwoCounter++;
-				return {
-					editor: accessor.instantiationService.createInstance(
-						DiffEditorInput,
-						'name',
-						'description',
-						new TestFileEditorInput(URI.parse(original.toString()), TEST_EDITOR_INPUT_ID),
-						new TestFileEditorInput(URI.parse(modified.toString()), TEST_EDITOR_INPUT_ID),
-						undefined)
-				};
+			{},
+			{
+				createEditorInput: ({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+				createDiffEditorInput: ({ modified, original, options }, group) => {
+					diffTwoCounter++;
+					return {
+						editor: accessor.instantiationService.createInstance(
+							DiffEditorInput,
+							'name',
+							'description',
+							constructDisposableFileEditorInput(URI.parse(original.toString()), TEST_EDITOR_INPUT_ID, disposables),
+							constructDisposableFileEditorInput(URI.parse(modified.toString()), TEST_EDITOR_INPUT_ID, disposables),
+							undefined)
+					};
+				}
 			}
 		);
 
@@ -234,20 +255,21 @@ suite('EditorResolverService', () => {
 				detail: 'Test Editor Details',
 				priority: RegisteredEditorPriority.option
 			},
-			{ canHandleDiff: true },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
-			undefined,
-			({ modified, original, options }, group) => {
-				defaultDiffCounter++;
-				return {
-					editor: accessor.instantiationService.createInstance(
-						DiffEditorInput,
-						'name',
-						'description',
-						new TestFileEditorInput(URI.parse(original.toString()), TEST_EDITOR_INPUT_ID),
-						new TestFileEditorInput(URI.parse(modified.toString()), TEST_EDITOR_INPUT_ID),
-						undefined)
-				};
+			{},
+			{
+				createEditorInput: ({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+				createDiffEditorInput: ({ modified, original, options }, group) => {
+					defaultDiffCounter++;
+					return {
+						editor: accessor.instantiationService.createInstance(
+							DiffEditorInput,
+							'name',
+							'description',
+							constructDisposableFileEditorInput(URI.parse(original.toString()), TEST_EDITOR_INPUT_ID, disposables),
+							constructDisposableFileEditorInput(URI.parse(modified.toString()), TEST_EDITOR_INPUT_ID, disposables),
+							undefined)
+					};
+				}
 			}
 		);
 
@@ -341,9 +363,9 @@ suite('EditorResolverService', () => {
 		const [, service] = await createEditorResolverService();
 
 		let eventCounter = 0;
-		service.onDidChangeEditorRegistrations(() => {
+		disposables.add(service.onDidChangeEditorRegistrations(() => {
 			eventCounter++;
-		});
+		}));
 
 		const editors = service.getEditors();
 
@@ -354,8 +376,10 @@ suite('EditorResolverService', () => {
 				detail: 'Test Editor Details',
 				priority: RegisteredEditorPriority.default
 			},
-			{ canHandleDiff: false },
-			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			{},
+			{
+				createEditorInput: ({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) })
+			}
 		);
 
 		assert.strictEqual(eventCounter, 1);
@@ -367,5 +391,68 @@ suite('EditorResolverService', () => {
 		assert.strictEqual(eventCounter, 2);
 		assert.strictEqual(service.getEditors().length, editors.length);
 		assert.strictEqual(service.getEditors().some(editor => editor.id === 'TEST_EDITOR'), false);
+	});
+
+	test('Multiple registrations to same glob and id #155859', async () => {
+		const [part, service, accessor] = await createEditorResolverService();
+		const testEditorInfo = {
+			id: 'TEST_EDITOR',
+			label: 'Test Editor Label',
+			detail: 'Test Editor Details',
+			priority: RegisteredEditorPriority.default
+		};
+		const registeredSingleEditor = service.registerEditor('*.test',
+			testEditorInfo,
+			{},
+			{
+				createEditorInput: ({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) })
+			}
+		);
+
+		const registeredDiffEditor = service.registerEditor('*.test',
+			testEditorInfo,
+			{},
+			{
+				createDiffEditorInput: ({ modified, original, options }, group) => ({
+					editor: accessor.instantiationService.createInstance(
+						DiffEditorInput,
+						'name',
+						'description',
+						constructDisposableFileEditorInput(URI.parse(original.toString()), TEST_EDITOR_INPUT_ID, disposables),
+						constructDisposableFileEditorInput(URI.parse(modified.toString()), TEST_EDITOR_INPUT_ID, disposables),
+						undefined)
+				})
+			}
+		);
+
+		// Resolve a diff
+		let resultingResolution = await service.resolveEditor({
+			original: { resource: URI.file('my://resource-basics.test') },
+			modified: { resource: URI.file('my://resource-basics.test') }
+		}, part.activeGroup);
+		assert.ok(resultingResolution);
+		assert.notStrictEqual(typeof resultingResolution, 'number');
+		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
+			assert.strictEqual(resultingResolution.editor.typeId, 'workbench.editors.diffEditorInput');
+			resultingResolution.editor.dispose();
+		} else {
+			assert.fail();
+		}
+
+		// Remove diff registration
+		registeredDiffEditor.dispose();
+
+		// Resolve a diff again, expected failure
+		resultingResolution = await service.resolveEditor({
+			original: { resource: URI.file('my://resource-basics.test') },
+			modified: { resource: URI.file('my://resource-basics.test') }
+		}, part.activeGroup);
+		assert.ok(resultingResolution);
+		assert.strictEqual(typeof resultingResolution, 'number');
+		if (resultingResolution !== ResolvedStatus.NONE) {
+			assert.fail();
+		}
+
+		registeredSingleEditor.dispose();
 	});
 });

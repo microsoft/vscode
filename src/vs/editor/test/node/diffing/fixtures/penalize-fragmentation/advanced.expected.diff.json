@@ -1,0 +1,30 @@
+{
+	"original": {
+		"content": "import { IChange, IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';",
+		"fileName": "./1.txt"
+	},
+	"modified": {
+		"content": "import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';\nimport { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';",
+		"fileName": "./2.txt"
+	},
+	"diffs": [
+		{
+			"originalRange": "[1,2)",
+			"modifiedRange": "[1,3)",
+			"innerChanges": [
+				{
+					"originalRange": "[1,1 -> 1,1]",
+					"modifiedRange": "[1,1 -> 2,1]"
+				},
+				{
+					"originalRange": "[1,17 -> 1,41]",
+					"modifiedRange": "[2,17 -> 2,17]"
+				},
+				{
+					"originalRange": "[1,72 -> 1,84]",
+					"modifiedRange": "[2,48 -> 2,70]"
+				}
+			]
+		}
+	]
+}

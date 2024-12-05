@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import { isWindows } from 'vs/base/common/platform';
-import { assertType } from 'vs/base/common/types';
-import { Mimes } from 'vs/base/common/mime';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { CancellationError } from 'vs/base/common/errors';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import * as types from '../../common/extHostTypes.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { assertType } from '../../../../base/common/types.js';
+import { Mimes } from '../../../../base/common/mime.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -20,9 +21,11 @@ function assertToJSON(a: any, expected: any) {
 
 suite('ExtHostTypes', function () {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('URI, toJSON', function () {
 
-		let uri = URI.parse('file:///path/test.file');
+		const uri = URI.parse('file:///path/test.file');
 		assert.deepStrictEqual(uri.toJSON(), {
 			$mid: MarshalledId.Uri,
 			scheme: 'file',
@@ -52,7 +55,7 @@ suite('ExtHostTypes', function () {
 	test('Disposable', () => {
 
 		let count = 0;
-		let d = new types.Disposable(() => {
+		const d = new types.Disposable(() => {
 			count += 1;
 			return 12;
 		});
@@ -80,25 +83,25 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => new types.Position(-1, 0));
 		assert.throws(() => new types.Position(0, -1));
 
-		let pos = new types.Position(0, 0);
+		const pos = new types.Position(0, 0);
 		assert.throws(() => (pos as any).line = -1);
 		assert.throws(() => (pos as any).character = -1);
 		assert.throws(() => (pos as any).line = 12);
 
-		let { line, character } = pos.toJSON();
+		const { line, character } = pos.toJSON();
 		assert.strictEqual(line, 0);
 		assert.strictEqual(character, 0);
 	});
 
 	test('Position, toJSON', function () {
-		let pos = new types.Position(4, 2);
+		const pos = new types.Position(4, 2);
 		assertToJSON(pos, { line: 4, character: 2 });
 	});
 
 	test('Position, isBefore(OrEqual)?', function () {
-		let p1 = new types.Position(1, 3);
-		let p2 = new types.Position(1, 2);
-		let p3 = new types.Position(0, 4);
+		const p1 = new types.Position(1, 3);
+		const p2 = new types.Position(1, 2);
+		const p3 = new types.Position(0, 4);
 
 		assert.ok(p1.isBeforeOrEqual(p1));
 		assert.ok(!p1.isBefore(p1));
@@ -107,9 +110,9 @@ suite('ExtHostTypes', function () {
 	});
 
 	test('Position, isAfter(OrEqual)?', function () {
-		let p1 = new types.Position(1, 3);
-		let p2 = new types.Position(1, 2);
-		let p3 = new types.Position(0, 4);
+		const p1 = new types.Position(1, 3);
+		const p2 = new types.Position(1, 2);
+		const p3 = new types.Position(0, 4);
 
 		assert.ok(p1.isAfterOrEqual(p1));
 		assert.ok(!p1.isAfter(p1));
@@ -119,9 +122,9 @@ suite('ExtHostTypes', function () {
 	});
 
 	test('Position, compareTo', function () {
-		let p1 = new types.Position(1, 3);
-		let p2 = new types.Position(1, 2);
-		let p3 = new types.Position(0, 4);
+		const p1 = new types.Position(1, 3);
+		const p2 = new types.Position(1, 2);
+		const p3 = new types.Position(0, 4);
 
 		assert.strictEqual(p1.compareTo(p1), 0);
 		assert.strictEqual(p2.compareTo(p1), -1);
@@ -131,7 +134,7 @@ suite('ExtHostTypes', function () {
 	});
 
 	test('Position, translate', function () {
-		let p1 = new types.Position(1, 3);
+		const p1 = new types.Position(1, 3);
 
 		assert.ok(p1.translate() === p1);
 		assert.ok(p1.translate({}) === p1);
@@ -169,7 +172,7 @@ suite('ExtHostTypes', function () {
 	});
 
 	test('Position, with', function () {
-		let p1 = new types.Position(1, 3);
+		const p1 = new types.Position(1, 3);
 
 		assert.ok(p1.with() === p1);
 		assert.ok(p1.with(1) === p1);
@@ -180,7 +183,7 @@ suite('ExtHostTypes', function () {
 		assert.ok(p1.with({ character: 3 }) === p1);
 		assert.ok(p1.with({ line: 1, character: 3 }) === p1);
 
-		let p2 = p1.with({ line: 0, character: 11 });
+		const p2 = p1.with({ line: 0, character: 11 });
 		assert.strictEqual(p2.line, 0);
 		assert.strictEqual(p2.character, 11);
 
@@ -199,14 +202,14 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => new types.Range(undefined!, new types.Position(0, 0)));
 		assert.throws(() => new types.Range(null!, new types.Position(0, 0)));
 
-		let range = new types.Range(1, 0, 0, 0);
+		const range = new types.Range(1, 0, 0, 0);
 		assert.throws(() => { (range as any).start = null; });
 		assert.throws(() => { (range as any).start = new types.Position(0, 3); });
 	});
 
 	test('Range, toJSON', function () {
 
-		let range = new types.Range(1, 2, 3, 4);
+		const range = new types.Range(1, 2, 3, 4);
 		assertToJSON(range, [{ line: 1, character: 2 }, { line: 3, character: 4 }]);
 	});
 
@@ -240,7 +243,7 @@ suite('ExtHostTypes', function () {
 	});
 
 	test('Range, contains', function () {
-		let range = new types.Range(1, 1, 2, 11);
+		const range = new types.Range(1, 1, 2, 11);
 
 		assert.ok(range.contains(range.start));
 		assert.ok(range.contains(range.end));
@@ -253,11 +256,11 @@ suite('ExtHostTypes', function () {
 	});
 
 	test('Range, contains (no instanceof)', function () {
-		let range = new types.Range(1, 1, 2, 11);
+		const range = new types.Range(1, 1, 2, 11);
 
-		let startLike = { line: range.start.line, character: range.start.character };
-		let endLike = { line: range.end.line, character: range.end.character };
-		let rangeLike = { start: startLike, end: endLike };
+		const startLike = { line: range.start.line, character: range.start.character };
+		const endLike = { line: range.end.line, character: range.end.character };
+		const rangeLike = { start: startLike, end: endLike };
 
 		assert.ok(range.contains((<types.Position>startLike)));
 		assert.ok(range.contains((<types.Position>endLike)));
@@ -265,7 +268,7 @@ suite('ExtHostTypes', function () {
 	});
 
 	test('Range, intersection', function () {
-		let range = new types.Range(1, 1, 2, 11);
+		const range = new types.Range(1, 1, 2, 11);
 		let res: types.Range;
 
 		res = range.intersection(range)!;
@@ -312,7 +315,7 @@ suite('ExtHostTypes', function () {
 	});
 
 	test('Range, with', function () {
-		let range = new types.Range(1, 1, 2, 11);
+		const range = new types.Range(1, 1, 2, 11);
 
 		assert.ok(range.with(range.start) === range);
 		assert.ok(range.with(undefined, range.end) === range);
@@ -349,12 +352,12 @@ suite('ExtHostTypes', function () {
 
 	test('TextEdit', () => {
 
-		let range = new types.Range(1, 1, 2, 11);
+		const range = new types.Range(1, 1, 2, 11);
 		let edit = new types.TextEdit(range, undefined!);
 		assert.strictEqual(edit.newText, '');
 		assertToJSON(edit, { range: [{ line: 1, character: 1 }, { line: 2, character: 11 }], newText: '' });
 
-		edit = new types.TextEdit(range, null!);
+		edit = new types.TextEdit(range, null);
 		assert.strictEqual(edit.newText, '');
 
 		edit = new types.TextEdit(range, '');
@@ -363,10 +366,10 @@ suite('ExtHostTypes', function () {
 
 	test('WorkspaceEdit', () => {
 
-		let a = URI.file('a.ts');
-		let b = URI.file('b.ts');
+		const a = URI.file('a.ts');
+		const b = URI.file('b.ts');
 
-		let edit = new types.WorkspaceEdit();
+		const edit = new types.WorkspaceEdit();
 		assert.ok(!edit.has(a));
 
 		edit.set(a, [types.TextEdit.insert(new types.Position(0, 0), 'fff')]);
@@ -418,18 +421,34 @@ suite('ExtHostTypes', function () {
 	});
 
 	test('WorkspaceEdit - two edits for one resource', function () {
-		let edit = new types.WorkspaceEdit();
-		let uri = URI.parse('foo:bar');
+		const edit = new types.WorkspaceEdit();
+		const uri = URI.parse('foo:bar');
 		edit.insert(uri, new types.Position(0, 0), 'Hello');
 		edit.insert(uri, new types.Position(0, 0), 'Foo');
 
 		assert.strictEqual(edit._allEntries().length, 2);
-		let [first, second] = edit._allEntries();
+		const [first, second] = edit._allEntries();
 
 		assertType(first._type === types.FileEditType.Text);
 		assertType(second._type === types.FileEditType.Text);
 		assert.strictEqual(first.edit.newText, 'Hello');
 		assert.strictEqual(second.edit.newText, 'Foo');
+	});
+
+	test('WorkspaceEdit - set with metadata accepts undefined', function () {
+		const edit = new types.WorkspaceEdit();
+		const uri = URI.parse('foo:bar');
+
+		edit.set(uri, [
+			[types.TextEdit.insert(new types.Position(0, 0), 'Hello'), { needsConfirmation: true, label: 'foo' }],
+			[types.TextEdit.insert(new types.Position(0, 0), 'Hello'), undefined],
+		]);
+
+		const all = edit._allEntries();
+		assert.strictEqual(all.length, 2);
+		const [first, second] = all;
+		assert.ok(first.metadata);
+		assert.ok(!second.metadata);
 	});
 
 	test('DocumentLink', () => {
@@ -444,7 +463,7 @@ suite('ExtHostTypes', function () {
 		assertToJSON(new types.Location(URI.file('u.ts'), new types.Position(3, 4)), { uri: URI.parse('file:///u.ts').toJSON(), range: [{ line: 3, character: 4 }, { line: 3, character: 4 }] });
 		assertToJSON(new types.Location(URI.file('u.ts'), new types.Range(1, 2, 3, 4)), { uri: URI.parse('file:///u.ts').toJSON(), range: [{ line: 1, character: 2 }, { line: 3, character: 4 }] });
 
-		let diag = new types.Diagnostic(new types.Range(0, 1, 2, 3), 'hello');
+		const diag = new types.Diagnostic(new types.Range(0, 1, 2, 3), 'hello');
 		assertToJSON(diag, { severity: 'Error', message: 'hello', range: [{ line: 0, character: 1 }, { line: 2, character: 3 }] });
 		diag.source = 'me';
 		assertToJSON(diag, { severity: 'Error', message: 'hello', range: [{ line: 0, character: 1 }, { line: 2, character: 3 }], source: 'me' });
@@ -468,7 +487,7 @@ suite('ExtHostTypes', function () {
 
 		assertToJSON(new types.CompletionItem('complete'), { label: 'complete' });
 
-		let item = new types.CompletionItem('complete');
+		const item = new types.CompletionItem('complete');
 		item.kind = types.CompletionItemKind.Interface;
 		assertToJSON(item, { label: 'complete', kind: 'Interface' });
 
@@ -476,7 +495,7 @@ suite('ExtHostTypes', function () {
 
 	test('SymbolInformation, old ctor', function () {
 
-		let info = new types.SymbolInformation('foo', types.SymbolKind.Array, new types.Range(1, 1, 2, 3));
+		const info = new types.SymbolInformation('foo', types.SymbolKind.Array, new types.Range(1, 1, 2, 3));
 		assert.ok(info.location instanceof types.Location);
 		assert.strictEqual(info.location.uri, undefined);
 	});
@@ -553,11 +572,38 @@ suite('ExtHostTypes', function () {
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendChoice(['far', '$boo']).appendText('bar');
-		assert.strictEqual(string.value, 'foo${1|far,\\$boo|}bar');
+		assert.strictEqual(string.value, 'foo${1|far,$boo|}bar');
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendPlaceholder('farboo').appendChoice(['far', 'boo']).appendText('bar');
 		assert.strictEqual(string.value, 'foo${1:farboo}${2|far,boo|}bar');
+	});
+
+	test('Snippet choices are incorrectly escaped/applied #180132', function () {
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa$aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa$aaa|}bbb\\$bbb');
+		}
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa,aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa\\,aaa|}bbb\\$bbb');
+		}
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa|aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa\\|aaa|}bbb\\$bbb');
+		}
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa\\aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa\\\\aaa|}bbb\\$bbb');
+		}
 	});
 
 	test('instanceof doesn\'t work for FileSystemError #49386', function () {
@@ -728,5 +774,29 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => types.FileDecoration.validate({ badge: '👋👋👋' }));
 		assert.throws(() => types.FileDecoration.validate({ badge: 'புன்சிரிப்போடு' }));
 		assert.throws(() => types.FileDecoration.validate({ badge: 'ããã' }));
+	});
+
+	test('No longer possible to set content on LanguageModelChatMessage', function () {
+		const m = types.LanguageModelChatMessage.Assistant('');
+		m.content = [new types.LanguageModelToolCallPart('toolCall.call.callId', 'toolCall.tool.name', 'toolCall.call.parameters')];
+
+		assert.equal(m.content.length, 1);
+		assert.equal(m.content2?.length, 1);
+
+
+		m.content2 = ['foo'];
+		assert.equal(m.content.length, 1);
+		assert.ok(m.content[0] instanceof types.LanguageModelTextPart);
+
+		assert.equal(m.content2?.length, 1);
+		assert.ok(typeof m.content2[0] === 'string');
+	});
+
+	test('runtime stable, type-def changed', function () {
+		// see https://github.com/microsoft/vscode/issues/231938
+		const m = new types.LanguageModelChatMessage(types.LanguageModelChatMessageRole.User, []);
+		assert.deepStrictEqual(m.content, []);
+		m.content = 'Hello';
+		assert.deepStrictEqual(m.content, [new types.LanguageModelTextPart('Hello')]);
 	});
 });

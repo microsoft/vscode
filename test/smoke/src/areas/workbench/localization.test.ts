@@ -12,11 +12,9 @@ export function setup(logger: Logger) {
 		// Shared before/after handling
 		installAllHandlers(logger);
 
-		// skipped until translations are available https://github.com/microsoft/vscode/issues/150324
-		it.skip('starts with "DE" locale and verifies title and viewlets text is in German', async function () {
+		it('starts with "DE" locale and verifies title and viewlets text is in German', async function () {
 			const app = this.app as Application;
 
-			await app.workbench.extensions.openExtensionsViewlet();
 			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de', false);
 			await app.restart({ extraArgs: ['--locale=DE'] });
 

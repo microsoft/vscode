@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, Range, LineChange, Selection } from 'vscode';
+import { TextDocument, Range, LineChange, Selection, Uri } from 'vscode';
 
 export function applyLineChanges(original: TextDocument, modified: TextDocument, diffs: LineChange[]): string {
 	const result: string[] = [];
 	let currentLine = 0;
 
-	for (let diff of diffs) {
+	for (const diff of diffs) {
 		const isInsertion = diff.originalEndLineNumber === 0;
 		const isDeletion = diff.modifiedEndLineNumber === 0;
 
@@ -141,4 +141,15 @@ export function invertLineChange(diff: LineChange): LineChange {
 		originalStartLineNumber: diff.modifiedStartLineNumber,
 		originalEndLineNumber: diff.modifiedEndLineNumber
 	};
+}
+
+export interface DiffEditorSelectionHunkToolbarContext {
+	mapping: unknown;
+	/**
+	 * The original text with the selected modified changes applied.
+	*/
+	originalWithModifiedChanges: string;
+
+	modifiedUri: Uri;
+	originalUri: Uri;
 }

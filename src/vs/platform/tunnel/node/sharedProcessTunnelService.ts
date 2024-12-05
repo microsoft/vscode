@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService } from 'vs/platform/log/common/log';
-import { ISharedProcessTunnel, ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';
-import { ISharedTunnelsService, RemoteTunnel } from 'vs/platform/tunnel/common/tunnel';
-import { IAddress, IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { canceled } from 'vs/base/common/errors';
-import { DeferredPromise } from 'vs/base/common/async';
+import { ILogService } from '../../log/common/log.js';
+import { ISharedProcessTunnel, ISharedProcessTunnelService } from '../../remote/common/sharedProcessTunnelService.js';
+import { ISharedTunnelsService, RemoteTunnel } from '../common/tunnel.js';
+import { IAddress, IAddressProvider } from '../../remote/common/remoteAgentConnection.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { canceled } from '../../../base/common/errors.js';
+import { DeferredPromise } from '../../../base/common/async.js';
 
 class TunnelData extends Disposable implements IAddressProvider {
 
@@ -71,11 +71,11 @@ export class SharedProcessTunnelService extends Disposable implements ISharedPro
 		return { id };
 	}
 
-	async startTunnel(authority: string, id: string, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort: number | undefined, elevateIfNeeded: boolean | undefined): Promise<ISharedProcessTunnel> {
+	async startTunnel(authority: string, id: string, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalHost: string, tunnelLocalPort: number | undefined, elevateIfNeeded: boolean | undefined): Promise<ISharedProcessTunnel> {
 		const tunnelData = new TunnelData();
 
-		const tunnel = await Promise.resolve(this._tunnelService.openTunnel(authority, tunnelData, tunnelRemoteHost, tunnelRemotePort, tunnelLocalPort, elevateIfNeeded));
-		if (!tunnel) {
+		const tunnel = await Promise.resolve(this._tunnelService.openTunnel(authority, tunnelData, tunnelRemoteHost, tunnelRemotePort, tunnelLocalHost, tunnelLocalPort, elevateIfNeeded));
+		if (!tunnel || (typeof tunnel === 'string')) {
 			this._logService.info(`[SharedProcessTunnelService] Could not create a tunnel to ${tunnelRemoteHost}:${tunnelRemotePort} (remote).`);
 			tunnelData.dispose();
 			throw new Error(`Could not create tunnel`);

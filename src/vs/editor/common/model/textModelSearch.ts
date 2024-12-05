@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, FindMatch, SearchData } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { CharCode } from '../../../base/common/charCode.js';
+import * as strings from '../../../base/common/strings.js';
+import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } from '../core/wordCharacterClassifier.js';
+import { Position } from '../core/position.js';
+import { Range } from '../core/range.js';
+import { EndOfLinePreference, FindMatch, SearchData } from '../model.js';
+import { TextModel } from './textModel.js';
 
 const LIMIT_FIND_COUNT = 999;
 
@@ -62,7 +62,7 @@ export class SearchParams {
 			canUseSimpleSearch = this.matchCase;
 		}
 
-		return new SearchData(regex, this.wordSeparators ? getMapForWordSeparators(this.wordSeparators) : null, canUseSimpleSearch ? this.searchString : null);
+		return new SearchData(regex, this.wordSeparators ? getMapForWordSeparators(this.wordSeparators, []) : null, canUseSimpleSearch ? this.searchString : null);
 	}
 }
 
@@ -73,6 +73,10 @@ export function isMultilineRegexSource(searchString: string): boolean {
 
 	for (let i = 0, len = searchString.length; i < len; i++) {
 		const chCode = searchString.charCodeAt(i);
+
+		if (chCode === CharCode.LineFeed) {
+			return true;
+		}
 
 		if (chCode === CharCode.Backslash) {
 
@@ -307,7 +311,7 @@ export class TextModelSearch {
 		const text = model.getValueInRange(new Range(searchTextStart.lineNumber, searchTextStart.column, lineCount, model.getLineMaxColumn(lineCount)), EndOfLinePreference.LF);
 		const lfCounter = (model.getEOL() === '\r\n' ? new LineFeedCounter(text) : null);
 		searcher.reset(searchStart.column - 1);
-		let m = searcher.next(text);
+		const m = searcher.next(text);
 		if (m) {
 			return createFindMatch(
 				this._getMultilineMatchRange(model, deltaOffset, text, lfCounter, m.index, m[0]),

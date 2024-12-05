@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LinkedList } from 'vs/base/common/linkedList';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { SelectionRange, SelectionRangeProvider } from 'vs/editor/common/languages';
+import { LinkedList } from '../../../../base/common/linkedList.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { ITextModel } from '../../../common/model.js';
+import { SelectionRange, SelectionRangeProvider } from '../../../common/languages.js';
 
 export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 
@@ -41,12 +41,12 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 				resolve();
 				break;
 			}
-			let bracket = model.bracketPairs.findNextBracket(pos);
+			const bracket = model.bracketPairs.findNextBracket(pos);
 			if (!bracket) {
 				resolve();
 				break;
 			}
-			let d = Date.now() - t1;
+			const d = Date.now() - t1;
 			if (d > BracketSelectionRangeProvider._maxDuration) {
 				setTimeout(() => BracketSelectionRangeProvider._bracketsRightYield(resolve, round + 1, model, pos, ranges));
 				break;
@@ -54,10 +54,10 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 			if (bracket.bracketInfo.isOpeningBracket) {
 				const key = bracket.bracketInfo.bracketText;
 				// wait for closing
-				let val = counts.has(key) ? counts.get(key)! : 0;
+				const val = counts.has(key) ? counts.get(key)! : 0;
 				counts.set(key, val + 1);
 			} else {
-				const key = bracket.bracketInfo.getClosedBrackets()[0].bracketText;
+				const key = bracket.bracketInfo.getOpeningBrackets()[0].bracketText;
 				// process closing
 				let val = counts.has(key) ? counts.get(key)! : 0;
 				val -= 1;
@@ -87,20 +87,20 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 				resolve();
 				break;
 			}
-			let bracket = model.bracketPairs.findPrevBracket(pos);
+			const bracket = model.bracketPairs.findPrevBracket(pos);
 			if (!bracket) {
 				resolve();
 				break;
 			}
-			let d = Date.now() - t1;
+			const d = Date.now() - t1;
 			if (d > BracketSelectionRangeProvider._maxDuration) {
 				setTimeout(() => BracketSelectionRangeProvider._bracketsLeftYield(resolve, round + 1, model, pos, ranges, bucket));
 				break;
 			}
 			if (!bracket.bracketInfo.isOpeningBracket) {
-				const key = bracket.bracketInfo.getClosedBrackets()[0].bracketText;
+				const key = bracket.bracketInfo.getOpeningBrackets()[0].bracketText;
 				// wait for opening
-				let val = counts.has(key) ? counts.get(key)! : 0;
+				const val = counts.has(key) ? counts.get(key)! : 0;
 				counts.set(key, val + 1);
 			} else {
 				const key = bracket.bracketInfo.bracketText;
@@ -109,9 +109,9 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 				val -= 1;
 				counts.set(key, Math.max(0, val));
 				if (val < 0) {
-					let list = ranges.get(key);
+					const list = ranges.get(key);
 					if (list) {
-						let closing = list.shift();
+						const closing = list.shift();
 						if (list.size === 0) {
 							ranges.delete(key);
 						}

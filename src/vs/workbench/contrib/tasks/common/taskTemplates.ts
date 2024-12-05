@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls.js';
 
-import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 
-export interface TaskEntry extends IQuickPickItem {
+export interface ITaskEntry extends IQuickPickItem {
 	sort?: string;
 	autoDetect: boolean;
 	content: string;
 }
 
-const dotnetBuild: TaskEntry = {
+const dotnetBuild: ITaskEntry = {
 	id: 'dotnetCore',
 	label: '.NET Core',
 	sort: 'NET Core',
@@ -47,7 +47,7 @@ const dotnetBuild: TaskEntry = {
 	].join('\n')
 };
 
-const msbuild: TaskEntry = {
+const msbuild: ITaskEntry = {
 	id: 'msbuild',
 	label: 'MSBuild',
 	autoDetect: false,
@@ -82,7 +82,7 @@ const msbuild: TaskEntry = {
 	].join('\n')
 };
 
-const command: TaskEntry = {
+const command: ITaskEntry = {
 	id: 'externalCommand',
 	label: 'Others',
 	autoDetect: false,
@@ -103,7 +103,7 @@ const command: TaskEntry = {
 	].join('\n')
 };
 
-const maven: TaskEntry = {
+const maven: ITaskEntry = {
 	id: 'maven',
 	label: 'maven',
 	sort: 'MVN',
@@ -132,8 +132,8 @@ const maven: TaskEntry = {
 	].join('\n')
 };
 
-let _templates: TaskEntry[] | null = null;
-export function getTemplates(): TaskEntry[] {
+let _templates: ITaskEntry[] | null = null;
+export function getTemplates(): ITaskEntry[] {
 	if (!_templates) {
 		_templates = [dotnetBuild, msbuild, maven].sort((a, b) => {
 			return (a.sort || a.label).localeCompare(b.sort || b.label);

@@ -1,0 +1,46 @@
+{
+	"original": {
+		"content": "if (!all.length && !sourceActions.length) {\n\tconst activeNotebookModel = getNotebookEditorFromEditorPane(editorService.activeEditorPane)?.textModel;\n\tif (activeNotebookModel) {\n\t\tconst language = this.getSuggestedLanguage(activeNotebookModel);\n\t\tsuggestedExtension = language ? this.getSuggestedKernelFromLanguage(activeNotebookModel.viewType, language) : undefined;\n\t}\n\tif (suggestedExtension) {\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "if (!all.length && !sourceActions.length) {\n\tconst language = this.getSuggestedLanguage(notebookTextModel);\n\tsuggestedExtension = language ? this.getSuggestedKernelFromLanguage(notebookTextModel.viewType, language) : undefined;\n\tif (suggestedExtension) {\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[2,7)",
+			"modifiedRange": "[2,4)",
+			"innerChanges": [
+				{
+					"originalRange": "[2,1 -> 4,2]",
+					"modifiedRange": "[2,1 -> 2,1]"
+				},
+				{
+					"originalRange": "[4,46 -> 4,53]",
+					"modifiedRange": "[2,45 -> 2,46]"
+				},
+				{
+					"originalRange": "[4,60 -> 4,60]",
+					"modifiedRange": "[2,53 -> 2,57]"
+				},
+				{
+					"originalRange": "[5,1 -> 5,2]",
+					"modifiedRange": "[3,1 -> 3,1]"
+				},
+				{
+					"originalRange": "[5,71 -> 5,78]",
+					"modifiedRange": "[3,70 -> 3,71]"
+				},
+				{
+					"originalRange": "[5,85 -> 5,85]",
+					"modifiedRange": "[3,78 -> 3,82]"
+				},
+				{
+					"originalRange": "[6,1 -> 7,1]",
+					"modifiedRange": "[4,1 -> 4,1]"
+				}
+			]
+		}
+	]
+}

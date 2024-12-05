@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorAction, ServicesAccessor, IActionOptions } from 'vs/editor/browser/editorExtensions';
-import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
-import { IExtensionService, ExtensionPointContribution } from 'vs/workbench/services/extensions/common/extensions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, ServicesAccessor, IActionOptions } from '../../../../editor/browser/editorExtensions.js';
+import { grammarsExtPoint, ITMSyntaxExtensionPoint } from '../../../services/textMate/common/TMGrammars.js';
+import { IExtensionService, ExtensionPointContribution } from '../../../services/extensions/common/extensions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 
 interface ModeScopeMap {
 	[key: string]: string;
@@ -42,9 +42,9 @@ class GrammarContributions implements IGrammarContributions {
 	}
 }
 
-export interface IEmmetActionOptions extends IActionOptions {
+type IEmmetActionOptions = IActionOptions & {
 	actionName: string;
-}
+};
 
 export abstract class EmmetEditorAction extends EditorAction {
 
@@ -101,12 +101,12 @@ export abstract class EmmetEditorAction extends EditorAction {
 			return null;
 		}
 
-		let checkParentMode = (): string => {
-			let languageGrammar = grammars.getGrammar(syntax);
+		const checkParentMode = (): string => {
+			const languageGrammar = grammars.getGrammar(syntax);
 			if (!languageGrammar) {
 				return syntax;
 			}
-			let languages = languageGrammar.split('.');
+			const languages = languageGrammar.split('.');
 			if (languages.length < 2) {
 				return syntax;
 			}

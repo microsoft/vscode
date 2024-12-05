@@ -3,37 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
-import * as performance from 'vs/base/common/performance';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionHostExitInfo } from 'vs/workbench/services/remote/common/remoteAgentService';
+import * as platform from '../../../../base/common/platform.js';
+import * as performance from '../../../../base/common/performance.js';
+import { URI, UriComponents, UriDto } from '../../../../base/common/uri.js';
+import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
+import { IDiagnosticInfoOptions, IDiagnosticInfo } from '../../../../platform/diagnostics/common/diagnostics.js';
+import { ITelemetryData, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
+import { IExtensionHostExitInfo } from './remoteAgentService.js';
+import { revive } from '../../../../base/common/marshalling.js';
+import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 export interface IGetEnvironmentDataArguments {
 	remoteAuthority: string;
+	profile?: string;
 }
 
 export interface IGetExtensionHostExitInfoArguments {
 	remoteAuthority: string;
 	reconnectionToken: string;
-}
-
-export interface IScanExtensionsArguments {
-	language: string;
-	remoteAuthority: string;
-	extensionDevelopmentPath: UriComponents[] | undefined;
-	skipExtensions: ExtensionIdentifier[];
-}
-
-export interface IScanSingleExtensionArguments {
-	language: string;
-	remoteAuthority: string;
-	isBuiltin: boolean;
-	extensionLocation: UriComponents;
 }
 
 export interface IRemoteAgentEnvironmentDTO {
@@ -42,7 +30,6 @@ export interface IRemoteAgentEnvironmentDTO {
 	appRoot: UriComponents;
 	settingsPath: UriComponents;
 	logsPath: UriComponents;
-	extensionsPath: UriComponents;
 	extensionHostLogsPath: UriComponents;
 	globalStorageHome: UriComponents;
 	workspaceStorageHome: UriComponents;
@@ -52,13 +39,19 @@ export interface IRemoteAgentEnvironmentDTO {
 	arch: string;
 	marks: performance.PerformanceMark[];
 	useHostProxy: boolean;
+	profiles: {
+		all: UriDto<IUserDataProfile[]>;
+		home: UriComponents;
+	};
+	isUnsupportedGlibc: boolean;
 }
 
 export class RemoteExtensionEnvironmentChannelClient {
 
-	static async getEnvironmentData(channel: IChannel, remoteAuthority: string): Promise<IRemoteAgentEnvironment> {
+	static async getEnvironmentData(channel: IChannel, remoteAuthority: string, profile: string | undefined): Promise<IRemoteAgentEnvironment> {
 		const args: IGetEnvironmentDataArguments = {
-			remoteAuthority
+			remoteAuthority,
+			profile
 		};
 
 		const data = await channel.call<IRemoteAgentEnvironmentDTO>('getEnvironmentData', args);
@@ -69,7 +62,6 @@ export class RemoteExtensionEnvironmentChannelClient {
 			appRoot: URI.revive(data.appRoot),
 			settingsPath: URI.revive(data.settingsPath),
 			logsPath: URI.revive(data.logsPath),
-			extensionsPath: URI.revive(data.extensionsPath),
 			extensionHostLogsPath: URI.revive(data.extensionHostLogsPath),
 			globalStorageHome: URI.revive(data.globalStorageHome),
 			workspaceStorageHome: URI.revive(data.workspaceStorageHome),
@@ -78,7 +70,9 @@ export class RemoteExtensionEnvironmentChannelClient {
 			os: data.os,
 			arch: data.arch,
 			marks: data.marks,
-			useHostProxy: data.useHostProxy
+			useHostProxy: data.useHostProxy,
+			profiles: revive(data.profiles),
+			isUnsupportedGlibc: data.isUnsupportedGlibc
 		};
 	}
 
@@ -88,39 +82,6 @@ export class RemoteExtensionEnvironmentChannelClient {
 			reconnectionToken
 		};
 		return channel.call<IExtensionHostExitInfo | null>('getExtensionHostExitInfo', args);
-	}
-
-	static async whenExtensionsReady(channel: IChannel): Promise<void> {
-		await channel.call<void>('whenExtensionsReady');
-	}
-
-	static async scanExtensions(channel: IChannel, remoteAuthority: string, extensionDevelopmentPath: URI[] | undefined, skipExtensions: ExtensionIdentifier[]): Promise<IExtensionDescription[]> {
-		const args: IScanExtensionsArguments = {
-			language: platform.language,
-			remoteAuthority,
-			extensionDevelopmentPath,
-			skipExtensions
-		};
-
-		const extensions = await channel.call<IExtensionDescription[]>('scanExtensions', args);
-		extensions.forEach(ext => { (<any>ext).extensionLocation = URI.revive(ext.extensionLocation); });
-
-		return extensions;
-	}
-
-	static async scanSingleExtension(channel: IChannel, remoteAuthority: string, isBuiltin: boolean, extensionLocation: URI): Promise<IExtensionDescription | null> {
-		const args: IScanSingleExtensionArguments = {
-			language: platform.language,
-			remoteAuthority,
-			isBuiltin,
-			extensionLocation
-		};
-
-		const extension = await channel.call<IExtensionDescription | null>('scanSingleExtension', args);
-		if (extension) {
-			(<any>extension).extensionLocation = URI.revive(extension.extensionLocation);
-		}
-		return extension;
 	}
 
 	static getDiagnosticInfo(channel: IChannel, options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo> {

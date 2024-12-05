@@ -3,25 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { ITextModel } from 'vs/editor/common/model';
-import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/core/wordHelper';
-import { EnterAction, FoldingRules, IAutoClosingPair, IndentationRule, LanguageConfiguration, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
-import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/languages/supports';
-import { CharacterPairSupport } from 'vs/editor/common/languages/supports/characterPair';
-import { BracketElectricCharacterSupport } from 'vs/editor/common/languages/supports/electricCharacter';
-import { IndentRulesSupport } from 'vs/editor/common/languages/supports/indentRules';
-import { OnEnterSupport } from 'vs/editor/common/languages/supports/onEnter';
-import { RichEditBrackets } from 'vs/editor/common/languages/supports/richEditBrackets';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { LanguageBracketsConfiguration } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import * as strings from '../../../base/common/strings.js';
+import { ITextModel } from '../model.js';
+import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from '../core/wordHelper.js';
+import { EnterAction, FoldingRules, IAutoClosingPair, IndentationRule, LanguageConfiguration, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from './languageConfiguration.js';
+import { CharacterPairSupport } from './supports/characterPair.js';
+import { BracketElectricCharacterSupport } from './supports/electricCharacter.js';
+import { IndentRulesSupport } from './supports/indentRules.js';
+import { OnEnterSupport } from './supports/onEnter.js';
+import { RichEditBrackets } from './supports/richEditBrackets.js';
+import { EditorAutoIndentStrategy } from '../config/editorOptions.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { ILanguageService } from './language.js';
+import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
+import { PLAINTEXT_LANGUAGE_ID } from './modesRegistry.js';
+import { LanguageBracketsConfiguration } from './supports/languageBracketsConfiguration.js';
 
 /**
  * Interface used to support insertion of mode specific comments.
@@ -127,7 +126,9 @@ function computeConfig(
 
 	if (!languageConfig) {
 		if (!languageService.isRegisteredLanguageId(languageId)) {
-			throw new Error(`Language id "${languageId}" is not configured nor known`);
+			// this happens for the null language, which can be returned by monarch.
+			// Instead of throwing an error, we just return a default config.
+			return new ResolvedLanguageConfiguration(languageId, {});
 		}
 		languageConfig = new ResolvedLanguageConfiguration(languageId, {});
 	}
@@ -177,13 +178,6 @@ export function getIndentationAtPosition(model: ITextModel, lineNumber: number, 
 		indentation = indentation.substring(0, column - 1);
 	}
 	return indentation;
-}
-
-export function getScopedLineTokens(model: ITextModel, lineNumber: number, columnNumber?: number): ScopedLineTokens {
-	model.tokenization.forceTokenization(lineNumber);
-	const lineTokens = model.tokenization.getLineTokens(lineNumber);
-	const column = (typeof columnNumber === 'undefined' ? model.getLineMaxColumn(lineNumber) - 1 : columnNumber - 1);
-	return createScopedLineTokens(lineTokens, column);
 }
 
 class ComposedLanguageConfiguration {
@@ -442,8 +436,8 @@ export class ResolvedLanguageConfiguration {
 		return new AutoClosingPairs(this.characterPair.getAutoClosingPairs());
 	}
 
-	public getAutoCloseBeforeSet(): string {
-		return this.characterPair.getAutoCloseBeforeSet();
+	public getAutoCloseBeforeSet(forQuotes: boolean): string {
+		return this.characterPair.getAutoCloseBeforeSet(forQuotes);
 	}
 
 	public getSurroundingPairs(): IAutoClosingPair[] {
@@ -474,4 +468,4 @@ export class ResolvedLanguageConfiguration {
 	}
 }
 
-registerSingleton(ILanguageConfigurationService, LanguageConfigurationService);
+registerSingleton(ILanguageConfigurationService, LanguageConfigurationService, InstantiationType.Delayed);

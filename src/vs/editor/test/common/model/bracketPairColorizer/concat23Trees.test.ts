@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
-import { AstNode, AstNodeKind, ListAstNode, TextAstNode } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/ast';
-import { toLength } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
-import { concat23Trees } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/concat23Trees';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { AstNode, AstNodeKind, ListAstNode, TextAstNode } from '../../../../common/model/bracketPairsTextModelPart/bracketPairsTree/ast.js';
+import { concat23Trees } from '../../../../common/model/bracketPairsTextModelPart/bracketPairsTree/concat23Trees.js';
+import { toLength } from '../../../../common/model/bracketPairsTextModelPart/bracketPairsTree/length.js';
 
 suite('Bracket Pair Colorizer - mergeItems', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Clone', () => {
 		const tree = ListAstNode.create([
 			new TextAstNode(toLength(1, 1)),

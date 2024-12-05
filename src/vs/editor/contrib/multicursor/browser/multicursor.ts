@@ -3,32 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { status } from 'vs/base/browser/ui/aria/aria';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Constants } from 'vs/base/common/uint';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorState } from 'vs/editor/common/cursorCommon';
-import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { CursorMoveCommands } from 'vs/editor/common/cursor/cursorMoveCommands';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { CommonFindController } from 'vs/editor/contrib/find/browser/findController';
-import { FindOptionOverride, INewFindReplaceState } from 'vs/editor/contrib/find/browser/findState';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { overviewRulerSelectionHighlightForeground, minimapSelectionOccurrenceHighlight } from 'vs/platform/theme/common/colorRegistry';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Constants } from '../../../../base/common/uint.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { CursorState } from '../../../common/cursorCommon.js';
+import { CursorChangeReason, ICursorSelectionChangedEvent } from '../../../common/cursorEvents.js';
+import { CursorMoveCommands } from '../../../common/cursor/cursorMoveCommands.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { FindMatch, ITextModel } from '../../../common/model.js';
+import { CommonFindController } from '../../find/browser/findController.js';
+import { FindOptionOverride, INewFindReplaceState } from '../../find/browser/findState.js';
+import * as nls from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { getSelectionHighlightDecorationOptions } from '../../wordHighlighter/browser/highlightDecorations.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 function announceCursorChange(previousCursorState: CursorState[], cursorState: CursorState[]): void {
 	const cursorDiff = cursorState.filter(cs => !previousCursorState.find(pcs => pcs.equals(cs)));
@@ -44,8 +43,7 @@ export class InsertCursorAbove extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorAbove',
-			label: nls.localize('mutlicursor.insertAbove', "Add Cursor Above"),
-			alias: 'Add Cursor Above',
+			label: nls.localize2('mutlicursor.insertAbove', "Add Cursor Above"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -97,8 +95,7 @@ export class InsertCursorBelow extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorBelow',
-			label: nls.localize('mutlicursor.insertBelow', "Add Cursor Below"),
-			alias: 'Add Cursor Below',
+			label: nls.localize2('mutlicursor.insertBelow', "Add Cursor Below"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -150,8 +147,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorAtEndOfEachLineSelected',
-			label: nls.localize('mutlicursor.insertAtEndOfEachLineSelected', "Add Cursors to Line Ends"),
-			alias: 'Add Cursors to Line Ends',
+			label: nls.localize2('mutlicursor.insertAtEndOfEachLineSelected', "Add Cursors to Line Ends"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -173,7 +169,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		}
 
 		for (let i = selection.startLineNumber; i < selection.endLineNumber; i++) {
-			let currentLineMaxColumn = model.getLineMaxColumn(i);
+			const currentLineMaxColumn = model.getLineMaxColumn(i);
 			result.push(new Selection(i, currentLineMaxColumn, i, currentLineMaxColumn));
 		}
 		if (selection.endColumn > 1) {
@@ -190,7 +186,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		const selections = editor.getSelections();
 		const viewModel = editor._getViewModel();
 		const previousCursorState = viewModel.getCursorStates();
-		let newSelections: Selection[] = [];
+		const newSelections: Selection[] = [];
 		selections.forEach((sel) => this.getCursorsForSelection(sel, model, newSelections));
 
 		if (newSelections.length > 0) {
@@ -205,8 +201,7 @@ class InsertCursorAtEndOfLineSelected extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.addCursorsToBottom',
-			label: nls.localize('mutlicursor.addCursorsToBottom', "Add Cursors To Bottom"),
-			alias: 'Add Cursors To Bottom',
+			label: nls.localize2('mutlicursor.addCursorsToBottom', "Add Cursors To Bottom"),
 			precondition: undefined
 		});
 	}
@@ -219,7 +214,7 @@ class InsertCursorAtEndOfLineSelected extends EditorAction {
 		const selections = editor.getSelections();
 		const lineCount = editor.getModel().getLineCount();
 
-		let newSelections: Selection[] = [];
+		const newSelections: Selection[] = [];
 		for (let i = selections[0].startLineNumber; i <= lineCount; i++) {
 			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 		}
@@ -238,8 +233,7 @@ class InsertCursorAtTopOfLineSelected extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.addCursorsToTop',
-			label: nls.localize('mutlicursor.addCursorsToTop', "Add Cursors To Top"),
-			alias: 'Add Cursors To Top',
+			label: nls.localize2('mutlicursor.addCursorsToTop', "Add Cursors To Top"),
 			precondition: undefined
 		});
 	}
@@ -251,7 +245,7 @@ class InsertCursorAtTopOfLineSelected extends EditorAction {
 
 		const selections = editor.getSelections();
 
-		let newSelections: Selection[] = [];
+		const newSelections: Selection[] = [];
 		for (let i = selections[0].startLineNumber; i >= 1; i--) {
 			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 		}
@@ -570,7 +564,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 				const selectionsContainSameText = modelRangesContainSameText(this._editor.getModel(), allSelections, matchCase);
 				if (!selectionsContainSameText) {
 					const model = this._editor.getModel();
-					let resultingSelections: Selection[] = [];
+					const resultingSelections: Selection[] = [];
 					for (let i = 0, len = allSelections.length; i < len; i++) {
 						resultingSelections[i] = this._expandEmptyToWord(model, allSelections[i]);
 					}
@@ -669,14 +663,18 @@ export abstract class MultiCursorSelectionControllerAction extends EditorAction 
 		if (!multiCursorController) {
 			return;
 		}
-		const findController = CommonFindController.get(editor);
-		if (!findController) {
-			return;
-		}
 		const viewModel = editor._getViewModel();
 		if (viewModel) {
 			const previousCursorState = viewModel.getCursorStates();
-			this._run(multiCursorController, findController);
+			const findController = CommonFindController.get(editor);
+			if (findController) {
+				this._run(multiCursorController, findController);
+			} else {
+				const newFindController = accessor.get(IInstantiationService).createInstance(CommonFindController, editor);
+				this._run(multiCursorController, newFindController);
+				newFindController.dispose();
+			}
+
 			announceCursorChange(previousCursorState, viewModel.getCursorStates());
 		}
 	}
@@ -688,8 +686,7 @@ export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionContr
 	constructor() {
 		super({
 			id: 'editor.action.addSelectionToNextFindMatch',
-			label: nls.localize('addSelectionToNextFindMatch', "Add Selection To Next Find Match"),
-			alias: 'Add Selection To Next Find Match',
+			label: nls.localize2('addSelectionToNextFindMatch', "Add Selection To Next Find Match"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -713,8 +710,7 @@ export class AddSelectionToPreviousFindMatchAction extends MultiCursorSelectionC
 	constructor() {
 		super({
 			id: 'editor.action.addSelectionToPreviousFindMatch',
-			label: nls.localize('addSelectionToPreviousFindMatch', "Add Selection To Previous Find Match"),
-			alias: 'Add Selection To Previous Find Match',
+			label: nls.localize2('addSelectionToPreviousFindMatch', "Add Selection To Previous Find Match"),
 			precondition: undefined,
 			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
@@ -733,8 +729,7 @@ export class MoveSelectionToNextFindMatchAction extends MultiCursorSelectionCont
 	constructor() {
 		super({
 			id: 'editor.action.moveSelectionToNextFindMatch',
-			label: nls.localize('moveSelectionToNextFindMatch', "Move Last Selection To Next Find Match"),
-			alias: 'Move Last Selection To Next Find Match',
+			label: nls.localize2('moveSelectionToNextFindMatch', "Move Last Selection To Next Find Match"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -752,8 +747,7 @@ export class MoveSelectionToPreviousFindMatchAction extends MultiCursorSelection
 	constructor() {
 		super({
 			id: 'editor.action.moveSelectionToPreviousFindMatch',
-			label: nls.localize('moveSelectionToPreviousFindMatch', "Move Last Selection To Previous Find Match"),
-			alias: 'Move Last Selection To Previous Find Match',
+			label: nls.localize2('moveSelectionToPreviousFindMatch', "Move Last Selection To Previous Find Match"),
 			precondition: undefined
 		});
 	}
@@ -766,8 +760,7 @@ export class SelectHighlightsAction extends MultiCursorSelectionControllerAction
 	constructor() {
 		super({
 			id: 'editor.action.selectHighlights',
-			label: nls.localize('selectAllOccurrencesOfFindMatch', "Select All Occurrences of Find Match"),
-			alias: 'Select All Occurrences of Find Match',
+			label: nls.localize2('selectAllOccurrencesOfFindMatch', "Select All Occurrences of Find Match"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -791,8 +784,7 @@ export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 	constructor() {
 		super({
 			id: 'editor.action.changeAll',
-			label: nls.localize('changeAll.label', "Change All Occurrences"),
-			alias: 'Change All Occurrences',
+			label: nls.localize2('changeAll.label', "Change All Occurrences"),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.editorTextFocus),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -900,6 +892,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 				this._update();
 			}));
 		}
+		this.updateSoon.schedule();
 	}
 
 	private _update(): void {
@@ -1033,37 +1026,17 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			}
 		}
 
-		const hasFindOccurrences = this._languageFeaturesService.documentHighlightProvider.has(model) && this.editor.getOption(EditorOption.occurrencesHighlight);
+		const occurrenceHighlighting: boolean = this.editor.getOption(EditorOption.occurrencesHighlight) !== 'off';
+		const hasSemanticHighlights = this._languageFeaturesService.documentHighlightProvider.has(model) && occurrenceHighlighting;
 		const decorations = matches.map(r => {
 			return {
 				range: r,
-				// Show in overviewRuler only if model has no semantic highlighting
-				options: (hasFindOccurrences ? SelectionHighlighter._SELECTION_HIGHLIGHT : SelectionHighlighter._SELECTION_HIGHLIGHT_OVERVIEW)
+				options: getSelectionHighlightDecorationOptions(hasSemanticHighlights)
 			};
 		});
 
 		this._decorations.set(decorations);
 	}
-
-	private static readonly _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
-		description: 'selection-highlight-overview',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'selectionHighlight',
-		minimap: {
-			color: themeColorFromId(minimapSelectionOccurrenceHighlight),
-			position: MinimapPosition.Inline
-		},
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerSelectionHighlightForeground),
-			position: OverviewRulerLane.Center
-		}
-	});
-
-	private static readonly _SELECTION_HIGHLIGHT = ModelDecorationOptions.register({
-		description: 'selection-highlight',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'selectionHighlight',
-	});
 
 	public override dispose(): void {
 		this._setState(null);
@@ -1095,12 +1068,11 @@ export class FocusNextCursor extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.focusNextCursor',
-			label: nls.localize('mutlicursor.focusNextCursor', "Focus Next Cursor"),
-			description: {
+			label: nls.localize2('mutlicursor.focusNextCursor', "Focus Next Cursor"),
+			metadata: {
 				description: nls.localize('mutlicursor.focusNextCursor.description', "Focuses the next cursor"),
 				args: [],
 			},
-			alias: 'Focus Next Cursor',
 			precondition: undefined
 		});
 	}
@@ -1134,12 +1106,11 @@ export class FocusPreviousCursor extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.focusPreviousCursor',
-			label: nls.localize('mutlicursor.focusPreviousCursor', "Focus Previous Cursor"),
-			description: {
+			label: nls.localize2('mutlicursor.focusPreviousCursor', "Focus Previous Cursor"),
+			metadata: {
 				description: nls.localize('mutlicursor.focusPreviousCursor.description', "Focuses the previous cursor"),
 				args: [],
 			},
-			alias: 'Focus Previous Cursor',
 			precondition: undefined
 		});
 	}
@@ -1169,8 +1140,8 @@ export class FocusPreviousCursor extends EditorAction {
 	}
 }
 
-registerEditorContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
-registerEditorContribution(SelectionHighlighter.ID, SelectionHighlighter);
+registerEditorContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController, EditorContributionInstantiation.Lazy);
+registerEditorContribution(SelectionHighlighter.ID, SelectionHighlighter, EditorContributionInstantiation.AfterFirstRender);
 
 registerEditorAction(InsertCursorAbove);
 registerEditorAction(InsertCursorBelow);

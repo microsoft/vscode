@@ -3,24 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { MoveOperations } from 'vs/editor/common/cursor/cursorMoveOperations';
-import { Range } from 'vs/editor/common/core/range';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import * as nls from 'vs/nls';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, registerEditorAction, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { ReplaceCommand } from '../../../common/commands/replaceCommand.js';
+import { MoveOperations } from '../../../common/cursor/cursorMoveOperations.js';
+import { Range } from '../../../common/core/range.js';
+import { ICommand } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import * as nls from '../../../../nls.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 class TransposeLettersAction extends EditorAction {
 
 	constructor() {
 		super({
 			id: 'editor.action.transposeLetters',
-			label: nls.localize('transposeLetters.label', "Transpose Letters"),
-			alias: 'Transpose Letters',
+			label: nls.localize2('transposeLetters.label', "Transpose Letters"),
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
@@ -38,19 +37,19 @@ class TransposeLettersAction extends EditorAction {
 			return;
 		}
 
-		let model = editor.getModel();
-		let commands: ICommand[] = [];
-		let selections = editor.getSelections();
+		const model = editor.getModel();
+		const commands: ICommand[] = [];
+		const selections = editor.getSelections();
 
-		for (let selection of selections) {
+		for (const selection of selections) {
 			if (!selection.isEmpty()) {
 				continue;
 			}
 
-			let lineNumber = selection.startLineNumber;
-			let column = selection.startColumn;
+			const lineNumber = selection.startLineNumber;
+			const column = selection.startColumn;
 
-			let lastColumn = model.getLineMaxColumn(lineNumber);
+			const lastColumn = model.getLineMaxColumn(lineNumber);
 
 			if (lineNumber === 1 && (column === 1 || (column === 2 && lastColumn === 2))) {
 				// at beginning of file, nothing to do
@@ -59,17 +58,17 @@ class TransposeLettersAction extends EditorAction {
 
 			// handle special case: when at end of line, transpose left two chars
 			// otherwise, transpose left and right chars
-			let endPosition = (column === lastColumn) ?
+			const endPosition = (column === lastColumn) ?
 				selection.getPosition() :
 				MoveOperations.rightPosition(model, selection.getPosition().lineNumber, selection.getPosition().column);
 
-			let middlePosition = MoveOperations.leftPosition(model, endPosition);
-			let beginPosition = MoveOperations.leftPosition(model, middlePosition);
+			const middlePosition = MoveOperations.leftPosition(model, endPosition);
+			const beginPosition = MoveOperations.leftPosition(model, middlePosition);
 
-			let leftChar = model.getValueInRange(Range.fromPositions(beginPosition, middlePosition));
-			let rightChar = model.getValueInRange(Range.fromPositions(middlePosition, endPosition));
+			const leftChar = model.getValueInRange(Range.fromPositions(beginPosition, middlePosition));
+			const rightChar = model.getValueInRange(Range.fromPositions(middlePosition, endPosition));
 
-			let replaceRange = Range.fromPositions(beginPosition, endPosition);
+			const replaceRange = Range.fromPositions(beginPosition, endPosition);
 			commands.push(new ReplaceCommand(replaceRange, rightChar + leftChar));
 		}
 

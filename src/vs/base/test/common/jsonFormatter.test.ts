@@ -2,10 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as Formatter from 'vs/base/common/jsonFormatter';
+import assert from 'assert';
+import * as Formatter from '../../common/jsonFormatter.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('JSON - formatter', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function format(content: string, expected: string, insertSpaces = true) {
 		let range: Formatter.Range | undefined = undefined;
@@ -20,7 +23,7 @@ suite('JSON - formatter', () => {
 
 		let lastEditOffset = content.length;
 		for (let i = edits.length - 1; i >= 0; i--) {
-			let edit = edits[i];
+			const edit = edits[i];
 			assert(edit.offset >= 0 && edit.length >= 0 && edit.offset + edit.length <= content.length);
 			assert(typeof edit.content === 'string');
 			assert(lastEditOffset >= edit.offset + edit.length); // make sure all edits are ordered

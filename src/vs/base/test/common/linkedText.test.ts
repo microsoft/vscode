@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { parseLinkedText } from 'vs/base/common/linkedText';
+import assert from 'assert';
+import { parseLinkedText } from '../../common/linkedText.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('LinkedText', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('parses correctly', () => {
 		assert.deepStrictEqual(parseLinkedText('').nodes, []);
 		assert.deepStrictEqual(parseLinkedText('hello').nodes, ['hello']);
@@ -68,6 +71,16 @@ suite('LinkedText', () => {
 			'\nand link ',
 			{ label: 'two', href: 'http://foo' },
 			'...'
+		]);
+	});
+
+	test('Should match non-greedily', () => {
+		assert.deepStrictEqual(parseLinkedText('a [link text 1](http://link.href "title1") b [link text 2](http://link.href "title2") c').nodes, [
+			'a ',
+			{ label: 'link text 1', href: 'http://link.href', title: 'title1' },
+			' b ',
+			{ label: 'link text 2', href: 'http://link.href', title: 'title2' },
+			' c',
 		]);
 	});
 });

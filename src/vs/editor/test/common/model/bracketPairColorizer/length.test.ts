@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
-import { Length, lengthAdd, lengthDiffNonNegative, lengthToObj, toLength } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Length, lengthAdd, lengthDiffNonNegative, lengthToObj, toLength } from '../../../../common/model/bracketPairsTextModelPart/bracketPairsTree/length.js';
 
 suite('Bracket Pair Colorizer - Length', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function toStr(length: Length): string {
 		return lengthToObj(length).toString();
 	}

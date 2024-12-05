@@ -9,9 +9,9 @@ import * as path from 'path';
 import * as byline from 'byline';
 import { rgPath } from '@vscode/ripgrep';
 import * as Parser from 'tree-sitter';
-import fetch from 'node-fetch';
 const { typescript } = require('tree-sitter-typescript');
 const product = require('../../product.json');
+const packageJson = require('../../package.json');
 
 type NlsString = { value: string; nlsKey: string };
 
@@ -59,7 +59,7 @@ function renderADMLString(prefix: string, moduleName: string, nlsString: NlsStri
 		value = nlsString.value;
 	}
 
-	return `<string id="${prefix}_${nlsString.nlsKey}">${value}</string>`;
+	return `<string id="${prefix}_${nlsString.nlsKey.replace(/\./g, '_')}">${value}</string>`;
 }
 
 abstract class BasePolicy implements Policy {
@@ -78,7 +78,7 @@ abstract class BasePolicy implements Policy {
 
 	renderADMX(regKey: string) {
 		return [
-			`<policy name="${this.name}" class="Both" displayName="$(string.${this.name})" explainText="$(string.${this.name}_${this.description.nlsKey})" key="Software\\Policies\\Microsoft\\${regKey}" presentation="$(presentation.${this.name})">`,
+			`<policy name="${this.name}" class="Both" displayName="$(string.${this.name})" explainText="$(string.${this.name}_${this.description.nlsKey.replace(/\./g, '_')})" key="Software\\Policies\\Microsoft\\${regKey}" presentation="$(presentation.${this.name})">`,
 			`	<parentCategory ref="${this.category.name.nlsKey}" />`,
 			`	<supportedOn ref="Supported_${this.minimumVersion.replace(/\./g, '_')}" />`,
 			`	<elements>`,
@@ -211,6 +211,44 @@ class StringPolicy extends BasePolicy {
 		}
 
 		return new StringPolicy(name, category, minimumVersion, description, moduleName);
+	}
+
+	private constructor(
+		name: string,
+		category: Category,
+		minimumVersion: string,
+		description: NlsString,
+		moduleName: string,
+	) {
+		super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
+	}
+
+	protected renderADMXElements(): string[] {
+		return [`<text id="${this.name}" valueName="${this.name}" required="true" />`];
+	}
+
+	renderADMLPresentationContents() {
+		return `<textBox refId="${this.name}"><label>${this.name}:</label></textBox>`;
+	}
+}
+
+class ObjectPolicy extends BasePolicy {
+
+	static from(
+		name: string,
+		category: Category,
+		minimumVersion: string,
+		description: NlsString,
+		moduleName: string,
+		settingNode: Parser.SyntaxNode
+	): ObjectPolicy | undefined {
+		const type = getStringProperty(settingNode, 'type');
+
+		if (type !== 'object' && type !== 'array') {
+			return undefined;
+		}
+
+		return new ObjectPolicy(name, category, minimumVersion, description, moduleName);
 	}
 
 	private constructor(
@@ -402,6 +440,7 @@ const PolicyTypes = [
 	IntPolicy,
 	StringEnumPolicy,
 	StringPolicy,
+	ObjectPolicy
 ];
 
 function getPolicy(
@@ -474,7 +513,7 @@ function getPolicies(moduleName: string, node: Parser.SyntaxNode): Policy[] {
 				arguments: (arguments	(object	(pair
 					key: [(property_identifier)(string)] @propertiesKey (#eq? @propertiesKey properties)
 					value: (object (pair
-						key: [(property_identifier)(string)]
+						key: [(property_identifier)(string)(computed_property_name)]
 						value: (object (pair
 							key: [(property_identifier)(string)] @policyKey (#eq? @policyKey policy)
 							value: (object) @policy
@@ -587,24 +626,71 @@ const Languages = {
 type LanguageTranslations = { [moduleName: string]: { [nlsKey: string]: string } };
 type Translations = { languageId: string; languageTranslations: LanguageTranslations }[];
 
-async function getLatestStableVersion(updateUrl: string) {
-	const res = await fetch(`${updateUrl}/api/update/darwin/stable/latest`);
-	const { name: version } = await res.json() as { name: string };
-	return version;
-}
+type Version = [number, number, number];
 
-async function getNLS(resourceUrlTemplate: string, languageId: string, version: string) {
+async function getSpecificNLS(resourceUrlTemplate: string, languageId: string, version: Version) {
 	const resource = {
 		publisher: 'ms-ceintl',
 		name: `vscode-language-pack-${languageId}`,
-		version,
+		version: `${version[0]}.${version[1]}.${version[2]}`,
 		path: 'extension/translations/main.i18n.json'
 	};
 
 	const url = resourceUrlTemplate.replace(/\{([^}]+)\}/g, (_, key) => resource[key as keyof typeof resource]);
 	const res = await fetch(url);
+
+	if (res.status !== 200) {
+		throw new Error(`[${res.status}] Error downloading language pack ${languageId}@${version}`);
+	}
+
 	const { contents: result } = await res.json() as { contents: LanguageTranslations };
 	return result;
+}
+
+function parseVersion(version: string): Version {
+	const [, major, minor, patch] = /^(\d+)\.(\d+)\.(\d+)/.exec(version)!;
+	return [parseInt(major), parseInt(minor), parseInt(patch)];
+}
+
+function compareVersions(a: Version, b: Version): number {
+	if (a[0] !== b[0]) { return a[0] - b[0]; }
+	if (a[1] !== b[1]) { return a[1] - b[1]; }
+	return a[2] - b[2];
+}
+
+async function queryVersions(serviceUrl: string, languageId: string): Promise<Version[]> {
+	const res = await fetch(`${serviceUrl}/extensionquery`, {
+		method: 'POST',
+		headers: {
+			'Accept': 'application/json;api-version=3.0-preview.1',
+			'Content-Type': 'application/json',
+			'User-Agent': 'VS Code Build',
+		},
+		body: JSON.stringify({
+			filters: [{ criteria: [{ filterType: 7, value: `ms-ceintl.vscode-language-pack-${languageId}` }] }],
+			flags: 0x1
+		})
+	});
+
+	if (res.status !== 200) {
+		throw new Error(`[${res.status}] Error querying for extension: ${languageId}`);
+	}
+
+	const result = await res.json() as { results: [{ extensions: { versions: { version: string }[] }[] }] };
+	return result.results[0].extensions[0].versions.map(v => parseVersion(v.version)).sort(compareVersions);
+}
+
+async function getNLS(extensionGalleryServiceUrl: string, resourceUrlTemplate: string, languageId: string, version: Version) {
+	const versions = await queryVersions(extensionGalleryServiceUrl, languageId);
+	const nextMinor: Version = [version[0], version[1] + 1, 0];
+	const compatibleVersions = versions.filter(v => compareVersions(v, nextMinor) < 0);
+	const latestCompatibleVersion = compatibleVersions.at(-1)!; // order is newest to oldest
+
+	if (!latestCompatibleVersion) {
+		throw new Error(`No compatible language pack found for ${languageId} for version ${version}`);
+	}
+
+	return await getSpecificNLS(resourceUrlTemplate, languageId, latestCompatibleVersion);
 }
 
 async function parsePolicies(): Promise<Policy[]> {
@@ -626,10 +712,10 @@ async function parsePolicies(): Promise<Policy[]> {
 }
 
 async function getTranslations(): Promise<Translations> {
-	const updateUrl = product.updateUrl;
+	const extensionGalleryServiceUrl = product.extensionsGallery?.serviceUrl;
 
-	if (!updateUrl) {
-		console.warn(`Skipping policy localization: No 'updateUrl' found in 'product.json'.`);
+	if (!extensionGalleryServiceUrl) {
+		console.warn(`Skipping policy localization: No 'extensionGallery.serviceUrl' found in 'product.json'.`);
 		return [];
 	}
 
@@ -640,11 +726,11 @@ async function getTranslations(): Promise<Translations> {
 		return [];
 	}
 
-	const version = await getLatestStableVersion(updateUrl);
+	const version = parseVersion(packageJson.version);
 	const languageIds = Object.keys(Languages);
 
 	return await Promise.all(languageIds.map(
-		languageId => getNLS(resourceUrlTemplate, languageId, version)
+		languageId => getNLS(extensionGalleryServiceUrl, resourceUrlTemplate, languageId, version)
 			.then(languageTranslations => ({ languageId, languageTranslations }))
 	));
 }

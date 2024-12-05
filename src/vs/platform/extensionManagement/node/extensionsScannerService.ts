@@ -3,27 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionsScannerService, NativeExtensionsScannerService, } from 'vs/platform/extensionManagement/common/extensionsScannerService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { URI } from '../../../base/common/uri.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { IExtensionsProfileScannerService } from '../common/extensionsProfileScannerService.js';
+import { IExtensionsScannerService, NativeExtensionsScannerService, } from '../common/extensionsScannerService.js';
+import { IFileService } from '../../files/common/files.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
 export class ExtensionsScannerService extends NativeExtensionsScannerService implements IExtensionsScannerService {
 
 	constructor(
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@IExtensionsProfileScannerService extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IProductService productService: IProductService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
 			URI.file(environmentService.builtinExtensionsPath),
 			URI.file(environmentService.extensionsPath),
 			environmentService.userHome,
-			URI.file(environmentService.userDataPath),
-			fileService, logService, environmentService, productService);
+			userDataProfilesService.defaultProfile,
+			userDataProfilesService, extensionsProfileScannerService, fileService, logService, environmentService, productService, uriIdentityService, instantiationService);
 	}
 
 }

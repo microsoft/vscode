@@ -5,9 +5,8 @@
 
 import * as vscode from 'vscode';
 import { getLocation, Location } from 'jsonc-parser';
-import * as nls from 'vscode-nls';
+import { implicitActivationEvent, redundantImplicitActivationEvent } from './constants';
 
-const localize = nls.loadMessageBundle();
 
 export class PackageDocument {
 
@@ -23,8 +22,26 @@ export class PackageDocument {
 		return undefined;
 	}
 
+	public provideCodeActions(_range: vscode.Range, context: vscode.CodeActionContext, _token: vscode.CancellationToken): vscode.ProviderResult<vscode.CodeAction[]> {
+		const codeActions: vscode.CodeAction[] = [];
+		for (const diagnostic of context.diagnostics) {
+			if (diagnostic.message === implicitActivationEvent || diagnostic.message === redundantImplicitActivationEvent) {
+				const codeAction = new vscode.CodeAction(vscode.l10n.t("Remove activation event"), vscode.CodeActionKind.QuickFix);
+				codeAction.edit = new vscode.WorkspaceEdit();
+				const rangeForCharAfter = diagnostic.range.with(diagnostic.range.end, diagnostic.range.end.translate(0, 1));
+				if (this.document.getText(rangeForCharAfter) === ',') {
+					codeAction.edit.delete(this.document.uri, diagnostic.range.with(undefined, diagnostic.range.end.translate(0, 1)));
+				} else {
+					codeAction.edit.delete(this.document.uri, diagnostic.range);
+				}
+				codeActions.push(codeAction);
+			}
+		}
+		return codeActions;
+	}
+
 	private provideLanguageOverridesCompletionItems(location: Location, position: vscode.Position): vscode.ProviderResult<vscode.CompletionItem[]> {
-		let range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
+		let range = this.getReplaceRange(location, position);
 		const text = this.document.getText(range);
 
 		if (location.path.length === 2) {
@@ -40,8 +57,8 @@ export class PackageDocument {
 			}
 
 			return Promise.resolve([this.newSnippetCompletionItem({
-				label: localize('languageSpecificEditorSettings', "Language specific editor settings"),
-				documentation: localize('languageSpecificEditorSettingsDescription', "Override editor settings for language"),
+				label: vscode.l10n.t("Language specific editor settings"),
+				documentation: vscode.l10n.t("Override editor settings for language"),
 				snippet,
 				range
 			})]);
@@ -63,6 +80,17 @@ export class PackageDocument {
 			});
 		}
 		return Promise.resolve([]);
+	}
+
+	private getReplaceRange(location: Location, position: vscode.Position) {
+		const node = location.previousNode;
+		if (node) {
+			const nodeStart = this.document.positionAt(node.offset), nodeEnd = this.document.positionAt(node.offset + node.length);
+			if (nodeStart.isBeforeOrEqual(position) && nodeEnd.isAfterOrEqual(position)) {
+				return new vscode.Range(nodeStart, nodeEnd);
+			}
+		}
+		return new vscode.Range(position, position);
 	}
 
 	private newSimpleCompletionItem(text: string, range: vscode.Range, description?: string, insertText?: string): vscode.CompletionItem {

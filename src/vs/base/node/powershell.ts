@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
-import * as path from 'vs/base/common/path';
-import * as pfs from 'vs/base/node/pfs';
+import * as path from '../common/path.js';
+import * as pfs from './pfs.js';
 
 // This is required, since parseInt("7-preview") will return 7.
 const IntRegex: RegExp = /^\d+$/;
@@ -22,7 +22,6 @@ const enum Arch {
 let processArch: Arch;
 switch (process.arch) {
 	case 'ia32':
-	case 'x32':
 		processArch = Arch.x86;
 		break;
 	case 'arm':
@@ -79,7 +78,7 @@ export interface IPowerShellExeDetails {
 	readonly exePath: string;
 }
 
-export interface IPossiblePowerShellExe extends IPowerShellExeDetails {
+interface IPossiblePowerShellExe extends IPowerShellExeDetails {
 	exists(): Promise<boolean>;
 }
 

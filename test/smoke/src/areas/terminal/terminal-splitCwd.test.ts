@@ -6,8 +6,8 @@
 import { Application, Terminal, SettingsEditor } from '../../../../automation';
 import { setTerminalTestSettings } from './terminal-helpers';
 
-export function setup() {
-	describe('Terminal splitCwd', () => {
+export function setup(options?: { skipSuite: boolean }) {
+	(options?.skipSuite ? describe.skip : describe)('Terminal splitCwd', () => {
 		// Acquire automation API
 		let terminal: Terminal;
 		let settingsEditor: SettingsEditor;
@@ -15,8 +15,9 @@ export function setup() {
 			const app = this.app as Application;
 			terminal = app.workbench.terminal;
 			settingsEditor = app.workbench.settingsEditor;
-			await settingsEditor.addUserSetting('terminal.integrated.splitCwd', '"inherited"');
-			await setTerminalTestSettings(app);
+			await setTerminalTestSettings(app, [
+				['terminal.integrated.splitCwd', '"inherited"']
+			]);
 		});
 
 		after(async function () {

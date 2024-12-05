@@ -18,9 +18,9 @@ import * as vscode from 'vscode';
 		const notebookEditor = vscode.window.activeNotebookEditor;
 		assert.ok(notebookEditor);
 
-		assert.strictEqual(notebookEditor.document.cellCount, 2);
-		assert.strictEqual(notebookEditor.document.cellAt(0).kind, vscode.NotebookCellKind.Markup);
-		assert.strictEqual(notebookEditor.document.cellAt(1).kind, vscode.NotebookCellKind.Code);
-		assert.strictEqual(notebookEditor.document.cellAt(1).outputs.length, 1);
+		assert.strictEqual(notebookEditor.notebook.cellCount, 2);
+		assert.strictEqual(notebookEditor.notebook.cellAt(0).kind, vscode.NotebookCellKind.Markup);
+		assert.strictEqual(notebookEditor.notebook.cellAt(1).kind, vscode.NotebookCellKind.Code);
+		assert.strictEqual(notebookEditor.notebook.cellAt(1).outputs.length, 1);
 	});
 });

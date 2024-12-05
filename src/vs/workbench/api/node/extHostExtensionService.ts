@@ -3,26 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as performance from 'vs/base/common/performance';
-import { createApiFactoryAndRegisterActors } from 'vs/workbench/api/common/extHost.api.impl';
-import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
-import { MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { connectProxyResolver } from 'vs/workbench/api/node/proxyResolver';
-import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { ExtHostDownloadService } from 'vs/workbench/api/node/extHostDownloadService';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
-import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
-import { realpathSync } from 'vs/base/node/extpath';
+import * as performance from '../../../base/common/performance.js';
+import { createApiFactoryAndRegisterActors } from '../common/extHost.api.impl.js';
+import { RequireInterceptor } from '../common/extHostRequireInterceptor.js';
+import { ExtensionActivationTimesBuilder } from '../common/extHostExtensionActivator.js';
+import { connectProxyResolver } from './proxyResolver.js';
+import { AbstractExtHostExtensionService } from '../common/extHostExtensionService.js';
+import { ExtHostDownloadService } from './extHostDownloadService.js';
+import { URI } from '../../../base/common/uri.js';
+import { Schemas } from '../../../base/common/network.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtensionRuntime } from '../common/extHostTypes.js';
+import { CLIServer } from './extHostCLIServer.js';
+import { realpathSync } from '../../../base/node/extpath.js';
+import { ExtHostConsoleForwarder } from './extHostConsoleForwarder.js';
+import { ExtHostDiskFileSystemProvider } from './extHostDiskFileSystemProvider.js';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
 
 	protected _installInterceptor(): void {
 		const that = this;
-		const node_module = <any>require.__$__nodeRequire('module');
+		const node_module = require('module');
 		const originalLoad = node_module._load;
 		node_module._load = function load(request: string, parent: { filename: string }, isMain: boolean) {
 			request = applyAlternatives(request);
@@ -41,9 +44,21 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 			return originalLookup.call(this, applyAlternatives(request), parent);
 		};
 
+		const originalResolveFilename = node_module._resolveFilename;
+		node_module._resolveFilename = function resolveFilename(request: string, parent: unknown, isMain: boolean, options?: { paths?: string[] }) {
+			if (request === 'vsda' && Array.isArray(options?.paths) && options.paths.length === 0) {
+				// ESM: ever since we moved to ESM, `require.main` will be `undefined` for extensions
+				// Some extensions have been using `require.resolve('vsda', { paths: require.main.paths })`
+				// to find the `vsda` module in our app root. To be backwards compatible with this pattern,
+				// we help by filling in the `paths` array with the node modules paths of the current module.
+				options.paths = node_module._nodeModulePaths(import.meta.dirname);
+			}
+			return originalResolveFilename.call(this, request, parent, isMain, options);
+		};
+
 		const applyAlternatives = (request: string) => {
-			for (let alternativeModuleName of that._alternatives) {
-				let alternative = alternativeModuleName(request);
+			for (const alternativeModuleName of that._alternatives) {
+				const alternative = alternativeModuleName(request);
 				if (alternative) {
 					request = alternative;
 					break;
@@ -59,6 +74,9 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 	readonly extensionRuntime = ExtensionRuntime.Node;
 
 	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
+		// make sure console.log calls make it to the render
+		this._instaService.createInstance(ExtHostConsoleForwarder);
+
 		// initialize API and register actors
 		const extensionApiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
 
@@ -71,6 +89,9 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			process.env['VSCODE_IPC_HOOK_CLI'] = cliServer.ipcHandlePath;
 		}
 
+		// Register local file system shortcut
+		this._instaService.createInstance(ExtHostDiskFileSystemProvider);
+
 		// Module loading tricks
 		const interceptor = this._instaService.createInstance(NodeModuleRequireInterceptor, extensionApiFactory, { mine: this._myRegistry, all: this._globalRegistry });
 		await interceptor.install();
@@ -78,27 +99,15 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		// Do this when extension service exists, but extensions are not being activated yet.
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._logService, this._mainThreadTelemetryProxy, this._initData);
+		await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._logService, this._mainThreadTelemetryProxy, this._initData, this._store);
 		performance.mark('code/extHost/didInitProxyResolver');
-
-		// Use IPC messages to forward console-calls, note that the console is
-		// already patched to use`process.send()`
-		const nativeProcessSend = process.send!;
-		const mainThreadConsole = this._extHostContext.getProxy(MainContext.MainThreadConsole);
-		process.send = (...args) => {
-			if ((args as unknown[]).length === 0 || !args[0] || args[0].type !== '__$console') {
-				return nativeProcessSend.apply(process, args);
-			}
-			mainThreadConsole.$logExtensionHostMessage(args[0]);
-			return false;
-		};
 	}
 
 	protected _getEntryPoint(extensionDescription: IExtensionDescription): string | undefined {
 		return extensionDescription.main;
 	}
 
-	protected _loadCommonJSModule<T>(extensionId: ExtensionIdentifier | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+	protected async _loadCommonJSModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
 		if (module.scheme !== Schemas.file) {
 			throw new Error(`Cannot load URI: '${module}', must be of file-scheme`);
 		}
@@ -106,20 +115,22 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		activationTimesBuilder.codeLoadingStart();
 		this._logService.trace(`ExtensionService#loadCommonJSModule ${module.toString(true)}`);
 		this._logService.flush();
+		const extensionId = extension?.identifier.value;
+		if (extension) {
+			await this._extHostLocalizationService.initializeLocalizedMessages(extension);
+		}
 		try {
 			if (extensionId) {
-				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId.value}`);
+				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
 			}
-			r = require.__$__nodeRequire<T>(module.fsPath);
-		} catch (e) {
-			return Promise.reject(e);
+			r = <T>(require)(module.fsPath);
 		} finally {
 			if (extensionId) {
-				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId.value}`);
+				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId}`);
 			}
 			activationTimesBuilder.codeLoadingStop();
 		}
-		return Promise.resolve(r);
+		return r;
 	}
 
 	public async $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {

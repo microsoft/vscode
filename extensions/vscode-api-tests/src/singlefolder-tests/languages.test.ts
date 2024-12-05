@@ -33,7 +33,7 @@ suite('vscode API - languages', () => {
 		let clock = 0;
 		const disposables: vscode.Disposable[] = [];
 
-		let close = new Promise<void>(resolve => {
+		const close = new Promise<void>(resolve => {
 			disposables.push(vscode.workspace.onDidCloseTextDocument(e => {
 				if (e === doc) {
 					assert.strictEqual(doc.languageId, langIdNow);
@@ -43,7 +43,7 @@ suite('vscode API - languages', () => {
 				}
 			}));
 		});
-		let open = new Promise<void>(resolve => {
+		const open = new Promise<void>(resolve => {
 			disposables.push(vscode.workspace.onDidOpenTextDocument(e => {
 				if (e === doc) { // same instance!
 					assert.strictEqual(doc.languageId, 'json');
@@ -53,7 +53,7 @@ suite('vscode API - languages', () => {
 				}
 			}));
 		});
-		let change = vscode.languages.setTextDocumentLanguage(doc, 'json');
+		const change = vscode.languages.setTextDocumentLanguage(doc, 'json');
 		await Promise.all([change, close, open]);
 		assert.strictEqual(clock, 2);
 		assert.strictEqual(doc.languageId, 'json');
@@ -74,19 +74,19 @@ suite('vscode API - languages', () => {
 	});
 
 	test('diagnostics, read & event', function () {
-		let uri = vscode.Uri.file('/foo/bar.txt');
-		let col1 = vscode.languages.createDiagnosticCollection('foo1');
+		const uri = vscode.Uri.file('/foo/bar.txt');
+		const col1 = vscode.languages.createDiagnosticCollection('foo1');
 		col1.set(uri, [new vscode.Diagnostic(new vscode.Range(0, 0, 0, 12), 'error1')]);
 
-		let col2 = vscode.languages.createDiagnosticCollection('foo2');
+		const col2 = vscode.languages.createDiagnosticCollection('foo2');
 		col2.set(uri, [new vscode.Diagnostic(new vscode.Range(0, 0, 0, 12), 'error1')]);
 
-		let diag = vscode.languages.getDiagnostics(uri);
+		const diag = vscode.languages.getDiagnostics(uri);
 		assert.strictEqual(diag.length, 2);
 
-		let tuples = vscode.languages.getDiagnostics();
+		const tuples = vscode.languages.getDiagnostics();
 		let found = false;
-		for (let [thisUri,] of tuples) {
+		for (const [thisUri,] of tuples) {
 			if (thisUri.toString() === uri.toString()) {
 				found = true;
 				break;
@@ -96,6 +96,8 @@ suite('vscode API - languages', () => {
 		assert.ok(found);
 	});
 
+	// HINT: If this test fails, and you have been modifying code used in workers, you might have
+	// accidentally broken the workers. Check the logs for errors.
 	test('link detector', async function () {
 		const uri = await createRandomFile('class A { // http://a.com }', undefined, '.java');
 		const doc = await vscode.workspace.openTextDocument(uri);
@@ -112,7 +114,7 @@ suite('vscode API - languages', () => {
 
 		const links = await vscode.commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', doc.uri);
 		assert.strictEqual(links && links.length, 2, links.map(l => !l.target).join(', '));
-		let [link1, link2] = links!.sort((l1, l2) => l1.range.start.compareTo(l2.range.start));
+		const [link1, link2] = links!.sort((l1, l2) => l1.range.start.compareTo(l2.range.start));
 
 		assert.strictEqual(link1.target && link1.target.toString(), target.toString());
 		assertEqualRange(link1.range, range);
@@ -130,17 +132,17 @@ suite('vscode API - languages', () => {
 			}
 		}
 
-		let diag1 = new vscode.Diagnostic(new vscode.Range(0, 0, 0, 5), 'montag');
-		let diag2 = new D2();
+		const diag1 = new vscode.Diagnostic(new vscode.Range(0, 0, 0, 5), 'montag');
+		const diag2 = new D2();
 
 		let ran = false;
-		let uri = vscode.Uri.parse('ttt:path.far');
+		const uri = vscode.Uri.parse('ttt:path.far');
 
-		let r1 = vscode.languages.registerCodeActionsProvider({ pattern: '*.far', scheme: 'ttt' }, {
+		const r1 = vscode.languages.registerCodeActionsProvider({ pattern: '*.far', scheme: 'ttt' }, {
 			provideCodeActions(_document, _range, ctx): vscode.Command[] {
 
 				assert.strictEqual(ctx.diagnostics.length, 2);
-				let [first, second] = ctx.diagnostics;
+				const [first, second] = ctx.diagnostics;
 				assert.ok(first === diag1);
 				assert.ok(second === diag2);
 				assert.ok(diag2 instanceof D2);
@@ -149,16 +151,16 @@ suite('vscode API - languages', () => {
 			}
 		});
 
-		let r2 = vscode.workspace.registerTextDocumentContentProvider('ttt', {
+		const r2 = vscode.workspace.registerTextDocumentContentProvider('ttt', {
 			provideTextDocumentContent() {
 				return 'this is some text';
 			}
 		});
 
-		let r3 = vscode.languages.createDiagnosticCollection();
+		const r3 = vscode.languages.createDiagnosticCollection();
 		r3.set(uri, [diag1]);
 
-		let r4 = vscode.languages.createDiagnosticCollection();
+		const r4 = vscode.languages.createDiagnosticCollection();
 		r4.set(uri, [diag2]);
 
 		await vscode.workspace.openTextDocument(uri);
@@ -169,13 +171,13 @@ suite('vscode API - languages', () => {
 
 	test('completions with document filters', async function () {
 		let ran = false;
-		let uri = vscode.Uri.file(join(vscode.workspace.rootPath || '', './bower.json'));
+		const uri = vscode.Uri.file(join(vscode.workspace.rootPath || '', './bower.json'));
 
-		let jsonDocumentFilter = [{ language: 'json', pattern: '**/package.json' }, { language: 'json', pattern: '**/bower.json' }, { language: 'json', pattern: '**/.bower.json' }];
+		const jsonDocumentFilter = [{ language: 'json', pattern: '**/package.json' }, { language: 'json', pattern: '**/bower.json' }, { language: 'json', pattern: '**/.bower.json' }];
 
-		let r1 = vscode.languages.registerCompletionItemProvider(jsonDocumentFilter, {
+		const r1 = vscode.languages.registerCompletionItemProvider(jsonDocumentFilter, {
 			provideCompletionItems: (_document: vscode.TextDocument, _position: vscode.Position, _token: vscode.CancellationToken): vscode.CompletionItem[] => {
-				let proposal = new vscode.CompletionItem('foo');
+				const proposal = new vscode.CompletionItem('foo');
 				proposal.kind = vscode.CompletionItemKind.Property;
 				ran = true;
 				return [proposal];
@@ -189,4 +191,47 @@ suite('vscode API - languages', () => {
 		assert.ok(result!.items.some(i => i.label === 'foo'), 'Results do not include "foo"');
 	});
 
+	test('folding command', async function () {
+		const content = `[
+			/**
+			 * This is a comment with indentation issues
+		*/
+			{
+				"name": "bag of items",
+				"items": [
+					"foo", "bar"
+				]
+			}
+		]`;
+		const uri = await createRandomFile(content, undefined, '.jsonc');
+		await vscode.workspace.openTextDocument(uri);
+		const jsonExtension = await vscode.extensions.getExtension('vscode.json-language-features');
+		assert.ok(jsonExtension);
+		await jsonExtension.activate();
+		const result1 = await vscode.commands.executeCommand<vscode.FoldingRange[]>('vscode.executeFoldingRangeProvider', uri);
+		assert.deepEqual(result1, [
+			{ start: 0, end: 9 },
+			{ start: 1, end: 3, kind: vscode.FoldingRangeKind.Comment },
+			{ start: 4, end: 8 },
+			{ start: 6, end: 7 },
+		]);
+
+		await vscode.workspace.getConfiguration('editor').update('foldingStrategy', 'indentation');
+		try {
+			const result2 = await vscode.commands.executeCommand<vscode.FoldingRange[]>('vscode.executeFoldingRangeProvider', uri);
+			assert.deepEqual(result2, [
+				{ start: 0, end: 10 },
+				{ start: 1, end: 2 },
+				{ start: 3, end: 9 },
+				{ start: 4, end: 8 },
+				{ start: 6, end: 7 },
+			]);
+			await vscode.workspace.getConfiguration('editor').update('folding', false);
+			const result3 = await vscode.commands.executeCommand<vscode.FoldingRange[]>('vscode.executeFoldingRangeProvider', uri);
+			assert.deepEqual(result3, []);
+		} finally {
+			await vscode.workspace.getConfiguration('editor').update('foldingStrategy', undefined);
+			await vscode.workspace.getConfiguration('editor').update('folding', undefined);
+		}
+	});
 });

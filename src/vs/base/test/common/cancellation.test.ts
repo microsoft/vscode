@@ -2,10 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import assert from 'assert';
+import { CancellationToken, CancellationTokenSource } from '../../common/cancellation.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('CancellationToken', function () {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('None', () => {
 		assert.strictEqual(CancellationToken.None.isCancellationRequested, false);
@@ -27,7 +30,7 @@ suite('CancellationToken', function () {
 
 	test('cancel happens only once', function () {
 
-		let source = new CancellationTokenSource();
+		const source = new CancellationTokenSource();
 		assert.strictEqual(source.token.isCancellationRequested, false);
 
 		let cancelCount = 0;
@@ -35,7 +38,7 @@ suite('CancellationToken', function () {
 			cancelCount += 1;
 		}
 
-		source.token.onCancellationRequested(onCancel);
+		store.add(source.token.onCancellationRequested(onCancel));
 
 		source.cancel();
 		source.cancel();
@@ -47,16 +50,10 @@ suite('CancellationToken', function () {
 
 		let count = 0;
 
-		let source = new CancellationTokenSource();
-		source.token.onCancellationRequested(function () {
-			count += 1;
-		});
-		source.token.onCancellationRequested(function () {
-			count += 1;
-		});
-		source.token.onCancellationRequested(function () {
-			count += 1;
-		});
+		const source = new CancellationTokenSource();
+		store.add(source.token.onCancellationRequested(() => count++));
+		store.add(source.token.onCancellationRequested(() => count++));
+		store.add(source.token.onCancellationRequested(() => count++));
 
 		source.cancel();
 		assert.strictEqual(count, 3);
@@ -84,10 +81,8 @@ suite('CancellationToken', function () {
 
 		let count = 0;
 
-		let source = new CancellationTokenSource();
-		source.token.onCancellationRequested(function () {
-			count += 1;
-		});
+		const source = new CancellationTokenSource();
+		store.add(source.token.onCancellationRequested(() => count++));
 
 		source.dispose();
 		source.cancel();
@@ -98,28 +93,35 @@ suite('CancellationToken', function () {
 
 		let count = 0;
 
-		let source = new CancellationTokenSource();
-		source.token.onCancellationRequested(function () {
-			count += 1;
-		});
+		const source = new CancellationTokenSource();
+		store.add(source.token.onCancellationRequested(() => count++));
 
 		source.dispose(true);
 		// source.cancel();
 		assert.strictEqual(count, 1);
 	});
 
+	test('dispose does not cancel', function () {
+		const source = new CancellationTokenSource();
+		source.dispose();
+		assert.strictEqual(source.token.isCancellationRequested, false);
+	});
+
 	test('parent cancels child', function () {
 
-		let parent = new CancellationTokenSource();
-		let child = new CancellationTokenSource(parent.token);
+		const parent = new CancellationTokenSource();
+		const child = new CancellationTokenSource(parent.token);
 
 		let count = 0;
-		child.token.onCancellationRequested(() => count += 1);
+		store.add(child.token.onCancellationRequested(() => count++));
 
 		parent.cancel();
 
 		assert.strictEqual(count, 1);
 		assert.strictEqual(child.token.isCancellationRequested, true);
 		assert.strictEqual(parent.token.isCancellationRequested, true);
+
+		child.dispose();
+		parent.dispose();
 	});
 });

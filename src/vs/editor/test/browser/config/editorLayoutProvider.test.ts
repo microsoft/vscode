@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { EditorLayoutInfo, EditorLayoutInfoComputer, RenderMinimap, EditorOption, EditorMinimapOptions, InternalEditorScrollbarOptions, EditorOptions, RenderLineNumbersType, InternalEditorRenderLineNumbersOptions } from 'vs/editor/common/config/editorOptions';
-import { ComputedEditorOptions } from 'vs/editor/browser/config/editorConfiguration';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ComputedEditorOptions } from '../../../browser/config/editorConfiguration.js';
+import { EditorLayoutInfo, EditorLayoutInfoComputer, EditorMinimapOptions, EditorOption, EditorOptions, InternalEditorRenderLineNumbersOptions, InternalEditorScrollbarOptions, RenderLineNumbersType, RenderMinimap } from '../../../common/config/editorOptions.js';
 
 interface IEditorLayoutProviderOpts {
 	readonly outerWidth: number;
@@ -39,20 +40,28 @@ interface IEditorLayoutProviderOpts {
 
 suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function doTest(input: IEditorLayoutProviderOpts, expected: EditorLayoutInfo): void {
 		const options = new ComputedEditorOptions();
 		options._write(EditorOption.glyphMargin, input.showGlyphMargin);
 		options._write(EditorOption.lineNumbersMinChars, input.lineNumbersMinChars);
 		options._write(EditorOption.lineDecorationsWidth, input.lineDecorationsWidth);
 		options._write(EditorOption.folding, false);
+		options._write(EditorOption.padding, { top: 0, bottom: 0 });
 		const minimapOptions: EditorMinimapOptions = {
 			enabled: input.minimap,
+			autohide: false,
 			size: input.minimapSize || 'proportional',
 			side: input.minimapSide,
 			renderCharacters: input.minimapRenderCharacters,
 			maxColumn: input.minimapMaxColumn,
 			showSlider: 'mouseover',
 			scale: 1,
+			showRegionSectionHeaders: true,
+			showMarkSectionHeaders: true,
+			sectionHeaderFontSize: 9,
+			sectionHeaderLetterSpacing: 1,
 		};
 		options._write(EditorOption.minimap, minimapOptions);
 		const scrollbarOptions: InternalEditorScrollbarOptions = {
@@ -69,6 +78,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarSize: input.verticalScrollbarWidth,
 			verticalSliderSize: EditorOptions.scrollbar.defaultValue.verticalSliderSize,
 			scrollByPage: EditorOptions.scrollbar.defaultValue.scrollByPage,
+			ignoreHorizontalScrollbarInContentHeight: false,
 		};
 		options._write(EditorOption.scrollbar, scrollbarOptions);
 		const lineNumbersOptions: InternalEditorRenderLineNumbersOptions = {
@@ -94,6 +104,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			typicalHalfwidthCharacterWidth: input.typicalHalfwidthCharacterWidth,
 			maxDigitWidth: input.maxDigitWidth,
 			pixelRatio: input.pixelRatio,
+			glyphMarginDecorationLaneCount: 1,
 		});
 		assert.deepStrictEqual(actual, expected);
 	}
@@ -125,6 +136,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -193,6 +205,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -261,6 +274,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -329,6 +343,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -397,6 +412,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -465,6 +481,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 50,
@@ -533,6 +550,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 50,
@@ -601,6 +619,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 60,
@@ -669,6 +688,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 30,
@@ -737,6 +757,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 30,
@@ -805,6 +826,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -873,6 +895,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -941,6 +964,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -1009,6 +1033,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 55,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 55,
 			lineNumbersWidth: 0,
@@ -1079,6 +1104,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -1149,6 +1175,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -1219,6 +1246,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -1289,6 +1317,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -1357,6 +1386,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 30,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 30,
 			lineNumbersWidth: 36,

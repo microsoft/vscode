@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import got from 'got';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as url from 'url';
@@ -15,32 +14,33 @@ const rootCG = path.join(root, 'extensionsCG');
 const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
 const builtInExtensions = <IExtensionDefinition[]>productjson.builtInExtensions || [];
 const webBuiltInExtensions = <IExtensionDefinition[]>productjson.webBuiltInExtensions || [];
-const token = process.env['VSCODE_MIXIN_PASSWORD'] || process.env['GITHUB_TOKEN'] || undefined;
+const token = process.env['GITHUB_TOKEN'];
 
 const contentBasePath = 'raw.githubusercontent.com';
-const contentFileNames = ['package.json', 'package-lock.json', 'yarn.lock'];
+const contentFileNames = ['package.json', 'package-lock.json'];
 
 async function downloadExtensionDetails(extension: IExtensionDefinition): Promise<void> {
 	const extensionLabel = `${extension.name}@${extension.version}`;
 	const repository = url.parse(extension.repo).path!.substr(1);
 	const repositoryContentBaseUrl = `https://${token ? `${token}@` : ''}${contentBasePath}/${repository}/v${extension.version}`;
 
-	const promises = [];
-	for (const fileName of contentFileNames) {
-		promises.push(new Promise<{ fileName: string; body: Buffer | undefined | null }>(resolve => {
-			got(`${repositoryContentBaseUrl}/${fileName}`)
-				.then(response => {
-					resolve({ fileName, body: response.rawBody });
-				})
-				.catch(error => {
-					if (error.response.statusCode === 404) {
-						resolve({ fileName, body: undefined });
-					} else {
-						resolve({ fileName, body: null });
-					}
-				});
-		}));
+
+	async function getContent(fileName: string): Promise<{ fileName: string; body: Buffer | undefined | null }> {
+		try {
+			const response = await fetch(`${repositoryContentBaseUrl}/${fileName}`);
+			if (response.ok) {
+				return { fileName, body: Buffer.from(await response.arrayBuffer()) };
+			} else if (response.status === 404) {
+				return { fileName, body: undefined };
+			} else {
+				return { fileName, body: null };
+			}
+		} catch (e) {
+			return { fileName, body: null };
+		}
 	}
+
+	const promises = contentFileNames.map(getContent);
 
 	console.log(extensionLabel);
 	const results = await Promise.all(promises);
@@ -61,9 +61,8 @@ async function downloadExtensionDetails(extension: IExtensionDefinition): Promis
 	if (!results.find(r => r.fileName === 'package.json')?.body) {
 		// throw new Error(`The "package.json" file could not be found for the built-in extension - ${extensionLabel}`);
 	}
-	if (!results.find(r => r.fileName === 'package-lock.json')?.body &&
-		!results.find(r => r.fileName === 'yarn.lock')?.body) {
-		// throw new Error(`The "package-lock.json"/"yarn.lock" could not be found for the built-in extension - ${extensionLabel}`);
+	if (!results.find(r => r.fileName === 'package-lock.json')?.body) {
+		// throw new Error(`The "package-lock.json" could not be found for the built-in extension - ${extensionLabel}`);
 	}
 }
 

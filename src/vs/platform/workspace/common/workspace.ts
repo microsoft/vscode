@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
-import { extname } from 'vs/base/common/path';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { extname as resourceExtname, basenameOrAuthority, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Schemas } from 'vs/base/common/network';
+import { localize } from '../../../nls.js';
+import { Event } from '../../../base/common/event.js';
+import { basename, extname } from '../../../base/common/path.js';
+import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
+import { extname as resourceExtname, basenameOrAuthority, joinPath, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { Schemas } from '../../../base/common/network.js';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
@@ -140,9 +140,42 @@ export function isSingleFolderWorkspaceIdentifier(obj: unknown): obj is ISingleF
 	return typeof singleFolderIdentifier?.id === 'string' && URI.isUri(singleFolderIdentifier.uri);
 }
 
-export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {
+export function isEmptyWorkspaceIdentifier(obj: unknown): obj is IEmptyWorkspaceIdentifier {
+	const emptyWorkspaceIdentifier = obj as IEmptyWorkspaceIdentifier | undefined;
+	return typeof emptyWorkspaceIdentifier?.id === 'string'
+		&& !isSingleFolderWorkspaceIdentifier(obj)
+		&& !isWorkspaceIdentifier(obj);
+}
+
+export const EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE: IEmptyWorkspaceIdentifier = { id: 'ext-dev' };
+export const UNKNOWN_EMPTY_WINDOW_WORKSPACE: IEmptyWorkspaceIdentifier = { id: 'empty-window' };
+
+export function toWorkspaceIdentifier(workspace: IWorkspace): IAnyWorkspaceIdentifier;
+export function toWorkspaceIdentifier(backupPath: string | undefined, isExtensionDevelopment: boolean): IEmptyWorkspaceIdentifier;
+export function toWorkspaceIdentifier(arg0: IWorkspace | string | undefined, isExtensionDevelopment?: boolean): IAnyWorkspaceIdentifier {
+
+	// Empty workspace
+	if (typeof arg0 === 'string' || typeof arg0 === 'undefined') {
+
+		// With a backupPath, the basename is the empty workspace identifier
+		if (typeof arg0 === 'string') {
+			return {
+				id: basename(arg0)
+			};
+		}
+
+		// Extension development empty windows have backups disabled
+		// so we return a constant workspace identifier for extension
+		// authors to allow to restore their workspace state even then.
+		if (isExtensionDevelopment) {
+			return EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE;
+		}
+
+		return UNKNOWN_EMPTY_WINDOW_WORKSPACE;
+	}
 
 	// Multi root
+	const workspace = arg0;
 	if (workspace.configuration) {
 		return {
 			id: workspace.id,
@@ -158,8 +191,10 @@ export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifi
 		};
 	}
 
-	// Empty workspace
-	return undefined;
+	// Empty window
+	return {
+		id: workspace.id
+	};
 }
 
 export function isWorkspaceIdentifier(obj: unknown): obj is IWorkspaceIdentifier {
@@ -180,8 +215,8 @@ export function reviveIdentifier(identifier: undefined): undefined;
 export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier): IWorkspaceIdentifier;
 export function reviveIdentifier(identifier: ISerializedSingleFolderWorkspaceIdentifier): ISingleFolderWorkspaceIdentifier;
 export function reviveIdentifier(identifier: IEmptyWorkspaceIdentifier): IEmptyWorkspaceIdentifier;
-export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined;
-export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined {
+export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IAnyWorkspaceIdentifier | undefined;
+export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IAnyWorkspaceIdentifier | undefined {
 
 	// Single Folder
 	const singleFolderIdentifierCandidate = identifier as ISerializedSingleFolderWorkspaceIdentifier | undefined;
@@ -406,7 +441,7 @@ export function toWorkspaceFolder(resource: URI): WorkspaceFolder {
 }
 
 export const WORKSPACE_EXTENSION = 'code-workspace';
-const WORKSPACE_SUFFIX = `.${WORKSPACE_EXTENSION}`;
+export const WORKSPACE_SUFFIX = `.${WORKSPACE_EXTENSION}`;
 export const WORKSPACE_FILTER = [{ name: localize('codeWorkspace', "Code Workspace"), extensions: [WORKSPACE_EXTENSION] }];
 export const UNTITLED_WORKSPACE_NAME = 'workspace.json';
 
@@ -425,6 +460,11 @@ export function isTemporaryWorkspace(arg1: IWorkspace | URI): boolean {
 	}
 
 	return path?.scheme === Schemas.tmp;
+}
+
+export const STANDALONE_EDITOR_WORKSPACE_ID = '4064f6ec-cb38-4ad0-af64-ee6467e63c82';
+export function isStandaloneEditorWorkspace(workspace: IWorkspace): boolean {
+	return workspace.id === STANDALONE_EDITOR_WORKSPACE_ID;
 }
 
 export function isSavedWorkspace(path: URI, environmentService: IEnvironmentService): boolean {

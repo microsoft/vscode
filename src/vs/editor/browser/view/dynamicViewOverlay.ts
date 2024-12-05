@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
+import { RenderingContext } from './renderingContext.js';
+import { ViewEventHandler } from '../../common/viewEventHandler.js';
 
 export abstract class DynamicViewOverlay extends ViewEventHandler {
 

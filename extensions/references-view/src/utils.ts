@@ -30,11 +30,11 @@ export async function isValidRequestPosition(uri: vscode.Uri, position: vscode.P
 }
 
 export function getPreviewChunks(doc: vscode.TextDocument, range: vscode.Range, beforeLen: number = 8, trim: boolean = true) {
-	let previewStart = range.start.with({ character: Math.max(0, range.start.character - beforeLen) });
-	let wordRange = doc.getWordRangeAtPosition(previewStart);
+	const previewStart = range.start.with({ character: Math.max(0, range.start.character - beforeLen) });
+	const wordRange = doc.getWordRangeAtPosition(previewStart);
 	let before = doc.getText(new vscode.Range(wordRange ? wordRange.start : previewStart, range.start));
-	let inside = doc.getText(range);
-	let previewEnd = range.end.translate(0, 331);
+	const inside = doc.getText(range);
+	const previewEnd = range.end.translate(0, 331);
 	let after = doc.getText(new vscode.Range(range.end, previewEnd));
 	if (trim) {
 		before = before.replace(/^\s*/g, '');
@@ -99,7 +99,7 @@ export class WordAnchor {
 			line = startLine + i;
 			if (line < this._doc.lineCount) {
 				checked = true;
-				let ch = this._doc.lineAt(line).text.indexOf(this._word);
+				const ch = this._doc.lineAt(line).text.indexOf(this._word);
 				if (ch >= 0) {
 					return new vscode.Position(line, ch);
 				}
@@ -109,7 +109,7 @@ export class WordAnchor {
 			line = startLine - i;
 			if (line >= 0) {
 				checked = true;
-				let ch = this._doc.lineAt(line).text.indexOf(this._word);
+				const ch = this._doc.lineAt(line).text.indexOf(this._word);
 				if (ch >= 0) {
 					return new vscode.Position(line, ch);
 				}
@@ -131,6 +131,6 @@ const _themeIconIds = [
 ];
 
 export function getThemeIcon(kind: vscode.SymbolKind): vscode.ThemeIcon | undefined {
-	let id = _themeIconIds[kind];
+	const id = _themeIconIds[kind];
 	return id ? new vscode.ThemeIcon(id) : undefined;
 }

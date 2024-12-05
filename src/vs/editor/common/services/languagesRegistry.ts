@@ -3,23 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { compareIgnoreCase, regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
-import { clearPlatformLanguageAssociations, getLanguageIds, registerPlatformLanguageAssociation } from 'vs/editor/common/services/languagesAssociations';
-import { URI } from 'vs/base/common/uri';
-import { ILanguageIdCodec } from 'vs/editor/common/languages';
-import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
-import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageExtensionPoint, ILanguageNameIdPair, ILanguageIcon } from 'vs/editor/common/languages/language';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { compareIgnoreCase, regExpLeadsToEndlessLoop } from '../../../base/common/strings.js';
+import { clearPlatformLanguageAssociations, getLanguageIds, registerPlatformLanguageAssociation } from './languagesAssociations.js';
+import { URI } from '../../../base/common/uri.js';
+import { ILanguageIdCodec } from '../languages.js';
+import { LanguageId } from '../encodedTokenAttributes.js';
+import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
+import { ILanguageExtensionPoint, ILanguageNameIdPair, ILanguageIcon } from '../languages/language.js';
+import { Extensions, IConfigurationRegistry } from '../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 const NULL_LANGUAGE_ID = 'vs.editor.nullLanguage';
 
-export interface IResolvedLanguage {
+interface IResolvedLanguage {
 	identifier: string;
 	name: string | null;
 	mimetypes: string[];
@@ -198,20 +197,20 @@ export class LanguagesRegistry extends Disposable {
 			} else {
 				resolvedLanguage.extensions = resolvedLanguage.extensions.concat(lang.extensions);
 			}
-			for (let extension of lang.extensions) {
+			for (const extension of lang.extensions) {
 				registerPlatformLanguageAssociation({ id: langId, mime: primaryMime, extension: extension }, this._warnOnOverwrite);
 			}
 		}
 
 		if (Array.isArray(lang.filenames)) {
-			for (let filename of lang.filenames) {
+			for (const filename of lang.filenames) {
 				registerPlatformLanguageAssociation({ id: langId, mime: primaryMime, filename: filename }, this._warnOnOverwrite);
 				resolvedLanguage.filenames.push(filename);
 			}
 		}
 
 		if (Array.isArray(lang.filenamePatterns)) {
-			for (let filenamePattern of lang.filenamePatterns) {
+			for (const filenamePattern of lang.filenamePatterns) {
 				registerPlatformLanguageAssociation({ id: langId, mime: primaryMime, filepattern: filenamePattern }, this._warnOnOverwrite);
 			}
 		}
@@ -228,7 +227,7 @@ export class LanguagesRegistry extends Disposable {
 				}
 			} catch (err) {
 				// Most likely, the regex was bad
-				onUnexpectedError(err);
+				console.warn(`[${lang.id}]: Invalid regular expression \`${firstLineRegexStr}\`: `, err);
 			}
 		}
 

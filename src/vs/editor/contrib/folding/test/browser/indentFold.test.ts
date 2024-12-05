@@ -2,9 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { computeRanges } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { computeRanges } from '../../browser/indentRangeProvider.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
 
 interface IndentRange {
 	start: number;
@@ -12,6 +13,8 @@ interface IndentRange {
 }
 
 suite('Indentation Folding', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function r(start: number, end: number): IndentRange {
 		return { start, end };
 	}
@@ -19,7 +22,7 @@ suite('Indentation Folding', () => {
 	test('Limit by indent', () => {
 
 
-		let lines = [
+		const lines = [
 		/* 1*/	'A',
 		/* 2*/	'  A',
 		/* 3*/	'  A',
@@ -37,26 +40,28 @@ suite('Indentation Folding', () => {
 		/* 15*/	'A',
 		/* 16*/	'  A'
 		];
-		let r1 = r(1, 14); //0
-		let r2 = r(3, 11); //1
-		let r3 = r(4, 5); //2
-		let r4 = r(6, 11); //2
-		let r5 = r(8, 9); //3
-		let r6 = r(10, 11); //3
-		let r7 = r(12, 14); //1
-		let r8 = r(13, 14);//4
-		let r9 = r(15, 16);//0
+		const r1 = r(1, 14); //0
+		const r2 = r(3, 11); //1
+		const r3 = r(4, 5); //2
+		const r4 = r(6, 11); //2
+		const r5 = r(8, 9); //3
+		const r6 = r(10, 11); //3
+		const r7 = r(12, 14); //1
+		const r8 = r(13, 14);//4
+		const r9 = r(15, 16);//0
 
-		let model = createTextModel(lines.join('\n'));
+		const model = createTextModel(lines.join('\n'));
 
 		function assertLimit(maxEntries: number, expectedRanges: IndentRange[], message: string) {
-			let indentRanges = computeRanges(model, true, undefined, maxEntries);
+			let reported: number | false = false;
+			const indentRanges = computeRanges(model, true, undefined, { limit: maxEntries, update: (computed, limited) => reported = limited });
 			assert.ok(indentRanges.length <= maxEntries, 'max ' + message);
-			let actual: IndentRange[] = [];
+			const actual: IndentRange[] = [];
 			for (let i = 0; i < indentRanges.length; i++) {
 				actual.push({ start: indentRanges.getStartLineNumber(i), end: indentRanges.getEndLineNumber(i) });
 			}
 			assert.deepStrictEqual(actual, expectedRanges, message);
+			assert.equal(reported, 9 <= maxEntries ? false : maxEntries, 'limited');
 		}
 
 		assertLimit(1000, [r1, r2, r3, r4, r5, r6, r7, r8, r9], '1000');

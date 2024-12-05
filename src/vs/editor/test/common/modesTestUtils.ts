@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { StandardTokenType, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { ScopedLineTokens, createScopedLineTokens } from 'vs/editor/common/languages/supports';
-import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
+import { LineTokens } from '../../common/tokens/lineTokens.js';
+import { StandardTokenType, MetadataConsts } from '../../common/encodedTokenAttributes.js';
+import { ScopedLineTokens, createScopedLineTokens } from '../../common/languages/supports.js';
+import { LanguageIdCodec } from '../../common/services/languagesRegistry.js';
 
 export interface TokenText {
 	text: string;
@@ -14,14 +14,14 @@ export interface TokenText {
 }
 
 export function createFakeScopedLineTokens(rawTokens: TokenText[]): ScopedLineTokens {
-	let tokens = new Uint32Array(rawTokens.length << 1);
+	const tokens = new Uint32Array(rawTokens.length << 1);
 	let line = '';
 
 	for (let i = 0, len = rawTokens.length; i < len; i++) {
-		let rawToken = rawTokens[i];
+		const rawToken = rawTokens[i];
 
-		let startOffset = line.length;
-		let metadata = (
+		const startOffset = line.length;
+		const metadata = (
 			(rawToken.type << MetadataConsts.TOKEN_TYPE_OFFSET)
 		) >>> 0;
 

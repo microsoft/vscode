@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isCancellationError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import BaseErrorTelemetry from 'vs/platform/telemetry/common/errorTelemetry';
+import { isCancellationError, isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '../../../base/common/errors.js';
+import BaseErrorTelemetry from '../common/errorTelemetry.js';
 
 export default class ErrorTelemetry extends BaseErrorTelemetry {
 	protected override installErrorListeners(): void {
@@ -43,7 +43,11 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 		});
 
 		// Print a console message when an exception isn't handled.
-		process.on('uncaughtException', (err: Error) => {
+		process.on('uncaughtException', (err: Error | NodeJS.ErrnoException) => {
+			if (isSigPipeError(err)) {
+				return;
+			}
+
 			onUnexpectedError(err);
 		});
 	}

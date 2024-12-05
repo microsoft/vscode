@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch, coalesceInPlace, equals } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Iterable } from 'vs/base/common/iterator';
-import { LRUCache } from 'vs/base/common/map';
-import { commonPrefixLength } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSymbol, DocumentSymbolProvider } from 'vs/editor/common/languages';
-import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IModelService } from 'vs/editor/common/services/model';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { binarySearch, coalesceInPlace, equals } from '../../../../base/common/arrays.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { LRUCache } from '../../../../base/common/map.js';
+import { commonPrefixLength } from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IPosition, Position } from '../../../common/core/position.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { ITextModel } from '../../../common/model.js';
+import { DocumentSymbol, DocumentSymbolProvider } from '../../../common/languages.js';
+import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IModelService } from '../../../common/services/model.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 
 export abstract class TreeElement {
 
@@ -30,9 +30,7 @@ export abstract class TreeElement {
 	abstract parent: TreeElement | undefined;
 
 	remove(): void {
-		if (this.parent) {
-			this.parent.children.delete(this.id);
-		}
+		this.parent?.children.delete(this.id);
 	}
 
 	static findId(candidate: DocumentSymbol | string, container: TreeElement): string {
@@ -60,7 +58,7 @@ export abstract class TreeElement {
 		if (!id) {
 			return undefined;
 		}
-		let len = commonPrefixLength(id, element.id);
+		const len = commonPrefixLength(id, element.id);
 		if (len === id.length) {
 			return element;
 		}
@@ -68,7 +66,7 @@ export abstract class TreeElement {
 			return undefined;
 		}
 		for (const [, child] of element.children) {
-			let candidate = TreeElement.getElementById(id, child);
+			const candidate = TreeElement.getElementById(id, child);
 			if (candidate) {
 				return candidate;
 			}
@@ -148,7 +146,7 @@ export class OutlineGroup extends TreeElement {
 		item.marker = undefined;
 
 		// find the proper start index to check for item/marker overlap.
-		let idx = binarySearch<IRange>(markers, item.symbol.range, Range.compareRangesUsingStarts);
+		const idx = binarySearch<IRange>(markers, item.symbol.range, Range.compareRangesUsingStarts);
 		let start: number;
 		if (idx < 0) {
 			start = ~idx;
@@ -159,13 +157,13 @@ export class OutlineGroup extends TreeElement {
 			start = idx;
 		}
 
-		let myMarkers: IOutlineMarker[] = [];
+		const myMarkers: IOutlineMarker[] = [];
 		let myTopSev: MarkerSeverity | undefined;
 
 		for (; start < markers.length && Range.areIntersecting(item.symbol.range, markers[start]); start++) {
 			// remove markers intersecting with this outline element
 			// and store them in a 'private' array.
-			let marker = markers[start];
+			const marker = markers[start];
 			myMarkers.push(marker);
 			(markers as Array<IOutlineMarker | undefined>)[start] = undefined;
 			if (!myTopSev || marker.severity > myTopSev) {
@@ -201,8 +199,9 @@ export class OutlineModel extends TreeElement {
 		const provider = registry.ordered(textModel);
 		const promises = provider.map((provider, index) => {
 
-			let id = TreeElement.findId(`provider_${index}`, result);
-			let group = new OutlineGroup(id, result, provider.displayName ?? 'Unknown Outline Provider', index);
+			const id = TreeElement.findId(`provider_${index}`, result);
+			const group = new OutlineGroup(id, result, provider.displayName ?? 'Unknown Outline Provider', index);
+
 
 			return Promise.resolve(provider.provideDocumentSymbols(textModel, cts.token)).then(result => {
 				for (const info of result || []) {
@@ -235,13 +234,15 @@ export class OutlineModel extends TreeElement {
 				return result._compact();
 			}
 		}).finally(() => {
+			cts.dispose();
 			listener.dispose();
+			cts.dispose();
 		});
 	}
 
 	private static _makeOutlineElement(info: DocumentSymbol, container: OutlineGroup | OutlineElement): void {
-		let id = TreeElement.findId(info, container);
-		let res = new OutlineElement(id, container, info);
+		const id = TreeElement.findId(info, container);
+		const res = new OutlineElement(id, container, info);
 		if (info.children) {
 			for (const childInfo of info.children) {
 				OutlineModel._makeOutlineElement(childInfo, res);
@@ -287,8 +288,8 @@ export class OutlineModel extends TreeElement {
 			this.children = this._groups;
 		} else {
 			// adopt all elements of the first group
-			let group = Iterable.first(this._groups.values())!;
-			for (let [, child] of group.children) {
+			const group = Iterable.first(this._groups.values())!;
+			for (const [, child] of group.children) {
 				child.parent = this;
 				this.children.set(child.id, child);
 			}
@@ -438,7 +439,7 @@ export class OutlineModelService implements IOutlineModelService {
 
 		let data = this._cache.get(textModel.id);
 		if (!data || data.versionId !== textModel.getVersionId() || !equals(data.provider, provider)) {
-			let source = new CancellationTokenSource();
+			const source = new CancellationTokenSource();
 			data = {
 				versionId: textModel.getVersionId(),
 				provider,
@@ -468,8 +469,8 @@ export class OutlineModelService implements IOutlineModelService {
 
 		const listener = token.onCancellationRequested(() => {
 			// last -> cancel provider request, remove cached promise
-			if (--data!.promiseCnt === 0) {
-				data!.source.cancel();
+			if (--data.promiseCnt === 0) {
+				data.source.cancel();
 				this._cache.delete(textModel.id);
 			}
 		});
@@ -486,4 +487,4 @@ export class OutlineModelService implements IOutlineModelService {
 	}
 }
 
-registerSingleton(IOutlineModelService, OutlineModelService, true);
+registerSingleton(IOutlineModelService, OutlineModelService, InstantiationType.Delayed);

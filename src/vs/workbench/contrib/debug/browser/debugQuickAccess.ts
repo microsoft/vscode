@@ -3,22 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { localize } from 'vs/nls';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { matchesFuzzy } from 'vs/base/common/filters';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { debugConfigure, debugRemoveConfig } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from '../../../../platform/quickinput/browser/pickerQuickAccess.js';
+import { localize } from '../../../../nls.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IDebugService } from '../common/debug.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { matchesFuzzy } from '../../../../base/common/filters.js';
+import { ADD_CONFIGURATION_ID, DEBUG_QUICK_ACCESS_PREFIX } from './debugCommands.js';
+import { debugConfigure, debugRemoveConfig } from './debugIcons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
-
-	static PREFIX = 'debug ';
 
 	constructor(
 		@IDebugService private readonly debugService: IDebugService,
@@ -26,7 +23,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
-		super(StartDebugQuickAccessProvider.PREFIX, {
+		super(DEBUG_QUICK_ACCESS_PREFIX, {
 			noResultsPick: {
 				label: localize('noDebugResults', "No matching launch configurations")
 			}
@@ -65,7 +62,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 						tooltip: localize('customizeLaunchConfig', "Configure Launch Configuration")
 					}],
 					trigger: () => {
-						config.launch.openConfigFile(false);
+						config.launch.openConfigFile({ preserveFocus: false });
 
 						return TriggerAction.CLOSE_PICKER;
 					},
@@ -153,7 +150,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 			picks.push({
 				label,
 				description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? launch.name : '',
-				highlights: { label: withNullAsUndefined(matchesFuzzy(filter, label, true)) },
+				highlights: { label: matchesFuzzy(filter, label, true) ?? undefined },
 				accept: () => this.commandService.executeCommand(ADD_CONFIGURATION_ID, launch.uri.toString())
 			});
 		}

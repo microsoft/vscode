@@ -12,7 +12,7 @@
 
 .monaco-editor .peekview-widget .head .peekview-title {
 	display: flex;
-	align-items: center;
+	align-items: baseline;
 	font-size: 13px;
 	margin-left: 20px;
 	min-width: 0;
@@ -27,8 +27,6 @@
 .monaco-editor .peekview-widget .head .peekview-title .dirname:not(:empty) {
 	font-size: 0.9em;
 	margin-left: 0.5em;
-	text-overflow: ellipsis;
-	overflow: hidden;
 }
 
 .monaco-editor .peekview-widget .head .peekview-title .meta {
@@ -38,6 +36,8 @@
 }
 
 .monaco-editor .peekview-widget .head .peekview-title .dirname {
+	overflow: hidden;
+	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
@@ -74,6 +74,7 @@
 
 .monaco-editor .peekview-widget .head .peekview-title .codicon {
 	margin-right: 4px;
+	align-self: center;
 }
 
 .monaco-editor .peekview-widget .monaco-list .monaco-list-row.focused .codicon {

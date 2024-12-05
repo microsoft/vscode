@@ -2,21 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { EditorOptions, InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import * as languages from 'vs/editor/common/languages';
-import { CompletionModel } from 'vs/editor/contrib/suggest/browser/completionModel';
-import { CompletionItem, getSuggestionComparator, SnippetSortOrder } from 'vs/editor/contrib/suggest/browser/suggest';
-import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditorOptions, InternalSuggestOptions } from '../../../../common/config/editorOptions.js';
+import { IPosition } from '../../../../common/core/position.js';
+import * as languages from '../../../../common/languages.js';
+import { CompletionModel } from '../../browser/completionModel.js';
+import { CompletionItem, getSuggestionComparator, SnippetSortOrder } from '../../browser/suggest.js';
+import { WordDistance } from '../../browser/wordDistance.js';
 
-export function createSuggestItem(label: string, overwriteBefore: number, kind = languages.CompletionItemKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }, sortText?: string, filterText?: string): CompletionItem {
+export function createSuggestItem(label: string | languages.CompletionItemLabel, overwriteBefore: number, kind = languages.CompletionItemKind.Property, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }, sortText?: string, filterText?: string): CompletionItem {
 	const suggestion: languages.CompletionItem = {
 		label,
 		sortText,
 		filterText,
 		range: { startLineNumber: position.lineNumber, startColumn: position.column - overwriteBefore, endLineNumber: position.lineNumber, endColumn: position.column },
-		insertText: label,
+		insertText: typeof label === 'string' ? label : label.label,
 		kind
 	};
 	const container: languages.CompletionList = {
@@ -24,6 +25,7 @@ export function createSuggestItem(label: string, overwriteBefore: number, kind =
 		suggestions: [suggestion]
 	};
 	const provider: languages.CompletionItemProvider = {
+		_debugDisplayName: 'test',
 		provideCompletionItems(): any {
 			return;
 		}
@@ -33,7 +35,7 @@ export function createSuggestItem(label: string, overwriteBefore: number, kind =
 }
 suite('CompletionModel', function () {
 
-	let defaultOptions = <InternalSuggestOptions>{
+	const defaultOptions = <InternalSuggestOptions>{
 		insertMode: 'insert',
 		snippetsPreventQuickSuggestions: true,
 		filterGraceful: true,
@@ -82,6 +84,8 @@ suite('CompletionModel', function () {
 		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined);
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('filtering - cached', function () {
 
 		const itemsNow = model.items;
@@ -102,34 +106,16 @@ suite('CompletionModel', function () {
 
 	test('complete/incomplete', () => {
 
-		assert.strictEqual(model.incomplete.size, 0);
+		assert.strictEqual(model.getIncompleteProvider().size, 0);
 
-		let incompleteModel = new CompletionModel([
+		const incompleteModel = new CompletionModel([
 			createSuggestItem('foo', 3, undefined, true),
 			createSuggestItem('foo', 2),
 		], 1, {
 			leadingLineContent: 'foo',
 			characterCountDelta: 0
 		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined);
-		assert.strictEqual(incompleteModel.incomplete.size, 1);
-	});
-
-	test('replaceIncomplete', () => {
-
-		const completeItem = createSuggestItem('foobar', 1, undefined, false, { lineNumber: 1, column: 2 });
-		const incompleteItem = createSuggestItem('foofoo', 1, undefined, true, { lineNumber: 1, column: 2 });
-
-		const model = new CompletionModel([completeItem, incompleteItem], 2, { leadingLineContent: 'f', characterCountDelta: 0 }, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined);
-		assert.strictEqual(model.incomplete.size, 1);
-		assert.strictEqual(model.items.length, 2);
-
-		const { incomplete } = model;
-		const complete = model.adopt(incomplete);
-
-		assert.strictEqual(incomplete.size, 1);
-		assert.ok(incomplete.has(incompleteItem.provider));
-		assert.strictEqual(complete.length, 1);
-		assert.ok(complete[0] === completeItem);
+		assert.strictEqual(incompleteModel.getIncompleteProvider().size, 1);
 	});
 
 	test('Fuzzy matching of snippets stopped working with inline snippet suggestions #49895', function () {
@@ -150,15 +136,8 @@ suite('CompletionModel', function () {
 				incompleteItem1,
 			], 2, { leadingLineContent: 'f', characterCountDelta: 0 }, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined
 		);
-		assert.strictEqual(model.incomplete.size, 1);
+		assert.strictEqual(model.getIncompleteProvider().size, 1);
 		assert.strictEqual(model.items.length, 6);
-
-		const { incomplete } = model;
-		const complete = model.adopt(incomplete);
-
-		assert.strictEqual(incomplete.size, 1);
-		assert.ok(incomplete.has(incompleteItem1.provider));
-		assert.strictEqual(complete.length, 5);
 	});
 
 	test('proper current word when length=0, #16380', function () {
@@ -273,6 +252,17 @@ suite('CompletionModel', function () {
 		const [first, second] = model.items;
 		assert.strictEqual(first.completion.label, 'source');
 		assert.strictEqual(second.completion.label, '<- groups');
+	});
+
+	test('Completion item sorting broken when using label details #153026', function () {
+		const itemZZZ = createSuggestItem({ label: 'ZZZ' }, 0, languages.CompletionItemKind.Operator, false);
+		const itemAAA = createSuggestItem({ label: 'AAA' }, 0, languages.CompletionItemKind.Operator, false);
+		const itemIII = createSuggestItem('III', 0, languages.CompletionItemKind.Operator, false);
+
+		const cmp = getSuggestionComparator(SnippetSortOrder.Inline);
+		const actual = [itemZZZ, itemAAA, itemIII].sort(cmp);
+
+		assert.deepStrictEqual(actual, [itemAAA, itemIII, itemZZZ]);
 	});
 
 	test('Score only filtered items when typing more, score all when typing less', function () {

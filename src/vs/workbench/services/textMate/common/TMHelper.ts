@@ -21,9 +21,9 @@ export interface ITokenColorizationSetting {
 
 export function findMatchingThemeRule(theme: IColorTheme, scopes: string[], onlyColorRules: boolean = true): ThemeRule | null {
 	for (let i = scopes.length - 1; i >= 0; i--) {
-		let parentScopes = scopes.slice(0, i);
-		let scope = scopes[i];
-		let r = findMatchingThemeRule2(theme, scope, parentScopes, onlyColorRules);
+		const parentScopes = scopes.slice(0, i);
+		const scope = scopes[i];
+		const r = findMatchingThemeRule2(theme, scope, parentScopes, onlyColorRules);
 		if (r) {
 			return r;
 		}
@@ -36,7 +36,7 @@ function findMatchingThemeRule2(theme: IColorTheme, scope: string, parentScopes:
 
 	// Loop backwards, to ensure the last most specific rule wins
 	for (let i = theme.tokenColors.length - 1; i >= 0; i--) {
-		let rule = theme.tokenColors[i];
+		const rule = theme.tokenColors[i];
 		if (onlyColorRules && !rule.settings.foreground) {
 			continue;
 		}
@@ -51,9 +51,9 @@ function findMatchingThemeRule2(theme: IColorTheme, scope: string, parentScopes:
 		}
 
 		for (let j = 0, lenJ = selectors.length; j < lenJ; j++) {
-			let rawSelector = selectors[j];
+			const rawSelector = selectors[j];
 
-			let themeRule = new ThemeRule(rawSelector, rule.settings);
+			const themeRule = new ThemeRule(rawSelector, rule.settings);
 			if (themeRule.matches(scope, parentScopes)) {
 				if (themeRule.isMoreSpecific(result)) {
 					result = themeRule;
@@ -74,7 +74,7 @@ export class ThemeRule {
 	constructor(rawSelector: string, settings: ITokenColorizationSetting) {
 		this.rawSelector = rawSelector;
 		this.settings = settings;
-		let rawSelectorPieces = this.rawSelector.split(/ /);
+		const rawSelectorPieces = this.rawSelector.split(/ /);
 		this.scope = rawSelectorPieces[rawSelectorPieces.length - 1];
 		this.parentScopes = rawSelectorPieces.slice(0, rawSelectorPieces.length - 1);
 	}
@@ -120,7 +120,7 @@ export class ThemeRule {
 	}
 
 	private static _matchesOne(selectorScope: string, scope: string): boolean {
-		let selectorPrefix = selectorScope + '.';
+		const selectorPrefix = selectorScope + '.';
 		if (selectorScope === scope || scope.substring(0, selectorPrefix.length) === selectorPrefix) {
 			return true;
 		}

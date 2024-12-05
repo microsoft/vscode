@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SmartSnippetInserter } from 'vs/workbench/contrib/preferences/common/smartSnippetInserter';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { Position } from 'vs/editor/common/core/position';
+import assert from 'assert';
+import { SmartSnippetInserter } from '../../common/smartSnippetInserter.js';
+import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('SmartSnippetInserter', () => {
 
 	function testSmartSnippetInserter(text: string[], runner: (assert: (desiredPos: Position, pos: Position, prepend: string, append: string) => void) => void): void {
-		let model = createTextModel(text.join('\n'));
+		const model = createTextModel(text.join('\n'));
 		runner((desiredPos, pos, prepend, append) => {
-			let actual = SmartSnippetInserter.insertSnippet(model, desiredPos);
-			let expected = {
+			const actual = SmartSnippetInserter.insertSnippet(model, desiredPos);
+			const expected = {
 				position: pos,
 				prepend,
 				append
@@ -159,4 +160,5 @@ suite('SmartSnippetInserter', () => {
 		});
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

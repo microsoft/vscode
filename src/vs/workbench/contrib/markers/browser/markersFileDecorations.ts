@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IMarkerService, IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IDecorationsService, IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IMarkerService, IMarker, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { IDecorationsService, IDecorationsProvider, IDecorationData } from '../../../services/decorations/common/decorations.js';
+import { IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Event } from '../../../../base/common/event.js';
+import { localize } from '../../../../nls.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { listErrorForeground, listWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 
 class MarkersDecorationsProvider implements IDecorationsProvider {
 
@@ -28,7 +28,7 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 	}
 
 	provideDecorations(resource: URI): IDecorationData | undefined {
-		let markers = this._markerService.read({
+		const markers = this._markerService.read({
 			resource,
 			severities: MarkerSeverity.Error | MarkerSeverity.Warning
 		});
@@ -64,9 +64,12 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 		@IDecorationsService private readonly _decorationsService: IDecorationsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
-		//
 		this._disposables = [
-			this._configurationService.onDidChangeConfiguration(this._updateEnablement, this),
+			this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration('problems.visibility')) {
+					this._updateEnablement();
+				}
+			}),
 		];
 		this._updateEnablement();
 	}
@@ -77,16 +80,26 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 
 	private _updateEnablement(): void {
-		let value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
-		if (value.decorations.enabled === this._enabled) {
+		const problem = this._configurationService.getValue('problems.visibility');
+		if (problem === undefined) {
 			return;
 		}
-		this._enabled = value.decorations.enabled;
+		const value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
+		const shouldEnable = (problem && value.decorations.enabled);
+
+		if (shouldEnable === this._enabled) {
+			if (!problem || !value.decorations.enabled) {
+				this._provider?.dispose();
+				this._provider = undefined;
+			}
+			return;
+		}
+
+		this._enabled = shouldEnable as boolean;
 		if (this._enabled) {
 			const provider = new MarkersDecorationsProvider(this._markerService);
 			this._provider = this._decorationsService.registerDecorationsProvider(provider);
 		} else if (this._provider) {
-			this._enabled = value.decorations.enabled;
 			this._provider.dispose();
 		}
 	}
@@ -98,7 +111,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	'type': 'object',
 	'properties': {
 		'problems.decorations.enabled': {
-			'description': localize('markers.showOnFile', "Show Errors & Warnings on files and folder."),
+			'markdownDescription': localize('markers.showOnFile', "Show Errors & Warnings on files and folder. Overwritten by {0} when it is off.", '`#problems.visibility#`'),
 			'type': 'boolean',
 			'default': true
 		}

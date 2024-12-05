@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { ExtHostStorage } from './extHostStorage.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { DeferredPromise, RunOnceScheduler } from '../../../base/common/async.js';
 
 export class ExtensionMemento implements vscode.Memento {
 
@@ -78,7 +78,7 @@ export class ExtensionMemento implements vscode.Memento {
 	update(key: string, value: any): Promise<void> {
 		this._value![key] = value;
 
-		let record = this._deferredPromises.get(key);
+		const record = this._deferredPromises.get(key);
 		if (record !== undefined) {
 			return record.p;
 		}

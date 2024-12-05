@@ -866,9 +866,7 @@ export class Color {
 
 	private _toString?: string;
 	toString(): string {
-		if (!this._toString) {
-			this._toString = Color.Format.CSS.format(this);
-		}
+		this._toString ??= Color.Format.CSS.format(this);
 		return this._toString;
 	}
 

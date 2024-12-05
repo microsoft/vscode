@@ -3,17 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
-import { WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { FileChangesEvent, FileChangeType } from '../../../../../platform/files/common/files.js';
+import { IRevertOptions, ISaveOptions } from '../../../../common/editor.js';
+import { ResourceWorkingCopy } from '../../common/resourceWorkingCopy.js';
+import { WorkingCopyCapabilities, IWorkingCopyBackup } from '../../common/workingCopy.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('ResourceWorkingCopy', function () {
 
@@ -31,8 +33,8 @@ suite('ResourceWorkingCopy', function () {
 
 	}
 
-	let disposables: DisposableStore;
-	let resource = URI.file('test/resource');
+	const disposables = new DisposableStore();
+	const resource = URI.file('test/resource');
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 	let workingCopy: TestResourceWorkingCopy;
@@ -42,48 +44,49 @@ suite('ResourceWorkingCopy', function () {
 	}
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		workingCopy = createWorkingCopy();
+		workingCopy = disposables.add(createWorkingCopy());
 	});
 
 	teardown(() => {
-		workingCopy.dispose();
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('orphaned tracking', async () => {
-		assert.strictEqual(workingCopy.isOrphaned(), false);
+		return runWithFakedTimers({}, async () => {
+			assert.strictEqual(workingCopy.isOrphaned(), false);
 
-		let onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
-		accessor.fileService.notExistsSet.set(resource, true);
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
+			let onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
+			accessor.fileService.notExistsSet.set(resource, true);
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
 
-		await onDidChangeOrphanedPromise;
-		assert.strictEqual(workingCopy.isOrphaned(), true);
+			await onDidChangeOrphanedPromise;
+			assert.strictEqual(workingCopy.isOrphaned(), true);
 
-		onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
-		accessor.fileService.notExistsSet.delete(resource);
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.ADDED }], false));
+			onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
+			accessor.fileService.notExistsSet.delete(resource);
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.ADDED }], false));
 
-		await onDidChangeOrphanedPromise;
-		assert.strictEqual(workingCopy.isOrphaned(), false);
+			await onDidChangeOrphanedPromise;
+			assert.strictEqual(workingCopy.isOrphaned(), false);
+		});
 	});
-
 
 	test('dispose, isDisposed', async () => {
 		assert.strictEqual(workingCopy.isDisposed(), false);
 
 		let disposedEvent = false;
-		workingCopy.onWillDispose(() => {
+		disposables.add(workingCopy.onWillDispose(() => {
 			disposedEvent = true;
-		});
+		}));
 
 		workingCopy.dispose();
 
 		assert.strictEqual(workingCopy.isDisposed(), true);
 		assert.strictEqual(disposedEvent, true);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

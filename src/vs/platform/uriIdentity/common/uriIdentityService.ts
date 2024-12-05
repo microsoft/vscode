@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IFileService, FileSystemProviderCapabilities, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent } from 'vs/platform/files/common/files';
-import { ExtUri, IExtUri, normalizePath } from 'vs/base/common/resources';
-import { SkipList } from 'vs/base/common/skipList';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IUriIdentityService } from './uriIdentity.js';
+import { URI } from '../../../base/common/uri.js';
+import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
+import { IFileService, FileSystemProviderCapabilities, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent } from '../../files/common/files.js';
+import { ExtUri, IExtUri, normalizePath } from '../../../base/common/resources.js';
+import { SkipList } from '../../../base/common/skipList.js';
+import { Event } from '../../../base/common/event.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 
 class Entry {
 	static _clock = 0;
@@ -75,7 +75,7 @@ export class UriIdentityService implements IUriIdentityService {
 		}
 
 		// (2) find the uri in its canonical form or use this uri to define it
-		let item = this._canonicalUris.get(uri);
+		const item = this._canonicalUris.get(uri);
 		if (item) {
 			return item.touch().uri.with({ fragment: uri.fragment });
 		}
@@ -92,13 +92,13 @@ export class UriIdentityService implements IUriIdentityService {
 			return;
 		}
 
-		// get all entries, sort by touch (MRU) and re-initalize
+		// get all entries, sort by time (MRU) and re-initalize
 		// the uri cache and the entry clock. this is an expensive
 		// operation and should happen rarely
 		const entries = [...this._canonicalUris.entries()].sort((a, b) => {
-			if (a[1].touch < b[1].touch) {
+			if (a[1].time < b[1].time) {
 				return 1;
-			} else if (a[1].touch > b[1].touch) {
+			} else if (a[1].time > b[1].time) {
 				return -1;
 			} else {
 				return 0;
@@ -114,4 +114,4 @@ export class UriIdentityService implements IUriIdentityService {
 	}
 }
 
-registerSingleton(IUriIdentityService, UriIdentityService, true);
+registerSingleton(IUriIdentityService, UriIdentityService, InstantiationType.Delayed);

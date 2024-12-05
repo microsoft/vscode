@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { $, Dimension } from 'vs/base/browser/dom';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { equals } from 'vs/base/common/arrays';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { $, Dimension } from '../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { equals } from '../../../../base/common/arrays.js';
 
 type GettingStartedIndexListOptions<T> = {
 	title: string;
@@ -115,9 +115,7 @@ export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyEx
 		this.contextKeysToWatch.clear();
 		entryList.forEach(e => {
 			const keys = e.when?.keys();
-			if (keys) {
-				keys.forEach(key => this.contextKeysToWatch.add(key));
-			}
+			keys?.forEach(key => this.contextKeysToWatch.add(key));
 		});
 
 		this.lastRendered = toRender;
@@ -125,7 +123,7 @@ export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyEx
 
 
 		while (this.list.firstChild) {
-			this.list.removeChild(this.list.firstChild);
+			this.list.firstChild.remove();
 		}
 
 		this.itemCount = limitedEntries.length;

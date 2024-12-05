@@ -3,18 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as nls from 'vs/nls';
-import { CustomEditorPriority, CustomEditorSelector } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import * as nls from '../../../../nls.js';
+import { IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { CustomEditorPriority, CustomEditorSelector } from './customEditor.js';
+import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../../services/extensionManagement/common/extensionFeatures.js';
+import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
+import { languagesExtPoint } from '../../../services/language/common/languageService.js';
 
-namespace Fields {
-	export const viewType = 'viewType';
-	export const displayName = 'displayName';
-	export const selector = 'selector';
-	export const priority = 'priority';
-}
+const Fields = Object.freeze({
+	viewType: 'viewType',
+	displayName: 'displayName',
+	selector: 'selector',
+	priority: 'priority',
+});
 
 export interface ICustomEditorsExtensionPoint {
 	readonly [Fields.viewType]: string;
@@ -89,5 +95,61 @@ const CustomEditorsContribution: IJSONSchema = {
 export const customEditorsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ICustomEditorsExtensionPoint[]>({
 	extensionPoint: 'customEditors',
 	deps: [languagesExtPoint],
-	jsonSchema: CustomEditorsContribution
+	jsonSchema: CustomEditorsContribution,
+	activationEventsGenerator: (contribs: ICustomEditorsExtensionPoint[], result: { push(item: string): void }) => {
+		for (const contrib of contribs) {
+			const viewType = contrib[Fields.viewType];
+			if (viewType) {
+				result.push(`onCustomEditor:${viewType}`);
+			}
+		}
+	},
+});
+
+class CustomEditorsDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+
+	readonly type = 'table';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.customEditors;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const customEditors = manifest.contributes?.customEditors || [];
+		if (!customEditors.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			nls.localize('customEditors view type', "View Type"),
+			nls.localize('customEditors priority', "Priority"),
+			nls.localize('customEditors filenamePattern', "Filename Pattern"),
+		];
+
+		const rows: IRowData[][] = customEditors
+			.map(customEditor => {
+				return [
+					customEditor.viewType,
+					customEditor.priority ?? '',
+					coalesce(customEditor.selector.map(x => x.filenamePattern)).join(', ')
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'customEditors',
+	label: nls.localize('customEditors', "Custom Editors"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(CustomEditorsDataRenderer),
 });

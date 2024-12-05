@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import * as languages from 'vs/editor/common/languages';
-import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/browser/bracketSelections';
-import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/browser/wordSelections';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import * as arrays from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { ITextModel } from '../../../common/model.js';
+import * as languages from '../../../common/languages.js';
+import { BracketSelectionRangeProvider } from './bracketSelections.js';
+import { WordSelectionRangeProvider } from './wordSelections.js';
+import * as nls from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
+import { ITextModelService } from '../../../common/services/resolverService.js';
+import { assertType } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
 
 class SelectionRanges {
 
@@ -38,7 +38,7 @@ class SelectionRanges {
 	) { }
 
 	mov(fwd: boolean): SelectionRanges {
-		let index = this.index + (fwd ? 1 : -1);
+		const index = this.index + (fwd ? 1 : -1);
 		if (index < 0 || index >= this.ranges.length) {
 			return this;
 		}
@@ -51,7 +51,7 @@ class SelectionRanges {
 	}
 }
 
-class SmartSelectController implements IEditorContribution {
+export class SmartSelectController implements IEditorContribution {
 
 	static readonly ID = 'editor.contrib.smartSelectController';
 
@@ -140,7 +140,7 @@ abstract class AbstractSmartSelect extends EditorAction {
 	}
 
 	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		let controller = SmartSelectController.get(editor);
+		const controller = SmartSelectController.get(editor);
 		if (controller) {
 			await controller.run(this._forward);
 		}
@@ -151,8 +151,7 @@ class GrowSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(true, {
 			id: 'editor.action.smartSelect.expand',
-			label: nls.localize('smartSelect.expand', "Expand Selection"),
-			alias: 'Expand Selection',
+			label: nls.localize2('smartSelect.expand', "Expand Selection"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -180,8 +179,7 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(false, {
 			id: 'editor.action.smartSelect.shrink',
-			label: nls.localize('smartSelect.shrink', "Shrink Selection"),
-			alias: 'Shrink Selection',
+			label: nls.localize2('smartSelect.shrink', "Shrink Selection"),
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -202,26 +200,27 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 	}
 }
 
-registerEditorContribution(SmartSelectController.ID, SmartSelectController);
+registerEditorContribution(SmartSelectController.ID, SmartSelectController, EditorContributionInstantiation.Lazy);
 registerEditorAction(GrowSelectionAction);
 registerEditorAction(ShrinkSelectionAction);
 
 export interface SelectionRangesOptions {
 	selectLeadingAndTrailingWhitespace: boolean;
+	selectSubwords: boolean;
 }
 
 export async function provideSelectionRanges(registry: LanguageFeatureRegistry<languages.SelectionRangeProvider>, model: ITextModel, positions: Position[], options: SelectionRangesOptions, token: CancellationToken): Promise<Range[][]> {
 
 	const providers = registry.all(model)
-		.concat(new WordSelectionRangeProvider()); // ALWAYS have word based selection range
+		.concat(new WordSelectionRangeProvider(options.selectSubwords)); // ALWAYS have word based selection range
 
 	if (providers.length === 1) {
 		// add word selection and bracket selection when no provider exists
 		providers.unshift(new BracketSelectionRangeProvider());
 	}
 
-	let work: Promise<any>[] = [];
-	let allRawRanges: Range[][] = [];
+	const work: Promise<any>[] = [];
+	const allRawRanges: Range[][] = [];
 
 	for (const provider of providers) {
 
@@ -266,7 +265,7 @@ export async function provideSelectionRanges(registry: LanguageFeatureRegistry<l
 
 		// remove ranges that don't contain the former range or that are equal to the
 		// former range
-		let oneRanges: Range[] = [];
+		const oneRanges: Range[] = [];
 		let last: Range | undefined;
 		for (const range of oneRawRanges) {
 			if (!last || (Range.containsRange(range, last) && !Range.equalsRange(range, last))) {
@@ -281,7 +280,7 @@ export async function provideSelectionRanges(registry: LanguageFeatureRegistry<l
 
 		// add ranges that expand trivia at line starts and ends whenever a range
 		// wraps onto the a new line
-		let oneRangesWithTrivia: Range[] = [oneRanges[0]];
+		const oneRangesWithTrivia: Range[] = [oneRanges[0]];
 		for (let i = 1; i < oneRanges.length; i++) {
 			const prev = oneRanges[i - 1];
 			const cur = oneRanges[i];
@@ -313,7 +312,7 @@ CommandsRegistry.registerCommand('_executeSelectionRangeProvider', async functio
 	const reference = await accessor.get(ITextModelService).createModelReference(resource);
 
 	try {
-		return provideSelectionRanges(registry, reference.object.textEditorModel, positions, { selectLeadingAndTrailingWhitespace: true }, CancellationToken.None);
+		return provideSelectionRanges(registry, reference.object.textEditorModel, positions, { selectLeadingAndTrailingWhitespace: true, selectSubwords: true }, CancellationToken.None);
 	} finally {
 		reference.dispose();
 	}

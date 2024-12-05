@@ -3,17 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, window, TextDocument, CompletionContext, CancellationToken, ProviderResult, CompletionList, FormattingOptions, workspace } from 'vscode';
+import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, window, TextDocument, CompletionContext, CancellationToken, ProviderResult, CompletionList, FormattingOptions, workspace, l10n } from 'vscode';
 import { Disposable, LanguageClientOptions, ProvideCompletionItemsSignature, NotificationType, BaseLanguageClient, DocumentRangeFormattingParams, DocumentRangeFormattingRequest } from 'vscode-languageclient';
-import * as nls from 'vscode-nls';
 import { getCustomDataSource } from './customData';
 import { RequestService, serveFileSystemRequests } from './requests';
 
 namespace CustomDataChangedNotification {
 	export const type: NotificationType<string[]> = new NotificationType('css/customDataChanged');
 }
-
-const localize = nls.loadMessageBundle();
 
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => BaseLanguageClient;
 
@@ -43,14 +40,14 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 
 	const customDataSource = getCustomDataSource(context.subscriptions);
 
-	let documentSelector = ['css', 'scss', 'less'];
+	const documentSelector = ['css', 'scss', 'less'];
 
 	const formatterRegistrations: FormatterRegistration[] = documentSelector.map(languageId => ({
 		languageId, settingId: `${languageId}.format.enable`, provider: undefined
 	}));
 
 	// Options to control the language client
-	let clientOptions: LanguageClientOptions = {
+	const clientOptions: LanguageClientOptions = {
 		documentSelector,
 		synchronize: {
 			configurationSection: ['css', 'scss', 'less']
@@ -98,7 +95,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	};
 
 	// Create the language client and start the client.
-	let client = newLanguageClient('css', localize('cssserver.name', 'CSS Language Server'), clientOptions);
+	const client = newLanguageClient('css', l10n.t('CSS Language Server'), clientOptions);
 	client.registerProposedFeatures();
 
 	await client.start();
@@ -125,20 +122,20 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 
 		return languages.registerCompletionItemProvider(documentSelector, {
 			provideCompletionItems(doc: TextDocument, pos: Position) {
-				let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
-				let match = lineUntilPos.match(regionCompletionRegExpr);
+				const lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
+				const match = lineUntilPos.match(regionCompletionRegExpr);
 				if (match) {
-					let range = new Range(new Position(pos.line, match[1].length), pos);
-					let beginProposal = new CompletionItem('#region', CompletionItemKind.Snippet);
+					const range = new Range(new Position(pos.line, match[1].length), pos);
+					const beginProposal = new CompletionItem('#region', CompletionItemKind.Snippet);
 					beginProposal.range = range; TextEdit.replace(range, '/* #region */');
 					beginProposal.insertText = new SnippetString('/* #region $1*/');
-					beginProposal.documentation = localize('folding.start', 'Folding Region Start');
+					beginProposal.documentation = l10n.t('Folding Region Start');
 					beginProposal.filterText = match[2];
 					beginProposal.sortText = 'za';
-					let endProposal = new CompletionItem('#endregion', CompletionItemKind.Snippet);
+					const endProposal = new CompletionItem('#endregion', CompletionItemKind.Snippet);
 					endProposal.range = range;
 					endProposal.insertText = '/* #endregion */';
-					endProposal.documentation = localize('folding.end', 'Folding Region End');
+					endProposal.documentation = l10n.t('Folding Region End');
 					endProposal.sortText = 'zb';
 					endProposal.filterText = match[2];
 					return [beginProposal, endProposal];
@@ -151,18 +148,18 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	commands.registerCommand('_css.applyCodeAction', applyCodeAction);
 
 	function applyCodeAction(uri: string, documentVersion: number, edits: TextEdit[]) {
-		let textEditor = window.activeTextEditor;
+		const textEditor = window.activeTextEditor;
 		if (textEditor && textEditor.document.uri.toString() === uri) {
 			if (textEditor.document.version !== documentVersion) {
-				window.showInformationMessage(`CSS fix is outdated and can't be applied to the document.`);
+				window.showInformationMessage(l10n.t('CSS fix is outdated and can\'t be applied to the document.'));
 			}
 			textEditor.edit(mutator => {
-				for (let edit of edits) {
+				for (const edit of edits) {
 					mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
 				}
 			}).then(success => {
 				if (!success) {
-					window.showErrorMessage('Failed to apply CSS fix to the document. Please consider opening an issue with steps to reproduce.');
+					window.showErrorMessage(l10n.t('Failed to apply CSS fix to the document. Please consider opening an issue with steps to reproduce.'));
 				}
 			});
 		}

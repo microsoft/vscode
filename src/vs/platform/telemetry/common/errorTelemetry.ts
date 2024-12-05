@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { binarySearch } from 'vs/base/common/arrays';
-import * as Errors from 'vs/base/common/errors';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { safeStringify } from 'vs/base/common/objects';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { binarySearch } from '../../../base/common/arrays.js';
+import { errorHandler, ErrorNoTelemetry } from '../../../base/common/errors.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { safeStringify } from '../../../base/common/objects.js';
+import { FileOperationError } from '../../files/common/files.js';
+import { ITelemetryService } from './telemetry.js';
 
 type ErrorEventFragment = {
 	owner: 'lramos15, sbatten';
@@ -15,11 +16,11 @@ type ErrorEventFragment = {
 	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The callstack of the error.' };
 	msg?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The message of the error. Normally the first line int the callstack.' };
 	file?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The file the error originated from.' };
-	line?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The line the error originate on.' };
-	column?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The column of the line which the error orginated on.' };
+	line?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The line the error originate on.' };
+	column?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The column of the line which the error orginated on.' };
 	uncaught_error_name?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'If the error is uncaught what is the error type' };
 	uncaught_error_msg?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'If the error is uncaught this is just msg but for uncaught errors.' };
-	count?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'How many times this error has been thrown' };
+	count?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'How many times this error has been thrown' };
 };
 export interface ErrorEvent {
 	callstack: string;
@@ -58,7 +59,7 @@ export default abstract class BaseErrorTelemetry {
 		this._flushDelay = flushDelay;
 
 		// (1) check for unexpected but handled errors
-		const unbind = Errors.errorHandler.addListener((err) => this._onErrorEvent(err));
+		const unbind = errorHandler.addListener((err) => this._onErrorEvent(err));
 		this._disposables.add(toDisposable(unbind));
 
 		// (2) install implementation-specific error listeners
@@ -77,7 +78,7 @@ export default abstract class BaseErrorTelemetry {
 
 	private _onErrorEvent(err: any): void {
 
-		if (!err) {
+		if (!err || err.code) {
 			return;
 		}
 
@@ -87,13 +88,14 @@ export default abstract class BaseErrorTelemetry {
 		}
 
 		// If it's the no telemetry error it doesn't get logged
-		if (err instanceof Errors.ErrorNoTelemetry) {
+		// TOOD @lramos15 hacking in FileOperation error because it's too messy to adopt ErrorNoTelemetry. A better solution should be found
+		if (ErrorNoTelemetry.isErrorNoTelemetry(err) || err instanceof FileOperationError || (typeof err?.message === 'string' && err.message.includes('Unable to read file'))) {
 			return;
 		}
 
 		// work around behavior in workerServer.ts that breaks up Error.stack
-		let callstack = Array.isArray(err.stack) ? err.stack.join('\n') : err.stack;
-		let msg = err.message ? err.message : safeStringify(err);
+		const callstack = Array.isArray(err.stack) ? err.stack.join('\n') : err.stack;
+		const msg = err.message ? err.message : safeStringify(err);
 
 		// errors without a stack are not useful telemetry
 		if (!callstack) {
@@ -125,7 +127,7 @@ export default abstract class BaseErrorTelemetry {
 	}
 
 	private _flushBuffer(): void {
-		for (let error of this._buffer) {
+		for (const error of this._buffer) {
 			type UnhandledErrorClassification = {} & ErrorEventFragment;
 			this._telemetryService.publicLogError2<ErrorEvent, UnhandledErrorClassification>('UnhandledError', error);
 		}

@@ -11,6 +11,7 @@
   "scripts": {
     "update-grammar": "node ./build/update-grammars.js"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {
@@ -31,7 +32,8 @@
           ".jslintrc",
           ".jsonld",
           ".geojson",
-		  ".ipynb"
+          ".ipynb",
+          ".vuerc"
         ],
         "filenames": [
           "composer.lock",
@@ -61,7 +63,33 @@
         "filenames": [
           "babel.config.json",
           ".babelrc.json",
-          ".ember-cli"
+          ".ember-cli",
+          "typedoc.json"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "jsonl",
+        "aliases": [
+          "JSON Lines"
+        ],
+        "extensions": [
+          ".jsonl"
+        ],
+        "filenames": [],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "snippets",
+        "aliases": [
+            "Code Snippets"
+        ],
+        "extensions": [
+          ".code-snippets"
+        ],
+        "filenamePatterns": [
+          "**/User/snippets/*.json",
+          "**/User/profiles/*/snippets/*.json"
         ],
         "configuration": "./language-configuration.json"
       }
@@ -76,6 +104,16 @@
         "language": "jsonc",
         "scopeName": "source.json.comments",
         "path": "./syntaxes/JSONC.tmLanguage.json"
+      },
+      {
+        "language": "jsonl",
+        "scopeName": "source.json.lines",
+        "path": "./syntaxes/JSONL.tmLanguage.json"
+      },
+      {
+        "language": "snippets",
+        "scopeName": "source.json.comments.snippets",
+        "path": "./syntaxes/snippets.tmLanguage.json"
       }
     ]
   },

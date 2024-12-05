@@ -3,44 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { multibyteAwareBtoa } from 'vs/base/browser/dom';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/path';
-import { isEqual, isEqualOrParent, toLocalResource } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { FileOperation, IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
-import { MainThreadWebviewPanels } from 'vs/workbench/api/browser/mainThreadWebviewPanels';
-import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
-import { CustomDocumentBackupData } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
-import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { CustomTextEditorModel } from 'vs/workbench/contrib/customEditor/common/customTextEditorModel';
-import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
-import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopySaveEvent, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
-import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { multibyteAwareBtoa } from '../../../base/browser/dom.js';
+import { CancelablePromise, createCancelablePromise } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { isCancellationError, onUnexpectedError } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, IReference } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { basename } from '../../../base/common/path.js';
+import { isEqual, isEqualOrParent, toLocalResource } from '../../../base/common/resources.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { localize } from '../../../nls.js';
+import { IFileDialogService } from '../../../platform/dialogs/common/dialogs.js';
+import { FileOperation, IFileService } from '../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../platform/label/common/label.js';
+import { IStorageService } from '../../../platform/storage/common/storage.js';
+import { IUndoRedoService, UndoRedoElementType } from '../../../platform/undoRedo/common/undoRedo.js';
+import { MainThreadWebviewPanels } from './mainThreadWebviewPanels.js';
+import { MainThreadWebviews, reviveWebviewExtension } from './mainThreadWebviews.js';
+import * as extHostProtocol from '../common/extHost.protocol.js';
+import { IRevertOptions, ISaveOptions } from '../../common/editor.js';
+import { CustomEditorInput } from '../../contrib/customEditor/browser/customEditorInput.js';
+import { CustomDocumentBackupData } from '../../contrib/customEditor/browser/customEditorInputFactory.js';
+import { ICustomEditorModel, ICustomEditorService } from '../../contrib/customEditor/common/customEditor.js';
+import { CustomTextEditorModel } from '../../contrib/customEditor/common/customTextEditorModel.js';
+import { ExtensionKeyedWebviewOriginStore, WebviewExtensionDescription } from '../../contrib/webview/browser/webview.js';
+import { WebviewInput } from '../../contrib/webviewPanel/browser/webviewEditorInput.js';
+import { IWebviewWorkbenchService } from '../../contrib/webviewPanel/browser/webviewWorkbenchService.js';
+import { editorGroupToColumn } from '../../services/editor/common/editorGroupColumn.js';
+import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { IPathService } from '../../services/path/common/pathService.js';
+import { ResourceWorkingCopy } from '../../services/workingCopy/common/resourceWorkingCopy.js';
+import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopySaveEvent, NO_TYPE_ID, WorkingCopyCapabilities } from '../../services/workingCopy/common/workingCopy.js';
+import { IWorkingCopyFileService, WorkingCopyFileEvent } from '../../services/workingCopy/common/workingCopyFileService.js';
+import { IWorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
 
 const enum CustomEditorModelType {
 	Custom,
@@ -51,23 +54,29 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 
 	private readonly _proxyCustomEditors: extHostProtocol.ExtHostCustomEditorsShape;
 
-	private readonly _editorProviders = new Map<string, IDisposable>();
+	private readonly _editorProviders = this._register(new DisposableMap<string>());
 
 	private readonly _editorRenameBackups = new Map<string, CustomDocumentBackupData>();
+
+	private readonly _webviewOriginStore: ExtensionKeyedWebviewOriginStore;
 
 	constructor(
 		context: IExtHostContext,
 		private readonly mainThreadWebview: MainThreadWebviews,
 		private readonly mainThreadWebviewPanels: MainThreadWebviewPanels,
 		@IExtensionService extensionService: IExtensionService,
+		@IStorageService storageService: IStorageService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@ICustomEditorService private readonly _customEditorService: ICustomEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
-		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 	) {
 		super();
+
+		this._webviewOriginStore = new ExtensionKeyedWebviewOriginStore('mainThreadCustomEditors.origins', storageService);
 
 		this._proxyCustomEditors = context.getProxy(extHostProtocol.ExtHostContext.ExtHostCustomEditors);
 
@@ -97,13 +106,6 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 
 		// Working copy operations
 		this._register(workingCopyFileService.onWillRunWorkingCopyFileOperation(async e => this.onWillRunWorkingCopyFileOperation(e)));
-	}
-
-	override dispose() {
-		super.dispose();
-
-		dispose(this._editorProviders.values());
-		this._editorProviders.clear();
 	}
 
 	public $registerTextEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: extHostProtocol.IWebviewPanelOptions, capabilities: extHostProtocol.CustomTextEditorCapabilities, serializeBuffersForPostMessage: boolean): void {
@@ -138,8 +140,10 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				return webviewInput instanceof CustomEditorInput && webviewInput.viewType === viewType;
 			},
 			resolveWebview: async (webviewInput: CustomEditorInput, cancellation: CancellationToken) => {
-				const handle = webviewInput.id;
+				const handle = generateUuid();
 				const resource = webviewInput.resource;
+
+				webviewInput.webview.origin = this._webviewOriginStore.getOrigin(viewType, extension.id);
 
 				this.mainThreadWebviewPanels.addWebviewInput(handle, webviewInput, { serializeBuffersForPostMessage });
 				webviewInput.webview.options = options;
@@ -159,7 +163,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType, { backupId }, cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
-					webviewInput.webview.html = this.mainThreadWebview.getWebviewResolvedFailedContent(viewType);
+					webviewInput.webview.setHtml(this.mainThreadWebview.getWebviewResolvedFailedContent(viewType));
 					return;
 				}
 
@@ -193,14 +197,15 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				}
 
 				try {
-					await this._proxyCustomEditors.$resolveWebviewEditor(resource, handle, viewType, {
+					await this._proxyCustomEditors.$resolveCustomEditor(resource, handle, viewType, {
 						title: webviewInput.getTitle(),
-						webviewOptions: webviewInput.webview.contentOptions,
-						panelOptions: webviewInput.webview.options,
+						contentOptions: webviewInput.webview.contentOptions,
+						options: webviewInput.webview.options,
+						active: webviewInput === this._editorService.activeEditor,
 					}, editorGroupToColumn(this._editorGroupService, webviewInput.group || 0), cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
-					webviewInput.webview.html = this.mainThreadWebview.getWebviewResolvedFailedContent(viewType);
+					webviewInput.webview.setHtml(this.mainThreadWebview.getWebviewResolvedFailedContent(viewType));
 					modelRef.dispose();
 					return;
 				}
@@ -211,13 +216,11 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 	}
 
 	public $unregisterEditorProvider(viewType: string): void {
-		const provider = this._editorProviders.get(viewType);
-		if (!provider) {
+		if (!this._editorProviders.has(viewType)) {
 			throw new Error(`No provider for ${viewType} registered`);
 		}
 
-		provider.dispose();
-		this._editorProviders.delete(viewType);
+		this._editorProviders.deleteAndDispose(viewType);
 
 		this._customEditorService.models.disposeAllModelsForView(viewType);
 	}
@@ -376,6 +379,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IPathService private readonly _pathService: IPathService,
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super(MainThreadCustomEditorModel.toWorkingCopyResource(_viewType, _editorResource), fileService);
 
@@ -383,6 +387,10 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 
 		if (_editable) {
 			this._register(workingCopyService.registerWorkingCopy(this));
+
+			this._register(extensionService.onWillStop(e => {
+				e.veto(true, localize('vetoExtHostRestart', "A custom editor for '{0}' is open.", this.name));
+			}));
 		}
 
 		// Normally means we're re-opening an untitled file
@@ -645,6 +653,8 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		}
 	}
 
+	public get canHotExit() { return typeof this._backupId === 'string' && this._hotExitState.type === HotExitState.Type.Allowed; }
+
 	public async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		const editors = this._getEditors();
 		if (!editors.length) {
@@ -661,7 +671,6 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 				location: primaryEditor.extension.location!,
 			} : undefined,
 			webview: {
-				id: primaryEditor.id,
 				origin: primaryEditor.webview.origin,
 				options: primaryEditor.webview.options,
 				state: primaryEditor.webview.state,
@@ -717,6 +726,6 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			return backupData;
 		}
 
-		throw new Error(`Cannot back up in this state: ${errorMessage}`);
+		throw new Error(`Cannot backup in this state: ${errorMessage}`);
 	}
 }

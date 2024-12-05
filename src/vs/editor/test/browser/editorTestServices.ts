@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { AbstractCodeEditorService, GlobalStyleSheet } from 'vs/editor/browser/services/abstractCodeEditorService';
-import { CommandsRegistry, ICommandEvent, ICommandService } from 'vs/platform/commands/common/commands';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { ICodeEditor } from '../../browser/editorBrowser.js';
+import { AbstractCodeEditorService, GlobalStyleSheet } from '../../browser/services/abstractCodeEditorService.js';
+import { CommandsRegistry, ICommandEvent, ICommandService } from '../../../platform/commands/common/commands.js';
+import { IResourceEditorInput } from '../../../platform/editor/common/editor.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 
 export class TestCodeEditorService extends AbstractCodeEditorService {
 
@@ -22,7 +22,7 @@ export class TestCodeEditorService extends AbstractCodeEditorService {
 		return null;
 	}
 	public lastInput?: IResourceEditorInput;
-	openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+	override openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 		this.lastInput = input;
 		return Promise.resolve(null);
 	}
@@ -36,8 +36,8 @@ export class TestGlobalStyleSheet extends GlobalStyleSheet {
 		super(null!);
 	}
 
-	public override insertRule(rule: string, index?: number): void {
-		this.rules.unshift(rule);
+	public override insertRule(selector: string, rule: string): void {
+		this.rules.unshift(`${selector} {${rule}}`);
 	}
 
 	public override removeRulesContainingSelector(ruleName: string): void {

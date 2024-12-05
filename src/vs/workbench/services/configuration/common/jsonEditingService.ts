@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import * as json from 'vs/base/common/json';
-import { setProperty } from 'vs/base/common/jsonEdit';
-import { Queue } from 'vs/base/common/async';
-import { Edit } from 'vs/base/common/jsonFormatter';
-import { IReference } from 'vs/base/common/lifecycle';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IJSONEditingService, IJSONValue, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { ITextModel } from 'vs/editor/common/model';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import * as nls from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as json from '../../../../base/common/json.js';
+import { setProperty } from '../../../../base/common/jsonEdit.js';
+import { Queue } from '../../../../base/common/async.js';
+import { Edit } from '../../../../base/common/jsonFormatter.js';
+import { IReference } from '../../../../base/common/lifecycle.js';
+import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { ITextFileService } from '../../textfile/common/textfiles.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { ITextModelService, IResolvedTextEditorModel } from '../../../../editor/common/services/resolverService.js';
+import { IJSONEditingService, IJSONValue, JSONEditingError, JSONEditingErrorCode } from './jsonEditing.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
 export class JSONEditingService implements IJSONEditingService {
 
@@ -34,26 +34,26 @@ export class JSONEditingService implements IJSONEditingService {
 		this.queue = new Queue<void>();
 	}
 
-	write(resource: URI, values: IJSONValue[], save: boolean): Promise<void> {
-		return Promise.resolve(this.queue.queue(() => this.doWriteConfiguration(resource, values, save))); // queue up writes to prevent race conditions
+	write(resource: URI, values: IJSONValue[]): Promise<void> {
+		return Promise.resolve(this.queue.queue(() => this.doWriteConfiguration(resource, values))); // queue up writes to prevent race conditions
 	}
 
-	private async doWriteConfiguration(resource: URI, values: IJSONValue[], save: boolean): Promise<void> {
-		const reference = await this.resolveAndValidate(resource, save);
+	private async doWriteConfiguration(resource: URI, values: IJSONValue[]): Promise<void> {
+		const reference = await this.resolveAndValidate(resource, true);
 		try {
-			await this.writeToBuffer(reference.object.textEditorModel, values, save);
+			await this.writeToBuffer(reference.object.textEditorModel, values);
 		} finally {
 			reference.dispose();
 		}
 	}
 
-	private async writeToBuffer(model: ITextModel, values: IJSONValue[], save: boolean): Promise<any> {
+	private async writeToBuffer(model: ITextModel, values: IJSONValue[]): Promise<any> {
 		let hasEdits: boolean = false;
 		for (const value of values) {
 			const edit = this.getEdits(model, value)[0];
-			hasEdits = this.applyEditsToBuffer(edit, model);
+			hasEdits = !!edit && this.applyEditsToBuffer(edit, model);
 		}
-		if (hasEdits && save) {
+		if (hasEdits) {
 			return this.textFileService.save(model.uri);
 		}
 	}
@@ -62,7 +62,7 @@ export class JSONEditingService implements IJSONEditingService {
 		const startPosition = model.getPositionAt(edit.offset);
 		const endPosition = model.getPositionAt(edit.offset + edit.length);
 		const range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
-		let currentText = model.getValueInRange(range);
+		const currentText = model.getValueInRange(range);
 		if (edit.content !== currentText) {
 			const editOperation = currentText ? EditOperation.replace(range, edit.content) : EditOperation.insert(startPosition, edit.content);
 			model.pushEditOperations([new Selection(startPosition.lineNumber, startPosition.column, startPosition.lineNumber, startPosition.column)], [editOperation], () => []);
@@ -113,12 +113,6 @@ export class JSONEditingService implements IJSONEditingService {
 			return this.reject<IReference<IResolvedTextEditorModel>>(JSONEditingErrorCode.ERROR_INVALID_FILE);
 		}
 
-		// Target cannot be dirty if not writing into buffer
-		if (checkDirty && this.textFileService.isDirty(resource)) {
-			reference.dispose();
-			return this.reject<IReference<IResolvedTextEditorModel>>(JSONEditingErrorCode.ERROR_FILE_DIRTY);
-		}
-
 		return reference;
 	}
 
@@ -133,11 +127,8 @@ export class JSONEditingService implements IJSONEditingService {
 			case JSONEditingErrorCode.ERROR_INVALID_FILE: {
 				return nls.localize('errorInvalidFile', "Unable to write into the file. Please open the file to correct errors/warnings in the file and try again.");
 			}
-			case JSONEditingErrorCode.ERROR_FILE_DIRTY: {
-				return nls.localize('errorFileDirty', "Unable to write into the file because the file has unsaved changes. Please save the file and try again.");
-			}
 		}
 	}
 }
 
-registerSingleton(IJSONEditingService, JSONEditingService, true);
+registerSingleton(IJSONEditingService, JSONEditingService, InstantiationType.Delayed);

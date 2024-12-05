@@ -3,25 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IAction } from 'vs/base/common/actions';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch, State } from 'vs/workbench/contrib/debug/common/debug';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { selectBorder, selectBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { debugStart } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import * as nls from '../../../../nls.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { SelectBox, ISelectOptionItem } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch, State } from '../common/debug.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { selectBorder, selectBackground, asCssVariable } from '../../../../platform/theme/common/colorRegistry.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { ADD_CONFIGURATION_ID } from './debugCommands.js';
+import { BaseActionViewItem, IBaseActionViewItemOptions, SelectActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { debugStart } from './debugIcons.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 const $ = dom.$;
 
@@ -40,20 +45,21 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 	constructor(
 		private context: unknown,
 		action: IAction,
+		options: IBaseActionViewItemOptions,
 		@IDebugService private readonly debugService: IDebugService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
-		super(context, action);
+		super(context, action, options);
 		this.toDispose = [];
-		this.selectBox = new SelectBox([], -1, contextViewService, undefined, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
+		this.selectBox = new SelectBox([], -1, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
 		this.selectBox.setFocusable(false);
 		this.toDispose.push(this.selectBox);
-		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
 		this.registerListeners();
 	}
@@ -75,8 +81,10 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		this.start = dom.append(container, $(ThemeIcon.asCSSSelector(debugStart)));
 		const keybinding = this.keybindingService.lookupKeybinding(this.action.id)?.getLabel();
 		const keybindingLabel = keybinding ? ` (${keybinding})` : '';
-		this.start.title = this.action.label + keybindingLabel;
+		const title = this.action.label + keybindingLabel;
+		this.toDispose.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.start, title));
 		this.start.setAttribute('role', 'button');
+		this._setAriaLabel(title);
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {
 			this.start.blur();
@@ -99,9 +107,6 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) && this.debugService.state !== State.Initializing) {
-				this.actionRunner.run(this.action, this.context);
-			}
 			if (event.equals(KeyCode.RightArrow)) {
 				this.start.tabIndex = -1;
 				this.selectBox.focus();
@@ -130,19 +135,20 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 				event.stopPropagation();
 			}
 		}));
-		this.toDispose.push(attachStylerCallback(this.themeService, { selectBorder, selectBackground }, colors => {
-			this.container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
-			selectBoxContainer.style.borderLeft = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
-			const selectBackgroundColor = colors.selectBackground ? `${colors.selectBackground}` : '';
-			this.container.style.backgroundColor = selectBackgroundColor;
-		}));
-		this.debugService.getConfigurationManager().getDynamicProviders().then(providers => {
-			this.providers = providers;
-			if (this.providers.length > 0) {
+		this.container.style.border = `1px solid ${asCssVariable(selectBorder)}`;
+		selectBoxContainer.style.borderLeft = `1px solid ${asCssVariable(selectBorder)}`;
+		this.container.style.backgroundColor = asCssVariable(selectBackground);
+
+		const configManager = this.debugService.getConfigurationManager();
+		const updateDynamicConfigs = () => configManager.getDynamicProviders().then(providers => {
+			if (providers.length !== this.providers.length) {
+				this.providers = providers;
 				this.updateOptions();
 			}
 		});
 
+		this.toDispose.push(configManager.onDidChangeConfigurationProviders(updateDynamicConfigs));
+		updateDynamicConfigs();
 		this.updateOptions();
 	}
 
@@ -180,6 +186,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 
 	override dispose(): void {
 		this.toDispose = dispose(this.toDispose);
+		super.dispose();
 	}
 
 	private updateOptions(): void {
@@ -256,22 +263,34 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 			});
 		});
 
-		this.selectBox.setOptions(this.debugOptions.map((data, index) => <ISelectOptionItem>{ text: data.label, isDisabled: disabledIdxs.indexOf(index) !== -1 }), this.selected);
+		this.selectBox.setOptions(this.debugOptions.map((data, index): ISelectOptionItem => ({ text: data.label, isDisabled: disabledIdxs.indexOf(index) !== -1 })), this.selected);
+	}
+
+	private _setAriaLabel(title: string): void {
+		let ariaLabel = title;
+		let keybinding: string | undefined;
+		const verbose = this.configurationService.getValue(AccessibilityVerbositySettingId.Debug);
+		if (verbose) {
+			keybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp, this.contextKeyService)?.getLabel() ?? undefined;
+		}
+		if (keybinding) {
+			ariaLabel = nls.localize('commentLabelWithKeybinding', "{0}, use ({1}) for accessibility help", ariaLabel, keybinding);
+		} else {
+			ariaLabel = nls.localize('commentLabelWithKeybindingNoKeybinding', "{0}, run the command Open Accessibility Help which is currently not triggerable via keybinding.", ariaLabel);
+		}
+		this.start.ariaLabel = ariaLabel;
 	}
 }
 
-export class FocusSessionActionViewItem extends SelectActionViewItem {
+export class FocusSessionActionViewItem extends SelectActionViewItem<IDebugSession> {
 	constructor(
 		action: IAction,
 		session: IDebugSession | undefined,
 		@IDebugService protected readonly debugService: IDebugService,
-		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super(null, action, [], -1, contextViewService, { ariaLabel: nls.localize('debugSession', 'Debug Session') });
-
-		this._register(attachSelectBoxStyler(this.selectBox, themeService));
+		super(null, action, [], -1, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('debugSession', 'Debug Session') });
 
 		this._register(this.debugService.getViewModel().onDidFocusSession(() => {
 			const session = this.getSelectedSession();
@@ -296,7 +315,7 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 		this.update(selectedSession);
 	}
 
-	protected override getActionContext(_: string, index: number): any {
+	protected override getActionContext(_: string, index: number): IDebugSession {
 		return this.getSessions()[index];
 	}
 
@@ -314,7 +333,7 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 
 			return label;
 		});
-		this.setOptions(names.map(data => <ISelectOptionItem>{ text: data }), session ? sessions.indexOf(session) : undefined);
+		this.setOptions(names.map((data): ISelectOptionItem => ({ text: data })), session ? sessions.indexOf(session) : undefined);
 	}
 
 	private getSelectedSession(): IDebugSession | undefined {

@@ -5,109 +5,46 @@
 
 (function () {
 
-	const MonacoEnvironment = (<any>self).MonacoEnvironment;
-	const monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
-
-	const trustedTypesPolicy = (
-		typeof self.trustedTypes?.createPolicy === 'function'
-			? self.trustedTypes?.createPolicy('amdLoader', {
-				createScriptURL: value => value,
-				createScript: (_, ...args: string[]) => {
-					// workaround a chrome issue not allowing to create new functions
-					// see https://github.com/w3c/webappsec-trusted-types/wiki/Trusted-Types-for-function-constructor
-					const fnArgs = args.slice(0, -1).join(',');
-					const fnBody = args.pop()!.toString();
-					const body = `(function anonymous(${fnArgs}) {\n${fnBody}\n})`;
-					return body;
-				}
-			})
-			: undefined
-	);
-
-	function canUseEval(): boolean {
-		try {
-			const func = (
-				trustedTypesPolicy
-					? self.eval(<any>trustedTypesPolicy.createScript('', 'true'))
-					: new Function('true')
-			);
-			func.call(self);
-			return true;
-		} catch (err) {
-			return false;
-		}
+	function loadCode(moduleId: string): Promise<SimpleWorkerModule> {
+		const moduleUrl = new URL(`${moduleId}.js`, globalThis._VSCODE_FILE_ROOT);
+		return import(moduleUrl.href);
 	}
 
-	function loadAMDLoader() {
-		return new Promise<void>((resolve, reject) => {
-			if (typeof (<any>self).define === 'function' && (<any>self).define.amd) {
-				return resolve();
-			}
-			const loaderSrc: string | TrustedScriptURL = monacoBaseUrl + 'vs/loader.js';
-
-			const isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(loaderSrc) && loaderSrc.substring(0, self.origin.length) !== self.origin);
-			if (!isCrossOrigin && canUseEval()) {
-				// use `fetch` if possible because `importScripts`
-				// is synchronous and can lead to deadlocks on Safari
-				fetch(loaderSrc).then((response) => {
-					if (response.status !== 200) {
-						throw new Error(response.statusText);
-					}
-					return response.text();
-				}).then((text) => {
-					text = `${text}\n//# sourceURL=${loaderSrc}`;
-					const func = (
-						trustedTypesPolicy
-							? self.eval(trustedTypesPolicy.createScript('', text) as unknown as string)
-							: new Function(text)
-					);
-					func.call(self);
-					resolve();
-				}).then(undefined, reject);
-				return;
-			}
-
-			if (trustedTypesPolicy) {
-				importScripts(trustedTypesPolicy.createScriptURL(loaderSrc) as unknown as string);
-			} else {
-				importScripts(loaderSrc as string);
-			}
-			resolve();
-		});
+	interface MessageHandler {
+		onmessage(msg: any, ports: readonly MessagePort[]): void;
 	}
 
-	const loadCode = function (moduleId: string) {
-		loadAMDLoader().then(() => {
-			require.config({
-				baseUrl: monacoBaseUrl,
-				catchError: true,
-				trustedTypesPolicy,
-				amdModulesPattern: /^vs\//
-			});
-			require([moduleId], function (ws) {
-				setTimeout(function () {
-					let messageHandler = ws.create((msg: any, transfer?: Transferable[]) => {
-						(<any>self).postMessage(msg, transfer);
-					}, null);
+	// shape of vs/base/common/worker/simpleWorker.ts
+	interface SimpleWorkerModule {
+		create(postMessage: (msg: any, transfer?: Transferable[]) => void): MessageHandler;
+	}
 
-					self.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data, e.ports);
-					while (beforeReadyMessages.length > 0) {
-						self.onmessage(beforeReadyMessages.shift()!);
-					}
-				}, 0);
+	function setupWorkerServer(ws: SimpleWorkerModule) {
+		setTimeout(function () {
+			const messageHandler = ws.create((msg: any, transfer?: Transferable[]) => {
+				(<any>globalThis).postMessage(msg, transfer);
 			});
-		});
-	};
+
+			self.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data, e.ports);
+			while (beforeReadyMessages.length > 0) {
+				self.onmessage(beforeReadyMessages.shift()!);
+			}
+		}, 0);
+	}
 
 	let isFirstMessage = true;
-	let beforeReadyMessages: MessageEvent[] = [];
-	self.onmessage = (message: MessageEvent) => {
+	const beforeReadyMessages: MessageEvent[] = [];
+	globalThis.onmessage = (message: MessageEvent) => {
 		if (!isFirstMessage) {
 			beforeReadyMessages.push(message);
 			return;
 		}
 
 		isFirstMessage = false;
-		loadCode(message.data);
+		loadCode(message.data).then((ws) => {
+			setupWorkerServer(ws);
+		}, (err) => {
+			console.error(err);
+		});
 	};
 })();

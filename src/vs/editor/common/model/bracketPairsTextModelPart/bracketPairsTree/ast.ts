@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-import { BracketKind } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
-import { ITextModel } from 'vs/editor/common/model';
-import { Length, lengthAdd, lengthGetLineCount, lengthToObj, lengthZero } from './length';
-import { SmallImmutableSet } from './smallImmutableSet';
-import { OpeningBracketId } from './tokenizer';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { CursorColumns } from '../../../core/cursorColumns.js';
+import { BracketKind } from '../../../languages/supports/languageBracketsConfiguration.js';
+import { ITextModel } from '../../../model.js';
+import { Length, lengthAdd, lengthGetLineCount, lengthToObj, lengthZero } from './length.js';
+import { SmallImmutableSet } from './smallImmutableSet.js';
+import { OpeningBracketId } from './tokenizer.js';
 
 export const enum AstNodeKind {
 	Text = 0,
@@ -125,7 +126,7 @@ export class PairAstNode extends BaseAstNode {
 	 * Avoid using this property, it allocates an array!
 	*/
 	public get children() {
-		const result = new Array<AstNode>();
+		const result: AstNode[] = [];
 		result.push(this.openingBracket);
 		if (this.child) {
 			result.push(this.child);
@@ -295,10 +296,19 @@ export abstract class ListAstNode extends BaseAstNode {
 			return false;
 		}
 
+		if (this.childrenLength === 0) {
+			// Don't reuse empty lists.
+			return false;
+		}
+
 		let lastChild: ListAstNode = this;
-		let lastLength: number;
-		while (lastChild.kind === AstNodeKind.List && (lastLength = lastChild.childrenLength) > 0) {
-			lastChild = lastChild.getChild(lastLength! - 1) as ListAstNode;
+		while (lastChild.kind === AstNodeKind.List) {
+			const lastLength = lastChild.childrenLength;
+			if (lastLength === 0) {
+				// Empty lists should never be contained in other lists.
+				throw new BugIndicatingError();
+			}
+			lastChild = lastChild.getChild(lastLength - 1) as ListAstNode;
 		}
 
 		return lastChild.canBeReused(openBracketIds);
@@ -324,7 +334,7 @@ export abstract class ListAstNode extends BaseAstNode {
 	}
 
 	public flattenLists(): ListAstNode {
-		const items = new Array<AstNode>();
+		const items: AstNode[] = [];
 		for (const c of this.children) {
 			const normalized = c.flattenLists();
 			if (normalized.kind === AstNodeKind.List) {
@@ -378,7 +388,7 @@ class TwoThreeListAstNode extends ListAstNode {
 		}
 		throw new Error('Invalid child index');
 	}
-	public setChild(idx: number, node: AstNode): void {
+	protected setChild(idx: number, node: AstNode): void {
 		switch (idx) {
 			case 0: this._item1 = node; return;
 			case 1: this._item2 = node; return;
@@ -496,7 +506,7 @@ class ArrayListAstNode extends ListAstNode {
 	getChild(idx: number): AstNode | null {
 		return this._children[idx];
 	}
-	setChild(idx: number, child: AstNode): void {
+	protected setChild(idx: number, child: AstNode): void {
 		this._children[idx] = child;
 	}
 	get children(): readonly AstNode[] {

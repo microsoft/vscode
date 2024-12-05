@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ALL_SYNC_RESOURCES, getEnablementKey, IUserDataSyncEnablementService, IUserDataSyncStoreManagementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { isWeb } from '../../../base/common/platform.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { IApplicationStorageValueChangeEvent, IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { ALL_SYNC_RESOURCES, getEnablementKey, IUserDataSyncEnablementService, IUserDataSyncStoreManagementService, SyncResource } from './userDataSync.js';
 
 type SyncEnablementClassification = {
 	owner: 'sandy081';
 	comment: 'Reporting when Settings Sync is turned on or off';
-	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag indicating if settings sync is enabled or not' };
+	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if settings sync is enabled or not' };
 };
 
 const enablementKey = 'sync.enable';
@@ -36,7 +36,7 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 	) {
 		super();
-		this._register(storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
+		this._register(storageService.onDidChangeValue(StorageScope.APPLICATION, undefined, this._store)(e => this.onDidStorageChange(e)));
 	}
 
 	isEnabled(): boolean {
@@ -46,7 +46,7 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 			case 'off':
 				return false;
 		}
-		return this.storageService.getBoolean(enablementKey, StorageScope.GLOBAL, false);
+		return this.storageService.getBoolean(enablementKey, StorageScope.APPLICATION, false);
 	}
 
 	canToggleEnablement(): boolean {
@@ -58,11 +58,11 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 			return;
 		}
 		this.telemetryService.publicLog2<{ enabled: boolean }, SyncEnablementClassification>(enablementKey, { enabled });
-		this.storageService.store(enablementKey, enabled, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(enablementKey, enabled, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	isResourceEnabled(resource: SyncResource): boolean {
-		return this.storageService.getBoolean(getEnablementKey(resource), StorageScope.GLOBAL, true);
+		return this.storageService.getBoolean(getEnablementKey(resource), StorageScope.APPLICATION, true);
 	}
 
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void {
@@ -77,14 +77,10 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 	}
 
 	private storeResourceEnablement(resourceEnablementKey: string, enabled: boolean): void {
-		this.storageService.store(resourceEnablementKey, enabled, StorageScope.GLOBAL, isWeb ? StorageTarget.USER /* sync in web */ : StorageTarget.MACHINE);
+		this.storageService.store(resourceEnablementKey, enabled, StorageScope.APPLICATION, isWeb ? StorageTarget.USER /* sync in web */ : StorageTarget.MACHINE);
 	}
 
-	private onDidStorageChange(storageChangeEvent: IStorageValueChangeEvent): void {
-		if (storageChangeEvent.scope !== StorageScope.GLOBAL) {
-			return;
-		}
-
+	private onDidStorageChange(storageChangeEvent: IApplicationStorageValueChangeEvent): void {
 		if (enablementKey === storageChangeEvent.key) {
 			this._onDidChangeEnablement.fire(this.isEnabled());
 			return;

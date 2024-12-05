@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as path from 'vs/base/common/path';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import * as glob from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
-import { deserializeSearchError, IFolderQuery, ISearchRange, ITextQuery, ITextSearchContext, ITextSearchMatch, QueryType, SearchErrorCode, ISerializedFileMatch } from 'vs/workbench/services/search/common/search';
-import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
-import { flakySuite, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
+import assert from 'assert';
+import * as path from '../../../../../base/common/path.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import * as glob from '../../../../../base/common/glob.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { deserializeSearchError, IFolderQuery, ISearchRange, ITextQuery, ITextSearchContext, ITextSearchMatch, QueryType, SearchErrorCode, ISerializedFileMatch } from '../../common/search.js';
+import { TextSearchEngineAdapter } from '../../node/textSearchAdapter.js';
+import { flakySuite } from '../../../../../base/test/node/testUtils.js';
+import { FileAccess } from '../../../../../base/common/network.js';
 
-const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
+const TEST_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath);
 const EXAMPLES_FIXTURES = path.join(TEST_FIXTURES, 'examples');
 const MORE_FIXTURES = path.join(TEST_FIXTURES, 'more');
 const TEST_ROOT_FOLDER: IFolderQuery = { folder: URI.file(TEST_FIXTURES) };
@@ -156,7 +157,7 @@ flakySuite('TextSearch-integration', function () {
 			contentPattern: { pattern: 'e' }
 		};
 
-		return doSearchTest(config, 788);
+		return doSearchTest(config, 785);
 	});
 
 	test('Text: e (with excludes)', () => {
@@ -166,7 +167,7 @@ flakySuite('TextSearch-integration', function () {
 			excludePattern: { '**/examples': true }
 		};
 
-		return doSearchTest(config, 394);
+		return doSearchTest(config, 391);
 	});
 
 	test('Text: e (with includes)', () => {
@@ -290,7 +291,11 @@ flakySuite('TextSearch-integration', function () {
 		const config: ITextQuery = {
 			type: QueryType.Text,
 			folderQueries: [
-				{ folder: URI.file(EXAMPLES_FIXTURES), excludePattern: makeExpression('**/e*.js') },
+				{
+					folder: URI.file(EXAMPLES_FIXTURES), excludePattern: [{
+						pattern: makeExpression('**/e*.js')
+					}]
+				},
 				{ folder: URI.file(MORE_FIXTURES) }
 			],
 			contentPattern: { pattern: 'e' }
@@ -307,7 +312,7 @@ flakySuite('TextSearch-integration', function () {
 		};
 
 		return doSearchTest(config, 1).then(results => {
-			const matchRange = (<ITextSearchMatch>results[0].results![0]).ranges;
+			const matchRange = (<ITextSearchMatch>results[0].results![0]).rangeLocations.map(e => e.source);
 			assert.deepStrictEqual(matchRange, [{
 				startLineNumber: 0,
 				startColumn: 1,
@@ -328,7 +333,7 @@ flakySuite('TextSearch-integration', function () {
 			assert.strictEqual(results.length, 3);
 			assert.strictEqual(results[0].results!.length, 1);
 			const match = <ITextSearchMatch>results[0].results![0];
-			assert.strictEqual((<ISearchRange[]>match.ranges).length, 5);
+			assert.strictEqual((<ISearchRange[]>match.rangeLocations.map(e => e.source)).length, 5);
 		});
 	});
 
@@ -337,19 +342,16 @@ flakySuite('TextSearch-integration', function () {
 			type: QueryType.Text,
 			folderQueries: ROOT_FOLDER_QUERY,
 			contentPattern: { pattern: 'compiler.typeCheck();' },
-			beforeContext: 1,
-			afterContext: 2
+			surroundingContext: 1,
 		};
 
-		return doSearchTest(config, 4).then(results => {
-			assert.strictEqual(results.length, 4);
-			assert.strictEqual((<ITextSearchContext>results[0].results![0]).lineNumber, 25);
+		return doSearchTest(config, 3).then(results => {
+			assert.strictEqual(results.length, 3);
+			assert.strictEqual((<ITextSearchContext>results[0].results![0]).lineNumber, 24);
 			assert.strictEqual((<ITextSearchContext>results[0].results![0]).text, '        compiler.addUnit(prog,"input.ts");');
 			// assert.strictEqual((<ITextSearchMatch>results[1].results[0]).preview.text, '        compiler.typeCheck();\n'); // See https://github.com/BurntSushi/ripgrep/issues/1095
-			assert.strictEqual((<ITextSearchContext>results[2].results![0]).lineNumber, 27);
+			assert.strictEqual((<ITextSearchContext>results[2].results![0]).lineNumber, 26);
 			assert.strictEqual((<ITextSearchContext>results[2].results![0]).text, '        compiler.emit();');
-			assert.strictEqual((<ITextSearchContext>results[3].results![0]).lineNumber, 28);
-			assert.strictEqual((<ITextSearchContext>results[3].results![0]).text, '');
 		});
 	});
 

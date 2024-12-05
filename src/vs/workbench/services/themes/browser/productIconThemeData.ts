@@ -3,21 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import * as Paths from 'vs/base/common/path';
-import * as resources from 'vs/base/common/resources';
-import * as Json from 'vs/base/common/json';
-import { ExtensionData, IThemeExtensionPoint, IWorkbenchProductIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE } from 'vs/workbench/services/themes/common/themeConfiguration';
-import { fontIdRegex, fontWeightRegex, fontStyleRegex, fontFormatRegex } from 'vs/workbench/services/themes/common/productIconThemeSchema';
-import { isString } from 'vs/base/common/types';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IconDefinition, getIconRegistry, IconContribution, IconFontDefinition, IconFontSource } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { URI } from '../../../../base/common/uri.js';
+import * as nls from '../../../../nls.js';
+import * as Paths from '../../../../base/common/path.js';
+import * as resources from '../../../../base/common/resources.js';
+import * as Json from '../../../../base/common/json.js';
+import { ExtensionData, IThemeExtensionPoint, IWorkbenchProductIconTheme, ThemeSettingDefaults } from '../common/workbenchThemeService.js';
+import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { fontIdRegex, fontWeightRegex, fontStyleRegex, fontFormatRegex, fontCharacterRegex } from '../common/productIconThemeSchema.js';
+import { isObject, isString } from '../../../../base/common/types.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IconDefinition, getIconRegistry, IconContribution, IconFontDefinition, IconFontSource } from '../../../../platform/theme/common/iconRegistry.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 
 export const DEFAULT_PRODUCT_ICON_THEME_ID = ''; // TODO
 
@@ -98,7 +97,7 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 	static get defaultTheme(): ProductIconThemeData {
 		let themeData = ProductIconThemeData._defaultProductIconTheme;
 		if (!themeData) {
-			themeData = ProductIconThemeData._defaultProductIconTheme = new ProductIconThemeData(DEFAULT_PRODUCT_ICON_THEME_ID, nls.localize('defaultTheme', 'Default'), DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE);
+			themeData = ProductIconThemeData._defaultProductIconTheme = new ProductIconThemeData(DEFAULT_PRODUCT_ICON_THEME_ID, nls.localize('defaultTheme', 'Default'), ThemeSettingDefaults.PRODUCT_ICON_THEME);
 			themeData.isLoaded = true;
 			themeData.extensionData = undefined;
 			themeData.watch = false;
@@ -107,14 +106,14 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 	}
 
 	static fromStorageData(storageService: IStorageService): ProductIconThemeData | undefined {
-		const input = storageService.get(ProductIconThemeData.STORAGE_KEY, StorageScope.GLOBAL);
+		const input = storageService.get(ProductIconThemeData.STORAGE_KEY, StorageScope.PROFILE);
 		if (!input) {
 			return undefined;
 		}
 		try {
-			let data = JSON.parse(input);
+			const data = JSON.parse(input);
 			const theme = new ProductIconThemeData('', '', '');
-			for (let key in data) {
+			for (const key in data) {
 				switch (key) {
 					case 'id':
 					case 'label':
@@ -132,6 +131,24 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 						break;
 				}
 			}
+			const { iconDefinitions, iconFontDefinitions } = data;
+			if (Array.isArray(iconDefinitions) && isObject(iconFontDefinitions)) {
+				const restoredIconDefinitions = new Map<string, IconDefinition>();
+				for (const entry of iconDefinitions) {
+					const { id, fontCharacter, fontId } = entry;
+					if (isString(id) && isString(fontCharacter)) {
+						if (isString(fontId)) {
+							const iconFontDefinition = IconFontDefinition.fromJSONObject(iconFontDefinitions[fontId]);
+							if (iconFontDefinition) {
+								restoredIconDefinitions.set(id, { fontCharacter, font: { id: fontId, definition: iconFontDefinition } });
+							}
+						} else {
+							restoredIconDefinitions.set(id, { fontCharacter });
+						}
+					}
+				}
+				theme.iconThemeDocument = { iconDefinitions: restoredIconDefinitions };
+			}
 			return theme;
 		} catch (e) {
 			return undefined;
@@ -139,6 +156,15 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 	}
 
 	toStorage(storageService: IStorageService) {
+		const iconDefinitions = [];
+		const iconFontDefinitions: { [id: string]: IconFontDefinition } = {};
+		for (const entry of this.iconThemeDocument.iconDefinitions.entries()) {
+			const font = entry[1].font;
+			iconDefinitions.push({ id: entry[0], fontCharacter: entry[1].fontCharacter, fontId: font?.id });
+			if (font && iconFontDefinitions[font.id] === undefined) {
+				iconFontDefinitions[font.id] = IconFontDefinition.toJSONObject(font.definition);
+			}
+		}
 		const data = JSON.stringify({
 			id: this.id,
 			label: this.label,
@@ -147,8 +173,10 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 			styleSheetContent: this.styleSheetContent,
 			watch: this.watch,
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
+			iconDefinitions,
+			iconFontDefinitions
 		});
-		storageService.store(ProductIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		storageService.store(ProductIconThemeData.STORAGE_KEY, data, StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 }
 
@@ -159,7 +187,7 @@ interface ProductIconThemeDocument {
 function _loadProductIconThemeDocument(fileService: IExtensionResourceLoaderService, location: URI, warnings: string[]): Promise<ProductIconThemeDocument> {
 	return fileService.readExtensionResource(location).then((content) => {
 		const parseErrors: Json.ParseError[] = [];
-		let contentValue = Json.parse(content, parseErrors);
+		const contentValue = Json.parse(content, parseErrors);
 		if (parseErrors.length > 0) {
 			return Promise.reject(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing product icons file: {0}", parseErrors.map(e => getParseErrorMessage(e.error)).join(', '))));
 		} else if (Json.getNodeType(contentValue) !== 'object') {
@@ -172,8 +200,8 @@ function _loadProductIconThemeDocument(fileService: IExtensionResourceLoaderServ
 
 		const sanitizedFonts: Map<string, IconFontDefinition> = new Map();
 		for (const font of contentValue.fonts) {
-			if (isString(font.id) && font.id.match(fontIdRegex)) {
-				const fontId = font.id;
+			const fontId = font.id;
+			if (isString(fontId) && fontId.match(fontIdRegex)) {
 
 				let fontWeight = undefined;
 				if (isString(font.weight) && font.weight.match(fontWeightRegex)) {
@@ -217,7 +245,7 @@ function _loadProductIconThemeDocument(fileService: IExtensionResourceLoaderServ
 
 		for (const iconId in contentValue.iconDefinitions) {
 			const definition = contentValue.iconDefinitions[iconId];
-			if (isString(definition.fontCharacter)) {
+			if (isString(definition.fontCharacter) && definition.fontCharacter.match(fontCharacterRegex)) {
 				const fontId = definition.fontId ?? primaryFontId;
 				const fontDefinition = sanitizedFonts.get(fontId);
 				if (fontDefinition) {
@@ -228,7 +256,7 @@ function _loadProductIconThemeDocument(fileService: IExtensionResourceLoaderServ
 					warnings.push(nls.localize('error.icon.font', 'Skipping icon definition \'{0}\'. Unknown font.', iconId));
 				}
 			} else {
-				warnings.push(nls.localize('error.icon.fontCharacter', 'Skipping icon definition \'{0}\'. Unknown fontCharacter.', iconId));
+				warnings.push(nls.localize('error.icon.fontCharacter', 'Skipping icon definition \'{0}\'. Unknown fontCharacter. Must use a sing; character or a \\ followed by a Unicode code points in hexadecimal.', iconId));
 			}
 		}
 		return { iconDefinitions };

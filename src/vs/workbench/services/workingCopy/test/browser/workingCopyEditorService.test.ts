@@ -3,22 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IWorkingCopyEditorHandler, WorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { createEditorPart, registerTestResourceEditor, TestEditorService, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditorService } from '../../../editor/browser/editorService.js';
+import { IEditorGroupsService } from '../../../editor/common/editorGroupsService.js';
+import { UntitledTextEditorInput } from '../../../untitled/common/untitledTextEditorInput.js';
+import { IWorkingCopyEditorHandler, WorkingCopyEditorService } from '../../common/workingCopyEditorService.js';
+import { createEditorPart, registerTestResourceEditor, TestEditorService, TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestWorkingCopy } from '../../../../test/common/workbenchTestServices.js';
 
 suite('WorkingCopyEditorService', () => {
 
-	let disposables = new DisposableStore();
+	const disposables = new DisposableStore();
 
 	setup(() => {
 		disposables.add(registerTestResourceEditor());
@@ -29,12 +27,12 @@ suite('WorkingCopyEditorService', () => {
 	});
 
 	test('registry - basics', () => {
-		const service = new WorkingCopyEditorService(new TestEditorService());
+		const service = disposables.add(new WorkingCopyEditorService(disposables.add(new TestEditorService())));
 
 		let handlerEvent: IWorkingCopyEditorHandler | undefined = undefined;
-		service.onDidRegisterHandler(handler => {
+		disposables.add(service.onDidRegisterHandler(handler => {
 			handlerEvent = handler;
-		});
+		}));
 
 		const editorHandler: IWorkingCopyEditorHandler = {
 			handles: workingCopy => false,
@@ -42,11 +40,9 @@ suite('WorkingCopyEditorService', () => {
 			createEditor: workingCopy => { throw new Error(); }
 		};
 
-		const disposable = service.registerHandler(editorHandler);
+		disposables.add(service.registerHandler(editorHandler));
 
 		assert.strictEqual(handlerEvent, editorHandler);
-
-		disposable.dispose();
 	});
 
 	test('findEditor', async () => {
@@ -56,14 +52,13 @@ suite('WorkingCopyEditorService', () => {
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
-		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
-		const editorService = instantiationService.createInstance(EditorService);
+		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		const service = new WorkingCopyEditorService(editorService);
+		const service = disposables.add(new WorkingCopyEditorService(editorService));
 
 		const resource = URI.parse('custom://some/folder/custom.txt');
-		const testWorkingCopy = new TestWorkingCopy(resource, false, 'testWorkingCopyTypeId1');
+		const testWorkingCopy = disposables.add(new TestWorkingCopy(resource, false, 'testWorkingCopyTypeId1'));
 
 		assert.strictEqual(service.findEditor(testWorkingCopy), undefined);
 
@@ -75,13 +70,15 @@ suite('WorkingCopyEditorService', () => {
 
 		disposables.add(service.registerHandler(editorHandler));
 
-		const editor1 = instantiationService.createInstance(UntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
-		const editor2 = instantiationService.createInstance(UntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
+		const editor1 = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' })));
+		const editor2 = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' })));
 
-		await editorService.openEditors([{ editor: editor1, options: { override: EditorResolution.DISABLED } }, { editor: editor2, options: { override: EditorResolution.DISABLED } }]);
+		await editorService.openEditors([{ editor: editor1 }, { editor: editor2 }]);
 
 		assert.ok(service.findEditor(testWorkingCopy));
 
 		disposables.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

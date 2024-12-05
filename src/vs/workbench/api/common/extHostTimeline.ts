@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ExtHostTimelineShape, MainThreadTimelineShape, IMainContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { Timeline, TimelineItem, TimelineOptions, TimelineProvider } from 'vs/workbench/contrib/timeline/common/timeline';
-import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { ThemeIcon, MarkdownString as MarkdownStringType } from 'vs/workbench/api/common/extHostTypes';
-import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { isString } from 'vs/base/common/types';
+import { UriComponents, URI } from '../../../base/common/uri.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { ExtHostTimelineShape, MainThreadTimelineShape, IMainContext, MainContext } from './extHost.protocol.js';
+import { Timeline, TimelineItem, TimelineOptions, TimelineProvider } from '../../contrib/timeline/common/timeline.js';
+import { IDisposable, toDisposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
+import { ThemeIcon, MarkdownString as MarkdownStringType } from './extHostTypes.js';
+import { MarkdownString } from './extHostTypeConverters.js';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
+import { MarshalledId } from '../../../base/common/marshallingIds.js';
+import { isString } from '../../../base/common/types.js';
 
 export interface IExtHostTimeline extends ExtHostTimelineShape {
 	readonly _serviceBrand: undefined;
@@ -29,7 +29,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 
 	private _proxy: MainThreadTimelineShape;
 
-	private _providers = new Map<string, TimelineProvider>();
+	private _providers = new Map<string, { provider: TimelineProvider; extension: ExtensionIdentifier }>();
 
 	private _itemsBySourceAndUriMap = new Map<string, Map<string | undefined, Map<string, vscode.TimelineItem>>>();
 
@@ -40,23 +40,26 @@ export class ExtHostTimeline implements IExtHostTimeline {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTimeline);
 
 		commands.registerArgumentProcessor({
-			processArgument: arg => {
+			processArgument: (arg, extension) => {
 				if (arg && arg.$mid === MarshalledId.TimelineActionContext) {
-					const uri = arg.uri === undefined ? undefined : URI.revive(arg.uri);
-					return this._itemsBySourceAndUriMap.get(arg.source)?.get(getUriKey(uri))?.get(arg.handle);
+					if (this._providers.get(arg.source) && ExtensionIdentifier.equals(extension, this._providers.get(arg.source)?.extension)) {
+						const uri = arg.uri === undefined ? undefined : URI.revive(arg.uri);
+						return this._itemsBySourceAndUriMap.get(arg.source)?.get(getUriKey(uri))?.get(arg.handle);
+					} else {
+						return undefined;
+					}
 				}
-
 				return arg;
 			}
 		});
 	}
 
 	async $getTimeline(id: string, uri: UriComponents, options: vscode.TimelineOptions, token: vscode.CancellationToken): Promise<Timeline | undefined> {
-		const provider = this._providers.get(id);
-		return provider?.provideTimeline(URI.revive(uri), options, token);
+		const item = this._providers.get(id);
+		return item?.provider.provideTimeline(URI.revive(uri), options, token);
 	}
 
-	registerTimelineProvider(scheme: string | string[], provider: vscode.TimelineProvider, _extensionId: ExtensionIdentifier, commandConverter: CommandsConverter): IDisposable {
+	registerTimelineProvider(scheme: string | string[], provider: vscode.TimelineProvider, extensionId: ExtensionIdentifier, commandConverter: CommandsConverter): IDisposable {
 		const timelineDisposables = new DisposableStore();
 
 		const convertTimelineItem = this.convertTimelineItem(provider.id, commandConverter, timelineDisposables).bind(this);
@@ -102,7 +105,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 				disposable?.dispose();
 				timelineDisposables.dispose();
 			}
-		});
+		}, extensionId);
 	}
 
 	private convertTimelineItem(source: string, commandConverter: CommandsConverter, disposables: DisposableStore) {
@@ -178,7 +181,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 		};
 	}
 
-	private registerTimelineProviderCore(provider: TimelineProvider): IDisposable {
+	private registerTimelineProviderCore(provider: TimelineProvider, extension: ExtensionIdentifier): IDisposable {
 		// console.log(`ExtHostTimeline#registerTimelineProvider: id=${provider.id}`);
 
 		const existing = this._providers.get(provider.id);
@@ -191,7 +194,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 			label: provider.label,
 			scheme: provider.scheme
 		});
-		this._providers.set(provider.id, provider);
+		this._providers.set(provider.id, { provider, extension });
 
 		return toDisposable(() => {
 			for (const sourceMap of this._itemsBySourceAndUriMap.values()) {

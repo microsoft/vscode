@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { FastDomNode } from '../../fastDomNode.js';
+import { TimeoutTimer } from '../../../common/async.js';
+import { Disposable } from '../../../common/lifecycle.js';
+import { ScrollbarVisibility } from '../../../common/scrollable.js';
 
 export class ScrollbarVisibilityController extends Disposable {
 	private _visibility: ScrollbarVisibility;
@@ -103,9 +103,7 @@ export class ScrollbarVisibilityController extends Disposable {
 
 		// The CSS animation doesn't play otherwise
 		this._revealTimer.setIfNotSet(() => {
-			if (this._domNode) {
-				this._domNode.setClassName(this._visibleClassName);
-			}
+			this._domNode?.setClassName(this._visibleClassName);
 		}, 0);
 	}
 
@@ -115,8 +113,6 @@ export class ScrollbarVisibilityController extends Disposable {
 			return;
 		}
 		this._isVisible = false;
-		if (this._domNode) {
-			this._domNode.setClassName(this._invisibleClassName + (withFadeAway ? ' fade' : ''));
-		}
+		this._domNode?.setClassName(this._invisibleClassName + (withFadeAway ? ' fade' : ''));
 	}
 }

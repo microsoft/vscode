@@ -6,7 +6,7 @@
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.29.0"
+    "vscode": "^1.77.0"
   },
   "icon": "icons/css.png",
   "activationEvents": [
@@ -23,11 +23,14 @@
       "supported": true
     }
   },
+  "enabledApiProposals": [
+    "documentPaste"
+  ],
   "scripts": {
     "compile": "npx gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
     "watch": "npx gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
     "test": "node ../../node_modules/mocha/bin/mocha",
-    "install-client-next": "yarn add vscode-languageclient@next"
+    "install-client-next": "npm install vscode-languageclient@next"
   },
   "categories": [
     "Programming Languages"
@@ -994,12 +997,11 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^8.0.2-next.4",
-    "vscode-nls": "^5.0.0",
-    "vscode-uri": "^3.0.3"
+    "vscode-languageclient": "^10.0.0-next.13",
+    "vscode-uri": "^3.0.8"
   },
   "devDependencies": {
-    "@types/node": "16.x"
+    "@types/node": "20.x"
   },
   "repository": {
     "type": "git",

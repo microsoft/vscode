@@ -3,20 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 // @ts-check
 
 import * as path from 'path';
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 
-const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
+const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const rootDir = path.resolve(__dirname, '..', '..');
 
 function runProcess(command: string, args: ReadonlyArray<string> = []) {
 	return new Promise<void>((resolve, reject) => {
-		const child = spawn(command, args, { cwd: rootDir, stdio: 'inherit', env: process.env });
+		const child = spawn(command, args, { cwd: rootDir, stdio: 'inherit', env: process.env, shell: process.platform === 'win32' });
 		child.on('exit', err => !err ? resolve() : process.exit(err ?? 1));
 		child.on('error', reject);
 	});
@@ -33,17 +31,17 @@ async function exists(subdir: string) {
 
 async function ensureNodeModules() {
 	if (!(await exists('node_modules'))) {
-		await runProcess(yarn);
+		await runProcess(npm, ['ci']);
 	}
 }
 
 async function getElectron() {
-	await runProcess(yarn, ['electron']);
+	await runProcess(npm, ['run', 'electron']);
 }
 
 async function ensureCompiled() {
 	if (!(await exists('out'))) {
-		await runProcess(yarn, ['compile']);
+		await runProcess(npm, ['run', 'compile']);
 	}
 }
 

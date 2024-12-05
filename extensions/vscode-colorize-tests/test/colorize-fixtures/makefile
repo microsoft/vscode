@@ -63,7 +63,10 @@ ${info Parentheses () in braces {()}: $(ok)}
 
 ifeq ("${ok}", "skip")
   $(ok))}
+else ifeq ("${ok}", "skip")
   ${ok}})
+else
+  $(info Else: ${ok})
 endif
 
 result != echo "'$(ok)' $(shell echo "from inlined shell")"
@@ -77,6 +80,10 @@ var!=echo val
 var:=val \
 notvar=butval
 var:=$(val:.c=.o)
+var:=blah#comment
+var?=blah\#not_a_comment
+var:=blah\\#comment
+var!=blah\\\#not_a_comment
 
 var-$(nested-var)=val
 

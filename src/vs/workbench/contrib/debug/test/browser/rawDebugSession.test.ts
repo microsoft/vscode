@@ -3,50 +3,68 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { MockDebugAdapter } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
-import { timeout } from 'vs/base/common/async';
+import assert from 'assert';
+import { mock, mockObject } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IExtensionHostDebugService } from '../../../../../platform/debug/common/extensionHostDebug.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { RawDebugSession } from '../../browser/rawDebugSession.js';
+import { IDebugger } from '../../common/debug.js';
+import { MockDebugAdapter } from '../common/mockDebug.js';
 
-suite('Debug - AbstractDebugAdapter', () => {
-	suite('event ordering', () => {
-		let adapter: MockDebugAdapter;
-		let output: string[];
-		setup(() => {
-			adapter = new MockDebugAdapter();
-			output = [];
-			adapter.onEvent(ev => {
-				output.push((ev as DebugProtocol.OutputEvent).body.output);
-				Promise.resolve().then(() => output.push('--end microtask--'));
-			});
+suite('RawDebugSession', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createTestObjects() {
+		const debugAdapter = new MockDebugAdapter();
+		const dbgr = mockObject<IDebugger>()({
+			type: 'mock-debug'
 		});
 
-		const evaluate = async (expression: string) => {
-			await new Promise(resolve => adapter.sendRequest('evaluate', { expression }, resolve));
-			output.push(`=${expression}`);
-			Promise.resolve().then(() => output.push('--end microtask--'));
-		};
+		const session = new RawDebugSession(
+			debugAdapter,
+			dbgr as any as IDebugger,
+			'sessionId',
+			'name',
+			new (mock<IExtensionHostDebugService>()),
+			new (mock<IOpenerService>()),
+			new (mock<INotificationService>()),
+			new (mock<IDialogService>()));
+		disposables.add(session);
+		disposables.add(debugAdapter);
 
-		test('inserts task boundary before response', async () => {
-			await evaluate('before.foo');
-			await timeout(0);
+		return { debugAdapter, dbgr };
+	}
 
-			assert.deepStrictEqual(output, ['before.foo', '--end microtask--', '=before.foo', '--end microtask--']);
-		});
+	test('handles startDebugging request success', async () => {
+		const { debugAdapter, dbgr } = createTestObjects();
+		dbgr.startDebugging.returns(Promise.resolve(true));
 
-		test('inserts task boundary after response', async () => {
-			await evaluate('after.foo');
-			await timeout(0);
+		debugAdapter.sendRequestBody('startDebugging', {
+			request: 'launch',
+			configuration: {
+				type: 'some-other-type'
+			}
+		} as DebugProtocol.StartDebuggingRequestArguments);
+		const response = await debugAdapter.waitForResponseFromClient('startDebugging');
+		assert.strictEqual(response.command, 'startDebugging');
+		assert.strictEqual(response.success, true);
+	});
 
-			assert.deepStrictEqual(output, ['=after.foo', '--end microtask--', 'after.foo', '--end microtask--']);
-		});
+	test('handles startDebugging request failure', async () => {
+		const { debugAdapter, dbgr } = createTestObjects();
+		dbgr.startDebugging.returns(Promise.resolve(false));
 
-		test('does not insert boundaries between events', async () => {
-			adapter.sendEventBody('output', { output: 'a' });
-			adapter.sendEventBody('output', { output: 'b' });
-			adapter.sendEventBody('output', { output: 'c' });
-			await timeout(0);
-
-			assert.deepStrictEqual(output, ['a', 'b', 'c', '--end microtask--', '--end microtask--', '--end microtask--']);
-		});
+		debugAdapter.sendRequestBody('startDebugging', {
+			request: 'launch',
+			configuration: {
+				type: 'some-other-type'
+			}
+		} as DebugProtocol.StartDebuggingRequestArguments);
+		const response = await debugAdapter.waitForResponseFromClient('startDebugging');
+		assert.strictEqual(response.command, 'startDebugging');
+		assert.strictEqual(response.success, false);
 	});
 });

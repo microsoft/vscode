@@ -5,10 +5,14 @@
 
 .monaco-workbench .debug-toolbar {
 	position: absolute;
-	z-index: 39;
-	height: 32px;
+	z-index: 2520; /* Below quick input at 2550, above custom titlebar toolbar at 2500 */
+	height: 26px;
 	display: flex;
 	padding-left: 7px;
+	border-radius: 4px;
+	left: 0;
+	top: 0;
+	-webkit-app-region: no-drag;
 }
 
 .monaco-workbench .debug-toolbar .monaco-action-bar .action-item {

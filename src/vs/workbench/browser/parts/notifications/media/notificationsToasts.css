@@ -32,6 +32,14 @@
 	transition:	transform 300ms ease-out, opacity 300ms ease-out;
 }
 
+.monaco-workbench > .notifications-toasts .notifications-list-container,
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast,
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-scrollable-element,
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-list:not(.element-focused):focus:before,
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-list-row {
+	border-radius: 4px;
+}
+
 .monaco-workbench.reduce-motion > .notifications-toasts .notification-toast-container > .notification-toast {
 	transition:	transform 0ms ease-out, opacity 0ms ease-out;
 }
@@ -45,4 +53,18 @@
 	opacity: 1;
 	transform: none;
 	transition:	none;
+}
+
+/* Icons */
+
+.monaco-workbench > .notifications-toasts .codicon.codicon-error {
+	color: var(--vscode-notificationsErrorIcon-foreground) !important;
+}
+
+.monaco-workbench > .notifications-toasts .codicon.codicon-warning {
+	color: var(--vscode-notificationsWarningIcon-foreground) !important;
+}
+
+.monaco-workbench > .notifications-toasts .codicon.codicon-info {
+	color: var(--vscode-notificationsInfoIcon-foreground) !important;
 }

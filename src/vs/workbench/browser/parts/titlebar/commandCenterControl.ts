@@ -3,29 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { reset } from 'vs/base/browser/dom';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { Action, IAction } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
-import { createActionViewItem, createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import * as colors from 'vs/platform/theme/common/colorRegistry';
-import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
-import { MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_FOREGROUND, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { isActiveDocument, reset } from '../../../../base/browser/dom.js';
+import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuId, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { WindowTitle } from './windowTitle.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 export class CommandCenterControl {
 
@@ -38,114 +34,31 @@ export class CommandCenterControl {
 
 	constructor(
 		windowTitle: WindowTitle,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		hoverDelegate: IHoverDelegate,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IMenuService menuService: IMenuService,
 		@IQuickInputService quickInputService: IQuickInputService,
-		@IHoverService hoverService: IHoverService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		this.element.classList.add('command-center');
 
-		const hoverDelegate = new class implements IHoverDelegate {
-
-			private _lastHoverHideTime: number = 0;
-
-			readonly showHover = hoverService.showHover.bind(hoverService);
-			readonly placement = 'element';
-
-			get delay(): number {
-				return Date.now() - this._lastHoverHideTime < 200
-					? 0  // show instantly when a hover was recently shown
-					: configurationService.getValue<number>('workbench.hover.delay');
-			}
-
-			onDidHideHover() {
-				this._lastHoverHideTime = Date.now();
-			}
-		};
-
-		const titleToolbar = new ToolBar(this.element, contextMenuService, {
-			actionViewItemProvider: (action) => {
-
-				if (action instanceof MenuItemAction && action.id === 'workbench.action.quickOpen') {
-
-					class InputLikeViewItem extends MenuEntryActionViewItem {
-
-						private readonly workspaceTitle = document.createElement('span');
-
-						override render(container: HTMLElement): void {
-							super.render(container);
-							container.classList.add('quickopen');
-
-							assertType(this.label);
-							this.label.classList.add('search');
-
-							const searchIcon = renderIcon(Codicon.search);
-							searchIcon.classList.add('search-icon');
-
-							this.workspaceTitle.classList.add('search-label');
-							this._updateFromWindowTitle();
-							reset(this.label, searchIcon, this.workspaceTitle);
-							this._renderAllQuickPickItem(container);
-
-							this._store.add(windowTitle.onDidChange(this._updateFromWindowTitle, this));
-						}
-
-						private _updateFromWindowTitle() {
-
-							// label: just workspace name and optional decorations
-							const { prefix, suffix } = windowTitle.getTitleDecorations();
-							let label = windowTitle.workspaceName;
-							if (prefix) {
-								label = localize('label1', "{0} {1}", prefix, label);
-							}
-							if (suffix) {
-								label = localize('label2', "{0} {1}", label, suffix);
-							}
-							this.workspaceTitle.innerText = label;
-
-							// tooltip: full windowTitle
-							const kb = keybindingService.lookupKeybinding(action.id)?.getLabel();
-							const title = kb
-								? localize('title', "Search {0} ({1}) \u2014 {2}", windowTitle.workspaceName, kb, windowTitle.value)
-								: localize('title2', "Search {0} \u2014 {1}", windowTitle.workspaceName, windowTitle.value);
-							this._applyUpdateTooltip(title);
-						}
-
-						private _renderAllQuickPickItem(parent: HTMLElement): void {
-							const container = document.createElement('span');
-							container.classList.add('all-options');
-							parent.appendChild(container);
-							const action = new Action('all', localize('all', "Show Search Modes..."), Codicon.chevronDown.classNames, true, () => {
-								quickInputService.quickAccess.show('?');
-							});
-							const dropdown = new ActionViewItem(undefined, action, { icon: true, label: false, hoverDelegate });
-							dropdown.render(container);
-							this._store.add(dropdown);
-							this._store.add(action);
-						}
-					}
-					return instantiationService.createInstance(InputLikeViewItem, action, { hoverDelegate });
+		const titleToolbar = instantiationService.createInstance(MenuWorkbenchToolBar, this.element, MenuId.CommandCenter, {
+			contextMenu: MenuId.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			toolbarOptions: {
+				primaryGroup: () => true,
+			},
+			telemetrySource: 'commandCenter',
+			actionViewItemProvider: (action, options) => {
+				if (action instanceof SubmenuItemAction && action.item.submenu === MenuId.CommandCenterCenter) {
+					return instantiationService.createInstance(CommandCenterCenterViewItem, action, windowTitle, { ...options, hoverDelegate });
+				} else {
+					return createActionViewItem(instantiationService, action, { ...options, hoverDelegate });
 				}
-
-				return createActionViewItem(instantiationService, action, { hoverDelegate });
 			}
 		});
-		const menu = this._disposables.add(menuService.createMenu(MenuId.CommandCenter, contextKeyService));
-		const menuDisposables = this._disposables.add(new DisposableStore());
-		const menuUpdater = () => {
-			menuDisposables.clear();
-			const actions: IAction[] = [];
-			menuDisposables.add(createAndFillInContextMenuActions(menu, undefined, actions));
-			titleToolbar.setActions(actions);
-		};
-		menuUpdater();
-		this._disposables.add(menu.onDidChange(menuUpdater));
-		this._disposables.add(quickInputService.onShow(this._setVisibility.bind(this, false)));
+
+		this._disposables.add(Event.filter(quickInputService.onShow, () => isActiveDocument(this.element), this._disposables)(this._setVisibility.bind(this, false)));
 		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));
+		this._disposables.add(titleToolbar);
 	}
 
 	private _setVisibility(show: boolean): void {
@@ -158,38 +71,166 @@ export class CommandCenterControl {
 	}
 }
 
-// --- theme colors
 
-// foreground (inactive and active)
-colors.registerColor(
-	'commandCenter.foreground',
-	{ dark: TITLE_BAR_ACTIVE_FOREGROUND, hcDark: TITLE_BAR_ACTIVE_FOREGROUND, light: TITLE_BAR_ACTIVE_FOREGROUND, hcLight: TITLE_BAR_ACTIVE_FOREGROUND },
-	localize('commandCenter-foreground', "Foreground color of the command center"),
-	false
-);
-colors.registerColor(
-	'commandCenter.activeForeground',
-	{ dark: MENUBAR_SELECTION_FOREGROUND, hcDark: MENUBAR_SELECTION_FOREGROUND, light: MENUBAR_SELECTION_FOREGROUND, hcLight: MENUBAR_SELECTION_FOREGROUND },
-	localize('commandCenter-activeForeground', "Active foreground color of the command center"),
-	false
-);
-// background (inactive and active)
-colors.registerColor(
-	'commandCenter.background',
-	{ dark: null, hcDark: null, light: null, hcLight: null },
-	localize('commandCenter-background', "Background color of the command center"),
-	false
-);
-const activeBackground = colors.registerColor(
-	'commandCenter.activeBackground',
-	{ dark: MENUBAR_SELECTION_BACKGROUND, hcDark: MENUBAR_SELECTION_BACKGROUND, light: MENUBAR_SELECTION_BACKGROUND, hcLight: MENUBAR_SELECTION_BACKGROUND },
-	localize('commandCenter-activeBackground', "Active background color of the command center"),
-	false
-);
-// border: defaults to active background
-colors.registerColor(
-	'commandCenter.border',
-	{ dark: activeBackground, hcDark: colors.inputBorder, light: activeBackground, hcLight: colors.inputBorder },
-	localize('commandCenter-border', "Border color of the command center"),
-	false
-);
+class CommandCenterCenterViewItem extends BaseActionViewItem {
+
+	private static readonly _quickOpenCommandId = 'workbench.action.quickOpenWithModes';
+
+	private readonly _hoverDelegate: IHoverDelegate;
+
+	constructor(
+		private readonly _submenu: SubmenuItemAction,
+		private readonly _windowTitle: WindowTitle,
+		options: IBaseActionViewItemOptions,
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IInstantiationService private _instaService: IInstantiationService,
+		@IEditorGroupsService private _editorGroupService: IEditorGroupsService,
+	) {
+		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
+		this._hoverDelegate = options.hoverDelegate ?? getDefaultHoverDelegate('mouse');
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('command-center-center');
+		container.classList.toggle('multiple', (this._submenu.actions.length > 1));
+
+		const hover = this._store.add(this._hoverService.setupManagedHover(this._hoverDelegate, container, this.getTooltip()));
+
+		// update label & tooltip when window title changes
+		this._store.add(this._windowTitle.onDidChange(() => {
+			hover.update(this.getTooltip());
+		}));
+
+		const groups: (readonly IAction[])[] = [];
+		for (const action of this._submenu.actions) {
+			if (action instanceof SubmenuAction) {
+				groups.push(action.actions);
+			} else {
+				groups.push([action]);
+			}
+		}
+
+
+		for (let i = 0; i < groups.length; i++) {
+			const group = groups[i];
+
+			// nested toolbar
+			const toolbar = this._instaService.createInstance(WorkbenchToolBar, container, {
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				telemetrySource: 'commandCenterCenter',
+				actionViewItemProvider: (action, options) => {
+					options = {
+						...options,
+						hoverDelegate: this._hoverDelegate,
+					};
+
+					if (action.id !== CommandCenterCenterViewItem._quickOpenCommandId) {
+						return createActionViewItem(this._instaService, action, options);
+					}
+
+					const that = this;
+
+					return this._instaService.createInstance(class CommandCenterQuickPickItem extends BaseActionViewItem {
+
+						constructor() {
+							super(undefined, action, options);
+						}
+
+						override render(container: HTMLElement): void {
+							super.render(container);
+							container.classList.toggle('command-center-quick-pick');
+							container.role = 'button';
+							const action = this.action;
+
+							// icon (search)
+							const searchIcon = document.createElement('span');
+							searchIcon.ariaHidden = 'true';
+							searchIcon.className = action.class ?? '';
+							searchIcon.classList.add('search-icon');
+
+							// label: just workspace name and optional decorations
+							const label = this._getLabel();
+							const labelElement = document.createElement('span');
+							labelElement.classList.add('search-label');
+							labelElement.innerText = label;
+							reset(container, searchIcon, labelElement);
+
+							const hover = this._store.add(that._hoverService.setupManagedHover(that._hoverDelegate, container, this.getTooltip()));
+
+							// update label & tooltip when window title changes
+							this._store.add(that._windowTitle.onDidChange(() => {
+								hover.update(this.getTooltip());
+								labelElement.innerText = this._getLabel();
+							}));
+
+							// update label & tooltip when tabs visibility changes
+							this._store.add(that._editorGroupService.onDidChangeEditorPartOptions(({ newPartOptions, oldPartOptions }) => {
+								if (newPartOptions.showTabs !== oldPartOptions.showTabs) {
+									hover.update(this.getTooltip());
+									labelElement.innerText = this._getLabel();
+								}
+							}));
+						}
+
+						protected override getTooltip() {
+							return that.getTooltip();
+						}
+
+						private _getLabel(): string {
+							const { prefix, suffix } = that._windowTitle.getTitleDecorations();
+							let label = that._windowTitle.workspaceName;
+							if (that._windowTitle.isCustomTitleFormat()) {
+								label = that._windowTitle.getWindowTitle();
+							} else if (that._editorGroupService.partOptions.showTabs === 'none') {
+								label = that._windowTitle.fileName ?? label;
+							}
+							if (!label) {
+								label = localize('label.dfl', "Search");
+							}
+							if (prefix) {
+								label = localize('label1', "{0} {1}", prefix, label);
+							}
+							if (suffix) {
+								label = localize('label2', "{0} {1}", label, suffix);
+							}
+
+							return label.replaceAll(/\r\n|\r|\n/g, '\u23CE');
+						}
+					});
+				}
+			});
+			toolbar.setActions(group);
+			this._store.add(toolbar);
+
+
+			// spacer
+			if (i < groups.length - 1) {
+				const icon = renderIcon(Codicon.circleSmallFilled);
+				icon.style.padding = '0 12px';
+				icon.style.height = '100%';
+				icon.style.opacity = '0.5';
+				container.appendChild(icon);
+			}
+		}
+	}
+
+	protected override getTooltip() {
+
+		// tooltip: full windowTitle
+		const kb = this._keybindingService.lookupKeybinding(this.action.id)?.getLabel();
+		const title = kb
+			? localize('title', "Search {0} ({1}) \u2014 {2}", this._windowTitle.workspaceName, kb, this._windowTitle.value)
+			: localize('title2', "Search {0} \u2014 {1}", this._windowTitle.workspaceName, this._windowTitle.value);
+
+		return title;
+	}
+}
+
+MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
+	submenu: MenuId.CommandCenterCenter,
+	title: localize('title3', "Command Center"),
+	icon: Codicon.shield,
+	order: 101,
+});

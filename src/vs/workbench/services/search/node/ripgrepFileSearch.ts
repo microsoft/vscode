@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import * as path from 'vs/base/common/path';
-import * as glob from 'vs/base/common/glob';
-import { normalizeNFD } from 'vs/base/common/normalization';
-import * as extpath from 'vs/base/common/extpath';
-import { isMacintosh as isMac } from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { IFileQuery, IFolderQuery } from 'vs/workbench/services/search/common/search';
-import { anchorGlob } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
+import * as path from '../../../../base/common/path.js';
+import * as glob from '../../../../base/common/glob.js';
+import { normalizeNFD } from '../../../../base/common/normalization.js';
+import * as extpath from '../../../../base/common/extpath.js';
+import { isMacintosh as isMac } from '../../../../base/common/platform.js';
+import * as strings from '../../../../base/common/strings.js';
+import { IFileQuery, IFolderQuery } from '../common/search.js';
+import { anchorGlob } from './ripgrepSearchUtils.js';
 import { rgPath } from '@vscode/ripgrep';
 
 // If @vscode/ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
-export function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression) {
-	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern);
+export function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number) {
+	const rgArgs = getRgArgs(config, folderQuery, includePattern, excludePattern, numThreads);
 	const cwd = folderQuery.folder.fsPath;
 	return {
 		cmd: cp.spawn(rgDiskPath, rgArgs.args, { cwd }),
@@ -29,8 +29,8 @@ export function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, i
 	};
 }
 
-function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression) {
-	const args = ['--files', '--hidden', '--case-sensitive'];
+function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression, numThreads?: number) {
+	const args = ['--files', '--hidden', '--case-sensitive', '--no-require-git'];
 
 	// includePattern can't have siblingClauses
 	foldersToIncludeGlobs([folderQuery], includePattern, false).forEach(globArg => {
@@ -71,6 +71,10 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 		args.push('--quiet');
 	}
 
+	if (numThreads) {
+		args.push('--threads', `${numThreads}`);
+	}
+
 	args.push('--no-config');
 	if (folderQuery.disregardGlobalIgnoreFiles) {
 		args.push('--no-ignore-global');
@@ -82,12 +86,12 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 	};
 }
 
-export interface IRgGlobResult {
+interface IRgGlobResult {
 	globArgs: string[];
 	siblingClauses: glob.IExpression;
 }
 
-export function foldersToRgExcludeGlobs(folderQueries: IFolderQuery[], globalExclude?: glob.IExpression, excludesToSkip?: Set<string>, absoluteGlobs = true): IRgGlobResult {
+function foldersToRgExcludeGlobs(folderQueries: IFolderQuery[], globalExclude?: glob.IExpression, excludesToSkip?: Set<string>, absoluteGlobs = true): IRgGlobResult {
 	const globArgs: string[] = [];
 	let siblingClauses: glob.IExpression = {};
 	folderQueries.forEach(folderQuery => {
@@ -102,7 +106,7 @@ export function foldersToRgExcludeGlobs(folderQueries: IFolderQuery[], globalExc
 	return { globArgs, siblingClauses };
 }
 
-export function foldersToIncludeGlobs(folderQueries: IFolderQuery[], globalInclude?: glob.IExpression, absoluteGlobs = true): string[] {
+function foldersToIncludeGlobs(folderQueries: IFolderQuery[], globalInclude?: glob.IExpression, absoluteGlobs = true): string[] {
 	const globArgs: string[] = [];
 	folderQueries.forEach(folderQuery => {
 		const totalIncludePattern = Object.assign({}, globalInclude || {}, folderQuery.includePattern || {});

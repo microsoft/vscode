@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { generateUuid } from 'vs/base/common/uuid';
-import { appendStylizedStringToContainer, handleANSIOutput, calcANSI8bitColor } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { Color, RGBA } from 'vs/base/common/color';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService, TestColorTheme } from 'vs/platform/theme/test/common/testThemeService';
-import { ansiColorMap } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
-import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
-import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
-import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import assert from 'assert';
+import { isHTMLSpanElement } from '../../../../../base/browser/dom.js';
+import { Color, RGBA } from '../../../../../base/common/color.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { registerColors } from '../../../terminal/common/terminalColorRegistry.js';
+import { appendStylizedStringToContainer, calcANSI8bitColor, handleANSIOutput } from '../../browser/debugANSIHandling.js';
+import { DebugSession } from '../../browser/debugSession.js';
+import { LinkDetector } from '../../browser/linkDetector.js';
+import { DebugModel } from '../../common/debugModel.js';
+import { createTestSession } from './callStack.test.js';
+import { createMockDebugModel } from './mockDebugModel.js';
 
 suite('Debug - ANSI Handling', () => {
 
@@ -25,30 +25,25 @@ suite('Debug - ANSI Handling', () => {
 	let model: DebugModel;
 	let session: DebugSession;
 	let linkDetector: LinkDetector;
-	let themeService: IThemeService;
 
 	/**
 	 * Instantiate services for use by the functions being tested.
 	 */
 	setup(() => {
 		disposables = new DisposableStore();
-		model = createMockDebugModel();
-		session = createMockSession(model);
+		model = createMockDebugModel(disposables);
+		session = createTestSession(model);
 
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		linkDetector = instantiationService.createInstance(LinkDetector);
-
-		const colors: { [id: string]: string } = {};
-		for (const color in ansiColorMap) {
-			colors[color] = <any>ansiColorMap[color].defaults.dark;
-		}
-		const testTheme = new TestColorTheme(colors);
-		themeService = new TestThemeService(testTheme);
+		registerColors();
 	});
 
 	teardown(() => {
 		disposables.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('appendStylizedStringToContainer', () => {
 		const root: HTMLSpanElement = document.createElement('span');
@@ -62,7 +57,7 @@ suite('Debug - ANSI Handling', () => {
 		assert.strictEqual(2, root.children.length);
 
 		child = root.firstChild!;
-		if (child instanceof HTMLSpanElement) {
+		if (isHTMLSpanElement(child)) {
 			assert.strictEqual('content1', child.textContent);
 			assert(child.classList.contains('class1'));
 			assert(child.classList.contains('class2'));
@@ -71,7 +66,7 @@ suite('Debug - ANSI Handling', () => {
 		}
 
 		child = root.lastChild!;
-		if (child instanceof HTMLSpanElement) {
+		if (isHTMLSpanElement(child)) {
 			assert.strictEqual('content2', child.textContent);
 			assert(child.classList.contains('class2'));
 			assert(child.classList.contains('class3'));
@@ -87,10 +82,10 @@ suite('Debug - ANSI Handling', () => {
 	 * @returns An {@link HTMLSpanElement} that contains the stylized text.
 	 */
 	function getSequenceOutput(sequence: string): HTMLSpanElement {
-		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, themeService, session.root);
+		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, session.root);
 		assert.strictEqual(1, root.children.length);
 		const child: Node = root.lastChild!;
-		if (child instanceof HTMLSpanElement) {
+		if (isHTMLSpanElement(child)) {
 			return child;
 		} else {
 			assert.fail('Unexpected assertion error');
@@ -400,11 +395,11 @@ suite('Debug - ANSI Handling', () => {
 		if (elementsExpected === undefined) {
 			elementsExpected = assertions.length;
 		}
-		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, themeService, session.root);
+		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, session.root);
 		assert.strictEqual(elementsExpected, root.children.length);
 		for (let i = 0; i < elementsExpected; i++) {
 			const child: Node = root.children[i];
-			if (child instanceof HTMLSpanElement) {
+			if (isHTMLSpanElement(child)) {
 				assertions[i](child);
 			} else {
 				assert.fail('Unexpected assertion error');

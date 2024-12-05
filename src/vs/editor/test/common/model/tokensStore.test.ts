@@ -3,29 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
-import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
-import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { FontStyle, ColorId, MetadataConsts, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILanguageConfigurationService, LanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import assert from 'assert';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { ColorId, FontStyle, MetadataConsts, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
+import { ILanguageConfigurationService, LanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { LanguageIdCodec } from '../../../common/services/languagesRegistry.js';
+import { LineTokens } from '../../../common/tokens/lineTokens.js';
+import { SparseMultilineTokens } from '../../../common/tokens/sparseMultilineTokens.js';
+import { SparseTokensStore } from '../../../common/tokens/sparseTokensStore.js';
+import { createModelServices, createTextModel, instantiateTextModel } from '../testTextModel.js';
 
 suite('TokensStore', () => {
 
-	const SEMANTIC_COLOR: ColorId = 5;
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const SEMANTIC_COLOR = 5 as ColorId;
 
 	function parseTokensState(state: string[]): { text: string; tokens: SparseMultilineTokens } {
-		let text: string[] = [];
-		let tokens: number[] = [];
+		const text: string[] = [];
+		const tokens: number[] = [];
 		let baseLine = 1;
 		for (let i = 0; i < state.length; i++) {
 			const line = state[i];
@@ -77,7 +78,7 @@ suite('TokensStore', () => {
 	}
 
 	function extractState(model: TextModel): string[] {
-		let result: string[] = [];
+		const result: string[] = [];
 		for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber++) {
 			const lineTokens = model.tokenization.getLineTokens(lineNumber);
 			const lineContent = model.getLineContent(lineNumber);
@@ -100,8 +101,6 @@ suite('TokensStore', () => {
 		}
 		return result;
 	}
-
-	// function extractState
 
 	function testTokensAdjustment(rawInitialState: string[], edits: ISingleEditOperation[], rawFinalState: string[]) {
 		const initialState = parseTokensState(rawInitialState);
@@ -177,6 +176,38 @@ suite('TokensStore', () => {
 		);
 	});
 
+	test('issue #179268: a complex edit', () => {
+		testTokensAdjustment(
+			[
+				`|export| |'interior_material_selector.dart'|;`,
+				`|export| |'mileage_selector.dart'|;`,
+				`|export| |'owners_selector.dart'|;`,
+				`|export| |'price_selector.dart'|;`,
+				`|export| |'seat_count_selector.dart'|;`,
+				`|export| |'year_selector.dart'|;`,
+				`|export| |'winter_options_selector.dart'|;|export| |'camera_selector.dart'|;`
+			],
+			[
+				{ range: new Range(1, 9, 1, 9), text: `camera_selector.dart';\nexport '` },
+				{ range: new Range(6, 9, 7, 9), text: `` },
+				{ range: new Range(7, 39, 7, 39), text: `\n` },
+				{ range: new Range(7, 47, 7, 48), text: `ye` },
+				{ range: new Range(7, 49, 7, 51), text: `` },
+				{ range: new Range(7, 52, 7, 53), text: `` },
+			],
+			[
+				`|export| |'|camera_selector.dart';`,
+				`export 'interior_material_selector.dart';`,
+				`|export| |'mileage_selector.dart'|;`,
+				`|export| |'owners_selector.dart'|;`,
+				`|export| |'price_selector.dart'|;`,
+				`|export| |'seat_count_selector.dart'|;`,
+				`|export| |'||winter_options_selector.dart'|;`,
+				`|export| |'year_selector.dart'|;`
+			]
+		);
+	});
+
 	test('issue #91936: Semantic token color highlighting fails on line with selected text', () => {
 		const model = createTextModel('                    else if ($s = 08) then \'\\b\'');
 		model.tokenization.setSemanticTokens([
@@ -193,7 +224,7 @@ suite('TokensStore', () => {
 			]))
 		], true);
 		const lineTokens = model.tokenization.getLineTokens(1);
-		let decodedTokens: number[] = [];
+		const decodedTokens: number[] = [];
 		for (let i = 0, len = lineTokens.getCount(); i < len; i++) {
 			decodedTokens.push(lineTokens.getEndOffset(i), lineTokens.getMetadata(i));
 		}
@@ -222,10 +253,10 @@ suite('TokensStore', () => {
 
 	test('issue #147944: Language id "vs.editor.nullLanguage" is not configured nor known', () => {
 		const disposables = new DisposableStore();
-		const instantiationService = createModelServices(disposables, new ServiceCollection([
-			ILanguageConfigurationService, new SyncDescriptor(LanguageConfigurationService)
-		]));
-		const model = instantiateTextModel(instantiationService, '--[[\n\n]]');
+		const instantiationService = createModelServices(disposables, [
+			[ILanguageConfigurationService, LanguageConfigurationService]
+		]);
+		const model = disposables.add(instantiateTextModel(instantiationService, '--[[\n\n]]'));
 		model.tokenization.setSemanticTokens([
 			SparseMultilineTokens.create(1, new Uint32Array([
 				0, 2, 4, 0b100000000000010000,
@@ -373,7 +404,7 @@ suite('TokensStore', () => {
 			str = str.replace(/^\[\(/, '');
 			str = str.replace(/\)\]$/, '');
 			const strTokens = str.split('),(');
-			let result: number[] = [];
+			const result: number[] = [];
 			let firstLineNumber = 0;
 			for (const strToken of strTokens) {
 				const pieces = strToken.split(',');
@@ -429,7 +460,7 @@ suite('TokensStore', () => {
 		}
 
 		function toArr(lineTokens: LineTokens): number[] {
-			let r: number[] = [];
+			const r: number[] = [];
 			for (let i = 0; i < lineTokens.getCount(); i++) {
 				r.push(lineTokens.getEndOffset(i));
 				r.push(lineTokens.getMetadata(i));

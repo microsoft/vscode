@@ -6,17 +6,19 @@
 import { basename, extname } from 'path';
 import * as vscode from 'vscode';
 import { CommandManager } from './commands/commandManager';
+import { DocumentSelector } from './configuration/documentSelector';
+import * as fileSchemes from './configuration/fileSchemes';
+import { LanguageDescription } from './configuration/languageDescription';
+import { Schemes } from './configuration/schemes';
 import { DiagnosticKind } from './languageFeatures/diagnostics';
 import FileConfigurationManager from './languageFeatures/fileConfigurationManager';
+import { TelemetryReporter } from './logging/telemetry';
 import { CachedResponse } from './tsServer/cachedResponse';
 import { ClientCapability } from './typescriptService';
 import TypeScriptServiceClient from './typescriptServiceClient';
+import TypingsStatus from './ui/typingsStatus';
 import { Disposable } from './utils/dispose';
-import { DocumentSelector } from './utils/documentSelector';
-import * as fileSchemes from './utils/fileSchemes';
-import { LanguageDescription } from './utils/languageDescription';
-import { TelemetryReporter } from './utils/telemetry';
-import TypingsStatus from './utils/typingsStatus';
+import { isWeb, isWebAndHasSharedArrayBuffers, supportsReadableByteStreams } from './utils/platform';
 
 
 const validateSetting = 'validate.enable';
@@ -45,7 +47,7 @@ export default class LanguageProvider extends Disposable {
 		const syntax: vscode.DocumentFilter[] = [];
 		for (const language of this.description.languageIds) {
 			syntax.push({ language });
-			for (const scheme of fileSchemes.semanticSupportedSchemes) {
+			for (const scheme of fileSchemes.getSemanticSupportedSchemes()) {
 				semantic.push({ language, scheme });
 			}
 		}
@@ -56,30 +58,33 @@ export default class LanguageProvider extends Disposable {
 	private async registerProviders(): Promise<void> {
 		const selector = this.documentSelector;
 
-		const cachedResponse = new CachedResponse();
+		const cachedNavTreeResponse = new CachedResponse();
 
 		await Promise.all([
 			import('./languageFeatures/callHierarchy').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/codeLens/implementationsCodeLens').then(provider => this._register(provider.register(selector, this.description, this.client, cachedResponse))),
-			import('./languageFeatures/codeLens/referencesCodeLens').then(provider => this._register(provider.register(selector, this.description, this.client, cachedResponse))),
+			import('./languageFeatures/codeLens/implementationsCodeLens').then(provider => this._register(provider.register(selector, this.description, this.client, cachedNavTreeResponse))),
+			import('./languageFeatures/codeLens/referencesCodeLens').then(provider => this._register(provider.register(selector, this.description, this.client, cachedNavTreeResponse))),
 			import('./languageFeatures/completions').then(provider => this._register(provider.register(selector, this.description, this.client, this.typingsStatus, this.fileConfigurationManager, this.commandManager, this.telemetryReporter, this.onCompletionAccepted))),
+			import('./languageFeatures/copyPaste').then(provider => this._register(provider.register(selector, this.description, this.client))),
 			import('./languageFeatures/definitions').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/directiveCommentCompletions').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/documentHighlight').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/documentSymbol').then(provider => this._register(provider.register(selector, this.client, cachedResponse))),
+			import('./languageFeatures/documentSymbol').then(provider => this._register(provider.register(selector, this.client, cachedNavTreeResponse))),
 			import('./languageFeatures/fileReferences').then(provider => this._register(provider.register(this.client, this.commandManager))),
 			import('./languageFeatures/fixAll').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.client.diagnosticsManager))),
 			import('./languageFeatures/folding').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/formatting').then(provider => this._register(provider.register(selector, this.description, this.client, this.fileConfigurationManager))),
 			import('./languageFeatures/hover').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager))),
 			import('./languageFeatures/implementations').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/inlayHints').then(provider => this._register(provider.register(selector, this.description, this.client, this.fileConfigurationManager))),
+			import('./languageFeatures/inlayHints').then(provider => this._register(provider.register(selector, this.description, this.client, this.fileConfigurationManager, this.telemetryReporter))),
 			import('./languageFeatures/jsDocCompletions').then(provider => this._register(provider.register(selector, this.description, this.client, this.fileConfigurationManager))),
+			import('./languageFeatures/linkedEditing').then(provider => this._register(provider.register(selector, this.client))),
+			import('./languageFeatures/mappedCodeEditProvider').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/organizeImports').then(provider => this._register(provider.register(selector, this.client, this.commandManager, this.fileConfigurationManager, this.telemetryReporter))),
 			import('./languageFeatures/quickFix').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.client.diagnosticsManager, this.telemetryReporter))),
-			import('./languageFeatures/refactor').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.telemetryReporter))),
+			import('./languageFeatures/refactor').then(provider => this._register(provider.register(selector, this.client, cachedNavTreeResponse, this.fileConfigurationManager, this.commandManager, this.telemetryReporter))),
 			import('./languageFeatures/references').then(provider => this._register(provider.register(selector, this.client))),
-			import('./languageFeatures/rename').then(provider => this._register(provider.register(selector, this.client, this.fileConfigurationManager))),
+			import('./languageFeatures/rename').then(provider => this._register(provider.register(selector, this.description, this.client, this.fileConfigurationManager))),
 			import('./languageFeatures/semanticTokens').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/signatureHelp').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/smartSelect').then(provider => this._register(provider.register(selector, this.client))),
@@ -133,8 +138,28 @@ export default class LanguageProvider extends Disposable {
 		this.client.bufferSyncSupport.requestAllDiagnostics();
 	}
 
-	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: vscode.Uri, diagnostics: (vscode.Diagnostic & { reportUnnecessary: any; reportDeprecated: any })[]): void {
+	public diagnosticsReceived(
+		diagnosticsKind: DiagnosticKind,
+		file: vscode.Uri,
+		diagnostics: (vscode.Diagnostic & { reportUnnecessary: any; reportDeprecated: any })[],
+		ranges: vscode.Range[] | undefined): void {
 		if (diagnosticsKind !== DiagnosticKind.Syntax && !this.client.hasCapabilityForResource(file, ClientCapability.Semantic)) {
+			return;
+		}
+
+		if (diagnosticsKind === DiagnosticKind.Semantic && isWeb()) {
+			if (
+				!isWebAndHasSharedArrayBuffers()
+				|| !supportsReadableByteStreams() // No ata. Will result in lots of false positives
+				|| this.client.configuration.webProjectWideIntellisenseSuppressSemanticErrors
+				|| !this.client.configuration.webProjectWideIntellisenseEnabled
+			) {
+				return;
+			}
+		}
+
+		// Disable semantic errors in notebooks until we have better notebook support
+		if (diagnosticsKind === DiagnosticKind.Semantic && file.scheme === Schemes.notebookCell) {
 			return;
 		}
 
@@ -154,7 +179,7 @@ export default class LanguageProvider extends Disposable {
 				}
 			}
 			return true;
-		}));
+		}), ranges);
 	}
 
 	public configFileDiagnosticsReceived(file: vscode.Uri, diagnostics: vscode.Diagnostic[]): void {

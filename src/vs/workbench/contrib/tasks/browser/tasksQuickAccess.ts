@@ -3,20 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IQuickPickSeparator, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { matchesFuzzy } from 'vs/base/common/filters';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
-import { CustomTask, ContributedTask, ConfiguringTask } from 'vs/workbench/contrib/tasks/common/tasks';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TaskQuickPick, TaskTwoLevelQuickPickEntry } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { isString } from 'vs/base/common/types';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { localize } from '../../../../nls.js';
+import { IQuickPickSeparator, IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from '../../../../platform/quickinput/browser/pickerQuickAccess.js';
+import { matchesFuzzy } from '../../../../base/common/filters.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { ITaskService, Task } from '../common/taskService.js';
+import { CustomTask, ContributedTask, ConfiguringTask } from '../common/tasks.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { TaskQuickPick, ITaskTwoLevelQuickPickEntry } from './taskQuickPick.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { isString } from '../../../../base/common/types.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
 export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -24,11 +26,13 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
-		@ITaskService private taskService: ITaskService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@INotificationService private notificationService: INotificationService,
-		@IDialogService private dialogService: IDialogService
+		@ITaskService private _taskService: ITaskService,
+		@IConfigurationService private _configurationService: IConfigurationService,
+		@IQuickInputService private _quickInputService: IQuickInputService,
+		@INotificationService private _notificationService: INotificationService,
+		@IDialogService private _dialogService: IDialogService,
+		@IThemeService private _themeService: IThemeService,
+		@IStorageService private _storageService: IStorageService
 	) {
 		super(TasksQuickAccessProvider.PREFIX, {
 			noResultsPick: {
@@ -42,7 +46,7 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 			return [];
 		}
 
-		const taskQuickPick = new TaskQuickPick(this.taskService, this.configurationService, this.quickInputService, this.notificationService, this.dialogService);
+		const taskQuickPick = new TaskQuickPick(this._taskService, this._configurationService, this._quickInputService, this._notificationService, this._themeService, this._dialogService, this._storageService);
 		const topLevelPicks = await taskQuickPick.getTopLevelEntries();
 		const taskPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
@@ -56,21 +60,21 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 				taskPicks.push(entry);
 			}
 
-			const task: Task | ConfiguringTask | string = (<TaskTwoLevelQuickPickEntry>entry).task!;
-			const quickAccessEntry: IPickerQuickAccessItem = <TaskTwoLevelQuickPickEntry>entry;
+			const task: Task | ConfiguringTask | string = (<ITaskTwoLevelQuickPickEntry>entry).task!;
+			const quickAccessEntry: IPickerQuickAccessItem = <ITaskTwoLevelQuickPickEntry>entry;
 			quickAccessEntry.highlights = { label: highlights };
 			quickAccessEntry.trigger = (index) => {
 				if ((index === 1) && (quickAccessEntry.buttons?.length === 2)) {
-					const key = (task && !isString(task)) ? task.getRecentlyUsedKey() : undefined;
+					const key = (task && !isString(task)) ? task.getKey() : undefined;
 					if (key) {
-						this.taskService.removeRecentlyUsedTask(key);
+						this._taskService.removeRecentlyUsedTask(key);
 					}
 					return TriggerAction.REFRESH_PICKER;
 				} else {
 					if (ContributedTask.is(task)) {
-						this.taskService.customize(task, undefined, true);
+						this._taskService.customize(task, undefined, true);
 					} else if (CustomTask.is(task)) {
-						this.taskService.openConfig(task);
+						this._taskService.openConfig(task);
 					}
 					return TriggerAction.CLOSE_PICKER;
 				}
@@ -80,10 +84,10 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 					// switch to quick pick and show second level
 					const showResult = await taskQuickPick.show(localize('TaskService.pickRunTask', 'Select the task to run'), undefined, task);
 					if (showResult) {
-						this.taskService.run(showResult, { attachProblemMatcher: true });
+						this._taskService.run(showResult, { attachProblemMatcher: true });
 					}
 				} else {
-					this.taskService.run(await this.toTask(task), { attachProblemMatcher: true });
+					this._taskService.run(await this._toTask(task), { attachProblemMatcher: true });
 				}
 			};
 
@@ -92,11 +96,11 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 		return taskPicks;
 	}
 
-	private async toTask(task: Task | ConfiguringTask): Promise<Task | undefined> {
+	private async _toTask(task: Task | ConfiguringTask): Promise<Task | undefined> {
 		if (!ConfiguringTask.is(task)) {
 			return task;
 		}
 
-		return this.taskService.tryResolveTask(task);
+		return this._taskService.tryResolveTask(task);
 	}
 }

@@ -3,50 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/searchEditor';
-import { Emitter, Event } from 'vs/base/common/event';
-import { basename } from 'vs/base/common/path';
-import { extname, isEqual, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { localize } from 'vs/nls';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { GroupIdentifier, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { Memento } from 'vs/workbench/common/memento';
-import { SearchEditorFindMatchClass, SearchEditorInputTypeId, SearchEditorScheme, SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
-import { SearchConfigurationModel, SearchEditorModel, searchEditorModelFactory } from 'vs/workbench/contrib/searchEditor/browser/searchEditorModel';
-import { defaultSearchConfig, parseSavedSearchEditor, serializeSearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ISearchComplete, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IDisposable } from 'vs/base/common/lifecycle';
-
-export type SearchConfiguration = {
-	query: string;
-	filesToInclude: string;
-	filesToExclude: string;
-	contextLines: number;
-	matchWholeWord: boolean;
-	isCaseSensitive: boolean;
-	isRegexp: boolean;
-	useExcludeSettingsAndIgnoreFiles: boolean;
-	showIncludesExcludes: boolean;
-	onlyOpenEditors: boolean;
-};
+import './media/searchEditor.css';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { basename } from '../../../../base/common/path.js';
+import { extname, isEqual, joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { ITextModel, TrackedRangeStickiness } from '../../../../editor/common/model.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { localize } from '../../../../nls.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { GroupIdentifier, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor.js';
+import { Memento } from '../../../common/memento.js';
+import { SearchEditorFindMatchClass, SearchEditorInputTypeId, SearchEditorScheme, SearchEditorWorkingCopyTypeId, SearchConfiguration } from './constants.js';
+import { SearchConfigurationModel, SearchEditorModel, searchEditorModelFactory } from './searchEditorModel.js';
+import { defaultSearchConfig, parseSavedSearchEditor, serializeSearchConfiguration } from './searchEditorSerialization.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
+import { ITextFileSaveOptions, ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
+import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopySaveEvent, WorkingCopyCapabilities } from '../../../services/workingCopy/common/workingCopy.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ISearchComplete, ISearchConfigurationProperties } from '../../../services/search/common/search.js';
+import { bufferToReadable, VSBuffer } from '../../../../base/common/buffer.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 
 export const SEARCH_EDITOR_EXT = '.code-search';
+
+const SearchEditorIcon = registerIcon('search-editor-label-icon', Codicon.search, localize('searchEditorLabelIcon', 'Icon of the search editor label.'));
 
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = SearchEditorInputTypeId;
@@ -57,6 +49,10 @@ export class SearchEditorInput extends EditorInput {
 
 	override get editorId(): string | undefined {
 		return this.typeId;
+	}
+
+	override getIcon(): ThemeIcon {
+		return SearchEditorIcon;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
@@ -71,6 +67,8 @@ export class SearchEditorInput extends EditorInput {
 	private memento: Memento;
 
 	private dirty: boolean = false;
+
+	private lastLabel: string | undefined;
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
@@ -111,7 +109,7 @@ export class SearchEditorInput extends EditorInput {
 		}
 
 		this.memento = new Memento(SearchEditorInput.ID, storageService);
-		storageService.onWillSaveState(() => this.memento.saveMemento());
+		this._register(storageService.onWillSaveState(() => this.memento.saveMemento()));
 
 		const input = this;
 		const workingCopyAdapter = new class implements IWorkingCopy {
@@ -123,6 +121,7 @@ export class SearchEditorInput extends EditorInput {
 			readonly onDidChangeContent = input.onDidChangeContent;
 			readonly onDidSave = input.onDidSave;
 			isDirty(): boolean { return input.isDirty(); }
+			isModified(): boolean { return input.isDirty(); }
 			backup(token: CancellationToken): Promise<IWorkingCopyBackup> { return input.backup(token); }
 			save(options?: ISaveOptions): Promise<boolean> { return input.save(0, options).then(editor => !!editor); }
 			revert(options?: IRevertOptions): Promise<void> { return input.revert(0, options); }
@@ -158,9 +157,9 @@ export class SearchEditorInput extends EditorInput {
 		this.configChangeListenerDisposable?.dispose();
 		if (!this.isDisposed()) {
 			this.configChangeListenerDisposable = model.onConfigDidUpdate(() => {
-				const oldName = this.getName();
-				if (oldName !== this.getName()) {
+				if (this.lastLabel !== this.getName()) {
 					this._onDidChangeLabel.fire();
+					this.lastLabel = this.getName();
 				}
 				this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig = model.config;
 			});
@@ -170,11 +169,11 @@ export class SearchEditorInput extends EditorInput {
 
 	async resolveModels() {
 		return this.model.resolve().then(data => {
-			const oldName = this.getName();
 			this._cachedResultsModel = data.resultsModel;
 			this._cachedConfigurationModel = data.configurationModel;
-			if (oldName !== this.getName()) {
+			if (this.lastLabel !== this.getName()) {
 				this._onDidChangeLabel.fire();
+				this.lastLabel = this.getName();
 			}
 			this.registerConfigChangeListeners(data.configurationModel);
 			return data;
@@ -184,7 +183,13 @@ export class SearchEditorInput extends EditorInput {
 	override async saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<EditorInput | undefined> {
 		const path = await this.fileDialogService.pickFileToSave(await this.suggestFileName(), options?.availableFileSystems);
 		if (path) {
-			this.telemetryService.publicLog2<{}, { owner: 'roblourens' }>('searchEditor/saveSearchResults');
+			this.telemetryService.publicLog2<
+				{},
+				{
+					owner: 'roblourens';
+					comment: 'Fired when a search editor is saved';
+				}>
+				('searchEditor/saveSearchResults');
 			const toWrite = await this.serializeForDisk();
 			if (await this.textFileService.create([{ resource: path, value: toWrite, options: { overwrite: true } }])) {
 				this.setDirty(false);

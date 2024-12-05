@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { snippetForFunctionCall } from '../../utils/snippetForFunctionCall';
+import { snippetForFunctionCall } from '../../languageFeatures/util/snippetForFunctionCall';
 
 suite('typescript function call snippets', () => {
 	test('Should use label as function name', async () => {
@@ -133,5 +133,35 @@ suite('typescript function call snippets', () => {
 				[{ 'text': 'function', 'kind': 'keyword' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'foobar', 'kind': 'functionName' }, { 'text': '(', 'kind': 'punctuation' }, { 'text': 'this', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'string', 'kind': 'keyword' }, { 'text': ',', 'kind': 'punctuation' }, { 'text': 'param', 'kind': 'parameterName' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'string', 'kind': 'keyword' }, { 'text': ')', 'kind': 'punctuation' }, { 'text': ':', 'kind': 'punctuation' }, { 'text': ' ', 'kind': 'space' }, { 'text': 'void', 'kind': 'keyword' }]
 			).snippet.value,
 			'foobar(${1:param})$0');
+	});
+
+	test('Should not skip mid-list optional parameter', async () => {
+		assert.strictEqual(
+			snippetForFunctionCall(
+				{ label: 'foobar', },
+				[{ "text": "function", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "foobar", "kind": "functionName" }, { "text": "(", "kind": "punctuation" }, { "text": "alpha", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "string", "kind": "keyword" }, { "text": ",", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "beta", "kind": "parameterName" }, { "text": "?", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "|", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "undefined", "kind": "keyword" }, { "text": ",", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "gamma", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "string", "kind": "keyword" }, { "text": ")", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "void", "kind": "keyword" }]
+			).snippet.value,
+			'foobar(${1:alpha}, ${2:beta}, ${3:gamma}$4)$0');
+	});
+
+	test('Should skip end-of-list optional parameters', async () => {
+		assert.strictEqual(
+			snippetForFunctionCall(
+				{ label: 'foobar', },
+				[{ "text": "function", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "foobar", "kind": "functionName" }, { "text": "(", "kind": "punctuation" }, { "text": "alpha", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "string", "kind": "keyword" }, { "text": ",", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "beta", "kind": "parameterName" }, { "text": "?", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "|", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "undefined", "kind": "keyword" }, { "text": ",", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "gamma", "kind": "parameterName" }, { "text": "?", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "|", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "undefined", "kind": "keyword" }, { "text": ")", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "void", "kind": "keyword" }]
+			).snippet.value,
+			'foobar(${1:alpha}$2)$0');
+	});
+
+	// A more complex case
+	test('Should skip end-of-list optional params but should not skip start-of-list and mid-list ones', async () => {
+		assert.strictEqual(
+			snippetForFunctionCall(
+				{ label: 'foobar', },
+				[{ "text": "function", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "foobar", "kind": "functionName" }, { "text": "(", "kind": "punctuation" }, { "text": "a", "kind": "parameterName" }, { "text": "?", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "|", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "undefined", "kind": "keyword" }, { "text": ",", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "b", "kind": "parameterName" }, { "text": "?", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "|", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "undefined", "kind": "keyword" }, { "text": ",", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "c", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "string", "kind": "keyword" }, { "text": ",", "kind": "punctuation" }, { "text": " ", "kind": "space" },
+				{ "text": "d", "kind": "parameterName" }, { "text": "?", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "|", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "undefined", "kind": "keyword" }, { "text": ",", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "e", "kind": "parameterName" }, { "text": "?", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "|", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "undefined", "kind": "keyword" }, { "text": ",", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "f", "kind": "parameterName" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "string", "kind": "keyword" }, { "text": ",", "kind": "punctuation" }, { "text": " ", "kind": "space" },
+				{ "text": "g", "kind": "parameterName" }, { "text": "?", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "|", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "undefined", "kind": "keyword" }, { "text": ",", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "h", "kind": "parameterName" }, { "text": "?", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "number", "kind": "keyword" }, { "text": " ", "kind": "space" }, { "text": "|", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "undefined", "kind": "keyword" }, { "text": ")", "kind": "punctuation" }, { "text": ":", "kind": "punctuation" }, { "text": " ", "kind": "space" }, { "text": "void", "kind": "keyword" }]
+			).snippet.value,
+			'foobar(${1:a}, ${2:b}, ${3:c}, ${4:d}, ${5:e}, ${6:f}$7)$0');
 	});
 });

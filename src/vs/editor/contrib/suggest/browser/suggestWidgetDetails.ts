@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari } from 'vs/base/browser/browser';
-import * as dom from 'vs/base/browser/dom';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { ICodeEditor, IOverlayWidget } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { ResizableHTMLElement } from 'vs/editor/contrib/suggest/browser/resizable';
-import * as nls from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CompletionItem } from './suggest';
+import * as dom from '../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { MarkdownRenderer } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
+import * as nls from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { CompletionItem } from './suggest.js';
 
 export function canExpandCompletionItem(item: CompletionItem | undefined): boolean {
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
@@ -56,13 +56,17 @@ export class SuggestDetailsWidget {
 
 		this._body = dom.$('.body');
 
-		this._scrollbar = new DomScrollableElement(this._body, {});
+		this._scrollbar = new DomScrollableElement(this._body, {
+			alwaysConsumeMouseWheel: true,
+		});
 		dom.append(this.domNode, this._scrollbar.getDomNode());
 		this._disposables.add(this._scrollbar);
 
 		this._header = dom.append(this._body, dom.$('.header'));
-		this._close = dom.append(this._header, dom.$('span' + Codicon.close.cssSelector));
+		this._close = dom.append(this._header, dom.$('span' + ThemeIcon.asCSSSelector(Codicon.close)));
 		this._close.title = nls.localize('details.close', "Close");
+		this._close.role = 'button';
+		this._close.tabIndex = -1;
 		this._type = dom.append(this._header, dom.$('p.type'));
 
 		this._docs = dom.append(this._body, dom.$('p.docs'));
@@ -84,7 +88,7 @@ export class SuggestDetailsWidget {
 	private _configureFont(): void {
 		const options = this._editor.getOptions();
 		const fontInfo = options.get(EditorOption.fontInfo);
-		const fontFamily = fontInfo.getMassagedFontFamily(isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null);
+		const fontFamily = fontInfo.getMassagedFontFamily();
 		const fontSize = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
 		const lineHeight = options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
 		const fontWeight = fontInfo.fontWeight;
@@ -204,6 +208,10 @@ export class SuggestDetailsWidget {
 		this._docs.textContent = '';
 	}
 
+	get isEmpty(): boolean {
+		return this.domNode.classList.contains('no-docs');
+	}
+
 	get size() {
 		return this._size;
 	}
@@ -248,6 +256,10 @@ export class SuggestDetailsWidget {
 	get borderWidth() {
 		return this._borderWidth;
 	}
+
+	focus() {
+		this.domNode.focus();
+	}
 }
 
 interface TopLeftPosition {
@@ -256,6 +268,8 @@ interface TopLeftPosition {
 }
 
 export class SuggestDetailsOverlay implements IOverlayWidget {
+
+	readonly allowEditorOverflow = true;
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _resizable: ResizableHTMLElement;
@@ -335,14 +349,13 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		return this._resizable.domNode;
 	}
 
-	getPosition(): null {
-		return null;
+	getPosition(): IOverlayWidgetPosition | null {
+		return this._topLeft ? { preference: this._topLeft } : null;
 	}
 
 	show(): void {
 		if (!this._added) {
 			this._editor.addOverlayWidget(this);
-			this.getDomNode().style.position = 'fixed';
 			this._added = true;
 		}
 	}
@@ -370,7 +383,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	}
 
 	_placeAtAnchor(anchorBox: dom.IDomNodePagePosition, size: dom.Dimension, preferAlignAtTop: boolean) {
-		const bodyBox = dom.getClientArea(document.body);
+		const bodyBox = dom.getClientArea(this.getDomNode().ownerDocument.body);
 
 		const info = this.widget.getLayoutInfo();
 
@@ -436,8 +449,18 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 			}
 		}
 
-		this._applyTopLeft({ left: placement.left, top: alignAtTop ? placement.top : bottom - height });
-		this.getDomNode().style.position = 'fixed';
+		let { top, left } = placement;
+		if (!alignAtTop && height > anchorBox.height) {
+			top = bottom - height;
+		}
+		const editorDomNode = this._editor.getDomNode();
+		if (editorDomNode) {
+			// get bounding rectangle of the suggest widget relative to the editor
+			const editorBoundingBox = editorDomNode.getBoundingClientRect();
+			top -= editorBoundingBox.top;
+			left -= editorBoundingBox.left;
+		}
+		this._applyTopLeft({ left, top });
 
 		this._resizable.enableSashes(!alignAtTop, placement === eastPlacement, alignAtTop, placement !== eastPlacement);
 
@@ -449,7 +472,6 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 
 	private _applyTopLeft(topLeft: TopLeftPosition): void {
 		this._topLeft = topLeft;
-		this.getDomNode().style.left = `${this._topLeft.left}px`;
-		this.getDomNode().style.top = `${this._topLeft.top}px`;
+		this._editor.layoutOverlayWidget(this);
 	}
 }

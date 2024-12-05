@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -12,26 +10,28 @@ const { dirs } = require('../../npm/dirs');
 
 const ROOT = path.join(__dirname, '../../../');
 
-const shasum = crypto.createHash('sha1');
+const shasum = crypto.createHash('sha256');
 
 shasum.update(fs.readFileSync(path.join(ROOT, 'build/.cachesalt')));
-shasum.update(fs.readFileSync(path.join(ROOT, '.yarnrc')));
-shasum.update(fs.readFileSync(path.join(ROOT, 'remote/.yarnrc')));
+shasum.update(fs.readFileSync(path.join(ROOT, '.npmrc')));
+shasum.update(fs.readFileSync(path.join(ROOT, 'build', '.npmrc')));
+shasum.update(fs.readFileSync(path.join(ROOT, 'remote', '.npmrc')));
 
-// Add `package.json` and `yarn.lock` files
-for (let dir of dirs) {
+// Add `package.json` and `package-lock.json` files
+for (const dir of dirs) {
 	const packageJsonPath = path.join(ROOT, dir, 'package.json');
 	const packageJson = JSON.parse(fs.readFileSync(packageJsonPath).toString());
 	const relevantPackageJsonSections = {
 		dependencies: packageJson.dependencies,
 		devDependencies: packageJson.devDependencies,
 		optionalDependencies: packageJson.optionalDependencies,
-		resolutions: packageJson.resolutions
+		resolutions: packageJson.resolutions,
+		distro: packageJson.distro
 	};
 	shasum.update(JSON.stringify(relevantPackageJsonSections));
 
-	const yarnLockPath = path.join(ROOT, dir, 'yarn.lock');
-	shasum.update(fs.readFileSync(yarnLockPath));
+	const packageLockPath = path.join(ROOT, dir, 'package-lock.json');
+	shasum.update(fs.readFileSync(packageLockPath));
 }
 
 // Add any other command line arguments

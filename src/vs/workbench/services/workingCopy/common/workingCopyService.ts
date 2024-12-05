@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Event, Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { Disposable, IDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { IWorkingCopy, IWorkingCopyIdentifier, IWorkingCopySaveEvent as IBaseWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Disposable, IDisposable, toDisposable, DisposableStore, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { IWorkingCopy, IWorkingCopyIdentifier, IWorkingCopySaveEvent as IBaseWorkingCopySaveEvent } from './workingCopy.js';
 
 export const IWorkingCopyService = createDecorator<IWorkingCopyService>('workingCopyService');
 
@@ -67,6 +67,18 @@ export interface IWorkingCopyService {
 	 * All dirty working copies that are registered.
 	 */
 	readonly dirtyWorkingCopies: readonly IWorkingCopy[];
+
+	/**
+	 * The number of modified working copies that are registered,
+	 * including scratchpads, which are never dirty.
+	 */
+	readonly modifiedCount: number;
+
+	/**
+	 * All working copies with unsaved changes,
+	 * including scratchpads, which are never dirty.
+	 */
+	readonly modifiedWorkingCopies: readonly IWorkingCopy[];
 
 	/**
 	 * Whether there is any registered working copy that is dirty.
@@ -155,6 +167,7 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 	private _workingCopies = new Set<IWorkingCopy>();
 
 	private readonly mapResourceToWorkingCopies = new ResourceMap<Map<string, IWorkingCopy>>();
+	private readonly mapWorkingCopyToListeners = this._register(new DisposableMap<IWorkingCopy>());
 
 	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable {
 		let workingCopiesForResource = this.mapResourceToWorkingCopies.get(workingCopy.resource);
@@ -177,6 +190,7 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		disposables.add(workingCopy.onDidChangeContent(() => this._onDidChangeContent.fire(workingCopy)));
 		disposables.add(workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(workingCopy)));
 		disposables.add(workingCopy.onDidSave(e => this._onDidSave.fire({ workingCopy, ...e })));
+		this.mapWorkingCopyToListeners.set(workingCopy, disposables);
 
 		// Send some initial events
 		this._onDidRegister.fire(workingCopy);
@@ -185,8 +199,9 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		}
 
 		return toDisposable(() => {
+
+			// Unregister working copy
 			this.unregisterWorkingCopy(workingCopy);
-			dispose(disposables);
 
 			// Signal as event
 			this._onDidUnregister.fire(workingCopy);
@@ -209,6 +224,9 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		if (workingCopy.isDirty()) {
 			this._onDidChangeDirty.fire(workingCopy);
 		}
+
+		// Remove all listeners associated to working copy
+		this.mapWorkingCopyToListeners.deleteAndDispose(workingCopy);
 	}
 
 	has(identifier: IWorkingCopyIdentifier): boolean;
@@ -265,6 +283,22 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		return this.workingCopies.filter(workingCopy => workingCopy.isDirty());
 	}
 
+	get modifiedCount(): number {
+		let totalModifiedCount = 0;
+
+		for (const workingCopy of this._workingCopies) {
+			if (workingCopy.isModified()) {
+				totalModifiedCount++;
+			}
+		}
+
+		return totalModifiedCount;
+	}
+
+	get modifiedWorkingCopies(): IWorkingCopy[] {
+		return this.workingCopies.filter(workingCopy => workingCopy.isModified());
+	}
+
 	isDirty(resource: URI, typeId?: string): boolean {
 		const workingCopies = this.mapResourceToWorkingCopies.get(resource);
 		if (workingCopies) {
@@ -290,4 +324,4 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 	//#endregion
 }
 
-registerSingleton(IWorkingCopyService, WorkingCopyService, true);
+registerSingleton(IWorkingCopyService, WorkingCopyService, InstantiationType.Delayed);

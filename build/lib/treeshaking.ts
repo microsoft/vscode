@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as fs from 'fs';
 import * as path from 'path';
 import type * as ts from 'typescript';
@@ -55,7 +53,7 @@ export interface ITreeShakingOptions {
 	 */
 	shakeLevel: ShakeLevel;
 	/**
-	 * regex pattern to ignore certain imports e.g. `vs/css!` imports
+	 * regex pattern to ignore certain imports e.g. `.css` imports
 	 */
 	importIgnorePattern: RegExp;
 
@@ -73,7 +71,7 @@ function printDiagnostics(options: ITreeShakingOptions, diagnostics: ReadonlyArr
 			result += `${path.join(options.sourcesRoot, diag.file.fileName)}`;
 		}
 		if (diag.file && diag.start) {
-			let location = diag.file.getLineAndCharacterOfPosition(diag.start);
+			const location = diag.file.getLineAndCharacterOfPosition(diag.start);
 			result += `:${location.line + 1}:${location.character}`;
 		}
 		result += ` - ` + JSON.stringify(diag.messageText);
@@ -144,6 +142,8 @@ function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeSha
 	const queue: string[] = [];
 
 	const enqueue = (moduleId: string) => {
+		// To make the treeshaker work on windows...
+		moduleId = moduleId.replace(/\\/g, '/');
 		if (in_queue[moduleId]) {
 			return;
 		}
@@ -155,38 +155,43 @@ function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeSha
 
 	while (queue.length > 0) {
 		const moduleId = queue.shift()!;
-		const dts_filename = path.join(options.sourcesRoot, moduleId + '.d.ts');
+		let redirectedModuleId: string = moduleId;
+		if (options.redirects[moduleId]) {
+			redirectedModuleId = options.redirects[moduleId];
+		}
+
+		const dts_filename = path.join(options.sourcesRoot, redirectedModuleId + '.d.ts');
 		if (fs.existsSync(dts_filename)) {
 			const dts_filecontents = fs.readFileSync(dts_filename).toString();
 			FILES[`${moduleId}.d.ts`] = dts_filecontents;
 			continue;
 		}
 
-		const js_filename = path.join(options.sourcesRoot, moduleId + '.js');
+
+		const js_filename = path.join(options.sourcesRoot, redirectedModuleId + '.js');
 		if (fs.existsSync(js_filename)) {
 			// This is an import for a .js file, so ignore it...
 			continue;
 		}
 
-		let ts_filename: string;
-		if (options.redirects[moduleId]) {
-			ts_filename = path.join(options.sourcesRoot, options.redirects[moduleId] + '.ts');
-		} else {
-			ts_filename = path.join(options.sourcesRoot, moduleId + '.ts');
-		}
+		const ts_filename = path.join(options.sourcesRoot, redirectedModuleId + '.ts');
+
 		const ts_filecontents = fs.readFileSync(ts_filename).toString();
 		const info = ts.preProcessFile(ts_filecontents);
 		for (let i = info.importedFiles.length - 1; i >= 0; i--) {
 			const importedFileName = info.importedFiles[i].fileName;
 
 			if (options.importIgnorePattern.test(importedFileName)) {
-				// Ignore vs/css! imports
+				// Ignore *.css imports
 				continue;
 			}
 
 			let importedModuleId = importedFileName;
 			if (/(^\.\/)|(^\.\.\/)/.test(importedModuleId)) {
 				importedModuleId = path.join(path.dirname(moduleId), importedModuleId);
+				if (importedModuleId.endsWith('.js')) { // ESM: code imports require to be relative and have a '.js' file extension
+					importedModuleId = importedModuleId.substr(0, importedModuleId.length - 3);
+				}
 			}
 			enqueue(importedModuleId);
 		}
@@ -216,7 +221,7 @@ function processLibFiles(ts: typeof import('typescript'), options: ITreeShakingO
 
 			// precess dependencies and "recurse"
 			const info = ts.preProcessFile(sourceText);
-			for (let ref of info.libReferenceDirectives) {
+			for (const ref of info.libReferenceDirectives) {
 				stack.push(ref.fileName);
 			}
 		}
@@ -306,6 +311,12 @@ function getColor(node: ts.Node): NodeColor {
 }
 function setColor(node: ts.Node, color: NodeColor): void {
 	(<any>node).$$$color = color;
+}
+function markNeededSourceFile(node: ts.SourceFile): void {
+	(<any>node).$$$neededSourceFile = true;
+}
+function isNeededSourceFile(node: ts.SourceFile): boolean {
+	return Boolean((<any>node).$$$neededSourceFile);
 }
 function nodeOrParentIsBlack(node: ts.Node): boolean {
 	while (node) {
@@ -449,6 +460,20 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 		});
 	}
 
+	/**
+	 * Return the parent of `node` which is an ImportDeclaration
+	 */
+	function findParentImportDeclaration(node: ts.Declaration): ts.ImportDeclaration | null {
+		let _node: ts.Node = node;
+		do {
+			if (ts.isImportDeclaration(_node)) {
+				return _node;
+			}
+			_node = _node.parent;
+		} while (_node);
+		return null;
+	}
+
 	function enqueue_gray(node: ts.Node): void {
 		if (nodeOrParentIsBlack(node) || getColor(node) === NodeColor.Gray) {
 			return;
@@ -531,6 +556,8 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 			console.warn(`Cannot find source file ${filename}`);
 			return;
 		}
+		// This source file should survive even if it is empty
+		markNeededSourceFile(sourceFile);
 		enqueue_black(sourceFile);
 	}
 
@@ -543,6 +570,9 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 		const nodeSourceFile = node.getSourceFile();
 		let fullPath: string;
 		if (/(^\.\/)|(^\.\.\/)/.test(importText)) {
+			if (importText.endsWith('.js')) { // ESM: code imports require to be relative and to have a '.js' file extension
+				importText = importText.substr(0, importText.length - 3);
+			}
 			fullPath = path.join(path.dirname(nodeSourceFile.fileName), importText) + '.ts';
 		} else {
 			fullPath = importText + '.ts';
@@ -587,54 +617,60 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 		const nodeSourceFile = node.getSourceFile();
 
 		const loop = (node: ts.Node) => {
-			const [symbol, symbolImportNode] = getRealNodeSymbol(ts, checker, node);
-			if (symbolImportNode) {
-				setColor(symbolImportNode, NodeColor.Black);
-			}
-
-			if (isSymbolWithDeclarations(symbol) && !nodeIsInItsOwnDeclaration(nodeSourceFile, node, symbol)) {
-				for (let i = 0, len = symbol.declarations.length; i < len; i++) {
-					const declaration = symbol.declarations[i];
-					if (ts.isSourceFile(declaration)) {
-						// Do not enqueue full source files
-						// (they can be the declaration of a module import)
-						continue;
+			const symbols = getRealNodeSymbol(ts, checker, node);
+			for (const { symbol, symbolImportNode } of symbols) {
+				if (symbolImportNode) {
+					setColor(symbolImportNode, NodeColor.Black);
+					const importDeclarationNode = findParentImportDeclaration(symbolImportNode);
+					if (importDeclarationNode && ts.isStringLiteral(importDeclarationNode.moduleSpecifier)) {
+						enqueueImport(importDeclarationNode, importDeclarationNode.moduleSpecifier.text);
 					}
+				}
 
-					if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration)) && !isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(ts, program, checker, declaration)) {
-						enqueue_black(declaration.name!);
-
-						for (let j = 0; j < declaration.members.length; j++) {
-							const member = declaration.members[j];
-							const memberName = member.name ? member.name.getText() : null;
-							if (
-								ts.isConstructorDeclaration(member)
-								|| ts.isConstructSignatureDeclaration(member)
-								|| ts.isIndexSignatureDeclaration(member)
-								|| ts.isCallSignatureDeclaration(member)
-								|| memberName === '[Symbol.iterator]'
-								|| memberName === '[Symbol.toStringTag]'
-								|| memberName === 'toJSON'
-								|| memberName === 'toString'
-								|| memberName === 'dispose'// TODO: keeping all `dispose` methods
-								|| /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
-							) {
-								enqueue_black(member);
-							}
-
-							if (isStaticMemberWithSideEffects(ts, member)) {
-								enqueue_black(member);
-							}
+				if (isSymbolWithDeclarations(symbol) && !nodeIsInItsOwnDeclaration(nodeSourceFile, node, symbol)) {
+					for (let i = 0, len = symbol.declarations.length; i < len; i++) {
+						const declaration = symbol.declarations[i];
+						if (ts.isSourceFile(declaration)) {
+							// Do not enqueue full source files
+							// (they can be the declaration of a module import)
+							continue;
 						}
 
-						// queue the heritage clauses
-						if (declaration.heritageClauses) {
-							for (let heritageClause of declaration.heritageClauses) {
-								enqueue_black(heritageClause);
+						if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration)) && !isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(ts, program, checker, declaration)) {
+							enqueue_black(declaration.name!);
+
+							for (let j = 0; j < declaration.members.length; j++) {
+								const member = declaration.members[j];
+								const memberName = member.name ? member.name.getText() : null;
+								if (
+									ts.isConstructorDeclaration(member)
+									|| ts.isConstructSignatureDeclaration(member)
+									|| ts.isIndexSignatureDeclaration(member)
+									|| ts.isCallSignatureDeclaration(member)
+									|| memberName === '[Symbol.iterator]'
+									|| memberName === '[Symbol.toStringTag]'
+									|| memberName === 'toJSON'
+									|| memberName === 'toString'
+									|| memberName === 'dispose'// TODO: keeping all `dispose` methods
+									|| /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
+								) {
+									enqueue_black(member);
+								}
+
+								if (isStaticMemberWithSideEffects(ts, member)) {
+									enqueue_black(member);
+								}
 							}
+
+							// queue the heritage clauses
+							if (declaration.heritageClauses) {
+								for (const heritageClause of declaration.heritageClauses) {
+									enqueue_black(heritageClause);
+								}
+							}
+						} else {
+							enqueue_black(declaration);
 						}
-					} else {
-						enqueue_black(declaration);
 					}
 				}
 			}
@@ -682,7 +718,7 @@ function generateResult(ts: typeof import('typescript'), languageService: ts.Lan
 		throw new Error('Could not get program from language service');
 	}
 
-	let result: ITreeShakingResult = {};
+	const result: ITreeShakingResult = {};
 	const writeFile = (filePath: string, contents: string): void => {
 		result[filePath] = contents;
 	};
@@ -700,7 +736,7 @@ function generateResult(ts: typeof import('typescript'), languageService: ts.Lan
 			return;
 		}
 
-		let text = sourceFile.text;
+		const text = sourceFile.text;
 		let result = '';
 
 		function keep(node: ts.Node): void {
@@ -734,7 +770,7 @@ function generateResult(ts: typeof import('typescript'), languageService: ts.Lan
 							return keep(node);
 						}
 					} else {
-						let survivingImports: string[] = [];
+						const survivingImports: string[] = [];
 						for (const importNode of node.importClause.namedBindings.elements) {
 							if (getColor(importNode) === NodeColor.Black) {
 								survivingImports.push(importNode.getFullText(sourceFile));
@@ -762,7 +798,7 @@ function generateResult(ts: typeof import('typescript'), languageService: ts.Lan
 
 			if (ts.isExportDeclaration(node)) {
 				if (node.exportClause && node.moduleSpecifier && ts.isNamedExports(node.exportClause)) {
-					let survivingExports: string[] = [];
+					const survivingExports: string[] = [];
 					for (const exportSpecifier of node.exportClause.elements) {
 						if (getColor(exportSpecifier) === NodeColor.Black) {
 							survivingExports.push(exportSpecifier.getFullText(sourceFile));
@@ -785,8 +821,8 @@ function generateResult(ts: typeof import('typescript'), languageService: ts.Lan
 						continue;
 					}
 
-					let pos = member.pos - node.pos;
-					let end = member.end - node.pos;
+					const pos = member.pos - node.pos;
+					const end = member.end - node.pos;
 					toWrite = toWrite.substring(0, pos) + toWrite.substring(end);
 				}
 				return write(toWrite);
@@ -802,11 +838,21 @@ function generateResult(ts: typeof import('typescript'), languageService: ts.Lan
 
 		if (getColor(sourceFile) !== NodeColor.Black) {
 			if (!nodeOrChildIsBlack(sourceFile)) {
-				// none of the elements are reachable => don't write this file at all!
-				return;
+				// none of the elements are reachable
+				if (isNeededSourceFile(sourceFile)) {
+					// this source file must be written, even if nothing is used from it
+					// because there is an import somewhere for it.
+					// However, TS complains with empty files with the error "x" is not a module,
+					// so we will export a dummy variable
+					result = 'export const __dummy = 0;';
+				} else {
+					// don't write this file at all!
+					return;
+				}
+			} else {
+				sourceFile.forEachChild(writeMarkedNodes);
+				result += sourceFile.endOfFileToken.getFullText(sourceFile);
 			}
-			sourceFile.forEachChild(writeMarkedNodes);
-			result += sourceFile.endOfFileToken.getFullText(sourceFile);
 		} else {
 			result = text;
 		}
@@ -843,7 +889,8 @@ function findSymbolFromHeritageType(ts: typeof import('typescript'), checker: ts
 		return findSymbolFromHeritageType(ts, checker, type.expression);
 	}
 	if (ts.isIdentifier(type)) {
-		return getRealNodeSymbol(ts, checker, type)[0];
+		const tmp = getRealNodeSymbol(ts, checker, type);
+		return (tmp.length > 0 ? tmp[0].symbol : null);
 	}
 	if (ts.isPropertyAccessExpression(type)) {
 		return findSymbolFromHeritageType(ts, checker, type.name);
@@ -851,10 +898,17 @@ function findSymbolFromHeritageType(ts: typeof import('typescript'), checker: ts
 	return null;
 }
 
+class SymbolImportTuple {
+	constructor(
+		public readonly symbol: ts.Symbol | null,
+		public readonly symbolImportNode: ts.Declaration | null
+	) { }
+}
+
 /**
  * Returns the node's symbol and the `import` node (if the symbol resolved from a different module)
  */
-function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChecker, node: ts.Node): [ts.Symbol | null, ts.Declaration | null] {
+function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChecker, node: ts.Node): SymbolImportTuple[] {
 
 	// Use some TypeScript internals to avoid code duplication
 	type ObjectLiteralElementWithName = ts.ObjectLiteralElement & { name: ts.PropertyName; parent: ts.ObjectLiteralExpression | ts.JsxAttributes };
@@ -887,7 +941,7 @@ function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChec
 
 	if (!ts.isShorthandPropertyAssignment(node)) {
 		if (node.getChildCount() !== 0) {
-			return [null, null];
+			return [];
 		}
 	}
 
@@ -940,10 +994,7 @@ function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChec
 			const type = checker.getTypeAtLocation(parent.parent);
 			if (name && type) {
 				if (type.isUnion()) {
-					const prop = type.types[0].getProperty(name);
-					if (prop) {
-						symbol = prop;
-					}
+					return generateMultipleSymbols(type, name, importNode);
 				} else {
 					const prop = type.getProperty(name);
 					if (prop) {
@@ -975,10 +1026,21 @@ function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChec
 	}
 
 	if (symbol && symbol.declarations) {
-		return [symbol, importNode];
+		return [new SymbolImportTuple(symbol, importNode)];
 	}
 
-	return [null, null];
+	return [];
+
+	function generateMultipleSymbols(type: ts.UnionType, name: string, importNode: ts.Declaration | null): SymbolImportTuple[] {
+		const result: SymbolImportTuple[] = [];
+		for (const t of type.types) {
+			const prop = t.getProperty(name);
+			if (prop && prop.declarations) {
+				result.push(new SymbolImportTuple(prop, importNode));
+			}
+		}
+		return result;
+	}
 }
 
 /** Get the token whose text contains the position */

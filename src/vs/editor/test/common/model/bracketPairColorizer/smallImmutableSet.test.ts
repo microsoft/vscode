@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
-import { DenseKeyProvider, SmallImmutableSet } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/smallImmutableSet';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { DenseKeyProvider, SmallImmutableSet } from '../../../../common/model/bracketPairsTextModelPart/bracketPairsTree/smallImmutableSet.js';
 
 suite('Bracket Pair Colorizer - ImmutableSet', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Basic', () => {
 		const keyProvider = new DenseKeyProvider<string>();
 

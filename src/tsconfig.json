@@ -1,18 +1,21 @@
 {
 	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
+		"esModuleInterop": true,
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
+		"allowJs": true,
+		"resolveJsonModule": true,
+		"isolatedModules": false,
 		"outDir": "../out/vs",
-		"target": "es2020",
 		"types": [
-			"keytar",
+			"@webgpu/types",
 			"mocha",
 			"semver",
 			"sinon",
-			"winreg",
 			"trusted-types",
+			"winreg",
 			"wicg-file-system-access"
 		],
 		"plugins": [
@@ -23,9 +26,10 @@
 		]
 	},
 	"include": [
+		"./*.ts",
 		"./typings",
-		"./vs",
-		"vscode-dts/vscode.proposed.*.d.ts",
-		"vscode-dts/vscode.d.ts"
+		"./vs/**/*.ts",
+		"./vscode-dts/vscode.proposed.*.d.ts",
+		"./vscode-dts/vscode.d.ts"
 	]
 }

@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as Proto from './protocol';
+import * as Proto from './tsServer/protocol/protocol';
 import BufferSyncSupport from './tsServer/bufferSyncSupport';
 import { ExecutionTarget } from './tsServer/server';
 import { TypeScriptVersion } from './tsServer/versionProvider';
-import API from './utils/api';
-import { TypeScriptServiceConfiguration } from './utils/configuration';
-import { PluginManager } from './utils/plugins';
-import { TelemetryReporter } from './utils/telemetry';
+import { API } from './tsServer/api';
+import { TypeScriptServiceConfiguration } from './configuration/configuration';
+import { PluginManager } from './tsServer/plugins';
+import { TelemetryReporter } from './logging/telemetry';
 
 export enum ServerType {
 	Syntax = 'syntax',
@@ -73,6 +73,12 @@ interface StandardTsServerRequests {
 	'fileReferences': [Proto.FileRequestArgs, Proto.FileReferencesResponse];
 	'provideInlayHints': [Proto.InlayHintsRequestArgs, Proto.InlayHintsResponse];
 	'encodedSemanticClassifications-full': [Proto.EncodedSemanticClassificationsRequestArgs, Proto.EncodedSemanticClassificationsResponse];
+	'findSourceDefinition': [Proto.FileLocationRequestArgs, Proto.DefinitionResponse];
+	'getMoveToRefactoringFileSuggestions': [Proto.GetMoveToRefactoringFileSuggestionsRequestArgs, Proto.GetMoveToRefactoringFileSuggestions];
+	'linkedEditingRange': [Proto.FileLocationRequestArgs, Proto.LinkedEditingRangeResponse];
+	'mapCode': [Proto.MapCodeRequestArgs, Proto.MapCodeResponse];
+	'getPasteEdits': [Proto.GetPasteEditsRequestArgs, Proto.GetPasteEditsResponse];
+	'preparePasteEdits': [Proto.PreparePasteEditsRequestArgs, Proto.PreparePasteEditsResponse];
 }
 
 interface NoResponseTsServerRequests {
@@ -82,6 +88,7 @@ interface NoResponseTsServerRequests {
 	'compilerOptionsForInferredProjects': [Proto.SetCompilerOptionsForInferredProjectsArgs, null];
 	'reloadProjects': [null, null];
 	'configurePlugin': [Proto.ConfigurePluginRequest, Proto.ConfigurePluginResponse];
+	'watchChange': [Proto.Request, null];
 }
 
 interface AsyncTsServerRequests {
@@ -128,19 +135,11 @@ export class ClientCapabilities {
 }
 
 export interface ITypeScriptServiceClient {
-	/**
-	 * Convert a resource (VS Code) to a normalized path (TypeScript).
-	 *
-	 * Does not try handling case insensitivity.
-	 */
-	normalizedPath(resource: vscode.Uri): string | undefined;
 
 	/**
-	 * Map a resource to a normalized path
-	 *
-	 * This will attempt to handle case insensitivity.
+	 * Convert a (VS Code) resource to a path that TypeScript server understands.
 	 */
-	toPath(resource: vscode.Uri): string | undefined;
+	toTsFilePath(resource: vscode.Uri): string | undefined;
 
 	/**
 	 * Convert a path to a resource.
@@ -152,7 +151,7 @@ export interface ITypeScriptServiceClient {
 	 *
 	 * @return The normalized path or `undefined` if the document is not open on the server.
 	 */
-	toOpenedFilePath(document: vscode.TextDocument, options?: {
+	toOpenTsFilePath(document: vscode.TextDocument | vscode.Uri, options?: {
 		suppressAlertOnFailure?: boolean;
 	}): string | undefined;
 
@@ -161,7 +160,7 @@ export interface ITypeScriptServiceClient {
 	 */
 	hasCapabilityForResource(resource: vscode.Uri, capability: ClientCapability): boolean;
 
-	getWorkspaceRootForResource(resource: vscode.Uri): string | undefined;
+	getWorkspaceRootForResource(resource: vscode.Uri): vscode.Uri | undefined;
 
 	readonly onTsServerStarted: vscode.Event<{ version: TypeScriptVersion; usedApiVersion: API }>;
 	readonly onProjectLanguageServiceStateChanged: vscode.Event<Proto.ProjectLanguageServiceStateEventBody>;

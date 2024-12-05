@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import * as fs from 'fs';
+import assert from 'assert';
 import { tmpdir } from 'os';
-import { realcase, realcaseSync, realpath, realpathSync } from 'vs/base/node/extpath';
-import { Promises } from 'vs/base/node/pfs';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { realcase, realcaseSync, realpath, realpathSync } from '../../node/extpath.js';
+import { Promises } from '../../node/pfs.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
+import { flakySuite, getRandomTestPath } from './testUtils.js';
 
 flakySuite('Extpath', () => {
 	let testDir: string;
@@ -15,7 +17,7 @@ flakySuite('Extpath', () => {
 	setup(() => {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'extpath');
 
-		return Promises.mkdir(testDir, { recursive: true });
+		return fs.promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(() => {
@@ -79,4 +81,6 @@ flakySuite('Extpath', () => {
 		const realpath = realpathSync(testDir);
 		assert.ok(realpath);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

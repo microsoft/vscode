@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Throttler } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ExtUri } from 'vs/base/common/resources';
-import { isString } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { createFileSystemProviderError, FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { DBClosedError, IndexedDB } from 'vs/base/browser/indexedDB';
+import { Throttler } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { ExtUri } from '../../../base/common/resources.js';
+import { isString } from '../../../base/common/types.js';
+import { URI, UriDto } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { createFileSystemProviderError, FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from '../common/files.js';
+import { DBClosedError, IndexedDB } from '../../../base/browser/indexedDB.js';
+import { BroadcastDataChannel } from '../../../base/browser/broadcast.js';
 
 export type IndexedDBFileSystemProviderErrorDataClassification = {
 	owner: 'sandy081';
@@ -34,6 +34,7 @@ const ERR_FILE_NOT_FOUND = createFileSystemProviderError(localize('fileNotExists
 const ERR_FILE_IS_DIR = createFileSystemProviderError(localize('fileIsDirectory', "File is Directory"), FileSystemProviderErrorCode.FileIsADirectory);
 const ERR_FILE_NOT_DIR = createFileSystemProviderError(localize('fileNotDirectory', "File is not a directory"), FileSystemProviderErrorCode.FileNotADirectory);
 const ERR_DIR_NOT_EMPTY = createFileSystemProviderError(localize('dirIsNotEmpty', "Directory is not empty"), FileSystemProviderErrorCode.Unknown);
+const ERR_FILE_EXCEEDS_STORAGE_QUOTA = createFileSystemProviderError(localize('fileExceedsStorageQuota', "File exceeds available storage quota"), FileSystemProviderErrorCode.FileExceedsStorageQuota);
 
 // Arbitrary Internal Errors
 const ERR_UNKNOWN_INTERNAL = (message: string) => createFileSystemProviderError(localize('internal', "Internal error occurred in IndexedDB File System Provider. ({0})", message), FileSystemProviderErrorCode.Unknown);
@@ -165,78 +166,6 @@ class IndexedDBFileSystemNode {
 	}
 }
 
-type FileChangeDto = {
-	readonly type: FileChangeType;
-	readonly resource: UriComponents;
-};
-
-class IndexedDBChangesBroadcastChannel extends Disposable {
-
-	private broadcastChannel: BroadcastChannel | undefined;
-
-	private readonly _onDidFileChanges = this._register(new Emitter<readonly IFileChange[]>());
-	readonly onDidFileChanges: Event<readonly IFileChange[]> = this._onDidFileChanges.event;
-
-	constructor(private readonly changesKey: string) {
-		super();
-
-		// Use BroadcastChannel
-		if ('BroadcastChannel' in window) {
-			try {
-				this.broadcastChannel = new BroadcastChannel(changesKey);
-				const listener = (event: MessageEvent) => {
-					if (isString(event.data)) {
-						this.onDidReceiveChanges(event.data);
-					}
-				};
-				this.broadcastChannel.addEventListener('message', listener);
-				this._register(toDisposable(() => {
-					if (this.broadcastChannel) {
-						this.broadcastChannel.removeEventListener('message', listener);
-						this.broadcastChannel.close();
-					}
-				}));
-			} catch (error) {
-				console.warn('Error while creating broadcast channel. Falling back to localStorage.', getErrorMessage(error));
-				this.createStorageBroadcastChannel(changesKey);
-			}
-		}
-
-		// BroadcastChannel is not supported. Use storage.
-		else {
-			this.createStorageBroadcastChannel(changesKey);
-		}
-	}
-
-	private createStorageBroadcastChannel(changesKey: string): void {
-		const listener = (event: StorageEvent) => {
-			if (event.key === changesKey && event.newValue) {
-				this.onDidReceiveChanges(event.newValue);
-			}
-		};
-		window.addEventListener('storage', listener);
-		this._register(toDisposable(() => window.removeEventListener('storage', listener)));
-	}
-
-	private onDidReceiveChanges(data: string): void {
-		try {
-			const changesDto: FileChangeDto[] = JSON.parse(data);
-			this._onDidFileChanges.fire(changesDto.map(c => ({ type: c.type, resource: URI.revive(c.resource) })));
-		} catch (error) {/* ignore*/ }
-	}
-
-	postChanges(changes: IFileChange[]): void {
-		if (this.broadcastChannel) {
-			this.broadcastChannel.postMessage(JSON.stringify(changes));
-		} else {
-			// remove previous changes so that event is triggered even if new changes are same as old changes
-			window.localStorage.removeItem(this.changesKey);
-			window.localStorage.setItem(this.changesKey, JSON.stringify(changes));
-		}
-	}
-
-}
-
 export class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 
 	readonly capabilities: FileSystemProviderCapabilities =
@@ -246,14 +175,14 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 
 	private readonly extUri = new ExtUri(() => false) /* Case Sensitive */;
 
-	private readonly changesBroadcastChannel: IndexedDBChangesBroadcastChannel | undefined;
+	private readonly changesBroadcastChannel: BroadcastDataChannel<UriDto<IFileChange>[]> | undefined;
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
 	private readonly _onReportError = this._register(new Emitter<IndexedDBFileSystemProviderErrorData>());
 	readonly onReportError = this._onReportError.event;
 
-	private readonly versions = new Map<string, number>();
+	private readonly mtimes = new Map<string, number>();
 
 	private cachedFiletree: Promise<IndexedDBFileSystemNode> | undefined;
 	private writeManyThrottler: Throttler;
@@ -263,8 +192,10 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		this.writeManyThrottler = new Throttler();
 
 		if (watchCrossWindowChanges) {
-			this.changesBroadcastChannel = this._register(new IndexedDBChangesBroadcastChannel(`vscode.indexedDB.${scheme}.changes`));
-			this._register(this.changesBroadcastChannel.onDidFileChanges(changes => this._onDidChangeFile.fire(changes)));
+			this.changesBroadcastChannel = this._register(new BroadcastDataChannel<UriDto<IFileChange>[]>(`vscode.indexedDB.${scheme}.changes`));
+			this._register(this.changesBroadcastChannel.onDidReceiveData(changes => {
+				this._onDidChangeFile.fire(changes.map(c => ({ type: c.type, resource: URI.revive(c.resource) })));
+			}));
 		}
 	}
 
@@ -289,7 +220,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 			return {
 				type: FileType.File,
 				ctime: 0,
-				mtime: this.versions.get(resource.toString()) || 0,
+				mtime: this.mtimes.get(resource.toString()) || 0,
 				size: entry.size ?? (await this.readFile(resource)).byteLength
 			};
 		}
@@ -374,13 +305,13 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		const toEntry = fileTree.read(to.path);
 		if (toEntry) {
 			if (!opts.overwrite) {
-				throw new FileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
+				throw createFileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
 			}
 			if (toEntry.type !== fromEntry.type) {
-				throw new FileSystemProviderError('Cannot rename files with different types', FileSystemProviderErrorCode.Unknown);
+				throw createFileSystemProviderError('Cannot rename files with different types', FileSystemProviderErrorCode.Unknown);
 			}
 			// delete the target file if exists
-			await this.delete(to, { recursive: true, useTrash: false });
+			await this.delete(to, { recursive: true, useTrash: false, atomic: false });
 		}
 
 		const toTargetResource = (path: string): URI => this.extUri.joinPath(to, this.extUri.relativePath(from, from.with({ path })) || '');
@@ -408,7 +339,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 			await this.bulkWrite(targetFiles);
 		}
 
-		await this.delete(from, { recursive: true, useTrash: false });
+		await this.delete(from, { recursive: true, useTrash: false, atomic: false });
 	}
 
 	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
@@ -434,7 +365,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		}
 		await this.deleteKeys(toDelete);
 		(await this.getFiletree()).delete(resource.path);
-		toDelete.forEach(key => this.versions.delete(key));
+		toDelete.forEach(key => this.mtimes.delete(key));
 		this.triggerChanges(toDelete.map(path => ({ resource: resource.with({ path }), type: FileChangeType.DELETED })));
 	}
 
@@ -459,9 +390,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		if (changes.length) {
 			this._onDidChangeFile.fire(changes);
 
-			if (this.changesBroadcastChannel) {
-				this.changesBroadcastChannel.postChanges(changes);
-			}
+			this.changesBroadcastChannel?.postData(changes);
 		}
 	}
 
@@ -489,7 +418,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		const fileTree = await this.getFiletree();
 		for (const [resource, content] of files) {
 			fileTree.add(resource.path, { type: 'file', size: content.byteLength });
-			this.versions.set(resource.toString(), (this.versions.get(resource.toString()) || 0) + 1);
+			this.mtimes.set(resource.toString(), Date.now());
 		}
 
 		this.triggerChanges(files.map(([resource]) => ({ resource, type: FileChangeType.UPDATED })));
@@ -499,7 +428,17 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 	private async writeMany() {
 		if (this.fileWriteBatch.length) {
 			const fileBatch = this.fileWriteBatch.splice(0, this.fileWriteBatch.length);
-			await this.indexedDB.runInTransaction(this.store, 'readwrite', objectStore => fileBatch.map(entry => objectStore.put(entry.content, entry.resource.path)));
+			try {
+				await this.indexedDB.runInTransaction(this.store, 'readwrite', objectStore => fileBatch.map(entry => {
+					return objectStore.put(entry.content, entry.resource.path);
+				}));
+			} catch (ex) {
+				if (ex instanceof DOMException && ex.name === 'QuotaExceededError') {
+					throw ERR_FILE_EXCEEDS_STORAGE_QUOTA;
+				}
+
+				throw ex;
+			}
 		}
 	}
 

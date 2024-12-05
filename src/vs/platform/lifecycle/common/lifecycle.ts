@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isThenable, Promises } from 'vs/base/common/async';
+import { isThenable, Promises } from '../../../base/common/async.js';
 
 // Shared veto handling across main and renderer
 export function handleVetos(vetos: (boolean | Promise<boolean>)[], onError: (error: Error) => void): Promise<boolean /* veto */> {
@@ -14,7 +14,7 @@ export function handleVetos(vetos: (boolean | Promise<boolean>)[], onError: (err
 	const promises: Promise<void>[] = [];
 	let lazyValue = false;
 
-	for (let valueOrPromise of vetos) {
+	for (const valueOrPromise of vetos) {
 
 		// veto, done
 		if (valueOrPromise === true) {

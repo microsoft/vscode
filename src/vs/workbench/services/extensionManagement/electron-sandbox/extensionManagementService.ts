@@ -3,25 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { generateUuid } from 'vs/base/common/uuid';
-import { ILocalExtension, IExtensionGalleryService, InstallVSIXOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionManagementService as BaseExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionManagementServer, IExtensionManagementServerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { Schemas } from 'vs/base/common/network';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { joinPath } from 'vs/base/common/resources';
-import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { ILocalExtension, IExtensionGalleryService, InstallOptions } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ExtensionManagementService as BaseExtensionManagementService } from '../common/extensionManagementService.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IExtensionManagementServer, IExtensionManagementServerService, IWorkbenchExtensionManagementService } from '../common/extensionManagement.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDownloadService } from '../../../../platform/download/common/download.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IExtensionManifestPropertiesService } from '../../extensions/common/extensionManifestPropertiesService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { IExtensionsScannerService } from '../../../../platform/extensionManagement/common/extensionsScannerService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 export class ExtensionManagementService extends BaseExtensionManagementService {
 
@@ -29,6 +33,8 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IProductService productService: IProductService,
 		@IDownloadService downloadService: IDownloadService,
@@ -39,11 +45,30 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		@IFileService fileService: IFileService,
 		@ILogService logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IExtensionsScannerService extensionsScannerService: IExtensionsScannerService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(extensionManagementServerService, extensionGalleryService, configurationService, productService, downloadService, userDataSyncEnablementService, dialogService, workspaceTrustRequestService, extensionManifestPropertiesService, fileService, logService, instantiationService);
+		super(
+			extensionManagementServerService,
+			extensionGalleryService,
+			userDataProfileService,
+			userDataProfilesService,
+			configurationService,
+			productService,
+			downloadService,
+			userDataSyncEnablementService,
+			dialogService,
+			workspaceTrustRequestService,
+			extensionManifestPropertiesService,
+			fileService,
+			logService,
+			instantiationService,
+			extensionsScannerService,
+			telemetryService
+		);
 	}
 
-	protected override async installVSIXInServer(vsix: URI, server: IExtensionManagementServer, options: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
+	protected override async installVSIXInServer(vsix: URI, server: IExtensionManagementServer, options: InstallOptions | undefined): Promise<ILocalExtension> {
 		if (vsix.scheme === Schemas.vscodeRemote && server === this.extensionManagementServerService.localExtensionManagementServer) {
 			const downloadedLocation = joinPath(this.environmentService.tmpDir, generateUuid());
 			await this.downloadService.download(vsix, downloadedLocation);
@@ -53,4 +78,4 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 	}
 }
 
-registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService);
+registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);

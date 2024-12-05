@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IIconRegistry, Extensions as IconRegistryExtensions } from 'vs/platform/theme/common/iconRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { CSSIcon } from 'vs/base/common/codicons';
-import * as resources from 'vs/base/common/resources';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { extname, posix } from 'vs/base/common/path';
+import * as nls from '../../../../nls.js';
+import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
+import { IIconRegistry, Extensions as IconRegistryExtensions } from '../../../../platform/theme/common/iconRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import * as resources from '../../../../base/common/resources.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { extname, posix } from '../../../../base/common/path.js';
+import { fontCharacterRegex } from './productIconThemeSchema.js';
 
 interface IIconExtensionPoint {
 	[id: string]: {
@@ -22,7 +23,7 @@ interface IIconExtensionPoint {
 const iconRegistry: IIconRegistry = Registry.as<IIconRegistry>(IconRegistryExtensions.IconContribution);
 
 const iconReferenceSchema = iconRegistry.getIconReferenceSchema();
-const iconIdPattern = `^${CSSIcon.iconNameSegment}(-${CSSIcon.iconNameSegment})+$`;
+const iconIdPattern = `^${ThemeIcon.iconNameSegment}(-${ThemeIcon.iconNameSegment})+$`;
 
 const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIconExtensionPoint>({
 	extensionPoint: 'icons',
@@ -53,7 +54,9 @@ const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIco
 								},
 								fontCharacter: {
 									description: nls.localize('contributes.icon.default.fontCharacter', 'The character for the icon in the icon font.'),
-									type: 'string'
+									type: 'string',
+									pattern: fontCharacterRegex,
+									patternErrorMessage: nls.localize('schema.fontCharacter.formatError', 'The fontCharacter must be a single letter or a backslash followed by unicode code points in hexadecimal.')
 								}
 							},
 							required: ['fontPath', 'fontCharacter'],
@@ -93,23 +96,27 @@ export class IconExtensionPoint {
 						collector.error(nls.localize('invalid.icons.description', "'configuration.icons.description' must be defined and can not be empty"));
 						return;
 					}
-					let defaultIcon = iconContribution.default;
+					const defaultIcon = iconContribution.default;
 					if (typeof defaultIcon === 'string') {
 						iconRegistry.registerIcon(id, { id: defaultIcon }, iconContribution.description);
 					} else if (typeof defaultIcon === 'object' && typeof defaultIcon.fontPath === 'string' && typeof defaultIcon.fontCharacter === 'string') {
-						const format = extname(defaultIcon.fontPath).substring(1);
-						if (['woff', 'woff2', 'ttf'].indexOf(format) === -1) {
-							collector.warn(nls.localize('invalid.icons.default.fontPath.extension', "Expected `contributes.icons.default.fontPath` to have file extension 'woff', woff2' or 'ttf', is '{0}'.", format));
+						const fileExt = extname(defaultIcon.fontPath).substring(1);
+						const format = formatMap[fileExt];
+						if (!format) {
+							collector.warn(nls.localize('invalid.icons.default.fontPath.extension', "Expected `contributes.icons.default.fontPath` to have file extension 'woff', woff2' or 'ttf', is '{0}'.", fileExt));
 							return;
+						}
+						if (!defaultIcon.fontCharacter.match(fontCharacterRegex)) {
+							collector.warn(nls.localize('invalid.icons.default.fontCharacter', 'Expected `contributes.icons.default.fontCharacter` to consist of a single character or a \\ followed by a Unicode code points in hexadecimal.')); return;
 						}
 						const extensionLocation = extension.description.extensionLocation;
 						const iconFontLocation = resources.joinPath(extensionLocation, defaultIcon.fontPath);
+						const fontId = getFontId(extension.description, defaultIcon.fontPath);
+						const definition = iconRegistry.registerIconFont(fontId, { src: [{ location: iconFontLocation, format }] });
 						if (!resources.isEqualOrParent(iconFontLocation, extensionLocation)) {
 							collector.warn(nls.localize('invalid.icons.default.fontPath.path', "Expected `contributes.icons.default.fontPath` ({0}) to be included inside extension's folder ({0}).", iconFontLocation.path, extensionLocation.path));
 							return;
 						}
-						const fontId = getFontId(extension.description, defaultIcon.fontPath);
-						const definition = iconRegistry.registerIconFont(fontId, { src: [{ location: iconFontLocation, format }] });
 						iconRegistry.registerIcon(id, {
 							fontCharacter: defaultIcon.fontCharacter,
 							font: {
@@ -131,6 +138,12 @@ export class IconExtensionPoint {
 		});
 	}
 }
+
+const formatMap: Record<string, string> = {
+	'ttf': 'truetype',
+	'woff': 'woff',
+	'woff2': 'woff2'
+};
 
 function getFontId(description: IExtensionDescription, fontPath: string) {
 	return posix.join(description.identifier.value, fontPath);

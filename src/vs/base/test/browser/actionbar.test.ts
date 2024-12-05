@@ -3,22 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ActionBar, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action, Separator } from 'vs/base/common/actions';
+import assert from 'assert';
+import { ActionBar, prepareActions } from '../../browser/ui/actionbar/actionbar.js';
+import { Action, Separator } from '../../common/actions.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('Actionbar', () => {
 
-	test('prepareActions()', function () {
-		let a1 = new Separator();
-		let a2 = new Separator();
-		let a3 = new Action('a3');
-		let a4 = new Separator();
-		let a5 = new Separator();
-		let a6 = new Action('a6');
-		let a7 = new Separator();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-		let actions = prepareActions([a1, a2, a3, a4, a5, a6, a7]);
+	test('prepareActions()', function () {
+		const a1 = new Separator();
+		const a2 = new Separator();
+		const a3 = store.add(new Action('a3'));
+		const a4 = new Separator();
+		const a5 = new Separator();
+		const a6 = store.add(new Action('a6'));
+		const a7 = new Separator();
+
+		const actions = prepareActions([a1, a2, a3, a4, a5, a6, a7]);
 		assert.strictEqual(actions.length, 3); // duplicate separators get removed
 		assert(actions[0] === a3);
 		assert(actions[1] === a5);
@@ -27,10 +30,10 @@ suite('Actionbar', () => {
 
 	test('hasAction()', function () {
 		const container = document.createElement('div');
-		const actionbar = new ActionBar(container);
+		const actionbar = store.add(new ActionBar(container));
 
-		let a1 = new Action('a1');
-		let a2 = new Action('a2');
+		const a1 = store.add(new Action('a1'));
+		const a2 = store.add(new Action('a2'));
 
 		actionbar.push(a1);
 		assert.strictEqual(actionbar.hasAction(a1), true);

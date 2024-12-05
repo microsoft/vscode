@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SmoothScrollingOperation, SmoothScrollingUpdate } from 'vs/base/common/scrollable';
+import assert from 'assert';
+import { SmoothScrollingOperation, SmoothScrollingUpdate } from '../../common/scrollable.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 class TestSmoothScrollingOperation extends SmoothScrollingOperation {
 
@@ -32,9 +33,11 @@ suite('SmoothScrollingOperation', () => {
 	const ANIMATION_DURATION = 125;
 	const LINE_HEIGHT = 20;
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function extractLines(scrollable: TestSmoothScrollingOperation, now: number): [number, number] {
-		let scrollTop = scrollable.testTick(now).scrollTop;
-		let scrollBottom = scrollTop + VIEWPORT_HEIGHT;
+		const scrollTop = scrollable.testTick(now).scrollTop;
+		const scrollBottom = scrollTop + VIEWPORT_HEIGHT;
 
 		const startLineNumber = Math.floor(scrollTop / LINE_HEIGHT);
 		const endLineNumber = Math.ceil(scrollBottom / LINE_HEIGHT);
@@ -45,7 +48,8 @@ suite('SmoothScrollingOperation', () => {
 	function simulateSmoothScroll(from: number, to: number): [number, number][] {
 		const scrollable = new TestSmoothScrollingOperation(from, to, VIEWPORT_HEIGHT, 0, ANIMATION_DURATION);
 
-		let result: [number, number][] = [], resultLen = 0;
+		const result: [number, number][] = [];
+		let resultLen = 0;
 		result[resultLen++] = extractLines(scrollable, 0);
 		result[resultLen++] = extractLines(scrollable, 25);
 		result[resultLen++] = extractLines(scrollable, 50);

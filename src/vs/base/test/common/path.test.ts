@@ -27,13 +27,15 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-import * as assert from 'assert';
-import * as path from 'vs/base/common/path';
-import { isWeb, isWindows } from 'vs/base/common/platform';
-import * as process from 'vs/base/common/process';
+import assert from 'assert';
+import * as path from '../../common/path.js';
+import { isWeb, isWindows } from '../../common/platform.js';
+import * as process from '../../common/process.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Paths (Node Implementation)', () => {
 	const __filename = 'path.test.js';
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('join', () => {
 		const failures = [] as string[];
 		const backslashRE = /\\/g;
@@ -360,7 +362,7 @@ suite('Paths (Node Implementation)', () => {
 		assert.strictEqual(path.extname('far.boo/boo'), '');
 	});
 
-	(isWeb && isWindows ? test.skip : test)('resolve', () => { // TODO@sbatten fails on windows & browser only
+	test('resolve', () => {
 		const failures = [] as string[];
 		const slashRE = /\//g;
 		const backslashRE = /\\/g;
@@ -372,7 +374,6 @@ suite('Paths (Node Implementation)', () => {
 			[['c:/ignore', 'd:\\a/b\\c/d', '\\e.exe'], 'd:\\e.exe'],
 			[['c:/ignore', 'c:/some/file'], 'c:\\some\\file'],
 			[['d:/ignore', 'd:some/dir//'], 'd:\\ignore\\some\\dir'],
-			[['.'], process.cwd()],
 			[['//server/share', '..', 'relative\\'], '\\\\server\\share\\relative'],
 			[['c:/', '//'], 'c:\\'],
 			[['c:/', '//dir'], 'c:\\dir'],
@@ -387,12 +388,16 @@ suite('Paths (Node Implementation)', () => {
 			// arguments                    result
 			[[['/var/lib', '../', 'file/'], '/var/file'],
 			[['/var/lib', '/../', 'file/'], '/file'],
-			[['a/b/c/', '../../..'], process.cwd()],
-			[['.'], process.cwd()],
 			[['/some/dir', '.', '/absolute/'], '/absolute'],
 			[['/foo/tmp.3/', '../tmp.3/cycles/root.js'], '/foo/tmp.3/cycles/root.js']
 			]
+			],
+			[(isWeb ? path.posix.resolve : path.resolve),
+			// arguments						result
+			[[['.'], process.cwd()],
+			[['a/b/c', '../../..'], process.cwd()]
 			]
+			],
 		];
 		resolveTests.forEach((test) => {
 			const resolve = test[0];

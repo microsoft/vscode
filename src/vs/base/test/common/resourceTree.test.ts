@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ResourceTree } from 'vs/base/common/resourceTree';
-import { URI } from 'vs/base/common/uri';
+import assert from 'assert';
+import { ResourceTree } from '../../common/resourceTree.js';
+import { URI } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('ResourceTree', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('ctor', function () {
 		const tree = new ResourceTree<string, null>(null);
 		assert.strictEqual(tree.root.childrenCount, 0);
@@ -19,11 +22,11 @@ suite('ResourceTree', function () {
 		tree.add(URI.file('/foo/bar.txt'), 'bar contents');
 		assert.strictEqual(tree.root.childrenCount, 1);
 
-		let foo = tree.root.get('foo')!;
+		const foo = tree.root.get('foo')!;
 		assert(foo);
 		assert.strictEqual(foo.childrenCount, 1);
 
-		let bar = foo.get('bar.txt')!;
+		const bar = foo.get('bar.txt')!;
 		assert(bar);
 		assert.strictEqual(bar.element, 'bar contents');
 

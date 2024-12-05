@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { IURITransformer } from 'vs/base/common/uriIpc';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IDownloadService } from 'vs/platform/download/common/download';
+import { Event } from '../../../base/common/event.js';
+import { URI } from '../../../base/common/uri.js';
+import { IURITransformer } from '../../../base/common/uriIpc.js';
+import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { IDownloadService } from './download.js';
 
 export class DownloadServiceChannel implements IServerChannel {
 
@@ -32,10 +32,10 @@ export class DownloadServiceChannelClient implements IDownloadService {
 	constructor(private channel: IChannel, private getUriTransformer: () => IURITransformer | null) { }
 
 	async download(from: URI, to: URI): Promise<void> {
-		const uriTransfomer = this.getUriTransformer();
-		if (uriTransfomer) {
-			from = uriTransfomer.transformOutgoingURI(from);
-			to = uriTransfomer.transformOutgoingURI(to);
+		const uriTransformer = this.getUriTransformer();
+		if (uriTransformer) {
+			from = uriTransformer.transformOutgoingURI(from);
+			to = uriTransformer.transformOutgoingURI(to);
 		}
 		await this.channel.call('download', [from, to]);
 	}

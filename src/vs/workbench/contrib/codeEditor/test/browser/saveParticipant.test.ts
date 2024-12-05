@@ -3,39 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FinalNewLineParticipant, TrimFinalNewLinesParticipant, TrimWhitespaceParticipant } from 'vs/workbench/contrib/codeEditor/browser/saveParticipants';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { toResource } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { IResolvedTextFileEditorModel, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import assert from 'assert';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { FinalNewLineParticipant, TrimFinalNewLinesParticipant, TrimWhitespaceParticipant } from '../../browser/saveParticipants.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { workbenchInstantiationService, TestServiceAccessor } from '../../../../test/browser/workbenchTestServices.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { TextFileEditorModel } from '../../../../services/textfile/common/textFileEditorModel.js';
+import { IResolvedTextFileEditorModel, snapshotToString } from '../../../../services/textfile/common/textfiles.js';
+import { SaveReason } from '../../../../common/editor.js';
+import { TextFileEditorModelManager } from '../../../../services/textfile/common/textFileEditorModelManager.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 suite('Save Participants', function () {
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
+		disposables.add(<TextFileEditorModelManager>accessor.textFileService.files);
 	});
 
 	teardown(() => {
-		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('insert final new line', async function () {
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel;
+		const model: IResolvedTextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel);
 
 		await model.resolve();
 		const configService = new TestConfigurationService();
@@ -68,7 +67,7 @@ suite('Save Participants', function () {
 	});
 
 	test('trim final new lines', async function () {
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel;
+		const model: IResolvedTextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel);
 
 		await model.resolve();
 		const configService = new TestConfigurationService();
@@ -103,7 +102,7 @@ suite('Save Participants', function () {
 	});
 
 	test('trim final new lines bug#39750', async function () {
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel;
+		const model: IResolvedTextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel);
 
 		await model.resolve();
 		const configService = new TestConfigurationService();
@@ -112,11 +111,11 @@ suite('Save Participants', function () {
 		const textContent = 'Trim New Line';
 
 		// single line
-		let lineContent = `${textContent}`;
+		const lineContent = `${textContent}`;
 		model.textEditorModel.setValue(lineContent);
 
 		// apply edits and push to undo stack.
-		let textEdits = [{ range: new Range(1, 14, 1, 14), text: '.', forceMoveMarkers: false }];
+		const textEdits = [{ range: new Range(1, 14, 1, 14), text: '.', forceMoveMarkers: false }];
 		model.textEditorModel.pushEditOperations([new Selection(1, 14, 1, 14)], textEdits, () => { return [new Selection(1, 15, 1, 15)]; });
 
 		// undo
@@ -130,7 +129,7 @@ suite('Save Participants', function () {
 	});
 
 	test('trim final new lines bug#46075', async function () {
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel;
+		const model: IResolvedTextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel);
 
 		await model.resolve();
 		const configService = new TestConfigurationService();
@@ -138,7 +137,7 @@ suite('Save Participants', function () {
 		const participant = new TrimFinalNewLinesParticipant(configService, undefined!);
 		const textContent = 'Test';
 		const eol = `${model.textEditorModel.getEOL()}`;
-		let content = `${textContent}${eol}${eol}`;
+		const content = `${textContent}${eol}${eol}`;
 		model.textEditorModel.setValue(content);
 
 		// save many times
@@ -157,14 +156,14 @@ suite('Save Participants', function () {
 	});
 
 	test('trim whitespace', async function () {
-		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel;
+		const model: IResolvedTextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel);
 
 		await model.resolve();
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'trimTrailingWhitespace': true });
 		const participant = new TrimWhitespaceParticipant(configService, undefined!);
 		const textContent = 'Test';
-		let content = `${textContent} 	`;
+		const content = `${textContent} 	`;
 		model.textEditorModel.setValue(content);
 
 		// save many times
@@ -175,4 +174,6 @@ suite('Save Participants', function () {
 		// confirm trimming
 		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}`);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

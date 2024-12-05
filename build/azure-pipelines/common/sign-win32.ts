@@ -8,10 +8,7 @@ import * as path from 'path';
 
 main([
 	process.env['EsrpCliDllPath']!,
-	'windows',
-	process.env['ESRPPKI']!,
-	process.env['ESRPAADUsername']!,
-	process.env['ESRPAADPassword']!,
+	'sign-windows',
 	path.dirname(process.argv[2]),
 	path.basename(process.argv[2])
 ]);
