@@ -53,15 +53,34 @@ const STORAGE_STATE_FILE = 'state.json';
 
 class ThrottledSequencer extends Sequencer {
 
-	constructor(private readonly _minDuration: number) {
+	private _size = 0;
+
+	constructor(
+		private readonly _minDuration: number,
+		private readonly _maxOverallDelay: number
+	) {
 		super();
 	}
 
 	override queue<T>(promiseTask: ITask<Promise<T>>): Promise<T> {
-		return super.queue(() => {
-			const p1 = promiseTask();
-			const p2 = timeout(this._minDuration);
-			return Promise.all([p1, p2]).then(([r]) => r);
+
+		this._size += 1;
+
+		const noDelay = this._size * this._minDuration > this._maxOverallDelay;
+
+		return super.queue(async () => {
+			try {
+				const p1 = promiseTask();
+				const p2 = noDelay
+					? Promise.resolve(undefined)
+					: timeout(this._minDuration);
+
+				const [result] = await Promise.all([p1, p2]);
+				return result;
+
+			} finally {
+				this._size -= 1;
+			}
 		});
 	}
 }
@@ -83,7 +102,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._assertNotDisposed();
 		return this._entriesObs;
 	}
-	private readonly _sequencer = new ThrottledSequencer(15);
+	private readonly _sequencer = new ThrottledSequencer(15, 1000);
 
 	private _workingSet = new ResourceMap<WorkingSetDisplayMetadata>();
 	get workingSet() {
