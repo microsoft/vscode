@@ -138,23 +138,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	private registerChatWelcome(): void {
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
 			title: localize('welcomeChat', "Welcome to Copilot"),
-			when: ContextKeyExpr.and(
-				ContextKeyExpr.has('config.chat.experimental.offerSetup'),
-				ContextKeyExpr.or(
-					ContextKeyExpr.and(
-						ChatContextKeys.Setup.triggered,
-						ChatContextKeys.Setup.installed.negate()
-					),
-					ContextKeyExpr.and(
-						ChatContextKeys.Setup.canSignUp,
-						ChatContextKeys.Setup.installed
-					),
-					ContextKeyExpr.and(
-						ChatContextKeys.Setup.signedOut,
-						ChatContextKeys.Setup.installed
-					)
-				)
-			)!,
+			when: SetupWelcomeViewCondition,
 			icon: Codicon.copilot,
 			content: disposables => disposables.add(this.instantiationService.createInstance(ChatSetupWelcomeContent, this.controller.value, this.context)).element,
 		});
