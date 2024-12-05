@@ -6,6 +6,8 @@
 import { IAsyncDataSource } from '../../../../../../base/browser/ui/tree/tree.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { localize } from '../../../../../../nls.js';
+import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import type { ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { INotebookKernel, INotebookKernelService, VariablesResult, variablePageSize } from '../../../common/notebookKernelService.js';
 
@@ -39,7 +41,10 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 
 	private cancellationTokenSource: CancellationTokenSource;
 
-	constructor(private readonly notebookKernelService: INotebookKernelService) {
+	constructor(
+		private readonly notebookKernelService: INotebookKernelService,
+		private readonly terminalService: ITerminalService
+	) {
 		this.cancellationTokenSource = new CancellationTokenSource();
 	}
 
@@ -142,15 +147,36 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 	}
 
 	private async getRootVariables(notebook: NotebookTextModel): Promise<INotebookVariableElement[]> {
-		const selectedKernel = this.notebookKernelService.getMatchingKernel(notebook).selected;
-		if (selectedKernel && selectedKernel.hasVariableProvider) {
-			const variables = selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, this.cancellationTokenSource.token);
-			return await variables
-				.map(variable => { return this.createVariableElement(variable, notebook); })
-				.toPromise();
-		}
 
-		return [];
+		const instance = this.terminalService.activeInstance?.capabilities.get(TerminalCapability.ShellEnvDetection);
+		if (!instance) {
+			return [];
+		}
+		const result: INotebookVariableElement[] = [];
+		let id = 0;
+		const environment = Array.from(instance.envs.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+		for (const [name, value] of environment) {
+			result.push({
+				extHostId: -1,
+				hasNamedChildren: false,
+				id: (++id).toString(),
+				indexedChildrenCount: 0,
+				kind: 'variable',
+				name,
+				value,
+				notebook: null!
+			});
+		}
+		return result;
+		// const selectedKernel = this.notebookKernelService.getMatchingKernel(notebook).selected;
+		// if (selectedKernel && selectedKernel.hasVariableProvider) {
+		// 	const variables = selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, this.cancellationTokenSource.token);
+		// 	return await variables
+		// 		.map(variable => { return this.createVariableElement(variable, notebook); })
+		// 		.toPromise();
+		// }
+
+		// return [];
 	}
 
 	private createVariableElement(variable: VariablesResult, notebook: NotebookTextModel): INotebookVariableElement {

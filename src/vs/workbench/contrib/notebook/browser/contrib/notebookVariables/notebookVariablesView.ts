@@ -34,6 +34,7 @@ import { INotebookKernelService } from '../../../common/notebookKernelService.js
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IEditorCloseEvent, IEditorPane } from '../../../../../common/editor.js';
 import { isCompositeNotebookEditorInput } from '../../../common/notebookEditorInput.js';
+import { ITerminalService } from '../../../../terminal/browser/terminal.js';
 
 export type contextMenuArg = { source: string; name: string; type?: string; value?: string; expression?: string; language?: string; extensionId?: string };
 
@@ -66,7 +67,8 @@ export class NotebookVariablesView extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
-		@IMenuService private readonly menuService: IMenuService
+		@IMenuService private readonly menuService: IMenuService,
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
@@ -77,7 +79,7 @@ export class NotebookVariablesView extends ViewPane {
 
 		this.handleActiveEditorChange(false);
 
-		this.dataSource = new NotebookVariableDataSource(this.notebookKernelService);
+		this.dataSource = new NotebookVariableDataSource(this.notebookKernelService, this.terminalService);
 		this.updateScheduler = new RunOnceScheduler(() => this.tree?.updateChildren(), 100);
 	}
 

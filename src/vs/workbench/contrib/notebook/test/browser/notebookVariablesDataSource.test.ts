@@ -57,7 +57,7 @@ suite('NotebookVariableDataSource', () => {
 
 	setup(() => {
 		provideVariablesCalled = false;
-		dataSource = new NotebookVariableDataSource(kernelService);
+		dataSource = new NotebookVariableDataSource(kernelService, null!);
 		results = [
 			{ id: 1, name: 'a', value: '1', hasNamedChildren: false, indexedChildrenCount: 0 },
 		];
