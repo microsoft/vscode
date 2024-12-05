@@ -902,6 +902,8 @@ async function processArtifact(
 			log('Asset successfully created: ', JSON.stringify(asset, undefined, 2));
 		}
 	});
+
+	log(`Successfully released lease for: ${friendlyFileName}`);
 }
 
 // It is VERY important that we don't download artifacts too much too fast from AZDO.
