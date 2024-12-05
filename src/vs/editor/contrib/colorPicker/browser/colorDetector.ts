@@ -43,7 +43,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	private readonly _colorDecoratorIds = this._editor.createDecorationsCollection();
 
 	private _isColorDecoratorsEnabled: boolean;
-	private _isDefaultColorDecoratorsEnabled: boolean;
+	private _isDefaultColorDecoratorsEnabled: 'auto' | 'always' | 'never';
 
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
 
