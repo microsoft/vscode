@@ -38,6 +38,7 @@ function hashStream(hashName, stream) {
 var StatusCode;
 (function (StatusCode) {
     StatusCode["Pass"] = "pass";
+    StatusCode["Aborted"] = "aborted";
     StatusCode["Inprogress"] = "inprogress";
     StatusCode["FailCanRetry"] = "failCanRetry";
     StatusCode["FailDoNotRetry"] = "failDoNotRetry";
@@ -137,8 +138,13 @@ class ESRPReleaseService {
                 if (releaseStatus.status === 'pass') {
                     break;
                 }
+                else if (releaseStatus.status === 'aborted') {
+                    this.log(JSON.stringify(releaseStatus));
+                    throw new Error(`Release was aborted`);
+                }
                 else if (releaseStatus.status !== 'inprogress') {
-                    throw new Error(`Failed to submit release: ${JSON.stringify(releaseStatus)}`);
+                    this.log(JSON.stringify(releaseStatus));
+                    throw new Error(`Unknown error when polling for release`);
                 }
             }
             const releaseDetails = await this.getReleaseDetails(submitReleaseResult.operationId);
@@ -525,16 +531,16 @@ async function processArtifact(artifact, filePath) {
     log(`Acquiring lease for: ${friendlyFileName}`);
     await withLease(leaseBlobClient, async () => {
         log(`Successfully acquired lease for: ${friendlyFileName}`);
-        const stagingContainerClient = blobServiceClient.getContainerClient('staging');
-        await stagingContainerClient.createIfNotExists();
-        const releaseService = await ESRPReleaseService.create(log, e('RELEASE_TENANT_ID'), e('RELEASE_CLIENT_ID'), e('RELEASE_AUTH_CERT'), e('RELEASE_REQUEST_SIGNING_CERT'), stagingContainerClient);
         const url = `${e('PRSS_CDN_URL')}/${friendlyFileName}`;
         const res = await (0, retry_1.retry)(() => fetch(url));
         if (res.status === 200) {
             log(`Already released and provisioned: ${url}`);
         }
         else {
-            await releaseService.createRelease(version, filePath, friendlyFileName);
+            const stagingContainerClient = blobServiceClient.getContainerClient('staging');
+            await stagingContainerClient.createIfNotExists();
+            const releaseService = await ESRPReleaseService.create(log, e('RELEASE_TENANT_ID'), e('RELEASE_CLIENT_ID'), e('RELEASE_AUTH_CERT'), e('RELEASE_REQUEST_SIGNING_CERT'), stagingContainerClient);
+            await (0, retry_1.retry)(() => releaseService.createRelease(version, filePath, friendlyFileName));
         }
         const { product, os, arch, unprocessedType } = match.groups;
         const isLegacy = artifact.name.includes('_legacy');
