@@ -179,10 +179,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				showCopilotView(viewsService);
 				ensureSideBarChatViewSize(400, viewDescriptorService, layoutService);
 
-				// Setup should be kicked off immediately
-				if (typeof startSetup === 'boolean' && startSetup) {
+				if (startSetup === true && !ASK_FOR_PUBLIC_CODE_MATCHES) {
 					const controller = that.controller.value;
-					controller.setup({ publicCodeSuggestions: true }); // TODO@sbatten pass in as argument
+					controller.setup({ publicCodeSuggestions: true });
 				}
 
 				configurationService.updateValue('chat.commandCenter.enabled', true);
