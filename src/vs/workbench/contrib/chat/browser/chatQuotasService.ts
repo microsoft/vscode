@@ -156,7 +156,7 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 
 				await dialogService.prompt({
 					type: 'none',
-					message: localize('copilotFree', "Copilot Free"),
+					message: localize('copilotFree', "Copilot Limit Reached"),
 					cancelButton: {
 						label: localize('dismiss', "Dismiss"),
 						run: () => { /* noop */ }
