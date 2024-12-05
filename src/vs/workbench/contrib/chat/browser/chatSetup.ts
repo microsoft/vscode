@@ -94,6 +94,25 @@ const ASK_FOR_PUBLIC_CODE_MATCHES = false; // TODO@bpasero revisit this
 const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
 const TRIGGER_SETUP_COMMAND_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
 
+export const SetupWelcomeViewKeys = new Set([ChatContextKeys.Setup.triggered.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Setup.signedOut.key, ChatContextKeys.Setup.canSignUp.key]);
+export const SetupWelcomeViewCondition = ContextKeyExpr.and(
+	ContextKeyExpr.has('config.chat.experimental.offerSetup'),
+	ContextKeyExpr.or(
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.triggered,
+			ChatContextKeys.Setup.installed.negate()
+		),
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.canSignUp,
+			ChatContextKeys.Setup.installed
+		),
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.signedOut,
+			ChatContextKeys.Setup.installed
+		)
+	)
+)!;
+
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.chat.setup';
