@@ -696,10 +696,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-button-secondaryForeground);
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary:hover,
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary:hover {
 	background-color: var(--vscode-button-secondaryHoverBackground);
 	color: var(--vscode-button-secondaryForeground);
+}
+
+/* The Add Files button is currently implemented as a secondary button but should not have the secondary button background */
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon:not(.disabled):hover,
