@@ -11,22 +11,41 @@
 	display: flex;
 }
 
-/* MEMBRANE: hide sidebar (Navigator) and panel (Logs) title */
-.monaco-workbench .part:has([id="workbench.view.extension.membraneContainer"]),
-.monaco-workbench .part:has([id="workbench.view.extension.membraneLogs"]) {
+/* MEMBRANE: add back composite title except for Navigator and Logs */
+.monaco-workbench .part:has(.content > .composite:not(
+	[id="workbench.view.extension.membraneContainer"],
+	[id="workbench.view.extension.membraneLogs"]
+)) {
 	height: 100% !important;
 
 	.composite.title {
-		display: none;
+		display: flex !important;
+		height: 35px !important;
 	}
 	.content {
-		height: 100% !important;
+		height: calc(100% - 35px) !important;
 	}
 }
 
 /* MEMBRANE: add top border to panel (Logs) */
 .monaco-workbench .part:has([id="workbench.view.extension.membraneLogs"]) {
 	border-top: 1px solid var(--vscode-widget-border);
+}
+
+/* MEMBRANE: back to Navigator button */
+.monaco-workbench .part > .composite.title > .back-to-membrane-navigator {
+	align-self: center;
+	margin-left: 1px;
+	padding: 3px;
+	border-radius: 5px;
+
+	&:hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+	}
+}
+
+.monaco-workbench .part:not(.sidebar) > .composite.title > .back-to-membrane-navigator {
+	display: none;
 }
 
 .monaco-workbench .part > .composite.title > .title-actions {

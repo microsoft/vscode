@@ -152,7 +152,8 @@ export abstract class Part extends Component implements ISerializableView {
 
 class PartLayout {
 
-	private static readonly TITLE_HEIGHT = 35;
+	// MEMBRANE: hide title area for Navigator and Logs
+	private static readonly TITLE_HEIGHT = 0;
 
 	constructor(private options: IPartOptions, private contentArea: HTMLElement | undefined) { }
 

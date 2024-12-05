@@ -48,7 +48,8 @@
 }
 
 .monaco-workbench .part > .title > .title-label {
-	padding-left: 12px;
+	/* MEMBRANE: reduce padding next to back to Navigator button */
+	padding-left: 4px;
 }
 
 .monaco-workbench .part > .title > .title-label h2 {

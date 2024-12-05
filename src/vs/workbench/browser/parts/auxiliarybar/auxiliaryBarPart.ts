@@ -77,7 +77,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
-		@ICommandService private commandService: ICommandService,
+		// MEMBRANE: rm private modifier for command service. See superclass CompositePart
+		@ICommandService commandService: ICommandService,
 		@IMenuService menuService: IMenuService,
 	) {
 		super(
@@ -103,6 +104,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			contextKeyService,
 			extensionService,
 			menuService,
+			// MEMBRANE: command service added to superclass CompositePart
+			commandService,
 		);
 	}
 

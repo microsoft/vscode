@@ -22,6 +22,8 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+// MEMBRANE: import command service. See CompositePart superclass, SidebarPart subclass
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IComposite } from 'vs/workbench/common/composite';
@@ -138,6 +140,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IMenuService protected readonly menuService: IMenuService,
+		// MEMBRANE: include command service. See CompositePart superclass, SidebarPart subclass
+		@ICommandService commandService: ICommandService,
 	) {
 		let location = ViewContainerLocation.Sidebar;
 		let registryId = Extensions.Viewlets;
@@ -159,6 +163,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			keybindingService,
 			instantiationService,
 			themeService,
+			// MEMBRANE: include command service. See CompositePart superclass, SidebarPart subclass
+			commandService,
 			Registry.as<PaneCompositeRegistry>(registryId),
 			activePaneCompositeSettingsKey,
 			viewDescriptorService.getDefaultViewContainer(location)?.id || '',

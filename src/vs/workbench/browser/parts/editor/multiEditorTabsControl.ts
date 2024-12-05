@@ -1506,8 +1506,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			const activeTabBorderColorTop = allowBorderTop ? this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP) : undefined;
 			if (activeTabBorderColorTop) {
-				tabContainer.classList.add('tab-border-top');
-				tabContainer.style.setProperty('--tab-border-top-color', activeTabBorderColorTop.toString());
+				// MEMBRANE: remove top border for active tab
+				// tabContainer.classList.add('tab-border-top');
+				// tabContainer.style.setProperty('--tab-border-top-color', activeTabBorderColorTop.toString());
 			} else {
 				tabContainer.classList.remove('tab-border-top');
 				tabContainer.style.removeProperty('--tab-border-top-color');

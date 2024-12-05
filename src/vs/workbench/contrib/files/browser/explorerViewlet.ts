@@ -267,8 +267,7 @@ export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewC
 		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE },
 		order: 0
 	},
-	// MEMBRANE: move explorer viewlet to panel to hide it (we are hiding panel title bar)
-}, ViewContainerLocation.Panel, { isDefault: true });
+}, ViewContainerLocation.Sidebar, { isDefault: true });
 
 const openFolder = localize('openFolder', "Open Folder");
 const addAFolder = localize('addAFolder', "add a folder");
