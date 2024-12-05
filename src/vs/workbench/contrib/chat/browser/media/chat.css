@@ -312,8 +312,11 @@
 		top: 2px;
 	}
 
-	/* But codicons in toolbars and other widgets assume the natural position of the codicon */
-	.chat-codeblock-pill-widget .codicon,
+	.chat-codeblock-pill-widget .codicon {
+		top: -1px;
+	}
+
+	/* But codicons in toolbars assume the natural position of the codicon */
 	.monaco-toolbar .codicon {
 		position: initial;
 		top: initial;
