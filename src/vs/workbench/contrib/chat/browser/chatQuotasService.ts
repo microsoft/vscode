@@ -210,7 +210,7 @@ export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchCo
 			// Some quota exceeded, show indicator
 			this._entry.value = this.statusbarService.addEntry({
 				name: localize('indicator', "Copilot Quota Indicator"),
-				text: `$(copilot-warning) ${localize('limitReached', "Limit Reached")}`,
+				text: localize('limitReached', "Copilot Limit Reached"),
 				ariaLabel: localize('copilotQuotaExceeded', "Copilot Limit Reached"),
 				command: OPEN_CHAT_QUOTA_EXCEEDED_DIALOG,
 				kind: 'prominent',
