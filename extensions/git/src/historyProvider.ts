@@ -128,7 +128,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						icon: new ThemeIcon('cloud')
 					} : undefined;
 
-					// Base - compute only if the branch has changed
+					// Base - compute fully only if the branch has changed
 					if (this._HEAD?.name !== this.repository.HEAD.name) {
 						const mergeBase = await this.resolveHEADMergeBase();
 
@@ -140,6 +140,12 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 							revision: mergeBase.commit,
 							icon: new ThemeIcon('cloud')
 						} : undefined;
+					} else if (this._currentHistoryItemBaseRef) {
+						// otherwise spot a newer commit
+						const revision = (await this.repository.getBranch(this._currentHistoryItemBaseRef.name)).commit;
+						if (revision && this._currentHistoryItemBaseRef.revision !== revision) {
+							this._currentHistoryItemBaseRef = { ...this._currentHistoryItemBaseRef, revision };
+						}
 					}
 				} else {
 					// Detached commit
