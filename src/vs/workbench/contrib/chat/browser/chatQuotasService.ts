@@ -140,23 +140,23 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 				const openerService = accessor.get(IOpenerService);
 				const dialogService = accessor.get(IDialogService);
 
+				const dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
+
 				let message: string;
 				const { chatQuotaExceeded, completionsQuotaExceeded } = that.quotas;
 				if (chatQuotaExceeded && !completionsQuotaExceeded) {
-					message = localize('out of free chat responses', "You've run out of free chat responses, but free code completions are still available as part of the Copilot Free plan.");
+					message = localize('chatQuotaExceeded', "You've run out of free chat interactions. You still have free code completions available in the Copilot Free plan. These limits will reset on {0}", dateFormatter.format(that.quotas.quotaResetDate));
 				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-					message = localize('out of completions', "You've run out of free code completions, but free chat responses are still available as part of the Copilot Free plan.");
+					message = localize('completionsQuotaExceeded', "You've run out of free code completions. You still have free chat interactions available in the Copilot Free plan. These limits will reset on {0}", dateFormatter.format(that.quotas.quotaResetDate));
 				} else {
-					message = localize('out of limits', "You've reached the limits of the Copilot Free plan.");
+					message = localize('chatAndCompletionsQuotaExceeded', "You've reached the limit of the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(that.quotas.quotaResetDate));
 				}
 
-				const dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
-				const resetMessage = localize('limit reset', "Your limits will reset on {0}.", dateFormatter.format(that.quotas.quotaResetDate));
-				const upgradeToPro = localize('upgradeToPro', "Here's what you can expect when upgrading to Copilot Pro:\n- Unlimited code completions\n- Unlimited chat interactions\n- 30 day free trial");
+				const upgradeToPro = localize('upgradeToPro', "Here's what you can expect when upgrading to Copilot Pro:\n- Unlimited code completions\n- Unlimited chat interactions\n- 30-day free trial");
 
 				await dialogService.prompt({
 					type: 'none',
-					message: localize('limit reached', "Copilot Free"),
+					message: localize('copilotFree', "Copilot Free"),
 					cancelButton: {
 						label: localize('dismiss', "Dismiss"),
 						run: () => { /* noop */ }
@@ -171,7 +171,7 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 						closeOnLinkClick: true,
 						icon: Codicon.copilotWarning,
 						markdownDetails: [
-							{ markdown: new MarkdownString(`${message} ${resetMessage}`, true) },
+							{ markdown: new MarkdownString(message, true) },
 							{ markdown: new MarkdownString(upgradeToPro, true) }
 						]
 					}
@@ -264,10 +264,10 @@ export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchCo
 
 export function quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded }: { chatQuotaExceeded: boolean; completionsQuotaExceeded: boolean }): string {
 	if (chatQuotaExceeded && !completionsQuotaExceeded) {
-		return localize('chatQuotaExceeded', "You've reached your monthly chat messages limit, click for details");
+		return localize('chatQuotaExceededButton', "You've reached your monthly chat interactions limit, click for details");
 	} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-		return localize('completionsQuotaExceeded', "You've reached your monthly code completions limit, click for details");
+		return localize('completionsQuotaExceededButton', "You've reached your monthly code completions limit, click for details");
 	} else {
-		return localize('chatAndCompletionsQuotaExceeded', "You've reached the limits of your Copilot Free plan, click for details");
+		return localize('chatAndCompletionsQuotaExceededButton', "You've reached the limit of your Copilot Free plan, click for details");
 	}
 }
