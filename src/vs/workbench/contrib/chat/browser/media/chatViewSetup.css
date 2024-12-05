@@ -17,6 +17,10 @@
 		background-color: var(--vscode-chat-requestBackground);
 	}
 
+	.terms-container.is-standalone {
+		padding-top: 5px;
+	}
+
 	.chat-feature-container {
 		display: flex;
 		align-items: center;
@@ -54,7 +58,7 @@
 	/** Checkboxes */
 	.checkbox-container {
 		display: flex;
-		padding-top: 20px;
+		padding-top: 15px;
 	}
 
 	.checkbox-label {

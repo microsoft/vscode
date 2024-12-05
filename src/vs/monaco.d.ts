@@ -5829,6 +5829,10 @@ declare namespace monaco.editor {
 		 */
 		readonly onDidBlurEditorWidget: IEvent<void>;
 		/**
+		 * Boolean indicating whether input is in composition
+		 */
+		readonly inComposition: boolean;
+		/**
 		 * An event emitted after composition has started.
 		 */
 		readonly onDidCompositionStart: IEvent<void>;
