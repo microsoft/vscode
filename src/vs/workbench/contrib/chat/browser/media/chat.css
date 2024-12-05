@@ -699,6 +699,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary:hover,
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary:hover {
 	background-color: var(--vscode-button-secondaryHoverBackground);
+	color: var(--vscode-button-secondaryForeground);
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon:not(.disabled):hover,
@@ -728,7 +729,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	height: 22px;
 }
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button-dropdown.sidebyside-button:hover > .separator {
-	border-color: var(--vscode-input-border);
+	border-color: var(--vscode-input-border, transparent);
 }
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button-dropdown.sidebyside-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
@@ -832,6 +833,38 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	opacity: 0.6;
 	background-color: var(--vscode-editor-background);
 }
+
+.monaco-editor .chat-editing-last-edit {
+	background-color: var(--vscode-editor-rangeHighlightBackground);
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-editor-rangeHighlightBorder);
+}
+
+@property --chat-editing-last-edit-shift {
+	syntax: '<percentage>';
+	initial-value: 100%;
+	inherits: false;
+}
+
+@keyframes kf-chat-editing-last-edit-shift {
+	0% {
+		--chat-editing-last-edit-shift: 100%;
+	}
+	50% {
+		--chat-editing-last-edit-shift: 7%;
+	}
+	100% {
+		--chat-editing-last-edit-shift: 100%;
+	}
+}
+
+.monaco-editor .chat-editing-last-edit-line {
+	--chat-editing-last-edit-shift: 100%;
+	background: linear-gradient(45deg, var(--vscode-editor-rangeHighlightBackground), var(--chat-editing-last-edit-shift), transparent);
+	animation: 2.3s kf-chat-editing-last-edit-shift ease-in-out infinite;
+	animation-delay: 330ms;
+}
+
 
 .chat-notification-widget .chat-info-codicon,
 .chat-notification-widget .chat-error-codicon,
@@ -1423,6 +1456,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.monaco-button {
 		width: fit-content;
+		padding: 2px 11px;
 	}
 
 	.chat-quota-error-button {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Sequencer } from '../../../../../base/common/async.js';
+import { ITask, Sequencer, timeout } from '../../../../../base/common/async.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -50,6 +50,41 @@ import { isNotebookEditorInput } from '../../../notebook/common/notebookEditorIn
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
 
+
+class ThrottledSequencer extends Sequencer {
+
+	private _size = 0;
+
+	constructor(
+		private readonly _minDuration: number,
+		private readonly _maxOverallDelay: number
+	) {
+		super();
+	}
+
+	override queue<T>(promiseTask: ITask<Promise<T>>): Promise<T> {
+
+		this._size += 1;
+
+		const noDelay = this._size * this._minDuration > this._maxOverallDelay;
+
+		return super.queue(async () => {
+			try {
+				const p1 = promiseTask();
+				const p2 = noDelay
+					? Promise.resolve(undefined)
+					: timeout(this._minDuration);
+
+				const [result] = await Promise.all([p1, p2]);
+				return result;
+
+			} finally {
+				this._size -= 1;
+			}
+		});
+	}
+}
+
 export class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 	private readonly _state = observableValue<ChatEditingSessionState>(this, ChatEditingSessionState.Initial);
@@ -67,7 +102,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._assertNotDisposed();
 		return this._entriesObs;
 	}
-	private readonly _sequencer = new Sequencer();
+	private readonly _sequencer = new ThrottledSequencer(15, 1000);
 
 	private _workingSet = new ResourceMap<WorkingSetDisplayMetadata>();
 	get workingSet() {

@@ -46,7 +46,6 @@ import { Selection } from '../../../common/core/selection.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { FindWidgetSearchHistory } from './findWidgetSearchHistory.js';
 import { IHistory } from '../../../../base/common/history.js';
 
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
@@ -133,7 +132,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private readonly _contextKeyService: IContextKeyService;
 	private readonly _storageService: IStorageService;
 	private readonly _notificationService: INotificationService;
-	private _findWidgetSearchHistory: IHistory<string>;
 
 	private _domNode!: HTMLElement;
 	private _cachedHeight: number | null = null;
@@ -176,6 +174,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		storageService: IStorageService,
 		notificationService: INotificationService,
 		private readonly _hoverService: IHoverService,
+		private readonly _findWidgetSearchHistory: IHistory<string> | undefined,
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -186,7 +185,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._contextKeyService = contextKeyService;
 		this._storageService = storageService;
 		this._notificationService = notificationService;
-		this._findWidgetSearchHistory = new FindWidgetSearchHistory(this._storageService);
 
 		this._ctrlEnterReplaceAllWarningPrompted = !!storageService.getBoolean(ctrlEnterReplaceAllWarningPromptedKey, StorageScope.PROFILE);
 
