@@ -314,6 +314,12 @@ export class MouseHandler extends ViewEventHandler {
 		const targetIsViewZone = (t.type === MouseTargetType.CONTENT_VIEW_ZONE || t.type === MouseTargetType.GUTTER_VIEW_ZONE);
 		const targetIsWidget = (t.type === MouseTargetType.CONTENT_WIDGET);
 
+		if (e.altKey && e.leftButton) { // Fix for Alt-clicks
+			e.preventDefault();
+			e.stopPropagation();
+			return;
+		}
+
 		let shouldHandle = e.leftButton || e.middleButton;
 		if (platform.isMacintosh && e.leftButton && e.ctrlKey) {
 			shouldHandle = false;
