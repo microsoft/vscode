@@ -51,4 +51,7 @@ export namespace ChatContextKeys {
 		triggered: new RawContextKey<boolean>('chatSetupTriggered', false, true), 	// True when chat setup is triggered.
 		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed.
 	};
+
+	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
+	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);
 }

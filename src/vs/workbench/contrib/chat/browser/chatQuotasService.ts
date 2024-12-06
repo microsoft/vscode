@@ -11,8 +11,8 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
@@ -21,6 +21,7 @@ import product from '../../../../platform/product/common/product.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 
 export const IChatQuotasService = createDecorator<IChatQuotasService>('chatQuotasService');
 
@@ -31,12 +32,13 @@ export interface IChatQuotasService {
 	readonly quotas: IChatQuotas;
 
 	acceptQuotas(quotas: IChatQuotas): void;
+	clearQuotas(): void;
 }
 
 export interface IChatQuotas {
-	readonly chatQuotaExceeded: boolean;
-	readonly completionsQuotaExceeded: boolean;
-	readonly quotaResetDate: Date;
+	chatQuotaExceeded: boolean;
+	completionsQuotaExceeded: boolean;
+	quotaResetDate: Date | undefined;
 }
 
 export const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
@@ -48,10 +50,13 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 	private readonly _onDidChangeQuotas = this._register(new Emitter<void>());
 	readonly onDidChangeQuotas: Event<void> = this._onDidChangeQuotas.event;
 
-	private _quotas = { chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: new Date(0) };
+	private _quotas: IChatQuotas = { chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: undefined };
 	get quotas(): IChatQuotas { return this._quotas; }
 
-	private QuotaContextKeys = { // TODO@bpasero move into product.json or turn into core keys
+	private readonly chatQuotaExceededContextKey = ChatContextKeys.chatQuotaExceeded.bindTo(this.contextKeyService);
+	private readonly completionsQuotaExceededContextKey = ChatContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
+
+	private ExtensionQuotaContextKeys = { // TODO@bpasero move into product.json or turn into core keys
 		chatQuotaExceeded: 'github.copilot.chat.quotaExceeded',
 		completionsQuotaExceeded: 'github.copilot.completions.quotaExceeded',
 	};
@@ -66,28 +71,29 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 	}
 
 	private registerListeners(): void {
-		const chatQuotaExceededSet = new Set([this.QuotaContextKeys.chatQuotaExceeded]);
-		const completionsQuotaExceededSet = new Set([this.QuotaContextKeys.completionsQuotaExceeded]);
+		const chatQuotaExceededSet = new Set([this.ExtensionQuotaContextKeys.chatQuotaExceeded]);
+		const completionsQuotaExceededSet = new Set([this.ExtensionQuotaContextKeys.completionsQuotaExceeded]);
 
 		this._register(this.contextKeyService.onDidChangeContext(e => {
-			let fireEvent = false;
+			let changed = false;
 			if (e.affectsSome(chatQuotaExceededSet)) {
-				const newChatQuotaExceeded = this.contextKeyService.getContextKeyValue<boolean>(this.QuotaContextKeys.chatQuotaExceeded);
+				const newChatQuotaExceeded = this.contextKeyService.getContextKeyValue<boolean>(this.ExtensionQuotaContextKeys.chatQuotaExceeded);
 				if (typeof newChatQuotaExceeded === 'boolean' && newChatQuotaExceeded !== this._quotas.chatQuotaExceeded) {
 					this._quotas.chatQuotaExceeded = newChatQuotaExceeded;
-					fireEvent = true;
+					changed = true;
 				}
 			}
 
 			if (e.affectsSome(completionsQuotaExceededSet)) {
-				const newCompletionsQuotaExceeded = this.contextKeyService.getContextKeyValue<boolean>(this.QuotaContextKeys.completionsQuotaExceeded);
+				const newCompletionsQuotaExceeded = this.contextKeyService.getContextKeyValue<boolean>(this.ExtensionQuotaContextKeys.completionsQuotaExceeded);
 				if (typeof newCompletionsQuotaExceeded === 'boolean' && newCompletionsQuotaExceeded !== this._quotas.completionsQuotaExceeded) {
 					this._quotas.completionsQuotaExceeded = newCompletionsQuotaExceeded;
-					fireEvent = true;
+					changed = true;
 				}
 			}
 
-			if (fireEvent) {
+			if (changed) {
+				this.updateContextKeys();
 				this._onDidChangeQuotas.fire();
 			}
 		}));
@@ -95,6 +101,35 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 
 	private registerActions(): void {
 		const that = this;
+
+		class UpgradePlanAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.chat.upgradePlan',
+					title: localize2('managePlan', "Upgrade to Copilot Pro"),
+					category: localize2('chat.category', 'Chat'),
+					f1: true,
+					precondition: ChatContextKeys.enabled,
+					menu: {
+						id: MenuId.ChatCommandCenter,
+						group: 'a_first',
+						order: 1,
+						when: ContextKeyExpr.and(
+							ChatContextKeys.Setup.installed,
+							ContextKeyExpr.or(
+								ChatContextKeys.chatQuotaExceeded,
+								ChatContextKeys.completionsQuotaExceeded
+							)
+						)
+					}
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const openerService = accessor.get(IOpenerService);
+				openerService.open(URI.parse(product.defaultChatAgent?.upgradePlanUrl ?? ''));
+			}
+		}
 
 		class ShowLimitReachedDialogAction extends Action2 {
 
@@ -109,23 +144,23 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 				const openerService = accessor.get(IOpenerService);
 				const dialogService = accessor.get(IDialogService);
 
+				const dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
+
 				let message: string;
 				const { chatQuotaExceeded, completionsQuotaExceeded } = that.quotas;
 				if (chatQuotaExceeded && !completionsQuotaExceeded) {
-					message = localize('out of free chat responses', "You've run out of free chat responses, but free code completions are still available as part of the Copilot Free plan.");
+					message = localize('chatQuotaExceeded', "You've run out of free chat messages. You still have free code completions available in the Copilot Free plan. These limits will reset on {0}", dateFormatter.format(that.quotas.quotaResetDate));
 				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-					message = localize('out of completions', "You've run out of free code completions, but free chat responses are still available as part of the Copilot Free plan.");
+					message = localize('completionsQuotaExceeded', "You've run out of free code completions. You still have free chat messages available in the Copilot Free plan. These limits will reset on {0}", dateFormatter.format(that.quotas.quotaResetDate));
 				} else {
-					message = localize('out of limits', "You've reached the limits of the Copilot Free plan.");
+					message = localize('chatAndCompletionsQuotaExceeded', "You've reached the limit of the Copilot Free plan. These limits will reset on {0}.", dateFormatter.format(that.quotas.quotaResetDate));
 				}
 
-				const dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
-				const resetMessage = localize('limit reset', "Your limits will reset on {0}.", dateFormatter.format(that.quotas.quotaResetDate));
-				const upgradeToPro = localize('upgradeToPro', "Here's what you can expect when upgrading to Copilot Pro:\n- Unlimited code completions\n- Unlimited chat interactions\n- 30 day free trial");
+				const upgradeToPro = localize('upgradeToPro', "Here's what you can expect when upgrading to Copilot Pro:\n- Unlimited code completions\n- Unlimited chat messages\n- 30-day free trial");
 
 				await dialogService.prompt({
 					type: 'none',
-					message: localize('limit reached', "Copilot Free"),
+					message: localize('copilotFree', "Copilot Limit Reached"),
 					cancelButton: {
 						label: localize('dismiss', "Dismiss"),
 						run: () => { /* noop */ }
@@ -138,9 +173,9 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 					],
 					custom: {
 						closeOnLinkClick: true,
-						icon: Codicon.copilot,
+						icon: Codicon.copilotWarningLarge,
 						markdownDetails: [
-							{ markdown: new MarkdownString(`${message} ${resetMessage}`, true) },
+							{ markdown: new MarkdownString(message, true) },
 							{ markdown: new MarkdownString(upgradeToPro, true) }
 						]
 					}
@@ -176,6 +211,7 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 			}
 		}
 
+		registerAction2(UpgradePlanAction);
 		registerAction2(ShowLimitReachedDialogAction);
 		if (product.quality !== 'stable') {
 			registerAction2(SimulateCopilotQuotaExceeded);
@@ -184,14 +220,28 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 
 	acceptQuotas(quotas: IChatQuotas): void {
 		this._quotas = quotas;
+		this.updateContextKeys();
 
 		this._onDidChangeQuotas.fire();
+	}
+
+	clearQuotas(): void {
+		if (this.quotas.chatQuotaExceeded || this.quotas.completionsQuotaExceeded) {
+			this.acceptQuotas({ chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: undefined });
+		}
+	}
+
+	private updateContextKeys(): void {
+		this.chatQuotaExceededContextKey.set(this._quotas.chatQuotaExceeded);
+		this.completionsQuotaExceededContextKey.set(this._quotas.completionsQuotaExceeded);
 	}
 }
 
 export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'chat.quotasStatusBarEntry';
+
+	private static readonly COPILOT_STATUS_ID = 'GitHub.copilot.status'; // TODO@bpasero unify into 1 core indicator
 
 	private readonly _entry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
@@ -201,37 +251,55 @@ export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
-		this._register(this.chatQuotasService.onDidChangeQuotas(() => this.updateStatusbarEntry()));
+		this._register(Event.runAndSubscribe(this.chatQuotasService.onDidChangeQuotas, () => this.updateStatusbarEntry()));
 	}
 
 	private updateStatusbarEntry(): void {
 		const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatQuotasService.quotas;
+
+		// Some quota exceeded, show indicator
 		if (chatQuotaExceeded || completionsQuotaExceeded) {
-			// Some quota exceeded, show indicator
-			this._entry.value = this.statusbarService.addEntry({
-				name: localize('indicator', "Copilot Quota Indicator"),
-				text: `$(copilot-warning) ${localize('limitReached', "Limit Reached")}`,
-				ariaLabel: localize('copilotQuotaExceeded', "Copilot Limit Reached"),
-				command: OPEN_CHAT_QUOTA_EXCEEDED_DIALOG,
-				kind: 'prominent',
-				showInAllWindows: true,
-				tooltip: quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded }),
-			}, ChatQuotasStatusBarEntry.ID, StatusbarAlignment.RIGHT, { id: 'GitHub.copilot.status', alignment: StatusbarAlignment.RIGHT });
-		} else {
-			// No quota exceeded, remove indicator
-			if (this._entry.value) {
-				this._entry.clear();
+			let text: string;
+			if (chatQuotaExceeded && !completionsQuotaExceeded) {
+				text = localize('chatQuotaExceededStatus', "Chat limit reached");
+			} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
+				text = localize('completionsQuotaExceededStatus', "Completions limit reached");
+			} else {
+				text = localize('chatAndCompletionsQuotaExceededStatus', "Copilot limit reached");
 			}
+
+			const isCopilotStatusVisible = this.statusbarService.isEntryVisible(ChatQuotasStatusBarEntry.COPILOT_STATUS_ID);
+			if (!isCopilotStatusVisible) {
+				text = `$(copilot-warning) ${text}`;
+			}
+
+			this._entry.value = this.statusbarService.addEntry({
+				name: localize('indicator', "Copilot Limit Indicator"),
+				text,
+				ariaLabel: text,
+				command: OPEN_CHAT_QUOTA_EXCEEDED_DIALOG,
+				showInAllWindows: true,
+				tooltip: quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded })
+			}, ChatQuotasStatusBarEntry.ID, StatusbarAlignment.RIGHT, {
+				id: ChatQuotasStatusBarEntry.COPILOT_STATUS_ID,
+				alignment: StatusbarAlignment.RIGHT,
+				compact: isCopilotStatusVisible
+			});
+		}
+
+		// No quota exceeded, remove indicator
+		else {
+			this._entry.clear();
 		}
 	}
 }
 
 export function quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded }: { chatQuotaExceeded: boolean; completionsQuotaExceeded: boolean }): string {
 	if (chatQuotaExceeded && !completionsQuotaExceeded) {
-		return localize('chatQuotaExceeded', "You've reached your monthly chat messages limit, click for details");
+		return localize('chatQuotaExceededButton', "Monthly chat messages limit reached. Click for details.");
 	} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-		return localize('completionsQuotaExceeded', "You've reached your monthly code completions limit, click for details");
+		return localize('completionsQuotaExceededButton', "Monthly code completions limit reached. Click for details.");
 	} else {
-		return localize('chatAndCompletionsQuotaExceeded', "You've reached the limits of your Copilot Free plan, click for details");
+		return localize('chatAndCompletionsQuotaExceededButton', "Copilot Free plan limit reached. Click for details.");
 	}
 }

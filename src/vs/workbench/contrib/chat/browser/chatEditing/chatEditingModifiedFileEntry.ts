@@ -103,9 +103,9 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 	private static readonly _lastEditDecorationOptions = ModelDecorationOptions.register({
 		isWholeLine: true,
-		description: 'chat-editing',
-		className: 'rangeHighlight',
-		marginClassName: 'rangeHighlight',
+		description: 'chat-last-edit',
+		className: 'chat-editing-last-edit-line',
+		marginClassName: 'chat-editing-last-edit',
 		overviewRuler: {
 			position: OverviewRulerLane.Full,
 			color: themeColorFromId(editorSelectionBackground)
@@ -114,7 +114,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 	private static readonly _pendingEditDecorationOptions = ModelDecorationOptions.register({
 		isWholeLine: true,
-		description: 'chat-pending-editing',
+		description: 'chat-pending-edit',
 		className: 'chat-editing-pending-edit',
 	});
 
@@ -420,7 +420,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			if (this._allEditsAreFromUs) {
 				// save the file after discarding so that the dirty indicator goes away
 				// and so that an intermediate saved state gets reverted
-				await this.docFileEditorModel.save({ reason: SaveReason.EXPLICIT });
+				await this.docFileEditorModel.save({ reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
 			}
 			await this.collapse(transaction);
 		}
