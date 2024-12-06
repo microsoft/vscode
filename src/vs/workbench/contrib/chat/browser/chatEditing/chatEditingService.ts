@@ -162,7 +162,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		void this._editingSessionFileLimitPromise;
 
 		const sessionIdToRestore = storageService.get(STORAGE_KEY_EDITING_SESSION, StorageScope.WORKSPACE);
-		if (isString(sessionIdToRestore)) {
+		if (isString(sessionIdToRestore) && this._chatService.getOrRestoreSession(sessionIdToRestore)) {
 			this._restoringEditingSession = this.startOrContinueEditingSession(sessionIdToRestore);
 			this._restoringEditingSession.finally(() => {
 				this._restoringEditingSession = undefined;
