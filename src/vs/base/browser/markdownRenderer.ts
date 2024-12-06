@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import * as dompurify from 'vs/base/browser/dompurify/dompurify';
+import dompurify from 'vs/base/browser/dompurify/dompurify';
 import { DomEmitter } from 'vs/base/browser/event';
 import { createElement, FormattedTextRenderOptions } from 'vs/base/browser/formattedTextRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -456,7 +456,14 @@ function sanitizeRenderedMarkdown(
 					fragment.appendChild(endTagTextNode);
 				}
 
-				element.parentElement.replaceChild(fragment, element);
+				if (element.nodeType === Node.COMMENT_NODE) {
+					// Workaround for https://github.com/cure53/DOMPurify/issues/1005
+					// The comment will be deleted in the next phase. However if we try to remove it now, it will cause
+					// an exception. Instead we insert the text node before the comment.
+					element.parentElement.insertBefore(fragment, element);
+				} else {
+					element.parentElement.replaceChild(fragment, element);
+				}
 			}
 		}
 	}));
