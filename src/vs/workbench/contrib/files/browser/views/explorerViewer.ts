@@ -562,7 +562,9 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 
 		const tree = this.treeProvider();
 		for (const directory of highlightedDirectories) {
-			tree.rerender(directory);
+			if (tree.hasNode(directory)) {
+				tree.rerender(directory);
+			}
 		}
 	}
 
