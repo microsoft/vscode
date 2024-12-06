@@ -48,10 +48,12 @@ const shouldSpawnCli = parsedArgs.help || parsedArgs.version || extensionLookupA
 const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, userDataPath: '', nlsMetadataPath: __dirname });
 
 if (shouldSpawnCli) {
+	// Starts CLI process
 	loadCode(nlsConfiguration).then((mod) => {
 		mod.spawnCli();
 	});
 } else {
+	// Manages lazy initialization of the remote extension host agent server
 	let _remoteExtensionHostAgentServer: IServerAPI | null = null;
 	let _remoteExtensionHostAgentServerPromise: Promise<IServerAPI> | null = null;
 	const getRemoteExtensionHostAgentServer = () => {
@@ -65,6 +67,7 @@ if (shouldSpawnCli) {
 		return _remoteExtensionHostAgentServerPromise;
 	};
 
+	// If applicable, CLI displays licensing terms and prompts user to accept terms
 	if (Array.isArray(product.serverLicense) && product.serverLicense.length) {
 		console.log(product.serverLicense.join('\n'));
 		if (product.serverLicensePrompt && parsedArgs['accept-server-license-terms'] !== true) {
@@ -86,8 +89,10 @@ if (shouldSpawnCli) {
 
 	let firstRequest = true;
 	let firstWebSocket = true;
-
 	let address: string | AddressInfo | null = null;
+
+	// Creates an HTTP server that listens for incoming requests
+	// The requests gets processed by the remote extension host agent server
 	const server = http.createServer(async (req, res) => {
 		if (firstRequest) {
 			firstRequest = false;
@@ -96,6 +101,8 @@ if (shouldSpawnCli) {
 		const remoteExtensionHostAgentServer = await getRemoteExtensionHostAgentServer();
 		return remoteExtensionHostAgentServer.handleRequest(req, res);
 	});
+
+	// Listens for when a  client requests to upgrade from HTTP to WebSocket
 	server.on('upgrade', async (req, socket) => {
 		if (firstWebSocket) {
 			firstWebSocket = false;
@@ -105,6 +112,7 @@ if (shouldSpawnCli) {
 		// @ts-ignore
 		return remoteExtensionHostAgentServer.handleUpgrade(req, socket);
 	});
+
 	server.on('error', async (err) => {
 		const remoteExtensionHostAgentServer = await getRemoteExtensionHostAgentServer();
 		return remoteExtensionHostAgentServer.handleServerError(err);
@@ -118,7 +126,7 @@ if (shouldSpawnCli) {
 	);
 	server.listen(nodeListenOptions, async () => {
 		let output = Array.isArray(product.serverGreeting) && product.serverGreeting.length ? `\n\n${product.serverGreeting.join('\n')}\n\n` : ``;
-
+		// Logs IP Address
 		if (typeof nodeListenOptions.port === 'number' && parsedArgs['print-ip-address']) {
 			const ifaces = os.networkInterfaces();
 			Object.keys(ifaces).forEach(function (ifname) {
@@ -146,6 +154,7 @@ if (shouldSpawnCli) {
 		await getRemoteExtensionHostAgentServer();
 	});
 
+	// Cleanup on exit process
 	process.on('exit', () => {
 		server.close();
 		if (_remoteExtensionHostAgentServer) {
@@ -192,6 +201,10 @@ async function parsePort(host: string | undefined, strPort: string | undefined):
 	return 8000;
 }
 
+/**
+ * A helper function for parsePort that ensures if the port range is valid
+ * and within the acceptable limits. An invalid range returns undefined.
+ */
 function parseRange(strRange: string): { start: number; end: number } | undefined {
 	const match = strRange.match(/^(\d+)-(\d+)$/);
 	if (match) {
@@ -263,6 +276,10 @@ function hasStdinWithoutTty(): boolean {
 	return false;
 }
 
+/**
+ * The CLI will prompt the user to answer the displayed question until the user
+ * gives a valid response, thus resolving a Promise to return a boolean value.
+ */
 function prompt(question: string): Promise<boolean> {
 	const rl = readline.createInterface({
 		input: process.stdin,
