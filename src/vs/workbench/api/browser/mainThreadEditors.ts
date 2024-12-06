@@ -28,7 +28,6 @@ import { IExtHostContext } from '../../services/extensions/common/extHostCustome
 import { IEditorControl } from '../../common/editor.js';
 import { getCodeEditor, ICodeEditor } from '../../../editor/browser/editorBrowser.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { DirtyDiffContribution } from '../../contrib/scm/browser/dirtydiffDecorator.js';
 import { IDirtyDiffModelService } from '../../contrib/scm/browser/diff.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, observableFromEvent } from '../../../base/common/observable.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
@@ -386,13 +385,12 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			return Promise.resolve(diffEditor.getLineChanges() || []);
 		}
 
-		const dirtyDiffContribution = codeEditor.getContribution('editor.contrib.dirtydiff');
-
-		if (dirtyDiffContribution) {
-			return Promise.resolve((dirtyDiffContribution as DirtyDiffContribution).getChanges());
+		if (!codeEditor.hasModel()) {
+			return Promise.resolve([]);
 		}
 
-		return Promise.resolve([]);
+		const dirtyDiffModel = this._dirtyDiffModelService.getDirtyDiffModel(codeEditor.getModel().uri);
+		return Promise.resolve(dirtyDiffModel?.changes.map(change => change.change) ?? []);
 	}
 }
 
