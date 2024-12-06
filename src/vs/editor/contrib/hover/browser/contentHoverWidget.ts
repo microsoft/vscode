@@ -182,7 +182,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!availableSpace) {
 			return;
 		}
-		let maximumHeight = 2;
+		const children = this._hover.contentsDomNode.children;
+		let maximumHeight = children.length - 1;
 		Array.from(this._hover.contentsDomNode.children).forEach((hoverPart) => {
 			maximumHeight += hoverPart.clientHeight;
 		});
