@@ -113,9 +113,12 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 						id: MenuId.ChatCommandCenter,
 						group: 'a_first',
 						order: 1,
-						when: ContextKeyExpr.or(
-							ChatContextKeys.chatQuotaExceeded,
-							ChatContextKeys.completionsQuotaExceeded
+						when: ContextKeyExpr.and(
+							ChatContextKeys.Setup.installed,
+							ContextKeyExpr.or(
+								ChatContextKeys.chatQuotaExceeded,
+								ChatContextKeys.completionsQuotaExceeded
+							)
 						)
 					}
 				});

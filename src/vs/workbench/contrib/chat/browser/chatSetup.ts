@@ -56,6 +56,7 @@ import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatView
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
 import { IChatQuotasService } from './chatQuotasService.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -737,7 +738,8 @@ class ChatSetupController extends Disposable {
 
 		this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signedIn });
 
-		if (activeElement === getActiveElement()) {
+		const currentActiveElement = getActiveElement();
+		if (activeElement === currentActiveElement || currentActiveElement === mainWindow.document.body) {
 			(await showCopilotView(this.viewsService))?.focusInput();
 		}
 	}
