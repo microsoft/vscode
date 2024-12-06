@@ -569,7 +569,6 @@ export class GotoNextChangeAction extends EditorAction {
 			return;
 		}
 
-
 		const model = dirtyDiffModelService.getDirtyDiffModel(outerEditor.getModel().uri);
 
 		if (!model || model.changes.length === 0) {

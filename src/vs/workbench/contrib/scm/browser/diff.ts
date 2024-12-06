@@ -434,6 +434,12 @@ export class DirtyDiffModel extends Disposable {
 			if (provider && this.changes[i].label !== provider) {
 				continue;
 			}
+
+			// Skip quick diffs that are not visible
+			if (!this.quickDiffs.find(quickDiff => quickDiff.label === this.changes[i].label)?.visible) {
+				continue;
+			}
+
 			const change = this.changes[i];
 			const possibleChangesLength = possibleChanges.length;
 
@@ -463,6 +469,12 @@ export class DirtyDiffModel extends Disposable {
 			if (provider && this.changes[i].label !== provider) {
 				continue;
 			}
+
+			// Skip quick diffs that are not visible
+			if (!this.quickDiffs.find(quickDiff => quickDiff.label === this.changes[i].label)?.visible) {
+				continue;
+			}
+
 			const change = this.changes[i].change;
 
 			if (inclusive) {
