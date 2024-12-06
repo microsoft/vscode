@@ -17,7 +17,7 @@ import { IModelDecoration } from '../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { IMarkerDecorationsService } from '../../../common/services/markerDecorations.js';
 import { ApplyCodeActionReason, getCodeActions, quickFixCommandId } from '../../codeAction/browser/codeAction.js';
-import { CodeActionController } from '../../codeAction/browser/codeActionController.js';
+import { CodeActionController, CodeActionsVisibleFromSource } from '../../codeAction/browser/codeActionController.js';
 import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../../codeAction/common/types.js';
 import { MarkerController, NextMarkerAction } from '../../gotoError/browser/gotoError.js';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from './hoverTypes.js';
@@ -240,11 +240,10 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 					label: nls.localize('quick fixes', "Quick Fix..."),
 					commandId: quickFixCommandId,
 					run: (target) => {
-						console.log('run of renderMarkerStatusbar 2');
 						showing = true;
 						const controller = CodeActionController.get(this._editor);
 						const elementPosition = dom.getDomNodePagePosition(target);
-						controller?.showCodeActions(markerCodeActionTrigger, actions, {
+						controller?.showCodeActions(CodeActionsVisibleFromSource.HoverQuickFix, actions, {
 							x: elementPosition.left,
 							y: elementPosition.top,
 							width: elementPosition.width,
