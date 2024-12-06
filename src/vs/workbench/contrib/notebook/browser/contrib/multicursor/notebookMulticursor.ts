@@ -393,9 +393,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				return;
 			}
 
-			if (cell.cellViewModel.getSelections().length > 0) {
-				controller.setSelections(new ViewModelEventsCollector(), undefined, cell.cellViewModel.getSelections(), CursorChangeReason.Explicit);
-			}
+			cell.cellViewModel.setSelections(controller.getSelections());
 		}
 	}
 
