@@ -67,7 +67,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 		dom.append(this._resizableNode.domNode, this._hover.containerDomNode);
 		this._resizableNode.domNode.style.zIndex = '50';
-		this._resizableNode.domNode.className = 'resizable-hover-widget';
+		this._resizableNode.domNode.className = 'monaco-resizable-hover';
 
 		this._register(this._editor.onDidLayoutChange(() => {
 			if (this.isVisible) {

@@ -7,7 +7,7 @@
 	background-color: var(--vscode-editor-hoverHighlightBackground);
 }
 
-.monaco-editor .resizable-hover-widget {
+.monaco-editor .monaco-resizable-hover {
 	border: 1px solid var(--vscode-editorHoverWidget-border);
 	border-radius: 3px;
 	box-sizing: content-box;
