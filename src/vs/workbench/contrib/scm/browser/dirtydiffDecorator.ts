@@ -7,7 +7,7 @@ import * as nls from '../../../../nls.js';
 
 import './media/dirtydiffDecorator.css';
 import { ThrottledDelayer } from '../../../../base/common/async.js';
-import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IDisposable, dispose, toDisposable, Disposable, DisposableStore, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import * as ext from '../../../common/contributions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -1206,7 +1206,6 @@ export async function getOriginalResource(quickDiffService: IQuickDiffService, u
 export class DirtyDiffModel extends Disposable {
 
 	private _model: ITextFileEditorModel;
-	private _quickDiffs: QuickDiff[] = [];
 
 	private readonly _originalEditorModels = new ResourceMap<IResolvedTextEditorModel>();
 	private readonly _originalEditorModelsDisposables = this._register(new DisposableStore());
@@ -1214,11 +1213,10 @@ export class DirtyDiffModel extends Disposable {
 		return Iterable.map(this._originalEditorModels.values(), editorModel => editorModel.textEditorModel);
 	}
 
-	private diffDelayer = new ThrottledDelayer<void>(200);
-	private _quickDiffsPromise?: Promise<QuickDiff[]>;
-	private repositoryDisposables = new Set<IDisposable>();
-
 	private _disposed = false;
+	private _quickDiffs: QuickDiff[] = [];
+	private _quickDiffsPromise?: Promise<QuickDiff[]>;
+	private _diffDelayer = new ThrottledDelayer<void>(200);
 
 	private readonly _onDidChange = new Emitter<{ changes: QuickDiffChange[]; diff: ISplice<QuickDiffChange>[] }>();
 	readonly onDidChange: Event<{ changes: QuickDiffChange[]; diff: ISplice<QuickDiffChange>[] }> = this._onDidChange.event;
@@ -1231,6 +1229,8 @@ export class DirtyDiffModel extends Disposable {
 	 */
 	private _quickDiffChanges: Map<string, number[]> = new Map();
 	get quickDiffChanges(): Map<string, number[]> { return this._quickDiffChanges; }
+
+	private readonly _repositoryDisposables = new DisposableMap<ISCMRepository>();
 
 	constructor(
 		textFileModel: IResolvedTextFileEditorModel,
@@ -1258,7 +1258,7 @@ export class DirtyDiffModel extends Disposable {
 		}
 
 		this._register(this._model.onDidChangeEncoding(() => {
-			this.diffDelayer.cancel();
+			this._diffDelayer.cancel();
 			this._quickDiffs = [];
 			this._originalEditorModels.clear();
 			this._quickDiffsPromise = undefined;
@@ -1302,23 +1302,22 @@ export class DirtyDiffModel extends Disposable {
 	private onDidAddRepository(repository: ISCMRepository): void {
 		const disposables = new DisposableStore();
 
-		this.repositoryDisposables.add(disposables);
-		disposables.add(toDisposable(() => this.repositoryDisposables.delete(disposables)));
-
 		disposables.add(repository.provider.onDidChangeResources(this.triggerDiff, this));
 
-		const onDidRemoveThis = Event.filter(this.scmService.onDidRemoveRepository, r => r === repository);
-		disposables.add(onDidRemoveThis(() => dispose(disposables), null));
+		const onDidRemoveRepository = Event.filter(this.scmService.onDidRemoveRepository, r => r === repository);
+		disposables.add(onDidRemoveRepository(() => this._repositoryDisposables.deleteAndDispose(repository)));
+
+		this._repositoryDisposables.set(repository, disposables);
 
 		this.triggerDiff();
 	}
 
 	private triggerDiff(): void {
-		if (!this.diffDelayer) {
+		if (!this._diffDelayer) {
 			return;
 		}
 
-		this.diffDelayer
+		this._diffDelayer
 			.trigger(async () => {
 				const result: { changes: QuickDiffChange[]; mapChanges: Map<string, number[]> } | null = await this.diff();
 
@@ -1544,10 +1543,9 @@ export class DirtyDiffModel extends Disposable {
 		this._disposed = true;
 
 		this._quickDiffs = [];
-		this.diffDelayer.cancel();
+		this._diffDelayer.cancel();
 		this._originalEditorModels.clear();
-		this.repositoryDisposables.forEach(d => dispose(d));
-		this.repositoryDisposables.clear();
+		this._repositoryDisposables.dispose();
 
 		super.dispose();
 	}
