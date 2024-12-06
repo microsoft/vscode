@@ -1233,7 +1233,11 @@ export class DirtyDiffModel extends Disposable {
 
 	private _changes: QuickDiffChange[] = [];
 	get changes(): QuickDiffChange[] { return this._changes; }
-	private _mapChanges: Map<string, number[]> = new Map(); // key is the quick diff name, value is the index of the change in this._changes
+
+	/**
+	 * Map of quick diff name to the index of the change in `this.changes`
+	 */
+	private _mapChanges: Map<string, number[]> = new Map();
 	get mapChanges(): Map<string, number[]> { return this._mapChanges; }
 
 	constructor(
@@ -1282,14 +1286,14 @@ export class DirtyDiffModel extends Disposable {
 	public getQuickDiffResults(): QuickDiffResult[] {
 		return this._quickDiffs.map(quickDiff => {
 			const changes = this.changes
-				.filter(change => change.label === quickDiff.label)
-				.map(change => change.change2);
+				.filter(change => change.label === quickDiff.label);
 
 			return {
 				label: quickDiff.label,
 				original: quickDiff.originalResource,
 				modified: this._model.resource,
-				changes
+				changes: changes.map(change => change.change),
+				changes2: changes.map(change => change.change2)
 			};
 		});
 	}

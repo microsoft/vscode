@@ -41,7 +41,8 @@ export interface QuickDiffResult {
 	readonly label: string;
 	readonly original: URI;
 	readonly modified: URI;
-	readonly changes: LineRangeMapping[];
+	readonly changes: IChange[];
+	readonly changes2: LineRangeMapping[];
 }
 
 export interface IQuickDiffService {
