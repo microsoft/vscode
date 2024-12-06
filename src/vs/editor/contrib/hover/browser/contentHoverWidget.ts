@@ -403,7 +403,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 		height = dom.getTotalHeight(contentsDomNode);
 		width = dom.getTotalWidth(contentsDomNode);
-
 		this._contentWidth = width;
 		this._updateMinimumWidth();
 		this._resizableNode.layout(height, width);
