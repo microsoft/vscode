@@ -512,7 +512,7 @@ class ChatSetupRequests extends Disposable {
 			this.chatQuotasService.acceptQuotas({
 				chatQuotaExceeded: typeof state.quotas.chat === 'number' ? state.quotas.chat <= 0 : false,
 				completionsQuotaExceeded: typeof state.quotas.completions === 'number' ? state.quotas.completions <= 0 : false,
-				quotaResetDate: state.quotas.resetDate ? new Date(state.quotas.resetDate) : new Date(0)
+				quotaResetDate: state.quotas.resetDate ? new Date(state.quotas.resetDate) : undefined
 			});
 		}
 	}
