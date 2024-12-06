@@ -36,9 +36,9 @@ export interface IChatQuotasService {
 }
 
 export interface IChatQuotas {
-	readonly chatQuotaExceeded: boolean;
-	readonly completionsQuotaExceeded: boolean;
-	readonly quotaResetDate: Date;
+	chatQuotaExceeded: boolean;
+	completionsQuotaExceeded: boolean;
+	quotaResetDate: Date | undefined;
 }
 
 export const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
@@ -50,7 +50,7 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 	private readonly _onDidChangeQuotas = this._register(new Emitter<void>());
 	readonly onDidChangeQuotas: Event<void> = this._onDidChangeQuotas.event;
 
-	private _quotas = { chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: new Date(0) };
+	private _quotas: IChatQuotas = { chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: undefined };
 	get quotas(): IChatQuotas { return this._quotas; }
 
 	private readonly chatQuotaExceededContextKey = ChatContextKeys.chatQuotaExceeded.bindTo(this.contextKeyService);
@@ -227,7 +227,7 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 
 	clearQuotas(): void {
 		if (this.quotas.chatQuotaExceeded || this.quotas.completionsQuotaExceeded) {
-			this.acceptQuotas({ chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: new Date(0) });
+			this.acceptQuotas({ chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: undefined });
 		}
 	}
 
