@@ -64,6 +64,7 @@ import { LineRangeMapping, lineRangeMappingFromChange } from '../../../../editor
 import { DiffState } from '../../../../editor/browser/widget/diffEditor/diffEditorViewModel.js';
 import { toLineChanges } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { Iterable } from '../../../../base/common/iterator.js';
+import { IDirtyDiffModelService } from './diff.js';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -571,23 +572,18 @@ export class GotoPreviousChangeAction extends EditorAction {
 		const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 		const accessibilityService = accessor.get(IAccessibilityService);
 		const codeEditorService = accessor.get(ICodeEditorService);
+		const dirtyDiffModelService = accessor.get(IDirtyDiffModelService);
 
 		if (!outerEditor || !outerEditor.hasModel()) {
 			return;
 		}
 
-		const controller = DirtyDiffController.get(outerEditor);
-
-		if (!controller || !controller.modelRegistry) {
-			return;
-		}
-
-		const lineNumber = outerEditor.getPosition().lineNumber;
-		const model = controller.modelRegistry.getModel(outerEditor.getModel(), outerEditor);
+		const model = dirtyDiffModelService.getDirtyDiffModel(outerEditor.getModel().uri);
 		if (!model || model.changes.length === 0) {
 			return;
 		}
 
+		const lineNumber = outerEditor.getPosition().lineNumber;
 		const index = model.findPreviousClosestChange(lineNumber, false);
 		const change = model.changes[index];
 		await playAccessibilitySymbolForChange(change.change, accessibilitySignalService);
@@ -612,24 +608,20 @@ export class GotoNextChangeAction extends EditorAction {
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
 		const accessibilityService = accessor.get(IAccessibilityService);
 		const codeEditorService = accessor.get(ICodeEditorService);
+		const dirtyDiffModelService = accessor.get(IDirtyDiffModelService);
 
 		if (!outerEditor || !outerEditor.hasModel()) {
 			return;
 		}
 
-		const controller = DirtyDiffController.get(outerEditor);
 
-		if (!controller || !controller.modelRegistry) {
-			return;
-		}
-
-		const lineNumber = outerEditor.getPosition().lineNumber;
-		const model = controller.modelRegistry.getModel(outerEditor.getModel(), outerEditor);
+		const model = dirtyDiffModelService.getDirtyDiffModel(outerEditor.getModel().uri);
 
 		if (!model || model.changes.length === 0) {
 			return;
 		}
 
+		const lineNumber = outerEditor.getPosition().lineNumber;
 		const index = model.findNextClosestChange(lineNumber, false);
 		const change = model.changes[index].change;
 		await playAccessibilitySymbolForChange(change, accessibilitySignalService);
