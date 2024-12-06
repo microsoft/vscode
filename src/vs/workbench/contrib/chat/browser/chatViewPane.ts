@@ -27,10 +27,10 @@ import { SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModelInitState, IChatModel } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
+import { SetupWelcomeViewCondition, SetupWelcomeViewKeys } from './chatSetup.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 
@@ -103,9 +103,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this._onDidChangeViewWelcomeState.fire();
 		}));
 
-		const keysToWatch = new Set(ChatContextKeys.Setup.signedOut.key);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(keysToWatch)) {
+			if (e.affectsSome(SetupWelcomeViewKeys)) {
 				this._onDidChangeViewWelcomeState.fire();
 			}
 		}));
@@ -140,10 +139,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	override shouldShowWelcome(): boolean {
-		const signedOut = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Setup.signedOut.key);
+		const showSetup = this.contextKeyService.contextMatchesRules(SetupWelcomeViewCondition);
 		const noPersistedSessions = !this.chatService.hasSessions();
-		const shouldShow = this.didUnregisterProvider || !this._widget?.viewModel && noPersistedSessions || this.defaultParticipantRegistrationFailed || signedOut;
-		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: didUnregister=${this.didUnregisterProvider} || noViewModel:${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions} || defaultParticipantRegistrationFailed=${this.defaultParticipantRegistrationFailed} || signedOut=${signedOut}`);
+		const shouldShow = this.didUnregisterProvider || !this._widget?.viewModel && noPersistedSessions || this.defaultParticipantRegistrationFailed || showSetup;
+		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: didUnregister=${this.didUnregisterProvider} || noViewModel:${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions} || defaultParticipantRegistrationFailed=${this.defaultParticipantRegistrationFailed} || showSetup=${showSetup}`);
 		return !!shouldShow;
 	}
 
