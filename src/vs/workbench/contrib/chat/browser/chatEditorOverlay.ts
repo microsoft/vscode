@@ -5,7 +5,7 @@
 
 import './media/chatEditorOverlay.css';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IReader, ISettableObservable, ITransaction, observableFromEvent, observableSignal, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
@@ -17,7 +17,7 @@ import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionView
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IActionRunner } from '../../../../base/common/actions.js';
-import { $, append, EventLike, getWindow, reset, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { $, append, EventLike, reset } from '../../../../base/browser/dom.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -25,7 +25,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { assertType } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { ctxNotebookHasEditorModification } from '../../notebook/browser/contrib/chatEdit/notebookChatEditController.js';
 import { AcceptAction, RejectAction } from './chatEditorActions.js';
 import { ChatEditorController } from './chatEditorController.js';
 
@@ -195,22 +194,11 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 			this._domNode.classList.toggle('busy', busy);
 		}));
 
-		const slickRatio = ObservableAnimatedValue.const(0);
-		let t = Date.now();
 		this._showStore.add(autorun(r => {
 			const value = activeEntry.rewriteRatio.read(r);
-
-			slickRatio.changeAnimation(prev => {
-				const result = new AnimatedValue(prev.getValue(), value, Date.now() - t);
-				t = Date.now();
-				return result;
-			}, undefined);
-
-			const value2 = slickRatio.getValue(r);
-
 			reset(this._progressNode, (value === 0
 				? localize('generating', "Generating edits...")
-				: localize('applyingPercentage', "{0}% Applying edits...", Math.round(value2 * 100))));
+				: localize('applyingPercentage', "{0}% Applying edits...", Math.round(value * 100))));
 		}));
 
 		this._showStore.add(autorun(r => {
@@ -269,100 +257,9 @@ MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorContent, {
 		title: localize('label', "Navigation Status"),
 		precondition: ContextKeyExpr.false(),
 	},
-	when: ctxNotebookHasEditorModification.negate(),
 	group: 'navigate',
 	order: -1
 });
-
-
-export class ObservableAnimatedValue {
-	public static const(value: number): ObservableAnimatedValue {
-		return new ObservableAnimatedValue(AnimatedValue.const(value));
-	}
-
-	private readonly _value: ISettableObservable<AnimatedValue>;
-
-	constructor(
-		initialValue: AnimatedValue,
-	) {
-		this._value = observableValue(this, initialValue);
-	}
-
-	setAnimation(value: AnimatedValue, tx: ITransaction | undefined): void {
-		this._value.set(value, tx);
-	}
-
-	changeAnimation(fn: (prev: AnimatedValue) => AnimatedValue, tx: ITransaction | undefined): void {
-		const value = fn(this._value.get());
-		this._value.set(value, tx);
-	}
-
-	getValue(reader: IReader | undefined): number {
-		const value = this._value.read(reader);
-		if (!value.isFinished()) {
-			Scheduler.instance.invalidateOnNextAnimationFrame(reader);
-		}
-		return value.getValue();
-	}
-}
-
-class Scheduler {
-	static instance = new Scheduler();
-
-	private readonly _signal = observableSignal(this);
-
-	private _isScheduled = false;
-
-	invalidateOnNextAnimationFrame(reader: IReader | undefined): void {
-		this._signal.read(reader);
-		if (!this._isScheduled) {
-			this._isScheduled = true;
-			scheduleAtNextAnimationFrame(getWindow(undefined), () => {
-				this._isScheduled = false;
-				this._signal.trigger(undefined);
-			});
-		}
-	}
-}
-
-export class AnimatedValue {
-
-	static const(value: number): AnimatedValue {
-		return new AnimatedValue(value, value, 0);
-	}
-
-	readonly startTimeMs = Date.now();
-
-	constructor(
-		readonly startValue: number,
-		readonly endValue: number,
-		readonly durationMs: number,
-	) {
-		if (startValue === endValue) {
-			this.durationMs = 0;
-		}
-	}
-
-	isFinished(): boolean {
-		return Date.now() >= this.startTimeMs + this.durationMs;
-	}
-
-	getValue(): number {
-		const timePassed = Date.now() - this.startTimeMs;
-		if (timePassed >= this.durationMs) {
-			return this.endValue;
-		}
-		const value = easeOutExpo(timePassed, this.startValue, this.endValue - this.startValue, this.durationMs);
-		return value;
-	}
-}
-
-function easeOutExpo(passedTime: number, start: number, length: number, totalDuration: number): number {
-	return passedTime === totalDuration
-		? start + length
-		: length * (-Math.pow(2, -10 * passedTime / totalDuration) + 1) + start;
-}
-
 
 export class ChatEditorOverlayController implements IEditorContribution {
 
