@@ -180,7 +180,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				await that.context.update({ triggered: true });
 
-				showCopilotView(viewsService);
+				showCopilotView(viewsService, layoutService);
 				ensureSideBarChatViewSize(400, viewDescriptorService, layoutService);
 
 				if (startSetup === true && !ASK_FOR_PUBLIC_CODE_MATCHES) {
@@ -616,7 +616,8 @@ class ChatSetupController extends Disposable {
 		@IProgressService private readonly progressService: IProgressService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IActivityService private readonly activityService: IActivityService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
 
@@ -692,7 +693,7 @@ class ChatSetupController extends Disposable {
 		let session: AuthenticationSession | undefined;
 		let entitlement: ChatEntitlement | undefined;
 		try {
-			showCopilotView(this.viewsService);
+			showCopilotView(this.viewsService, this.layoutService);
 			session = await this.authenticationService.createSession(defaultChat.providerId, defaultChat.providerScopes[0]);
 			entitlement = await this.requests.forceResolveEntitlement(session);
 		} catch (error) {
@@ -714,7 +715,7 @@ class ChatSetupController extends Disposable {
 		const wasInstalled = this.context.state.installed;
 		let didSignUp = false;
 		try {
-			showCopilotView(this.viewsService);
+			showCopilotView(this.viewsService, this.layoutService);
 
 			if (entitlement !== ChatEntitlement.Limited && entitlement !== ChatEntitlement.Pro && entitlement !== ChatEntitlement.Unavailable) {
 				didSignUp = await this.requests.signUpLimited(session, options);
@@ -749,7 +750,7 @@ class ChatSetupController extends Disposable {
 
 		const currentActiveElement = getActiveElement();
 		if (activeElement === currentActiveElement || currentActiveElement === mainWindow.document.body) {
-			(await showCopilotView(this.viewsService))?.focusInput();
+			(await showCopilotView(this.viewsService, this.layoutService))?.focusInput();
 		}
 	}
 }
@@ -1060,7 +1061,14 @@ function isCopilotEditsViewActive(viewsService: IViewsService): boolean {
 	return viewsService.getFocusedView()?.id === EditsViewId;
 }
 
-function showCopilotView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
+function showCopilotView(viewsService: IViewsService, layoutService: IWorkbenchLayoutService): Promise<IChatWidget | undefined> {
+
+	// Ensure main window is in front
+	if (layoutService.activeContainer !== layoutService.mainContainer) {
+		layoutService.mainContainer.focus();
+	}
+
+	// Bring up the correct view
 	if (isCopilotEditsViewActive(viewsService)) {
 		return showEditsView(viewsService);
 	} else {
