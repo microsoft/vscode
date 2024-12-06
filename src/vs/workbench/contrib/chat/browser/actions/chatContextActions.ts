@@ -43,7 +43,7 @@ import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../searc
 import { SearchContext } from '../../../search/common/constants.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariableData, IChatVariablesService } from '../../common/chatVariables.js';
@@ -794,8 +794,10 @@ export class AttachContextAction extends Action2 {
 				// Avoid attaching the same context twice
 				const attachedContext = widget.attachmentModel.getAttachmentIDs();
 				if (chatEditingService) {
-					for (const file of chatEditingService.currentEditingSessionObs.get()?.workingSet.keys() ?? []) {
-						attachedContext.add(this._getFileContextId({ resource: file }));
+					for (const [file, state] of chatEditingService.currentEditingSessionObs.get()?.workingSet.entries() ?? []) {
+						if (state.state !== WorkingSetEntryState.Suggested) {
+							attachedContext.add(this._getFileContextId({ resource: file }));
+						}
 					}
 				}
 

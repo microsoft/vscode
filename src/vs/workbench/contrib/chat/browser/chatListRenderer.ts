@@ -566,7 +566,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if (isResponseVM(element) && element.errorDetails?.message) {
-			if (element.errorDetails.quotaExceededDetails) {
+			if (element.errorDetails.isQuotaExceeded) {
 				const renderedError = this.instantiationService.createInstance(ChatQuotaExceededPart, element, this.renderer);
 				templateData.elementDisposables.add(renderedError);
 				templateData.value.appendChild(renderedError.domNode);

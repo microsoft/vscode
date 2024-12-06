@@ -3314,7 +3314,7 @@ declare namespace monaco.editor {
 		/**
 		 * Controls whether to use default color decorations or not using the default document color provider
 		 */
-		defaultColorDecorators?: boolean;
+		defaultColorDecorators?: 'auto' | 'always' | 'never';
 		/**
 		 * Disable the use of `transform: translate3d(0px, 0px, 0px)` for the editor margin and lines layers.
 		 * The usage of `transform: translate3d(0px, 0px, 0px)` acts as a hint for browsers to create an extra layer.
@@ -5051,14 +5051,14 @@ declare namespace monaco.editor {
 		ariaLabel: IEditorOption<EditorOption.ariaLabel, string>;
 		ariaRequired: IEditorOption<EditorOption.ariaRequired, boolean>;
 		screenReaderAnnounceInlineSuggestion: IEditorOption<EditorOption.screenReaderAnnounceInlineSuggestion, boolean>;
-		autoClosingBrackets: IEditorOption<EditorOption.autoClosingBrackets, 'always' | 'languageDefined' | 'beforeWhitespace' | 'never'>;
-		autoClosingComments: IEditorOption<EditorOption.autoClosingComments, 'always' | 'languageDefined' | 'beforeWhitespace' | 'never'>;
+		autoClosingBrackets: IEditorOption<EditorOption.autoClosingBrackets, 'always' | 'never' | 'languageDefined' | 'beforeWhitespace'>;
+		autoClosingComments: IEditorOption<EditorOption.autoClosingComments, 'always' | 'never' | 'languageDefined' | 'beforeWhitespace'>;
 		autoClosingDelete: IEditorOption<EditorOption.autoClosingDelete, 'auto' | 'always' | 'never'>;
 		autoClosingOvertype: IEditorOption<EditorOption.autoClosingOvertype, 'auto' | 'always' | 'never'>;
-		autoClosingQuotes: IEditorOption<EditorOption.autoClosingQuotes, 'always' | 'languageDefined' | 'beforeWhitespace' | 'never'>;
+		autoClosingQuotes: IEditorOption<EditorOption.autoClosingQuotes, 'always' | 'never' | 'languageDefined' | 'beforeWhitespace'>;
 		autoIndent: IEditorOption<EditorOption.autoIndent, EditorAutoIndentStrategy>;
 		automaticLayout: IEditorOption<EditorOption.automaticLayout, boolean>;
-		autoSurround: IEditorOption<EditorOption.autoSurround, 'languageDefined' | 'never' | 'quotes' | 'brackets'>;
+		autoSurround: IEditorOption<EditorOption.autoSurround, 'never' | 'languageDefined' | 'quotes' | 'brackets'>;
 		bracketPairColorization: IEditorOption<EditorOption.bracketPairColorization, Readonly<Required<IBracketPairColorizationOptions>>>;
 		bracketPairGuides: IEditorOption<EditorOption.guides, Readonly<Required<IGuidesOptions>>>;
 		stickyTabStops: IEditorOption<EditorOption.stickyTabStops, boolean>;
@@ -5193,7 +5193,7 @@ declare namespace monaco.editor {
 		wordWrapOverride2: IEditorOption<EditorOption.wordWrapOverride2, 'on' | 'off' | 'inherit'>;
 		effectiveCursorStyle: IEditorOption<EditorOption.effectiveCursorStyle, TextEditorCursorStyle>;
 		editorClassName: IEditorOption<EditorOption.editorClassName, string>;
-		defaultColorDecorators: IEditorOption<EditorOption.defaultColorDecorators, boolean>;
+		defaultColorDecorators: IEditorOption<EditorOption.defaultColorDecorators, 'auto' | 'always' | 'never'>;
 		pixelRatio: IEditorOption<EditorOption.pixelRatio, number>;
 		tabFocusMode: IEditorOption<EditorOption.tabFocusMode, boolean>;
 		layoutInfo: IEditorOption<EditorOption.layoutInfo, EditorLayoutInfo>;
@@ -5828,6 +5828,10 @@ declare namespace monaco.editor {
 		 * @event
 		 */
 		readonly onDidBlurEditorWidget: IEvent<void>;
+		/**
+		 * Boolean indicating whether input is in composition
+		 */
+		readonly inComposition: boolean;
 		/**
 		 * An event emitted after composition has started.
 		 */
