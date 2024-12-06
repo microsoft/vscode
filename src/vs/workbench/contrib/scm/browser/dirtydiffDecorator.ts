@@ -60,7 +60,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { IQuickDiffService, QuickDiff, QuickDiffChange, QuickDiffResult } from '../common/quickDiff.js';
 import { IQuickDiffSelectItem, SwitchQuickDiffBaseAction, SwitchQuickDiffViewItem } from './dirtyDiffSwitcher.js';
 import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
-import { lineRangeMappingFromChange } from '../../../../editor/common/diff/rangeMapping.js';
+import { LineRangeMapping, lineRangeMappingFromChange } from '../../../../editor/common/diff/rangeMapping.js';
 import { DiffState } from '../../../../editor/browser/widget/diffEditor/diffEditorViewModel.js';
 import { toLineChanges } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -292,7 +292,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 	}
 
 	private renderTitle(label: string): void {
-		const providerChanges = this.model.mapChanges.get(label)!;
+		const providerChanges = this.model.quickDiffChanges.get(label)!;
 		const providerIndex = providerChanges.indexOf(this._index);
 
 		let detail: string;
@@ -337,16 +337,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 	}
 
 	private shouldUseDropdown(): boolean {
-		let providersWithChangesCount = 0;
-		if (this.model.mapChanges.size > 1) {
-			const keys = Array.from(this.model.mapChanges.keys());
-			for (let i = 0; (i < keys.length) && (providersWithChangesCount <= 1); i++) {
-				if (this.model.mapChanges.get(keys[i])!.length > 0) {
-					providersWithChangesCount++;
-				}
-			}
-		}
-		return providersWithChangesCount >= 2;
+		return this.model.getQuickDiffResults()
+			.filter(quickDiff => quickDiff.changes.length > 0).length > 1;
 	}
 
 	private updateActions(): void {
@@ -788,7 +780,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		if (this.editor.hasModel() && (typeof lineNumber === 'number' || !this.widget.provider)) {
 			index = this.model.findNextClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.provider);
 		} else {
-			const providerChanges: number[] = this.model.mapChanges.get(this.widget.provider) ?? this.model.mapChanges.values().next().value!;
+			const providerChanges: number[] = this.model.quickDiffChanges.get(this.widget.provider) ?? this.model.quickDiffChanges.values().next().value!;
 			const mapIndex = providerChanges.findIndex(value => value === this.widget!.index);
 			index = providerChanges[rot(mapIndex + 1, providerChanges.length)];
 		}
@@ -808,7 +800,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		if (this.editor.hasModel() && (typeof lineNumber === 'number')) {
 			index = this.model.findPreviousClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.provider);
 		} else {
-			const providerChanges: number[] = this.model.mapChanges.get(this.widget.provider) ?? this.model.mapChanges.values().next().value!;
+			const providerChanges: number[] = this.model.quickDiffChanges.get(this.widget.provider) ?? this.model.quickDiffChanges.values().next().value!;
 			const mapIndex = providerChanges.findIndex(value => value === this.widget!.index);
 			index = providerChanges[rot(mapIndex - 1, providerChanges.length)];
 		}
@@ -1237,8 +1229,8 @@ export class DirtyDiffModel extends Disposable {
 	/**
 	 * Map of quick diff name to the index of the change in `this.changes`
 	 */
-	private _mapChanges: Map<string, number[]> = new Map();
-	get mapChanges(): Map<string, number[]> { return this._mapChanges; }
+	private _quickDiffChanges: Map<string, number[]> = new Map();
+	get quickDiffChanges(): Map<string, number[]> { return this._quickDiffChanges; }
 
 	constructor(
 		textFileModel: IResolvedTextFileEditorModel,
@@ -1347,7 +1339,7 @@ export class DirtyDiffModel extends Disposable {
 	private setChanges(changes: QuickDiffChange[], mapChanges: Map<string, number[]>): void {
 		const diff = sortedDiff(this.changes, changes, (a, b) => compareChanges(a.change, b.change));
 		this._changes = changes;
-		this._mapChanges = mapChanges;
+		this._quickDiffChanges = mapChanges;
 		this._onDidChange.fire({ changes, diff });
 	}
 
@@ -1371,17 +1363,15 @@ export class DirtyDiffModel extends Disposable {
 			const allDiffs: QuickDiffChange[] = [];
 			for (const quickDiff of filteredToDiffable) {
 				const dirtyDiff = await this._diff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace);
-				if (dirtyDiff) {
-					for (const diff of dirtyDiff) {
-						if (diff) {
-							allDiffs.push({
-								label: quickDiff.label,
-								original: quickDiff.originalResource,
-								modified: this._model.resource,
-								change: diff,
-								change2: lineRangeMappingFromChange(diff)
-							});
-						}
+				if (dirtyDiff.changes && dirtyDiff.changes2 && dirtyDiff.changes.length === dirtyDiff.changes2.length) {
+					for (let index = 0; index < dirtyDiff.changes.length; index++) {
+						allDiffs.push({
+							label: quickDiff.label,
+							original: quickDiff.originalResource,
+							modified: this._model.resource,
+							change: dirtyDiff.changes[index],
+							change2: dirtyDiff.changes2[index]
+						});
 					}
 				}
 			}
@@ -1398,22 +1388,19 @@ export class DirtyDiffModel extends Disposable {
 		});
 	}
 
-	private async _diff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> {
+	private async _diff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<{ changes: readonly IChange[] | null; changes2: readonly LineRangeMapping[] | null }> {
 		if (this.algorithm === undefined) {
-			return this.editorWorkerService.computeDirtyDiff(original, modified, ignoreTrimWhitespace);
+			const changes = await this.editorWorkerService.computeDirtyDiff(original, modified, ignoreTrimWhitespace);
+			return { changes, changes2: changes?.map(change => lineRangeMappingFromChange(change)) ?? null };
 		}
 
-		const diffResult = await this.editorWorkerService.computeDiff(original, modified, {
+		const result = await this.editorWorkerService.computeDiff(original, modified, {
 			computeMoves: false,
 			ignoreTrimWhitespace,
 			maxComputationTimeMs: Number.MAX_SAFE_INTEGER
 		}, this.algorithm);
 
-		if (!diffResult) {
-			return null;
-		}
-
-		return toLineChanges(DiffState.fromDiffResult(diffResult));
+		return { changes: result ? toLineChanges(DiffState.fromDiffResult(result)) : null, changes2: result?.changes ?? null };
 	}
 
 	private getQuickDiffsPromise(): Promise<QuickDiff[]> {
