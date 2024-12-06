@@ -61,11 +61,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return this._currentSessionObs;
 	}
 
-	private readonly _onDidCreateEditingSession = this._register(new Emitter<IChatEditingSession>());
-	get onDidCreateEditingSession() {
-		return this._onDidCreateEditingSession.event;
-	}
-
 	private readonly _onDidChangeEditingSession = this._register(new Emitter<void>());
 	public readonly onDidChangeEditingSession = this._onDidChangeEditingSession.event;
 
@@ -220,7 +215,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}));
 
 		this._currentSessionObs.set(session, undefined);
-		this._onDidCreateEditingSession.fire(session);
 		this._onDidChangeEditingSession.fire();
 		return session;
 	}

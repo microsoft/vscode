@@ -23,7 +23,6 @@ export interface IChatEditingService {
 
 	_serviceBrand: undefined;
 
-	readonly onDidCreateEditingSession: Event<IChatEditingSession>;
 	/**
 	 * emitted when a session is created, changed or disposed
 	 */

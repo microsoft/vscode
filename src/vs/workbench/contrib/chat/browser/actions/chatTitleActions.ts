@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
+import { waitForState } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -465,9 +465,7 @@ export function registerChatTitleActions() {
 
 			let editingSession = chatEditingService.currentEditingSessionObs.get();
 			if (!editingSession) {
-				await Event.toPromise(chatEditingService.onDidCreateEditingSession);
-				editingSession = chatEditingService.currentEditingSessionObs.get();
-				return;
+				editingSession = await waitForState(chatEditingService.currentEditingSessionObs);
 			}
 
 			if (!editingSession) {
