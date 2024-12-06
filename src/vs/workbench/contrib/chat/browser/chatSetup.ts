@@ -954,7 +954,7 @@ class ChatSetupContext extends Disposable {
 		super();
 
 		this.checkExtensionInstallation();
-		this.updateContext();
+		this.updateContextSync();
 	}
 
 	private async checkExtensionInstallation(): Promise<void> {
@@ -1015,6 +1015,10 @@ class ChatSetupContext extends Disposable {
 	private async updateContext(): Promise<void> {
 		await this.updateBarrier?.wait();
 
+		this.updateContextSync();
+	}
+
+	private updateContextSync(): void {
 		this.logService.trace(`[chat setup] updateContext(): ${JSON.stringify(this._state)}`);
 
 		if (this._state.triggered && !this._state.installed) {
