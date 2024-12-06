@@ -182,12 +182,10 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!availableSpace) {
 			return;
 		}
-		// Padding needed in order to stop the resizing down to a smaller height
 		let maximumHeight = 2;
 		Array.from(this._hover.contentsDomNode.children).forEach((hoverPart) => {
 			maximumHeight += hoverPart.clientHeight;
 		});
-
 		return Math.min(availableSpace, maximumHeight);
 	}
 
@@ -394,24 +392,17 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	public onContentsChanged(): void {
-		console.log('onContentsChanged');
 		this._removeConstraintsRenderNormally();
-		const containerDomNode = this._hover.containerDomNode;
+		const contentsDomNode = this._hover.contentsDomNode;
 
-		let height = dom.getTotalHeight(containerDomNode);
-		let width = dom.getTotalWidth(containerDomNode);
+		let height = dom.getTotalHeight(contentsDomNode);
+		let width = dom.getTotalWidth(contentsDomNode) + 2;
 		this._resizableNode.layout(height, width);
-
-		console.log('height', height);
-		console.log('width ', width);
 
 		this._setHoverWidgetDimensions(width, height);
 
-		height = dom.getTotalHeight(containerDomNode);
-		width = dom.getTotalWidth(containerDomNode);
-
-		console.log('height', height);
-		console.log('width ', width);
+		height = dom.getTotalHeight(contentsDomNode);
+		width = dom.getTotalWidth(contentsDomNode);
 
 		this._contentWidth = width;
 		this._updateMinimumWidth();

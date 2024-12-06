@@ -134,7 +134,7 @@ export class ResizableHTMLElement {
 	}
 
 	layout(height: number = this.size.height, width: number = this.size.width): void {
-		console.log('layout');
+
 		const { height: minHeight, width: minWidth } = this._minSize;
 		const { height: maxHeight, width: maxWidth } = this._maxSize;
 
@@ -143,8 +143,6 @@ export class ResizableHTMLElement {
 
 		const newSize = new Dimension(width, height);
 		if (!Dimension.equals(newSize, this._size)) {
-			console.log('height : ', height);
-			console.log('width : ', width);
 			this.domNode.style.height = height + 'px';
 			this.domNode.style.width = width + 'px';
 			this._size = newSize;
