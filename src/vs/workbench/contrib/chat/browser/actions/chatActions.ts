@@ -534,9 +534,11 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
 		ContextKeyExpr.or(
+			ContextKeyExpr.and(
+				ContextKeyExpr.has('config.chat.experimental.offerSetup'),
+				ChatContextKeys.Setup.entitled,
+			),
 			ChatContextKeys.Setup.installed,
-			ChatContextKeys.Setup.entitled,
-			ContextKeyExpr.has('config.chat.experimental.offerSetup'),
 			ChatContextKeys.panelParticipantRegistered
 		)
 	),
