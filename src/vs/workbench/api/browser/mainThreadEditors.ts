@@ -166,7 +166,12 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 				}
 
 				return observableFromEvent(this, dirtyDiffModel.onDidChange, () => {
-					return dirtyDiffModel.getQuickDiffResults();
+					return dirtyDiffModel.getQuickDiffResults()
+						.map(result => ({
+							original: result.original,
+							modified: result.modified,
+							changes: result.changes2
+						}));
 				});
 			}
 
@@ -180,7 +185,12 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			}
 
 			return observableFromEvent(Event.any(dirtyDiffModel.onDidChange, diffEditor.onDidUpdateDiff), () => {
-				const dirtyDiffInformation = dirtyDiffModel.getQuickDiffResults();
+				const dirtyDiffInformation = dirtyDiffModel.getQuickDiffResults()
+					.map(result => ({
+						original: result.original,
+						modified: result.modified,
+						changes: result.changes2
+					}));
 
 				const diffChanges = diffEditor.getDiffComputationResult()?.changes2 ?? [];
 				const diffInformation = [{

@@ -7,7 +7,7 @@ import * as nls from '../../../../nls.js';
 
 import './media/dirtydiffDecorator.css';
 import { ThrottledDelayer } from '../../../../base/common/async.js';
-import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IDisposable, dispose, toDisposable, Disposable, DisposableStore, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import * as ext from '../../../common/contributions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -57,12 +57,13 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { IQuickDiffService, QuickDiff, QuickDiffResult } from '../common/quickDiff.js';
+import { IQuickDiffService, QuickDiff, QuickDiffChange, QuickDiffResult } from '../common/quickDiff.js';
 import { IQuickDiffSelectItem, SwitchQuickDiffBaseAction, SwitchQuickDiffViewItem } from './dirtyDiffSwitcher.js';
 import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
-import { lineRangeMappingFromChanges } from '../../../../editor/common/diff/rangeMapping.js';
+import { LineRangeMapping, lineRangeMappingFromChange } from '../../../../editor/common/diff/rangeMapping.js';
 import { DiffState } from '../../../../editor/browser/widget/diffEditor/diffEditorViewModel.js';
 import { toLineChanges } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -204,8 +205,10 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._applyTheme(themeService.getColorTheme());
 
-		if (this.model.original.length > 0) {
-			contextKeyService = contextKeyService.createOverlay([['originalResourceScheme', this.model.original[0].uri.scheme], ['originalResourceSchemes', this.model.original.map(original => original.uri.scheme)]]);
+		if (!Iterable.isEmpty(this.model.originalTextModels)) {
+			contextKeyService = contextKeyService.createOverlay([
+				['originalResourceScheme', Iterable.first(this.model.originalTextModels)?.uri.scheme],
+				['originalResourceSchemes', Iterable.map(this.model.originalTextModels, textModel => textModel.uri.scheme)]]);
 		}
 
 		this.create();
@@ -234,15 +237,13 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const labeledChange = this.model.changes[index];
 		const change = labeledChange.change;
 		this._index = index;
-		this.contextKeyService.createKey('originalResourceScheme', this.model.changes[index].uri.scheme);
+		this.contextKeyService.createKey('originalResourceScheme', this.model.changes[index].original.scheme);
 		this.updateActions();
 
 		this._provider = labeledChange.label;
 		this.change = change;
 
-		const originalModel = this.model.original;
-
-		if (!originalModel) {
+		if (Iterable.isEmpty(this.model.originalTextModels)) {
 			return;
 		}
 
@@ -252,7 +253,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		// non-side-by-side diff still hasn't created the view zones
 		onFirstDiffUpdate(() => setTimeout(() => this.revealChange(change), 0));
 
-		const diffEditorModel = this.model.getDiffEditorModel(labeledChange.uri.toString());
+		const diffEditorModel = this.model.getDiffEditorModel(labeledChange.original);
 		if (!diffEditorModel) {
 			return;
 		}
@@ -291,7 +292,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 	}
 
 	private renderTitle(label: string): void {
-		const providerChanges = this.model.mapChanges.get(label)!;
+		const providerChanges = this.model.quickDiffChanges.get(label)!;
 		const providerIndex = providerChanges.indexOf(this._index);
 
 		let detail: string;
@@ -336,16 +337,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 	}
 
 	private shouldUseDropdown(): boolean {
-		let providersWithChangesCount = 0;
-		if (this.model.mapChanges.size > 1) {
-			const keys = Array.from(this.model.mapChanges.keys());
-			for (let i = 0; (i < keys.length) && (providersWithChangesCount <= 1); i++) {
-				if (this.model.mapChanges.get(keys[i])!.length > 0) {
-					providersWithChangesCount++;
-				}
-			}
-		}
-		return providersWithChangesCount >= 2;
+		return this.model.getQuickDiffResults()
+			.filter(quickDiff => quickDiff.changes.length > 0).length > 1;
 	}
 
 	private updateActions(): void {
@@ -787,7 +780,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		if (this.editor.hasModel() && (typeof lineNumber === 'number' || !this.widget.provider)) {
 			index = this.model.findNextClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.provider);
 		} else {
-			const providerChanges: number[] = this.model.mapChanges.get(this.widget.provider) ?? this.model.mapChanges.values().next().value!;
+			const providerChanges: number[] = this.model.quickDiffChanges.get(this.widget.provider) ?? this.model.quickDiffChanges.values().next().value!;
 			const mapIndex = providerChanges.findIndex(value => value === this.widget!.index);
 			index = providerChanges[rot(mapIndex + 1, providerChanges.length)];
 		}
@@ -807,7 +800,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		if (this.editor.hasModel() && (typeof lineNumber === 'number')) {
 			index = this.model.findPreviousClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.provider);
 		} else {
-			const providerChanges: number[] = this.model.mapChanges.get(this.widget.provider) ?? this.model.mapChanges.values().next().value!;
+			const providerChanges: number[] = this.model.quickDiffChanges.get(this.widget.provider) ?? this.model.quickDiffChanges.values().next().value!;
 			const mapIndex = providerChanges.findIndex(value => value === this.widget!.index);
 			index = providerChanges[rot(mapIndex - 1, providerChanges.length)];
 		}
@@ -879,7 +872,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		return true;
 	}
 
-	private onDidModelChange(splices: ISplice<LabeledChange>[]): void {
+	private onDidModelChange(splices: ISplice<QuickDiffChange>[]): void {
 		if (!this.model || !this.widget || this.widget.hasFocus()) {
 			return;
 		}
@@ -1210,29 +1203,34 @@ export async function getOriginalResource(quickDiffService: IQuickDiffService, u
 	return quickDiffs.length > 0 ? quickDiffs[0].originalResource : null;
 }
 
-type LabeledChange = { change: IChange; label: string; uri: URI };
-
 export class DirtyDiffModel extends Disposable {
 
-	private _quickDiffs: QuickDiff[] = [];
-	private _originalModels: Map<string, IResolvedTextEditorModel> = new Map(); // key is uri.toString()
-	private _originalTextModels: ITextModel[] = [];
 	private _model: ITextFileEditorModel;
-	get original(): ITextModel[] { return this._originalTextModels; }
 
-	private diffDelayer = new ThrottledDelayer<void>(200);
-	private _quickDiffsPromise?: Promise<QuickDiff[]>;
-	private repositoryDisposables = new Set<IDisposable>();
-	private readonly originalModelDisposables = this._register(new DisposableStore());
+	private readonly _originalEditorModels = new ResourceMap<IResolvedTextEditorModel>();
+	private readonly _originalEditorModelsDisposables = this._register(new DisposableStore());
+	get originalTextModels(): Iterable<ITextModel> {
+		return Iterable.map(this._originalEditorModels.values(), editorModel => editorModel.textEditorModel);
+	}
+
 	private _disposed = false;
+	private _quickDiffs: QuickDiff[] = [];
+	private _quickDiffsPromise?: Promise<QuickDiff[]>;
+	private _diffDelayer = new ThrottledDelayer<void>(200);
 
-	private readonly _onDidChange = new Emitter<{ changes: LabeledChange[]; diff: ISplice<LabeledChange>[] }>();
-	readonly onDidChange: Event<{ changes: LabeledChange[]; diff: ISplice<LabeledChange>[] }> = this._onDidChange.event;
+	private readonly _onDidChange = new Emitter<{ changes: QuickDiffChange[]; diff: ISplice<QuickDiffChange>[] }>();
+	readonly onDidChange: Event<{ changes: QuickDiffChange[]; diff: ISplice<QuickDiffChange>[] }> = this._onDidChange.event;
 
-	private _changes: LabeledChange[] = [];
-	get changes(): LabeledChange[] { return this._changes; }
-	private _mapChanges: Map<string, number[]> = new Map(); // key is the quick diff name, value is the index of the change in this._changes
-	get mapChanges(): Map<string, number[]> { return this._mapChanges; }
+	private _changes: QuickDiffChange[] = [];
+	get changes(): QuickDiffChange[] { return this._changes; }
+
+	/**
+	 * Map of quick diff name to the index of the change in `this.changes`
+	 */
+	private _quickDiffChanges: Map<string, number[]> = new Map();
+	get quickDiffChanges(): Map<string, number[]> { return this._quickDiffChanges; }
+
+	private readonly _repositoryDisposables = new DisposableMap<ISCMRepository>();
 
 	constructor(
 		textFileModel: IResolvedTextFileEditorModel,
@@ -1260,10 +1258,9 @@ export class DirtyDiffModel extends Disposable {
 		}
 
 		this._register(this._model.onDidChangeEncoding(() => {
-			this.diffDelayer.cancel();
+			this._diffDelayer.cancel();
 			this._quickDiffs = [];
-			this._originalModels.clear();
-			this._originalTextModels = [];
+			this._originalEditorModels.clear();
 			this._quickDiffsPromise = undefined;
 			this.setChanges([], new Map());
 			this.triggerDiff();
@@ -1280,65 +1277,56 @@ export class DirtyDiffModel extends Disposable {
 
 	public getQuickDiffResults(): QuickDiffResult[] {
 		return this._quickDiffs.map(quickDiff => {
-			const changes = this._changes
-				.filter(change => change.label === quickDiff.label)
-				.map(change => change.change);
+			const changes = this.changes
+				.filter(change => change.label === quickDiff.label);
 
-			// Convert IChange[] to LineRangeMapping[]
-			const lineRangeMappings = lineRangeMappingFromChanges(changes);
 			return {
+				label: quickDiff.label,
 				original: quickDiff.originalResource,
 				modified: this._model.resource,
-				changes: lineRangeMappings
+				changes: changes.map(change => change.change),
+				changes2: changes.map(change => change.change2)
 			};
 		});
 	}
 
-	public getDiffEditorModel(originalUri: string): IDiffEditorModel | undefined {
-		if (!this._originalModels.has(originalUri)) {
-			return;
-		}
-		const original = this._originalModels.get(originalUri)!;
-
-		return {
-			modified: this._model.textEditorModel!,
-			original: original.textEditorModel
-		};
+	public getDiffEditorModel(originalUri: URI): IDiffEditorModel | undefined {
+		const editorModel = this._originalEditorModels.get(originalUri);
+		return editorModel ?
+			{
+				modified: this._model.textEditorModel!,
+				original: editorModel.textEditorModel
+			} : undefined;
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
 		const disposables = new DisposableStore();
 
-		this.repositoryDisposables.add(disposables);
-		disposables.add(toDisposable(() => this.repositoryDisposables.delete(disposables)));
-
 		disposables.add(repository.provider.onDidChangeResources(this.triggerDiff, this));
 
-		const onDidRemoveThis = Event.filter(this.scmService.onDidRemoveRepository, r => r === repository);
-		disposables.add(onDidRemoveThis(() => dispose(disposables), null));
+		const onDidRemoveRepository = Event.filter(this.scmService.onDidRemoveRepository, r => r === repository);
+		disposables.add(onDidRemoveRepository(() => this._repositoryDisposables.deleteAndDispose(repository)));
+
+		this._repositoryDisposables.set(repository, disposables);
 
 		this.triggerDiff();
 	}
 
 	private triggerDiff(): void {
-		if (!this.diffDelayer) {
+		if (!this._diffDelayer) {
 			return;
 		}
 
-		this.diffDelayer
+		this._diffDelayer
 			.trigger(async () => {
-				const result: { changes: LabeledChange[]; mapChanges: Map<string, number[]> } | null = await this.diff();
+				const result: { changes: QuickDiffChange[]; mapChanges: Map<string, number[]> } | null = await this.diff();
 
-				const originalModels = Array.from(this._originalModels.values());
-				if (!result || this._disposed || this._model.isDisposed() || originalModels.some(originalModel => originalModel.isDisposed())) {
+				const editorModels = Array.from(this._originalEditorModels.values());
+				if (!result || this._disposed || this._model.isDisposed() || editorModels.some(editorModel => editorModel.isDisposed())) {
 					return; // disposed
 				}
 
-				if (originalModels.every(originalModel => originalModel.textEditorModel.getValueLength() === 0)) {
-					result.changes = [];
-				}
-
-				if (!result.changes) {
+				if (editorModels.every(editorModel => editorModel.textEditorModel.getValueLength() === 0)) {
 					result.changes = [];
 				}
 
@@ -1347,14 +1335,14 @@ export class DirtyDiffModel extends Disposable {
 			.catch(err => onUnexpectedError(err));
 	}
 
-	private setChanges(changes: LabeledChange[], mapChanges: Map<string, number[]>): void {
-		const diff = sortedDiff(this._changes, changes, (a, b) => compareChanges(a.change, b.change));
+	private setChanges(changes: QuickDiffChange[], mapChanges: Map<string, number[]>): void {
+		const diff = sortedDiff(this.changes, changes, (a, b) => compareChanges(a.change, b.change));
 		this._changes = changes;
-		this._mapChanges = mapChanges;
+		this._quickDiffChanges = mapChanges;
 		this._onDidChange.fire({ changes, diff });
 	}
 
-	private diff(): Promise<{ changes: LabeledChange[]; mapChanges: Map<string, number[]> } | null> {
+	private diff(): Promise<{ changes: QuickDiffChange[]; mapChanges: Map<string, number[]> } | null> {
 		return this.progressService.withProgress({ location: ProgressLocation.Scm, delay: 250 }, async () => {
 			const originalURIs = await this.getQuickDiffsPromise();
 			if (this._disposed || this._model.isDisposed() || (originalURIs.length === 0)) {
@@ -1371,14 +1359,18 @@ export class DirtyDiffModel extends Disposable {
 				? this.configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace')
 				: ignoreTrimWhitespaceSetting !== 'false';
 
-			const allDiffs: LabeledChange[] = [];
+			const allDiffs: QuickDiffChange[] = [];
 			for (const quickDiff of filteredToDiffable) {
 				const dirtyDiff = await this._diff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace);
-				if (dirtyDiff) {
-					for (const diff of dirtyDiff) {
-						if (diff) {
-							allDiffs.push({ change: diff, label: quickDiff.label, uri: quickDiff.originalResource });
-						}
+				if (dirtyDiff.changes && dirtyDiff.changes2 && dirtyDiff.changes.length === dirtyDiff.changes2.length) {
+					for (let index = 0; index < dirtyDiff.changes.length; index++) {
+						allDiffs.push({
+							label: quickDiff.label,
+							original: quickDiff.originalResource,
+							modified: this._model.resource,
+							change: dirtyDiff.changes[index],
+							change2: dirtyDiff.changes2[index]
+						});
 					}
 				}
 			}
@@ -1395,22 +1387,19 @@ export class DirtyDiffModel extends Disposable {
 		});
 	}
 
-	private async _diff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> {
+	private async _diff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<{ changes: readonly IChange[] | null; changes2: readonly LineRangeMapping[] | null }> {
 		if (this.algorithm === undefined) {
-			return this.editorWorkerService.computeDirtyDiff(original, modified, ignoreTrimWhitespace);
+			const changes = await this.editorWorkerService.computeDirtyDiff(original, modified, ignoreTrimWhitespace);
+			return { changes, changes2: changes?.map(change => lineRangeMappingFromChange(change)) ?? null };
 		}
 
-		const diffResult = await this.editorWorkerService.computeDiff(original, modified, {
+		const result = await this.editorWorkerService.computeDiff(original, modified, {
 			computeMoves: false,
 			ignoreTrimWhitespace,
 			maxComputationTimeMs: Number.MAX_SAFE_INTEGER
 		}, this.algorithm);
 
-		if (!diffResult) {
-			return null;
-		}
-
-		return toLineChanges(DiffState.fromDiffResult(diffResult));
+		return { changes: result ? toLineChanges(DiffState.fromDiffResult(result)) : null, changes2: result?.changes ?? null };
 	}
 
 	private getQuickDiffsPromise(): Promise<QuickDiff[]> {
@@ -1425,8 +1414,7 @@ export class DirtyDiffModel extends Disposable {
 
 			if (quickDiffs.length === 0) {
 				this._quickDiffs = [];
-				this._originalModels.clear();
-				this._originalTextModels = [];
+				this._originalEditorModels.clear();
 				return [];
 			}
 
@@ -1434,10 +1422,10 @@ export class DirtyDiffModel extends Disposable {
 				return quickDiffs;
 			}
 
-			this.originalModelDisposables.clear();
-			this._originalModels.clear();
-			this._originalTextModels = [];
 			this._quickDiffs = quickDiffs;
+
+			this._originalEditorModels.clear();
+			this._originalEditorModelsDisposables.clear();
 			return (await Promise.all(quickDiffs.map(async (quickDiff) => {
 				try {
 					const ref = await this.textModelResolverService.createModelReference(quickDiff.originalResource);
@@ -1446,8 +1434,7 @@ export class DirtyDiffModel extends Disposable {
 						return [];
 					}
 
-					this._originalModels.set(quickDiff.originalResource.toString(), ref.object);
-					this._originalTextModels.push(ref.object.textEditorModel);
+					this._originalEditorModels.set(quickDiff.originalResource, ref.object);
 
 					if (isTextFileEditorModel(ref.object)) {
 						const encoding = this._model.getEncoding();
@@ -1457,8 +1444,8 @@ export class DirtyDiffModel extends Disposable {
 						}
 					}
 
-					this.originalModelDisposables.add(ref);
-					this.originalModelDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
+					this._originalEditorModelsDisposables.add(ref);
+					this._originalEditorModelsDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
 
 					return quickDiff;
 				} catch (error) {
@@ -1553,15 +1540,14 @@ export class DirtyDiffModel extends Disposable {
 	}
 
 	override dispose(): void {
-		super.dispose();
-
 		this._disposed = true;
+
 		this._quickDiffs = [];
-		this._originalModels.clear();
-		this._originalTextModels = [];
-		this.diffDelayer.cancel();
-		this.repositoryDisposables.forEach(d => dispose(d));
-		this.repositoryDisposables.clear();
+		this._diffDelayer.cancel();
+		this._originalEditorModels.clear();
+		this._repositoryDisposables.dispose();
+
+		super.dispose();
 	}
 }
 
