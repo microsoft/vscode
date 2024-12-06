@@ -19,7 +19,6 @@ import { Emitter } from '../../../../base/common/event.js';
 import { RenderedContentHover } from './contentHoverRendered.js';
 
 const HORIZONTAL_SCROLLING_BY = 30;
-const CONTAINER_HEIGHT_PADDING = 6;
 
 export class ContentHoverWidget extends ResizableContentWidget {
 
@@ -117,9 +116,15 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		return ContentHoverWidget._applyDimensions(containerDomNode, width, height);
 	}
 
+	private _setScrollableElementDimensions(width: number | string, height: number | string): void {
+		const scrollbarDomElement = this._hover.scrollbar.getDomNode();
+		return ContentHoverWidget._applyDimensions(scrollbarDomElement, width, height);
+	}
+
 	private _setHoverWidgetDimensions(width: number | string, height: number | string): void {
-		this._setContentsDomNodeDimensions(width, height);
 		this._setContainerDomNodeDimensions(width, height);
+		this._setScrollableElementDimensions(width, height);
+		this._setContentsDomNodeDimensions(width, height);
 		this._layoutContentWidget();
 	}
 
@@ -177,7 +182,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 			return;
 		}
 		// Padding needed in order to stop the resizing down to a smaller height
-		let maximumHeight = CONTAINER_HEIGHT_PADDING;
+		let maximumHeight = 2;
 		Array.from(this._hover.contentsDomNode.children).forEach((hoverPart) => {
 			maximumHeight += hoverPart.clientHeight;
 		});
@@ -209,7 +214,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		const initialWidth = (
 			typeof this._contentWidth === 'undefined'
 				? 0
-				: this._contentWidth - 2 // - 2 for the borders
+				: this._contentWidth
 		);
 
 		if (overflowing || this._hover.containerDomNode.clientWidth < initialWidth) {
@@ -217,7 +222,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 			const horizontalPadding = 14;
 			return bodyBoxWidth - horizontalPadding;
 		} else {
-			return this._hover.containerDomNode.clientWidth + 2;
+			return this._hover.containerDomNode.clientWidth;
 		}
 	}
 
@@ -388,6 +393,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	public onContentsChanged(): void {
+		console.log('onContentsChanged');
 		this._removeConstraintsRenderNormally();
 		const containerDomNode = this._hover.containerDomNode;
 
@@ -395,10 +401,17 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		let width = dom.getTotalWidth(containerDomNode);
 		this._resizableNode.layout(height, width);
 
+		console.log('height', height);
+		console.log('width ', width);
+
 		this._setHoverWidgetDimensions(width, height);
 
 		height = dom.getTotalHeight(containerDomNode);
 		width = dom.getTotalWidth(containerDomNode);
+
+		console.log('height', height);
+		console.log('width ', width);
+
 		this._contentWidth = width;
 		this._updateMinimumWidth();
 		this._resizableNode.layout(height, width);

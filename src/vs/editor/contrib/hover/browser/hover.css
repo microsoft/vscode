@@ -7,17 +7,22 @@
 	background-color: var(--vscode-editor-hoverHighlightBackground);
 }
 
-.monaco-editor .monaco-hover-content {
-	padding-right: 2px;
-	padding-bottom: 2px;
-	box-sizing: border-box;
-}
-
 .monaco-editor .monaco-hover {
 	color: var(--vscode-editorHoverWidget-foreground);
 	background-color: var(--vscode-editorHoverWidget-background);
 	border: 1px solid var(--vscode-editorHoverWidget-border);
 	border-radius: 3px;
+	box-sizing: content-box;
+}
+
+.monaco-editor .monaco-hover .monaco-scrollable-element {
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+}
+
+.monaco-editor .monaco-hover-content {
+	position: relative;
 }
 
 .monaco-editor .monaco-hover a {
@@ -33,7 +38,7 @@
 }
 
 .monaco-editor .monaco-hover .hover-row .hover-row-contents {
-	min-width:0;
+	min-width: 0;
 	display: flex;
 	flex-direction: column;
 }
@@ -67,5 +72,3 @@
 .monaco-editor .monaco-hover code {
 	background-color: var(--vscode-textCodeBlock-background);
 }
-
-

@@ -41,7 +41,8 @@ export class HoverWidget extends Disposable {
 		this.scrollbar = this._register(new DomScrollableElement(this.contentsDomNode, {
 			consumeMouseWheelIfScrollbarIsNeeded: true
 		}));
-		this.containerDomNode.appendChild(this.scrollbar.getDomNode());
+		const scrollBarDomNode = this.scrollbar.getDomNode();
+		this.containerDomNode.appendChild(scrollBarDomNode);
 	}
 
 	public onContentsChanged(): void {
