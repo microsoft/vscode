@@ -32,6 +32,7 @@ export interface IChatQuotasService {
 	readonly quotas: IChatQuotas;
 
 	acceptQuotas(quotas: IChatQuotas): void;
+	clearQuotas(): void;
 }
 
 export interface IChatQuotas {
@@ -222,6 +223,12 @@ export class ChatQuotasService extends Disposable implements IChatQuotasService 
 		this.updateContextKeys();
 
 		this._onDidChangeQuotas.fire();
+	}
+
+	clearQuotas(): void {
+		if (this.quotas.chatQuotaExceeded || this.quotas.completionsQuotaExceeded) {
+			this.acceptQuotas({ chatQuotaExceeded: false, completionsQuotaExceeded: false, quotaResetDate: new Date(0) });
+		}
 	}
 
 	private updateContextKeys(): void {

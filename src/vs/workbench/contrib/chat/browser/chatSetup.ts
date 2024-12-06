@@ -342,6 +342,15 @@ class ChatSetupRequests extends Disposable {
 				this.resolve();
 			}
 		}));
+
+		this._register(this.context.onDidChange(() => {
+			if (!this.context.state.installed || this.context.state.entitlement === ChatEntitlement.Unknown) {
+				// When the extension is not installed or the user is not entitled
+				// make sure to clear quotas so that any indicators are also gone
+				this.state = { entitlement: this.state.entitlement, quotas: undefined };
+				this.chatQuotasService.clearQuotas();
+			}
+		}));
 	}
 
 	private async resolve(): Promise<void> {
