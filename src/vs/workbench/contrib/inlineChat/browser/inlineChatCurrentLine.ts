@@ -33,11 +33,11 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { toAction } from '../../../../base/common/actions.js';
 import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { Event } from '../../../../base/common/event.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
 import { createStyleSheet2 } from '../../../../base/browser/domStylesheets.js';
 import { stringValue } from '../../../../base/browser/cssValue.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 
 export const CTX_INLINE_CHAT_SHOWING_HINT = new RawContextKey<boolean>('inlineChatShowingHint', false, localize('inlineChatShowingHint', "Whether inline chat shows a contextual hint"));
 
@@ -208,10 +208,9 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 		const decos = this._editor.createDecorationsCollection();
 
 		const editorObs = observableCodeEditor(editor);
-
 		const keyObs = observableFromEvent(keybindingService.onDidUpdateKeybindings, _ => keybindingService.lookupKeybinding(ACTION_START)?.getLabel());
-
-		const configSignal = observableFromEvent(Event.filter(_configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(InlineChatConfigKeys.LineEmptyHint) || e.affectsConfiguration(InlineChatConfigKeys.LineNLHint)), () => undefined);
+		const configHintEmpty = observableConfigValue(InlineChatConfigKeys.LineEmptyHint, false, this._configurationService);
+		const configHintNL = observableConfigValue(InlineChatConfigKeys.LineNLHint, false, this._configurationService);
 
 		const showDataObs = derived(r => {
 			const ghostState = ghostCtrl?.model.read(r)?.state.read(r);
@@ -221,8 +220,6 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 			const model = editorObs.model.read(r);
 
 			const kb = keyObs.read(r);
-
-			configSignal.read(r);
 
 			if (ghostState !== undefined || !kb || !position || !model || !textFocus) {
 				return undefined;
@@ -237,12 +234,12 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 			const isWhitespace = model.getLineLastNonWhitespaceColumn(position.lineNumber) === 0 && model.getValueLength() > 0 && position.column > 1;
 
 			if (isWhitespace) {
-				return _configurationService.getValue(InlineChatConfigKeys.LineEmptyHint)
+				return configHintEmpty.read(r)
 					? { isEol, isWhitespace, kb, position, model }
 					: undefined;
 			}
 
-			if (visible && isEol && _configurationService.getValue(InlineChatConfigKeys.LineNLHint)) {
+			if (visible && isEol && configHintNL.read(r)) {
 				return { isEol, isWhitespace, kb, position, model };
 			}
 
