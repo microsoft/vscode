@@ -35,7 +35,6 @@ import { IChatMarkdownContent } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo, IChatListItemRendererOptions } from '../chat.js';
-import { AnimatedValue, ObservableAnimatedValue } from '../chatEditorOverlay.js';
 import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
@@ -351,23 +350,15 @@ class CollapsedCodeBlock extends Disposable {
 		this.element.title = this.labelService.getUriLabel(uri, { relative: false });
 
 		// Show a percentage progress that is driven by the rewrite
-		const slickRatio = ObservableAnimatedValue.const(0);
-		let t = Date.now();
+
 		this._progressStore.add(autorun(r => {
 			const rewriteRatio = modifiedEntry?.rewriteRatio.read(r);
-			if (rewriteRatio) {
-				slickRatio.changeAnimation(prev => {
-					const result = new AnimatedValue(prev.getValue(), rewriteRatio, Date.now() - t);
-					t = Date.now();
-					return result;
-				}, undefined);
-			}
 
 			const labelDetail = this.element.querySelector('.label-detail');
 			const isComplete = !modifiedEntry?.isCurrentlyBeingModified.read(r);
 			if (labelDetail && !isStreaming && !isComplete) {
-				const value = slickRatio.getValue(undefined);
-				labelDetail.textContent = value === 0 ? localize('chat.codeblock.applying', "Applying edits...") : localize('chat.codeblock.applyingPercentage', "Applying edits ({0}%)...", Math.round(value * 100));
+				const value = rewriteRatio;
+				labelDetail.textContent = value === 0 || !value ? localize('chat.codeblock.applying', "Applying edits...") : localize('chat.codeblock.applyingPercentage', "Applying edits ({0}%)...", Math.round(value * 100));
 			} else if (labelDetail && !isStreaming && isComplete) {
 				iconEl.classList.remove(...iconClasses);
 				const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
