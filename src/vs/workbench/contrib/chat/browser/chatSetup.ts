@@ -804,7 +804,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		}
 
 		// Limited SKU
-		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) Enjoy 50 chat messages and 2000 code completions for free.", defaultChat.skusDocumentationUrl);
+		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) Get 50 chats + 2000 completions per month for free.", defaultChat.skusDocumentationUrl);
 		const limitedSkuHeaderContainer = this.element.appendChild($('p'));
 		limitedSkuHeaderContainer.appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true, supportThemeIcons: true }))).element);
 
