@@ -6,16 +6,11 @@
 import * as nls from '../../../../nls.js';
 
 import './media/dirtydiffDecorator.css';
-import { ThrottledDelayer } from '../../../../base/common/async.js';
-import { IDisposable, dispose, toDisposable, Disposable, DisposableStore, DisposableMap } from '../../../../base/common/lifecycle.js';
-import { Event, Emitter } from '../../../../base/common/event.js';
-import * as ext from '../../../common/contributions.js';
+import { IDisposable, toDisposable, Disposable, DisposableStore, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
-import { DiffAlgorithmName, IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ISCMService, ISCMRepository } from '../common/scm.js';
 import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
 import { IColorTheme, themeColorFromId, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { editorErrorForeground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
@@ -37,33 +32,28 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { basename } from '../../../../base/common/resources.js';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { ScrollType, IEditorContribution, IDiffEditorModel, IEditorModel, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
-import { OverviewRulerLane, ITextModel, IModelDecorationOptions, MinimapPosition, shouldSynchronizeModel } from '../../../../editor/common/model.js';
-import { equals, sortedDiff } from '../../../../base/common/arrays.js';
+import { ScrollType, IEditorContribution, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
+import { OverviewRulerLane, IModelDecorationOptions, MinimapPosition } from '../../../../editor/common/model.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { ISplice } from '../../../../base/common/sequence.js';
 import * as dom from '../../../../base/browser/dom.js';
 import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
-import { EncodingMode, ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from '../../../services/textfile/common/textfiles.js';
 import { gotoNextLocation, gotoPreviousLocation } from '../../../../platform/theme/common/iconRegistry.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
-import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IChange } from '../../../../editor/common/diff/legacyLinesDiffComputer.js';
 import { Color } from '../../../../base/common/color.js';
-import { ResourceMap } from '../../../../base/common/map.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { IQuickDiffService, QuickDiff, QuickDiffChange, QuickDiffResult } from '../common/quickDiff.js';
+import { IQuickDiffService, QuickDiffChange } from '../common/quickDiff.js';
 import { IQuickDiffSelectItem, SwitchQuickDiffBaseAction, SwitchQuickDiffViewItem } from './dirtyDiffSwitcher.js';
-import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
-import { LineRangeMapping, lineRangeMappingFromChange } from '../../../../editor/common/diff/rangeMapping.js';
-import { DiffState } from '../../../../editor/browser/widget/diffEditor/diffEditorViewModel.js';
-import { toLineChanges } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { Iterable } from '../../../../base/common/iterator.js';
+import { DirtyDiffModel, getChangeHeight, getModifiedEndLineNumber, IDirtyDiffModelService, lineIntersectsChange } from './dirtyDiffModel.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -76,45 +66,7 @@ class DiffActionRunner extends ActionRunner {
 	}
 }
 
-export interface IModelRegistry {
-	getModel(editorModel: IEditorModel, codeEditor: ICodeEditor): DirtyDiffModel | undefined;
-}
-
-export interface DirtyDiffContribution extends IEditorContribution {
-	getChanges(): IChange[];
-}
-
 export const isDirtyDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
-
-function getChangeHeight(change: IChange): number {
-	const modified = change.modifiedEndLineNumber - change.modifiedStartLineNumber + 1;
-	const original = change.originalEndLineNumber - change.originalStartLineNumber + 1;
-
-	if (change.originalEndLineNumber === 0) {
-		return modified;
-	} else if (change.modifiedEndLineNumber === 0) {
-		return original;
-	} else {
-		return modified + original;
-	}
-}
-
-function getModifiedEndLineNumber(change: IChange): number {
-	if (change.modifiedEndLineNumber === 0) {
-		return change.modifiedStartLineNumber === 0 ? 1 : change.modifiedStartLineNumber;
-	} else {
-		return change.modifiedEndLineNumber;
-	}
-}
-
-function lineIntersectsChange(lineNumber: number, change: IChange): boolean {
-	// deletion at the beginning of the file
-	if (lineNumber === 1 && change.modifiedStartLineNumber === 0 && change.modifiedEndLineNumber === 0) {
-		return true;
-	}
-
-	return lineNumber >= change.modifiedStartLineNumber && lineNumber <= (change.modifiedEndLineNumber || change.modifiedStartLineNumber);
-}
 
 class UIEditorAction extends Action {
 
@@ -575,23 +527,18 @@ export class GotoPreviousChangeAction extends EditorAction {
 		const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 		const accessibilityService = accessor.get(IAccessibilityService);
 		const codeEditorService = accessor.get(ICodeEditorService);
+		const dirtyDiffModelService = accessor.get(IDirtyDiffModelService);
 
 		if (!outerEditor || !outerEditor.hasModel()) {
 			return;
 		}
 
-		const controller = DirtyDiffController.get(outerEditor);
-
-		if (!controller || !controller.modelRegistry) {
-			return;
-		}
-
-		const lineNumber = outerEditor.getPosition().lineNumber;
-		const model = controller.modelRegistry.getModel(outerEditor.getModel(), outerEditor);
+		const model = dirtyDiffModelService.getDirtyDiffModel(outerEditor.getModel().uri);
 		if (!model || model.changes.length === 0) {
 			return;
 		}
 
+		const lineNumber = outerEditor.getPosition().lineNumber;
 		const index = model.findPreviousClosestChange(lineNumber, false);
 		const change = model.changes[index];
 		await playAccessibilitySymbolForChange(change.change, accessibilitySignalService);
@@ -616,24 +563,19 @@ export class GotoNextChangeAction extends EditorAction {
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
 		const accessibilityService = accessor.get(IAccessibilityService);
 		const codeEditorService = accessor.get(ICodeEditorService);
+		const dirtyDiffModelService = accessor.get(IDirtyDiffModelService);
 
 		if (!outerEditor || !outerEditor.hasModel()) {
 			return;
 		}
 
-		const controller = DirtyDiffController.get(outerEditor);
-
-		if (!controller || !controller.modelRegistry) {
-			return;
-		}
-
-		const lineNumber = outerEditor.getPosition().lineNumber;
-		const model = controller.modelRegistry.getModel(outerEditor.getModel(), outerEditor);
+		const model = dirtyDiffModelService.getDirtyDiffModel(outerEditor.getModel().uri);
 
 		if (!model || model.changes.length === 0) {
 			return;
 		}
 
+		const lineNumber = outerEditor.getPosition().lineNumber;
 		const index = model.findNextClosestChange(lineNumber, false);
 		const change = model.changes[index].change;
 		await playAccessibilitySymbolForChange(change, accessibilitySignalService);
@@ -691,15 +633,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-export class DirtyDiffController extends Disposable implements DirtyDiffContribution {
+export class DirtyDiffController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.dirtydiff';
 
 	static get(editor: ICodeEditor): DirtyDiffController | null {
 		return editor.getContribution<DirtyDiffController>(DirtyDiffController.ID);
 	}
-
-	modelRegistry: IModelRegistry | null = null;
 
 	private model: DirtyDiffModel | null = null;
 	private widget: DirtyDiffWidget | null = null;
@@ -714,6 +654,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		private editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IDirtyDiffModelService private readonly dirtyDiffModelService: IDirtyDiffModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -827,17 +768,13 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 			return true;
 		}
 
-		if (!this.modelRegistry) {
-			return false;
-		}
-
 		const editorModel = this.editor.getModel();
 
 		if (!editorModel) {
 			return false;
 		}
 
-		const model = this.modelRegistry.getModel(editorModel, this.editor);
+		const model = this.dirtyDiffModelService.getDirtyDiffModel(editorModel.uri);
 
 		if (!model) {
 			return false;
@@ -940,17 +877,13 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 			return;
 		}
 
-		if (!this.modelRegistry) {
-			return;
-		}
-
 		const editorModel = this.editor.getModel();
 
 		if (!editorModel) {
 			return;
 		}
 
-		const model = this.modelRegistry.getModel(editorModel, this.editor);
+		const model = this.dirtyDiffModelService.getDirtyDiffModel(editorModel.uri);
 
 		if (!model) {
 			return;
@@ -967,23 +900,6 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		} else {
 			this.next(lineNumber);
 		}
-	}
-
-	getChanges(): IChange[] {
-		if (!this.modelRegistry) {
-			return [];
-		}
-		if (!this.editor.hasModel()) {
-			return [];
-		}
-
-		const model = this.modelRegistry.getModel(this.editor.getModel(), this.editor);
-
-		if (!model) {
-			return [];
-		}
-
-		return model.changes.map(change => change.change);
 	}
 
 	override dispose(): void {
@@ -1054,16 +970,13 @@ class DirtyDiffDecorator extends Disposable {
 	private modifiedPatternOptions: ModelDecorationOptions;
 	private deletedOptions: ModelDecorationOptions;
 	private decorationsCollection: IEditorDecorationsCollection | undefined;
-	private editorModel: ITextModel | null;
 
 	constructor(
-		editorModel: ITextModel,
 		private readonly codeEditor: ICodeEditor,
-		private model: DirtyDiffModel,
+		private readonly dirtyDiffModel: DirtyDiffModel,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
-		this.editorModel = editorModel;
 
 		const decorations = configurationService.getValue<string>('scm.diffDecorations');
 		const gutter = decorations === 'all' || decorations === 'gutter';
@@ -1109,18 +1022,18 @@ class DirtyDiffDecorator extends Disposable {
 			}
 		}));
 
-		this._register(model.onDidChange(this.onDidChange, this));
+		this._register(Event.runAndSubscribe(dirtyDiffModel.onDidChange, () => this.onDidChange()));
 	}
 
 	private onDidChange(): void {
-		if (!this.editorModel) {
+		if (!this.codeEditor.hasModel()) {
 			return;
 		}
 
-		const visibleQuickDiffs = this.model.quickDiffs.filter(quickDiff => quickDiff.visible);
+		const visibleQuickDiffs = this.dirtyDiffModel.quickDiffs.filter(quickDiff => quickDiff.visible);
 		const pattern = this.configurationService.getValue<{ added: boolean; modified: boolean }>('scm.diffDecorationsGutterPattern');
 
-		const decorations = this.model.changes
+		const decorations = this.dirtyDiffModel.changes
 			.filter(labeledChange => visibleQuickDiffs.some(quickDiff => quickDiff.label === labeledChange.label))
 			.map((labeledChange) => {
 				const change = labeledChange.change;
@@ -1164,424 +1077,40 @@ class DirtyDiffDecorator extends Disposable {
 	}
 
 	override dispose(): void {
-		super.dispose();
-
 		if (this.decorationsCollection) {
 			this.decorationsCollection?.clear();
 		}
 
-		this.editorModel = null;
 		this.decorationsCollection = undefined;
+		super.dispose();
 	}
 }
-
-function compareChanges(a: IChange, b: IChange): number {
-	let result = a.modifiedStartLineNumber - b.modifiedStartLineNumber;
-
-	if (result !== 0) {
-		return result;
-	}
-
-	result = a.modifiedEndLineNumber - b.modifiedEndLineNumber;
-
-	if (result !== 0) {
-		return result;
-	}
-
-	result = a.originalStartLineNumber - b.originalStartLineNumber;
-
-	if (result !== 0) {
-		return result;
-	}
-
-	return a.originalEndLineNumber - b.originalEndLineNumber;
-}
-
 
 export async function getOriginalResource(quickDiffService: IQuickDiffService, uri: URI, language: string | undefined, isSynchronized: boolean | undefined): Promise<URI | null> {
 	const quickDiffs = await quickDiffService.getQuickDiffs(uri, language, isSynchronized);
 	return quickDiffs.length > 0 ? quickDiffs[0].originalResource : null;
 }
 
-export class DirtyDiffModel extends Disposable {
-
-	private _model: ITextFileEditorModel;
-
-	private readonly _originalEditorModels = new ResourceMap<IResolvedTextEditorModel>();
-	private readonly _originalEditorModelsDisposables = this._register(new DisposableStore());
-	get originalTextModels(): Iterable<ITextModel> {
-		return Iterable.map(this._originalEditorModels.values(), editorModel => editorModel.textEditorModel);
-	}
-
-	private _disposed = false;
-	private _quickDiffs: QuickDiff[] = [];
-	private _quickDiffsPromise?: Promise<QuickDiff[]>;
-	private _diffDelayer = new ThrottledDelayer<void>(200);
-
-	private readonly _onDidChange = new Emitter<{ changes: QuickDiffChange[]; diff: ISplice<QuickDiffChange>[] }>();
-	readonly onDidChange: Event<{ changes: QuickDiffChange[]; diff: ISplice<QuickDiffChange>[] }> = this._onDidChange.event;
-
-	private _changes: QuickDiffChange[] = [];
-	get changes(): QuickDiffChange[] { return this._changes; }
-
-	/**
-	 * Map of quick diff name to the index of the change in `this.changes`
-	 */
-	private _quickDiffChanges: Map<string, number[]> = new Map();
-	get quickDiffChanges(): Map<string, number[]> { return this._quickDiffChanges; }
-
-	private readonly _repositoryDisposables = new DisposableMap<ISCMRepository>();
-
-	constructor(
-		textFileModel: IResolvedTextFileEditorModel,
-		private readonly algorithm: DiffAlgorithmName | undefined,
-		@ISCMService private readonly scmService: ISCMService,
-		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
-		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@IProgressService private readonly progressService: IProgressService,
-	) {
-		super();
-		this._model = textFileModel;
-
-		this._register(textFileModel.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
-		this._register(
-			Event.filter(configurationService.onDidChangeConfiguration,
-				e => e.affectsConfiguration('scm.diffDecorationsIgnoreTrimWhitespace') || e.affectsConfiguration('diffEditor.ignoreTrimWhitespace')
-			)(this.triggerDiff, this)
-		);
-		this._register(scmService.onDidAddRepository(this.onDidAddRepository, this));
-		for (const r of scmService.repositories) {
-			this.onDidAddRepository(r);
-		}
-
-		this._register(this._model.onDidChangeEncoding(() => {
-			this._diffDelayer.cancel();
-			this._quickDiffs = [];
-			this._originalEditorModels.clear();
-			this._quickDiffsPromise = undefined;
-			this.setChanges([], new Map());
-			this.triggerDiff();
-		}));
-
-		this._register(this.quickDiffService.onDidChangeQuickDiffProviders(() => this.triggerDiff()));
-		this._register(this._chatEditingService.onDidChangeEditingSession(() => this.triggerDiff()));
-		this.triggerDiff();
-	}
-
-	get quickDiffs(): readonly QuickDiff[] {
-		return this._quickDiffs;
-	}
-
-	public getQuickDiffResults(): QuickDiffResult[] {
-		return this._quickDiffs.map(quickDiff => {
-			const changes = this.changes
-				.filter(change => change.label === quickDiff.label);
-
-			return {
-				label: quickDiff.label,
-				original: quickDiff.originalResource,
-				modified: this._model.resource,
-				changes: changes.map(change => change.change),
-				changes2: changes.map(change => change.change2)
-			};
-		});
-	}
-
-	public getDiffEditorModel(originalUri: URI): IDiffEditorModel | undefined {
-		const editorModel = this._originalEditorModels.get(originalUri);
-		return editorModel ?
-			{
-				modified: this._model.textEditorModel!,
-				original: editorModel.textEditorModel
-			} : undefined;
-	}
-
-	private onDidAddRepository(repository: ISCMRepository): void {
-		const disposables = new DisposableStore();
-
-		disposables.add(repository.provider.onDidChangeResources(this.triggerDiff, this));
-
-		const onDidRemoveRepository = Event.filter(this.scmService.onDidRemoveRepository, r => r === repository);
-		disposables.add(onDidRemoveRepository(() => this._repositoryDisposables.deleteAndDispose(repository)));
-
-		this._repositoryDisposables.set(repository, disposables);
-
-		this.triggerDiff();
-	}
-
-	private triggerDiff(): void {
-		if (!this._diffDelayer) {
-			return;
-		}
-
-		this._diffDelayer
-			.trigger(async () => {
-				const result: { changes: QuickDiffChange[]; mapChanges: Map<string, number[]> } | null = await this.diff();
-
-				const editorModels = Array.from(this._originalEditorModels.values());
-				if (!result || this._disposed || this._model.isDisposed() || editorModels.some(editorModel => editorModel.isDisposed())) {
-					return; // disposed
-				}
-
-				if (editorModels.every(editorModel => editorModel.textEditorModel.getValueLength() === 0)) {
-					result.changes = [];
-				}
-
-				this.setChanges(result.changes, result.mapChanges);
-			})
-			.catch(err => onUnexpectedError(err));
-	}
-
-	private setChanges(changes: QuickDiffChange[], mapChanges: Map<string, number[]>): void {
-		const diff = sortedDiff(this.changes, changes, (a, b) => compareChanges(a.change, b.change));
-		this._changes = changes;
-		this._quickDiffChanges = mapChanges;
-		this._onDidChange.fire({ changes, diff });
-	}
-
-	private diff(): Promise<{ changes: QuickDiffChange[]; mapChanges: Map<string, number[]> } | null> {
-		return this.progressService.withProgress({ location: ProgressLocation.Scm, delay: 250 }, async () => {
-			const originalURIs = await this.getQuickDiffsPromise();
-			if (this._disposed || this._model.isDisposed() || (originalURIs.length === 0)) {
-				return Promise.resolve({ changes: [], mapChanges: new Map() }); // disposed
-			}
-
-			const filteredToDiffable = originalURIs.filter(quickDiff => this.editorWorkerService.canComputeDirtyDiff(quickDiff.originalResource, this._model.resource));
-			if (filteredToDiffable.length === 0) {
-				return Promise.resolve({ changes: [], mapChanges: new Map() }); // All files are too large
-			}
-
-			const ignoreTrimWhitespaceSetting = this.configurationService.getValue<'true' | 'false' | 'inherit'>('scm.diffDecorationsIgnoreTrimWhitespace');
-			const ignoreTrimWhitespace = ignoreTrimWhitespaceSetting === 'inherit'
-				? this.configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace')
-				: ignoreTrimWhitespaceSetting !== 'false';
-
-			const allDiffs: QuickDiffChange[] = [];
-			for (const quickDiff of filteredToDiffable) {
-				const dirtyDiff = await this._diff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace);
-				if (dirtyDiff.changes && dirtyDiff.changes2 && dirtyDiff.changes.length === dirtyDiff.changes2.length) {
-					for (let index = 0; index < dirtyDiff.changes.length; index++) {
-						allDiffs.push({
-							label: quickDiff.label,
-							original: quickDiff.originalResource,
-							modified: this._model.resource,
-							change: dirtyDiff.changes[index],
-							change2: dirtyDiff.changes2[index]
-						});
-					}
-				}
-			}
-			const sorted = allDiffs.sort((a, b) => compareChanges(a.change, b.change));
-			const map: Map<string, number[]> = new Map();
-			for (let i = 0; i < sorted.length; i++) {
-				const label = sorted[i].label;
-				if (!map.has(label)) {
-					map.set(label, []);
-				}
-				map.get(label)!.push(i);
-			}
-			return { changes: sorted, mapChanges: map };
-		});
-	}
-
-	private async _diff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<{ changes: readonly IChange[] | null; changes2: readonly LineRangeMapping[] | null }> {
-		if (this.algorithm === undefined) {
-			const changes = await this.editorWorkerService.computeDirtyDiff(original, modified, ignoreTrimWhitespace);
-			return { changes, changes2: changes?.map(change => lineRangeMappingFromChange(change)) ?? null };
-		}
-
-		const result = await this.editorWorkerService.computeDiff(original, modified, {
-			computeMoves: false,
-			ignoreTrimWhitespace,
-			maxComputationTimeMs: Number.MAX_SAFE_INTEGER
-		}, this.algorithm);
-
-		return { changes: result ? toLineChanges(DiffState.fromDiffResult(result)) : null, changes2: result?.changes ?? null };
-	}
-
-	private getQuickDiffsPromise(): Promise<QuickDiff[]> {
-		if (this._quickDiffsPromise) {
-			return this._quickDiffsPromise;
-		}
-
-		this._quickDiffsPromise = this.getOriginalResource().then(async (quickDiffs) => {
-			if (this._disposed) { // disposed
-				return [];
-			}
-
-			if (quickDiffs.length === 0) {
-				this._quickDiffs = [];
-				this._originalEditorModels.clear();
-				return [];
-			}
-
-			if (equals(this._quickDiffs, quickDiffs, (a, b) => a.originalResource.toString() === b.originalResource.toString() && a.label === b.label)) {
-				return quickDiffs;
-			}
-
-			this._quickDiffs = quickDiffs;
-
-			this._originalEditorModels.clear();
-			this._originalEditorModelsDisposables.clear();
-			return (await Promise.all(quickDiffs.map(async (quickDiff) => {
-				try {
-					const ref = await this.textModelResolverService.createModelReference(quickDiff.originalResource);
-					if (this._disposed) { // disposed
-						ref.dispose();
-						return [];
-					}
-
-					this._originalEditorModels.set(quickDiff.originalResource, ref.object);
-
-					if (isTextFileEditorModel(ref.object)) {
-						const encoding = this._model.getEncoding();
-
-						if (encoding) {
-							ref.object.setEncoding(encoding, EncodingMode.Decode);
-						}
-					}
-
-					this._originalEditorModelsDisposables.add(ref);
-					this._originalEditorModelsDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => this.triggerDiff()));
-
-					return quickDiff;
-				} catch (error) {
-					return []; // possibly invalid reference
-				}
-			}))).flat();
-		});
-
-		return this._quickDiffsPromise.finally(() => {
-			this._quickDiffsPromise = undefined;
-		});
-	}
-
-	private async getOriginalResource(): Promise<QuickDiff[]> {
-		if (this._disposed) {
-			return Promise.resolve([]);
-		}
-		const uri = this._model.resource;
-
-		const session = this._chatEditingService.currentEditingSession;
-		if (session && session.getEntry(uri)?.state.get() === WorkingSetEntryState.Modified) {
-			// disable dirty diff when doing chat edits
-			return Promise.resolve([]);
-		}
-
-		const isSynchronized = this._model.textEditorModel ? shouldSynchronizeModel(this._model.textEditorModel) : undefined;
-		const quickDiffs = await this.quickDiffService.getQuickDiffs(uri, this._model.getLanguageId(), isSynchronized);
-
-		// TODO@lszomoru - find a long term solution for this
-		// When the DirtyDiffModel is created for a diff editor, there is no
-		// need to compute the diff information for the `isSCM` quick diff
-		// provider as that information will be provided by the diff editor
-		return this.algorithm !== undefined
-			? quickDiffs.filter(quickDiff => !quickDiff.isSCM)
-			: quickDiffs;
-	}
-
-	findNextClosestChange(lineNumber: number, inclusive = true, provider?: string): number {
-		let preferredProvider: string | undefined;
-		if (!provider && inclusive) {
-			preferredProvider = this.quickDiffs.find(value => value.isSCM)?.label;
-		}
-
-		const possibleChanges: number[] = [];
-		for (let i = 0; i < this.changes.length; i++) {
-			if (provider && this.changes[i].label !== provider) {
-				continue;
-			}
-			const change = this.changes[i];
-			const possibleChangesLength = possibleChanges.length;
-
-			if (inclusive) {
-				if (getModifiedEndLineNumber(change.change) >= lineNumber) {
-					if (preferredProvider && change.label !== preferredProvider) {
-						possibleChanges.push(i);
-					} else {
-						return i;
-					}
-				}
-			} else {
-				if (change.change.modifiedStartLineNumber > lineNumber) {
-					return i;
-				}
-			}
-			if ((possibleChanges.length > 0) && (possibleChanges.length === possibleChangesLength)) {
-				return possibleChanges[0];
-			}
-		}
-
-		return possibleChanges.length > 0 ? possibleChanges[0] : 0;
-	}
-
-	findPreviousClosestChange(lineNumber: number, inclusive = true, provider?: string): number {
-		for (let i = this.changes.length - 1; i >= 0; i--) {
-			if (provider && this.changes[i].label !== provider) {
-				continue;
-			}
-			const change = this.changes[i].change;
-
-			if (inclusive) {
-				if (change.modifiedStartLineNumber <= lineNumber) {
-					return i;
-				}
-			} else {
-				if (getModifiedEndLineNumber(change) < lineNumber) {
-					return i;
-				}
-			}
-		}
-
-		return this.changes.length - 1;
-	}
-
-	override dispose(): void {
-		this._disposed = true;
-
-		this._quickDiffs = [];
-		this._diffDelayer.cancel();
-		this._originalEditorModels.clear();
-		this._repositoryDisposables.dispose();
-
-		super.dispose();
-	}
-}
-
-class DirtyDiffItem {
-
-	constructor(
-		readonly model: DirtyDiffModel,
-		readonly decorator: DirtyDiffDecorator
-	) { }
-
-	dispose(): void {
-		this.decorator.dispose();
-		this.model.dispose();
-	}
-}
-
-interface IViewState {
+interface DirtyDiffWorkbenchControllerViewState {
 	readonly width: number;
 	readonly visibility: 'always' | 'hover';
 }
 
-export class DirtyDiffWorkbenchController extends Disposable implements ext.IWorkbenchContribution, IModelRegistry {
+export class DirtyDiffWorkbenchController extends Disposable implements IWorkbenchContribution {
 
 	private enabled = false;
-	private viewState: IViewState = { width: 3, visibility: 'always' };
-	private items = new ResourceMap<Map<string, DirtyDiffItem>>(); // resource -> editor id -> DirtyDiffItem
+
+	// Resource URI -> Code Editor Id -> Decoration (Disposable)
+	private readonly decorators = new ResourceMap<DisposableMap<string>>();
+	private viewState: DirtyDiffWorkbenchControllerViewState = { width: 3, visibility: 'always' };
 	private readonly transientDisposables = this._register(new DisposableStore());
-	private stylesheet: HTMLStyleElement;
+	private readonly stylesheet: HTMLStyleElement;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITextFileService private readonly textFileService: ITextFileService
+		@IDirtyDiffModelService private readonly dirtyDiffModelService: IDirtyDiffModelService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this.stylesheet = domStylesheetsJs.createStyleSheet(undefined, undefined, this._store);
@@ -1624,7 +1153,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		this.setViewState({ ...this.viewState, visibility });
 	}
 
-	private setViewState(state: IViewState): void {
+	private setViewState(state: DirtyDiffWorkbenchControllerViewState): void {
 		this.viewState = state;
 		this.stylesheet.textContent = `
 			.monaco-editor .dirty-diff-added,
@@ -1664,57 +1193,59 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 
 		this.transientDisposables.clear();
 
-		for (const [, dirtyDiff] of this.items) {
-			dispose(dirtyDiff.values());
+		for (const [uri, decoratorMap] of this.decorators.entries()) {
+			decoratorMap.dispose();
+			this.decorators.delete(uri);
 		}
 
-		this.items.clear();
 		this.enabled = false;
 	}
 
 	private onEditorsChanged(): void {
 		for (const editor of this.editorService.visibleTextEditorControls) {
-			if (isCodeEditor(editor)) {
-				const textModel = editor.getModel();
-				const controller = DirtyDiffController.get(editor);
-
-				if (controller) {
-					controller.modelRegistry = this;
-				}
-
-				if (textModel && (!this.items.has(textModel.uri) || !this.items.get(textModel.uri)!.has(editor.getId()))) {
-					const textFileModel = this.textFileService.files.get(textModel.uri);
-
-					if (textFileModel?.isResolved()) {
-						const dirtyDiffModel = this.instantiationService.createInstance(DirtyDiffModel, textFileModel, undefined);
-						const decorator = new DirtyDiffDecorator(textFileModel.textEditorModel, editor, dirtyDiffModel, this.configurationService);
-						if (!this.items.has(textModel.uri)) {
-							this.items.set(textModel.uri, new Map());
-						}
-						this.items.get(textModel.uri)?.set(editor.getId(), new DirtyDiffItem(dirtyDiffModel, decorator));
-					}
-				}
+			if (!isCodeEditor(editor)) {
+				continue;
 			}
+
+			const textModel = editor.getModel();
+			if (!textModel) {
+				continue;
+			}
+
+			const editorId = editor.getId();
+			if (this.decorators.get(textModel.uri)?.has(editorId)) {
+				continue;
+			}
+
+			const dirtyDiffModel = this.dirtyDiffModelService.getDirtyDiffModel(textModel.uri);
+			if (!dirtyDiffModel) {
+				continue;
+			}
+
+			if (!this.decorators.has(textModel.uri)) {
+				this.decorators.set(textModel.uri, new DisposableMap<string>());
+			}
+
+			this.decorators.get(textModel.uri)!.set(editorId, new DirtyDiffDecorator(editor, dirtyDiffModel, this.configurationService));
 		}
 
-		for (const [uri, item] of this.items) {
-			for (const editorId of item.keys()) {
-				if (!this.editorService.visibleTextEditorControls.find(editor => isCodeEditor(editor) && editor.getModel()?.uri.toString() === uri.toString() && editor.getId() === editorId)) {
-					if (item.has(editorId)) {
-						const dirtyDiffItem = item.get(editorId);
-						dirtyDiffItem?.dispose();
-						item.delete(editorId);
-						if (item.size === 0) {
-							this.items.delete(uri);
-						}
-					}
+		// Dispose decorators for editors that are no longer visible
+		for (const [uri, decoratorMap] of this.decorators.entries()) {
+			for (const editorId of decoratorMap.keys()) {
+				const codeEditor = this.editorService.visibleTextEditorControls
+					.find(editor => isCodeEditor(editor) && editor.getId() === editorId &&
+						this.uriIdentityService.extUri.isEqual(editor.getModel()?.uri, uri));
+
+				if (!codeEditor) {
+					decoratorMap.deleteAndDispose(editorId);
 				}
 			}
-		}
-	}
 
-	getModel(editorModel: ITextModel, codeEditor: ICodeEditor): DirtyDiffModel | undefined {
-		return this.items.get(editorModel.uri)?.get(codeEditor.getId())?.model;
+			if (decoratorMap.size === 0) {
+				decoratorMap.dispose();
+				this.decorators.delete(uri);
+			}
+		}
 	}
 
 	override dispose(): void {
