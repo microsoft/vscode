@@ -534,10 +534,6 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
 		ContextKeyExpr.or(
-			ContextKeyExpr.and(
-				ContextKeyExpr.has('config.chat.experimental.offerSetup'),
-				ChatContextKeys.Setup.entitled,
-			),
 			ContextKeyExpr.has('config.chat.experimental.offerSetup'),
 			ChatContextKeys.Setup.installed,
 			ChatContextKeys.panelParticipantRegistered
@@ -556,7 +552,6 @@ registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
 				ContextKeyExpr.has('config.window.commandCenter'),
 				ContextKeyExpr.or(
 					ChatContextKeys.Setup.installed,
-					ChatContextKeys.Setup.entitled,
 					ContextKeyExpr.has('config.chat.experimental.offerSetup'),
 					ChatContextKeys.panelParticipantRegistered
 				)
