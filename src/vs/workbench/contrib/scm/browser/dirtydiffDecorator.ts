@@ -64,6 +64,7 @@ import { LineRangeMapping, lineRangeMappingFromChange } from '../../../../editor
 import { DiffState } from '../../../../editor/browser/widget/diffEditor/diffEditorViewModel.js';
 import { toLineChanges } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { Iterable } from '../../../../base/common/iterator.js';
+import { IDirtyDiffModelService } from './diff.js';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -1579,8 +1580,8 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IDirtyDiffModelService private readonly dirtyDiffModelService: IDirtyDiffModelService,
 		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super();
@@ -1686,7 +1687,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 					const textFileModel = this.textFileService.files.get(textModel.uri);
 
 					if (textFileModel?.isResolved()) {
-						const dirtyDiffModel = this.instantiationService.createInstance(DirtyDiffModel, textFileModel, undefined);
+						const dirtyDiffModel = this.dirtyDiffModelService.getDirtyDiffModel(textFileModel.resource)!;
 						const decorator = new DirtyDiffDecorator(textFileModel.textEditorModel, editor, dirtyDiffModel, this.configurationService);
 						if (!this.items.has(textModel.uri)) {
 							this.items.set(textModel.uri, new Map());
