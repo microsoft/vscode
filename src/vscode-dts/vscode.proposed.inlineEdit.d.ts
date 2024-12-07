@@ -73,6 +73,13 @@ declare module 'vscode' {
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideInlineEdit(document: TextDocument, context: InlineEditContext, token: CancellationToken): ProviderResult<InlineEdit>;
+		/**
+		 * Free inline edit.
+		 *
+		 * @param edit The inline edit
+		 */
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		freeInlineEdit(edit: InlineEdit): void;
 	}
 
 	export namespace languages {
