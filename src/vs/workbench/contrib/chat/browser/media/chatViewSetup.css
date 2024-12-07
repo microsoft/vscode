@@ -17,7 +17,7 @@
 		background-color: var(--vscode-chat-requestBackground);
 	}
 
-	.terms-container.is-standalone {
+	.terms-container {
 		padding-top: 5px;
 	}
 
@@ -29,7 +29,7 @@
 	}
 
 	.chat-feature-container .codicon[class*='codicon-'] {
-		font-size: 20px;
+		font-size: 16px;
 	}
 
 	.codicon[class*='codicon-'] {
@@ -53,20 +53,5 @@
 		display: inline-block;
 		width: 100%;
 		padding: 4px 7px;
-	}
-
-	/** Checkboxes */
-	.checkbox-container {
-		display: flex;
-		padding-top: 15px;
-	}
-
-	.checkbox-label {
-		flex-basis: fit-content;
-		cursor: pointer;
-	}
-
-	.checkbox-label p {
-		display: inline;
 	}
 }
