@@ -159,7 +159,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		icon: Codicon.sourceControl,
 		content: {
 			type: 'startEntry',
-			command: 'command:git.clone',
+			command: 'command:git.cloneRecursive',
 		}
 	},
 	{
@@ -576,7 +576,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'scmClone',
 					title: localize('gettingStarted.scm.title', "Track your code with Git"),
-					description: localize('gettingStarted.scmClone.description.interpolated', "Set up the built-in version control for your project to track your changes and collaborate with others.\n{0}", Button(localize('cloneRepo', "Clone Repository"), 'command:git.clone')),
+					description: localize('gettingStarted.scmClone.description.interpolated', "Set up the built-in version control for your project to track your changes and collaborate with others.\n{0}", Button(localize('cloneRepo', "Clone Repository"), 'command:git.cloneRecursive')),
 					when: 'config.git.enabled && !git.missing && workspaceFolderCount == 0',
 					media: {
 						type: 'svg', altText: 'Source Control view.', path: 'git.svg',
