@@ -657,6 +657,8 @@ class ChatSetupController extends Disposable {
 
 	private async doSetup(options: { publicCodeSuggestions: boolean }): Promise<void> {
 		this.context.suspend();  // reduces flicker
+
+		let focusChatInput = false;
 		try {
 			let session: AuthenticationSession | undefined;
 			let entitlement: ChatEntitlement | undefined;
@@ -680,12 +682,21 @@ class ChatSetupController extends Disposable {
 				}
 			}
 
+			const activeElement = getActiveElement();
+
 			// Install
 			this.setStep(ChatSetupStep.Installing);
 			await this.install(session, entitlement ?? this.context.state.entitlement, options);
+
+			const currentActiveElement = getActiveElement();
+			focusChatInput = activeElement === currentActiveElement || currentActiveElement === mainWindow.document.body;
 		} finally {
 			this.setStep(ChatSetupStep.Initial);
 			this.context.resume();
+		}
+
+		if (focusChatInput) {
+			(await showCopilotView(this.viewsService, this.layoutService))?.focusInput();
 		}
 	}
 
@@ -694,6 +705,7 @@ class ChatSetupController extends Disposable {
 		let entitlement: ChatEntitlement | undefined;
 		try {
 			showCopilotView(this.viewsService, this.layoutService);
+
 			session = await this.authenticationService.createSession(defaultChat.providerId, defaultChat.providerScopes[0]);
 			entitlement = await this.requests.forceResolveEntitlement(session);
 		} catch (error) {
@@ -709,7 +721,6 @@ class ChatSetupController extends Disposable {
 
 	private async install(session: AuthenticationSession, entitlement: ChatEntitlement, options: { publicCodeSuggestions: boolean }): Promise<void> {
 		const signedIn = !!session;
-		const activeElement = getActiveElement();
 
 		let installResult: 'installed' | 'cancelled' | 'failedInstall' | undefined = undefined;
 		const wasInstalled = this.context.state.installed;
@@ -747,11 +758,6 @@ class ChatSetupController extends Disposable {
 		}
 
 		this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signedIn });
-
-		const currentActiveElement = getActiveElement();
-		if (activeElement === currentActiveElement || currentActiveElement === mainWindow.document.body) {
-			(await showCopilotView(this.viewsService, this.layoutService))?.focusInput();
-		}
 	}
 }
 
