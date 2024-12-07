@@ -35,7 +35,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IDragAndDropData, DataTransfers } from '../../../../../base/browser/dnd.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { NativeDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
-import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
+import { isMacintosh, isWeb, isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
 import { IDialogService, getFileNamesMessage } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -74,6 +74,8 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { CountBadge } from '../../../../../base/browser/ui/countBadge/countBadge.js';
 import { listFilterMatchHighlight, listFilterMatchHighlightBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import { normalizeDriveLetter } from '../../../../../base/common/labels.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -306,7 +308,8 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IExplorerService private readonly explorerService: IExplorerService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
 	) {
 		this.explorerFindActiveContextKey = ExplorerFindProviderActive.bindTo(contextKeyService);
 	}
@@ -631,8 +634,21 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 			return { explorerRoot: root, files: [], directories: [], hitMaxResults: false };
 		}
 
-		const fileResultResources = fileResults.results.map(result => result.resource);
-		const directoryResources = getMatchingDirectoriesFromFiles(folderResults.results.map(result => result.resource), root, segmentMatchPattern);
+		let fileResultResources = fileResults.results.map(result => result.resource);
+		let directoryResources = getMatchingDirectoriesFromFiles(folderResults.results.map(result => result.resource), root, segmentMatchPattern);
+
+		let isWindowsOS = isWindows;
+		const env = await this.remoteAgentService.getEnvironment();
+		if (env) {
+			isWindowsOS = env.os === OperatingSystem.Windows;
+		}
+
+		// File Search returns file paths with lower case drive letters on Windows which is not typical. #235419
+		// The "IgnoreFile" utility compares paths in a case sensitive way. #235478
+		if (isWindowsOS) {
+			fileResultResources = fileResultResources.map(resource => URI.file(normalizeDriveLetter(resource.fsPath, true)).with({ scheme: resource.scheme, authority: resource.authority, fragment: resource.fragment, query: resource.query }));
+			directoryResources = directoryResources.map(resource => URI.file(normalizeDriveLetter(resource.fsPath, true)).with({ scheme: resource.scheme, authority: resource.authority, fragment: resource.fragment, query: resource.query }));
+		}
 
 		const filteredFileResources = fileResultResources.filter(resource => !this.filesFilter.isIgnored(resource, root.resource, false));
 		const filteredDirectoryResources = directoryResources.filter(resource => !this.filesFilter.isIgnored(resource, root.resource, true));
@@ -1421,7 +1437,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
 		const globMatch = cached?.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)));
 		// Small optimization to only run isHiddenResource (traverse gitIgnore) if the globMatch from fileExclude returned nothing
-		const isHiddenResource = !!globMatch ? true : this.isIgnored(stat.resource, stat.root.resource, stat.isDirectory);
+		const isHiddenResource = !!globMatch ? true : this.isIgnoredImpl(stat.resource, stat.root.resource, stat.isDirectory, true);
 		if (isHiddenResource || stat.parent?.isExcluded) {
 			stat.isExcluded = true;
 			const editors = this.editorService.visibleEditors;
@@ -1438,7 +1454,16 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	}
 
 	isIgnored(resource: URI, rootResource: URI, isDirectory: boolean): boolean {
+		return this.isIgnoredImpl(resource, rootResource, isDirectory, false);
+	}
+
+	private isIgnoredImpl(resource: URI, rootResource: URI, isDirectory: boolean, exactPathIgnored: boolean): boolean {
 		const ignoreFile = this.ignoreTreesPerRoot.get(rootResource.toString())?.findSubstr(resource);
+
+		if (!exactPathIgnored) {
+			return !!ignoreFile?.isArbitraryPathIgnored(resource.path, isDirectory);
+		}
+
 		const isIncludedInTraversal = ignoreFile?.isPathIncludedInTraversal(resource.path, isDirectory);
 
 		// Doing !undefined returns true and we want it to be false when undefined because that means it's not included in the ignore file
