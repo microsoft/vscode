@@ -154,10 +154,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					f1: true,
 					precondition: ContextKeyExpr.and(
 						ChatContextKeys.Setup.installed.negate(),
-						ContextKeyExpr.or(
-							ChatContextKeys.Setup.entitled,
-							ContextKeyExpr.has('config.chat.experimental.offerSetup')
-						)
+						ContextKeyExpr.has('config.chat.experimental.offerSetup')
 					),
 					menu: {
 						id: MenuId.ChatCommandCenter,
@@ -201,10 +198,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					category: CHAT_CATEGORY,
 					precondition: ContextKeyExpr.and(
 						ChatContextKeys.Setup.installed.negate(),
-						ContextKeyExpr.or(
-							ChatContextKeys.Setup.entitled,
-							ContextKeyExpr.has('config.chat.experimental.offerSetup')
-						)
+						ContextKeyExpr.has('config.chat.experimental.offerSetup')
 					),
 					menu: {
 						id: MenuId.ChatCommandCenter,
@@ -895,7 +889,6 @@ class ChatSetupContext extends Disposable {
 
 	private readonly canSignUpContextKey = ChatContextKeys.Setup.canSignUp.bindTo(this.contextKeyService);
 	private readonly signedOutContextKey = ChatContextKeys.Setup.signedOut.bindTo(this.contextKeyService);
-	private readonly entitledContextKey = ChatContextKeys.Setup.entitled.bindTo(this.contextKeyService);
 	private readonly limitedContextKey = ChatContextKeys.Setup.limited.bindTo(this.contextKeyService);
 	private readonly triggeredContext = ChatContextKeys.Setup.triggered.bindTo(this.contextKeyService);
 	private readonly installedContext = ChatContextKeys.Setup.installed.bindTo(this.contextKeyService);
@@ -1000,7 +993,6 @@ class ChatSetupContext extends Disposable {
 		changed = this.updateContextKey(this.signedOutContextKey, this._state.entitlement === ChatEntitlement.Unknown) || changed;
 		changed = this.updateContextKey(this.canSignUpContextKey, this._state.entitlement === ChatEntitlement.Available) || changed;
 		changed = this.updateContextKey(this.limitedContextKey, this._state.entitlement === ChatEntitlement.Limited) || changed;
-		changed = this.updateContextKey(this.entitledContextKey, this._state.entitlement === ChatEntitlement.Pro) || changed;
 		changed = this.updateContextKey(this.triggeredContext, !!this._state.triggered) || changed;
 		changed = this.updateContextKey(this.installedContext, !!this._state.installed) || changed;
 
