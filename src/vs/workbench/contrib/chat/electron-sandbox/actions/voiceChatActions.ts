@@ -772,7 +772,7 @@ class ChatSynthesizerSessions {
 		let totalOffset = 0;
 		let complete = false;
 
-		let ignoreCodeBlocks = this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.IgnoreCodeBlocks);
+		const ignoreCodeBlocks = this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.IgnoreCodeBlocks);
 
 		do {
 			const responseLength = response.response.toString().length;
