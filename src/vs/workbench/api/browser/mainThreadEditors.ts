@@ -390,7 +390,10 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		}
 
 		const dirtyDiffModel = this._dirtyDiffModelService.getDirtyDiffModel(codeEditor.getModel().uri);
-		return Promise.resolve(dirtyDiffModel?.changes.map(change => change.change) ?? []);
+		const scmQuickDiff = dirtyDiffModel?.quickDiffs.find(quickDiff => quickDiff.isSCM);
+		const scmQuickDiffChanges = dirtyDiffModel?.changes.filter(change => change.label === scmQuickDiff?.label);
+
+		return Promise.resolve(scmQuickDiffChanges?.map(change => change.change) ?? []);
 	}
 }
 
