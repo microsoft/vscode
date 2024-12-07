@@ -32,7 +32,7 @@ import { diffSets, diffMaps } from '../../../base/common/collections.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { ViewContainerLocation } from '../../common/views.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { IDirtyDiffModelService } from '../../contrib/scm/browser/diff.js';
+import { IDirtyDiffModelService } from '../../contrib/scm/browser/dirtyDiffModel.js';
 
 
 class TextEditorSnapshot {
