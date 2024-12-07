@@ -50,7 +50,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { IQuickDiffService, QuickDiffChange } from '../common/quickDiff.js';
 import { IQuickDiffSelectItem, SwitchQuickDiffBaseAction, SwitchQuickDiffViewItem } from './dirtyDiffSwitcher.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { DirtyDiffModel, getChangeHeight, getModifiedEndLineNumber, IDirtyDiffModelService, lineIntersectsChange } from './dirtyDiff.js';
+import { DirtyDiffModel, getChangeHeight, getModifiedEndLineNumber, IDirtyDiffModelService, lineIntersectsChange } from './dirtyDiffModel.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';

@@ -40,7 +40,7 @@ import { isSCMRepository } from './util.js';
 import { SCMHistoryViewPane } from './scmHistoryViewPane.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { RemoteNameContext } from '../../../common/contextkeys.js';
-import { DirtyDiffModelService, IDirtyDiffModelService } from './dirtyDiff.js';
+import { DirtyDiffModelService, IDirtyDiffModelService } from './dirtyDiffModel.js';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
