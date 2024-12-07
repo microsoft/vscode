@@ -6,7 +6,7 @@
 import * as nls from '../../../../nls.js';
 
 import './media/dirtydiffDecorator.css';
-import { IDisposable, toDisposable, Disposable, DisposableStore, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable, Disposable, DisposableStore, DisposableMap, IReference } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -533,16 +533,20 @@ export class GotoPreviousChangeAction extends EditorAction {
 			return;
 		}
 
-		const model = dirtyDiffModelService.getDirtyDiffModel(outerEditor.getModel().uri);
-		if (!model || model.changes.length === 0) {
-			return;
-		}
+		const modelRef = dirtyDiffModelService.createDirtyDiffModelReference(outerEditor.getModel().uri);
+		try {
+			if (!modelRef || modelRef.object.changes.length === 0) {
+				return;
+			}
 
-		const lineNumber = outerEditor.getPosition().lineNumber;
-		const index = model.findPreviousClosestChange(lineNumber, false);
-		const change = model.changes[index];
-		await playAccessibilitySymbolForChange(change.change, accessibilitySignalService);
-		setPositionAndSelection(change.change, outerEditor, accessibilityService, codeEditorService);
+			const lineNumber = outerEditor.getPosition().lineNumber;
+			const index = modelRef.object.findPreviousClosestChange(lineNumber, false);
+			const change = modelRef.object.changes[index];
+			await playAccessibilitySymbolForChange(change.change, accessibilitySignalService);
+			setPositionAndSelection(change.change, outerEditor, accessibilityService, codeEditorService);
+		} finally {
+			modelRef?.dispose();
+		}
 	}
 }
 registerEditorAction(GotoPreviousChangeAction);
@@ -569,17 +573,20 @@ export class GotoNextChangeAction extends EditorAction {
 			return;
 		}
 
-		const model = dirtyDiffModelService.getDirtyDiffModel(outerEditor.getModel().uri);
+		const modelRef = dirtyDiffModelService.createDirtyDiffModelReference(outerEditor.getModel().uri);
+		try {
+			if (!modelRef || modelRef.object.changes.length === 0) {
+				return;
+			}
 
-		if (!model || model.changes.length === 0) {
-			return;
+			const lineNumber = outerEditor.getPosition().lineNumber;
+			const index = modelRef.object.findNextClosestChange(lineNumber, false);
+			const change = modelRef.object.changes[index].change;
+			await playAccessibilitySymbolForChange(change, accessibilitySignalService);
+			setPositionAndSelection(change, outerEditor, accessibilityService, codeEditorService);
+		} finally {
+			modelRef?.dispose();
 		}
-
-		const lineNumber = outerEditor.getPosition().lineNumber;
-		const index = model.findNextClosestChange(lineNumber, false);
-		const change = model.changes[index].change;
-		await playAccessibilitySymbolForChange(change, accessibilitySignalService);
-		setPositionAndSelection(change, outerEditor, accessibilityService, codeEditorService);
 	}
 }
 
@@ -774,29 +781,31 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 			return false;
 		}
 
-		const model = this.dirtyDiffModelService.getDirtyDiffModel(editorModel.uri);
+		const modelRef = this.dirtyDiffModelService.createDirtyDiffModelReference(editorModel.uri);
 
-		if (!model) {
+		if (!modelRef) {
 			return false;
 		}
 
-		if (model.changes.length === 0) {
+		if (modelRef.object.changes.length === 0) {
+			modelRef.dispose();
 			return false;
 		}
 
-		this.model = model;
-		this.widget = this.instantiationService.createInstance(DirtyDiffWidget, this.editor, model);
+		this.model = modelRef.object;
+		this.widget = this.instantiationService.createInstance(DirtyDiffWidget, this.editor, this.model);
 		this.isDirtyDiffVisible.set(true);
 
 		const disposables = new DisposableStore();
 		disposables.add(Event.once(this.widget.onDidClose)(this.close, this));
-		const onDidModelChange = Event.chain(model.onDidChange, $ =>
+		const onDidModelChange = Event.chain(this.model.onDidChange, $ =>
 			$.filter(e => e.diff.length > 0)
 				.map(e => e.diff)
 		);
 
 		onDidModelChange(this.onDidModelChange, this, disposables);
 
+		disposables.add(modelRef);
 		disposables.add(this.widget);
 		disposables.add(toDisposable(() => {
 			this.model = null;
@@ -883,22 +892,27 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 			return;
 		}
 
-		const model = this.dirtyDiffModelService.getDirtyDiffModel(editorModel.uri);
+		const modelRef = this.dirtyDiffModelService.createDirtyDiffModelReference(editorModel.uri);
 
-		if (!model) {
+		if (!modelRef) {
 			return;
 		}
 
-		const index = model.changes.findIndex(change => lineIntersectsChange(lineNumber, change.change));
+		try {
+			const index = modelRef.object.changes
+				.findIndex(change => lineIntersectsChange(lineNumber, change.change));
 
-		if (index < 0) {
-			return;
-		}
+			if (index < 0) {
+				return;
+			}
 
-		if (index === this.widget?.index) {
-			this.close();
-		} else {
-			this.next(lineNumber);
+			if (index === this.widget?.index) {
+				this.close();
+			} else {
+				this.next(lineNumber);
+			}
+		} finally {
+			modelRef.dispose();
 		}
 	}
 
@@ -973,7 +987,7 @@ class DirtyDiffDecorator extends Disposable {
 
 	constructor(
 		private readonly codeEditor: ICodeEditor,
-		private readonly dirtyDiffModel: DirtyDiffModel,
+		private readonly dirtyDiffModelRef: IReference<DirtyDiffModel>,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
@@ -1022,7 +1036,7 @@ class DirtyDiffDecorator extends Disposable {
 			}
 		}));
 
-		this._register(Event.runAndSubscribe(dirtyDiffModel.onDidChange, () => this.onDidChange()));
+		this._register(Event.runAndSubscribe(this.dirtyDiffModelRef.object.onDidChange, () => this.onDidChange()));
 	}
 
 	private onDidChange(): void {
@@ -1030,10 +1044,10 @@ class DirtyDiffDecorator extends Disposable {
 			return;
 		}
 
-		const visibleQuickDiffs = this.dirtyDiffModel.quickDiffs.filter(quickDiff => quickDiff.visible);
+		const visibleQuickDiffs = this.dirtyDiffModelRef.object.quickDiffs.filter(quickDiff => quickDiff.visible);
 		const pattern = this.configurationService.getValue<{ added: boolean; modified: boolean }>('scm.diffDecorationsGutterPattern');
 
-		const decorations = this.dirtyDiffModel.changes
+		const decorations = this.dirtyDiffModelRef.object.changes
 			.filter(labeledChange => visibleQuickDiffs.some(quickDiff => quickDiff.label === labeledChange.label))
 			.map((labeledChange) => {
 				const change = labeledChange.change;
@@ -1080,8 +1094,8 @@ class DirtyDiffDecorator extends Disposable {
 		if (this.decorationsCollection) {
 			this.decorationsCollection?.clear();
 		}
-
 		this.decorationsCollection = undefined;
+		this.dirtyDiffModelRef.dispose();
 		super.dispose();
 	}
 }
@@ -1217,8 +1231,8 @@ export class DirtyDiffWorkbenchController extends Disposable implements IWorkben
 				continue;
 			}
 
-			const dirtyDiffModel = this.dirtyDiffModelService.getDirtyDiffModel(textModel.uri);
-			if (!dirtyDiffModel) {
+			const dirtyDiffModelRef = this.dirtyDiffModelService.createDirtyDiffModelReference(textModel.uri);
+			if (!dirtyDiffModelRef) {
 				continue;
 			}
 
@@ -1226,10 +1240,10 @@ export class DirtyDiffWorkbenchController extends Disposable implements IWorkben
 				this.decorators.set(textModel.uri, new DisposableMap<string>());
 			}
 
-			this.decorators.get(textModel.uri)!.set(editorId, new DirtyDiffDecorator(editor, dirtyDiffModel, this.configurationService));
+			this.decorators.get(textModel.uri)!.set(editorId, new DirtyDiffDecorator(editor, dirtyDiffModelRef, this.configurationService));
 		}
 
-		// Dispose decorators for editors that are no longer visible
+		// Dispose decorators for editors that are no longer visible.
 		for (const [uri, decoratorMap] of this.decorators.entries()) {
 			for (const editorId of decoratorMap.keys()) {
 				const codeEditor = this.editorService.visibleTextEditorControls
