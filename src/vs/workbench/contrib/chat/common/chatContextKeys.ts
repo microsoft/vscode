@@ -45,7 +45,6 @@ export namespace ChatContextKeys {
 		canSignUp: new RawContextKey<boolean>('chatSetupCanSignUp', false, true), 	// True when user can sign up to be a chat limited user.
 
 		signedOut: new RawContextKey<boolean>('chatSetupSignedOut', false, true), 	// True when user is signed out.
-		entitled: new RawContextKey<boolean>('chatSetupEntitled', false, true), 	// True when user is a chat entitled user.
 		limited: new RawContextKey<boolean>('chatSetupLimited', false, true), 		// True when user is a chat limited user.
 
 		triggered: new RawContextKey<boolean>('chatSetupTriggered', false, true), 	// True when chat setup is triggered.
