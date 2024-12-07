@@ -1372,7 +1372,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				}
 				isFirstRun = false;
 			}));
-		});
+		}, this, this._store);
 	}
 
 	protected override layoutBody(height: number, width: number): void {

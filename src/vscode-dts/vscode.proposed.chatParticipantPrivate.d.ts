@@ -94,10 +94,7 @@ declare module 'vscode' {
 		 */
 		responseIsRedacted?: boolean;
 
-		quotaExceededDetails?: {
-			command: Command;
-			rerunButtonLabel: string;
-		};
+		isQuotaExceeded?: boolean;
 	}
 
 	export namespace chat {

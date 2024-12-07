@@ -15,6 +15,7 @@
 }
 
 .chat-editor-overlay-widget .chat-editor-overlay-progress {
+	align-items: center;
 	display: none;
 	padding: 0px 5px;
 	font-size: 12px;
@@ -22,7 +23,16 @@
 }
 
 .chat-editor-overlay-widget.busy .chat-editor-overlay-progress {
-	display: inherit;
+	display: inline-flex;
+}
+
+.chat-editor-overlay-widget.busy .chat-editor-overlay-progress .busy-label {
+	padding: 5px;
+	/* font-style: italic; */
+}
+
+.chat-editor-overlay-widget.busy .chat-editor-overlay-toolbar {
+	display: none;
 }
 
 .chat-editor-overlay-widget .action-item > .action-label {
@@ -31,11 +41,11 @@
 }
 
 .chat-editor-overlay-widget .action-item:first-child > .action-label {
-	padding-left: 9px;
+	padding-left: 7px;
 }
 
 .chat-editor-overlay-widget .action-item:last-child > .action-label {
-	padding-right: 9px;
+	padding-right: 7px;
 }
 
 .chat-editor-overlay-widget.busy .chat-editor-overlay-progress .codicon,

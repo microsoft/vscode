@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, getActiveElement, setVisibility } from '../../../../base/browser/dom.js';
+import './media/chatViewSetup.css';
+import { $, addDisposableListener, EventType, getActiveElement, setVisibility } from '../../../../base/browser/dom.js';
 import { Button, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
@@ -19,8 +20,7 @@ import { IRequestContext } from '../../../../base/parts/request/common/request.j
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -33,14 +33,13 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import product from '../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { asText, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
@@ -54,8 +53,10 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, IChatWidget, showChatView, showEditsView } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
-import './media/chatViewSetup.css';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
+import { IChatQuotasService } from './chatQuotasService.js';
+import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -64,12 +65,12 @@ const defaultChat = {
 	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? '',
 	skusDocumentationUrl: product.defaultChatAgent?.skusDocumentationUrl ?? '',
+	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	providerName: product.defaultChatAgent?.providerName ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
 	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
-	managePlanUrl: product.defaultChatAgent?.managePlanUrl ?? '',
 };
 
 enum ChatEntitlement {
@@ -87,11 +88,35 @@ enum ChatEntitlement {
 	Pro
 }
 
+const ASK_FOR_PUBLIC_CODE_MATCHES = false; // TODO@bpasero revisit this
+
 //#region Contribution
 
 const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
+const TRIGGER_SETUP_COMMAND_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
 
-class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
+export const SetupWelcomeViewKeys = new Set([ChatContextKeys.Setup.triggered.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Setup.signedOut.key, ChatContextKeys.Setup.canSignUp.key]);
+export const SetupWelcomeViewCondition = ContextKeyExpr.and(
+	ContextKeyExpr.has('config.chat.experimental.offerSetup'),
+	ContextKeyExpr.or(
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.triggered,
+			ChatContextKeys.Setup.installed.negate()
+		),
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.canSignUp,
+			ChatContextKeys.Setup.installed
+		),
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.signedOut,
+			ChatContextKeys.Setup.installed
+		)
+	)
+)!;
+
+export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.chat.setup';
 
 	private readonly context = this._register(this.instantiationService.createInstance(ChatSetupContext));
 	private readonly requests = this._register(this.instantiationService.createInstance(ChatSetupRequests, this.context));
@@ -99,7 +124,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -114,24 +139,8 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 	private registerChatWelcome(): void {
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
 			title: localize('welcomeChat', "Welcome to Copilot"),
-			when: ContextKeyExpr.and(
-				ContextKeyExpr.has('config.chat.experimental.offerSetup'),
-				ContextKeyExpr.or(
-					ContextKeyExpr.and(
-						ChatContextKeys.Setup.triggered,
-						ChatContextKeys.Setup.installed.negate()
-					),
-					ContextKeyExpr.and(
-						ChatContextKeys.Setup.canSignUp,
-						ChatContextKeys.Setup.installed
-					),
-					ContextKeyExpr.and(
-						ChatContextKeys.Setup.signedOut,
-						ChatContextKeys.Setup.installed
-					)
-				)
-			)!,
-			icon: Codicon.copilot,
+			when: SetupWelcomeViewCondition,
+			icon: Codicon.copilotLarge,
 			content: disposables => disposables.add(this.instantiationService.createInstance(ChatSetupWelcomeContent, this.controller.value, this.context)).element,
 		});
 	}
@@ -141,13 +150,10 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 		class ChatSetupTriggerAction extends Action2 {
 
-			static readonly ID = TRIGGER_SETUP_COMMAND_ID;
-			static readonly TITLE = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
-
 			constructor() {
 				super({
-					id: ChatSetupTriggerAction.ID,
-					title: ChatSetupTriggerAction.TITLE,
+					id: TRIGGER_SETUP_COMMAND_ID,
+					title: TRIGGER_SETUP_COMMAND_LABEL,
 					category: CHAT_CATEGORY,
 					f1: true,
 					precondition: ContextKeyExpr.and(
@@ -159,7 +165,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 					),
 					menu: {
 						id: MenuId.ChatCommandCenter,
-						group: 'a_first',
+						group: 'a_last',
 						order: 1,
 						when: ChatContextKeys.Setup.installed.negate()
 					}
@@ -174,13 +180,12 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 				await that.context.update({ triggered: true });
 
-				showCopilotView(viewsService);
+				showCopilotView(viewsService, layoutService);
 				ensureSideBarChatViewSize(400, viewDescriptorService, layoutService);
 
-				// Setup should be kicked off immediately
-				if (typeof startSetup === 'boolean' && startSetup) {
+				if (startSetup === true && !ASK_FOR_PUBLIC_CODE_MATCHES) {
 					const controller = that.controller.value;
-					controller.setup();
+					controller.setup({ publicCodeSuggestions: true });
 				}
 
 				configurationService.updateValue('chat.commandCenter.enabled', true);
@@ -222,7 +227,7 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 
 				const { confirmed } = await dialogService.confirm({
 					message: localize('hideChatSetupConfirm', "Are you sure you want to hide Copilot?"),
-					detail: localize('hideChatSetupDetail', "You can restore Copilot by running the '{0}' command.", ChatSetupTriggerAction.TITLE.value),
+					detail: localize('hideChatSetupDetail', "You can restore Copilot by running the '{0}' command.", TRIGGER_SETUP_COMMAND_LABEL.value),
 					primaryButton: localize('hideChatSetupButton', "Hide Copilot")
 				});
 
@@ -249,110 +254,8 @@ class ChatSetupContribution extends Disposable implements IWorkbenchContribution
 			}
 		}
 
-		const outOfFreeChatResponses = localize('out of free chat responses', "You've run out of free chat responses, but free code completions are still available as part of the Copilot Free plan.");
-		const outOfCompletions = localize('out of completions', "You've run out of free code completions, but free chat responses are still available as part of the Copilot Free plan.");
-		const outOfLimits = localize('out of limits', "You've reached the limits of the Copilot Free plan.");
-		const limitReset = localize('limit reset', "Your limits will reset on {0}.", 'January 13, 2025 at 3:35 PM');
-		const upgradeToPro = localize('upgradeToPro', "Here's what you can expect when upgrading to Copilot Pro:\n- Unlimited code completions\n- Unlimited chat interactions\n- 30 day free trial");
-
-		abstract class AbstractShowLimitReachedDialogAction extends Action2 {
-
-			constructor(private readonly message: string, desc: Readonly<IAction2Options>) {
-				super(desc);
-			}
-
-			override async run(accessor: ServicesAccessor, ...args: any[]) {
-				const commandService = accessor.get(ICommandService);
-
-				await accessor.get(IDialogService).prompt({
-					type: 'none',
-					message: localize('limit reached', "Copilot Free"),
-					cancelButton: {
-						label: localize('dismiss', "Dismiss"),
-						run: () => { /* noop */ }
-					},
-					buttons: [
-						{
-							label: localize('managePlan', "Upgrade to Copilot Pro"),
-							run: () => commandService.executeCommand('workbench.action.chat.managePlan')
-						},
-					],
-					custom: {
-						closeOnLinkClick: true,
-						icon: Codicon.copilot,
-						markdownDetails: [
-							{ markdown: new MarkdownString(`${this.message} ${limitReset}`, true) },
-							{ markdown: new MarkdownString(upgradeToPro, true) }
-						]
-					}
-				});
-			}
-		}
-
-		class ShowOutOfFreeChatResponsesDialogAction extends AbstractShowLimitReachedDialogAction {
-			constructor() {
-				super(outOfFreeChatResponses, {
-					id: 'workbench.action.chat.showOutOfFreeChatResponsesDialog',
-					title: localize2('showLimitReachedDialog', "Show Out of Free Chat Responses Dialog"),
-					// f1: true,
-					category: CHAT_CATEGORY
-				});
-			}
-		}
-
-		class ShowOutOfCompletionsDialogAction extends AbstractShowLimitReachedDialogAction {
-			constructor() {
-				super(outOfCompletions, {
-					id: 'workbench.action.chat.showOutOfCompletions',
-					title: localize2('showOutOfCompletions', "Show Out of Completions Dialog"),
-					// f1: true,
-					category: CHAT_CATEGORY
-				});
-			}
-		}
-
-		class ShowOutOfLimitsDialogAction extends AbstractShowLimitReachedDialogAction {
-			constructor() {
-				super(outOfLimits, {
-					id: 'workbench.action.chat.showOutOfLimits',
-					title: localize2('showOutOfLimits', "Show Out of Limits Dialog"),
-					// f1: true,
-					category: CHAT_CATEGORY
-				});
-			}
-		}
-
-		class SimulateCopilotQuotaExceeded extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.action.chat.simulateCopilotQuotaExceeded',
-					title: localize2('simulateCopilotQuotaExceeded', "Simulate Copilot Quota Exceeded"),
-					// f1: true,
-					category: Categories.Developer
-				});
-			}
-
-			override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-				const contextKeyService = accessor.get(IContextKeyService);
-				const inputService = accessor.get(IQuickInputService);
-				const result = await inputService.pick([
-					{ label: 'Chat' },
-					{ label: 'Completions' }
-				], { canPickMany: true, placeHolder: 'Pick the quotas to exceed' });
-				if (result) {
-					const resultSet = new Set(result.map(r => r.label));
-					contextKeyService.createKey(ChatContextKeys.Quota.overChatQuota, resultSet.has('Chat'));
-					contextKeyService.createKey(ChatContextKeys.Quota.overCompletionsQuota, resultSet.has('Completions'));
-				}
-			}
-		}
-
 		registerAction2(ChatSetupTriggerAction);
 		registerAction2(ChatSetupHideAction);
-		registerAction2(ShowOutOfFreeChatResponsesDialogAction);
-		registerAction2(ShowOutOfCompletionsDialogAction);
-		registerAction2(ShowOutOfLimitsDialogAction);
-		registerAction2(SimulateCopilotQuotaExceeded);
 	}
 }
 
@@ -410,6 +313,7 @@ class ChatSetupRequests extends Disposable {
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@ILogService private readonly logService: ILogService,
 		@IRequestService private readonly requestService: IRequestService,
+		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService,
 	) {
 		super();
 
@@ -436,6 +340,15 @@ class ChatSetupRequests extends Disposable {
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => {
 			if (e.id === defaultChat.providerId) {
 				this.resolve();
+			}
+		}));
+
+		this._register(this.context.onDidChange(() => {
+			if (!this.context.state.installed || this.context.state.entitlement === ChatEntitlement.Unknown) {
+				// When the extension is not installed or the user is not entitled
+				// make sure to clear quotas so that any indicators are also gone
+				this.state = { entitlement: this.state.entitlement, quotas: undefined };
+				this.chatQuotasService.clearQuotas();
 			}
 		}));
 	}
@@ -594,16 +507,24 @@ class ChatSetupRequests extends Disposable {
 		this.state = state;
 
 		this.context.update({ entitlement: this.state.entitlement });
+
+		if (state.quotas) {
+			this.chatQuotasService.acceptQuotas({
+				chatQuotaExceeded: typeof state.quotas.chat === 'number' ? state.quotas.chat <= 0 : false,
+				completionsQuotaExceeded: typeof state.quotas.completions === 'number' ? state.quotas.completions <= 0 : false,
+				quotaResetDate: state.quotas.resetDate ? new Date(state.quotas.resetDate) : undefined
+			});
+		}
 	}
 
 	async forceResolveEntitlement(session: AuthenticationSession): Promise<ChatEntitlement | undefined> {
 		return this.resolveEntitlement(session, CancellationToken.None);
 	}
 
-	async signUpLimited(session: AuthenticationSession): Promise<boolean> {
+	async signUpLimited(session: AuthenticationSession, options: { publicCodeSuggestions: boolean }): Promise<boolean> {
 		const body = {
 			restricted_telemetry: 'disabled',
-			public_code_suggestions: 'enabled'
+			public_code_suggestions: options.publicCodeSuggestions ? 'enabled' : 'disabled'
 		};
 
 		const response = await this.request(defaultChat.entitlementSignupLimitedUrl, 'POST', body, session, CancellationToken.None);
@@ -695,7 +616,8 @@ class ChatSetupController extends Disposable {
 		@IProgressService private readonly progressService: IProgressService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IActivityService private readonly activityService: IActivityService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
 
@@ -715,7 +637,7 @@ class ChatSetupController extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	async setup(): Promise<void> {
+	async setup(options: { publicCodeSuggestions: boolean }): Promise<void> {
 		const title = localize('setupChatProgress', "Getting Copilot ready...");
 		const badge = this.activityService.showViewContainerActivity(isCopilotEditsViewActive(this.viewsService) ? CHAT_EDITING_SIDEBAR_PANEL_ID : CHAT_SIDEBAR_PANEL_ID, {
 			badge: new ProgressBadge(() => title),
@@ -727,13 +649,13 @@ class ChatSetupController extends Disposable {
 				location: ProgressLocation.Window,
 				command: TRIGGER_SETUP_COMMAND_ID,
 				title,
-			}, () => this.doSetup());
+			}, () => this.doSetup(options));
 		} finally {
 			badge.dispose();
 		}
 	}
 
-	private async doSetup(): Promise<void> {
+	private async doSetup(options: { publicCodeSuggestions: boolean }): Promise<void> {
 		this.context.suspend();  // reduces flicker
 		try {
 			let session: AuthenticationSession | undefined;
@@ -760,7 +682,7 @@ class ChatSetupController extends Disposable {
 
 			// Install
 			this.setStep(ChatSetupStep.Installing);
-			await this.install(session, entitlement ?? this.context.state.entitlement);
+			await this.install(session, entitlement ?? this.context.state.entitlement, options);
 		} finally {
 			this.setStep(ChatSetupStep.Initial);
 			this.context.resume();
@@ -771,7 +693,7 @@ class ChatSetupController extends Disposable {
 		let session: AuthenticationSession | undefined;
 		let entitlement: ChatEntitlement | undefined;
 		try {
-			showCopilotView(this.viewsService);
+			showCopilotView(this.viewsService, this.layoutService);
 			session = await this.authenticationService.createSession(defaultChat.providerId, defaultChat.providerScopes[0]);
 			entitlement = await this.requests.forceResolveEntitlement(session);
 		} catch (error) {
@@ -785,7 +707,7 @@ class ChatSetupController extends Disposable {
 		return { session, entitlement };
 	}
 
-	private async install(session: AuthenticationSession, entitlement: ChatEntitlement): Promise<void> {
+	private async install(session: AuthenticationSession, entitlement: ChatEntitlement, options: { publicCodeSuggestions: boolean }): Promise<void> {
 		const signedIn = !!session;
 		const activeElement = getActiveElement();
 
@@ -793,10 +715,10 @@ class ChatSetupController extends Disposable {
 		const wasInstalled = this.context.state.installed;
 		let didSignUp = false;
 		try {
-			showCopilotView(this.viewsService);
+			showCopilotView(this.viewsService, this.layoutService);
 
 			if (entitlement !== ChatEntitlement.Limited && entitlement !== ChatEntitlement.Pro && entitlement !== ChatEntitlement.Unavailable) {
-				didSignUp = await this.requests.signUpLimited(session);
+				didSignUp = await this.requests.signUpLimited(session, options);
 			}
 
 			await this.extensionsWorkbenchService.install(defaultChat.extensionId, {
@@ -826,8 +748,9 @@ class ChatSetupController extends Disposable {
 
 		this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult, signedIn });
 
-		if (activeElement === getActiveElement()) {
-			(await showCopilotView(this.viewsService))?.focusInput();
+		const currentActiveElement = getActiveElement();
+		if (activeElement === currentActiveElement || currentActiveElement === mainWindow.document.body) {
+			(await showCopilotView(this.viewsService, this.layoutService))?.focusInput();
 		}
 	}
 }
@@ -883,9 +806,15 @@ class ChatSetupWelcomeContent extends Disposable {
 		const limitedSkuHeaderContainer = this.element.appendChild($('p'));
 		limitedSkuHeaderContainer.appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true, supportThemeIcons: true }))).element);
 
+		const publicCodeSuggestionsLabel = localize('detectionLabel', "Allow code suggestions that [match public code]({0})", defaultChat.publicCodeMatchesUrl);
+		const { container: publicCodeSuggestionsContainer, checkbox: publicCodeSuggestionsCheckbox } = this.createCheckBox(publicCodeSuggestionsLabel, true, markdown);
+
 		// Terms
 		const terms = localize({ key: 'termsLabel', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to our [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
-		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element);
+		const termsContainer = this.element.appendChild($('p'));
+		termsContainer.classList.add('terms-container');
+		termsContainer.classList.toggle('is-standalone', !ASK_FOR_PUBLIC_CODE_MATCHES);
+		termsContainer.appendChild(this._register(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element);
 
 		// Setup Button
 		const actions: IAction[] = [];
@@ -904,13 +833,30 @@ class ChatSetupWelcomeContent extends Disposable {
 			supportIcons: true,
 			...defaultButtonStyles
 		}));
-		this._register(button.onDidClick(() => this.controller.setup()));
+		this._register(button.onDidClick(() => this.controller.setup({ publicCodeSuggestions: ASK_FOR_PUBLIC_CODE_MATCHES ? publicCodeSuggestionsCheckbox.checked : true })));
 
 		// Update based on model state
-		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(limitedSkuHeaderContainer, button)));
+		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(limitedSkuHeaderContainer, button, [publicCodeSuggestionsContainer], [publicCodeSuggestionsCheckbox])));
 	}
 
-	private update(limitedSkuHeaderContainer: HTMLElement, button: Button | ButtonWithDropdown): void {
+	private createCheckBox(label: string, checked: boolean, markdown: MarkdownRenderer): { container: HTMLElement; checkbox: Checkbox } {
+		const container = this.element.appendChild($('p.checkbox-container'));
+		const checkbox = this._register(new Checkbox(label, checked, defaultCheckboxStyles));
+		container.appendChild(checkbox.domNode);
+
+		const checkboxLabel = container.appendChild(this._register(markdown.render(new MarkdownString(label, { isTrusted: true, supportThemeIcons: true }), { inline: true, className: 'checkbox-label' })).element);
+		this._register(addDisposableListener(checkboxLabel, EventType.CLICK, e => {
+			if (checkbox?.enabled && (e.target as HTMLElement).tagName !== 'A') {
+				checkbox.checked = !checkbox.checked;
+				checkbox.focus();
+			}
+		}));
+
+		return { container, checkbox };
+	}
+
+	private update(limitedSkuHeaderContainer: HTMLElement, button: Button | ButtonWithDropdown, limitedCheckboxContainers: HTMLElement[], limitedCheckboxes: Checkbox[]): void {
+		const showLimitedCheckboxes = ASK_FOR_PUBLIC_CODE_MATCHES ? this.context.state.entitlement !== ChatEntitlement.Limited && this.context.state.entitlement !== ChatEntitlement.Pro && this.context.state.entitlement !== ChatEntitlement.Unavailable : false;
 		let showLimitedSkuHeader: boolean;
 		let buttonLabel: string;
 
@@ -920,10 +866,13 @@ class ChatSetupWelcomeContent extends Disposable {
 				buttonLabel = this.context.state.registered ? localize('signUp', "Sign in to Use Copilot") : localize('signUpFree', "Sign in to Use Copilot for Free");
 				break;
 			case ChatEntitlement.Unresolved:
+				showLimitedSkuHeader = true;
+				buttonLabel = this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot for Free");
+				break;
 			case ChatEntitlement.Available:
 			case ChatEntitlement.Limited:
 				showLimitedSkuHeader = true;
-				buttonLabel = this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot for Free");
+				buttonLabel = localize('startUpLimited', "Use Copilot for Free");
 				break;
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.Unavailable:
@@ -934,17 +883,26 @@ class ChatSetupWelcomeContent extends Disposable {
 
 		switch (this.controller.step) {
 			case ChatSetupStep.Initial:
-				// do not override
+				for (const checkbox of limitedCheckboxes) {
+					checkbox.enable();
+				}
 				break;
 			case ChatSetupStep.SigningIn:
+				for (const checkbox of limitedCheckboxes) {
+					checkbox.disable();
+				}
 				buttonLabel = localize('setupChatSignIn', "$(loading~spin) Signing in to {0}...", defaultChat.providerName);
 				break;
 			case ChatSetupStep.Installing:
+				for (const checkbox of limitedCheckboxes) {
+					checkbox.disable();
+				}
 				buttonLabel = localize('setupChatInstalling', "$(loading~spin) Getting Copilot Ready...");
 				break;
 		}
 
 		setVisibility(showLimitedSkuHeader, limitedSkuHeaderContainer);
+		setVisibility(showLimitedCheckboxes, ...limitedCheckboxContainers);
 
 		button.label = buttonLabel;
 		button.enabled = this.controller.step === ChatSetupStep.Initial;
@@ -954,18 +912,6 @@ class ChatSetupWelcomeContent extends Disposable {
 //#endregion
 
 //#region Context
-
-function isCopilotEditsViewActive(viewsService: IViewsService): boolean {
-	return viewsService.getFocusedView()?.id === EditsViewId;
-}
-
-function showCopilotView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
-	if (isCopilotEditsViewActive(viewsService)) {
-		return showEditsView(viewsService);
-	} else {
-		return showChatView(viewsService);
-	}
-}
 
 interface IChatSetupContextState {
 	entitlement: ChatEntitlement;
@@ -1002,12 +948,13 @@ class ChatSetupContext extends Disposable {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
 		this.checkExtensionInstallation();
-		this.updateContext();
+		this.updateContextSync();
 	}
 
 	private async checkExtensionInstallation(): Promise<void> {
@@ -1036,6 +983,8 @@ class ChatSetupContext extends Disposable {
 	update(context: { triggered: boolean }): Promise<void>;
 	update(context: { entitlement: ChatEntitlement }): Promise<void>;
 	update(context: { installed?: boolean; triggered?: boolean; entitlement?: ChatEntitlement }): Promise<void> {
+		this.logService.trace(`[chat setup] update(): ${JSON.stringify(context)}`);
+
 		if (typeof context.installed === 'boolean') {
 			this._state.installed = context.installed;
 
@@ -1065,6 +1014,12 @@ class ChatSetupContext extends Disposable {
 
 	private async updateContext(): Promise<void> {
 		await this.updateBarrier?.wait();
+
+		this.updateContextSync();
+	}
+
+	private updateContextSync(): void {
+		this.logService.trace(`[chat setup] updateContext(): ${JSON.stringify(this._state)}`);
 
 		if (this._state.triggered && !this._state.installed) {
 			// this is ugly but fixes flicker from a previous chat install
@@ -1106,4 +1061,21 @@ class ChatSetupContext extends Disposable {
 
 //#endregion
 
-registerWorkbenchContribution2('workbench.chat.setup', ChatSetupContribution, WorkbenchPhase.BlockRestore);
+function isCopilotEditsViewActive(viewsService: IViewsService): boolean {
+	return viewsService.getFocusedView()?.id === EditsViewId;
+}
+
+function showCopilotView(viewsService: IViewsService, layoutService: IWorkbenchLayoutService): Promise<IChatWidget | undefined> {
+
+	// Ensure main window is in front
+	if (layoutService.activeContainer !== layoutService.mainContainer) {
+		layoutService.mainContainer.focus();
+	}
+
+	// Bring up the correct view
+	if (isCopilotEditsViewActive(viewsService)) {
+		return showEditsView(viewsService);
+	} else {
+		return showChatView(viewsService);
+	}
+}

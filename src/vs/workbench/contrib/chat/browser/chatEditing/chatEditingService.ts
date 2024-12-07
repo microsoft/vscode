@@ -61,11 +61,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return this._currentSessionObs;
 	}
 
-	private readonly _onDidCreateEditingSession = this._register(new Emitter<IChatEditingSession>());
-	get onDidCreateEditingSession() {
-		return this._onDidCreateEditingSession.event;
-	}
-
 	private readonly _onDidChangeEditingSession = this._register(new Emitter<void>());
 	public readonly onDidChangeEditingSession = this._onDidChangeEditingSession.event;
 
@@ -162,7 +157,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		void this._editingSessionFileLimitPromise;
 
 		const sessionIdToRestore = storageService.get(STORAGE_KEY_EDITING_SESSION, StorageScope.WORKSPACE);
-		if (isString(sessionIdToRestore)) {
+		if (isString(sessionIdToRestore) && this._chatService.getOrRestoreSession(sessionIdToRestore)) {
 			this._restoringEditingSession = this.startOrContinueEditingSession(sessionIdToRestore);
 			this._restoringEditingSession.finally(() => {
 				this._restoringEditingSession = undefined;
@@ -220,7 +215,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}));
 
 		this._currentSessionObs.set(session, undefined);
-		this._onDidCreateEditingSession.fire(session);
 		this._onDidChangeEditingSession.fire();
 		return session;
 	}

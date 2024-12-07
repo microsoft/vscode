@@ -109,6 +109,13 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 		for (const uri of uris) {
 			chatWidget.attachmentModel.delete(uri.toString());
 		}
+
+		// If there are now only suggested files in the working set, also clear those
+		const entries = [...currentEditingSession.workingSet.entries()];
+		const suggestedFiles = entries.filter(([_, state]) => state.state === WorkingSetEntryState.Suggested);
+		if (suggestedFiles.length === entries.length && !chatWidget.attachmentModel.attachments.find((v) => v.isFile && URI.isUri(v.value))) {
+			currentEditingSession.remove(WorkingSetEntryRemovalReason.Programmatic, ...entries.map(([uri,]) => uri));
+		}
 	}
 });
 
@@ -538,11 +545,11 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 		super({
 			id: OpenWorkingSetHistoryAction.id,
 			title: localize('chat.openSnapshot.label', "Open File Snapshot"),
+			precondition: ContextKeyExpr.notIn(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key),
 			menu: [{
 				id: MenuId.ChatEditingCodeBlockContext,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.notIn(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key),
 			},]
 		});
 	}

@@ -11,12 +11,13 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable, textLinkForeground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { IChatService } from '../../common/chatService.js';
 import { IChatResponseViewModel } from '../../common/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { IChatContentPart } from './chatContentParts.js';
@@ -32,16 +33,14 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 	constructor(
 		element: IChatResponseViewModel,
 		renderer: MarkdownRenderer,
-		@IOpenerService openerService: IOpenerService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
-		@IChatService chatService: IChatService,
 		@ICommandService commandService: ICommandService,
+		@IProductService productService: IProductService,
 	) {
 		super();
 
 		const errorDetails = element.errorDetails;
 		assertType(!!errorDetails, 'errorDetails');
-		assertType(!!errorDetails.quotaExceededDetails, 'quotaExceededDetails');
 
 		this.domNode = $('.chat-quota-error-widget');
 		const icon = dom.append(this.domNode, $('span'));
@@ -52,12 +51,13 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 		dom.append(messageContainer, markdownContent.element);
 
 		const button1 = this._register(new Button(messageContainer, { ...defaultButtonStyles, supportIcons: true }));
-		button1.label = errorDetails.quotaExceededDetails.command.title;
+		button1.label = localize('upgradeToCopilotPro', "Upgrade to Copilot Pro");
 		button1.element.classList.add('chat-quota-error-button');
 
 		let didAddSecondary = false;
 		this._register(button1.onDidClick(async () => {
-			await commandService.executeCommand(errorDetails.quotaExceededDetails!.command.id, ...(errorDetails.quotaExceededDetails!.command.arguments ?? []));
+			const url = productService.defaultChatAgent?.upgradePlanUrl;
+			await commandService.executeCommand('vscode.open', url ? URI.parse(url) : undefined);
 
 			if (!didAddSecondary) {
 				didAddSecondary = true;
@@ -67,7 +67,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 					buttonForeground: asCssVariable(textLinkForeground)
 				}));
 				button2.element.classList.add('chat-quota-error-secondary-button');
-				button2.label = errorDetails.quotaExceededDetails!.rerunButtonLabel;
+				button2.label = localize('signedUpClickToContinue', "Signed up? Click to continue!");
 				this._onDidChangeHeight.fire();
 				this._register(button2.onDidClick(() => {
 					const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);

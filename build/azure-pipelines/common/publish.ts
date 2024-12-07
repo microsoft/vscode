@@ -16,8 +16,9 @@ import * as cp from 'child_process';
 import * as os from 'os';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
 import { ConfidentialClientApplication } from '@azure/msal-node';
-import { BlobClient, BlobServiceClient, ContainerClient } from '@azure/storage-blob';
+import { BlobClient, BlobServiceClient, BlockBlobClient, ContainerClient } from '@azure/storage-blob';
 import * as jws from 'jws';
+import { clearInterval, setInterval } from 'node:timers';
 
 function e(name: string): string {
 	const result = process.env[name];
@@ -74,6 +75,7 @@ interface ReleaseError {
 
 const enum StatusCode {
 	Pass = 'pass',
+	Aborted = 'aborted',
 	Inprogress = 'inprogress',
 	FailCanRetry = 'failCanRetry',
 	FailDoNotRetry = 'failDoNotRetry',
@@ -376,8 +378,12 @@ class ESRPReleaseService {
 
 				if (releaseStatus.status === 'pass') {
 					break;
+				} else if (releaseStatus.status === 'aborted') {
+					this.log(JSON.stringify(releaseStatus));
+					throw new Error(`Release was aborted`);
 				} else if (releaseStatus.status !== 'inprogress') {
-					throw new Error(`Failed to submit release: ${JSON.stringify(releaseStatus)}`);
+					this.log(JSON.stringify(releaseStatus));
+					throw new Error(`Unknown error when polling for release`);
 				}
 			}
 
@@ -788,67 +794,121 @@ function getRealType(type: string) {
 	}
 }
 
+async function withLease<T>(client: BlockBlobClient, fn: () => Promise<T>) {
+	const lease = client.getBlobLeaseClient();
+
+	for (let i = 0; i < 360; i++) { // Try to get lease for 30 minutes
+		try {
+			await client.uploadData(new ArrayBuffer()); // blob needs to exist for lease to be acquired
+			await lease.acquireLease(60);
+
+			try {
+				const abortController = new AbortController();
+				const refresher = new Promise<void>((c, e) => {
+					abortController.signal.onabort = () => {
+						clearInterval(interval);
+						c();
+					};
+
+					const interval = setInterval(() => {
+						lease.renewLease().catch(err => {
+							clearInterval(interval);
+							e(new Error('Failed to renew lease ' + err));
+						});
+					}, 30_000);
+				});
+
+				const result = await Promise.race([fn(), refresher]);
+				abortController.abort();
+				return result;
+			} finally {
+				await lease.releaseLease();
+			}
+		} catch (err) {
+			if (err.statusCode !== 409 && err.statusCode !== 412) {
+				throw err;
+			}
+
+			await new Promise(c => setTimeout(c, 5000));
+		}
+	}
+
+	throw new Error('Failed to acquire lease on blob after 30 minutes');
+}
+
 async function processArtifact(
 	artifact: Artifact,
 	filePath: string
 ) {
+	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
 	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
 
 	if (!match) {
 		throw new Error(`Invalid artifact name: ${artifact.name}`);
 	}
 
-	// getPlatform needs the unprocessedType
 	const { cosmosDBAccessToken, blobServiceAccessToken } = JSON.parse(e('PUBLISH_AUTH_TOKENS'));
 	const quality = e('VSCODE_QUALITY');
 	const version = e('BUILD_SOURCEVERSION');
-	const { product, os, arch, unprocessedType } = match.groups!;
-	const isLegacy = artifact.name.includes('_legacy');
-	const platform = getPlatform(product, os, arch, unprocessedType, isLegacy);
-	const type = getRealType(unprocessedType);
-	const size = fs.statSync(filePath).size;
-	const stream = fs.createReadStream(filePath);
-	const [hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]); // CodeQL [SM04514] Using SHA1 only for legacy reasons, we are actually only respecting SHA256
-
-	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
-	const blobServiceClient = new BlobServiceClient(`https://${e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')}.blob.core.windows.net/`, { getToken: async () => blobServiceAccessToken });
-	const containerClient = blobServiceClient.getContainerClient('staging');
-
-	const releaseService = await ESRPReleaseService.create(
-		log,
-		e('RELEASE_TENANT_ID'),
-		e('RELEASE_CLIENT_ID'),
-		e('RELEASE_AUTH_CERT'),
-		e('RELEASE_REQUEST_SIGNING_CERT'),
-		containerClient
-	);
-
 	const friendlyFileName = `${quality}/${version}/${path.basename(filePath)}`;
-	const url = `${e('PRSS_CDN_URL')}/${friendlyFileName}`;
-	const res = await retry(() => fetch(url));
 
-	if (res.status === 200) {
-		log(`Already released and provisioned: ${url}`);
-	} else {
-		await releaseService.createRelease(version, filePath, friendlyFileName);
-	}
+	const blobServiceClient = new BlobServiceClient(`https://${e('VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME')}.blob.core.windows.net/`, { getToken: async () => blobServiceAccessToken });
+	const leasesContainerClient = blobServiceClient.getContainerClient('leases');
+	await leasesContainerClient.createIfNotExists();
+	const leaseBlobClient = leasesContainerClient.getBlockBlobClient(friendlyFileName);
 
-	const asset: Asset = { platform, type, url, hash: hash.toString('hex'), sha256hash: sha256hash.toString('hex'), size, supportsFastUpdate: true };
-	log('Creating asset...');
+	log(`Acquiring lease for: ${friendlyFileName}`);
 
-	const result = await retry(async (attempt) => {
-		log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
-		const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT')!, tokenProvider: () => Promise.resolve(`type=aad&ver=1.0&sig=${cosmosDBAccessToken.token}`) });
-		const scripts = client.database('builds').container(quality).scripts;
-		const { resource: result } = await scripts.storedProcedure('createAsset').execute<'ok' | 'already exists'>('', [version, asset, true]);
-		return result;
+	await withLease(leaseBlobClient, async () => {
+		log(`Successfully acquired lease for: ${friendlyFileName}`);
+
+		const url = `${e('PRSS_CDN_URL')}/${friendlyFileName}`;
+		const res = await retry(() => fetch(url));
+
+		if (res.status === 200) {
+			log(`Already released and provisioned: ${url}`);
+		} else {
+			const stagingContainerClient = blobServiceClient.getContainerClient('staging');
+			await stagingContainerClient.createIfNotExists();
+
+			const releaseService = await ESRPReleaseService.create(
+				log,
+				e('RELEASE_TENANT_ID'),
+				e('RELEASE_CLIENT_ID'),
+				e('RELEASE_AUTH_CERT'),
+				e('RELEASE_REQUEST_SIGNING_CERT'),
+				stagingContainerClient
+			);
+
+			await retry(() => releaseService.createRelease(version, filePath, friendlyFileName));
+		}
+
+		const { product, os, arch, unprocessedType } = match.groups!;
+		const isLegacy = artifact.name.includes('_legacy');
+		const platform = getPlatform(product, os, arch, unprocessedType, isLegacy);
+		const type = getRealType(unprocessedType);
+		const size = fs.statSync(filePath).size;
+		const stream = fs.createReadStream(filePath);
+		const [hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]); // CodeQL [SM04514] Using SHA1 only for legacy reasons, we are actually only respecting SHA256
+		const asset: Asset = { platform, type, url, hash: hash.toString('hex'), sha256hash: sha256hash.toString('hex'), size, supportsFastUpdate: true };
+		log('Creating asset...');
+
+		const result = await retry(async (attempt) => {
+			log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
+			const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT')!, tokenProvider: () => Promise.resolve(`type=aad&ver=1.0&sig=${cosmosDBAccessToken.token}`) });
+			const scripts = client.database('builds').container(quality).scripts;
+			const { resource: result } = await scripts.storedProcedure('createAsset').execute<'ok' | 'already exists'>('', [version, asset, true]);
+			return result;
+		});
+
+		if (result === 'already exists') {
+			log('Asset already exists!');
+		} else {
+			log('Asset successfully created: ', JSON.stringify(asset, undefined, 2));
+		}
 	});
 
-	if (result === 'already exists') {
-		log('Asset already exists!');
-	} else {
-		log('Asset successfully created: ', JSON.stringify(asset, undefined, 2));
-	}
+	log(`Successfully released lease for: ${friendlyFileName}`);
 }
 
 // It is VERY important that we don't download artifacts too much too fast from AZDO.

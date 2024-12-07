@@ -248,6 +248,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private _dropIntoEditorDecorations: EditorDecorationsCollection = this.createDecorationsCollection();
 
+	public inComposition: boolean = false;
+
 	constructor(
 		domElement: HTMLElement,
 		_options: Readonly<IEditorConstructionOptions>,
@@ -1134,6 +1136,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return;
 		}
+		this.inComposition = true;
 		this._modelData.viewModel.startComposition();
 		this._onDidCompositionStart.fire();
 	}
@@ -1142,6 +1145,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return;
 		}
+		this.inComposition = false;
 		this._modelData.viewModel.endComposition(source);
 		this._onDidCompositionEnd.fire();
 	}
