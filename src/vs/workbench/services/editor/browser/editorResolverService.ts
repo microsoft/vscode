@@ -501,12 +501,16 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			throw new Error(`Undefined resource on non untitled editor input.`);
 		}
 
+		const singleEditorPerResource = typeof selectedEditor.options?.singlePerResource === 'function' ? selectedEditor.options.singlePerResource() : selectedEditor.options?.singlePerResource ?? false;
+		const moveToActiveGroupIfOpen = this.configurationService.getValue<boolean>('workbench.editor.moveToActiveGroupIfOpen');
+
 		// If the editor states it can only be opened once per resource we must close all existing ones except one and move the new one into the group
-		const singleEditorPerResource = typeof selectedEditor.options?.singlePerResource === 'function' ? selectedEditor.options.singlePerResource() : selectedEditor.options?.singlePerResource;
-		if (singleEditorPerResource) {
+		// We also move the active editor if moveToActiveGroupIfOpen is enabled, although in this case we don't close other editors
+		if (singleEditorPerResource || (moveToActiveGroupIfOpen && !group.isLocked)) {
 			const existingEditors = this.findExistingEditorsForResource(resource, selectedEditor.editorInfo.id);
+			const shouldCloseOtherEditors = singleEditorPerResource;
 			if (existingEditors.length) {
-				const editor = await this.moveExistingEditorForResource(existingEditors, group);
+				const editor = await this.moveExistingEditorForResource(existingEditors, group, shouldCloseOtherEditors);
 				if (editor) {
 					return { editor, options };
 				} else {
@@ -529,30 +533,44 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	/**
-	 * Moves the first existing editor for a resource to the target group unless already opened there.
-	 * Additionally will close any other editors that are open for that resource and viewtype besides the first one found
-	 * @param resource The resource of the editor
-	 * @param viewType the viewtype of the editor
-	 * @param targetGroup The group to move it to
-	 * @returns The moved editor input or `undefined` if the editor could not be moved
+	 * Moves the first existing editor for a resource to the target group unless one is already opened there.
+	 * Optionally will close any other editors that are open for that resource and viewtype
+	 * @param existingEditorsForResource All the editors for a resource (must be non-empty)
+	 * @param targetGroup The group to move it the first editor to
+	 * @param shouldCloseOtherEditors If `true`, attempt to close all other editors
+	 * @returns The moved or already opened editor input or `undefined` if the editor could not be moved
 	 */
 	private async moveExistingEditorForResource(
 		existingEditorsForResource: Array<{ editor: EditorInput; group: IEditorGroup }>,
 		targetGroup: IEditorGroup,
+		shouldCloseOtherEditors: boolean,
 	): Promise<EditorInput | undefined> {
-		const editorToUse = existingEditorsForResource[0];
+		let editorToUse: { editor: EditorInput; group: IEditorGroup } | undefined = undefined;
 
-		// We should only have one editor but if there are multiple we close the others
-		for (const { editor, group } of existingEditorsForResource) {
-			if (editor !== editorToUse.editor) {
-				const closed = await group.closeEditor(editor);
-				if (!closed) {
-					return;
+		// Prefer an editor that is already in the target group
+		for (const editor of existingEditorsForResource) {
+			if (targetGroup.id === editor.group.id) {
+				editorToUse = editor;
+				break;
+			}
+		}
+
+		if (editorToUse === undefined) {
+			editorToUse = existingEditorsForResource[0];
+		}
+
+		if (shouldCloseOtherEditors) {
+			for (const { editor, group } of existingEditorsForResource) {
+				if (editor !== editorToUse.editor) {
+					const closed = await group.closeEditor(editor);
+					if (!closed) {
+						return;
+					}
 				}
 			}
 		}
 
-		// Move the editor already opened to the target group
+		// Move the already opened editor to the target group if it is outside it
 		if (targetGroup.id !== editorToUse.group.id) {
 			const moved = editorToUse.group.moveEditor(editorToUse.editor, targetGroup);
 			if (!moved) {
