@@ -102,6 +102,9 @@ class OutlineItem extends BreadcrumbsItem {
 			filterData: undefined
 		}, 0, template, undefined);
 
+		// Hide breadcrumb icon
+		template.iconClass.className = this.options.showSymbolIcons ? template.iconClass.className : '';
+
 		this._disposables.add(toDisposable(() => { renderer.disposeTemplate(template); }));
 
 		if (element instanceof OutlineElement && outline.uri) {
