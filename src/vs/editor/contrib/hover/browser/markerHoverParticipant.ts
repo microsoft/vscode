@@ -17,7 +17,7 @@ import { IModelDecoration } from '../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { IMarkerDecorationsService } from '../../../common/services/markerDecorations.js';
 import { ApplyCodeActionReason, getCodeActions, quickFixCommandId } from '../../codeAction/browser/codeAction.js';
-import { CodeActionController } from '../../codeAction/browser/codeActionController.js';
+import { CodeActionController, CodeActionsVisibleFromSource } from '../../codeAction/browser/codeActionController.js';
 import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../../codeAction/common/types.js';
 import { MarkerController, NextMarkerAction } from '../../gotoError/browser/gotoError.js';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from './hoverTypes.js';
@@ -243,10 +243,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 						showing = true;
 						const controller = CodeActionController.get(this._editor);
 						const elementPosition = dom.getDomNodePagePosition(target);
-						// Hide the hover pre-emptively, otherwise the editor can close the code actions
-						// context menu as well when using keyboard navigation
-						context.hide();
-						controller?.showCodeActions(markerCodeActionTrigger, actions, {
+						controller?.showCodeActions(CodeActionsVisibleFromSource.HoverQuickFix, actions, {
 							x: elementPosition.left,
 							y: elementPosition.top,
 							width: elementPosition.width,
@@ -269,6 +266,11 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 
 			}, onUnexpectedError);
 		}
+	}
+
+	public handleHide(): void {
+		const controller = CodeActionController.get(this._editor);
+		controller?.hideCodeActions();
 	}
 
 	private getCodeActions(marker: IMarker): CancelablePromise<CodeActionSet> {

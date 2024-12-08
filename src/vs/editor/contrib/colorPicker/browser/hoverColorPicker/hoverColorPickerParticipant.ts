@@ -138,6 +138,7 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 			if (editorUpdatedByColorPicker) {
 				editorUpdatedByColorPicker = false;
 			} else {
+				console.log('renderHoverParts HoverColorPickerParticipant editor.onDidChangeModelContent');
 				context.hide();
 				editor.focus();
 			}
