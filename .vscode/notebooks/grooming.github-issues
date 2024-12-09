@@ -37,7 +37,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$repos assignee:@me is:open type:issue no:milestone -label:info-needed -label:triage-needed -label:confirmation-pending\r\n"
+    "value": "$repos assignee:@me is:open type:issue no:milestone -label:info-needed -label:triage-needed -label:confirmation-pending -label:under-discussion\r\n"
   },
   {
     "kind": 1,
