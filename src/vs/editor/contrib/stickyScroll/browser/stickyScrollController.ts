@@ -394,7 +394,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (!foldingIcon) {
 			return;
 		}
-		toggleCollapseState(this._foldingModel, Number.MAX_VALUE, [line]);
+		toggleCollapseState(this._foldingModel, 1, [line]);
 		foldingIcon.isCollapsed = !foldingIcon.isCollapsed;
 		const scrollTop = (foldingIcon.isCollapsed ?
 			this._editor.getTopForLineNumber(foldingIcon.foldingEndLine)
