@@ -246,15 +246,15 @@ export class QuickDiffModel extends Disposable {
 
 			const allDiffs: QuickDiffChange[] = [];
 			for (const quickDiff of filteredToDiffable) {
-				const dirtyDiff = await this._diff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace);
-				if (dirtyDiff.changes && dirtyDiff.changes2 && dirtyDiff.changes.length === dirtyDiff.changes2.length) {
-					for (let index = 0; index < dirtyDiff.changes.length; index++) {
+				const diff = await this._diff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace);
+				if (diff.changes && diff.changes2 && diff.changes.length === diff.changes2.length) {
+					for (let index = 0; index < diff.changes.length; index++) {
 						allDiffs.push({
 							label: quickDiff.label,
 							original: quickDiff.originalResource,
 							modified: this._model.resource,
-							change: dirtyDiff.changes[index],
-							change2: dirtyDiff.changes2[index]
+							change: diff.changes[index],
+							change2: diff.changes2[index]
 						});
 					}
 				}
@@ -360,7 +360,7 @@ export class QuickDiffModel extends Disposable {
 		const quickDiffs = await this.quickDiffService.getQuickDiffs(uri, this._model.getLanguageId(), isSynchronized);
 
 		// TODO@lszomoru - find a long term solution for this
-		// When the DirtyDiffModel is created for a diff editor, there is no
+		// When the QuickDiffModel is created for a diff editor, there is no
 		// need to compute the diff information for the `isSCM` quick diff
 		// provider as that information will be provided by the diff editor
 		return this.options?.algorithm !== undefined

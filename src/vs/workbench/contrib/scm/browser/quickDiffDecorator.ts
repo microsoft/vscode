@@ -53,6 +53,8 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IQuickDiffSelectItem, QuickDiffPickerBaseAction, QuickDiffPickerViewItem } from './quickDiffPicker.js';
 
+export const isQuickDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
+
 class QuickDiffWidgetActionRunner extends ActionRunner {
 
 	protected override runAction(action: IAction, context: any): Promise<any> {
@@ -63,8 +65,6 @@ class QuickDiffWidgetActionRunner extends ActionRunner {
 		return super.runAction(action, context);
 	}
 }
-
-export const isDirtyDiffVisible = new RawContextKey<boolean>('dirtyDiffVisible', false);
 
 class QuickDiffWidgetEditorAction extends Action {
 
@@ -579,13 +579,13 @@ async function playAccessibilitySymbolForChange(change: IChange, accessibilitySi
 	const changeType = getChangeType(change);
 	switch (changeType) {
 		case ChangeType.Add:
-			accessibilitySignalService.playSignal(AccessibilitySignal.diffLineInserted, { allowManyInParallel: true, source: 'dirtyDiffDecoration' });
+			accessibilitySignalService.playSignal(AccessibilitySignal.diffLineInserted, { allowManyInParallel: true, source: 'quickDiffDecoration' });
 			break;
 		case ChangeType.Delete:
-			accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted, { allowManyInParallel: true, source: 'dirtyDiffDecoration' });
+			accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted, { allowManyInParallel: true, source: 'quickDiffDecoration' });
 			break;
 		case ChangeType.Modify:
-			accessibilitySignalService.playSignal(AccessibilitySignal.diffLineModified, { allowManyInParallel: true, source: 'dirtyDiffDecoration' });
+			accessibilitySignalService.playSignal(AccessibilitySignal.diffLineModified, { allowManyInParallel: true, source: 'quickDiffDecoration' });
 			break;
 	}
 }
@@ -595,7 +595,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.EditorContrib + 50,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
-	when: ContextKeyExpr.and(isDirtyDiffVisible),
+	when: ContextKeyExpr.and(isQuickDiffVisible),
 	handler: (accessor: ServicesAccessor) => {
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
 
@@ -623,7 +623,7 @@ export class QuickDiffController extends Disposable implements IEditorContributi
 
 	private model: QuickDiffModel | null = null;
 	private widget: QuickDiffWidget | null = null;
-	private readonly isDirtyDiffVisible!: IContextKey<boolean>;
+	private readonly isQuickDiffVisible!: IContextKey<boolean>;
 	private session: IDisposable = Disposable.None;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private enabled = false;
@@ -642,7 +642,7 @@ export class QuickDiffController extends Disposable implements IEditorContributi
 		this.stylesheet = domStylesheetsJs.createStyleSheet(undefined, undefined, this._store);
 
 		if (this.enabled) {
-			this.isDirtyDiffVisible = isDirtyDiffVisible.bindTo(contextKeyService);
+			this.isQuickDiffVisible = isQuickDiffVisible.bindTo(contextKeyService);
 			this._register(editor.onDidChangeModel(() => this.close()));
 
 			const onDidChangeGutterAction = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterAction'));
@@ -767,7 +767,7 @@ export class QuickDiffController extends Disposable implements IEditorContributi
 
 		this.model = modelRef.object;
 		this.widget = this.instantiationService.createInstance(QuickDiffWidget, this.editor, this.model);
-		this.isDirtyDiffVisible.set(true);
+		this.isQuickDiffVisible.set(true);
 
 		const disposables = new DisposableStore();
 		disposables.add(Event.once(this.widget.onDidClose)(this.close, this));
@@ -783,7 +783,7 @@ export class QuickDiffController extends Disposable implements IEditorContributi
 		disposables.add(toDisposable(() => {
 			this.model = null;
 			this.widget = null;
-			this.isDirtyDiffVisible.set(false);
+			this.isQuickDiffVisible.set(false);
 			this.editor.focus();
 		}));
 
@@ -934,7 +934,7 @@ class QuickDiffDecorator extends Disposable {
 
 	constructor(
 		private readonly codeEditor: ICodeEditor,
-		private readonly dirtyDiffModelRef: IReference<QuickDiffModel>,
+		private readonly quickDiffModelRef: IReference<QuickDiffModel>,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
@@ -983,7 +983,7 @@ class QuickDiffDecorator extends Disposable {
 			}
 		}));
 
-		this._register(Event.runAndSubscribe(this.dirtyDiffModelRef.object.onDidChange, () => this.onDidChange()));
+		this._register(Event.runAndSubscribe(this.quickDiffModelRef.object.onDidChange, () => this.onDidChange()));
 	}
 
 	private onDidChange(): void {
@@ -991,10 +991,10 @@ class QuickDiffDecorator extends Disposable {
 			return;
 		}
 
-		const visibleQuickDiffs = this.dirtyDiffModelRef.object.quickDiffs.filter(quickDiff => quickDiff.visible);
+		const visibleQuickDiffs = this.quickDiffModelRef.object.quickDiffs.filter(quickDiff => quickDiff.visible);
 		const pattern = this.configurationService.getValue<{ added: boolean; modified: boolean }>('scm.diffDecorationsGutterPattern');
 
-		const decorations = this.dirtyDiffModelRef.object.changes
+		const decorations = this.quickDiffModelRef.object.changes
 			.filter(labeledChange => visibleQuickDiffs.some(quickDiff => quickDiff.label === labeledChange.label))
 			.map((labeledChange) => {
 				const change = labeledChange.change;
@@ -1042,7 +1042,7 @@ class QuickDiffDecorator extends Disposable {
 			this.decorationsCollection?.clear();
 		}
 		this.decorationsCollection = undefined;
-		this.dirtyDiffModelRef.dispose();
+		this.quickDiffModelRef.dispose();
 		super.dispose();
 	}
 }
