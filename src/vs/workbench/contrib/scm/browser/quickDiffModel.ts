@@ -13,7 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IChange } from '../../../../editor/common/diff/legacyLinesDiffComputer.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextModel, shouldSynchronizeModel } from '../../../../editor/common/model.js';
-import { IQuickDiffService, QuickDiff, QuickDiffChange, QuickDiffResult } from '../common/quickDiff.js';
+import { compareChanges, getModifiedEndLineNumber, IQuickDiffService, QuickDiff, QuickDiffChange, QuickDiffResult } from '../common/quickDiff.js';
 import { ThrottledDelayer } from '../../../../base/common/async.js';
 import { ISCMRepository, ISCMService } from '../common/scm.js';
 import { sortedDiff, equals } from '../../../../base/common/arrays.js';
@@ -29,83 +29,66 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { IChatEditingService, WorkingSetEntryState } from '../../chat/common/chatEditingService.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 
-export const IDirtyDiffModelService = createDecorator<IDirtyDiffModelService>('IDirtyDiffModelService');
+export const IQuickDiffModelService = createDecorator<IQuickDiffModelService>('IQuickDiffModelService');
 
-export interface IDirtyDiffModelService {
+export interface QuickDiffModelOptions {
+	readonly algorithm: DiffAlgorithmName;
+}
+
+export interface IQuickDiffModelService {
 	_serviceBrand: undefined;
 
 	/**
 	 * Returns `undefined` if the editor model is not resolved.
 	 * Model refrence has to be disposed once not needed anymore.
 	 * @param resource
-	 * @param algorithm
+	 * @param options
 	 */
-	createDiffModelReference(resource: URI, algorithm: DiffAlgorithmName): IReference<DirtyDiffModel> | undefined;
-
-	/**
-	 * Returns `undefined` if the editor model is not resolved.
-	 * Model refrence has to be disposed once not needed anymore.
-	 * @param resource
-	 */
-	createDirtyDiffModelReference(resource: URI): IReference<DirtyDiffModel> | undefined;
+	createQuickDiffModelReference(resource: URI, options?: QuickDiffModelOptions): IReference<QuickDiffModel> | undefined;
 }
 
-class DirtyDiffModelReferenceCollection extends ReferenceCollection<DirtyDiffModel> {
+class QuickDiffModelReferenceCollection extends ReferenceCollection<QuickDiffModel> {
 	constructor(@IInstantiationService private readonly _instantiationService: IInstantiationService) {
 		super();
 	}
 
-	protected override createReferencedObject(_key: string, textFileModel: IResolvedTextFileEditorModel, algorithm: DiffAlgorithmName | undefined): DirtyDiffModel {
-		return this._instantiationService.createInstance(DirtyDiffModel, textFileModel, algorithm);
+	protected override createReferencedObject(_key: string, textFileModel: IResolvedTextFileEditorModel, options?: QuickDiffModelOptions): QuickDiffModel {
+		return this._instantiationService.createInstance(QuickDiffModel, textFileModel, options);
 	}
 
-	protected override destroyReferencedObject(_key: string, object: DirtyDiffModel): void {
+	protected override destroyReferencedObject(_key: string, object: QuickDiffModel): void {
 		object.dispose();
 	}
 }
 
-export class DirtyDiffModelService implements IDirtyDiffModelService {
+export class QuickDiffModelService implements IQuickDiffModelService {
 	_serviceBrand: undefined;
 
-	private readonly _references: DirtyDiffModelReferenceCollection;
+	private readonly _references: QuickDiffModelReferenceCollection;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
-		this._references = this.instantiationService.createInstance(DirtyDiffModelReferenceCollection);
+		this._references = this.instantiationService.createInstance(QuickDiffModelReferenceCollection);
 	}
 
-	createDiffModelReference(resource: URI, algorithm: DiffAlgorithmName): IReference<DirtyDiffModel> | undefined {
+	createQuickDiffModelReference(resource: URI, options?: QuickDiffModelOptions): IReference<QuickDiffModel> | undefined {
 		const textFileModel = this.textFileService.files.get(resource);
 		if (!textFileModel?.isResolved()) {
 			return undefined;
 		}
 
-		return this._createModelReference(resource, textFileModel, algorithm);
-	}
-
-	createDirtyDiffModelReference(resource: URI): IReference<DirtyDiffModel> | undefined {
-		const textFileModel = this.textFileService.files.get(resource);
-		if (!textFileModel?.isResolved()) {
-			return undefined;
-		}
-
-		return this._createModelReference(resource, textFileModel, undefined);
-	}
-
-	private _createModelReference(resource: URI, textFileModel: IResolvedTextFileEditorModel, algorithm: DiffAlgorithmName | undefined): IReference<DirtyDiffModel> {
-		resource = algorithm === undefined
+		resource = options === undefined
 			? this.uriIdentityService.asCanonicalUri(resource)
-			: this.uriIdentityService.asCanonicalUri(resource)
-				.with({ query: `algorithm=${algorithm}` });
+			: this.uriIdentityService.asCanonicalUri(resource).with({ query: JSON.stringify(options) });
 
-		return this._references.acquire(resource.toString(), textFileModel, algorithm);
+		return this._references.acquire(resource.toString(), textFileModel, options);
 	}
 }
 
-export class DirtyDiffModel extends Disposable {
+export class QuickDiffModel extends Disposable {
 
 	private _model: ITextFileEditorModel;
 
@@ -136,7 +119,7 @@ export class DirtyDiffModel extends Disposable {
 
 	constructor(
 		textFileModel: IResolvedTextFileEditorModel,
-		private readonly algorithm: DiffAlgorithmName | undefined,
+		private readonly options: QuickDiffModelOptions | undefined,
 		@ISCMService private readonly scmService: ISCMService,
 		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
@@ -263,15 +246,15 @@ export class DirtyDiffModel extends Disposable {
 
 			const allDiffs: QuickDiffChange[] = [];
 			for (const quickDiff of filteredToDiffable) {
-				const dirtyDiff = await this._diff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace);
-				if (dirtyDiff.changes && dirtyDiff.changes2 && dirtyDiff.changes.length === dirtyDiff.changes2.length) {
-					for (let index = 0; index < dirtyDiff.changes.length; index++) {
+				const diff = await this._diff(quickDiff.originalResource, this._model.resource, ignoreTrimWhitespace);
+				if (diff.changes && diff.changes2 && diff.changes.length === diff.changes2.length) {
+					for (let index = 0; index < diff.changes.length; index++) {
 						allDiffs.push({
 							label: quickDiff.label,
 							original: quickDiff.originalResource,
 							modified: this._model.resource,
-							change: dirtyDiff.changes[index],
-							change2: dirtyDiff.changes2[index]
+							change: diff.changes[index],
+							change2: diff.changes2[index]
 						});
 					}
 				}
@@ -290,7 +273,7 @@ export class DirtyDiffModel extends Disposable {
 	}
 
 	private async _diff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<{ changes: readonly IChange[] | null; changes2: readonly LineRangeMapping[] | null }> {
-		if (this.algorithm === undefined) {
+		if (this.options?.algorithm === undefined) {
 			const changes = await this.editorWorkerService.computeDirtyDiff(original, modified, ignoreTrimWhitespace);
 			return { changes, changes2: changes?.map(change => lineRangeMappingFromChange(change)) ?? null };
 		}
@@ -299,7 +282,7 @@ export class DirtyDiffModel extends Disposable {
 			computeMoves: false,
 			ignoreTrimWhitespace,
 			maxComputationTimeMs: Number.MAX_SAFE_INTEGER
-		}, this.algorithm);
+		}, this.options.algorithm);
 
 		return { changes: result ? toLineChanges(DiffState.fromDiffResult(result)) : null, changes2: result?.changes ?? null };
 	}
@@ -377,10 +360,10 @@ export class DirtyDiffModel extends Disposable {
 		const quickDiffs = await this.quickDiffService.getQuickDiffs(uri, this._model.getLanguageId(), isSynchronized);
 
 		// TODO@lszomoru - find a long term solution for this
-		// When the DirtyDiffModel is created for a diff editor, there is no
+		// When the QuickDiffModel is created for a diff editor, there is no
 		// need to compute the diff information for the `isSCM` quick diff
 		// provider as that information will be provided by the diff editor
-		return this.algorithm !== undefined
+		return this.options?.algorithm !== undefined
 			? quickDiffs.filter(quickDiff => !quickDiff.isSCM)
 			: quickDiffs;
 	}
@@ -463,56 +446,4 @@ export class DirtyDiffModel extends Disposable {
 
 		super.dispose();
 	}
-}
-
-function compareChanges(a: IChange, b: IChange): number {
-	let result = a.modifiedStartLineNumber - b.modifiedStartLineNumber;
-
-	if (result !== 0) {
-		return result;
-	}
-
-	result = a.modifiedEndLineNumber - b.modifiedEndLineNumber;
-
-	if (result !== 0) {
-		return result;
-	}
-
-	result = a.originalStartLineNumber - b.originalStartLineNumber;
-
-	if (result !== 0) {
-		return result;
-	}
-
-	return a.originalEndLineNumber - b.originalEndLineNumber;
-}
-
-export function getChangeHeight(change: IChange): number {
-	const modified = change.modifiedEndLineNumber - change.modifiedStartLineNumber + 1;
-	const original = change.originalEndLineNumber - change.originalStartLineNumber + 1;
-
-	if (change.originalEndLineNumber === 0) {
-		return modified;
-	} else if (change.modifiedEndLineNumber === 0) {
-		return original;
-	} else {
-		return modified + original;
-	}
-}
-
-export function getModifiedEndLineNumber(change: IChange): number {
-	if (change.modifiedEndLineNumber === 0) {
-		return change.modifiedStartLineNumber === 0 ? 1 : change.modifiedStartLineNumber;
-	} else {
-		return change.modifiedEndLineNumber;
-	}
-}
-
-export function lineIntersectsChange(lineNumber: number, change: IChange): boolean {
-	// deletion at the beginning of the file
-	if (lineNumber === 1 && change.modifiedStartLineNumber === 0 && change.modifiedEndLineNumber === 0) {
-		return true;
-	}
-
-	return lineNumber >= change.modifiedStartLineNumber && lineNumber <= (change.modifiedEndLineNumber || change.modifiedStartLineNumber);
 }

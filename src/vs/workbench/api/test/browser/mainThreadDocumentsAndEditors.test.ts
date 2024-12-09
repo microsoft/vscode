@@ -36,7 +36,7 @@ import { LanguageService } from '../../../../editor/common/services/languageServ
 import { ILanguageConfigurationService } from '../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { TestLanguageConfigurationService } from '../../../../editor/test/common/modes/testLanguageConfigurationService.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
-import { IDirtyDiffModelService } from '../../../contrib/scm/browser/dirtyDiffModel.js';
+import { IQuickDiffModelService } from '../../../contrib/scm/browser/quickDiffModel.js';
 import { ITextEditorDiffInformation } from '../../../../platform/editor/common/editor.js';
 
 suite('MainThreadDocumentsAndEditors', () => {
@@ -124,11 +124,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 			},
 			new TestPathService(),
 			new TestConfigurationService(),
-			new class extends mock<IDirtyDiffModelService>() {
-				override createDiffModelReference() {
-					return undefined;
-				}
-				override createDirtyDiffModelReference() {
+			new class extends mock<IQuickDiffModelService>() {
+				override createQuickDiffModelReference() {
 					return undefined;
 				}
 			}
