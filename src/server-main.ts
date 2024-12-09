@@ -91,8 +91,8 @@ if (shouldSpawnCli) {
 	let firstWebSocket = true;
 	let address: string | AddressInfo | null = null;
 
-	// Creates an HTTP server that listens for incoming requests
-	// The requests gets processed by the remote extension host agent server
+	// Creates an HTTP server that listens for incoming requests.
+        // The requests are processed by the remote extension host agent server.
 	const server = http.createServer(async (req, res) => {
 		if (firstRequest) {
 			firstRequest = false;
