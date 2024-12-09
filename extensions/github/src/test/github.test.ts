@@ -6,7 +6,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import { workspace, extensions, Uri, commands } from 'vscode';
-import { findPullRequestTemplates, pickPullRequestTemplate } from '../pushErrorHandler';
+import { findPullRequestTemplates, pickPullRequestTemplate, createPullRequest } from '../pushErrorHandler';
 
 suite('github smoke test', function () {
 	const cwd = workspace.workspaceFolders![0].uri;
@@ -26,7 +26,13 @@ suite('github smoke test', function () {
 			'.github/PULL_REQUEST_TEMPLATE.md',
 			'.github/PULL_REQUEST_TEMPLATE/a.md',
 			'.github/PULL_REQUEST_TEMPLATE/b.md',
-			'PULL_REQUEST_TEMPLATE.md'
+			'PULL_REQUEST_TEMPLATE.md',
+			'src/PULL_REQUEST_TEMPLATE.md',
+			'src/PULL_REQUEST_TEMPLATE/a.md',
+			'src/PULL_REQUEST_TEMPLATE/b.md',
+			'templates/PULL_REQUEST_TEMPLATE.md',
+			'templates/PULL_REQUEST_TEMPLATE/a.md',
+			'templates/PULL_REQUEST_TEMPLATE/b.md'
 		];
 		expectedValuesSorted.sort();
 
@@ -61,5 +67,49 @@ suite('github smoke test', function () {
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 
 		assert.ok(await pick === undefined);
+	});
+
+	test('should create a pull request', async function () {
+		const repository = {
+			rootUri: cwd,
+			state: {
+				HEAD: {
+					name: 'main'
+				}
+			},
+			getCommit: async (head: string) => ({
+				message: 'Test commit message\n\nThis is a test commit.'
+			}),
+			setConfig: async (key: string, value: string) => { }
+		};
+
+		const octokit = {
+			pulls: {
+				create: async (params: any) => ({
+					data: {
+						number: 1,
+						html_url: 'https://github.com/test/test-repo/pull/1'
+					}
+				})
+			}
+		};
+
+		const owner = 'test';
+		const repo = 'test-repo';
+		const ghRepository = {
+			full_name: 'test/test-repo',
+			html_url: 'https://github.com/test/test-repo',
+			owner: {
+				login: 'test'
+			},
+			default_branch: 'main'
+		};
+		const localName = 'main';
+		const remoteName = 'main';
+
+		const pr = await createPullRequest(repository, octokit, owner, repo, ghRepository, localName, remoteName);
+
+		assert.strictEqual(pr.number, 1);
+		assert.strictEqual(pr.html_url, 'https://github.com/test/test-repo/pull/1');
 	});
 });

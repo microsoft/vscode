@@ -19,13 +19,17 @@ export function isInCodespaces(): boolean {
 const PR_TEMPLATE_FILES = [
 	{ dir: '.', files: ['pull_request_template.md', 'PULL_REQUEST_TEMPLATE.md'] },
 	{ dir: 'docs', files: ['pull_request_template.md', 'PULL_REQUEST_TEMPLATE.md'] },
-	{ dir: '.github', files: ['PULL_REQUEST_TEMPLATE.md', 'PULL_REQUEST_TEMPLATE.md'] }
+	{ dir: '.github', files: ['PULL_REQUEST_TEMPLATE.md', 'PULL_REQUEST_TEMPLATE.md'] },
+	{ dir: 'src', files: ['pull_request_template.md', 'PULL_REQUEST_TEMPLATE.md'] },
+	{ dir: 'templates', files: ['pull_request_template.md', 'PULL_REQUEST_TEMPLATE.md'] }
 ];
 
 const PR_TEMPLATE_DIRECTORY_NAMES = [
 	'PULL_REQUEST_TEMPLATE',
 	'docs/PULL_REQUEST_TEMPLATE',
-	'.github/PULL_REQUEST_TEMPLATE'
+	'.github/PULL_REQUEST_TEMPLATE',
+	'src/PULL_REQUEST_TEMPLATE',
+	'templates/PULL_REQUEST_TEMPLATE'
 ];
 
 async function assertMarkdownFiles(dir: Uri, files: string[]): Promise<Uri[]> {
@@ -44,8 +48,8 @@ async function findMarkdownFilesInDir(uri: Uri): Promise<Uri[]> {
 
 /**
  * PR templates can be:
- * - In the root, `docs`, or `.github` folders, called `pull_request_template.md` or `PULL_REQUEST_TEMPLATE.md`
- * - Or, in a `PULL_REQUEST_TEMPLATE` directory directly below the root, `docs`, or `.github` folders, called `*.md`
+ * - In the root, `docs`, `.github`, `src`, or `templates` folders, called `pull_request_template.md` or `PULL_REQUEST_TEMPLATE.md`
+ * - Or, in a `PULL_REQUEST_TEMPLATE` directory directly below the root, `docs`, `.github`, `src`, or `templates` folders, called `*.md`
  *
  * NOTE This method is a modified copy of a method with same name at microsoft/vscode-pull-request-github repository:
  *   https://github.com/microsoft/vscode-pull-request-github/blob/0a0c3c6c21c0b9c2f4d5ffbc3f8c6a825472e9e6/src/github/folderRepositoryManager.ts#L1061
@@ -246,45 +250,7 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 			if (action === openOnGitHub) {
 				await commands.executeCommand('vscode.open', Uri.parse(ghRepository.html_url));
 			} else if (action === createPR) {
-				const pr = await window.withProgress({ location: ProgressLocation.Notification, cancellable: false, title: l10n.t('Creating GitHub Pull Request...') }, async _ => {
-					let title = `Update ${remoteName}`;
-					const head = repository.state.HEAD?.name;
-
-					let body: string | undefined;
-
-					if (head) {
-						const commit = await repository.getCommit(head);
-						title = commit.message.split('\n')[0];
-						body = commit.message.slice(title.length + 1).trim();
-					}
-
-					const templates = await findPullRequestTemplates(repository.rootUri);
-					if (templates.length > 0) {
-						templates.sort((a, b) => a.path.localeCompare(b.path));
-
-						const template = await pickPullRequestTemplate(repository.rootUri, templates);
-
-						if (template) {
-							body = new TextDecoder('utf-8').decode(await workspace.fs.readFile(template));
-						}
-					}
-
-					const { data: pr } = await octokit.pulls.create({
-						owner,
-						repo,
-						title,
-						body,
-						head: `${ghRepository.owner.login}:${remoteName}`,
-						base: ghRepository.default_branch
-					});
-
-					await repository.setConfig(`branch.${localName}.remote`, 'upstream');
-					await repository.setConfig(`branch.${localName}.merge`, `refs/heads/${remoteName}`);
-					await repository.setConfig(`branch.${localName}.github-pr-owner-number`, `${owner}#${repo}#${pr.number}`);
-
-					return pr;
-				});
-
+				const pr = await this.createPullRequest(repository, octokit, owner, repo, ghRepository, localName, remoteName);
 				const openPR = l10n.t('Open PR');
 				const action = await window.showInformationMessage(l10n.t('The PR "{0}/{1}#{2}" was successfully created on GitHub.', owner, repo, pr.number), openPR);
 
@@ -293,6 +259,47 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 				}
 			}
 		})();
+	}
+
+	private async createPullRequest(repository: Repository, octokit: any, owner: string, repo: string, ghRepository: any, localName: string, remoteName: string): Promise<any> {
+		return await window.withProgress({ location: ProgressLocation.Notification, cancellable: false, title: l10n.t('Creating GitHub Pull Request...') }, async _ => {
+			let title = `Update ${remoteName}`;
+			const head = repository.state.HEAD?.name;
+
+			let body: string | undefined;
+
+			if (head) {
+				const commit = await repository.getCommit(head);
+				title = commit.message.split('\n')[0];
+				body = commit.message.slice(title.length + 1).trim();
+			}
+
+			const templates = await findPullRequestTemplates(repository.rootUri);
+			if (templates.length > 0) {
+				templates.sort((a, b) => a.path.localeCompare(b.path));
+
+				const template = await pickPullRequestTemplate(repository.rootUri, templates);
+
+				if (template) {
+					body = new TextDecoder('utf-8').decode(await workspace.fs.readFile(template));
+				}
+			}
+
+			const { data: pr } = await octokit.pulls.create({
+				owner,
+				repo,
+				title,
+				body,
+				head: `${ghRepository.owner.login}:${remoteName}`,
+				base: ghRepository.default_branch
+			});
+
+			await repository.setConfig(`branch.${localName}.remote`, 'upstream');
+			await repository.setConfig(`branch.${localName}.merge`, `refs/heads/${remoteName}`);
+			await repository.setConfig(`branch.${localName}.github-pr-owner-number`, `${owner}#${repo}#${pr.number}`);
+
+			return pr;
+		});
 	}
 
 	private async handlePushProtectionError(owner: string, repo: string, stderr: string): Promise<void> {
