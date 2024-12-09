@@ -11,11 +11,9 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable, textLinkForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IChatResponseViewModel } from '../../common/chatViewModel.js';
@@ -34,8 +32,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 		element: IChatResponseViewModel,
 		renderer: MarkdownRenderer,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
-		@ICommandService commandService: ICommandService,
-		@IProductService productService: IProductService,
+		@ICommandService commandService: ICommandService
 	) {
 		super();
 
@@ -56,8 +53,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 
 		let didAddSecondary = false;
 		this._register(button1.onDidClick(async () => {
-			const url = productService.defaultChatAgent?.upgradePlanUrl;
-			await commandService.executeCommand('vscode.open', url ? URI.parse(url) : undefined);
+			await commandService.executeCommand('workbench.action.chat.upgradePlan');
 
 			if (!didAddSecondary) {
 				didAddSecondary = true;
