@@ -132,7 +132,11 @@ function addImageContexts() {
 	for (const img of images) {
 		img.id = 'image-' + idNumber;
 		idNumber += 1;
-		img.setAttribute('data-vscode-context', JSON.stringify({ webviewSection: 'image', id: img.id, 'preventDefaultContextMenuItems': true, resource: documentResource }));
+		const imageSource = img.src;
+		const imgSrcAttribute = img.getAttribute('src');
+		const isLocalFile = imageSource !== imgSrcAttribute;
+		const webviewSection = isLocalFile ? 'localImage' : 'image';
+		img.setAttribute('data-vscode-context', JSON.stringify({ webviewSection, id: img.id, 'preventDefaultContextMenuItems': true, resource: documentResource, imageSource }));
 	}
 }
 
