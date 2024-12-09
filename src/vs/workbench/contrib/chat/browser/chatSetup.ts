@@ -23,7 +23,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
@@ -67,6 +67,7 @@ const defaultChat = {
 	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? '',
 	skusDocumentationUrl: product.defaultChatAgent?.skusDocumentationUrl ?? '',
+	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	providerName: product.defaultChatAgent?.providerName ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
@@ -260,14 +261,13 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			override async run(accessor: ServicesAccessor): Promise<void> {
 				const openerService = accessor.get(IOpenerService);
-				const productService = accessor.get(IProductService);
 				const telemetryService = accessor.get(ITelemetryService);
 				const hostService = accessor.get(IHostService);
 				const commandService = accessor.get(ICommandService);
 
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'chat' });
 
-				openerService.open(URI.parse(productService.defaultChatAgent?.upgradePlanUrl ?? ''));
+				openerService.open(URI.parse(defaultChat.upgradePlanUrl));
 
 				const entitlement = that.context.state.entitlement;
 				if (entitlement !== ChatEntitlement.Pro) {
@@ -869,12 +869,6 @@ class ChatSetupWelcomeContent extends Disposable {
 		const limitedSkuHeaderContainer = this.element.appendChild($('p'));
 		limitedSkuHeaderContainer.appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true, supportThemeIcons: true }))).element);
 
-		// Terms
-		const terms = localize({ key: 'termsLabel', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to our [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
-		const termsContainer = this.element.appendChild($('p'));
-		termsContainer.classList.add('terms-container');
-		termsContainer.appendChild(this._register(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element);
-
 		// Setup Button
 		const actions: IAction[] = [];
 		if (this.context.state.installed) {
@@ -882,6 +876,7 @@ class ChatSetupWelcomeContent extends Disposable {
 			actions.push(toAction({ id: 'chatSetup.signInGhe', label: localize('signInGhe', "Sign in with a GHE.com Account"), run: () => this.commandService.executeCommand('github.copilotChat.signInGHE') }));
 		}
 		const buttonContainer = this.element.appendChild($('p'));
+		buttonContainer.classList.add('button-container');
 		const button = this._register(actions.length === 0 ? new Button(buttonContainer, {
 			supportIcons: true,
 			...defaultButtonStyles
@@ -893,6 +888,10 @@ class ChatSetupWelcomeContent extends Disposable {
 			...defaultButtonStyles
 		}));
 		this._register(button.onDidClick(() => this.controller.setup()));
+
+		// Terms
+		const terms = localize({ key: 'termsLabel', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to the [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
+		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element);
 
 		// Update based on model state
 		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(limitedSkuHeaderContainer, button)));
@@ -1056,23 +1055,13 @@ class ChatSetupContext extends Disposable {
 			this.storageService.remove('interactive.sessions', this.workspaceContextService.getWorkspace().folders.length ? StorageScope.WORKSPACE : StorageScope.APPLICATION);
 		}
 
-		let changed = false;
-		changed = this.updateContextKey(this.signedOutContextKey, this._state.entitlement === ChatEntitlement.Unknown) || changed;
-		changed = this.updateContextKey(this.canSignUpContextKey, this._state.entitlement === ChatEntitlement.Available) || changed;
-		changed = this.updateContextKey(this.limitedContextKey, this._state.entitlement === ChatEntitlement.Limited) || changed;
-		changed = this.updateContextKey(this.triggeredContext, !!this._state.triggered) || changed;
-		changed = this.updateContextKey(this.installedContext, !!this._state.installed) || changed;
+		this.signedOutContextKey.set(this._state.entitlement === ChatEntitlement.Unknown);
+		this.canSignUpContextKey.set(this._state.entitlement === ChatEntitlement.Available);
+		this.limitedContextKey.set(this._state.entitlement === ChatEntitlement.Limited);
+		this.triggeredContext.set(!!this._state.triggered);
+		this.installedContext.set(!!this._state.installed);
 
-		if (changed) {
-			this._onDidChange.fire();
-		}
-	}
-
-	private updateContextKey(contextKey: IContextKey<boolean>, value: boolean): boolean {
-		const current = contextKey.get();
-		contextKey.set(value);
-
-		return current !== value;
+		this._onDidChange.fire();
 	}
 
 	suspend(): void {
