@@ -485,6 +485,7 @@ export class LocalExtensionsProvider {
 											installGivenVersion: e.pinned && !!e.version,
 											pinned: e.pinned,
 											installPreReleaseVersion: e.preRelease,
+											preRelease: e.preRelease,
 											profileLocation: profile.extensionsResource,
 											isApplicationScoped: e.isApplicationScoped,
 											context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.SETTINGS_SYNC }
