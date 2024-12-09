@@ -261,6 +261,9 @@ export interface IApplyEditsOptions extends IUndoStopOptions {
 	setEndOfLine?: EndOfLineSequence;
 }
 
+export interface ISnippetOptions extends IUndoStopOptions {
+	adjustWhitespace?: boolean;
+}
 export interface ITextDocumentShowOptions {
 	position?: EditorGroupColumn;
 	preserveFocus?: boolean;

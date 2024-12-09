@@ -636,7 +636,7 @@ async function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrLi
 		for (const expandAbbrInput of expandAbbrList) {
 			const expandedText = expandAbbr(expandAbbrInput);
 			if (expandedText) {
-				await editor.insertSnippet(new vscode.SnippetString(expandedText), expandAbbrInput.rangeToReplace, { undoStopBefore: false, undoStopAfter: false });
+				await editor.insertSnippet(new vscode.SnippetString(expandedText), expandAbbrInput.rangeToReplace, { undoStopBefore: false, undoStopAfter: false, adjustWhitespace: true });
 				insertedSnippetsCount++;
 			}
 		}
@@ -650,7 +650,7 @@ async function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrLi
 	const expandedText = expandAbbr(anyExpandAbbrInput);
 	const allRanges = expandAbbrList.map(value => value.rangeToReplace);
 	if (expandedText) {
-		return editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges);
+		return editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges, { undoStopBefore: true, undoStopAfter: true, adjustWhitespace: true });
 	}
 	return false;
 }

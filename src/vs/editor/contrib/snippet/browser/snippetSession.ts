@@ -582,7 +582,7 @@ export class SnippetSession {
 			}
 
 			const newNodes = parser.parseFragment(template, snippet);
-			SnippetSession.adjustWhitespace(model, range.getStartPosition(), true, snippet, new Set(newNodes));
+			SnippetSession.adjustWhitespace(model, range.getStartPosition(), adjustWhitespace, snippet, new Set(newNodes));
 			snippet.resolveVariables(resolver);
 
 			const snippetText = snippet.toString();

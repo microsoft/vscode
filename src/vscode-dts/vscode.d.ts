@@ -1312,6 +1312,10 @@ declare module 'vscode' {
 			 * Add undo stop after making the edits.
 			 */
 			readonly undoStopAfter: boolean;
+			/**
+			 * Adjust the indentation of the snippet.
+			 */
+			readonly adjustWhitespace?: boolean;
 		}): Thenable<boolean>;
 
 		/**
