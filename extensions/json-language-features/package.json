@@ -139,6 +139,18 @@
           "strings": true
         },
         "editor.suggest.insertMode": "replace"
+      },
+      "[jsonl]": {
+        "editor.quickSuggestions": {
+          "strings": true
+        },
+        "editor.suggest.insertMode": "replace"
+      },
+      "[snippets]": {
+        "editor.quickSuggestions": {
+          "strings": true
+        },
+        "editor.suggest.insertMode": "replace"
       }
     },
     "jsonValidation": [
