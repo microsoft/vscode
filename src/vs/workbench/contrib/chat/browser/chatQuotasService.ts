@@ -8,7 +8,7 @@ import { safeIntl } from '../../../../base/common/date.js';
 import { language } from '../../../../base/common/platform.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -18,7 +18,7 @@ import { createDecorator, ServicesAccessor } from '../../../../platform/instanti
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import product from '../../../../platform/product/common/product.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
@@ -212,7 +212,7 @@ export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchCo
 
 	private static readonly COPILOT_STATUS_ID = 'GitHub.copilot.status'; // TODO@bpasero unify into 1 core indicator
 
-	private readonly _entry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly entry = this._register(new DisposableStore());
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -221,12 +221,17 @@ export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchCo
 		super();
 
 		this._register(Event.runAndSubscribe(this.chatQuotasService.onDidChangeQuotas, () => this.updateStatusbarEntry()));
+		this._register(this.statusbarService.onDidChangeEntryVisibility(e => {
+			if (e.id === ChatQuotasStatusBarEntry.COPILOT_STATUS_ID) {
+				this.updateStatusbarEntry();
+			}
+		}));
 	}
 
 	private updateStatusbarEntry(): void {
-		const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatQuotasService.quotas;
+		this.entry.clear();
 
-		// Some quota exceeded, show indicator
+		const { chatQuotaExceeded, completionsQuotaExceeded } = this.chatQuotasService.quotas;
 		if (chatQuotaExceeded || completionsQuotaExceeded) {
 			let text: string;
 			if (chatQuotaExceeded && !completionsQuotaExceeded) {
@@ -242,23 +247,21 @@ export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchCo
 				text = `$(copilot-warning) ${text}`;
 			}
 
-			this._entry.value = this.statusbarService.addEntry({
+			this.entry.add(this.statusbarService.addEntry({
 				name: localize('indicator', "Copilot Limit Indicator"),
 				text,
 				ariaLabel: text,
 				command: OPEN_CHAT_QUOTA_EXCEEDED_DIALOG,
 				showInAllWindows: true,
+				kind: 'prominent',
 				tooltip: quotaToButtonMessage({ chatQuotaExceeded, completionsQuotaExceeded })
 			}, ChatQuotasStatusBarEntry.ID, StatusbarAlignment.RIGHT, {
 				id: ChatQuotasStatusBarEntry.COPILOT_STATUS_ID,
 				alignment: StatusbarAlignment.RIGHT,
 				compact: isCopilotStatusVisible
-			});
-		}
+			}));
 
-		// No quota exceeded, remove indicator
-		else {
-			this._entry.clear();
+			this.entry.add(this.statusbarService.overrideEntry(ChatQuotasStatusBarEntry.COPILOT_STATUS_ID, { kind: 'prominent' }));
 		}
 	}
 }
