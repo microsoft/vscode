@@ -177,6 +177,10 @@ export class ApiRepository implements Repository {
 		return this.repository.deleteBranch(name, force);
 	}
 
+	deleteBranches(name: string, force?: boolean): Promise<void> {
+		return this.repository.deleteBranches(name, force);
+	}
+
 	getBranch(name: string): Promise<Branch> {
 		return this.repository.getBranch(name);
 	}
