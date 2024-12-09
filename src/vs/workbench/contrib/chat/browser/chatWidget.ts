@@ -15,6 +15,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -250,7 +251,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const chatEditingSessionDisposables = this._register(new DisposableStore());
 
-		this._register(this.chatEditingService.onDidCreateEditingSession((session) => {
+		this._register(autorun(r => {
+			const session = this.chatEditingService.currentEditingSessionObs.read(r);
+			if (!session) {
+				return;
+			}
 			if (session.chatSessionId !== this.viewModel?.sessionId) {
 				// this chat editing session is for a different chat widget
 				return;
@@ -944,6 +949,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		return this._acceptInput(query ? { query } : undefined, options);
+	}
+
+	async rerunLastRequest(): Promise<void> {
+		if (!this.viewModel) {
+			return;
+		}
+
+		const sessionId = this.viewModel.sessionId;
+		const lastRequest = this.chatService.getSession(sessionId)?.getRequests().at(-1);
+		if (!lastRequest) {
+			return;
+		}
+
+		const options: IChatSendRequestOptions = {
+			attempt: lastRequest.attempt + 1,
+			location: this.location,
+			userSelectedModelId: this.input.currentLanguageModel
+		};
+		return await this.chatService.resendRequest(lastRequest, options);
 	}
 
 	async acceptInputWithPrefix(prefix: string): Promise<void> {

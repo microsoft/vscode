@@ -31,13 +31,13 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IQuickInputService, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import * as coverUtils from './codeCoverageDisplayUtils.js';
 import { testingCoverageMissingBranch, testingCoverageReport, testingFilterIcon, testingRerunIcon } from './icons.js';
@@ -76,6 +76,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		@ITestCoverageService private readonly coverage: ITestCoverageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService private readonly log: ILogService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -103,6 +104,12 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			report.didAddCoverage.read(reader); // re-read if changes when there's no report
 			return { file, testId: coverage.filterToTest.read(reader) };
 		});
+
+		this._register(bindContextKey(
+			TestingContextKeys.hasPerTestCoverage,
+			contextKeyService,
+			reader => !!fileCoverage.read(reader)?.file.perTestData?.size,
+		));
 
 		this._register(autorun(reader => {
 			const c = fileCoverage.read(reader);
@@ -759,7 +766,15 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 				condition: TestingContextKeys.isCoverageFilteredToTest,
 			},
 			menu: [
-				{ id: MenuId.EditorTitle, when: ContextKeyExpr.and(TestingContextKeys.isTestCoverageOpen, TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true)), group: 'navigation' },
+				{
+					id: MenuId.EditorTitle,
+					when: ContextKeyExpr.and(
+						TestingContextKeys.isTestCoverageOpen,
+						TestingContextKeys.coverageToolbarEnabled.notEqualsTo(true),
+						TestingContextKeys.hasPerTestCoverage,
+					),
+					group: 'navigation',
+				},
 			]
 		});
 	}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Sequencer } from '../../../../../base/common/async.js';
+import { ITask, Sequencer, timeout } from '../../../../../base/common/async.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -45,9 +45,45 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatService } from '../../common/chatService.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
+import { isNotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
+
+
+class ThrottledSequencer extends Sequencer {
+
+	private _size = 0;
+
+	constructor(
+		private readonly _minDuration: number,
+		private readonly _maxOverallDelay: number
+	) {
+		super();
+	}
+
+	override queue<T>(promiseTask: ITask<Promise<T>>): Promise<T> {
+
+		this._size += 1;
+
+		const noDelay = this._size * this._minDuration > this._maxOverallDelay;
+
+		return super.queue(async () => {
+			try {
+				const p1 = promiseTask();
+				const p2 = noDelay
+					? Promise.resolve(undefined)
+					: timeout(this._minDuration);
+
+				const [result] = await Promise.all([p1, p2]);
+				return result;
+
+			} finally {
+				this._size -= 1;
+			}
+		});
+	}
+}
 
 export class ChatEditingSession extends Disposable implements IChatEditingSession {
 
@@ -66,7 +102,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._assertNotDisposed();
 		return this._entriesObs;
 	}
-	private readonly _sequencer = new Sequencer();
+	private readonly _sequencer = new ThrottledSequencer(15, 1000);
 
 	private _workingSet = new ResourceMap<WorkingSetDisplayMetadata>();
 	get workingSet() {
@@ -213,19 +249,27 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			if (!group.activeEditorPane) {
 				return;
 			}
-			let activeEditorControl = group.activeEditorPane.getControl();
-			if (isDiffEditor(activeEditorControl)) {
-				activeEditorControl = activeEditorControl.getOriginalEditor().hasTextFocus() ? activeEditorControl.getOriginalEditor() : activeEditorControl.getModifiedEditor();
-			}
-			if (isCodeEditor(activeEditorControl) && activeEditorControl.hasModel()) {
-				const uri = activeEditorControl.getModel().uri;
-				if (existingTransientEntries.has(uri)) {
-					existingTransientEntries.delete(uri);
-				} else if (!this._workingSet.has(uri) && !this._removedTransientEntries.has(uri)) {
-					// Don't add as a transient entry if it's already part of the working set
-					// or if the user has intentionally removed it from the working set
-					activeEditors.add(uri);
+			let uri;
+			if (isNotebookEditorInput(group.activeEditorPane.input)) {
+				uri = group.activeEditorPane.input.resource;
+			} else {
+				let activeEditorControl = group.activeEditorPane.getControl();
+				if (isDiffEditor(activeEditorControl)) {
+					activeEditorControl = activeEditorControl.getOriginalEditor().hasTextFocus() ? activeEditorControl.getOriginalEditor() : activeEditorControl.getModifiedEditor();
 				}
+				if ((isCodeEditor(activeEditorControl)) && activeEditorControl.hasModel()) {
+					uri = activeEditorControl.getModel().uri;
+				}
+			}
+			if (!uri) {
+				return;
+			}
+			if (existingTransientEntries.has(uri)) {
+				existingTransientEntries.delete(uri);
+			} else if (!this._workingSet.has(uri) && !this._removedTransientEntries.has(uri)) {
+				// Don't add as a transient entry if it's already part of the working set
+				// or if the user has intentionally removed it from the working set
+				activeEditors.add(uri);
 			}
 		});
 
@@ -613,7 +657,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		};
 		const entry = await this._getOrCreateModifiedFileEntry(resource, telemetryInfo);
 		entry.acceptAgentEdits(textEdits, isLastEdits);
-		// await this._editorService.openEditor({ resource: entry.modifiedURI, options: { inactive: true } });
 	}
 
 	private async _resolve(): Promise<void> {

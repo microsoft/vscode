@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookViewModel } from '../../notebookBrowser.js';
+import { CellEditState, getNotebookEditorFromEditorPane, INotebookEditor, INotebookViewModel } from '../../notebookBrowser.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
@@ -86,7 +86,7 @@ export class NotebookChatActionsOverlay extends Disposable {
 
 		this._register(autorun(r => {
 			const diffs = cellDiffInfo.read(r);
-			if (diffs?.length) {
+			if (diffs?.some(d => d.type !== 'unchanged')) {
 				this.show();
 			} else {
 				this.hide();
@@ -238,6 +238,7 @@ class NextPreviousChangeActionRunner extends ActionRunner {
 			this.focusedDiff.set(diff, undefined);
 			await this.notebookEditor.focusNotebookCell(viewModel.viewCells[index], 'container');
 			this.notebookEditor.revealInViewAtTop(viewModel.viewCells[index]);
+			viewModel.viewCells[index].updateEditState(CellEditState.Editing, 'chatEdit');
 			return true;
 		}
 		return false;

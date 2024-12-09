@@ -17624,8 +17624,8 @@ declare module 'vscode' {
 		 * Often {@link TestRunProfile.loadDetailedCoverage} will be called first
 		 * when a user opens a file, and then this method will be called if they
 		 * drill down into specific per-test coverage information. This method
-		 * should then return coverage data only for constructs the given test item
-		 * executed during the test run.
+		 * should then return coverage data only for statements and declarations
+		 * executed by the specific test during the run.
 		 *
 		 * The {@link FileCoverage} object passed to this function is the same
 		 * instance emitted on {@link TestRun.addCoverage} calls associated with this profile.
