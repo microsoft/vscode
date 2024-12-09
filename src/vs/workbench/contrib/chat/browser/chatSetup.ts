@@ -541,6 +541,7 @@ class ChatSetupRequests extends Disposable {
 				type,
 				url,
 				data: type === 'POST' ? JSON.stringify(body) : undefined,
+				disableCache: true,
 				headers: {
 					'Authorization': `Bearer ${session.accessToken}`
 				}
