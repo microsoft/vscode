@@ -68,6 +68,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		}));
 		const contentHoverWidgetNode = this._contentHoverWidget.getDomNode();
 		this._register(dom.addStandardDisposableListener(contentHoverWidgetNode, 'keydown', (e) => {
+			console.log('keydown of ContentHoverWidgetWrapper');
 			if (e.equals(KeyCode.Escape)) {
 				this.hide();
 			}
@@ -216,12 +217,14 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	private _hideHover(): void {
+		console.log('_hideHover')
 		this._contentHoverWidget.hide();
 		this._participants.forEach(participant => participant.handleHide?.());
 	}
 
 	private _getHoverContext(): IEditorHoverContext {
 		const hide = () => {
+			console.log('hide of IEditorHoverContext');
 			this.hide();
 		};
 		const onContentsChanged = () => {
@@ -285,6 +288,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	private _onMouseLeave(e: MouseEvent): void {
+		console.log('_onMouseLeave')
 		const editorDomNode = this._editor.getDomNode();
 		const isMousePositionOutsideOfEditor = !editorDomNode || !isMousePositionWithinElement(editorDomNode, e.x, e.y);
 		if (isMousePositionOutsideOfEditor) {
@@ -369,6 +373,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 	}
 
 	public hide(): void {
+		console.log('hide of ContentHoverWidgetWrapper');
 		this._hoverOperation.cancel();
 		this._setCurrentResult(null);
 	}

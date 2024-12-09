@@ -29,7 +29,7 @@ import { IActionListDelegate } from '../../../../platform/actionWidget/browser/a
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMarkerService } from '../../../../platform/markers/common/markers.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
@@ -40,6 +40,15 @@ import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionKind, 
 import { CodeActionModel, CodeActionsState } from './codeActionModel.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+
+export const CodeActionWidgetContextKeys = {
+	VisibleFromHoverQuickFix: new RawContextKey<boolean>('codeActionMenuVisibleFromHoverQuickFix', false, localize('codeActionMenuVisibleFromHoverQuickFix', "Whether the code action widget list is visible from hover quick fix"))
+};
+
+export const enum CodeActionsVisibleFromSource {
+	HoverQuickFix = 'hoverquickfix',
+	LightBulb = 'lightbulb',
+}
 
 interface IActionShowOptions {
 	readonly includeDisabledActions?: boolean;
@@ -81,6 +90,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEditorProgressService private readonly _progressService: IEditorProgressService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -118,11 +128,11 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			await this.applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
 			return;
 		}
-		await this.showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: true });
+		await this.showCodeActionList(CodeActionsVisibleFromSource.LightBulb, actions, at, { includeDisabledActions: false, fromLightbulb: true });
 	}
 
-	public showCodeActions(_trigger: CodeActionTrigger, actions: CodeActionSet, at: IAnchor | IPosition) {
-		return this.showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: false });
+	public showCodeActions(source: CodeActionsVisibleFromSource, actions: CodeActionSet, at: IAnchor | IPosition) {
+		return this.showCodeActionList(source, actions, at, { includeDisabledActions: false, fromLightbulb: false });
 	}
 
 	public hideCodeActions(): void {
@@ -228,7 +238,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			}
 
 			this._activeCodeActions.value = actions;
-			this.showCodeActionList(actions, this.toCoords(newState.position), { includeDisabledActions, fromLightbulb: false });
+			this.showCodeActionList(CodeActionsVisibleFromSource.LightBulb, actions, this.toCoords(newState.position), { includeDisabledActions, fromLightbulb: false });
 		} else {
 			// auto magically triggered
 			if (this._actionWidgetService.isVisible) {
@@ -273,7 +283,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		className: DECORATION_CLASS_NAME
 	});
 
-	public async showCodeActionList(actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): Promise<void> {
+	public async showCodeActionList(source: CodeActionsVisibleFromSource, actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): Promise<void> {
 
 		const currentDecorations = this._editor.createDecorationsCollection();
 
@@ -298,6 +308,13 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			onHide: (didCancel?) => {
 				this._editor?.focus();
 				currentDecorations.clear();
+
+				switch (source) {
+					case CodeActionsVisibleFromSource.HoverQuickFix: {
+						const visibleFromQuickFix = CodeActionWidgetContextKeys.VisibleFromHoverQuickFix.bindTo(this._contextKeyService);
+						visibleFromQuickFix.reset();
+					}
+				}
 			},
 			onHover: async (action: CodeActionItem, token: CancellationToken) => {
 				if (token.isCancellationRequested) {
@@ -348,6 +365,13 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			}
 		};
 
+		switch (source) {
+			case CodeActionsVisibleFromSource.HoverQuickFix: {
+				const visibleFromQuickFix = CodeActionWidgetContextKeys.VisibleFromHoverQuickFix.bindTo(this._contextKeyService);
+				visibleFromQuickFix.set(true);
+			}
+		}
+
 		this._actionWidgetService.show(
 			'codeActionWidget',
 			true,
@@ -355,7 +379,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			delegate,
 			anchor,
 			editorDom,
-			this._getActionBarActions(actions, at, options));
+			this._getActionBarActions(source, actions, at, options));
 	}
 
 	private toCoords(position: IPosition): IAnchor {
@@ -380,7 +404,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		return this._configurationService.getValue('editor.codeActionWidget.showHeaders', { resource: model?.uri });
 	}
 
-	private _getActionBarActions(actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): IAction[] {
+	private _getActionBarActions(source: CodeActionsVisibleFromSource, actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): IAction[] {
 		if (options.fromLightbulb) {
 			return [];
 		}
@@ -403,7 +427,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				class: undefined,
 				run: () => {
 					this._showDisabled = false;
-					return this.showCodeActionList(actions, at, options);
+					return this.showCodeActionList(source, actions, at, options);
 				}
 			} : {
 				id: 'showMoreActions',
@@ -413,7 +437,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				class: undefined,
 				run: () => {
 					this._showDisabled = true;
-					return this.showCodeActionList(actions, at, options);
+					return this.showCodeActionList(source, actions, at, options);
 				}
 			});
 		}
