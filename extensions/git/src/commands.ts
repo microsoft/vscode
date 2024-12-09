@@ -2876,7 +2876,7 @@ export class CommandCenter {
 		let selectedItems: BranchDeleteItem[] = [];
 
 		const items = await getQuickPickItems();
-		const placeHolder = l10n.t('Select a branch or tag to merge from (Press Escape to confirm)');
+		const placeHolder = l10n.t('Select branches to delete (Press Escape to confirm)');
 		const choice = await window.showQuickPick(items, {
 			placeHolder,
 			canPickMany: true // Allow multi-selection within a single quick pick
@@ -2907,6 +2907,11 @@ export class CommandCenter {
 				if (err.gitErrorCode !== GitErrorCodes.BranchNotFullyMerged) {
 					window.showErrorMessage(l10n.t('Failed to delete branch: {0}', item.refName ?? 'unknown'));
 					continue; // Skip to the next item
+				}
+				else if (force) {
+					await item.run(repository, true);
+					console.log(`Force deleted branch: ${item.refName}`);
+					continue;
 				}
 				const message = l10n.t('The branch "{0}" is not fully merged. Delete anyway?', item.refName ?? 'unknown');
 				const yes = l10n.t('Delete Branch');
