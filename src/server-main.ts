@@ -102,7 +102,7 @@ if (shouldSpawnCli) {
 		return remoteExtensionHostAgentServer.handleRequest(req, res);
 	});
 
-	// Listens for when a  client requests to upgrade from HTTP to WebSocket
+	// Listens for when a client requests to upgrade from HTTP to WebSocket
 	server.on('upgrade', async (req, socket) => {
 		if (firstWebSocket) {
 			firstWebSocket = false;
