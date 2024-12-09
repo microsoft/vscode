@@ -17,10 +17,6 @@
 		background-color: var(--vscode-chat-requestBackground);
 	}
 
-	.terms-container {
-		padding-top: 5px;
-	}
-
 	.chat-feature-container {
 		display: flex;
 		align-items: center;
@@ -36,6 +32,10 @@
 		font-size: 13px;
 		line-height: 1.4em;
 		vertical-align: bottom;
+	}
+
+	.button-container {
+		padding-top: 20px;
 	}
 
 	/** Dropdown Button */
