@@ -165,9 +165,6 @@
             </g>
           </g>
         </g>
-        <g>
-          <rect width="605" height="467" transform="translate(0 41)" fill="url(#paint0_linear_304_6548)" />
-        </g>
       </g>
       <rect x="0.5" y="16.5" width="595" height="490" rx="8.97211" stroke="var(--vscode-editorSuggestWidget-border, #3C3C3C)" />
     </g>
@@ -463,10 +460,6 @@
     <pattern id="pattern0_304_6548" patternContentUnits="objectBoundingBox" width="1" height="1">
       <use xlink:href="#image0_304_6548" transform="scale(0.00166667)" />
     </pattern>
-    <linearGradient id="paint0_linear_304_6548" x1="-3.62751e-06" y1="-17.5" x2="591.5" y2="467" gradientUnits="userSpaceOnUse">
-      <stop stop-opacity="0" />
-      <stop offset="1" stop-opacity="0.4" />
-    </linearGradient>
     <clipPath id="clip0_304_6548">
       <rect y="16" width="596" height="491" rx="9.47211" fill="#FFFFFF" />
     </clipPath>
