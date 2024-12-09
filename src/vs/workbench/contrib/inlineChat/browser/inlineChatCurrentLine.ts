@@ -16,7 +16,7 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { AbstractInlineChatAction } from './inlineChatActions.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
-import { InjectedTextCursorStops, IValidEditOperation, TrackedRangeStickiness } from '../../../../editor/common/model.js';
+import { IValidEditOperation, TrackedRangeStickiness } from '../../../../editor/common/model.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StandardTokenType } from '../../../../editor/common/encodedTokenAttributes.js';
@@ -36,6 +36,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { Event } from '../../../../base/common/event.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { createStyleSheet2 } from '../../../../base/browser/domStylesheets.js';
+import { stringValue } from '../../../../base/browser/cssValue.js';
 
 export const CTX_INLINE_CHAT_SHOWING_HINT = new RawContextKey<boolean>('inlineChatShowingHint', false, localize('inlineChatShowingHint', "Whether inline chat shows a contextual hint"));
 
@@ -149,12 +151,6 @@ export class ShowInlineChatHintAction extends EditorAction2 {
 	}
 }
 
-class HintData {
-	constructor(
-		readonly setting: string
-	) { }
-}
-
 export class InlineChatHintsController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.inlineChatHints';
@@ -193,8 +189,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 			if (e.target.type !== MouseTargetType.CONTENT_TEXT) {
 				return;
 			}
-			const attachedData = e.target.detail.injectedText?.options.attachedData;
-			if (!(attachedData instanceof HintData)) {
+			if (!e.target.element?.classList.contains('inline-chat-hint-text')) {
 				return;
 			}
 			if (e.event.leftButton) {
@@ -202,7 +197,10 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 				this.hide();
 			} else if (e.event.rightButton) {
 				e.event.preventDefault();
-				this._showContextMenu(e.event, attachedData.setting);
+				this._showContextMenu(e.event, e.target.element?.classList.contains('whitespace')
+					? InlineChatConfigKeys.LineEmptyHint
+					: InlineChatConfigKeys.LineNLHint
+				);
 			}
 		}));
 
@@ -251,6 +249,9 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 			return undefined;
 		});
 
+		const style = createStyleSheet2();
+		this._store.add(style);
+
 		this._store.add(autorun(r => {
 
 			const showData = showDataObs.read(r);
@@ -264,7 +265,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 			const agentName = chatAgentService.getDefaultAgent(ChatAgentLocation.Editor)?.name ?? localize('defaultTitle', "Chat");
 			const { position, isEol, isWhitespace, kb, model } = showData;
 
-			const inlineClassName: string[] = ['inline-chat-hint'];
+			const inlineClassName: string[] = ['a' /*HACK but sorts as we want*/, 'inline-chat-hint', 'inline-chat-hint-text'];
 			let content: string;
 			if (isWhitespace) {
 				content = '\u00a0' + localize('title2', "{0} to edit with {1}", kb, agentName);
@@ -275,6 +276,11 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 				inlineClassName.push('embedded');
 			}
 
+			style.setStyle(`.inline-chat-hint-text::after { content: ${stringValue(content)} }`);
+			if (isWhitespace) {
+				inlineClassName.push('whitespace');
+			}
+
 			this._ctxShowingHint.set(true);
 
 			decos.set([{
@@ -283,13 +289,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 					description: 'inline-chat-hint-line',
 					showIfCollapsed: true,
 					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-					after: {
-						content,
-						inlineClassName: inlineClassName.join(' '),
-						inlineClassNameAffectsLetterSpacing: true,
-						cursorStops: InjectedTextCursorStops.None,
-						attachedData: new HintData(isWhitespace ? InlineChatConfigKeys.LineEmptyHint : InlineChatConfigKeys.LineNLHint)
-					}
+					afterContentClassName: inlineClassName.join(' '),
 				}
 			}]);
 
