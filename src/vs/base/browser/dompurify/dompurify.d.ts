@@ -9,7 +9,8 @@
 // Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
 // Minimum TypeScript Version: 4.5
 
-export default DOMPurify;
+export as namespace DOMPurify;
+export = DOMPurify;
 
 declare const DOMPurify: createDOMPurifyI;
 
