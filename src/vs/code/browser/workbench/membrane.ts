@@ -56,6 +56,8 @@ export async function membraneApi(
 	path: `/${string}`,
 	body?: BodyInit
 ): Promise<Response> {
+	// WARNING: It's important that this url is NOT controlled by the extension settings (i.e. the url used by the
+	// extension and gaze) because this function is used to load the user settings themselves.
 	const baseUrl = 'https://api.membrane.io';
 
 	const secretProvider = SecretStorageProvider.getInstance();
