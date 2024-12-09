@@ -2052,8 +2052,13 @@
         },
         {
           "command": "git.openChange",
-          "group": "navigation",
+          "group": "navigation@-0.9",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && scmActiveResourceHasChanges"
+        },
+        {
+          "command": "git.stage",
+          "group": "navigation@-0.8",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && !isInDiffEditor && !isMergeEditor && resourceScheme == file && git.untrackedChangesGroup && git.unstagedChangesGroup && git.stagedChangesGroup && (git.untrackedChangesGroup in scmActiveResourceGroupMemberships || git.unstagedChangesGroup in scmActiveResourceGroupMemberships) && git.stagedChangesGroup not in scmActiveResourceGroupMemberships"
         },
         {
           "command": "git.commitMessageAccept",
