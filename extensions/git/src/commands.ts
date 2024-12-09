@@ -2860,6 +2860,65 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.deleteBranches', { repository: true })
+	async deleteBranches(repository: Repository, name: string, force?: boolean): Promise<void> {
+		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
+			const refs = await repository.getRefs();
+			const itemsProcessor = new RefItemsProcessor([
+				new RefProcessor(RefType.Head, BranchDeleteItem),
+				new RefProcessor(RefType.RemoteHead, BranchDeleteItem),
+				new RefProcessor(RefType.Tag, BranchDeleteItem)
+			]);
+
+			return itemsProcessor.processRefs(refs);
+		};
+
+		let selectedItems: BranchDeleteItem[] = [];
+
+		const items = await getQuickPickItems();
+		const placeHolder = l10n.t('Select a branch or tag to merge from (Press Escape to confirm)');
+		const choice = await window.showQuickPick(items, {
+			placeHolder,
+			canPickMany: true // Allow multi-selection within a single quick pick
+		});
+
+		if (!choice || choice.length === 0) {
+			return; // Exit loop if no selection or user cancels
+		}
+
+		selectedItems = [...selectedItems, ...choice.filter(item => item instanceof BranchDeleteItem).map(item => item as BranchDeleteItem)];
+
+		if (!selectedItems || selectedItems.length === 0) {
+			return;
+		}
+
+		const confirmationMessage = l10n.t('Are you sure you want to delete these branches: {0}?', selectedItems.map(item => item.label).join(', '));
+		const confirm = await window.showWarningMessage(confirmationMessage, { modal: true }, l10n.t('Yes'), l10n.t('No'));
+
+		if (confirm !== l10n.t('Yes')) {
+			return;
+		}
+
+		for (const item of selectedItems) {
+			try {
+				await item.run(repository, false);
+				console.log(`Deleted branch: ${item.refName}`);
+			} catch (err) {
+				if (err.gitErrorCode !== GitErrorCodes.BranchNotFullyMerged) {
+					window.showErrorMessage(l10n.t('Failed to delete branch: {0}', item.refName ?? 'unknown'));
+					continue; // Skip to the next item
+				}
+				const message = l10n.t('The branch "{0}" is not fully merged. Delete anyway?', item.refName ?? 'unknown');
+				const yes = l10n.t('Delete Branch');
+				const pick = await window.showWarningMessage(message, { modal: true }, yes);
+				if (pick === yes) {
+					await item.run(repository, true);
+					console.log(`Force deleted branch: ${item.refName}`);
+				}
+			}
+		}
+	}
+
 	@command('git.renameBranch', { repository: true })
 	async renameBranch(repository: Repository): Promise<void> {
 		const currentBranchName = repository.HEAD && repository.HEAD.name;
