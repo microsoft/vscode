@@ -211,6 +211,10 @@ export class VariablesView extends ViewPane {
 		this.tree.collapseAll();
 	}
 
+	search(): void {
+		this.tree.openFind();
+	}
+
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
 		if (this.canSetExpressionValue(e.element)) {
 			this.debugService.getViewModel().setSelectedExpression(e.element, false);
@@ -818,6 +822,27 @@ CommandsRegistry.registerCommand({
 registerAction2(class extends ViewAction<VariablesView> {
 	constructor() {
 		super({
+			id: 'variables.search',
+			viewId: VARIABLES_VIEW_ID,
+			title: localize('search', "Search All"),
+			f1: false,
+			icon: Codicon.search,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.equals('view', VARIABLES_VIEW_ID)
+			}
+		});
+	}
+
+	runInView(_accessor: ServicesAccessor, view: VariablesView) {
+		view.search();
+	}
+});
+
+registerAction2(class extends ViewAction<VariablesView> {
+	constructor() {
+		super({
 			id: 'variables.collapse',
 			viewId: VARIABLES_VIEW_ID,
 			title: localize('collapse', "Collapse All"),
@@ -825,6 +850,7 @@ registerAction2(class extends ViewAction<VariablesView> {
 			icon: Codicon.collapseAll,
 			menu: {
 				id: MenuId.ViewTitle,
+				order: 20,
 				group: 'navigation',
 				when: ContextKeyExpr.equals('view', VARIABLES_VIEW_ID)
 			}
