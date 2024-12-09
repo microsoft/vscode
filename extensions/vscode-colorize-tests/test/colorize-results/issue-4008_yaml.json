@@ -1,7 +1,7 @@
 [
 	{
 		"c": "-",
-		"t": "source.yaml punctuation.definition.block.sequence.item.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml punctuation.definition.block.sequence.item.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -15,7 +15,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml punctuation.whitespace.indentation.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -29,7 +29,7 @@
 	},
 	{
 		"c": "blue",
-		"t": "source.yaml string.unquoted.plain.out.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -43,7 +43,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.yaml punctuation.separator.key-value.mapping.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml punctuation.separator.map.value.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -57,7 +57,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml punctuation.whitespace.separator.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -71,7 +71,7 @@
 	},
 	{
 		"c": "a=\"brown,not_brown\"",
-		"t": "source.yaml string.unquoted.plain.out.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.plain.out.yaml",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.unquoted.plain.out.yaml: #0000FF",
@@ -85,7 +85,7 @@
 	},
 	{
 		"c": "-",
-		"t": "source.yaml punctuation.definition.block.sequence.item.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml punctuation.definition.block.sequence.item.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -99,7 +99,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml punctuation.whitespace.indentation.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -113,7 +113,7 @@
 	},
 	{
 		"c": "not_blue",
-		"t": "source.yaml string.unquoted.plain.out.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -127,7 +127,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.yaml punctuation.separator.key-value.mapping.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml punctuation.separator.map.value.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -141,7 +141,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml punctuation.whitespace.separator.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": "foo",
-		"t": "source.yaml string.unquoted.plain.out.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.plain.out.yaml",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.unquoted.plain.out.yaml: #0000FF",
@@ -169,7 +169,7 @@
 	},
 	{
 		"c": "-",
-		"t": "source.yaml punctuation.definition.block.sequence.item.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml punctuation.definition.block.sequence.item.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -183,7 +183,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml punctuation.whitespace.indentation.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -197,7 +197,7 @@
 	},
 	{
 		"c": "blue",
-		"t": "source.yaml string.unquoted.plain.out.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -211,7 +211,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.yaml punctuation.separator.key-value.mapping.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml punctuation.separator.map.value.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -225,7 +225,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml punctuation.whitespace.separator.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -239,7 +239,7 @@
 	},
 	{
 		"c": "foo=\"}\"",
-		"t": "source.yaml string.unquoted.plain.out.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.plain.out.yaml",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string.unquoted.plain.out.yaml: #0000FF",
@@ -253,7 +253,7 @@
 	},
 	{
 		"c": "-",
-		"t": "source.yaml punctuation.definition.block.sequence.item.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml punctuation.definition.block.sequence.item.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -267,7 +267,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml punctuation.whitespace.indentation.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -281,7 +281,7 @@
 	},
 	{
 		"c": "not_blue",
-		"t": "source.yaml string.unquoted.plain.out.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -295,7 +295,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.yaml punctuation.separator.key-value.mapping.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml punctuation.separator.map.value.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -309,7 +309,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml punctuation.whitespace.separator.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -323,7 +323,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.yaml constant.numeric.integer.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.plain.out.yaml constant.numeric.integer.decimal.yaml",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
