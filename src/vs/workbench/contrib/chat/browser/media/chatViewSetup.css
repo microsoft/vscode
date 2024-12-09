@@ -17,6 +17,10 @@
 		background-color: var(--vscode-chat-requestBackground);
 	}
 
+	.terms-container {
+		padding-top: 5px;
+	}
+
 	.chat-feature-container {
 		display: flex;
 		align-items: center;
@@ -25,7 +29,7 @@
 	}
 
 	.chat-feature-container .codicon[class*='codicon-'] {
-		font-size: 20px;
+		font-size: 16px;
 	}
 
 	.codicon[class*='codicon-'] {

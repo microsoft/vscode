@@ -872,7 +872,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		}
 
 		if (compatible) {
-			if (this.allowedExtensionsService.isAllowed({ id: extension, publisherDisplayName, version: rawGalleryExtensionVersion.version, prerelease: versionType === 'any' ? undefined : isPreReleaseVersion(rawGalleryExtensionVersion), targetPlatform: targetPlatformForExtension }) !== true) {
+			if (this.allowedExtensionsService.isAllowed({ id: extension, publisherDisplayName, version: rawGalleryExtensionVersion.version, prerelease: isPreReleaseVersion(rawGalleryExtensionVersion), targetPlatform: targetPlatformForExtension }) !== true) {
 				return false;
 			}
 			try {

@@ -16,7 +16,6 @@ import { USUAL_WORD_SEPARATORS } from '../core/wordHelper.js';
 import * as nls from '../../../nls.js';
 import { AccessibilitySupport } from '../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationPropertySchema } from '../../../platform/configuration/common/configurationRegistry.js';
-import product from '../../../platform/product/common/product.js';
 
 //#region typed options
 
@@ -269,7 +268,7 @@ export interface IEditorOptions {
 	/**
 	 * Controls whether to use default color decorations or not using the default document color provider
 	 */
-	defaultColorDecorators?: boolean;
+	defaultColorDecorators?: 'auto' | 'always' | 'never';
 	/**
 	 * Disable the use of `transform: translate3d(0px, 0px, 0px)` for the editor margin and lines layers.
 	 * The usage of `transform: translate3d(0px, 0px, 0px)` acts as a hint for browsers to create an extra layer.
@@ -1667,9 +1666,10 @@ export interface IEditorFindOptions {
 	 */
 	loop?: boolean;
 	/**
+	 * @internal
 	 * Controls how the find widget search history should be stored
 	 */
-	findSearchHistory?: 'never' | 'workspace';
+	history?: 'never' | 'workspace';
 }
 
 /**
@@ -1687,7 +1687,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
 			loop: true,
-			findSearchHistory: 'never',
+			history: 'workspace',
 		};
 		super(
 			EditorOption.find, 'find', defaults,
@@ -1738,7 +1738,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 				'editor.find.history': {
 					type: 'string',
 					enum: ['never', 'workspace'],
-					default: typeof product.quality === 'string' && product.quality !== 'stable' ? 'workspace' : 'none',
+					default: 'workspace',
 					enumDescriptions: [
 						nls.localize('editor.find.history.never', 'Do not store search history from the find widget.'),
 						nls.localize('editor.find.history.workspace', 'Store search history across the active workspace'),
@@ -1765,7 +1765,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
 			loop: boolean(input.loop, this.defaultValue.loop),
-			findSearchHistory: stringSet<'never' | 'workspace'>(input.findSearchHistory, this.defaultValue.findSearchHistory, ['never', 'workspace']),
+			history: stringSet<'never' | 'workspace'>(input.history, this.defaultValue.history, ['never', 'workspace']),
 		};
 	}
 }
@@ -5795,7 +5795,7 @@ export const EditorOptions = {
 	emptySelectionClipboard: register(new EditorEmptySelectionClipboard()),
 	dropIntoEditor: register(new EditorDropIntoEditor()),
 	experimentalEditContextEnabled: register(new EditorBooleanOption(
-		EditorOption.experimentalEditContextEnabled, 'experimentalEditContextEnabled', product.quality !== 'stable',
+		EditorOption.experimentalEditContextEnabled, 'experimentalEditContextEnabled', false,
 		{
 			description: nls.localize('experimentalEditContextEnabled', "Sets whether the new experimental edit context should be used instead of the text area."),
 			included: platform.isChrome || platform.isEdge || platform.isNative
@@ -6342,9 +6342,17 @@ export const EditorOptions = {
 	// Leave these at the end (because they have dependencies!)
 	effectiveCursorStyle: register(new EffectiveCursorStyle()),
 	editorClassName: register(new EditorClassName()),
-	defaultColorDecorators: register(new EditorBooleanOption(
-		EditorOption.defaultColorDecorators, 'defaultColorDecorators', true,
-		{ markdownDescription: nls.localize('defaultColorDecorators', "Controls whether inline color decorations should be shown using the default document color provider") }
+	defaultColorDecorators: register(new EditorStringEnumOption(
+		EditorOption.defaultColorDecorators, 'defaultColorDecorators', 'auto' as 'auto' | 'always' | 'never',
+		['auto', 'always', 'never'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('editor.defaultColorDecorators.auto', "Show default color decorators only when no extension provides colors decorators."),
+				nls.localize('editor.defaultColorDecorators.always', "Always show default color decorators."),
+				nls.localize('editor.defaultColorDecorators.never', "Never show default color decorators."),
+			],
+			description: nls.localize('defaultColorDecorators', "Controls whether inline color decorations should be shown using the default document color provider.")
+		}
 	)),
 	pixelRatio: register(new EditorPixelRatio()),
 	tabFocusMode: register(new EditorBooleanOption(EditorOption.tabFocusMode, 'tabFocusMode', false,

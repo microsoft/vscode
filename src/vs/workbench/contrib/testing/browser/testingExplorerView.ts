@@ -131,6 +131,10 @@ export class TestingExplorerView extends ViewPane {
 			}
 		}));
 
+		this._register(Event.any(crService.onDidChange, testProfileService.onDidChange)(() => {
+			this.updateActions();
+		}));
+
 		this._register(testService.collection.onBusyProvidersChange(busy => {
 			this.updateDiscoveryProgress(busy);
 		}));
@@ -486,35 +490,30 @@ export class TestingExplorerView extends ViewPane {
 			}
 
 			if (Object.keys(groups).length > 1) {
-				dropdownActions.push(new Action(
-					`${group}.label`,
-					testProfileBitset[group],
-					undefined,
-					false,
-				));
+				dropdownActions.push({
+					id: `${group}.label`,
+					label: testProfileBitset[group],
+					enabled: false,
+					class: undefined,
+					tooltip: testProfileBitset[group],
+					run: () => { },
+				});
 			}
 
 			for (const profile of profiles) {
-				dropdownActions.push(new class extends Action {
-					constructor() {
-						super(
-							`${group}.${profile.profileId}`,
-							profile.label,
-							undefined,
-							true,
-							() => crService.isEnabledForProfile(profile)
-								? crService.stopProfile(profile)
-								: crService.start([profile]),
-						);
-						this.checked = crService.isEnabledForProfile(profile);
-						this._register(crService.onDidChange(() => {
-							this.checked = crService.isEnabledForProfile(profile);
-						}));
-					}
+				dropdownActions.push({
+					id: `${group}.${profile.profileId}`,
+					label: profile.label,
+					enabled: true,
+					class: undefined,
+					tooltip: profile.label,
+					checked: crService.isEnabledForProfile(profile),
+					run: () => crService.isEnabledForProfile(profile)
+						? crService.stopProfile(profile)
+						: crService.start([profile]),
 				});
 			}
 		}
-
 
 		return this.instantiationService.createInstance(
 			DropdownWithPrimaryActionViewItem,

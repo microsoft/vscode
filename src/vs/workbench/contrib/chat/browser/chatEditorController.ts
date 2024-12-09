@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatEditorController.css';
-import { getTotalWidth } from '../../../../base/browser/dom.js';
+import { addStandardDisposableListener, getTotalWidth } from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, autorunWithStore, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
@@ -80,7 +80,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		let ignoreScrollEvent = false;
 		this._store.add(this._editor.onDidScrollChange(e => {
 			if (e.scrollTopChanged && !ignoreScrollEvent) {
-				this._scrollLock = true;
+				// this._scrollLock = true;
 			}
 		}));
 
@@ -89,7 +89,9 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			this._ctxRequestInProgress.set(session?.state.read(r) === ChatEditingSessionState.StreamingEdits);
 		}));
 
-		this._register(autorun(r => {
+		let didReveal = false;
+
+		this._register(autorunWithStore((r, store) => {
 
 			if (this._editor.getOption(EditorOption.inDiffEditor)) {
 				this._clearRendering();
@@ -106,20 +108,39 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 			if (!entry || entry.state.read(r) !== WorkingSetEntryState.Modified) {
 				this._clearRendering();
+				didReveal = false;
 				return;
+			}
+
+			if (entry.isCurrentlyBeingModified.read(r)) {
+				const domNode = this._editor.getDomNode();
+				if (domNode) {
+					store.add(addStandardDisposableListener(domNode, 'wheel', () => {
+						this._scrollLock = true;
+					}));
+				}
 			}
 
 			try {
 				ignoreScrollEvent = true;
-				if (!this._scrollLock) {
+				if (!this._scrollLock && !didReveal) {
 					const maxLineNumber = entry.maxLineNumber.read(r);
-					this._editor.revealLineNearTop(maxLineNumber, ScrollType.Immediate);
+					this._editor.revealLineNearTop(maxLineNumber, ScrollType.Smooth);
 				}
 				const diff = entry?.diffInfo.read(r);
 				this._updateWithDiff(entry, diff);
-				this.initNavigation();
-				if (this._currentChange.get() === undefined) {
-					this.revealNext();
+				if (!entry.isCurrentlyBeingModified.read(r)) {
+					this.initNavigation();
+
+					if (!this._scrollLock && !didReveal) {
+						const currentPosition = this._currentChange.read(r);
+						if (currentPosition) {
+							this._editor.revealLine(currentPosition.lineNumber, ScrollType.Smooth);
+							didReveal = true;
+						} else {
+							didReveal = this.revealNext();
+						}
+					}
 				}
 			} finally {
 				ignoreScrollEvent = false;
@@ -185,7 +206,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 	private _updateWithDiff(entry: IModifiedFileEntry, diff: IDocumentDiff): void {
 
-		this._ctxHasEditorModification.set(true);
+		this._ctxHasEditorModification.set(!diff.identical);
 		const originalModel = entry.originalModel;
 
 		const chatDiffAddDecoration = ModelDecorationOptions.createDynamic({

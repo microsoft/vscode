@@ -100,7 +100,7 @@ abstract class NavigateAction extends Action2 {
 		const newEditorPane = await editorService.openEditor({
 			resource: entry.modifiedURI,
 			options: {
-				selection: change && Range.fromPositions({ lineNumber: change.original.startLineNumber, column: 1 }),
+				selection: change && Range.fromPositions({ lineNumber: change.modified.startLineNumber, column: 1 }),
 				revealIfOpened: false,
 				revealIfVisible: false,
 			}

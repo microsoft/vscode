@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SetWithKey } from './collections.js';
+import { Event } from './event.js';
 import { ArrayNavigator, INavigator } from './navigator.js';
 
 export interface IHistory<T> {
@@ -13,6 +14,7 @@ export interface IHistory<T> {
 	clear(): void;
 	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void;
 	replace?(t: T[]): void;
+	onDidChange?: Event<string[]>;
 }
 
 export class HistoryNavigator<T> implements INavigator<T> {
@@ -25,6 +27,9 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	) {
 		this._limit = limit;
 		this._onChange();
+		if (this._history.onDidChange) {
+			this._history.onDidChange(() => this._onChange());
+		}
 	}
 
 	public getHistory(): T[] {

@@ -20,7 +20,7 @@ import { lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../
 import { TextModel } from '../../../../../common/model/textModel.js';
 import './inlineEditsView.css';
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineDiffView.js';
-import { applyEditToModifiedRangeMappings, createReindentEdit, maxContentWidthInRange, PathBuilder, Point, StatusBarViewItem } from './utils.js';
+import { applyEditToModifiedRangeMappings, createReindentEdit, getOffsetForPos, maxContentWidthInRange, PathBuilder, Point, StatusBarViewItem } from './utils.js';
 import { IInlineEditsIndicatorState, InlineEditsIndicator } from './inlineEditsIndicatorView.js';
 import { darken, lighten, registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { diffInserted, diffRemoved } from '../../../../../../platform/theme/common/colorRegistry.js';
@@ -126,10 +126,9 @@ export class InlineEditsView extends Disposable {
 			position: constObservable(null),
 			allowEditorOverflow: false,
 			minContentWidthInPx: derived(reader => {
-				const x = this._previewEditorLayoutInfo.read(reader)?.previewEditorLeft;
+				const x = this._previewEditorLayoutInfo.read(reader)?.maxContentWidth;
 				if (x === undefined) { return 0; }
-				const width = this._previewEditorWidth.read(reader) + 70;
-				return x + width;
+				return x;
 			}),
 		}));
 
@@ -146,7 +145,7 @@ export class InlineEditsView extends Disposable {
 			const topEdit = layoutInfo.edit1;
 			const editHeight = layoutInfo.editHeight;
 
-			const width = this._previewEditorWidth.read(reader) + 10;
+			const width = this._previewEditorWidth.read(reader);
 
 			const pathBuilder1 = new PathBuilder();
 			pathBuilder1.moveTo(layoutInfo.code2);
@@ -431,7 +430,14 @@ export class InlineEditsView extends Disposable {
 		if (!edit) { return 0; }
 		this._updatePreviewEditor.read(reader);
 
-		return maxContentWidthInRange(this._previewEditorObs, edit.modifiedLineRange, reader);
+		return maxContentWidthInRange(this._previewEditorObs, edit.modifiedLineRange, reader) + 10;
+	});
+
+	private readonly _cursorPosIfTouchesEdit = derived(this, reader => {
+		const cursorPos = this._editorObs.cursorPosition.read(reader);
+		const edit = this._edit.read(reader);
+		if (!edit || !cursorPos) { return undefined; }
+		return edit.modifiedLineRange.contains(cursorPos.lineNumber) ? cursorPos : undefined;
 	});
 
 	/**
@@ -449,27 +455,33 @@ export class InlineEditsView extends Disposable {
 
 		const range = inlineEdit.originalLineRange;
 
-		const scrollLeft = this._editorObs.scrollLeft.read(reader);
+		const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);
 
-		const maxContentWidth = maxContentWidthInRange(this._editorObs, state.originalDisplayRange, reader);
-		const contentLeft = this._editorObs.layoutInfoContentLeft.read(reader);
-		const editorLayoutInfo = this._editorObs.layoutInfo.read(reader);
-		const previewEditorWidth = this._previewEditorWidth.read(reader);
-		const textAreaWidth = (editorLayoutInfo.width - editorLayoutInfo.contentLeft - editorLayoutInfo.minimap.minimapWidth);
+		const editorContentMaxWidthInRange = maxContentWidthInRange(this._editorObs, state.originalDisplayRange, reader);
+		const editorLayout = this._editorObs.layoutInfo.read(reader);
+		const previewWidth = this._previewEditorWidth.read(reader);
+		const editorContentAreaWidth = editorLayout.width - editorLayout.contentLeft - editorLayout.minimap.minimapWidth - editorLayout.verticalScrollbarWidth;
+
+		const cursorPos = this._cursorPosIfTouchesEdit.read(reader);
+
 		const maxPreviewEditorLeft = Math.max(
-			textAreaWidth * 0.65 + scrollLeft,
-			textAreaWidth - previewEditorWidth - 60,
+			editorContentAreaWidth * 0.65 + horizontalScrollOffset - 10,
+			editorContentAreaWidth - previewWidth - 70 + horizontalScrollOffset - 10,
+			cursorPos ? getOffsetForPos(this._editorObs, cursorPos, reader) + 50 : 0,
 		);
+		const previewEditorLeftInTextArea = Math.min(editorContentMaxWidthInRange + 20, maxPreviewEditorLeft);
 
-		const previewEditorLeft = Math.min(contentLeft + maxContentWidth, maxPreviewEditorLeft);
-		const dist = maxPreviewEditorLeft - previewEditorLeft;
+		const previewEditorLeft = editorLayout.contentLeft + previewEditorLeftInTextArea;
+		const maxContentWidth = editorContentMaxWidthInRange + 20 + previewWidth + 70;
 
-		const left = previewEditorLeft + 20 - scrollLeft;
+		const dist = maxPreviewEditorLeft - previewEditorLeftInTextArea;
+
+		const left = Math.max(editorLayout.contentLeft, previewEditorLeft - horizontalScrollOffset);
 
 		const selectionTop = this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
 		const selectionBottom = this._editor.getTopForLineNumber(range.endLineNumberExclusive) - this._editorObs.scrollTop.read(reader);
 
-		const codeLeft = this._editorObs.layoutInfoContentLeft.read(reader);
+		const codeLeft = editorLayout.contentLeft;
 
 		const code1 = new Point(left, selectionTop);
 		const codeStart1 = new Point(codeLeft, selectionTop);
@@ -501,6 +513,7 @@ export class InlineEditsView extends Disposable {
 			edit2,
 			editHeight,
 			previewEditorLeft,
+			maxContentWidth,
 			shouldShowShadow: clipped,
 		};
 	});

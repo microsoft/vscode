@@ -126,7 +126,7 @@ export function registerNewChatActions() {
 					mac: {
 						primary: KeyMod.WinCtrl | KeyCode.KeyL
 					},
-					when: ChatContextKeys.inChatSession
+					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))
 				}
 			});
 		}

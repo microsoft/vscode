@@ -93,6 +93,8 @@ declare module 'vscode' {
 		 * If set to true, the message content is completely hidden. Only ChatErrorDetails#message will be shown.
 		 */
 		responseIsRedacted?: boolean;
+
+		isQuotaExceeded?: boolean;
 	}
 
 	export namespace chat {
