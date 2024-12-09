@@ -17,7 +17,7 @@ export interface IQuickDiffSelectItem extends ISelectOptionItem {
 	provider: string;
 }
 
-export class SwitchQuickDiffViewItem extends SelectActionViewItem<IQuickDiffSelectItem> {
+export class QuickDiffPickerViewItem extends SelectActionViewItem<IQuickDiffSelectItem> {
 	private readonly optionsItems: IQuickDiffSelectItem[];
 
 	constructor(
@@ -57,13 +57,13 @@ export class SwitchQuickDiffViewItem extends SelectActionViewItem<IQuickDiffSele
 	}
 }
 
-export class SwitchQuickDiffBaseAction extends Action {
+export class QuickDiffPickerBaseAction extends Action {
 
 	public static readonly ID = 'quickDiff.base.switch';
 	public static readonly LABEL = nls.localize('quickDiff.base.switch', "Switch Quick Diff Base");
 
 	constructor(private readonly callback: (event?: IQuickDiffSelectItem) => void) {
-		super(SwitchQuickDiffBaseAction.ID, SwitchQuickDiffBaseAction.LABEL, undefined, undefined);
+		super(QuickDiffPickerBaseAction.ID, QuickDiffPickerBaseAction.LABEL, undefined, undefined);
 	}
 
 	override async run(event?: IQuickDiffSelectItem): Promise<void> {

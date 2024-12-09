@@ -21,7 +21,6 @@ import { IDocumentDiff } from '../../../../../../editor/common/diff/documentDiff
 import { ITextModel, TrackedRangeStickiness, MinimapPosition, IModelDeltaDecoration, OverviewRulerLane } from '../../../../../../editor/common/model.js';
 import { ModelDecorationOptions } from '../../../../../../editor/common/model/textModel.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../../editor/common/viewModel.js';
-import { overviewRulerModifiedForeground, minimapGutterModifiedBackground, overviewRulerAddedForeground, minimapGutterAddedBackground, overviewRulerDeletedForeground, minimapGutterDeletedBackground } from '../../../../scm/browser/dirtydiffDecorator.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
 import { tokenizeToString } from '../../../../../../editor/common/languages/textToHtmlTokenizer.js';
@@ -32,6 +31,7 @@ import { DefaultLineHeight } from '../../diff/diffElementViewModel.js';
 import { INotebookOriginalCellModelFactory } from './notebookOriginalCellModelFactory.js';
 import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../../../scm/common/quickDiff.js';
 
 
 export class NotebookCellDiffDecorator extends DisposableStore {

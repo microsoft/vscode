@@ -28,7 +28,7 @@ import { IExtHostContext } from '../../services/extensions/common/extHostCustome
 import { IEditorControl } from '../../common/editor.js';
 import { getCodeEditor, ICodeEditor } from '../../../editor/browser/editorBrowser.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { IDirtyDiffModelService } from '../../contrib/scm/browser/dirtyDiffModel.js';
+import { IQuickDiffModelService } from '../../contrib/scm/browser/quickDiffModel.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, observableFromEvent } from '../../../base/common/observable.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { isITextModel } from '../../../editor/common/model.js';
@@ -61,7 +61,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IDirtyDiffModelService private readonly _dirtyDiffModelService: IDirtyDiffModelService,
+		@IQuickDiffModelService private readonly _quickDiffModelService: IQuickDiffModelService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
 	) {
 		this._instanceId = String(++MainThreadTextEditors.INSTANCE_COUNT);
@@ -159,14 +159,14 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 			// TextEditor
 			if (isITextModel(editorModel)) {
-				const dirtyDiffModelRef = this._dirtyDiffModelService.createDirtyDiffModelReference(editorModelUri);
-				if (!dirtyDiffModelRef) {
+				const quickDiffModelRef = this._quickDiffModelService.createQuickDiffModelReference(editorModelUri);
+				if (!quickDiffModelRef) {
 					return constObservable(undefined);
 				}
 
-				toDispose.push(dirtyDiffModelRef);
-				return observableFromEvent(this, dirtyDiffModelRef.object.onDidChange, () => {
-					return dirtyDiffModelRef.object.getQuickDiffResults()
+				toDispose.push(quickDiffModelRef);
+				return observableFromEvent(this, quickDiffModelRef.object.onDidChange, () => {
+					return quickDiffModelRef.object.getQuickDiffResults()
 						.map(result => ({
 							original: result.original,
 							modified: result.modified,
@@ -179,14 +179,14 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			// we can provide multiple "original resources" to diff with the modified
 			// resource.
 			const diffAlgorithm = this._configurationService.getValue<DiffAlgorithmName>('diffEditor.diffAlgorithm');
-			const dirtyDiffModelRef = this._dirtyDiffModelService.createDiffModelReference(editorModelUri, diffAlgorithm);
-			if (!dirtyDiffModelRef) {
+			const quickDiffModelRef = this._quickDiffModelService.createQuickDiffModelReference(editorModelUri, { algorithm: diffAlgorithm });
+			if (!quickDiffModelRef) {
 				return constObservable(undefined);
 			}
 
-			toDispose.push(dirtyDiffModelRef);
-			return observableFromEvent(Event.any(dirtyDiffModelRef.object.onDidChange, diffEditor.onDidUpdateDiff), () => {
-				const dirtyDiffInformation = dirtyDiffModelRef.object.getQuickDiffResults()
+			toDispose.push(quickDiffModelRef);
+			return observableFromEvent(Event.any(quickDiffModelRef.object.onDidChange, diffEditor.onDidUpdateDiff), () => {
+				const quickDiffInformation = quickDiffModelRef.object.getQuickDiffResults()
 					.map(result => ({
 						original: result.original,
 						modified: result.modified,
@@ -200,7 +200,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 					changes: diffChanges.map(change => change as LineRangeMapping)
 				}];
 
-				return [...dirtyDiffInformation, ...diffInformation];
+				return [...quickDiffInformation, ...diffInformation];
 			});
 		});
 
@@ -391,18 +391,18 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			return Promise.resolve([]);
 		}
 
-		const dirtyDiffModelRef = this._dirtyDiffModelService.createDirtyDiffModelReference(codeEditor.getModel().uri);
-		if (!dirtyDiffModelRef) {
+		const quickDiffModelRef = this._quickDiffModelService.createQuickDiffModelReference(codeEditor.getModel().uri);
+		if (!quickDiffModelRef) {
 			return Promise.resolve([]);
 		}
 
 		try {
-			const scmQuickDiff = dirtyDiffModelRef.object.quickDiffs.find(quickDiff => quickDiff.isSCM);
-			const scmQuickDiffChanges = dirtyDiffModelRef.object.changes.filter(change => change.label === scmQuickDiff?.label);
+			const scmQuickDiff = quickDiffModelRef.object.quickDiffs.find(quickDiff => quickDiff.isSCM);
+			const scmQuickDiffChanges = quickDiffModelRef.object.changes.filter(change => change.label === scmQuickDiff?.label);
 
 			return Promise.resolve(scmQuickDiffChanges.map(change => change.change) ?? []);
 		} finally {
-			dirtyDiffModelRef.dispose();
+			quickDiffModelRef.dispose();
 		}
 	}
 }
