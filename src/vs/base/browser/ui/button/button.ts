@@ -5,7 +5,7 @@
 
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { addDisposableListener, EventHelper, EventType, IFocusTracker, isActiveElement, reset, trackFocus } from 'vs/base/browser/dom';
-import dompurify from 'vs/base/browser/dompurify/dompurify';
+import { sanitize } from 'vs/base/browser/dompurify/dompurify';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { renderMarkdown, renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
@@ -239,7 +239,7 @@ export class Button extends Disposable implements IButton {
 			const root = rendered.element.querySelector('p')?.innerHTML;
 			if (root) {
 				// Only allow a very limited set of inline html tags
-				const sanitized = dompurify.sanitize(root, { ADD_TAGS: ['b', 'i', 'u', 'code', 'span'], ALLOWED_ATTR: ['class'], RETURN_TRUSTED_TYPE: true });
+				const sanitized = sanitize(root, { ADD_TAGS: ['b', 'i', 'u', 'code', 'span'], ALLOWED_ATTR: ['class'], RETURN_TRUSTED_TYPE: true });
 				labelElement.innerHTML = sanitized as unknown as string;
 			} else {
 				reset(labelElement);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { basicMarkupHtmlTags, hookDomPurifyHrefAndSrcSanitizer } from 'vs/base/browser/dom';
-import dompurify from 'vs/base/browser/dompurify/dompurify';
+import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import { allowedMarkdownAttr } from 'vs/base/browser/markdownRenderer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as marked from 'vs/base/common/marked/marked';
