@@ -1227,9 +1227,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const store = new DisposableStore();
 		const dndController = store.add(this._scopedInstantiationService.createInstance(TerminalInstanceDragAndDropController, container));
 		store.add(dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e)));
-		store.add(dndController.onDropFile(async path => {
+		store.add(dndController.onDropFiles(async paths => {
 			this.focus();
-			await this.sendPath(path, false);
+			await this.sendPaths(paths);
 		}));
 		store.add(new dom.DragAndDropObserver(container, dndController));
 		this._dndObserver.value = store;
@@ -1360,8 +1360,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		await this._processManager.sendSignal(signal);
 	}
 
-	async sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void> {
-		return this.sendText(await this.preparePathForShell(originalPath), shouldExecute);
+	async executePath(originalPath: string | URI): Promise<void> {
+		return this.sendText(await this.preparePathForShell(originalPath), true);
+	}
+
+	async sendPaths(originalPaths: (string | URI)[]): Promise<void> {
+		const paths = await Promise.all(originalPaths.map((path) => this.preparePathForShell(path)));
+		return this.sendText(paths.join(' '), false);
 	}
 
 	async preparePathForShell(originalPath: string | URI): Promise<string> {
@@ -2451,8 +2456,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 class TerminalInstanceDragAndDropController extends Disposable implements dom.IDragAndDropObserverCallbacks {
 	private _dropOverlay?: HTMLElement;
 
-	private readonly _onDropFile = this._register(new Emitter<string | URI>());
-	get onDropFile(): Event<string | URI> { return this._onDropFile.event; }
+	private readonly _onDropFiles = this._register(new Emitter<URI[]>());
+	get onDropFiles(): Event<URI[]> { return this._onDropFiles.event; }
 	private readonly _onDropTerminal = this._register(new Emitter<IRequestAddInstanceToGroupEvent>());
 	get onDropTerminal(): Event<IRequestAddInstanceToGroupEvent> { return this._onDropTerminal.event; }
 
@@ -2531,27 +2536,30 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 		}
 
 		// Check if files were dragged from the tree explorer
-		let path: URI | undefined;
+		let uris: URI[] = [];
 		const rawResources = e.dataTransfer.getData(DataTransfers.RESOURCES);
 		if (rawResources) {
-			path = URI.parse(JSON.parse(rawResources)[0]);
+			uris = (JSON.parse(rawResources) as string[]).map(resource => URI.parse(resource));
 		}
 
 		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
-		if (!path && rawCodeFiles) {
-			path = URI.file(JSON.parse(rawCodeFiles)[0]);
+		if (!uris.length && rawCodeFiles) {
+			uris = (JSON.parse(rawCodeFiles) as string[]).map(URI.file);
 		}
 
-		if (!path && e.dataTransfer.files.length > 0 && getPathForFile(e.dataTransfer.files[0])) {
-			// Check if the file was dragged from the filesystem
-			path = URI.file(getPathForFile(e.dataTransfer.files[0])!);
+		// Check if the file was dragged from the filesystem
+		if (!uris.length && e.dataTransfer.files.length > 0) {
+			for (const file of e.dataTransfer.files) {
+				const path = getPathForFile(file);
+				if (path) {
+					uris.push(URI.file(path));
+				}
+			}
 		}
 
-		if (!path) {
-			return;
+		if (uris.length) {
+			this._onDropFiles.fire(uris);
 		}
-
-		this._onDropFile.fire(path);
 	}
 
 	private _getDropSide(e: DragEvent): 'before' | 'after' {

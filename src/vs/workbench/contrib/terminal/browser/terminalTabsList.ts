@@ -770,30 +770,36 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 		}
 
 		// Check if files were dragged from the tree explorer
-		let resource: URI | undefined;
+		let resources: URI[] | undefined;
 		const rawResources = e.dataTransfer.getData(DataTransfers.RESOURCES);
 		if (rawResources) {
-			resource = URI.parse(JSON.parse(rawResources)[0]);
+			resources = (JSON.parse(rawResources) as string[]).map(path => URI.parse(path));
 		}
 
 		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
-		if (!resource && rawCodeFiles) {
-			resource = URI.file(JSON.parse(rawCodeFiles)[0]);
+		if (!resources && rawCodeFiles) {
+			resources = (JSON.parse(rawCodeFiles) as string[]).map(URI.file);
 		}
 
-		if (!resource && e.dataTransfer.files.length > 0 && getPathForFile(e.dataTransfer.files[0])) {
+		if (!resources && e.dataTransfer.files.length > 0) {
+			resources = [];
 			// Check if the file was dragged from the filesystem
-			resource = URI.file(getPathForFile(e.dataTransfer.files[0])!);
+			for (const file of e.dataTransfer.files) {
+				const resource = getPathForFile(file);
+				if (resource) {
+					resources.push(URI.file(resource));
+				}
+			}
 		}
 
-		if (!resource) {
+		if (!resources?.length) {
 			return;
 		}
 
 		this._terminalService.setActiveInstance(instance);
 
 		instance.focus();
-		await instance.sendPath(resource, false);
+		await instance.sendPaths(resources);
 	}
 }
 
