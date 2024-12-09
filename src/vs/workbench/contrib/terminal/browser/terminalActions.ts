@@ -607,7 +607,7 @@ export function registerTerminalActions() {
 			}
 
 			// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
-			await instance.sendPath(uri, true);
+			await instance.executePath(uri);
 			return c.groupService.showPanel();
 		}
 	});
