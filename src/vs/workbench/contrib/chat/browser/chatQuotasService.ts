@@ -261,7 +261,11 @@ export class ChatQuotasStatusBarEntry extends Disposable implements IWorkbenchCo
 				compact: isCopilotStatusVisible
 			}));
 
-			this.entry.add(this.statusbarService.overrideEntry(ChatQuotasStatusBarEntry.COPILOT_STATUS_ID, { kind: 'prominent' }));
+			this.entry.add(this.statusbarService.overrideEntry(ChatQuotasStatusBarEntry.COPILOT_STATUS_ID, {
+				text: '$(copilot-warning)',
+				ariaLabel: text,
+				kind: 'prominent'
+			}));
 		}
 	}
 }
