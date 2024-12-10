@@ -249,7 +249,7 @@
 		// Add // when pressing enter from inside line comment
 		{
 			"beforeText": {
-				"pattern": "^(?:\"[^\"]*\"|'[^']*'|`[^`]*`|[^\"'`]*)*\/\/"
+				"pattern": "\/\/.*"
 			},
 			"afterText": {
 				"pattern": "^(?!\\s*$).+"

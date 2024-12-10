@@ -497,7 +497,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 
 	private async onDidAccept(): Promise<URI | undefined> {
 		this.busy = true;
-		if (this.filePickBox.activeItems.length === 1) {
+		if (!this.updatingPromise && this.filePickBox.activeItems.length === 1) {
 			const item = this.filePickBox.selectedItems[0];
 			if (item.isFolder) {
 				if (this.trailing) {
@@ -519,7 +519,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 				this.filePickBox.busy = false;
 				return;
 			}
-		} else {
+		} else if (!this.updatingPromise) {
 			// If the items have updated, don't try to resolve
 			if ((await this.tryUpdateItems(this.filePickBox.value, this.filePickBoxValue())) !== UpdateResult.NotUpdated) {
 				this.filePickBox.busy = false;
