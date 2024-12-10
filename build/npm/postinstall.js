@@ -61,8 +61,8 @@ function npmInstall(dir, opts) {
 	} else {
 		log(dir, 'Installing dependencies...');
 		run(npm, command.split(' '), opts);
-		removeParcelWatcherPrebuild(dir);
 	}
+	removeParcelWatcherPrebuild(dir);
 }
 
 function setNpmrcConfig(dir, env) {
