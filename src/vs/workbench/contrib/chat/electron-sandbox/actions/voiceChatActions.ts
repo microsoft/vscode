@@ -722,7 +722,8 @@ class ChatSynthesizerSessions {
 
 	constructor(
 		@ISpeechService private readonly speechService: ISpeechService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
 	async start(controller: IChatSynthesizerSessionController): Promise<void> {
@@ -770,13 +771,19 @@ class ChatSynthesizerSessions {
 	private async *nextChatResponseChunk(response: IChatResponseModel, token: CancellationToken): AsyncIterable<string> {
 		let totalOffset = 0;
 		let complete = false;
+
+		const ignoreCodeBlocks = this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.IgnoreCodeBlocks);
+
 		do {
 			const responseLength = response.response.toString().length;
-			const { chunk, offset } = this.parseNextChatResponseChunk(response, totalOffset);
+			let { chunk, offset } = this.parseNextChatResponseChunk(response, totalOffset);
 			totalOffset = offset;
 			complete = response.isComplete;
 
 			if (chunk) {
+				if (ignoreCodeBlocks) {
+					chunk = chunk.replace(/`[^`]*`/g, '').replace(/```[\s\S]*?```/g, '');
+				}
 				yield chunk;
 			}
 
