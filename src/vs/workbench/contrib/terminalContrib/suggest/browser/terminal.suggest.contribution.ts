@@ -4,24 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import * as dom from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { localize2 } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { SuggestAddon } from 'vs/workbench/contrib/terminalContrib/suggest/browser/terminalSuggestAddon';
-import { TerminalSuggestCommandId } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminal.suggest';
+import * as dom from '../../../../../base/browser/dom.js';
+import { AutoOpenBarrier } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { localize2 } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { GeneralShellType, TerminalLocation, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { registerActiveInstanceAction } from '../../../terminal/browser/terminalActions.js';
+import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
+import { TERMINAL_CONFIG_SECTION, type ITerminalConfiguration } from '../../../terminal/common/terminal.js';
+import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
+import { TerminalSuggestCommandId } from '../common/terminal.suggest.js';
+import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
+import { ITerminalCompletionService, TerminalCompletionService } from './terminalCompletionService.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { SuggestAddon } from './terminalSuggestAddon.js';
+import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
+import { PwshCompletionProviderAddon } from './pwshCompletionProviderAddon.js';
+
+registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
 // #region Terminal Contributions
 
@@ -33,57 +41,120 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	}
 
 	private readonly _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
+	private readonly _pwshAddon: MutableDisposable<PwshCompletionProviderAddon> = new MutableDisposable();
 	private _terminalSuggestWidgetContextKeys: IReadableSet<string> = new Set(TerminalContextKeys.suggestWidgetVisible.key);
 	private _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 
 	get addon(): SuggestAddon | undefined { return this._addon.value; }
+	get pwshAddon(): PwshCompletionProviderAddon | undefined { return this._pwshAddon.value; }
 
 	constructor(
-		private readonly _instance: ITerminalInstance,
-		processManager: ITerminalProcessManager,
-		widgetManager: TerminalWidgetManager,
+		private readonly _ctx: ITerminalContributionContext,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService
 	) {
 		super();
-		this.add(toDisposable(() => this._addon?.dispose()));
+		this.add(toDisposable(() => {
+			this._addon?.dispose();
+			this._pwshAddon?.dispose();
+		}));
 		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
-		this.add(Event.runAndSubscribe(this._instance.onDidChangeShellType, async () => {
-			this._loadSuggestAddon(xterm.raw);
+		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
+		const enabled = config.enabled;
+		if (!enabled) {
+			return;
+		}
+		this.add(Event.runAndSubscribe(this._ctx.instance.onDidChangeShellType, async () => {
+			this._loadAddons(xterm.raw);
 		}));
 		this.add(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._terminalSuggestWidgetContextKeys)) {
-				this._loadSuggestAddon(xterm.raw);
+				this._loadAddons(xterm.raw);
 			}
 		}));
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.SendKeybindingsToShell)) {
-				this._loadSuggestAddon(xterm.raw);
+				this._loadAddons(xterm.raw);
 			}
 		}));
 	}
 
-	private _loadSuggestAddon(xterm: RawXtermTerminal): void {
+	private _loadPwshCompletionAddon(xterm: RawXtermTerminal): void {
+		if (this._ctx.instance.shellType !== GeneralShellType.PowerShell) {
+			return;
+		}
+		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, undefined, this._ctx.instance.capabilities);
+		xterm.loadAddon(pwshCompletionProviderAddon);
+		this.add(pwshCompletionProviderAddon);
+		this.add(pwshCompletionProviderAddon.onDidRequestSendText(text => {
+			this._ctx.instance.focus();
+			this._ctx.instance.sendText(text, false);
+		}));
+		this.add(this._terminalCompletionService.registerTerminalCompletionProvider('builtinPwsh', 'pwsh', pwshCompletionProviderAddon));
+		// If completions are requested, pause and queue input events until completions are
+		// received. This fixing some problems in PowerShell, particularly enter not executing
+		// when typing quickly and some characters being printed twice. On Windows this isn't
+		// needed because inputs are _not_ echoed when not handled immediately.
+		// TODO: This should be based on the OS of the pty host, not the client
+		if (!isWindows) {
+			let barrier: AutoOpenBarrier | undefined;
+			if (pwshCompletionProviderAddon) {
+				this.add(pwshCompletionProviderAddon.onDidRequestSendText(() => {
+					barrier = new AutoOpenBarrier(2000);
+					this._ctx.instance.pauseInputEvents(barrier);
+				}));
+			}
+			if (this._pwshAddon.value) {
+				this.add(this._pwshAddon.value.onDidReceiveCompletions(() => {
+					barrier?.open();
+					barrier = undefined;
+				}));
+			} else {
+				throw Error('no addon');
+			}
+		}
+	}
+
+	private _loadAddons(xterm: RawXtermTerminal): void {
 		const sendingKeybindingsToShell = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).sendKeybindingsToShell;
-		if (sendingKeybindingsToShell || this._instance.shellType !== 'pwsh') {
+		if (sendingKeybindingsToShell || !this._ctx.instance.shellType) {
 			this._addon.clear();
+			this._pwshAddon.clear();
 			return;
 		}
 		if (this._terminalSuggestWidgetVisibleContextKey) {
-			this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
-			xterm.loadAddon(this._addon.value);
-			this._addon.value.setPanel(dom.findParentWithClass(xterm.element!, 'panel')!);
-			this._addon.value.setScreen(xterm.element!.querySelector('.xterm-screen')!);
-			this.add(this._instance.onDidBlur(() => this._addon.value?.hideSuggestWidget()));
-			this.add(this._addon.value.onAcceptedCompletion(async text => {
-				this._instance.focus();
-				this._instance.sendText(text, false);
+			const addon = this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._ctx.instance.shellType, this._ctx.instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
+			xterm.loadAddon(addon);
+			this._loadPwshCompletionAddon(xterm);
+			if (this._ctx.instance.target === TerminalLocation.Editor) {
+				addon.setContainerWithOverflow(xterm.element!);
+			} else {
+				addon.setContainerWithOverflow(dom.findParentWithClass(xterm.element!, 'panel')!);
+			}
+			addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
+			this.add(this._ctx.instance.onDidBlur(() => addon.hideSuggestWidget()));
+			this.add(addon.onAcceptedCompletion(async text => {
+				this._ctx.instance.focus();
+				this._ctx.instance.sendText(text, false);
 			}));
-			this.add(this._instance.onDidSendText(() => this._addon.value?.hideSuggestWidget()));
+			const clipboardContrib = TerminalClipboardContribution.get(this._ctx.instance)!;
+			this.add(clipboardContrib.onWillPaste(() => addon.isPasting = true));
+			this.add(clipboardContrib.onDidPaste(() => {
+				// Delay this slightly as synchronizing the prompt input is debounced
+				setTimeout(() => addon.isPasting = false, 100);
+			}));
+			if (!isWindows) {
+				let barrier: AutoOpenBarrier | undefined;
+				this.add(addon.onDidReceiveCompletions(() => {
+					barrier?.open();
+					barrier = undefined;
+				}));
+			}
 		}
 	}
 }
@@ -93,6 +164,18 @@ registerTerminalContribution(TerminalSuggestContribution.ID, TerminalSuggestCont
 // #endregion
 
 // #region Actions
+
+registerActiveInstanceAction({
+	id: TerminalSuggestCommandId.RequestCompletions,
+	title: localize2('workbench.action.terminal.requestCompletions', 'Request Completions'),
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyCode.Space,
+		mac: { primary: KeyMod.WinCtrl | KeyCode.Space },
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.terminalShellIntegrationEnabled, ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true))
+	},
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.requestCompletions()
+});
 
 registerActiveInstanceAction({
 	id: TerminalSuggestCommandId.SelectPrevSuggestion,
@@ -152,12 +235,25 @@ registerActiveInstanceAction({
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
 	keybinding: {
-		primary: KeyCode.Enter,
-		secondary: [KeyCode.Tab],
-		// Enter is bound to other workbench keybindings that this needs to beat
+		primary: KeyCode.Tab,
+		// Tab is bound to other workbench keybindings that this needs to beat
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion()
+});
+
+registerActiveInstanceAction({
+	id: TerminalSuggestCommandId.AcceptSelectedSuggestionEnter,
+	title: localize2('workbench.action.terminal.acceptSelectedSuggestionEnter', 'Accept Selected Suggestion (Enter)'),
+	f1: false,
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
+	keybinding: {
+		primary: KeyCode.Enter,
+		// Enter is bound to other workbench keybindings that this needs to beat
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		when: ContextKeyExpr.notEquals(`config.${TerminalSuggestSettingId.RunOnEnter}`, 'ignore'),
+	},
+	run: async (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.acceptSelectedSuggestion(undefined, true)
 });
 
 registerActiveInstanceAction({
@@ -171,6 +267,13 @@ registerActiveInstanceAction({
 		weight: KeybindingWeight.WorkbenchContrib + 1
 	},
 	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.addon?.hideSuggestWidget()
+});
+
+registerActiveInstanceAction({
+	id: TerminalSuggestCommandId.ClearSuggestCache,
+	title: localize2('workbench.action.terminal.clearSuggestCache', 'Clear Suggest Cache'),
+	f1: true,
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.pwshAddon?.clearSuggestCache()
 });
 
 // #endregion

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { createNotebookCellList, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { CellEditType, CellKind, SelectionStateType } from '../../../common/notebookCommon.js';
+import { createNotebookCellList, withTestNotebook } from '../testNotebookEditor.js';
 
 suite('Notebook Undo/Redo', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

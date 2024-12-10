@@ -3,36 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { registerColor, transparent } from 'vs/platform/theme/common/colorUtils';
+import * as nls from '../../../../nls.js';
+import { registerColor, transparent } from '../colorUtils.js';
 
-import { foreground } from 'vs/platform/theme/common/colors/baseColors';
-import { editorErrorForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colors/editorColors';
-import { minimapFindMatch } from 'vs/platform/theme/common/colors/minimapColors';
+import { foreground } from './baseColors.js';
+import { editorErrorForeground, editorInfoForeground, editorWarningForeground } from './editorColors.js';
+import { minimapFindMatch } from './minimapColors.js';
 
 
 export const chartsForeground = registerColor('charts.foreground',
-	{ dark: foreground, light: foreground, hcDark: foreground, hcLight: foreground },
+	foreground,
 	nls.localize('chartsForeground', "The foreground color used in charts."));
 
 export const chartsLines = registerColor('charts.lines',
-	{ dark: transparent(foreground, .5), light: transparent(foreground, .5), hcDark: transparent(foreground, .5), hcLight: transparent(foreground, .5) },
+	transparent(foreground, .5),
 	nls.localize('chartsLines', "The color used for horizontal lines in charts."));
 
 export const chartsRed = registerColor('charts.red',
-	{ dark: editorErrorForeground, light: editorErrorForeground, hcDark: editorErrorForeground, hcLight: editorErrorForeground },
+	editorErrorForeground,
 	nls.localize('chartsRed', "The red color used in chart visualizations."));
 
 export const chartsBlue = registerColor('charts.blue',
-	{ dark: editorInfoForeground, light: editorInfoForeground, hcDark: editorInfoForeground, hcLight: editorInfoForeground },
+	editorInfoForeground,
 	nls.localize('chartsBlue', "The blue color used in chart visualizations."));
 
 export const chartsYellow = registerColor('charts.yellow',
-	{ dark: editorWarningForeground, light: editorWarningForeground, hcDark: editorWarningForeground, hcLight: editorWarningForeground },
+	editorWarningForeground,
 	nls.localize('chartsYellow', "The yellow color used in chart visualizations."));
 
 export const chartsOrange = registerColor('charts.orange',
-	{ dark: minimapFindMatch, light: minimapFindMatch, hcDark: minimapFindMatch, hcLight: minimapFindMatch },
+	minimapFindMatch,
 	nls.localize('chartsOrange', "The orange color used in chart visualizations."));
 
 export const chartsGreen = registerColor('charts.green',

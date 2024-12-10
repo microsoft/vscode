@@ -23,6 +23,6 @@
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
 		"../../src/vscode-dts/vscode.proposed.idToken.d.ts",
-		"../../src/vscode-dts/vscode.proposed.authGetSessions.d.ts"
+		"../../src/vscode-dts/vscode.proposed.nativeWindowHandle.d.ts"
 	]
 }

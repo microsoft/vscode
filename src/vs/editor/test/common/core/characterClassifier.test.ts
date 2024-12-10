@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { CharCode } from 'vs/base/common/charCode';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { CharacterClassifier } from '../../../common/core/characterClassifier.js';
 
 suite('CharacterClassifier', () => {
 

@@ -5,29 +5,65 @@
 
 export interface IWordCountResult {
 	value: string;
-	actualWordCount: number;
+	returnedWordCount: number;
+	totalWordCount: number;
 	isFullString: boolean;
 }
 
+const r = String.raw;
+
+/**
+ * Matches `[text](link title?)` or `[text](<link> title?)`
+ *
+ * Taken from vscode-markdown-languageservice
+ */
+const linkPattern =
+	r`(?<!\\)` + // Must not start with escape
+
+	// text
+	r`(!?\[` + // open prefix match -->
+	/**/r`(?:` +
+	/*****/r`[^\[\]\\]|` + // Non-bracket chars, or...
+	/*****/r`\\.|` + // Escaped char, or...
+	/*****/r`\[[^\[\]]*\]` + // Matched bracket pair
+	/**/r`)*` +
+	r`\])` + // <-- close prefix match
+
+	// Destination
+	r`(\(\s*)` + // Pre href
+	/**/r`(` +
+	/*****/r`[^\s\(\)<](?:[^\s\(\)]|\([^\s\(\)]*?\))*|` + // Link without whitespace, or...
+	/*****/r`<(?:\\[<>]|[^<>])+>` + // In angle brackets
+	/**/r`)` +
+
+	// Title
+	/**/r`\s*(?:"[^"]*"|'[^']*'|\([^\(\)]*\))?\s*` +
+	r`\)`;
+
 export function getNWords(str: string, numWordsToCount: number): IWordCountResult {
-	// Match words and markdown style links
-	const allWordMatches = Array.from(str.matchAll(/\[([^\]]+)\]\(([^)]+)\)|\p{sc=Han}|[^\s\|\-|\p{sc=Han}]+/gu));
+	// This regex matches each word and skips over whitespace and separators. A word is:
+	// A markdown link
+	// One chinese character
+	// One or more + - =, handled so that code like "a=1+2-3" is broken up better
+	// One or more characters that aren't whitepace or any of the above
+	const allWordMatches = Array.from(str.matchAll(new RegExp(linkPattern + r`|\p{sc=Han}|=+|\++|-+|[^\s\|\p{sc=Han}|=|\+|\-]+`, 'gu')));
 
 	const targetWords = allWordMatches.slice(0, numWordsToCount);
 
-	const endIndex = numWordsToCount > allWordMatches.length
+	const endIndex = numWordsToCount >= allWordMatches.length
 		? str.length // Reached end of string
 		: targetWords.length ? targetWords.at(-1)!.index + targetWords.at(-1)![0].length : 0;
 
 	const value = str.substring(0, endIndex);
 	return {
 		value,
-		actualWordCount: targetWords.length === 0 ? (value.length ? 1 : 0) : targetWords.length,
-		isFullString: endIndex >= str.length
+		returnedWordCount: targetWords.length === 0 ? (value.length ? 1 : 0) : targetWords.length,
+		isFullString: endIndex >= str.length,
+		totalWordCount: allWordMatches.length
 	};
 }
 
 export function countWords(str: string): number {
 	const result = getNWords(str, Number.MAX_SAFE_INTEGER);
-	return result.actualWordCount;
+	return result.returnedWordCount;
 }

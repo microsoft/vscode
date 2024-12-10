@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { CancellationToken, CancellationTokenSource } from './cancellation.js';
+import { IDisposable } from './lifecycle.js';
 
 export interface CacheResult<T> extends IDisposable {
 	promise: Promise<T>;

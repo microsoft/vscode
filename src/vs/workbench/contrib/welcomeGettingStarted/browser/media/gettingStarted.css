@@ -228,19 +228,11 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .icon-widget,
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .icon-widget:not(.codicon-device-camera-video),
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .featured-icon {
 	font-size: 20px;
 	padding-right: 8px;
 	position: relative;
 	top: 3px;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .icon-widget.codicon-device-camera-video {
-	font-size: 20px;
-	padding-right: 8px;
-	position: relative;
-	transform: translateY(+100%);
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .codicon:not(.icon-widget, .featured-icon, .hide-category-button) {
@@ -348,7 +340,7 @@
 	right: 8px;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category.featured .icon-widget:not(.codicon-device-camera-video) {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category.featured .icon-widget {
 	visibility: hidden;
 }
 
@@ -481,10 +473,22 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: 12px;
 	margin-top: 12px;
+	white-space: pre;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .shortcut-message .keybinding {
 	font-weight: 600;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .shortcut-message .monaco-keybinding > .monaco-keybinding-key {
+	display: inline-block;
+	border-style: solid;
+	border-width: 1px;
+	border-radius: 2px;
+	vertical-align: top;
+	font-size: 10px;
+	padding: 2px 3px;
+	margin: 0 2px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-next {
@@ -931,11 +935,13 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .button-link {
 	color: var(--vscode-textLink-foreground);
+	text-decoration: var(--text-link-decoration);
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .codicon {
-	color: var(--vscode-textLink-foreground);
+.monaco-workbench .part.editor > .content .gettingStartedContainer .start-container .button-link {
+	line-height: 24px;
 }
+
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.hide-category-button):hover {
 	color: var(--vscode-textLink-activeForeground);

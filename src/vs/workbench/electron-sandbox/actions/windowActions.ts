@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/actions';
-import { URI } from 'vs/base/common/uri';
-import { localize, localize2 } from 'vs/nls';
-import { ApplyZoomTarget, MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL, applyZoom } from 'vs/platform/window/electron-sandbox/window';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { getZoomLevel } from 'vs/base/browser/browser';
-import { FileKind } from 'vs/platform/files/common/files';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IQuickInputService, IQuickInputButton, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { isMacintosh } from 'vs/base/common/platform';
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from 'vs/platform/window/common/window';
+import './media/actions.css';
+import { URI } from '../../../base/common/uri.js';
+import { localize, localize2 } from '../../../nls.js';
+import { ApplyZoomTarget, MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL, applyZoom } from '../../../platform/window/electron-sandbox/window.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { getZoomLevel } from '../../../base/browser/browser.js';
+import { FileKind } from '../../../platform/files/common/files.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../editor/common/languages/language.js';
+import { IQuickInputService, IQuickInputButton, IQuickPickItem, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
+import { getIconClasses } from '../../../editor/common/services/getIconClasses.js';
+import { ICommandHandler } from '../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { INativeHostService } from '../../../platform/native/common/native.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from '../../../platform/workspace/common/workspace.js';
+import { Action2, IAction2Options, MenuId } from '../../../platform/actions/common/actions.js';
+import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
+import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
+import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
+import { isMacintosh } from '../../../base/common/platform.js';
+import { getActiveWindow } from '../../../base/browser/dom.js';
+import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from '../../../platform/window/common/window.js';
 
 export class CloseWindowAction extends Action2 {
 
@@ -253,11 +253,17 @@ abstract class BaseSwitchWindow extends Action2 {
 			readonly windowId: number;
 		}
 
-		const picks: Array<IWindowPickItem> = [];
+		function isWindowPickItem(candidate: unknown): candidate is IWindowPickItem {
+			const windowPickItem = candidate as IWindowPickItem | undefined;
+
+			return typeof windowPickItem?.windowId === 'number';
+		}
+
+		const picks: Array<QuickPickInput<IWindowPickItem>> = [];
 		for (const window of mainWindows) {
 			const auxiliaryWindows = mapMainWindowToAuxiliaryWindows.get(window.id);
 			if (mapMainWindowToAuxiliaryWindows.size > 0) {
-				picks.push({ type: 'separator', payload: -1, label: auxiliaryWindows ? localize('windowGroup', "window group") : undefined } as unknown as IWindowPickItem);
+				picks.push({ type: 'separator', label: auxiliaryWindows ? localize('windowGroup', "window group") : undefined });
 			}
 
 			const resource = window.filename ? URI.file(window.filename) : isSingleFolderWorkspaceIdentifier(window.workspace) ? window.workspace.uri : isWorkspaceIdentifier(window.workspace) ? window.workspace.configPath : undefined;
@@ -286,13 +292,27 @@ abstract class BaseSwitchWindow extends Action2 {
 			}
 		}
 
-		const placeHolder = localize('switchWindowPlaceHolder', "Select a window to switch to");
-		const autoFocusIndex = (picks.indexOf(picks.filter(pick => pick.windowId === currentWindowId)[0]) + 1) % picks.length;
-
 		const pick = await quickInputService.pick(picks, {
 			contextKey: 'inWindowsPicker',
-			activeItem: picks[autoFocusIndex],
-			placeHolder,
+			activeItem: (() => {
+				for (let i = 0; i < picks.length; i++) {
+					const pick = picks[i];
+					if (isWindowPickItem(pick) && pick.windowId === currentWindowId) {
+						let nextPick = picks[i + 1]; // try to select next window unless it's a separator
+						if (isWindowPickItem(nextPick)) {
+							return nextPick;
+						}
+
+						nextPick = picks[i + 2]; // otherwise try to select the next window after the separator
+						if (isWindowPickItem(nextPick)) {
+							return nextPick;
+						}
+					}
+				}
+
+				return undefined;
+			})(),
+			placeHolder: localize('switchWindowPlaceHolder', "Select a window to switch to"),
 			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingService.lookupKeybindings(this.desc.id) } : undefined,
 			hideInput: this.isQuickNavigate(),
 			onDidTriggerItemButton: async context => {

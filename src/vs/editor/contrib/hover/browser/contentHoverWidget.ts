@@ -3,23 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ResizableContentWidget } from 'vs/editor/contrib/hover/browser/resizableContentWidget';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { getHoverAccessibleViewHint, HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
-import { PositionAffinity } from 'vs/editor/common/model';
-import { Emitter } from 'vs/base/common/event';
-import { RenderedContentHover } from 'vs/editor/contrib/hover/browser/contentHoverRendered';
+import * as dom from '../../../../base/browser/dom.js';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
+import { ConfigurationChangedEvent, EditorOption } from '../../../common/config/editorOptions.js';
+import { HoverStartSource } from './hoverOperation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ResizableContentWidget } from './resizableContentWidget.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { getHoverAccessibleViewHint, HoverWidget } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { PositionAffinity } from '../../../common/model.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { RenderedContentHover } from './contentHoverRendered.js';
 
 const HORIZONTAL_SCROLLING_BY = 30;
-const CONTAINER_HEIGHT_PADDING = 6;
 
 export class ContentHoverWidget extends ResizableContentWidget {
 
@@ -31,7 +30,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	private _minimumSize: dom.Dimension;
 	private _contentWidth: number | undefined;
 
-	private readonly _hover: HoverWidget = this._register(new HoverWidget());
+	private readonly _hover: HoverWidget = this._register(new HoverWidget(true));
 	private readonly _hoverVisibleKey: IContextKey<boolean>;
 	private readonly _hoverFocusedKey: IContextKey<boolean>;
 
@@ -68,6 +67,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 		dom.append(this._resizableNode.domNode, this._hover.containerDomNode);
 		this._resizableNode.domNode.style.zIndex = '50';
+		this._resizableNode.domNode.className = 'monaco-resizable-hover';
 
 		this._register(this._editor.onDidLayoutChange(() => {
 			if (this.isVisible) {
@@ -117,9 +117,15 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		return ContentHoverWidget._applyDimensions(containerDomNode, width, height);
 	}
 
+	private _setScrollableElementDimensions(width: number | string, height: number | string): void {
+		const scrollbarDomElement = this._hover.scrollbar.getDomNode();
+		return ContentHoverWidget._applyDimensions(scrollbarDomElement, width, height);
+	}
+
 	private _setHoverWidgetDimensions(width: number | string, height: number | string): void {
-		this._setContentsDomNodeDimensions(width, height);
 		this._setContainerDomNodeDimensions(width, height);
+		this._setScrollableElementDimensions(width, height);
+		this._setContentsDomNodeDimensions(width, height);
 		this._layoutContentWidget();
 	}
 
@@ -176,12 +182,11 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!availableSpace) {
 			return;
 		}
-		// Padding needed in order to stop the resizing down to a smaller height
-		let maximumHeight = CONTAINER_HEIGHT_PADDING;
+		const children = this._hover.contentsDomNode.children;
+		let maximumHeight = children.length - 1;
 		Array.from(this._hover.contentsDomNode.children).forEach((hoverPart) => {
 			maximumHeight += hoverPart.clientHeight;
 		});
-
 		return Math.min(availableSpace, maximumHeight);
 	}
 
@@ -209,7 +214,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		const initialWidth = (
 			typeof this._contentWidth === 'undefined'
 				? 0
-				: this._contentWidth - 2 // - 2 for the borders
+				: this._contentWidth
 		);
 
 		if (overflowing || this._hover.containerDomNode.clientWidth < initialWidth) {
@@ -217,7 +222,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 			const horizontalPadding = 14;
 			return bodyBoxWidth - horizontalPadding;
 		} else {
-			return this._hover.containerDomNode.clientWidth + 2;
+			return this._hover.containerDomNode.clientWidth;
 		}
 	}
 
@@ -291,7 +296,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	private _updateMaxDimensions() {
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250, ContentHoverWidget._lastDimensions.height);
-		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 500, ContentHoverWidget._lastDimensions.width);
+		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 750, ContentHoverWidget._lastDimensions.width);
 		this._setHoverWidgetMaxDimensions(width, height);
 	}
 
@@ -389,16 +394,16 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	public onContentsChanged(): void {
 		this._removeConstraintsRenderNormally();
-		const containerDomNode = this._hover.containerDomNode;
+		const contentsDomNode = this._hover.contentsDomNode;
 
-		let height = dom.getTotalHeight(containerDomNode);
-		let width = dom.getTotalWidth(containerDomNode);
+		let height = dom.getTotalHeight(contentsDomNode);
+		let width = dom.getTotalWidth(contentsDomNode) + 2;
 		this._resizableNode.layout(height, width);
 
 		this._setHoverWidgetDimensions(width, height);
 
-		height = dom.getTotalHeight(containerDomNode);
-		width = dom.getTotalWidth(containerDomNode);
+		height = dom.getTotalHeight(contentsDomNode);
+		width = dom.getTotalWidth(contentsDomNode);
 		this._contentWidth = width;
 		this._updateMinimumWidth();
 		this._resizableNode.layout(height, width);

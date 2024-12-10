@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { TestCodeEditorService, TestGlobalStyleSheet } from 'vs/editor/test/browser/editorTestServices';
-import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import * as platform from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IDecorationRenderOptions } from '../../../common/editorCommon.js';
+import { TestCodeEditorService, TestGlobalStyleSheet } from '../editorTestServices.js';
+import { TestColorTheme, TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
 
 suite('Decoration Render Options', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -130,7 +130,7 @@ suite('Decoration Render Options', () => {
 
 			// single quote must always be escaped/encoded
 			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('c:\\files\\foo\\b\'ar.png') });
-			assertBackground('file:///c:/files/foo/b%27ar.png', 'vscode-file://vscode-app/c:/files/foo/b%27ar.png');
+			assertBackground('file:///c:/files/foo/b\\000027ar.png', 'vscode-file://vscode-app/c:/files/foo/b\\000027ar.png');
 			s.removeDecorationType('example');
 		} else {
 			// unix file path (used as string)
@@ -140,12 +140,12 @@ suite('Decoration Render Options', () => {
 
 			// single quote must always be escaped/encoded
 			s.registerDecorationType('test', 'example', { gutterIconPath: URI.file('/Users/foo/b\'ar.png') });
-			assertBackground('file:///Users/foo/b%27ar.png', 'vscode-file://vscode-app/Users/foo/b%27ar.png');
+			assertBackground('file:///Users/foo/b\\000027ar.png', 'vscode-file://vscode-app/Users/foo/b\\000027ar.png');
 			s.removeDecorationType('example');
 		}
 
 		s.registerDecorationType('test', 'example', { gutterIconPath: URI.parse('http://test/pa\'th') });
-		assert(readStyleSheet(styleSheet).indexOf(`{background:url('http://test/pa%27th') center center no-repeat;}`) > 0);
+		assert(readStyleSheet(styleSheet).indexOf(`{background:url('http://test/pa\\000027th') center center no-repeat;}`) > 0);
 		s.removeDecorationType('example');
 	});
 });

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import product from 'vs/platform/product/common/product';
-import { isLinux } from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { EnvironmentMainService } from '../../electron-main/environmentMainService.js';
+import product from '../../../product/common/product.js';
+import { isLinux } from '../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('EnvironmentMainService', () => {
 

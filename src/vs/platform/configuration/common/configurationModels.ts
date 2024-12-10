@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
-import * as json from 'vs/base/common/json';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { getOrSet, ResourceMap } from 'vs/base/common/map';
-import * as objects from 'vs/base/common/objects';
-import { IExtUri } from 'vs/base/common/resources';
-import * as types from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { addToValueTree, ConfigurationTarget, getConfigurationValue, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationUpdateOverrides, IConfigurationValue, IInspectValue, IOverrides, removeFromValueTree, toValuesTree } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
-import { FileOperation, IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
+import * as arrays from '../../../base/common/arrays.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import * as json from '../../../base/common/json.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { getOrSet, ResourceMap } from '../../../base/common/map.js';
+import * as objects from '../../../base/common/objects.js';
+import { IExtUri } from '../../../base/common/resources.js';
+import * as types from '../../../base/common/types.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { addToValueTree, ConfigurationTarget, getConfigurationValue, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationUpdateOverrides, IConfigurationValue, IInspectValue, IOverrides, removeFromValueTree, toValuesTree } from './configuration.js';
+import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from './configurationRegistry.js';
+import { FileOperation, IFileService } from '../../files/common/files.js';
+import { ILogService } from '../../log/common/log.js';
+import { Registry } from '../../registry/common/platform.js';
+import { Workspace } from '../../workspace/common/workspace.js';
 
 function freeze<T>(data: T): T {
 	return Object.isFrozen(data) ? data : objects.deepFreeze(data);
@@ -279,16 +279,24 @@ export class ConfigurationModel implements IConfigurationModel {
 			this.keys.push(key);
 		}
 		if (OVERRIDE_PROPERTY_REGEX.test(key)) {
-			this.overrides.push({
-				identifiers: overrideIdentifiersFromKey(key),
+			const identifiers = overrideIdentifiersFromKey(key);
+			const override = {
+				identifiers,
 				keys: Object.keys(this.contents[key]),
 				contents: toValuesTree(this.contents[key], message => this.logService.error(message)),
-			});
+			};
+			const index = this.overrides.findIndex(o => arrays.equals(o.identifiers, identifiers));
+			if (index !== -1) {
+				this.overrides[index] = override;
+			} else {
+				this.overrides.push(override);
+			}
 		}
 	}
 }
 
 export interface ConfigurationParseOptions {
+	skipUnregistered?: boolean;
 	scopes?: ConfigurationScope[];
 	skipRestricted?: boolean;
 	include?: string[];
@@ -421,14 +429,10 @@ export class ConfigurationModelParser {
 				restricted.push(...result.restricted);
 			} else {
 				const propertySchema = configurationProperties[key];
-				const scope = propertySchema ? typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW : undefined;
 				if (propertySchema?.restricted) {
 					restricted.push(key);
 				}
-				if (!options.exclude?.includes(key) /* Check exclude */
-					&& (options.include?.includes(key) /* Check include */
-						|| ((scope === undefined || options.scopes === undefined || options.scopes.includes(scope)) /* Check scopes */
-							&& !(options.skipRestricted && propertySchema?.restricted)))) /* Check restricted */ {
+				if (this.shouldInclude(key, propertySchema, options)) {
 					raw[key] = properties[key];
 				} else {
 					hasExcludedProperties = true;
@@ -436,6 +440,31 @@ export class ConfigurationModelParser {
 			}
 		}
 		return { raw, restricted, hasExcludedProperties };
+	}
+
+	private shouldInclude(key: string, propertySchema: IConfigurationPropertySchema | undefined, options: ConfigurationParseOptions): boolean {
+		if (options.exclude?.includes(key)) {
+			return false;
+		}
+
+		if (options.include?.includes(key)) {
+			return true;
+		}
+
+		if (options.skipRestricted && propertySchema?.restricted) {
+			return false;
+		}
+
+		if (options.skipUnregistered && !propertySchema) {
+			return false;
+		}
+
+		const scope = propertySchema ? typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW : undefined;
+		if (scope === undefined || options.scopes === undefined) {
+			return true;
+		}
+
+		return options.scopes.includes(scope);
 	}
 
 	private toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {

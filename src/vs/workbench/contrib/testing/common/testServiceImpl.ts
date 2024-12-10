@@ -3,45 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { groupBy } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isDefined } from 'vs/base/common/types';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
-import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { AmbiguousRunTestsRequest, IMainThreadTestController, IMainThreadTestHostProxy, ITestFollowups, ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { InternalTestItem, ITestRunProfile, ResolvedTestRunRequest, TestDiffOpType, TestMessageFollowupRequest, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { groupBy } from '../../../../base/common/arrays.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../base/common/observable.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Location } from '../../../../editor/common/languages.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { getTestingConfiguration, TestingConfigKeys } from './configuration.js';
+import { MainThreadTestCollection } from './mainThreadTestCollection.js';
+import { MutableObservableValue } from './observableValue.js';
+import { StoredValue } from './storedValue.js';
+import { TestExclusions } from './testExclusions.js';
+import { TestId } from './testId.js';
+import { TestingContextKeys } from './testingContextKeys.js';
+import { canUseProfileWithTest, ITestProfileService } from './testProfileService.js';
+import { ITestResult } from './testResult.js';
+import { ITestResultService } from './testResultService.js';
+import { AmbiguousRunTestsRequest, IMainThreadTestController, IMainThreadTestHostProxy, ITestFollowups, ITestService } from './testService.js';
+import { InternalTestItem, ITestRunProfile, ResolvedTestRunRequest, TestControllerCapability, TestDiffOpType, TestMessageFollowupRequest, TestsDiff } from './testTypes.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 export class TestService extends Disposable implements ITestService {
 	declare readonly _serviceBrand: undefined;
-	private testControllers = new Map<string, IMainThreadTestController>();
+	private testControllers = observableValue<ReadonlyMap<string, IMainThreadTestController>>('testControllers', new Map<string, IMainThreadTestController>());
 	private testExtHosts = new Set<IMainThreadTestHostProxy>();
 
-	private readonly cancelExtensionTestRunEmitter = new Emitter<{ runId: string | undefined }>();
+	private readonly cancelExtensionTestRunEmitter = new Emitter<{ runId: string | undefined; taskId: string | undefined }>();
 	private readonly willProcessDiffEmitter = new Emitter<TestsDiff>();
 	private readonly didProcessDiffEmitter = new Emitter<TestsDiff>();
 	private readonly testRefreshCancellations = new Set<CancellationTokenSource>();
-	private readonly providerCount: IContextKey<number>;
-	private readonly canRefreshTests: IContextKey<boolean>;
 	private readonly isRefreshingTests: IContextKey<boolean>;
 	private readonly activeEditorHasTests: IContextKey<boolean>;
 
@@ -79,11 +82,11 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly showInlineOutput = MutableObservableValue.stored(this._register(new StoredValue<boolean>({
+	public readonly showInlineOutput = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
 		key: 'inlineTestOutputVisible',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.USER
-	}, this.storage)), true);
+	}, this.storage), true));
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -99,10 +102,23 @@ export class TestService extends Disposable implements ITestService {
 	) {
 		super();
 		this.excluded = instantiationService.createInstance(TestExclusions);
-		this.providerCount = TestingContextKeys.providerCount.bindTo(contextKeyService);
-		this.canRefreshTests = TestingContextKeys.canRefreshTests.bindTo(contextKeyService);
 		this.isRefreshingTests = TestingContextKeys.isRefreshingTests.bindTo(contextKeyService);
 		this.activeEditorHasTests = TestingContextKeys.activeEditorHasTests.bindTo(contextKeyService);
+
+		this._register(bindContextKey(TestingContextKeys.providerCount, contextKeyService,
+			reader => this.testControllers.read(reader).size));
+
+		const bindCapability = (key: RawContextKey<boolean>, capability: TestControllerCapability) =>
+			this._register(bindContextKey(key, contextKeyService, reader =>
+				Iterable.some(
+					this.testControllers.read(reader).values(),
+					ctrl => !!(ctrl.capabilities.read(reader) & capability)
+				),
+			));
+
+		bindCapability(TestingContextKeys.canRefreshTests, TestControllerCapability.Refresh);
+		bindCapability(TestingContextKeys.canGoToRelatedCode, TestControllerCapability.CodeRelatedToTest);
+		bindCapability(TestingContextKeys.canGoToRelatedTest, TestControllerCapability.TestRelatedToCode);
 
 		this._register(editorService.onDidActiveEditorChange(() => this.updateEditorContextKeys()));
 	}
@@ -111,20 +127,20 @@ export class TestService extends Disposable implements ITestService {
 	 * @inheritdoc
 	 */
 	public async expandTest(id: string, levels: number) {
-		await this.testControllers.get(TestId.fromString(id).controllerId)?.expandTest(id, levels);
+		await this.testControllers.get().get(TestId.fromString(id).controllerId)?.expandTest(id, levels);
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public cancelTestRun(runId?: string) {
-		this.cancelExtensionTestRunEmitter.fire({ runId });
+	public cancelTestRun(runId?: string, taskId?: string) {
+		this.cancelExtensionTestRunEmitter.fire({ runId, taskId });
 
 		if (runId === undefined) {
 			for (const runCts of this.uiRunningTests.values()) {
 				runCts.cancel();
 			}
-		} else {
+		} else if (!taskId) {
 			this.uiRunningTests.get(runId)?.cancel();
 		}
 	}
@@ -143,9 +159,7 @@ export class TestService extends Disposable implements ITestService {
 				continue;
 			}
 
-			const allProfiles = this.testProfiles.getControllerProfiles(test.controllerId)
-				.filter(p => (p.group & req.group) !== 0 && canUseProfileWithTest(p, test));
-			const bestProfile = allProfiles.find(p => p.isDefault) || allProfiles[0];
+			const bestProfile = this.testProfiles.getDefaultProfileForTest(req.group, test);
 			if (!bestProfile) {
 				continue;
 			}
@@ -208,7 +222,7 @@ export class TestService extends Disposable implements ITestService {
 
 		const byController = groupBy(req.targets, (a, b) => a.controllerId.localeCompare(b.controllerId));
 		const requests = byController.map(
-			group => this.testControllers.get(group[0].controllerId)?.startContinuousRun(
+			group => this.getTestController(group[0].controllerId)?.startContinuousRun(
 				group.map(controlReq => ({
 					excludeExtIds: req.exclude!.filter(t => !controlReq.testIds.includes(t)),
 					profileId: controlReq.profileId,
@@ -251,7 +265,7 @@ export class TestService extends Disposable implements ITestService {
 
 			const byController = groupBy(req.targets, (a, b) => a.controllerId.localeCompare(b.controllerId));
 			const requests = byController.map(
-				group => this.testControllers.get(group[0].controllerId)?.runTests(
+				group => this.getTestController(group[0].controllerId)?.runTests(
 					group.map(controlReq => ({
 						runId: result.id,
 						excludeExtIds: req.exclude!.filter(t => !controlReq.testIds.includes(t)),
@@ -316,7 +330,7 @@ export class TestService extends Disposable implements ITestService {
 	 * @inheritdoc
 	 */
 	public getTestController(id: string) {
-		return this.testControllers.get(id);
+		return this.testControllers.get().get(id);
 	}
 
 	/**
@@ -325,7 +339,7 @@ export class TestService extends Disposable implements ITestService {
 	public async syncTests(): Promise<void> {
 		const cts = new CancellationTokenSource();
 		try {
-			await Promise.all([...this.testControllers.values()].map(c => c.syncTests(cts.token)));
+			await Promise.all([...this.testControllers.get().values()].map(c => c.syncTests(cts.token)));
 		} finally {
 			cts.dispose(true);
 		}
@@ -341,9 +355,9 @@ export class TestService extends Disposable implements ITestService {
 
 		try {
 			if (controllerId) {
-				await this.testControllers.get(controllerId)?.refreshTests(cts.token);
+				await this.getTestController(controllerId)?.refreshTests(cts.token);
 			} else {
-				await Promise.all([...this.testControllers.values()].map(c => c.refreshTests(cts.token)));
+				await Promise.all([...this.testControllers.get().values()].map(c => c.refreshTests(cts.token)));
 			}
 		} finally {
 			this.testRefreshCancellations.delete(cts);
@@ -366,7 +380,7 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	registerExtHost(controller: IMainThreadTestHostProxy): IDisposable {
+	public registerExtHost(controller: IMainThreadTestHostProxy): IDisposable {
 		this.testExtHosts.add(controller);
 		return toDisposable(() => this.testExtHosts.delete(controller));
 	}
@@ -374,14 +388,19 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
+	public async getTestsRelatedToCode(uri: URI, position: Position, token: CancellationToken = CancellationToken.None): Promise<InternalTestItem[]> {
+		const testIds = await Promise.all([...this.testExtHosts.values()].map(v => v.getTestsRelatedToCode(uri, position, token)));
+		// ext host will flush diffs before returning, so we should have everything here:
+		return testIds.flatMap(ids => ids.map(id => this.collection.getNodeById(id))).filter(isDefined);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
 	public registerTestController(id: string, controller: IMainThreadTestController): IDisposable {
-		this.testControllers.set(id, controller);
-		this.providerCount.set(this.testControllers.size);
-		this.updateCanRefresh();
+		this.testControllers.set(new Map(this.testControllers.get()).set(id, controller), undefined);
 
-		const disposable = new DisposableStore();
-
-		disposable.add(toDisposable(() => {
+		return toDisposable(() => {
 			const diff: TestsDiff = [];
 			for (const root of this.collection.rootItems) {
 				if (root.controllerId === id) {
@@ -391,15 +410,17 @@ export class TestService extends Disposable implements ITestService {
 
 			this.publishDiff(id, diff);
 
-			if (this.testControllers.delete(id)) {
-				this.providerCount.set(this.testControllers.size);
-				this.updateCanRefresh();
-			}
-		}));
+			const next = new Map(this.testControllers.get());
+			next.delete(id);
+			this.testControllers.set(next, undefined);
+		});
+	}
 
-		disposable.add(controller.canRefresh.onDidChange(this.updateCanRefresh, this));
-
-		return disposable;
+	/**
+	 * @inheritdoc
+	 */
+	public async getCodeRelatedToTest(test: InternalTestItem, token: CancellationToken = CancellationToken.None): Promise<Location[]> {
+		return (await this.testControllers.get().get(test.controllerId)?.getRelatedCode(test.item.extId, token)) || [];
 	}
 
 	private updateEditorContextKeys() {
@@ -420,10 +441,6 @@ export class TestService extends Disposable implements ITestService {
 			await editorService.saveAll();
 		}
 		return;
-	}
-
-	private updateCanRefresh() {
-		this.canRefreshTests.set(Iterable.some(this.testControllers.values(), t => t.canRefresh.value));
 	}
 }
 

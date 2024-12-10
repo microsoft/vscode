@@ -3,25 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
-import { IRange } from 'vs/editor/common/core/range';
-import { ICellExecutionError, ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { Iterable } from 'vs/base/common/iterator';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-
-type CellDiagnostic = {
-	cellUri: URI;
-	error: ICellExecutionError;
-	disposables: IDisposable[];
-};
+import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IMarkerData, IMarkerService } from '../../../../../../platform/markers/common/markers.js';
+import { IRange } from '../../../../../../editor/common/core/range.js';
+import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { CellKind, NotebookSetting } from '../../../common/notebookCommon.js';
+import { INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
+import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
+import { Iterable } from '../../../../../../base/common/iterator.js';
+import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { IChatAgentService } from '../../../../chat/common/chatAgents.js';
 
 export class CellDiagnostics extends Disposable implements INotebookEditorContribution {
 
@@ -29,7 +22,7 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 
 	private enabled = false;
 	private listening = false;
-	private diagnosticsByHandle: Map<number, CellDiagnostic> = new Map();
+	private diagnosticsByHandle: Map<number, IDisposable[]> = new Map();
 
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
@@ -66,8 +59,6 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 		}
 	}
 
-
-
 	private handleChangeExecutionState(changes: (ICellExecutionStateChangedEvent | IExecutionStateChangedEvent)[]) {
 		if (!this.enabled) {
 			return;
@@ -96,9 +87,9 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 	}
 
 	public clear(cellHandle: number) {
-		const diagnostic = this.diagnosticsByHandle.get(cellHandle);
-		if (diagnostic) {
-			for (const disposable of diagnostic.disposables) {
+		const disposables = this.diagnosticsByHandle.get(cellHandle);
+		if (disposables) {
+			for (const disposable of disposables) {
 				disposable.dispose();
 			}
 			this.diagnosticsByHandle.delete(cellHandle);
@@ -119,11 +110,12 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 		const metadata = cell.model.internalMetadata;
 		if (cell instanceof CodeCellViewModel && !metadata.lastRunSuccess && metadata?.error?.location) {
 			const disposables: IDisposable[] = [];
-			const marker = this.createMarkerData(metadata.error.message, metadata.error.location);
+			const errorLabel = metadata.error.name ? `${metadata.error.name}: ${metadata.error.message}` : metadata.error.message;
+			const marker = this.createMarkerData(errorLabel, metadata.error.location);
 			this.markerService.changeOne(CellDiagnostics.ID, cell.uri, [marker]);
 			disposables.push(toDisposable(() => this.markerService.changeOne(CellDiagnostics.ID, cell.uri, [])));
-			cell.excecutionError.set(metadata.error, undefined);
-			disposables.push(toDisposable(() => cell.excecutionError.set(undefined, undefined)));
+			cell.executionErrorDiagnostic.set(metadata.error, undefined);
+			disposables.push(toDisposable(() => cell.executionErrorDiagnostic.set(undefined, undefined)));
 			disposables.push(cell.model.onDidChangeOutputs(() => {
 				if (cell.model.outputs.length === 0) {
 					this.clear(cellHandle);
@@ -132,7 +124,7 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 			disposables.push(cell.model.onDidChangeContent(() => {
 				this.clear(cellHandle);
 			}));
-			this.diagnosticsByHandle.set(cellHandle, { cellUri: cell.uri, error: metadata.error, disposables });
+			this.diagnosticsByHandle.set(cellHandle, disposables);
 		}
 	}
 

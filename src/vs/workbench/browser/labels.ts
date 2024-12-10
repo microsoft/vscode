@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { dirname, isEqual, basenameOrAuthority } from 'vs/base/common/resources';
-import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IDecoration, IDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/common/decorations';
-import { Schemas } from 'vs/base/common/network';
-import { FileKind, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { ITextModel } from 'vs/editor/common/model';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { IRange } from 'vs/editor/common/core/range';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { INotebookDocumentService } from 'vs/workbench/services/notebook/common/notebookDocumentService';
+import { localize } from '../../nls.js';
+import { URI } from '../../base/common/uri.js';
+import { dirname, isEqual, basenameOrAuthority } from '../../base/common/resources.js';
+import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from '../../base/browser/ui/iconLabel/iconLabel.js';
+import { ILanguageService } from '../../editor/common/languages/language.js';
+import { IWorkspaceContextService } from '../../platform/workspace/common/workspace.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { IModelService } from '../../editor/common/services/model.js';
+import { ITextFileService } from '../services/textfile/common/textfiles.js';
+import { IDecoration, IDecorationsService, IResourceDecorationChangeEvent } from '../services/decorations/common/decorations.js';
+import { Schemas } from '../../base/common/network.js';
+import { FileKind, FILES_ASSOCIATIONS_CONFIG } from '../../platform/files/common/files.js';
+import { ITextModel } from '../../editor/common/model.js';
+import { IThemeService } from '../../platform/theme/common/themeService.js';
+import { Event, Emitter } from '../../base/common/event.js';
+import { ILabelService } from '../../platform/label/common/label.js';
+import { getIconClasses } from '../../editor/common/services/getIconClasses.js';
+import { Disposable, dispose, IDisposable, MutableDisposable } from '../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
+import { normalizeDriveLetter } from '../../base/common/labels.js';
+import { IRange } from '../../editor/common/core/range.js';
+import { ThemeIcon } from '../../base/common/themables.js';
+import { INotebookDocumentService } from '../services/notebook/common/notebookDocumentService.js';
 
 export interface IResourceLabelProps {
 	resource?: URI | { primary?: URI; secondary?: URI };

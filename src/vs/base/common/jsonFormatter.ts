@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createScanner, ScanError, SyntaxKind } from './json';
+import { createScanner, ScanError, SyntaxKind } from './json.js';
 
 export interface FormattingOptions {
 	/**

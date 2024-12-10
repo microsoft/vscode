@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
-import { equals } from 'vs/base/common/arrays';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import 'vs/css!./stickyScroll';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { getColumnOfNodeOffset } from 'vs/editor/browser/viewParts/lines/viewLine';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
-import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { CharacterMapping, RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { foldingCollapsedIcon, foldingExpandedIcon } from 'vs/editor/contrib/folding/browser/foldingDecorations';
-import { FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
+import * as dom from '../../../../base/browser/dom.js';
+import { createTrustedTypesPolicy } from '../../../../base/browser/trustedTypes.js';
+import { equals } from '../../../../base/common/arrays.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import './stickyScroll.css';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../browser/editorBrowser.js';
+import { getColumnOfNodeOffset } from '../../../browser/viewParts/viewLines/viewLine.js';
+import { EmbeddedCodeEditorWidget } from '../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
+import { StringBuilder } from '../../../common/core/stringBuilder.js';
+import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
+import { CharacterMapping, RenderLineInput, renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
+import { foldingCollapsedIcon, foldingExpandedIcon } from '../../folding/browser/foldingDecorations.js';
+import { FoldingModel } from '../../folding/browser/foldingModel.js';
 
 export class StickyScrollWidgetState {
 	constructor(
@@ -139,6 +139,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const isWidgetHeightZero = this._isWidgetHeightZero(_state);
 		const state = isWidgetHeightZero ? undefined : _state;
 		const rebuildFromLine = isWidgetHeightZero ? 0 : this._findLineToRebuildWidgetFrom(_state, _rebuildFromLine);
+
 		this._renderRootNode(state, foldingModel, rebuildFromLine);
 		this._previousState = _state;
 	}

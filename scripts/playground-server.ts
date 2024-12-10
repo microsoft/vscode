@@ -223,10 +223,10 @@ class DirWatcher {
 function handleGetFileChangesRequest(watcher: DirWatcher, fileServer: FileServer, moduleIdMapper: SimpleModuleIdPathMapper): ChainableRequestHandler {
 	return async (req, res) => {
 		res.writeHead(200, { 'Content-Type': 'text/plain' });
-		const d = watcher.onDidChange(fsPath => {
+		const d = watcher.onDidChange((fsPath, newContent) => {
 			const path = fileServer.filePathToUrlPath(fsPath);
 			if (path) {
-				res.write(JSON.stringify({ changedPath: path, moduleId: moduleIdMapper.getModuleId(fsPath) }) + '\n');
+				res.write(JSON.stringify({ changedPath: path, moduleId: moduleIdMapper.getModuleId(fsPath), newContent }) + '\n');
 			}
 		});
 		res.on('close', () => d.dispose());
@@ -235,13 +235,15 @@ function handleGetFileChangesRequest(watcher: DirWatcher, fileServer: FileServer
 function makeLoaderJsHotReloadable(loaderJsCode: string, fileChangesUrl: URL): string {
 	loaderJsCode = loaderJsCode.replace(
 		/constructor\(env, scriptLoader, defineFunc, requireFunc, loaderAvailableTimestamp = 0\) {/,
-		'$&globalThis.___globalModuleManager = this;'
+		'$&globalThis.___globalModuleManager = this; globalThis.vscode = { process: { env: { VSCODE_DEV: true } } }'
 	);
 
 	const ___globalModuleManager: any = undefined;
 
 	// This code will be appended to loader.js
 	function $watchChanges(fileChangesUrl: string) {
+		interface HotReloadConfig { }
+
 		let reloadFn;
 		if (globalThis.$sendMessageToParent) {
 			reloadFn = () => globalThis.$sendMessageToParent({ kind: 'reload' });
@@ -262,49 +264,18 @@ function makeLoaderJsHotReloadable(loaderJsCode: string, fileChangesUrl: URL): s
 					buffer += new TextDecoder().decode(value);
 					const lines = buffer.split('\n');
 					buffer = lines.pop()!;
+
+					const changes: { relativePath: string; config: HotReloadConfig | undefined; path: string; newContent: string }[] = [];
+
 					for (const line of lines) {
 						const data = JSON.parse(line);
-						let handled = false;
-						if (data.changedPath.endsWith('.css')) {
-							if (typeof document !== 'undefined') {
-								console.log('css changed', data.changedPath);
-								const styleSheet = [...document.querySelectorAll(`link[rel='stylesheet']`)].find((l: any) => new URL(l.href, document.location.href).pathname.endsWith(data.changedPath)) as any;
-								if (styleSheet) {
-									styleSheet.href = styleSheet.href.replace(/\?.*/, '') + '?' + Date.now();
-								}
-							}
-							handled = true;
-						} else if (data.changedPath.endsWith('.js') && data.moduleId) {
-							console.log('js changed', data.changedPath);
-							const moduleId = ___globalModuleManager._moduleIdProvider.getModuleId(data.moduleId);
-							if (___globalModuleManager._modules2[moduleId]) {
-								const srcUrl = ___globalModuleManager._config.moduleIdToPaths(data.moduleId);
-								const newSrc = await (await fetch(srcUrl)).text();
-								(new Function('define', newSrc))(function (deps, callback) { // CodeQL [SM01632] This code is only executed during development (as part of the dev-only playground-server). It is required for the hot-reload functionality.
-									const oldModule = ___globalModuleManager._modules2[moduleId];
-									delete ___globalModuleManager._modules2[moduleId];
+						const relativePath = data.changedPath.replace(/\\/g, '/').split('/out/')[1];
+						changes.push({ config: {}, path: data.changedPath, relativePath, newContent: data.newContent });
+					}
 
-									___globalModuleManager.defineModule(data.moduleId, deps, callback);
-									const newModule = ___globalModuleManager._modules2[moduleId];
-									const oldExports = { ...oldModule.exports };
-
-									Object.assign(oldModule.exports, newModule.exports);
-									newModule.exports = oldModule.exports;
-
-									handled = true;
-
-									for (const cb of [...globalThis.$hotReload_deprecateExports]) {
-										cb(oldExports, newModule.exports);
-									}
-
-									if (handled) {
-										console.log('hot reloaded', data.moduleId);
-									}
-								});
-							}
-						}
-
-						if (!handled) { reloadFn(); }
+					const result = handleChanges(changes, 'playground-server');
+					if (result.reloadFailedJsFiles.length > 0) {
+						reloadFn();
 					}
 				}
 			}).catch(err => {
@@ -312,6 +283,163 @@ function makeLoaderJsHotReloadable(loaderJsCode: string, fileChangesUrl: URL): s
 				setTimeout(() => $watchChanges(fileChangesUrl), 1000);
 			});
 
+
+		function handleChanges(changes: {
+			relativePath: string;
+			config: HotReloadConfig | undefined;
+			path: string;
+			newContent: string;
+		}[], debugSessionName: string) {
+			// This function is stringified and injected into the debuggee.
+
+			const hotReloadData: { count: number; originalWindowTitle: any; timeout: any; shouldReload: boolean } = globalThis.$hotReloadData || (globalThis.$hotReloadData = { count: 0, messageHideTimeout: undefined, shouldReload: false });
+
+			const reloadFailedJsFiles: { relativePath: string; path: string }[] = [];
+
+			for (const change of changes) {
+				handleChange(change.relativePath, change.path, change.newContent, change.config);
+			}
+
+			return { reloadFailedJsFiles };
+
+			function handleChange(relativePath: string, path: string, newSrc: string, config: any) {
+				if (relativePath.endsWith('.css')) {
+					handleCssChange(relativePath);
+				} else if (relativePath.endsWith('.js')) {
+					handleJsChange(relativePath, path, newSrc, config);
+				}
+			}
+
+			function handleCssChange(relativePath: string) {
+				if (typeof document === 'undefined') {
+					return;
+				}
+
+				const styleSheet = (([...document.querySelectorAll(`link[rel='stylesheet']`)] as HTMLLinkElement[]))
+					.find(l => new URL(l.href, document.location.href).pathname.endsWith(relativePath));
+				if (styleSheet) {
+					setMessage(`reload ${formatPath(relativePath)} - ${new Date().toLocaleTimeString()}`);
+					console.log(debugSessionName, 'css reloaded', relativePath);
+					styleSheet.href = styleSheet.href.replace(/\?.*/, '') + '?' + Date.now();
+				} else {
+					setMessage(`could not reload ${formatPath(relativePath)} - ${new Date().toLocaleTimeString()}`);
+					console.log(debugSessionName, 'ignoring css change, as stylesheet is not loaded', relativePath);
+				}
+			}
+
+
+			function handleJsChange(relativePath: string, path: string, newSrc: string, config: any) {
+				const moduleIdStr = trimEnd(relativePath, '.js');
+
+				const requireFn: any = globalThis.require;
+				const moduleManager = (requireFn as any).moduleManager;
+				if (!moduleManager) {
+					console.log(debugSessionName, 'ignoring js change, as moduleManager is not available', relativePath);
+					return;
+				}
+
+				const moduleId = moduleManager._moduleIdProvider.getModuleId(moduleIdStr);
+				const oldModule = moduleManager._modules2[moduleId];
+
+				if (!oldModule) {
+					console.log(debugSessionName, 'ignoring js change, as module is not loaded', relativePath);
+					return;
+				}
+
+				// Check if we can reload
+				const g = globalThis as any;
+
+				// A frozen copy of the previous exports
+				const oldExports = Object.freeze({ ...oldModule.exports });
+				const reloadFn = g.$hotReload_applyNewExports?.({ oldExports, newSrc, config });
+
+				if (!reloadFn) {
+					console.log(debugSessionName, 'ignoring js change, as module does not support hot-reload', relativePath);
+					hotReloadData.shouldReload = true;
+
+					reloadFailedJsFiles.push({ relativePath, path });
+
+					setMessage(`hot reload not supported for ${formatPath(relativePath)} - ${new Date().toLocaleTimeString()}`);
+					return;
+				}
+
+				// Eval maintains source maps
+				function newScript(/* this parameter is used by newSrc */ define) {
+					// eslint-disable-next-line no-eval
+					eval(newSrc); // CodeQL [SM01632] This code is only executed during development. It is required for the hot-reload functionality.
+				}
+
+				newScript(/* define */ function (deps, callback) {
+					// Evaluating the new code was successful.
+
+					// Redefine the module
+					delete moduleManager._modules2[moduleId];
+					moduleManager.defineModule(moduleIdStr, deps, callback);
+					const newModule = moduleManager._modules2[moduleId];
+
+
+					// Patch the exports of the old module, so that modules using the old module get the new exports
+					Object.assign(oldModule.exports, newModule.exports);
+					// We override the exports so that future reloads still patch the initial exports.
+					newModule.exports = oldModule.exports;
+
+					const successful = reloadFn(newModule.exports);
+					if (!successful) {
+						hotReloadData.shouldReload = true;
+						setMessage(`hot reload failed ${formatPath(relativePath)} - ${new Date().toLocaleTimeString()}`);
+						console.log(debugSessionName, 'hot reload was not successful', relativePath);
+						return;
+					}
+
+					console.log(debugSessionName, 'hot reloaded', moduleIdStr);
+					setMessage(`successfully reloaded ${formatPath(relativePath)} - ${new Date().toLocaleTimeString()}`);
+				});
+			}
+
+			function setMessage(message: string) {
+				const domElem = (document.querySelector('.titlebar-center .window-title')) as HTMLDivElement | undefined;
+				if (!domElem) { return; }
+				if (!hotReloadData.timeout) {
+					hotReloadData.originalWindowTitle = domElem.innerText;
+				} else {
+					clearTimeout(hotReloadData.timeout);
+				}
+				if (hotReloadData.shouldReload) {
+					message += ' (manual reload required)';
+				}
+
+				domElem.innerText = message;
+				hotReloadData.timeout = setTimeout(() => {
+					hotReloadData.timeout = undefined;
+					// If wanted, we can restore the previous title message
+					// domElem.replaceChildren(hotReloadData.originalWindowTitle);
+				}, 5000);
+			}
+
+			function formatPath(path: string): string {
+				const parts = path.split('/');
+				parts.reverse();
+				let result = parts[0];
+				parts.shift();
+				for (const p of parts) {
+					if (result.length + p.length > 40) {
+						break;
+					}
+					result = p + '/' + result;
+					if (result.length > 20) {
+						break;
+					}
+				}
+				return result;
+			}
+
+			function trimEnd(str, suffix) {
+				if (str.endsWith(suffix)) {
+					return str.substring(0, str.length - suffix.length);
+				}
+				return str;
+			}
+		}
 	}
 
 	const additionalJsCode = `

@@ -1,1 +1,1 @@
-<div class="rendered-markdown"><img src="http://allowed.com/image.jpg"> <div>&lt;img src="http://disallowed.com/image.jpg"&gt;</div></div>
+<div class="rendered-markdown"><p><img src="http://allowed.com/image.jpg"> </p><div>&lt;img src="http://disallowed.com/image.jpg"&gt;</div><p></p></div>

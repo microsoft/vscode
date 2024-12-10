@@ -11,7 +11,7 @@ import { NpmScriptsTreeDataProvider } from './npmView';
 import { getPackageManager, invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
 import { NpmScriptLensProvider } from './npmScriptLens';
-import * as which from 'which';
+import which from 'which';
 
 let treeDataProvider: NpmScriptsTreeDataProvider | undefined;
 

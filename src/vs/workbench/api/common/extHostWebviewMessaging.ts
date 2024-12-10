@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import * as extHostProtocol from './extHost.protocol';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import * as extHostProtocol from './extHost.protocol.js';
 
 class ArrayBufferSet {
 	public readonly buffers: ArrayBuffer[] = [];

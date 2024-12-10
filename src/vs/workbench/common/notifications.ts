@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu, NotificationPriority, INotificationSource, isNotificationSource } from 'vs/platform/notification/common/notification';
-import { toErrorMessage, isErrorWithActions } from 'vs/base/common/errorMessage';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isCancellationError } from 'vs/base/common/errors';
-import { Action } from 'vs/base/common/actions';
-import { equals } from 'vs/base/common/arrays';
-import { parseLinkedText, LinkedText } from 'vs/base/common/linkedText';
-import { mapsStrictEqualIgnoreOrder } from 'vs/base/common/map';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu, NotificationPriority, INotificationSource, isNotificationSource } from '../../platform/notification/common/notification.js';
+import { toErrorMessage, isErrorWithActions } from '../../base/common/errorMessage.js';
+import { Event, Emitter } from '../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { isCancellationError } from '../../base/common/errors.js';
+import { Action } from '../../base/common/actions.js';
+import { equals } from '../../base/common/arrays.js';
+import { parseLinkedText, LinkedText } from '../../base/common/linkedText.js';
+import { mapsStrictEqualIgnoreOrder } from '../../base/common/map.js';
 
 export interface INotificationsModel {
 

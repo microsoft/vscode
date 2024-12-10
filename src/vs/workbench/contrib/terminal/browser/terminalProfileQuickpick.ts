@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IQuickInputService, IKeyMods, IPickOptions, IQuickPickSeparator, IQuickInputButton, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IExtensionTerminalProfile, ITerminalProfile, ITerminalProfileObject, TerminalSettingPrefix, type ITerminalExecutable } from 'vs/platform/terminal/common/terminal';
-import { getUriClasses, getColorClass, createColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import * as nls from 'vs/nls';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IQuickPickTerminalObject, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
-import { basename } from 'vs/base/common/path';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IQuickInputService, IKeyMods, IPickOptions, IQuickPickSeparator, IQuickInputButton, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IExtensionTerminalProfile, ITerminalProfile, ITerminalProfileObject, TerminalSettingPrefix, type ITerminalExecutable } from '../../../../platform/terminal/common/terminal.js';
+import { getUriClasses, getColorClass, createColorStyleElement } from './terminalIcon.js';
+import { configureTerminalProfileIcon } from './terminalIcons.js';
+import * as nls from '../../../../nls.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ITerminalProfileResolverService, ITerminalProfileService } from '../common/terminal.js';
+import { IQuickPickTerminalObject, ITerminalInstance } from './terminal.js';
+import { IPickerQuickAccessItem } from '../../../../platform/quickinput/browser/pickerQuickAccess.js';
+import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
+import { basename } from '../../../../base/common/path.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 
 
 type DefaultProfileName = string;

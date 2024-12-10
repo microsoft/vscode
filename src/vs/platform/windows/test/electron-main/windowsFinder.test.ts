@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { join } from 'vs/base/common/path';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI, UriDto } from 'vs/base/common/uri';
-import { ICommandAction } from 'vs/platform/action/common/action';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
-import { ICodeWindow, ILoadEvent, IWindowState } from 'vs/platform/window/electron-main/window';
-import { findWindowOnFile } from 'vs/platform/windows/electron-main/windowsFinder';
-import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { FileAccess } from 'vs/base/common/network';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { join } from '../../../../base/common/path.js';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { URI, UriDto } from '../../../../base/common/uri.js';
+import { ICommandAction } from '../../../action/common/action.js';
+import { NativeParsedArgs } from '../../../environment/common/argv.js';
+import { INativeWindowConfiguration } from '../../../window/common/window.js';
+import { ICodeWindow, ILoadEvent, IWindowState } from '../../../window/electron-main/window.js';
+import { findWindowOnFile } from '../../electron-main/windowsFinder.js';
+import { toWorkspaceFolders } from '../../../workspaces/common/workspaces.js';
+import { IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
+import { FileAccess } from '../../../../base/common/network.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('WindowsFinder', () => {
 

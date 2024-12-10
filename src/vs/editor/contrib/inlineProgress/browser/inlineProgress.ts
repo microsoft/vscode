@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { disposableTimeout } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { noBreakWhitespace } from 'vs/base/common/strings';
-import { ThemeIcon } from 'vs/base/common/themables';
-import 'vs/css!./inlineProgressWidget';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import * as dom from '../../../../base/browser/dom.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { noBreakWhitespace } from '../../../../base/common/strings.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import './inlineProgressWidget.css';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { IPosition } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { IEditorDecorationsCollection } from '../../../common/editorCommon.js';
+import { TrackedRangeStickiness } from '../../../common/model.js';
+import { ModelDecorationOptions } from '../../../common/model/textModel.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 const inlineProgressDecoration = ModelDecorationOptions.register({
 	description: 'inline-progress-widget',
@@ -134,7 +134,7 @@ export class InlineProgressManager extends Disposable {
 		this._currentDecorations.clear();
 	}
 
-	public async showWhile<R>(position: IPosition, title: string, promise: Promise<R>, delegate: InlineProgressDelegate): Promise<R> {
+	public async showWhile<R>(position: IPosition, title: string, promise: Promise<R>, delegate: InlineProgressDelegate, delayOverride?: number): Promise<R> {
 		const operationId = this._operationIdPool++;
 		this._currentOperation = operationId;
 
@@ -150,7 +150,7 @@ export class InlineProgressManager extends Disposable {
 			if (decorationIds.length > 0) {
 				this._currentWidget.value = this._instantiationService.createInstance(InlineProgressWidget, this.id, this._editor, range, title, delegate);
 			}
-		}, this._showDelay);
+		}, delayOverride ?? this._showDelay);
 
 		try {
 			return await promise;

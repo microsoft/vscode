@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
-import { RichEditBrackets } from 'vs/editor/common/languages/supports/richEditBrackets';
-import { TokenText, createFakeScopedLineTokens } from 'vs/editor/test/common/modesTestUtils';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { StandardTokenType } from '../../../../common/encodedTokenAttributes.js';
+import { BracketElectricCharacterSupport, IElectricAction } from '../../../../common/languages/supports/electricCharacter.js';
+import { RichEditBrackets } from '../../../../common/languages/supports/richEditBrackets.js';
+import { TokenText, createFakeScopedLineTokens } from '../../modesTestUtils.js';
 
 const fakeLanguageId = 'test';
 

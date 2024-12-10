@@ -3,61 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/editorstatus';
-import { localize, localize2 } from 'vs/nls';
-import { getWindowById, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { format, compare, splitLines } from 'vs/base/common/strings';
-import { extname, basename, isEqual } from 'vs/base/common/resources';
-import { areFunctions, assertIsDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { Action } from 'vs/base/common/actions';
-import { Language } from 'vs/base/common/platform';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IFileEditorInput, EditorResourceAccessor, IEditorPane, SideBySideEditor } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorAction } from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence } from 'vs/editor/common/model';
-import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
-import { IndentUsingSpaces, IndentUsingTabs, ChangeTabDisplaySize, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/browser/indentation';
-import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
-import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IFileService, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages/language';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { EncodingMode, IEncodingSupport, ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { deepClone } from 'vs/base/common/objects';
-import { ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Schemas } from 'vs/base/common/network';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
-import { Promises, timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { AutomaticLanguageDetectionLikelyWrongClassification, AutomaticLanguageDetectionLikelyWrongId, IAutomaticLanguageDetectionLikelyWrongData, ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { TabFocus } from 'vs/editor/browser/config/tabFocus';
-import { mainWindow } from 'vs/base/browser/window';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import './media/editorstatus.css';
+import { localize, localize2 } from '../../../../nls.js';
+import { getWindowById, runAtThisOrScheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { format, compare, splitLines } from '../../../../base/common/strings.js';
+import { extname, basename, isEqual } from '../../../../base/common/resources.js';
+import { areFunctions, assertIsDefined } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Action } from '../../../../base/common/actions.js';
+import { Language } from '../../../../base/common/platform.js';
+import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
+import { IFileEditorInput, EditorResourceAccessor, IEditorPane, SideBySideEditor } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { Disposable, MutableDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IEditorAction } from '../../../../editor/common/editorCommon.js';
+import { EndOfLineSequence } from '../../../../editor/common/model.js';
+import { TrimTrailingWhitespaceAction } from '../../../../editor/contrib/linesOperations/browser/linesOperations.js';
+import { IndentUsingSpaces, IndentUsingTabs, ChangeTabDisplaySize, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from '../../../../editor/contrib/indentation/browser/indentation.js';
+import { BaseBinaryResourceEditor } from './binaryEditor.js';
+import { BinaryResourceDiffEditor } from './binaryDiffEditor.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IFileService, FILES_ASSOCIATIONS_CONFIG } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILanguageService, ILanguageSelection } from '../../../../editor/common/languages/language.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { ICommandService, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IExtensionGalleryService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EncodingMode, IEncodingSupport, ILanguageSupport, ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { SUPPORTED_ENCODINGS } from '../../../services/textfile/common/encoding.js';
+import { ConfigurationChangedEvent, EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { deepClone } from '../../../../base/common/objects.js';
+import { ICodeEditor, getCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import { getIconClassesForLanguageId } from '../../../../editor/common/services/getIconClasses.js';
+import { Promises, timeout } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from '../../../services/statusbar/browser/statusbar.js';
+import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from '../../../../platform/markers/common/markers.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
+import { AutomaticLanguageDetectionLikelyWrongClassification, AutomaticLanguageDetectionLikelyWrongId, IAutomaticLanguageDetectionLikelyWrongData, ILanguageDetectionService } from '../../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { Action2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { TabFocus } from '../../../../editor/browser/config/tabFocus.js';
+import { IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { InputMode } from '../../../../editor/common/inputMode.js';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -151,6 +150,7 @@ class StateChange {
 	encoding: boolean = false;
 	EOL: boolean = false;
 	tabFocusMode: boolean = false;
+	inputMode: boolean = false;
 	columnSelectionMode: boolean = false;
 	metadata: boolean = false;
 
@@ -162,6 +162,7 @@ class StateChange {
 		this.encoding = this.encoding || other.encoding;
 		this.EOL = this.EOL || other.EOL;
 		this.tabFocusMode = this.tabFocusMode || other.tabFocusMode;
+		this.inputMode = this.inputMode || other.inputMode;
 		this.columnSelectionMode = this.columnSelectionMode || other.columnSelectionMode;
 		this.metadata = this.metadata || other.metadata;
 	}
@@ -174,6 +175,7 @@ class StateChange {
 			|| this.encoding
 			|| this.EOL
 			|| this.tabFocusMode
+			|| this.inputMode
 			|| this.columnSelectionMode
 			|| this.metadata;
 	}
@@ -188,6 +190,7 @@ type StateDelta = (
 	| { type: 'tabFocusMode'; tabFocusMode: boolean }
 	| { type: 'columnSelectionMode'; columnSelectionMode: boolean }
 	| { type: 'metadata'; metadata: string | undefined }
+	| { type: 'inputMode'; inputMode: 'overtype' | 'insert' }
 );
 
 class State {
@@ -209,6 +212,9 @@ class State {
 
 	private _tabFocusMode: boolean | undefined;
 	get tabFocusMode(): boolean | undefined { return this._tabFocusMode; }
+
+	private _inputMode: 'overtype' | 'insert' | undefined;
+	get inputMode(): 'overtype' | 'insert' | undefined { return this._inputMode; }
 
 	private _columnSelectionMode: boolean | undefined;
 	get columnSelectionMode(): boolean | undefined { return this._columnSelectionMode; }
@@ -262,6 +268,13 @@ class State {
 				}
 				break;
 
+			case 'inputMode':
+				if (this._inputMode !== update.inputMode) {
+					this._inputMode = update.inputMode;
+					change.inputMode = true;
+				}
+				break;
+
 			case 'columnSelectionMode':
 				if (this._columnSelectionMode !== update.columnSelectionMode) {
 					this._columnSelectionMode = update.columnSelectionMode;
@@ -309,6 +322,18 @@ class TabFocusMode extends Disposable {
 	}
 }
 
+class StatusInputMode extends Disposable {
+
+	private readonly _onDidChange = this._register(new Emitter<'overtype' | 'insert'>());
+	public readonly onDidChange = this._onDidChange.event;
+
+	constructor() {
+		super();
+		InputMode.setInputMode('insert');
+		this._register(InputMode.onDidChangeInputMode(inputMode => this._onDidChange.fire(inputMode)));
+	}
+}
+
 const nlsSingleSelectionRange = localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
 const nlsSingleSelection = localize('singleSelection', "Ln {0}, Col {1}");
 const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections ({1} characters selected)");
@@ -319,6 +344,7 @@ const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
 class EditorStatus extends Disposable {
 
 	private readonly tabFocusModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly inputModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly columnSelectionModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly indentationElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly selectionElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -329,6 +355,7 @@ class EditorStatus extends Disposable {
 
 	private readonly currentMarkerStatus = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
 	private readonly tabFocusMode = this._register(this.instantiationService.createInstance(TabFocusMode));
+	private readonly inputMode = this._register(this.instantiationService.createInstance(StatusInputMode));
 
 	private readonly state = new State();
 	private toRender: StateChange | undefined = undefined;
@@ -363,6 +390,7 @@ class EditorStatus extends Disposable {
 				this.onTabFocusModeChange(this.configurationService.getValue('editor.tabFocusMode'));
 			}
 		}));
+		this._register(Event.runAndSubscribe(this.inputMode.onDidChange, (inputMode) => this.onInputModeChange(inputMode ?? 'insert')));
 	}
 
 	private registerCommands(): void {
@@ -421,6 +449,25 @@ class EditorStatus extends Disposable {
 			}
 		} else {
 			this.tabFocusModeElement.clear();
+		}
+	}
+
+	private updateInputModeElement(inputMode: 'overtype' | 'insert' | undefined): void {
+		if (inputMode === 'overtype') {
+			if (!this.inputModeElement.value) {
+				const text = localize('inputModeOvertype', 'OVR');
+				const name = localize('status.editor.enableInsertMode', "Enable Insert Mode");
+				this.inputModeElement.value = this.statusbarService.addEntry({
+					name,
+					text,
+					ariaLabel: text,
+					tooltip: name,
+					command: 'editor.action.toggleOvertypeInsertMode',
+					kind: 'prominent'
+				}, 'status.editor.inputMode', StatusbarAlignment.RIGHT, 100.6);
+			}
+		} else {
+			this.inputModeElement.clear();
 		}
 	}
 
@@ -588,6 +635,7 @@ class EditorStatus extends Disposable {
 
 	private doRenderNow(): void {
 		this.updateTabFocusModeElement(!!this.state.tabFocusMode);
+		this.updateInputModeElement(this.state.inputMode);
 		this.updateColumnSelectionModeElement(!!this.state.columnSelectionMode);
 		this.updateIndentationElement(this.state.indentation);
 		this.updateSelectionElement(this.state.selectionStatus);
@@ -874,6 +922,11 @@ class EditorStatus extends Disposable {
 		this.updateState(info);
 	}
 
+	private onInputModeChange(inputMode: 'insert' | 'overtype'): void {
+		const info: StateDelta = { type: 'inputMode', inputMode };
+		this.updateState(info);
+	}
+
 	private isActiveEditor(control: IEditorPane): boolean {
 		const activeEditorPane = this.editorService.activeEditorPane;
 
@@ -886,22 +939,23 @@ export class EditorStatusContribution extends Disposable implements IWorkbenchCo
 	static readonly ID = 'workbench.contrib.editorStatus';
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 	) {
 		super();
 
-		// Main Editor Status
-		const mainInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
-			[IEditorService, editorService.createScoped('main', this._store)]
-		)));
-		this._register(mainInstantiationService.createInstance(EditorStatus, mainWindow.vscodeWindowId));
+		for (const part of editorGroupService.parts) {
+			this.createEditorStatus(part);
+		}
 
-		// Auxiliary Editor Status
-		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(({ part, instantiationService, disposables }) => {
-			disposables.add(instantiationService.createInstance(EditorStatus, part.windowId));
-		}));
+		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.createEditorStatus(part)));
+	}
+
+	private createEditorStatus(part: IEditorPart): void {
+		const disposables = new DisposableStore();
+		Event.once(part.onWillDispose)(() => disposables.dispose());
+
+		const scopedInstantiationService = this.editorGroupService.getScopedInstantiationService(part);
+		disposables.add(scopedInstantiationService.createInstance(EditorStatus, part.windowId));
 	}
 }
 

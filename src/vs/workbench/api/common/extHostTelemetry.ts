@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ICommonProperties, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { ILogger, ILoggerService, LogLevel, isLogLevel } from 'vs/platform/log/common/log';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
-import { cleanData, cleanRemoteAuthority, extensionTelemetryLogChannelId } from 'vs/platform/telemetry/common/telemetryUtils';
-import { mixin } from 'vs/base/common/objects';
-import { URI } from 'vs/base/common/uri';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { Event, Emitter } from '../../../base/common/event.js';
+import { ExtHostTelemetryShape } from './extHost.protocol.js';
+import { ICommonProperties, TelemetryLevel } from '../../../platform/telemetry/common/telemetry.js';
+import { ILogger, ILoggerService, LogLevel, isLogLevel } from '../../../platform/log/common/log.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { UIKind } from '../../services/extensions/common/extensionHostProtocol.js';
+import { getRemoteName } from '../../../platform/remote/common/remoteHosts.js';
+import { cleanData, cleanRemoteAuthority, extensionTelemetryLogChannelId } from '../../../platform/telemetry/common/telemetryUtils.js';
+import { mixin } from '../../../base/common/objects.js';
+import { URI } from '../../../base/common/uri.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { localize } from '../../../nls.js';
 
 export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShape {
 

@@ -16,14 +16,15 @@
     "contribMergeEditorMenus",
     "contribMultiDiffEditorMenus",
     "contribDiffEditorGutterToolBarMenus",
-    "contribSourceControlHistoryItemGroupMenu",
     "contribSourceControlHistoryItemMenu",
+    "contribSourceControlHistoryTitleMenu",
     "contribSourceControlInputBoxMenu",
     "contribSourceControlTitleMenu",
     "contribViewsWelcome",
     "diffCommand",
     "editSessionIdentityProvider",
     "quickDiffProvider",
+    "quickInputButtonLocation",
     "quickPickSortByLabel",
     "scmActionButton",
     "scmHistoryProvider",
@@ -33,6 +34,7 @@
     "scmValidation",
     "tabInputMultiDiff",
     "tabInputTextMerge",
+    "textEditorDiffInformation",
     "timeline"
   ],
   "categories": [
@@ -452,6 +454,18 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.checkoutRef",
+        "title": "%command.checkoutRef%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.checkoutRefDetached",
+        "title": "%command.checkoutRefDetached%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.branch",
         "title": "%command.branch%",
         "category": "Git",
@@ -526,6 +540,7 @@
       {
         "command": "git.fetchAll",
         "title": "%command.fetchAll%",
+        "icon": "$(git-fetch)",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -559,7 +574,7 @@
         "title": "%command.pull%",
         "icon": "$(repo-pull)",
         "category": "Git",
-        "enablement": "!operationInProgress"
+        "enablement": "!operationInProgress && scmCurrentHistoryItemRefInFilter && scmCurrentHistoryItemRefHasRemote"
       },
       {
         "command": "git.push",
@@ -608,11 +623,23 @@
         "title": "%command.push%",
         "icon": "$(repo-push)",
         "category": "Git",
-        "enablement": "!operationInProgress"
+        "enablement": "!operationInProgress && scmCurrentHistoryItemRefInFilter && scmCurrentHistoryItemRefHasRemote"
       },
       {
         "command": "git.cherryPick",
         "title": "%command.cherryPick%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.cherryPickRef",
+        "title": "%command.cherryPickRef%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.cherryPickAbort",
+        "title": "%command.cherryPickAbort%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -891,6 +918,16 @@
         "icon": "$(diff-multiple)",
         "category": "Git",
         "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.copyCommitId",
+        "title": "%command.timelineCopyCommitId%",
+        "category": "Git"
+      },
+      {
+        "command": "git.copyCommitMessage",
+        "title": "%command.timelineCopyCommitMessage%",
+        "category": "Git"
       }
     ],
     "continueEditSession": [
@@ -906,19 +943,19 @@
         "command": "git.stageSelectedRanges",
         "key": "ctrl+k ctrl+alt+s",
         "mac": "cmd+k cmd+alt+s",
-        "when": "isInDiffEditor"
+        "when": "resourceScheme =~ /^git$|^file$/"
       },
       {
         "command": "git.unstageSelectedRanges",
         "key": "ctrl+k ctrl+n",
         "mac": "cmd+k cmd+n",
-        "when": "isInDiffEditor"
+        "when": "isInDiffEditor && resourceScheme =~ /^git$|^file$/"
       },
       {
         "command": "git.revertSelectedRanges",
         "key": "ctrl+k ctrl+r",
         "mac": "cmd+k cmd+r",
-        "when": "isInDiffEditor"
+        "when": "resourceScheme =~ /^git$|^file$/"
       }
     ],
     "menus": {
@@ -1180,6 +1217,10 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.cherryPickAbort",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && gitCherryPickInProgress"
+        },
+        {
           "command": "git.pull",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
@@ -1426,6 +1467,34 @@
         {
           "command": "git.pushRef",
           "when": "false"
+        },
+        {
+          "command": "git.copyCommitId",
+          "when": "false"
+        },
+        {
+          "command": "git.copyCommitMessage",
+          "when": "false"
+        },
+        {
+          "command": "git.checkoutRef",
+          "when": "false"
+        },
+        {
+          "command": "git.checkoutRefDetached",
+          "when": "false"
+        },
+        {
+          "command": "git.cherryPickRef",
+          "when": "false"
+        },
+        {
+          "command": "git.diff.stageHunk",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && diffEditorOriginalUri =~ /^git\\:.*%22ref%22%3A%22~%22%7D$/"
+        },
+        {
+          "command": "git.diff.stageSelection",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && diffEditorOriginalUri =~ /^git\\:.*%22ref%22%3A%22~%22%7D$/"
         }
       ],
       "scm/title": [
@@ -1915,102 +1984,61 @@
           "group": "1_modification@3"
         }
       ],
-      "scm/incomingChanges": [
+      "scm/history/title": [
         {
-          "command": "git.fetchRef",
-          "group": "navigation",
+          "command": "git.fetchAll",
+          "group": "navigation@900",
           "when": "scmProvider == git"
         },
         {
           "command": "git.pullRef",
-          "group": "navigation",
-          "when": "scmProvider == git"
-        }
-      ],
-      "scm/incomingChanges/context": [
-        {
-          "command": "git.fetchRef",
-          "group": "1_modification@1",
+          "group": "navigation@901",
           "when": "scmProvider == git"
         },
-        {
-          "command": "git.pullRef",
-          "group": "1_modification@2",
-          "when": "scmProvider == git"
-        }
-      ],
-      "scm/incomingChanges/allChanges/context": [
-        {
-          "command": "git.viewAllChanges",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "inline@1"
-        },
-        {
-          "command": "git.viewAllChanges",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "1_view@1"
-        }
-      ],
-      "scm/incomingChanges/historyItem/context": [
-        {
-          "command": "git.viewCommit",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "inline@1"
-        },
-        {
-          "command": "git.viewCommit",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "1_view@1"
-        }
-      ],
-      "scm/outgoingChanges": [
         {
           "command": "git.pushRef",
-          "group": "navigation",
-          "when": "scmProvider == git && scmHistoryItemGroupHasUpstream"
+          "when": "scmProvider == git && scmCurrentHistoryItemRefHasRemote",
+          "group": "navigation@902"
         },
         {
           "command": "git.publish",
-          "group": "navigation",
-          "when": "scmProvider == git && !scmHistoryItemGroupHasUpstream"
+          "when": "scmProvider == git && !scmCurrentHistoryItemRefHasRemote",
+          "group": "navigation@903"
         }
       ],
-      "scm/outgoingChanges/context": [
+      "scm/historyItem/context": [
         {
-          "command": "git.pushRef",
-          "when": "scmProvider == git && scmHistoryItemGroupHasUpstream",
-          "group": "1_modification@1"
+          "command": "git.createTag",
+          "when": "scmProvider == git",
+          "group": "1_create@1"
         },
         {
-          "command": "git.publish",
-          "when": "scmProvider == git && !scmHistoryItemGroupHasUpstream",
-          "group": "1_modification@1"
-        }
-      ],
-      "scm/outgoingChanges/allChanges/context": [
-        {
-          "command": "git.viewAllChanges",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "inline@1"
+          "command": "git.branch",
+          "when": "scmProvider == git",
+          "group": "1_create@2"
         },
         {
-          "command": "git.viewAllChanges",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "1_view@1"
-        }
-      ],
-      "scm/outgoingChanges/historyItem/context": [
-        {
-          "command": "git.viewCommit",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "inline@1"
+          "command": "git.cherryPickRef",
+          "when": "scmProvider == git",
+          "group": "2_modify@1"
         },
         {
-          "command": "git.viewCommit",
-          "when": "scmProvider == git && scmHistoryItemFileCount != 0 && config.multiDiffEditor.experimental.enabled",
-          "group": "1_view@1"
+          "command": "git.checkoutRefDetached",
+          "when": "scmProvider == git",
+          "group": "2_modify@2"
+        },
+        {
+          "command": "git.copyCommitId",
+          "when": "scmProvider == git && !listMultiSelection",
+          "group": "9_copy@1"
+        },
+        {
+          "command": "git.copyCommitMessage",
+          "when": "scmProvider == git && !listMultiSelection",
+          "group": "9_copy@2"
         }
       ],
+      "scm/historyItemRef/context": [],
       "editor/title": [
         {
           "command": "git.openFile",
@@ -3171,6 +3199,42 @@
           "maximum": 100,
           "markdownDescription": "%config.similarityThreshold%",
           "scope": "resource"
+        },
+        "git.blame.editorDecoration.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.blameEditorDecoration.enabled%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "git.blame.editorDecoration.template": {
+          "type": "string",
+          "default": "${subject}, ${authorName} (${authorDateAgo})",
+          "markdownDescription": "%config.blameEditorDecoration.template%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "git.blame.statusBarItem.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.blameStatusBarItem.enabled%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "git.blame.statusBarItem.template": {
+          "type": "string",
+          "default": "${authorName} (${authorDateAgo})",
+          "markdownDescription": "%config.blameStatusBarItem.template%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },
@@ -3273,6 +3337,16 @@
           "dark": "#8db9e2",
           "highContrast": "#8db9e2",
           "highContrastLight": "#1258a7"
+        }
+      },
+      {
+        "id": "git.blame.editorDecorationForeground",
+        "description": "%colors.blameEditorDecoration%",
+        "defaults": {
+          "dark": "editorCodeLens.foreground",
+          "light": "editorCodeLens.foreground",
+          "highContrast": "editorCodeLens.foreground",
+          "highContrastLight": "editorCodeLens.foreground"
         }
       }
     ],
@@ -3401,7 +3475,7 @@
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "16.5.4",
-    "jschardet": "3.1.2",
+    "jschardet": "3.1.4",
     "picomatch": "2.3.1",
     "vscode-uri": "^2.0.0",
     "which": "4.0.0"

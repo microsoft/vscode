@@ -5,12 +5,12 @@
 
 import assert from 'assert';
 import { tmpdir } from 'os';
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IWindowState as IWindowUIState, WindowMode } from 'vs/platform/window/electron-main/window';
-import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState } from 'vs/platform/windows/electron-main/windowsStateHandler';
-import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { join } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IWindowState as IWindowUIState, WindowMode } from '../../../window/electron-main/window.js';
+import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState } from '../../electron-main/windowsStateHandler.js';
+import { IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
 
 suite('Windows State Storing', () => {
 
