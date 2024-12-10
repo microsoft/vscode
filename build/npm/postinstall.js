@@ -61,6 +61,7 @@ function npmInstall(dir, opts) {
 	} else {
 		log(dir, 'Installing dependencies...');
 		run(npm, command.split(' '), opts);
+		removeParcelWatcherPrebuild(dir);
 	}
 }
 
@@ -114,11 +115,9 @@ function removeParcelWatcherPrebuild(dir) {
 
 for (let dir of dirs) {
 
-	removeParcelWatcherPrebuild(dir);
-
 	if (dir === '') {
-		// already executed in root
-		continue;
+		removeParcelWatcherPrebuild(dir);
+		continue; // already executed in root
 	}
 
 	let opts;
