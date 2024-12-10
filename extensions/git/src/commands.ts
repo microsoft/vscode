@@ -2905,7 +2905,7 @@ export class CommandCenter {
 				console.log(`Deleted branch: ${item.refName}`);
 			} catch (err) {
 				if (err.gitErrorCode !== GitErrorCodes.BranchNotFullyMerged) {
-					window.showErrorMessage(l10n.t('Failed to delete branch: {0}', item.refName ?? 'unknown'));
+					window.showErrorMessage(l10n.t('Failed to delete branch: {0}', name ?? 'unknown'));
 					continue; // Skip to the next item
 				}
 				else if (force) {
