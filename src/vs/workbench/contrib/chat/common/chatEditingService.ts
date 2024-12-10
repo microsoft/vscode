@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { IObservable, ITransaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
@@ -22,7 +23,6 @@ export interface IChatEditingService {
 
 	_serviceBrand: undefined;
 
-	readonly onDidCreateEditingSession: Event<IChatEditingSession>;
 	/**
 	 * emitted when a session is created, changed or disposed
 	 */
@@ -35,34 +35,65 @@ export interface IChatEditingService {
 
 	readonly editingSessionFileLimit: number;
 
-	startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession>;
-	getEditingSession(resource: URI): IChatEditingSession | null;
-	createSnapshot(requestId: string): void;
-	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
-	restoreSnapshot(requestId: string | undefined): Promise<void>;
+	startOrContinueEditingSession(chatSessionId: string): Promise<IChatEditingSession>;
+	getOrRestoreEditingSession(): Promise<IChatEditingSession | null>;
+	hasRelatedFilesProviders(): boolean;
+	registerRelatedFilesProvider(handle: number, provider: IChatRelatedFilesProvider): IDisposable;
+	getRelatedFiles(chatSessionId: string, prompt: string, token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined>;
 }
+
+export interface IChatRequestDraft {
+	readonly prompt: string;
+	readonly files: readonly URI[];
+}
+
+export interface IChatRelatedFileProviderMetadata {
+	readonly description: string;
+}
+
+export interface IChatRelatedFile {
+	readonly uri: URI;
+	readonly description: string;
+}
+
+export interface IChatRelatedFilesProvider {
+	readonly description: string;
+	provideRelatedFiles(chatRequest: IChatRequestDraft, token: CancellationToken): Promise<IChatRelatedFile[] | undefined>;
+}
+
+export interface WorkingSetDisplayMetadata { state: WorkingSetEntryState; description?: string }
 
 export interface IChatEditingSession {
 	readonly chatSessionId: string;
-	readonly onDidChange: Event<void>;
+	readonly onDidChange: Event<ChatEditingSessionChangeType>;
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
-	readonly hiddenRequestIds: IObservable<readonly string[]>;
-	readonly workingSet: ResourceMap<WorkingSetEntryState>;
+	readonly workingSet: ResourceMap<WorkingSetDisplayMetadata>;
 	readonly isVisible: boolean;
-	addFileToWorkingSet(uri: URI): void;
+	addFileToWorkingSet(uri: URI, description?: string, kind?: WorkingSetEntryState.Transient | WorkingSetEntryState.Suggested): void;
 	show(): Promise<void>;
-	remove(...uris: URI[]): void;
+	remove(reason: WorkingSetEntryRemovalReason, ...uris: URI[]): void;
 	accept(...uris: URI[]): Promise<void>;
 	reject(...uris: URI[]): Promise<void>;
+	getEntry(uri: URI): IModifiedFileEntry | undefined;
+	readEntry(uri: URI, reader?: IReader): IModifiedFileEntry | undefined;
+
+	restoreSnapshot(requestId: string): Promise<void>;
+	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
+
 	/**
 	 * Will lead to this object getting disposed
 	 */
-	stop(): Promise<void>;
+	stop(clearState?: boolean): Promise<void>;
 
 	undoInteraction(): Promise<void>;
 	redoInteraction(): Promise<void>;
+}
+
+export const enum WorkingSetEntryRemovalReason {
+	User,
+	Programmatic
 }
 
 export const enum WorkingSetEntryState {
@@ -71,7 +102,13 @@ export const enum WorkingSetEntryState {
 	Rejected,
 	Transient,
 	Attached,
-	Sent,
+	Sent, // TODO@joyceerhl remove this
+	Suggested,
+}
+
+export const enum ChatEditingSessionChangeType {
+	WorkingSet,
+	Other,
 }
 
 export interface IModifiedFileEntry {
@@ -81,6 +118,7 @@ export interface IModifiedFileEntry {
 	readonly state: IObservable<WorkingSetEntryState>;
 	readonly isCurrentlyBeingModified: IObservable<boolean>;
 	readonly rewriteRatio: IObservable<number>;
+	readonly maxLineNumber: IObservable<number>;
 	readonly diffInfo: IObservable<IDocumentDiff>;
 	readonly lastModifyingRequestId: string;
 	accept(transaction: ITransaction | undefined): Promise<void>;

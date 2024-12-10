@@ -675,7 +675,7 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 			}
 
 			let diagScore = 0;
-			if (score !== Number.MAX_SAFE_INTEGER) {
+			if (score !== Number.MIN_SAFE_INTEGER) {
 				canComeDiag = true;
 				diagScore = score + _table[row - 1][column - 1];
 			}

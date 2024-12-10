@@ -197,3 +197,15 @@ export interface IStatusbarEntryAccessor extends IDisposable {
 	 */
 	update(properties: IStatusbarEntry): void;
 }
+
+/**
+ * A way to override a status bar entry appearance. Only a subset of
+ * properties are currently allowed to override.
+ */
+export interface IStatusbarEntryOverride {
+
+	/**
+	 * The kind of status bar entry. This applies different colors to the entry.
+	 */
+	readonly kind?: StatusbarEntryKind;
+}

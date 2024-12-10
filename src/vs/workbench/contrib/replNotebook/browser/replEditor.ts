@@ -5,6 +5,7 @@
 
 import './media/interactive.css';
 import * as DOM from '../../../../base/browser/dom.js';
+import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -213,7 +214,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 	}
 
 	private _createLayoutStyles(): void {
-		this._styleElement = DOM.createStyleSheet(this._rootElement);
+		this._styleElement = domStylesheets.createStyleSheet(this._rootElement);
 		const styleSheets: string[] = [];
 
 		const {
@@ -552,17 +553,19 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 
 	private handleAppend(notebookWidget: NotebookEditorWidget, viewModel: NotebookViewModel) {
 		this._notebookWidgetService.updateReplContextKey(viewModel.notebookDocument.uri.toString());
-		const navigateToCell = this._configurationService.getValue(ReplEditorSettings.autoFocusAppendedCell);
-		if ((this._accessibilityService.isScreenReaderOptimized() && navigateToCell !== 'never')
-			|| navigateToCell === 'always') {
-
-			setTimeout(() => {
-				const lastCellIndex = viewModel.length - 1;
-				if (lastCellIndex >= 0) {
-					const cell = viewModel.viewCells[lastCellIndex];
-					notebookWidget.focusNotebookCell(cell, 'container');
-				}
-			}, 0);
+		const navigateToCell = this._configurationService.getValue('accessibility.replEditor.autoFocusReplExecution');
+		if (this._accessibilityService.isScreenReaderOptimized()) {
+			if (navigateToCell === 'lastExecution') {
+				setTimeout(() => {
+					const lastCellIndex = viewModel.length - 1;
+					if (lastCellIndex >= 0) {
+						const cell = viewModel.viewCells[lastCellIndex];
+						notebookWidget.focusNotebookCell(cell, 'container');
+					}
+				}, 0);
+			} else if (navigateToCell === 'input') {
+				this._codeEditorWidget.focus();
+			}
 		}
 	}
 

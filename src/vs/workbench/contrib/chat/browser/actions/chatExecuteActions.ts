@@ -18,7 +18,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsContextKey, IChatEditingService } from '../../common/chatEditingService.js';
 import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
-import { EDITS_VIEW_ID, IChatWidget, IChatWidgetService } from '../chat.js';
+import { EditsViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
@@ -279,10 +279,10 @@ class SendToChatEditingAction extends Action2 {
 				return;
 			}
 
-			await currentEditingSession?.stop();
+			await currentEditingSession?.stop(true);
 		}
 
-		const { widget: editingWidget } = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
+		const { widget: editingWidget } = await viewsService.openView(EditsViewId) as ChatViewPane;
 		for (const attachment of widget.attachmentModel.attachments) {
 			if (attachment.isFile && URI.isUri(attachment.value)) {
 				chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(attachment.value);

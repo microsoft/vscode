@@ -55,7 +55,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		}));
 
 		this._slabW = Math.min(
-			options?.slabW ?? (64 << (Math.floor(getActiveWindow().devicePixelRatio) - 1)),
+			options?.slabW ?? (64 << Math.max(Math.floor(getActiveWindow().devicePixelRatio) - 1, 0)),
 			this._canvas.width
 		);
 		this._slabH = Math.min(
@@ -278,7 +278,9 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 			w: glyphWidth,
 			h: glyphHeight,
 			originOffsetX: rasterizedGlyph.originOffset.x,
-			originOffsetY: rasterizedGlyph.originOffset.y
+			originOffsetY: rasterizedGlyph.originOffset.y,
+			fontBoundingBoxAscent: rasterizedGlyph.fontBoundingBoxAscent,
+			fontBoundingBoxDescent: rasterizedGlyph.fontBoundingBoxDescent,
 		};
 
 		// Set the glyph

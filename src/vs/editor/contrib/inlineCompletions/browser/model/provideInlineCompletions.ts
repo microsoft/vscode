@@ -193,7 +193,8 @@ async function addRefAndCreateResult(
 
 			itemsByHash.set(inlineCompletionItem.hash(), inlineCompletionItem);
 
-			if (context.triggerKind === InlineCompletionTriggerKind.Automatic) {
+			// Stop after first visible inline completion
+			if (!item.isInlineEdit && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
 				const minifiedEdit = inlineCompletionItem.toSingleTextEdit().removeCommonPrefix(new TextModelText(model));
 				if (!minifiedEdit.isEmpty) {
 					shouldStop = true;
@@ -322,6 +323,7 @@ export class InlineCompletionItem {
 		return new InlineCompletionItem(
 			insertText,
 			inlineCompletion.command,
+			inlineCompletion.shownCommand,
 			range,
 			insertText,
 			snippetInfo,
@@ -331,9 +333,12 @@ export class InlineCompletionItem {
 		);
 	}
 
+	private _didCallShow = false;
+
 	constructor(
 		readonly filterText: string,
 		readonly command: Command | undefined,
+		readonly shownCommand: Command | undefined,
 		readonly range: Range,
 		readonly insertText: string,
 		readonly snippetInfo: SnippetInfo | undefined,
@@ -357,10 +362,18 @@ export class InlineCompletionItem {
 		insertText = filterText.replace(/\r\n|\r/g, '\n');
 	}
 
+	public get didShow(): boolean {
+		return this._didCallShow;
+	}
+	public markAsShown(): void {
+		this._didCallShow = true;
+	}
+
 	public withRange(updatedRange: Range): InlineCompletionItem {
 		return new InlineCompletionItem(
 			this.filterText,
 			this.command,
+			this.shownCommand,
 			updatedRange,
 			this.insertText,
 			this.snippetInfo,

@@ -8,16 +8,15 @@ import './codeBlockPart.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
-import { TabFocus } from '../../../../editor/browser/config/tabFocus.js';
 import { IDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -69,6 +68,9 @@ import { IChatResponseViewModel, isResponseVM } from '../common/chatViewModel.js
 import { ChatTreeItem } from './chat.js';
 import { IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
+import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
+import { AsyncIterableObject } from '../../../../base/common/async.js';
+import { InlineChatController } from '../../inlineChat/browser/inlineChatController.js';
 
 const $ = dom.$;
 
@@ -151,7 +153,6 @@ export class CodeBlockPart extends Disposable {
 	private currentCodeBlockData: ICodeBlockData | undefined;
 	private currentScrollWidth = 0;
 
-	private readonly disposableStore = this._register(new DisposableStore());
 	private isDisposed = false;
 
 	private resourceContextKey: ResourceContextKey;
@@ -364,7 +365,7 @@ export class CodeBlockPart extends Disposable {
 		return this.editor.getContentHeight();
 	}
 
-	async render(data: ICodeBlockData, width: number, editable: boolean | undefined) {
+	async render(data: ICodeBlockData, width: number) {
 		this.currentCodeBlockData = data;
 		if (data.parentContextKeyService) {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
@@ -382,12 +383,7 @@ export class CodeBlockPart extends Disposable {
 		}
 
 		this.layout(width);
-		if (editable) {
-			this.disposableStore.clear();
-			this.disposableStore.add(this.editor.onDidFocusEditorWidget(() => TabFocus.setTabFocusMode(true)));
-			this.disposableStore.add(this.editor.onDidBlurEditorWidget(() => TabFocus.setTabFocusMode(false)));
-		}
-		this.editor.updateOptions({ ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1), readOnly: !editable });
+		this.editor.updateOptions({ ariaLabel: localize('chat.codeBlockLabel', "Code block {0}", data.codeBlockIndex + 1) });
 
 		if (data.hideToolbar) {
 			dom.hide(this.toolbar.getElement());
@@ -417,7 +413,6 @@ export class CodeBlockPart extends Disposable {
 
 	private async updateEditor(data: ICodeBlockData): Promise<void> {
 		const textModel = await data.textModel;
-		console.log(textModel.id);
 		this.editor.setModel(textModel);
 		if (data.range) {
 			this.editor.setSelection(data.range);
@@ -529,7 +524,18 @@ export class CodeCompareBlockPart extends Disposable {
 		this.messageElement.tabIndex = 0;
 
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
-		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
+		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
+			[IContextKeyService, this.contextKeyService],
+			[IEditorProgressService, new class implements IEditorProgressService {
+				_serviceBrand: undefined;
+				show(_total: unknown, _delay?: unknown) {
+					return emptyProgressRunner;
+				}
+				async showWhile(promise: Promise<unknown>, _delay?: number): Promise<void> {
+					await promise;
+				}
+			}],
+		)));
 		const editorHeader = dom.append(this.element, $('.interactive-result-header.show-file-icons'));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.diffEditor = this.createDiffEditor(scopedInstantiationService, editorElement, {
@@ -760,11 +766,11 @@ export class CodeCompareBlockPart extends Disposable {
 
 			let template: string;
 			if (data.edit.state.applied === 1) {
-				template = localize('chat.edits.1', "Made 1 change in [[``{0}``]]", uriLabel);
+				template = localize('chat.edits.1', "Applied 1 change in [[``{0}``]]", uriLabel);
 			} else if (data.edit.state.applied < 0) {
 				template = localize('chat.edits.rejected', "Edits in [[``{0}``]] have been rejected", uriLabel);
 			} else {
-				template = localize('chat.edits.N', "Made {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel);
+				template = localize('chat.edits.N', "Applied {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel);
 			}
 
 			const message = renderFormattedText(template, {
@@ -933,5 +939,39 @@ export class DefaultChatTextEditor {
 		}
 
 		response.setEditApplied(item, -1);
+	}
+
+	async preview(response: IChatResponseModel | IChatResponseViewModel, item: IChatTextEditGroup) {
+		if (item.state?.applied) {
+			// already applied
+			return false;
+		}
+
+		if (!response.response.value.includes(item)) {
+			// bogous item
+			return false;
+		}
+
+		const firstEdit = item.edits[0]?.[0];
+		if (!firstEdit) {
+			return false;
+		}
+		const textEdits = AsyncIterableObject.fromArray(item.edits);
+
+		const editorToApply = await this.editorService.openCodeEditor({ resource: item.uri }, null);
+		if (editorToApply) {
+			const inlineChatController = InlineChatController.get(editorToApply);
+			if (inlineChatController) {
+				const tokenSource = new CancellationTokenSource();
+				editorToApply.revealLineInCenterIfOutsideViewport(firstEdit.range.startLineNumber);
+				const promise = inlineChatController.reviewEdits(firstEdit.range, textEdits, tokenSource.token);
+				response.setEditApplied(item, 1);
+				promise.finally(() => {
+					tokenSource.dispose();
+				});
+				return true;
+			}
+		}
+		return false;
 	}
 }

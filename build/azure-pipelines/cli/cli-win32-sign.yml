@@ -4,19 +4,29 @@ parameters:
     default: []
 
 steps:
-  - task: AzureKeyVault@2
-    displayName: "Azure Key Vault: Get Secrets"
-    inputs:
-      azureSubscription: vscode
-      KeyVaultName: vscode-build-secrets
-      SecretsFilter: "ESRP-PKI,esrp-aad-username,esrp-aad-password"
-
   - task: UseDotNet@2
     inputs:
       version: 6.x
 
-  - task: EsrpClientTool@1
-    displayName: "Use ESRP client"
+  - task: EsrpCodeSigning@5
+    inputs:
+      UseMSIAuthentication: true
+      ConnectedServiceName: vscode-esrp
+      AppRegistrationClientId: $(ESRP_CLIENT_ID)
+      AppRegistrationTenantId: $(ESRP_TENANT_ID)
+      AuthAKVName: vscode-esrp
+      AuthSignCertName: esrp-sign
+      FolderPath: .
+      Pattern: noop
+    displayName: 'Install ESRP Tooling'
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      $EsrpCodeSigningTool = (gci -directory -filter EsrpCodeSigning_* $(Agent.RootDirectory)\_tasks | Select-Object -last 1).FullName
+      $Version = (gci -directory $EsrpCodeSigningTool | Select-Object -last 1).FullName
+      echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version\net6.0\esrpcli.dll"
+    displayName: Find ESRP CLI
 
   - ${{ each target in parameters.VSCODE_CLI_ARTIFACTS }}:
       - task: DownloadPipelineArtifact@2
@@ -31,18 +41,9 @@ steps:
           archiveFilePatterns: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}/*.zip
           destinationFolder: $(Build.ArtifactStagingDirectory)/sign/${{ target }}
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $EsrpClientTool = (gci -directory -filter EsrpClientTool_* $(Agent.RootDirectory)\_tasks | Select-Object -last 1).FullName
-      $EsrpCliZip = (gci -recurse -filter esrpcli.*.zip $EsrpClientTool | Select-Object -last 1).FullName
-      mkdir -p $(Agent.TempDirectory)\esrpcli
-      Expand-Archive -Path $EsrpCliZip -DestinationPath $(Agent.TempDirectory)\esrpcli
-      $EsrpCliDllPath = (gci -recurse -filter esrpcli.dll $(Agent.TempDirectory)\esrpcli | Select-Object -last 1).FullName
-      echo "##vso[task.setvariable variable=EsrpCliDllPath]$EsrpCliDllPath"
-    displayName: Find ESRP CLI
-
-  - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Build.ArtifactStagingDirectory)/sign "*.exe"
+  - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(Build.ArtifactStagingDirectory)/sign "*.exe"
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Codesign
 
   - ${{ each target in parameters.VSCODE_CLI_ARTIFACTS }}:
