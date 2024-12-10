@@ -48,10 +48,11 @@ export class ReplaceOvertypeCommand implements ICommand {
 		const intialStartPosition = this._range.getStartPosition();
 		const initialEndPosition = this._range.getEndPosition();
 		const initialEndLineNumber = initialEndPosition.lineNumber;
+		const initialEndColumn = initialEndPosition.column;
 		const offsetDelta = this._text.length + (this._range.isEmpty() ? 0 : -1);
 		let endPosition = addPositiveOffsetToModelPosition(model, initialEndPosition, offsetDelta);
 		if (endPosition.lineNumber > initialEndLineNumber) {
-			endPosition = new Position(initialEndLineNumber, model.getLineMaxColumn(initialEndLineNumber));
+			endPosition = new Position(initialEndLineNumber, Math.max(initialEndColumn, model.getLineMaxColumn(initialEndLineNumber)));
 		}
 		const replaceRange = Range.fromPositions(intialStartPosition, endPosition);
 		builder.addTrackedEditOperation(replaceRange, this._text);
@@ -147,9 +148,10 @@ export class ReplaceOvertypeCommandOnCompositionEnd implements ICommand {
 		const text = model.getValueInRange(this._range);
 		const initialEndPosition = this._range.getEndPosition();
 		const initialEndLineNumber = initialEndPosition.lineNumber;
+		const initialEndColumn = initialEndPosition.column;
 		let endPosition = addPositiveOffsetToModelPosition(model, initialEndPosition, text.length);
 		if (endPosition.lineNumber > initialEndLineNumber) {
-			endPosition = new Position(initialEndLineNumber, model.getLineMaxColumn(initialEndLineNumber));
+			endPosition = new Position(initialEndLineNumber, Math.max(initialEndColumn, model.getLineMaxColumn(initialEndLineNumber)));
 		}
 		const replaceRange = Range.fromPositions(initialEndPosition, endPosition);
 		builder.addTrackedEditOperation(replaceRange, '');
@@ -193,23 +195,23 @@ function addPositiveOffsetToModelPosition(model: ITextModel, position: Position,
 		throw new Error('Unexpected negative delta');
 	}
 	const lineCount = model.getLineCount();
-	let endPosition = new Position(lineCount, model.getLineMaxColumn(lineCount));
 	for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
 		if (lineNumber === position.lineNumber) {
-			const futureOffset = offset - model.getLineMaxColumn(position.lineNumber) + position.column;
+			const futureOffset = offset - Math.max(0, model.getLineMaxColumn(position.lineNumber) - position.column);
 			if (futureOffset <= 0) {
-				endPosition = new Position(position.lineNumber, position.column + offset);
-				break;
+				return new Position(position.lineNumber, position.column + offset);
 			}
 			offset = futureOffset;
 		} else {
 			const futureOffset = offset - model.getLineMaxColumn(lineNumber);
 			if (futureOffset <= 0) {
-				endPosition = new Position(lineNumber, offset);
-				break;
+				return new Position(lineNumber, offset);
 			}
 			offset = futureOffset;
 		}
 	}
-	return endPosition;
+	if (position.lineNumber === lineCount) {
+		return new Position(lineCount, Math.max(position.column, model.getLineMaxColumn(lineCount)));
+	}
+	return new Position(lineCount, model.getLineMaxColumn(lineCount));
 }

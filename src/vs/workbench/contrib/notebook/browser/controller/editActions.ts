@@ -659,6 +659,7 @@ registerAction2(class CommentSelectedCellsAction extends NotebookMultiCellAction
 				false
 			);
 
+			// TODO - what is cell editor? Should we use selectionsInVirtualSpace?
 			// store any selections that are in the cell, allows them to be shifted by comments and preserved
 			const cellEditorSelections = cellViewModel.getSelections();
 			const initialTrackedRangesIDs: string[] = cellEditorSelections.map(selection => {

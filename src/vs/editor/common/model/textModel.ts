@@ -47,6 +47,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from '../../../platform/undoRedo/common/undoRedo.js';
 import { TokenArray } from '../tokens/tokenArray.js';
+import { VirtualSpaceRangeExtraData, virtualSpaceRangeExtraData } from '../virtualSpaceSupport.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -191,6 +192,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
 		largeFileOptimizations: EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
 		bracketPairColorizationOptions: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions,
+		virtualSpace: EDITOR_MODEL_DEFAULTS.virtualSpace,
 	};
 
 	public static resolveOptions(textBuffer: model.ITextBuffer, options: model.ITextModelCreationOptions): model.TextModelResolvedOptions {
@@ -203,6 +205,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				trimAutoWhitespace: options.trimAutoWhitespace,
 				defaultEOL: options.defaultEOL,
 				bracketPairColorizationOptions: options.bracketPairColorizationOptions,
+				virtualSpace: options.virtualSpace,
 			});
 		}
 
@@ -277,6 +280,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _instanceId: string;
 	private _deltaDecorationCallCnt: number = 0;
 	private _lastDecorationId: number;
+	private _trackedRangeExtraData: { [id: string]: VirtualSpaceRangeExtraData };
 	private _decorations: { [decorationId: string]: IntervalNode };
 	private _decorationsTree: DecorationsTrees;
 	private readonly _decorationProvider: ColorizedBracketPairsDecorationProvider;
@@ -366,6 +370,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		this._instanceId = strings.singleLetterHash(MODEL_ID);
 		this._lastDecorationId = 0;
+		this._trackedRangeExtraData = Object.create(null);
 		this._decorations = Object.create(null);
 		this._decorationsTree = new DecorationsTrees();
 
@@ -484,6 +489,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._increaseVersionId();
 
 		// Destroy all my decorations
+		this._trackedRangeExtraData = Object.create(null);
 		this._decorations = Object.create(null);
 		this._decorationsTree = new DecorationsTrees();
 
@@ -653,6 +659,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const insertSpaces = (typeof _newOpts.insertSpaces !== 'undefined') ? _newOpts.insertSpaces : this._options.insertSpaces;
 		const trimAutoWhitespace = (typeof _newOpts.trimAutoWhitespace !== 'undefined') ? _newOpts.trimAutoWhitespace : this._options.trimAutoWhitespace;
 		const bracketPairColorizationOptions = (typeof _newOpts.bracketColorizationOptions !== 'undefined') ? _newOpts.bracketColorizationOptions : this._options.bracketPairColorizationOptions;
+		const virtualSpace = (typeof _newOpts.virtualSpace !== 'undefined') ? _newOpts.virtualSpace : this._options.virtualSpace;
 
 		const newOpts = new model.TextModelResolvedOptions({
 			tabSize: tabSize,
@@ -661,6 +668,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			defaultEOL: this._options.defaultEOL,
 			trimAutoWhitespace: trimAutoWhitespace,
 			bracketPairColorizationOptions,
+			virtualSpace,
 		});
 
 		if (this._options.equals(newOpts)) {
@@ -1658,7 +1666,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	_getTrackedRange(id: string): Range | null {
-		return this.getDecorationRange(id);
+		const range = this.getDecorationRange(id);
+		if (range === null) {
+			return null;
+		}
+		return this._trackedRangeExtraData[id]?.restore(this, range) ?? range;
 	}
 
 	_setTrackedRange(id: string | null, newRange: null, newStickiness: model.TrackedRangeStickiness): null;
@@ -1666,30 +1678,44 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	_setTrackedRange(id: string | null, newRange: Range | null, newStickiness: model.TrackedRangeStickiness): string | null {
 		const node = (id ? this._decorations[id] : null);
 
+		let extra: VirtualSpaceRangeExtraData | null = null;
+		if (newRange !== null) {
+			const clippedRange = this._validateRangeRelaxedNoAllocations(newRange);
+			extra = virtualSpaceRangeExtraData(this, newRange, clippedRange);
+			newRange = clippedRange;
+		}
+
 		if (!node) {
 			if (!newRange) {
 				// node doesn't exist, the request is to delete => nothing to do
 				return null;
 			}
 			// node doesn't exist, the request is to set => add the tracked range
-			return this._deltaDecorationsImpl(0, [], [{ range: newRange, options: TRACKED_RANGE_OPTIONS[newStickiness] }], true)[0];
+			const id = this._deltaDecorationsImpl(0, [], [{ range: newRange, options: TRACKED_RANGE_OPTIONS[newStickiness] }], true)[0];
+			if (extra !== null) {
+				this._trackedRangeExtraData[id] = extra;
+			}
+			return id;
 		}
 
 		if (!newRange) {
 			// node exists, the request is to delete => delete node
 			this._decorationsTree.delete(node);
+			delete this._trackedRangeExtraData[node.id];
 			delete this._decorations[node.id];
 			return null;
 		}
 
 		// node exists, the request is to set => change the tracked range and its options
-		const range = this._validateRangeRelaxedNoAllocations(newRange);
-		const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
-		const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
+		const startOffset = this._buffer.getOffsetAt(newRange.startLineNumber, newRange.startColumn);
+		const endOffset = this._buffer.getOffsetAt(newRange.endLineNumber, newRange.endColumn);
 		this._decorationsTree.delete(node);
-		node.reset(this.getVersionId(), startOffset, endOffset, range);
+		node.reset(this.getVersionId(), startOffset, endOffset, newRange);
 		node.setOptions(TRACKED_RANGE_OPTIONS[newStickiness]);
 		this._decorationsTree.insert(node);
+		if (extra !== null) {
+			this._trackedRangeExtraData[node.id] = extra;
+		}
 		return node.id;
 	}
 

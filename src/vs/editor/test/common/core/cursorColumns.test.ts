@@ -54,8 +54,8 @@ suite('CursorColumns', () => {
 		testVisibleColumnFromColumn('\t  \tx\t', 4, 5, 8);
 		testVisibleColumnFromColumn('\t  \tx\t', 4, 6, 9);
 		testVisibleColumnFromColumn('\t  \tx\t', 4, 7, 12);
-		testVisibleColumnFromColumn('\t  \tx\t', 4, 8, 12);
-		testVisibleColumnFromColumn('\t  \tx\t', 4, 9, 12);
+		testVisibleColumnFromColumn('\t  \tx\t', 4, 8, 13);
+		testVisibleColumnFromColumn('\t  \tx\t', 4, 9, 14);
 
 		testVisibleColumnFromColumn('baz', 4, 1, 0);
 		testVisibleColumnFromColumn('baz', 4, 2, 1);
@@ -186,8 +186,8 @@ suite('CursorColumns', () => {
 		testColumnFromVisibleColumn('\t  \tx\t', 4, 10, 6);
 		testColumnFromVisibleColumn('\t  \tx\t', 4, 11, 7);
 		testColumnFromVisibleColumn('\t  \tx\t', 4, 12, 7);
-		testColumnFromVisibleColumn('\t  \tx\t', 4, 13, 7);
-		testColumnFromVisibleColumn('\t  \tx\t', 4, 14, 7);
+		testColumnFromVisibleColumn('\t  \tx\t', 4, 13, 8);
+		testColumnFromVisibleColumn('\t  \tx\t', 4, 14, 9);
 
 		testColumnFromVisibleColumn('baz', 4, 0, 1);
 		testColumnFromVisibleColumn('baz', 4, 1, 2);

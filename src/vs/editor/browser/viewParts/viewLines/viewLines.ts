@@ -421,7 +421,13 @@ export class ViewLines extends ViewPart implements IViewLines {
 		}
 
 		const originalEndLineNumber = _range.endLineNumber;
-		const range = Range.intersectRanges(_range, this._lastRenderedData.getCurrentVisibleRange());
+		const _visibleRange = this._lastRenderedData.getCurrentVisibleRange();
+		// With virtual space, the visible range is not limited by line length
+		const visibleRange = {
+			startLineNumber: _visibleRange.startLineNumber, startColumn: _visibleRange.startColumn,
+			endLineNumber: _visibleRange.endLineNumber, endColumn: Constants.MAX_SAFE_SMALL_INTEGER,
+		};
+		const range = Range.intersectRanges(_range, visibleRange);
 		if (!range) {
 			return null;
 		}
@@ -445,7 +451,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 
 			const startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
 			const continuesInNextLine = lineNumber !== range.endLineNumber;
-			const endColumn = continuesInNextLine ? this._context.viewModel.getLineMaxColumn(lineNumber) : range.endColumn;
+			const endColumn = continuesInNextLine ? Math.max(startColumn, this._context.viewModel.getLineMaxColumn(lineNumber)) : range.endColumn;
 			const visibleRangesForLine = this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(lineNumber, startColumn, endColumn, domReadingContext);
 
 			if (!visibleRangesForLine) {
@@ -628,7 +634,8 @@ export class ViewLines extends ViewPart implements IViewLines {
 				const newScrollLeft = this._computeScrollLeftToReveal(horizontalRevealRequest);
 
 				if (newScrollLeft) {
-					if (!this._isViewportWrapping) {
+					const virtualSpace = this._context.viewModel.model.getOptions().virtualSpace;
+					if (!this._isViewportWrapping || virtualSpace) {
 						// ensure `scrollWidth` is large enough
 						this._ensureMaxLineWidth(newScrollLeft.maxHorizontalOffset);
 					}
