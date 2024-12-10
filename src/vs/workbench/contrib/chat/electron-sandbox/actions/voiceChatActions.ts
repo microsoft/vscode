@@ -722,6 +722,7 @@ class ChatSynthesizerSessions {
 
 	constructor(
 		@ISpeechService private readonly speechService: ISpeechService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
@@ -770,6 +771,7 @@ class ChatSynthesizerSessions {
 	private async *nextChatResponseChunk(response: IChatResponseModel, token: CancellationToken): AsyncIterable<string> {
 		let totalOffset = 0;
 		let complete = false;
+		let insideCodeBlock = false;
 		do {
 			const responseLength = response.response.toString().length;
 			const { chunk, offset } = this.parseNextChatResponseChunk(response, totalOffset);
@@ -777,7 +779,16 @@ class ChatSynthesizerSessions {
 			complete = response.isComplete;
 
 			if (chunk) {
-				yield chunk;
+				if (this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.IgnoreCodeBlocks)) {
+					const { filteredChunk, isInsideCodeBlock } = this.filterCodeBlocks(chunk, insideCodeBlock);
+					insideCodeBlock = isInsideCodeBlock;
+					if (filteredChunk) {
+						yield filteredChunk;
+					}
+				}
+				else {
+					yield chunk;
+				}
 			}
 
 			if (token.isCancellationRequested) {
@@ -809,6 +820,28 @@ class ChatSynthesizerSessions {
 			offset
 		};
 	}
+
+	private filterCodeBlocks(chunk: string, insideCodeBlock: boolean): { filteredChunk: string | undefined; isInsideCodeBlock: boolean } {
+		const lines = chunk.split('\n');
+		const filteredLines: string[] = [];
+		let isInsideCodeBlock = insideCodeBlock;
+	
+		for (const line of lines) {
+			if (line.trim().startsWith('```')) {
+				isInsideCodeBlock = !isInsideCodeBlock;
+				continue;
+			}
+			
+			if (!isInsideCodeBlock) {
+				filteredLines.push(line);
+			}
+		}
+	
+		return {
+			filteredChunk: filteredLines.join('\n') || undefined,
+			isInsideCodeBlock
+		};
+	}	
 
 	stop(): void {
 		this.activeSession?.dispose(true);
