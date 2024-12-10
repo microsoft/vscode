@@ -7056,23 +7056,6 @@ declare module 'vscode' {
 		clear(): void;
 
 		/**
-		 * Called when a custom editor is opened.
-		 * @param document - The text document that the editor is being used for.
-		 * @param webviewPanel - The webview panel in which the custom editor's UI is displayed.
-		 *                        Use the `webviewPanel.webview.html` to set the HTML content.
-		 * @param token - A cancellation token indicating that the editor opening is being canceled.
-		 *
-		 * Example usage:
-		 * ```typescript
-		 * resolveCustomEditor(document, webviewPanel, token) {
-		 *   webviewPanel.webview.html = '<html><body><h1>Hello, Custom Editor!</h1></body></html>';
-		 *   return Promise.resolve();
-		 * }
-		 * ```
-		 */
-		resolveCustomEditor(document: TextDocument, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
-
-		/**
 		 * Reveal this channel in the UI.
 		 *
 		 * @param preserveFocus When `true` the channel will not take focus.
@@ -10174,6 +10157,13 @@ declare module 'vscode' {
 		 *
 		 * @param token A cancellation token that indicates the result is no longer needed.
 		 *
+		 * * Example usage:
+		 * ```typescript
+		 * resolveCustomEditor(document, webviewPanel, token) {
+		 *   webviewPanel.webview.html = '<html><body><h1>Hello, Custom Editor!</h1></body></html>';
+		 *   return Promise.resolve();
+		 * }
+		 * ```
 		 * @returns Optional thenable indicating that the custom editor has been resolved.
 		 */
 		resolveCustomEditor(document: T, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void> | void;
