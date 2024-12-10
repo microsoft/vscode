@@ -126,6 +126,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'sandbox': { type: 'boolean' },
 	'telemetry': { type: 'boolean', cat: 't', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
 
+	'empty': { type: 'boolean' },
+
 	'remote': { type: 'string', allowEmptyValue: true },
 	'folder-uri': { type: 'string[]', cat: 'o', args: 'uri' },
 	'file-uri': { type: 'string[]', cat: 'o', args: 'uri' },

@@ -30,6 +30,7 @@ export interface NativeParsedArgs {
 	help?: boolean;
 	version?: boolean;
 	telemetry?: boolean;
+	empty?: boolean;
 	status?: boolean;
 	wait?: boolean;
 	waitMarkerFilePath?: string;
