@@ -42,6 +42,9 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 	const _log = config.logFn;
 
 	const host = new LanguageServiceHost(cmd, projectFile, _log);
+
+	const outHost = new LanguageServiceHost({ ...cmd, options: { ...cmd.options, sourceRoot: cmd.options.outDir } }, cmd.options.outDir ?? '', _log);
+
 	const service = ts.createLanguageService(host, ts.createDocumentRegistry());
 	const lastBuildVersion: { [path: string]: string } = Object.create(null);
 	const lastDtsHash: { [path: string]: string } = Object.create(null);
@@ -258,6 +261,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 		const toBeCheckedSemantically: string[] = [];
 		const filesWithChangedSignature: string[] = [];
 		const dependentFiles: string[] = [];
+		const toBeCheckedForCycles: string[] = [];
 		const newLastBuildVersion = new Map<string, string>();
 
 		for (const fileName of host.getScriptFileNames()) {
@@ -305,6 +309,14 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 							lastDtsHash[fileName] = value.signature;
 							filesWithChangedSignature.push(fileName);
 						}
+
+						// line up for cycle check
+						const jsValue = value.files.find(candidate => candidate.basename.endsWith('.js'));
+						if (jsValue) {
+							toBeCheckedForCycles.push(jsValue.path);
+							outHost.addScriptSnapshot(jsValue.path, new ScriptSnapshot(String(jsValue.contents), new Date()));
+						}
+
 					}).catch(e => {
 						// can't just skip this or make a result up..
 						host.error(`ERROR emitting ${fileName}`);
@@ -386,6 +398,23 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 							dependentFiles.push(fileName);
 							toBeCheckedSemantically.push(fileName);
 						}
+					}
+				}
+
+				// (6th) check for cyclic dependencies
+				else if (toBeCheckedForCycles.length) {
+					const oneCycle = outHost.hasCyclicDependency(toBeCheckedForCycles);
+					toBeCheckedForCycles.length = 0;
+
+					if (oneCycle) {
+						onError({
+							category: ts.DiagnosticCategory.Error,
+							code: 1,
+							file: undefined,
+							start: undefined,
+							length: undefined,
+							messageText: `CYCLIC dependency between ${oneCycle}`
+						} satisfies ts.Diagnostic);
 					}
 				}
 
@@ -632,6 +661,68 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		}
 	}
 
+	hasCyclicDependency(filenames: string[]): string | undefined {
+		// Ensure dependencies are up to date
+		while (this._dependenciesRecomputeList.length) {
+			this._processFile(this._dependenciesRecomputeList.pop()!);
+		}
+
+		// Normalize all filenames
+		const normalizedFiles = filenames.map(normalize);
+		const visited = new Set<string>();
+		const recursionStack = new Set<string>();
+		const pathStack: string[] = [];
+
+		const hasPath = (from: string, to: string): boolean => {
+			if (from === to && recursionStack.has(from)) {
+				pathStack.push(from); // Complete the cycle
+				return true;
+			}
+
+			visited.add(from);
+			recursionStack.add(from);
+			pathStack.push(from);
+
+			const node = this._dependencies.lookup(from);
+			if (node) {
+				for (const key in node.outgoing) {
+					if (recursionStack.has(key)) {
+						if (key === to) {
+							pathStack.push(key); // Found cycle back to target
+							return true;
+						}
+					} else if (!visited.has(key)) {
+						if (hasPath(key, to)) {
+							return true;
+						}
+					}
+				}
+			}
+
+			recursionStack.delete(from);
+			pathStack.pop();
+			return false;
+		};
+
+		// Check for cycles between each pair of files
+		for (let i = 0; i < normalizedFiles.length; i++) {
+			for (let j = i + 1; j < normalizedFiles.length; j++) {
+				visited.clear();
+				recursionStack.clear();
+				pathStack.length = 0;
+
+				if (hasPath(normalizedFiles[i], normalizedFiles[j])) {
+					// Format the cycle path
+					const last = pathStack.at(-1);
+					const idx = last ? pathStack.indexOf(last) : 0;
+					return pathStack.slice(idx).join(' → ');
+				}
+			}
+		}
+
+		return undefined;
+	}
+
 	_processFile(filename: string): void {
 		if (filename.match(/.*\.d\.ts$/)) {
 			return;
@@ -672,6 +763,10 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 
 				} else if (this.getScriptSnapshot(normalizedPath + '.d.ts')) {
 					this._dependencies.inertEdge(filename, normalizedPath + '.d.ts');
+					found = true;
+
+				} else if (this.getScriptSnapshot(normalizedPath + '.js')) {
+					this._dependencies.inertEdge(filename, normalizedPath + '.js');
 					found = true;
 				}
 			}
