@@ -499,12 +499,12 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			return Promise.resolve([]);
 		}
 
-		const filePatternsToUse = include ? [include] : filePatterns;
+		const filePatternsToUse = include ? [include] : filePatterns ?? [];
 		if (!Array.isArray(filePatternsToUse)) {
 			throw new Error(`Invalid file pattern provided ${filePatternsToUse}`);
 		}
 
-		const queryOptions: QueryOptions<IFileQueryBuilderOptions>[] = filePatternsToUse?.map(filePattern => {
+		const queryOptions: QueryOptions<IFileQueryBuilderOptions>[] = filePatternsToUse.map(filePattern => {
 
 			const excludePatterns = globsToISearchPatternBuilder(options.exclude);
 
@@ -532,7 +532,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				folder: folderToUse,
 				options: fileQueries
 			};
-		}) ?? [];
+		});
 
 		return this._findFilesBase(queryOptions, token);
 	}
