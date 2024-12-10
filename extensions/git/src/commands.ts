@@ -2894,7 +2894,7 @@ export class CommandCenter {
 				await item.run(repository, force);
 			} catch (err) {
 				if (err.gitErrorCode !== GitErrorCodes.BranchNotFullyMerged) {
-					window.showErrorMessage(l10n.t('Failed to delete branch: Git error code: {0}, {1}', err.gitErrorCode, item.label));
+					window.showErrorMessage(l10n.t('Failed to delete branch: Git error code: {0}', item.label));
 					continue; // Skip to the next item
 				} else {
 					const message = l10n.t('The branch "{0}" is not fully merged. Delete anyway?', name);
