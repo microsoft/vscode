@@ -8,15 +8,28 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { Constants } from '../../../terminal/browser/terminal.contribution.js';
+import { TerminalClipboardSettingId } from '../common/terminalClipboardConfiguration.js';
+import { SmartPasteUtils } from './smartPasteUtils.js';
 
-export async function shouldPasteTerminalText(accessor: ServicesAccessor, text: string, bracketedPasteMode: boolean | undefined): Promise<boolean | { modifiedText: string }> {
+export async function shouldPasteTerminalText(accessor: ServicesAccessor, text: string, bracketedPasteMode: boolean | undefined, shellType: string): Promise<boolean | { modifiedText: string }> {
 	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);
 
 	// If the clipboard has only one line, a warning should never show
 	const textForLines = text.split(/\r?\n/);
+
+	const isSmartPasteAllowed = configurationService.getValue(TerminalClipboardSettingId.EnableSmartPaste);
+	// If the string is a path process it depending on the shell type
+	// multi line strings aren't handled
+	let modifiedText = text;
+
+	if (isSmartPasteAllowed) {
+		modifiedText = SmartPasteUtils.handleSmartPaste(text, shellType);
+	}
+
 	if (textForLines.length === 1) {
-		return true;
+		return text === modifiedText ? true : { modifiedText: modifiedText };
 	}
 
 	// Get config value
@@ -94,8 +107,14 @@ export async function shouldPasteTerminalText(accessor: ServicesAccessor, text: 
 		return false;
 	}
 
-	if (result.confirmed && checkboxChecked) {
-		await configurationService.updateValue(TerminalSettingId.EnableMultiLinePasteWarning, false);
+	if (result.confirmed) {
+		/* Send ctrl+v to PSReadline if its a pwsh instance */
+		if (shellType === 'pwsh' && !result.singleLine) {
+			return { modifiedText: String.fromCharCode('V'.charCodeAt(0) - Constants.CtrlLetterOffset) };
+		}
+		if (checkboxChecked) {
+			await configurationService.updateValue(TerminalSettingId.EnableMultiLinePasteWarning, false);
+		}
 	}
 
 	if (result.singleLine) {

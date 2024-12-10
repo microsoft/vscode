@@ -12,7 +12,7 @@ import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { TerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
-import { ITerminalBackend } from '../../../../platform/terminal/common/terminal.js';
+import { ITerminalBackend, TerminalShellType } from '../../../../platform/terminal/common/terminal.js';
 import { IDetachedTerminalInstance, IDetachedXTermOptions, IDetachedXtermTerminal, ITerminalContribution, IXtermAttachToElementOptions } from './terminal.js';
 import { TerminalExtensionsRegistry } from './terminalExtensions.js';
 import { TerminalWidgetManager } from './widgets/widgetManager.js';
@@ -72,6 +72,7 @@ export class DetachedTerminal extends Disposable implements IDetachedTerminalIns
 			}
 		});
 	}
+	shellType: TerminalShellType | undefined;
 
 	get selection(): string | undefined {
 		return this._xterm && this.hasSelection() ? this._xterm.raw.getSelection() : undefined;
