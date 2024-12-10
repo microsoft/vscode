@@ -493,13 +493,17 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		include: vscode.GlobPattern | undefined,
 		filePatterns: vscode.GlobPattern[] | undefined,
 		options: vscode.FindFiles2Options,
-		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
-		if (token && token.isCancellationRequested) {
+		token: vscode.CancellationToken
+	): Promise<vscode.Uri[]> {
+		if (token.isCancellationRequested) {
 			return Promise.resolve([]);
 		}
 
+		const filePatternsToUse = include ? [include] : filePatterns;
+		if (!Array.isArray(filePatternsToUse)) {
+			throw new Error(`Invalid file pattern provided ${filePatternsToUse}`);
+		}
 
-		const filePatternsToUse = include !== undefined ? [include] : filePatterns;
 		const queryOptions: QueryOptions<IFileQueryBuilderOptions>[] = filePatternsToUse?.map(filePattern => {
 
 			const excludePatterns = globsToISearchPatternBuilder(options.exclude);
