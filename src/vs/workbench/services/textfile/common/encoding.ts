@@ -760,6 +760,31 @@ export const SUPPORTED_ENCODINGS: EncodingsMap = {
 		labelLong: 'Western European DOS (CP 850)',
 		labelShort: 'CP 850',
 		order: 47
+	},
+	cp855: {
+		labelLong: 'Cyrillic (Russian) DOS (CP 855)',
+		labelShort: 'CP 855',
+		order: 48
+	},
+	cp857: {
+		labelLong: 'Turkish DOS (CP 857)',
+		labelShort: 'CP 857',
+		order: 49
+	},
+	cp860: {
+		labelLong: 'Portuguese DOS (CP 860)',
+		labelShort: 'CP 860',
+		order: 50
+	},
+	cp861: {
+		labelLong: 'Icelandic DOS (CP 861)',
+		labelShort: 'CP 861',
+		order: 51
+	},
+	cp869: {
+		labelLong: 'Modern Greek DOS (CP 869)',
+		labelShort: 'CP 869',
+		order: 52
 	}
 };
 
