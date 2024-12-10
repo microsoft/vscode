@@ -2031,6 +2031,7 @@ export class SCMViewPane extends ViewPane {
 	private listLabels!: ResourceLabels;
 	private inputRenderer!: InputRenderer;
 	private actionButtonRenderer!: ActionButtonRenderer;
+	private lastSelectedResource: ISCMResource | undefined;
 
 	private _viewMode: ViewMode;
 	get viewMode(): ViewMode { return this._viewMode; }
@@ -2317,6 +2318,12 @@ export class SCMViewPane extends ViewPane {
 		this.tree.onDidOpen(this.open, this, this.disposables);
 		this.tree.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer, this.disposables);
+		this.tree.onDidChangeSelection((e) => {
+			const selectedResource = e.elements.find(e => isSCMResource(e));
+			if (selectedResource) {
+				this.lastSelectedResource = selectedResource;
+			}
+		}, this, this.disposables);
 		Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element?.element), this.disposables)(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
 
 		this.disposables.add(autorun(reader => {
@@ -2654,6 +2661,7 @@ export class SCMViewPane extends ViewPane {
 
 					this.updateScmProviderContextKeys();
 					this.updateRepositoryCollapseAllContextKeys();
+					this.updateLastSelectedResource();
 				}));
 	}
 
@@ -2676,6 +2684,22 @@ export class SCMViewPane extends ViewPane {
 			this.scmProviderContextKey.set(undefined);
 			this.scmProviderRootUriContextKey.set(undefined);
 			this.scmProviderHasRootUriContextKey.set(false);
+		}
+	}
+
+	private updateLastSelectedResource(): void {
+		if (!this.scmViewService.focusedRepository ||
+			this.scmViewService.visibleRepositories.length === 0) {
+			this.lastSelectedResource = undefined;
+			return;
+		}
+		const groups = this.scmViewService.focusedRepository.provider.groups;
+		const resources = groups.flatMap(g => g.resources);
+		if (this.lastSelectedResource) {
+			const resource = resources.find(r => r.sourceUri.toString() === this.lastSelectedResource?.sourceUri.toString());
+			if (!resource) {
+				this.lastSelectedResource = undefined;
+			}
 		}
 	}
 
@@ -2739,6 +2763,60 @@ export class SCMViewPane extends ViewPane {
 
 		this.tree.reveal(input);
 		this.inputRenderer.getRenderedInputWidget(input)?.focus();
+	}
+
+	focusPreviousChangedFile(): void {
+		this.treeOperationSequencer.queue(() => this.focusChangedFile(-1));
+	}
+
+	focusNextChangedFile(): void {
+		this.treeOperationSequencer.queue(() => this.focusChangedFile(1));
+	}
+
+	private async focusChangedFile(delta: number): Promise<void> {
+		if (!this.scmViewService.focusedRepository ||
+			this.scmViewService.visibleRepositories.length === 0) {
+			return;
+		}
+
+		const treeHasDomFocus = isActiveElement(this.tree.getHTMLElement());
+		const resourceGroups = this.scmViewService.focusedRepository.provider.groups;
+		const resources = resourceGroups.flatMap(g => g.resources);
+		const focusedResource = this.tree.getFocus().find(isSCMResource);
+
+		const findResourceIndex = (resource: ISCMResource | undefined): number => {
+			if (!resource) {
+				return -1;
+			}
+			const targetResource = resources.find(r => r.sourceUri.toString() === resource.sourceUri.toString());
+			return targetResource ? resources.indexOf(targetResource) : -1;
+		};
+
+		const focusedResourceIndex = treeHasDomFocus && focusedResource
+			? findResourceIndex(focusedResource)
+			: findResourceIndex(this.lastSelectedResource);
+
+		let resourceCandidate: ISCMResource | undefined;
+		if (focusedResourceIndex === -1) {
+			resourceCandidate = resources.find(resource => this.tree.hasNode(resource));
+		} else {
+			let index = rot(focusedResourceIndex + delta, resources.length);
+			while (index !== focusedResourceIndex) {
+				if (this.tree.hasNode(resources[index])) {
+					resourceCandidate = resources[index];
+					break;
+				}
+				index = rot(index + delta, resources.length);
+			}
+		}
+		if (resourceCandidate && resourceCandidate.command) {
+			await this.commandService.executeCommand(resourceCandidate.command.id, ...(resourceCandidate.command.arguments || []));
+			this.lastSelectedResource = resourceCandidate;
+			this.tree.reveal(resourceCandidate);
+			this.tree.setSelection([resourceCandidate]);
+			this.tree.setFocus([resourceCandidate]);
+			this.tree.domFocus();
+		}
 	}
 
 	focusPreviousResourceGroup(): void {
