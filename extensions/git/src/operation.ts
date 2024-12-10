@@ -134,7 +134,7 @@ export type TagOperation = BaseOperation & { kind: OperationKind.Tag };
 export const Operation = {
 	Add: (showProgress: boolean): AddOperation => ({ kind: OperationKind.Add, blocking: false, readOnly: false, remote: false, retry: false, showProgress }),
 	Apply: { kind: OperationKind.Apply, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as ApplyOperation,
-	Blame: { kind: OperationKind.Blame, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as BlameOperation,
+	Blame: (showProgress: boolean) => ({ kind: OperationKind.Blame, blocking: false, readOnly: true, remote: false, retry: false, showProgress } as BlameOperation),
 	Branch: { kind: OperationKind.Branch, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as BranchOperation,
 	CheckIgnore: { kind: OperationKind.CheckIgnore, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as CheckIgnoreOperation,
 	CherryPick: { kind: OperationKind.CherryPick, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as CherryPickOperation,

@@ -7,14 +7,14 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import * as fs from 'fs';
 import * as path from 'path';
 import picomatch from 'picomatch';
-import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, Uri, window, workspace, WorkspaceEdit } from 'vscode';
+import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, Uri, window, workspace, WorkspaceEdit } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
 import { Branch, BranchQuery, Change, CommitOptions, FetchOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefQuery, RefType, Remote, Status } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { debounce, memoize, throttle } from './decorators';
-import { Repository as BaseRepository, Commit, GitError, LogFileOptions, LsTreeElement, PullOptions, Stash, Submodule } from './git';
+import { Repository as BaseRepository, BlameInformation, Commit, GitError, LogFileOptions, LsTreeElement, PullOptions, Stash, Submodule } from './git';
 import { GitHistoryProvider } from './historyProvider';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
@@ -984,9 +984,9 @@ export class Repository implements Disposable {
 		this.commitCommandCenter = new CommitCommandsCenter(globalState, this, postCommitCommandsProviderRegistry);
 		this.disposables.push(this.commitCommandCenter);
 
-		const actionButton = new ActionButton(this, this.commitCommandCenter);
+		const actionButton = new ActionButton(this, this.commitCommandCenter, this.logger);
 		this.disposables.push(actionButton);
-		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button);
+		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button, this, this.disposables);
 		this._sourceControl.actionButton = actionButton.button;
 
 		const progressManager = new ProgressManager(this);
@@ -1021,7 +1021,7 @@ export class Repository implements Disposable {
 	 * Quick diff label
 	 */
 	get label(): string {
-		return l10n.t('Git local working changes');
+		return l10n.t('Git local changes (working tree)');
 	}
 
 	provideOriginalResource(uri: Uri): Uri | undefined {
@@ -1783,7 +1783,11 @@ export class Repository implements Disposable {
 	}
 
 	async blame(path: string): Promise<string> {
-		return await this.run(Operation.Blame, () => this.repository.blame(path));
+		return await this.run(Operation.Blame(true), () => this.repository.blame(path));
+	}
+
+	async blame2(path: string, ref?: string): Promise<BlameInformation[] | undefined> {
+		return await this.run(Operation.Blame(false), () => this.repository.blame2(path, ref));
 	}
 
 	@throttle
@@ -2674,5 +2678,34 @@ export class Repository implements Disposable {
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
+	readonly visible: boolean = false;
+
+	private _disposables: IDisposable[] = [];
+
+	constructor(private readonly _repositoryResolver: IRepositoryResolver) {
+		this._disposables.push(window.registerQuickDiffProvider({ scheme: 'file' }, this, l10n.t('Git local changes (working tree + index)')));
+	}
+
+	provideOriginalResource(uri: Uri): Uri | undefined {
+		// Ignore resources outside a repository
+		const repository = this._repositoryResolver.getRepository(uri);
+		if (!repository) {
+			return undefined;
+		}
+
+		// Ignore resources that are not in the index group
+		if (!repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
+			return undefined;
+		}
+
+		return toGitUri(uri, 'HEAD', { replaceFileExtension: true });
+	}
+
+	dispose() {
+		this._disposables = dispose(this._disposables);
 	}
 }

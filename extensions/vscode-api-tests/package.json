@@ -30,6 +30,7 @@
     "interactive",
     "languageStatusText",
     "mappedEditsProvider",
+    "nativeWindowHandle",
     "notebookCellExecutionState",
     "notebookDeprecated",
     "notebookLiveShare",

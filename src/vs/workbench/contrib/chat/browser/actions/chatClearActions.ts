@@ -16,9 +16,9 @@ import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_EDITING_CAN_REDO, CONTEXT_CHAT_EDITING_CAN_UNDO, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_SESSION } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
-import { CHAT_VIEW_ID, EDITS_VIEW_ID, IChatWidgetService } from '../chat.js';
+import { ChatViewId, EditsViewId, IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -36,7 +36,7 @@ export function registerNewChatActions() {
 				title: localize2('chat.newChat.label', "New Chat"),
 				icon: Codicon.plus,
 				f1: false,
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
@@ -58,7 +58,7 @@ export function registerNewChatActions() {
 				title: localize2('chat.newChat.label', "New Chat"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.plus,
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession)),
 				f1: true,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
@@ -66,7 +66,7 @@ export function registerNewChatActions() {
 					mac: {
 						primary: KeyMod.WinCtrl | KeyCode.KeyL
 					},
-					when: CONTEXT_IN_CHAT_SESSION
+					when: ChatContextKeys.inChatSession
 				},
 				menu: [{
 					id: MenuId.ChatContext,
@@ -74,7 +74,7 @@ export function registerNewChatActions() {
 				},
 				{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', CHAT_VIEW_ID),
+					when: ContextKeyExpr.equals('view', ChatViewId),
 					group: 'navigation',
 					order: -1
 				}]
@@ -85,21 +85,15 @@ export function registerNewChatActions() {
 			const context = args[0];
 			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 			const widgetService = accessor.get(IChatWidgetService);
+
+			let widget = widgetService.lastFocusedWidget;
+
 			if (isChatViewTitleActionContext(context)) {
-				const widget = widgetService.getWidgetBySessionId(context.sessionId);
 				// Is running in the Chat view title
-				announceChatCleared(accessibilitySignalService);
-				if (widget) {
-					widget.clear();
-					widget.focusInput();
-				}
-			} else {
-				// Is running from f1 or keybinding
-				const viewsService = accessor.get(IViewsService);
+				widget = widgetService.getWidgetBySessionId(context.sessionId);
+			}
 
-				const chatView = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
-				const widget = chatView.widget;
-
+			if (widget) {
 				announceChatCleared(accessibilitySignalService);
 				widget.clear();
 				widget.focusInput();
@@ -114,7 +108,7 @@ export function registerNewChatActions() {
 				title: localize2('chat.newEdits.label', "New Edit Session"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.plus,
-				precondition: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
 				menu: [{
 					id: MenuId.ChatContext,
@@ -122,11 +116,18 @@ export function registerNewChatActions() {
 				},
 				{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', EDITS_VIEW_ID),
+					when: ContextKeyExpr.equals('view', EditsViewId),
 					group: 'navigation',
 					order: -1
-				},
-				]
+				}],
+				keybinding: {
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyMod.CtrlCmd | KeyCode.KeyL,
+					mac: {
+						primary: KeyMod.WinCtrl | KeyCode.KeyL
+					},
+					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))
+				}
 			});
 		}
 
@@ -144,21 +145,21 @@ export function registerNewChatActions() {
 				if (undecidedEdits.length) {
 					const { result } = await dialogService.prompt({
 						title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
-						message: localize('chat.startEditing.confirmation.pending.message', "Starting a new editing session will end your current session. Do you want to discard pending edits to {0} files?", undecidedEdits.length),
+						message: localize('chat.startEditing.confirmation.pending.message.2', "Starting a new editing session will end your current session. Do you want to accept pending edits to {0} files?", undecidedEdits.length),
 						type: 'info',
 						cancelButton: true,
 						buttons: [
 							{
-								label: localize('chat.startEditing.confirmation.discardEdits', "Discard & Continue"),
+								label: localize('chat.startEditing.confirmation.acceptEdits', "Accept & Continue"),
 								run: async () => {
-									await currentEditingSession.reject();
+									await currentEditingSession.accept();
 									return true;
 								}
 							},
 							{
-								label: localize('chat.startEditing.confirmation.acceptEdits', "Accept & Continue"),
+								label: localize('chat.startEditing.confirmation.discardEdits', "Discard & Continue"),
 								run: async () => {
-									await currentEditingSession.accept();
+									await currentEditingSession.reject();
 									return true;
 								}
 							}
@@ -187,18 +188,18 @@ export function registerNewChatActions() {
 				announceChatCleared(accessibilitySignalService);
 				const widget = widgetService.getWidgetBySessionId(context.sessionId);
 				if (widget) {
-					chatEditingService.currentEditingSessionObs.get()?.stop();
+					chatEditingService.currentEditingSessionObs.get()?.stop(true);
 					widget.clear();
 					widget.attachmentModel.clear();
 					widget.focusInput();
 				}
 			} else {
 				// Is running from f1 or keybinding
-				const chatView = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
+				const chatView = await viewsService.openView(EditsViewId) as ChatViewPane;
 				const widget = chatView.widget;
 
 				announceChatCleared(accessibilitySignalService);
-				chatEditingService.currentEditingSessionObs.get()?.stop();
+				chatEditingService.currentEditingSessionObs.get()?.stop(true);
 				widget.clear();
 				widget.attachmentModel.clear();
 				widget.focusInput();
@@ -212,11 +213,11 @@ export function registerNewChatActions() {
 				id: 'workbench.action.chat.done',
 				title: localize2('chat.done.label', "Done"),
 				category: CHAT_CATEGORY,
-				precondition: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: false,
 				menu: [{
 					id: MenuId.ChatEditingWidgetToolbar,
-					when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey.negate(), hasAppliedChatEditsContextKey, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)),
+					when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey.negate(), hasAppliedChatEditsContextKey, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
 					group: 'navigation',
 					order: 0
 				}]
@@ -240,7 +241,7 @@ export function registerNewChatActions() {
 				// Is running from f1 or keybinding
 				const viewsService = accessor.get(IViewsService);
 
-				const chatView = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
+				const chatView = await viewsService.openView(EditsViewId) as ChatViewPane;
 				const widget = chatView.widget;
 
 				announceChatCleared(accessibilitySignalService);
@@ -258,11 +259,11 @@ export function registerNewChatActions() {
 				title: localize2('chat.undoEdit.label', "Undo Last Edit"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.discard,
-				precondition: ContextKeyExpr.and(CONTEXT_CHAT_EDITING_CAN_UNDO, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
+				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanUndo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', EDITS_VIEW_ID),
+					when: ContextKeyExpr.equals('view', EditsViewId),
 					group: 'navigation',
 					order: -3
 				}]
@@ -271,15 +272,11 @@ export function registerNewChatActions() {
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const chatEditingService = accessor.get(IChatEditingService);
-			const chatWidgetService = accessor.get(IChatWidgetService);
 			const currentEditingSession = chatEditingService.currentEditingSession;
 			if (!currentEditingSession) {
 				return;
 			}
-
-			const widget = chatWidgetService.getWidgetBySessionId(currentEditingSession.chatSessionId);
 			await currentEditingSession.undoInteraction();
-			widget?.viewModel?.model.disableRequests(currentEditingSession.hiddenRequestIds.get());
 		}
 	});
 
@@ -290,11 +287,11 @@ export function registerNewChatActions() {
 				title: localize2('chat.redoEdit.label', "Redo Last Edit"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.redo,
-				precondition: ContextKeyExpr.and(CONTEXT_CHAT_EDITING_CAN_REDO, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
+				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', EDITS_VIEW_ID),
+					when: ContextKeyExpr.equals('view', EditsViewId),
 					group: 'navigation',
 					order: -2
 				}]
@@ -303,15 +300,11 @@ export function registerNewChatActions() {
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const chatEditingService = accessor.get(IChatEditingService);
-			const chatWidgetService = accessor.get(IChatWidgetService);
 			const currentEditingSession = chatEditingService.currentEditingSession;
 			if (!currentEditingSession) {
 				return;
 			}
-
-			const widget = chatWidgetService.getWidgetBySessionId(currentEditingSession.chatSessionId);
 			await chatEditingService.currentEditingSession?.redoInteraction();
-			widget?.viewModel?.model.disableRequests(currentEditingSession.hiddenRequestIds.get());
 		}
 	});
 
@@ -322,30 +315,41 @@ export function registerNewChatActions() {
 				title: localize2('chat.openEdits.label', "Open {0}", 'Copilot Edits'),
 				category: CHAT_CATEGORY,
 				icon: Codicon.goToEditingSession,
-				precondition: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHAT_VIEW_ID), CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ChatContextKeys.editingParticipantRegistered,
+						ContextKeyExpr.equals(`view.${EditsViewId}.visible`, false),
+						ContextKeyExpr.or(
+							ContextKeyExpr.and(ContextKeyExpr.equals(`workbench.panel.chat.defaultViewContainerLocation`, true), ContextKeyExpr.equals(`workbench.panel.chatEditing.defaultViewContainerLocation`, false)),
+							ContextKeyExpr.and(ContextKeyExpr.equals(`workbench.panel.chat.defaultViewContainerLocation`, false), ContextKeyExpr.equals(`workbench.panel.chatEditing.defaultViewContainerLocation`, true)),
+						)),
 					group: 'navigation',
 					order: 1
 				}, {
 					id: MenuId.ChatCommandCenter,
-					when: CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED,
-					group: 'a_chatEdit',
-					order: 1
+					group: 'a_open',
+					order: 2
+				}, {
+					id: MenuId.ChatEditingEditorContent,
+					group: 'navigate',
+					order: 4,
 				}],
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
-					when: ContextKeyExpr.and(ContextKeyExpr.notEquals('view', EDITS_VIEW_ID), CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED)
+					linux: {
+						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI
+					},
+					when: ContextKeyExpr.and(ContextKeyExpr.notEquals('view', EditsViewId), ChatContextKeys.editingParticipantRegistered)
 				}
 			});
 		}
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const viewsService = accessor.get(IViewsService);
-			const chatView = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
+			const chatView = await viewsService.openView(EditsViewId) as ChatViewPane;
 			chatView.widget.focusInput();
 		}
 	});

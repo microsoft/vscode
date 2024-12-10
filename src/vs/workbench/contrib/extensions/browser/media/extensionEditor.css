@@ -308,11 +308,17 @@
 	margin-bottom: 0px;
 }
 
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry > .link {
+	cursor: pointer;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry > .link,
 .extension-editor > .header > .details > .pre-release-text a,
 .extension-editor > .header > .details > .actions-status-container > .status a {
 	color: var(--vscode-textLink-foreground)
 }
 
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry .link:hover,
 .extension-editor > .header > .details > .pre-release-text a:hover,
 .extension-editor > .header > .details > .actions-status-container > .status a:hover {
 	text-decoration: underline;
@@ -875,4 +881,13 @@
 
 .extension-editor .subcontent.feature-contributions .extension-feature-content .feature-body .feature-body-content .feature-content.markdown .codicon {
 	vertical-align: sub;
+}
+
+.extension-editor .subcontent.feature-contributions .extension-feature-content .feature-chart-container {
+	margin: 20px 0;
+}
+
+.extension-editor .subcontent.feature-contributions .extension-feature-content .feature-chart-container > .feature-chart {
+	display: inline-block;
+	padding: 20px;
 }

@@ -26,15 +26,15 @@ export const Extensions = {
 export type IconDefaults = ThemeIcon | IconDefinition;
 
 export interface IconDefinition {
-	font?: IconFontContribution; // undefined for the default font (codicon)
-	fontCharacter: string;
+	readonly font?: IconFontContribution; // undefined for the default font (codicon)
+	readonly fontCharacter: string;
 }
 
 
 export interface IconContribution {
 	readonly id: string;
 	description: string | undefined;
-	deprecationMessage?: string;
+	readonly deprecationMessage?: string;
 	readonly defaults: IconDefaults;
 }
 

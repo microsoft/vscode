@@ -80,7 +80,18 @@ export class RenderingContext extends RestrictedRenderingContext {
 	}
 
 	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
-		return this._viewLines.linesVisibleRangesForRange(range, includeNewLines) ?? this._viewLinesGpu?.linesVisibleRangesForRange(range, includeNewLines) ?? null;
+		const domRanges = this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
+		if (!this._viewLinesGpu) {
+			return domRanges ?? null;
+		}
+		const gpuRanges = this._viewLinesGpu.linesVisibleRangesForRange(range, includeNewLines);
+		if (!domRanges) {
+			return gpuRanges;
+		}
+		if (!gpuRanges) {
+			return domRanges;
+		}
+		return domRanges.concat(gpuRanges).sort((a, b) => a.lineNumber - b.lineNumber);
 	}
 
 	public visibleRangeForPosition(position: Position): HorizontalPosition | null {

@@ -6,7 +6,7 @@
 import type { Parser } from '@vscode/tree-sitter-wasm';
 import { Event } from '../../../base/common/event.js';
 import { ITextModel } from '../../common/model.js';
-import { ITreeSitterParseResult, ITreeSitterParserService } from '../../common/services/treeSitterParserService.js';
+import { ITextModelTreeSitter, ITreeSitterParseResult, ITreeSitterParserService } from '../../common/services/treeSitterParserService.js';
 import { Range } from '../../common/core/range.js';
 
 /**
@@ -14,6 +14,9 @@ import { Range } from '../../common/core/range.js';
  * We use a dummy sertive here to make the build happy.
  */
 export class StandaloneTreeSitterParserService implements ITreeSitterParserService {
+	getTextModelTreeSitter(textModel: ITextModel): ITextModelTreeSitter | undefined {
+		return undefined;
+	}
 	async getTree(content: string, languageId: string): Promise<Parser.Tree | undefined> {
 		return undefined;
 	}

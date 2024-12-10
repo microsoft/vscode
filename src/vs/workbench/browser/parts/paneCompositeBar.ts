@@ -11,7 +11,8 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IDisposable, DisposableStore, Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from './compositeBar.js';
-import { Dimension, createCSSRule, isMouseEvent } from '../../../base/browser/dom.js';
+import { Dimension, isMouseEvent } from '../../../base/browser/dom.js';
+import { createCSSRule } from '../../../base/browser/domStylesheets.js';
 import { asCSSUrl } from '../../../base/browser/cssValue.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
@@ -24,7 +25,7 @@ import { IWorkbenchEnvironmentService } from '../../services/environment/common/
 import { isNative } from '../../../base/common/platform.js';
 import { Before2D, ICompositeDragAndDrop } from '../dnd.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
-import { IAction, toAction } from '../../../base/common/actions.js';
+import { IAction, Separator, SubmenuAction, toAction } from '../../../base/common/actions.js';
 import { StringSHA1 } from '../../../base/common/hash.js';
 import { GestureEvent } from '../../../base/browser/touch.js';
 import { IPaneCompositePart } from './paneCompositePart.js';
@@ -158,24 +159,64 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private getContextMenuActionsForComposite(compositeId: string): IAction[] {
-		const actions: IAction[] = [];
+		const actions: IAction[] = [new Separator()];
 
 		const viewContainer = this.viewDescriptorService.getViewContainerById(compositeId)!;
 		const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer)!;
-		if (defaultLocation !== this.viewDescriptorService.getViewContainerLocation(viewContainer)) {
-			actions.push(toAction({ id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultLocation, undefined, 'resetLocationAction') }));
+		const currentLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
+
+		// Move View Container
+		const moveActions = [];
+		for (const location of [ViewContainerLocation.Sidebar, ViewContainerLocation.AuxiliaryBar, ViewContainerLocation.Panel]) {
+			if (currentLocation !== location) {
+				moveActions.push(this.createMoveAction(viewContainer, location, defaultLocation));
+			}
+		}
+
+		actions.push(new SubmenuAction('moveToMenu', localize('moveToMenu', "Move To"), moveActions));
+
+		// Reset Location
+		if (defaultLocation !== currentLocation) {
+			actions.push(toAction({
+				id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => {
+					this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultLocation, undefined, 'resetLocationAction');
+					this.viewService.openViewContainer(viewContainer.id, true);
+				}
+			}));
 		} else {
 			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 			if (viewContainerModel.allViewDescriptors.length === 1) {
 				const viewToReset = viewContainerModel.allViewDescriptors[0];
 				const defaultContainer = this.viewDescriptorService.getDefaultContainerById(viewToReset.id)!;
 				if (defaultContainer !== viewContainer) {
-					actions.push(toAction({ id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => this.viewDescriptorService.moveViewsToContainer([viewToReset], defaultContainer, undefined, 'resetLocationAction') }));
+					actions.push(toAction({
+						id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => {
+							this.viewDescriptorService.moveViewsToContainer([viewToReset], defaultContainer, undefined, 'resetLocationAction');
+							this.viewService.openViewContainer(viewContainer.id, true);
+						}
+					}));
 				}
 			}
 		}
 
 		return actions;
+	}
+
+	private createMoveAction(viewContainer: ViewContainer, newLocation: ViewContainerLocation, defaultLocation: ViewContainerLocation): IAction {
+		return toAction({
+			id: `moveViewContainerTo${newLocation}`,
+			label: newLocation === ViewContainerLocation.Panel ? localize('panel', "Panel") : newLocation === ViewContainerLocation.Sidebar ? localize('sidebar', "Primary Side Bar") : localize('auxiliarybar', "Secondary Side Bar"),
+			run: () => {
+				let index: number | undefined;
+				if (newLocation !== defaultLocation) {
+					index = this.viewDescriptorService.getViewContainersByLocation(newLocation).length; // move to the end of the location
+				} else {
+					index = undefined; // restore default location
+				}
+				this.viewDescriptorService.moveViewContainerToLocation(viewContainer, newLocation, index);
+				this.viewService.openViewContainer(viewContainer.id, true);
+			}
+		});
 	}
 
 	private registerListeners(): void {

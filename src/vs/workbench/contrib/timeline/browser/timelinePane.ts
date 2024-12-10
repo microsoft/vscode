@@ -39,7 +39,7 @@ import { IViewDescriptorService } from '../../../common/views.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { createAndFillInContextMenuActions, createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getContextMenuActions, createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -56,8 +56,8 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 
 const ItemHeight = 22;
 
@@ -233,6 +233,7 @@ class LoadMoreCommand {
 
 export const TimelineFollowActiveEditorContext = new RawContextKey<boolean>('timelineFollowActiveEditor', true, true);
 export const TimelineExcludeSources = new RawContextKey<string>('timelineExcludeSources', '[]', true);
+export const TimelineViewFocusedContext = new RawContextKey<boolean>('timelineFocused', true);
 
 export class TimelinePane extends ViewPane {
 	static readonly TITLE: ILocalizedString = localize2('timeline', "Timeline");
@@ -925,7 +926,7 @@ export class TimelinePane extends ViewPane {
 			}
 		});
 
-		this.tree = <WorkbenchObjectTree<TreeElement, FuzzyScore>>this.instantiationService.createInstance(WorkbenchObjectTree, 'TimelinePane',
+		this.tree = this.instantiationService.createInstance(WorkbenchObjectTree<TreeElement, FuzzyScore>, 'TimelinePane',
 			this.$tree, new TimelineListVirtualDelegate(), [this.treeRenderer], {
 			identityProvider: new TimelineIdentityProvider(),
 			accessibilityProvider: {
@@ -949,6 +950,8 @@ export class TimelinePane extends ViewPane {
 			multipleSelectionSupport: false,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 		});
+
+		TimelineViewFocusedContext.bindTo(this.tree.contextKeyService);
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(this.commands, e)));
 		this._register(this.tree.onDidChangeSelection(e => this.ensureValidItems()));
@@ -1159,7 +1162,11 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		@IThemeService private themeService: IThemeService,
 	) {
 		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
-		this._hoverDelegate = getDefaultHoverDelegate('mouse');
+		this._hoverDelegate = this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', false, {
+			position: {
+				hoverPosition: HoverPosition.RIGHT // Will flip when there's no space
+			}
+		});
 	}
 
 	private uri: URI | undefined;
@@ -1317,12 +1324,7 @@ class TimelinePaneCommands extends Disposable {
 		]);
 
 		const menu = this.menuService.getMenuActions(menuId, contextKeyService, { shouldForwardArgs: true });
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-		createAndFillInContextMenuActions(menu, result, 'inline');
-
-		return result;
+		return getContextMenuActions(menu, 'inline');
 	}
 
 	private updateTimelineSourceFilters() {

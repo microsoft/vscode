@@ -490,14 +490,18 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	get visibleTextEditorControls(): Array<ICodeEditor | IDiffEditor> {
+		return this.doGetVisibleTextEditorControls(this.visibleEditorPanes);
+	}
+
+	private doGetVisibleTextEditorControls(editorPanes: IVisibleEditorPane[]): Array<ICodeEditor | IDiffEditor> {
 		const visibleTextEditorControls: Array<ICodeEditor | IDiffEditor> = [];
-		for (const visibleEditorPane of this.visibleEditorPanes) {
+		for (const editorPane of editorPanes) {
 			const controls: Array<IEditorControl | undefined> = [];
-			if (visibleEditorPane instanceof SideBySideEditorPane) {
-				controls.push(visibleEditorPane.getPrimaryEditorPane()?.getControl());
-				controls.push(visibleEditorPane.getSecondaryEditorPane()?.getControl());
+			if (editorPane instanceof SideBySideEditorPane) {
+				controls.push(editorPane.getPrimaryEditorPane()?.getControl());
+				controls.push(editorPane.getSecondaryEditorPane()?.getControl());
 			} else {
-				controls.push(visibleEditorPane.getControl());
+				controls.push(editorPane.getControl());
 			}
 
 			for (const control of controls) {
@@ -508,6 +512,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		return visibleTextEditorControls;
+	}
+
+	getVisibleTextEditorControls(order: EditorsOrder): readonly (ICodeEditor | IDiffEditor)[] {
+		return this.doGetVisibleTextEditorControls(coalesce(this.editorGroupsContainer.getGroups(order === EditorsOrder.SEQUENTIAL ? GroupsOrder.GRID_APPEARANCE : GroupsOrder.MOST_RECENTLY_ACTIVE).map(group => group.activeEditorPane)));
 	}
 
 	get visibleEditors(): EditorInput[] {

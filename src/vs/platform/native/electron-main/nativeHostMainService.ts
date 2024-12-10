@@ -189,6 +189,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return undefined;
 	}
 
+	async getNativeWindowHandle(fallbackWindowId: number | undefined, windowId: number): Promise<VSBuffer | undefined> {
+		const window = this.windowById(windowId, fallbackWindowId);
+		if (window?.win) {
+			return VSBuffer.wrap(window.win.getNativeWindowHandle());
+		}
+		return undefined;
+	}
+
 	openWindow(windowId: number | undefined, options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 	openWindow(windowId: number | undefined, arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> {

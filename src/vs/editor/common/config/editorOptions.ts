@@ -238,10 +238,19 @@ export interface IEditorOptions {
 	 */
 	cursorSmoothCaretAnimation?: 'off' | 'explicit' | 'on';
 	/**
-	 * Control the cursor style, either 'block' or 'line'.
+	 * Control the cursor style in insert mode.
 	 * Defaults to 'line'.
 	 */
 	cursorStyle?: 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin';
+	/**
+	 * Control the cursor style in overtype mode.
+	 * Defaults to 'block'.
+	 */
+	overtypeCursorStyle?: 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin';
+	/**
+	 *  Controls whether paste in overtype mode should overwrite or insert.
+	 */
+	overtypeOnPaste?: boolean;
 	/**
 	 * Control the width of the cursor when cursorStyle is set to 'line'
 	 */
@@ -259,7 +268,7 @@ export interface IEditorOptions {
 	/**
 	 * Controls whether to use default color decorations or not using the default document color provider
 	 */
-	defaultColorDecorators?: boolean;
+	defaultColorDecorators?: 'auto' | 'always' | 'never';
 	/**
 	 * Disable the use of `transform: translate3d(0px, 0px, 0px)` for the editor margin and lines layers.
 	 * The usage of `transform: translate3d(0px, 0px, 0px)` acts as a hint for browsers to create an extra layer.
@@ -973,6 +982,7 @@ export interface IEnvironmentalOptions {
 	readonly emptySelectionClipboard: boolean;
 	readonly pixelRatio: number;
 	readonly tabFocusMode: boolean;
+	readonly inputMode: 'insert' | 'overtype';
 	readonly accessibilitySupport: AccessibilitySupport;
 	readonly glyphMarginDecorationLaneCount: number;
 }
@@ -1655,6 +1665,11 @@ export interface IEditorFindOptions {
 	 * Controls whether the search result and diff result automatically restarts from the beginning (or the end) when no further matches can be found
 	 */
 	loop?: boolean;
+	/**
+	 * @internal
+	 * Controls how the find widget search history should be stored
+	 */
+	history?: 'never' | 'workspace';
 }
 
 /**
@@ -1671,7 +1686,8 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			autoFindInSelection: 'never',
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
-			loop: true
+			loop: true,
+			history: 'workspace',
 		};
 		super(
 			EditorOption.find, 'find', defaults,
@@ -1719,7 +1735,16 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 					default: defaults.loop,
 					description: nls.localize('find.loop', "Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found.")
 				},
-
+				'editor.find.history': {
+					type: 'string',
+					enum: ['never', 'workspace'],
+					default: 'workspace',
+					enumDescriptions: [
+						nls.localize('editor.find.history.never', 'Do not store search history from the find widget.'),
+						nls.localize('editor.find.history.workspace', 'Store search history across the active workspace'),
+					],
+					description: nls.localize('find.history', "Controls how the find widget history should be stored")
+				}
 			}
 		);
 	}
@@ -1740,6 +1765,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
 			loop: boolean(input.loop, this.defaultValue.loop),
+			history: stringSet<'never' | 'workspace'>(input.history, this.defaultValue.history, ['never', 'workspace']),
 		};
 	}
 }
@@ -1868,6 +1894,23 @@ class EditorFontInfo extends ComputedEditorOption<EditorOption.fontInfo, FontInf
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: FontInfo): FontInfo {
 		return env.fontInfo;
+	}
+}
+
+//#endregion
+
+//#region effectiveCursorStyle
+
+class EffectiveCursorStyle extends ComputedEditorOption<EditorOption.effectiveCursorStyle, TextEditorCursorStyle> {
+
+	constructor() {
+		super(EditorOption.effectiveCursorStyle);
+	}
+
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: TextEditorCursorStyle): TextEditorCursorStyle {
+		return env.inputMode === 'overtype' ?
+			options.get(EditorOption.overtypeCursorStyle) :
+			options.get(EditorOption.cursorStyle);
 	}
 }
 
@@ -4152,14 +4195,21 @@ export interface IInlineSuggestOptions {
 	edits?: {
 		experimental?: {
 			enabled?: boolean;
+			useMixedLinesDiff?: 'never' | 'whenPossible' | 'afterJumpWhenPossible';
+			useInterleavedLinesDiff?: 'never' | 'always' | 'afterJump';
+			onlyShowWhenCloseToCursor?: boolean;
 		};
 	};
 }
 
+type RequiredRecursive<T> = {
+	[P in keyof T]-?: T[P] extends object | undefined ? RequiredRecursive<T[P]> : T[P];
+};
+
 /**
  * @internal
  */
-export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptions>>;
+export type InternalInlineSuggestOptions = Readonly<RequiredRecursive<IInlineSuggestOptions>>;
 
 /**
  * Configuration options for inline suggestions
@@ -4177,6 +4227,9 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			edits: {
 				experimental: {
 					enabled: true,
+					useMixedLinesDiff: 'never',
+					useInterleavedLinesDiff: 'never',
+					onlyShowWhenCloseToCursor: true,
 				},
 			},
 		};
@@ -4217,8 +4270,25 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				},
 				'editor.inlineSuggest.edits.experimental.enabled': {
 					type: 'boolean',
-					default: defaults.edits!.experimental!.enabled!,
+					default: defaults.edits.experimental.enabled,
 					description: nls.localize('inlineSuggest.edits.experimental.enabled', "Controls whether to enable experimental edits in inline suggestions.")
+				},
+				'editor.inlineSuggest.edits.experimental.useMixedLinesDiff': {
+					type: 'string',
+					default: defaults.edits.experimental.useMixedLinesDiff,
+					description: nls.localize('inlineSuggest.edits.experimental.useMixedLinesDiff', "Controls whether to enable experimental edits in inline suggestions."),
+					enum: ['never', 'whenPossible'],
+				},
+				'editor.inlineSuggest.edits.experimental.useInterleavedLinesDiff': {
+					type: 'string',
+					default: defaults.edits.experimental.useInterleavedLinesDiff,
+					description: nls.localize('inlineSuggest.edits.experimental.useInterleavedLinesDiff', "Controls whether to enable experimental interleaved lines diff in inline suggestions."),
+					enum: ['never', 'always', 'afterJump'],
+				},
+				'editor.inlineSuggest.edits.experimental.onlyShowWhenCloseToCursor': {
+					type: 'boolean',
+					default: defaults.edits.experimental.onlyShowWhenCloseToCursor,
+					description: nls.localize('inlineSuggest.edits.experimental.onlyShowWhenCloseToCursor', "Controls whether to only show inline suggestions when the cursor is close to the suggestion.")
 				},
 			}
 		);
@@ -4239,7 +4309,10 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			syntaxHighlightingEnabled: boolean(input.syntaxHighlightingEnabled, this.defaultValue.syntaxHighlightingEnabled),
 			edits: {
 				experimental: {
-					enabled: boolean(input.edits?.experimental?.enabled, this.defaultValue.edits.experimental!.enabled!),
+					enabled: boolean(input.edits?.experimental?.enabled, this.defaultValue.edits.experimental.enabled),
+					useMixedLinesDiff: stringSet(input.edits?.experimental?.useMixedLinesDiff, this.defaultValue.edits.experimental.useMixedLinesDiff, ['never', 'whenPossible', 'afterJumpWhenPossible']),
+					useInterleavedLinesDiff: stringSet(input.edits?.experimental?.useInterleavedLinesDiff, this.defaultValue.edits.experimental.useInterleavedLinesDiff, ['never', 'always', 'afterJump']),
+					onlyShowWhenCloseToCursor: boolean(input.edits?.experimental?.onlyShowWhenCloseToCursor, this.defaultValue.edits.experimental.onlyShowWhenCloseToCursor),
 				},
 			},
 		};
@@ -5386,6 +5459,8 @@ export const enum EditorOption {
 	multiCursorLimit,
 	occurrencesHighlight,
 	occurrencesHighlightDelay,
+	overtypeCursorStyle,
+	overtypeOnPaste,
 	overviewRulerBorder,
 	overviewRulerLanes,
 	padding,
@@ -5448,6 +5523,7 @@ export const enum EditorOption {
 	showDeprecated,
 	inlayHints,
 	// Leave these at the end (because they have dependencies!)
+	effectiveCursorStyle,
 	editorClassName,
 	pixelRatio,
 	tabFocusMode,
@@ -5672,7 +5748,14 @@ export const EditorOptions = {
 		TextEditorCursorStyle.Line, 'line',
 		['line', 'block', 'underline', 'line-thin', 'block-outline', 'underline-thin'],
 		cursorStyleFromString,
-		{ description: nls.localize('cursorStyle', "Controls the cursor style.") }
+		{ description: nls.localize('cursorStyle', "Controls the cursor style in insert input mode.") }
+	)),
+	overtypeCursorStyle: register(new EditorEnumOption(
+		EditorOption.overtypeCursorStyle, 'overtypeCursorStyle',
+		TextEditorCursorStyle.Block, 'block',
+		['line', 'block', 'underline', 'line-thin', 'block-outline', 'underline-thin'],
+		cursorStyleFromString,
+		{ description: nls.localize('overtypeCursorStyle', "Controls the cursor style in overtype input mode.") }
 	)),
 	cursorSurroundingLines: register(new EditorIntOption(
 		EditorOption.cursorSurroundingLines, 'cursorSurroundingLines',
@@ -5928,6 +6011,10 @@ export const EditorOptions = {
 			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
 			tags: ['preview']
 		}
+	)),
+	overtypeOnPaste: register(new EditorBooleanOption(
+		EditorOption.overtypeOnPaste, 'overtypeOnPaste', true,
+		{ description: nls.localize('overtypeOnPaste', "Controls whether pasting should overtype.") }
 	)),
 	overviewRulerBorder: register(new EditorBooleanOption(
 		EditorOption.overviewRulerBorder, 'overviewRulerBorder', true,
@@ -6253,10 +6340,19 @@ export const EditorOptions = {
 	)),
 
 	// Leave these at the end (because they have dependencies!)
+	effectiveCursorStyle: register(new EffectiveCursorStyle()),
 	editorClassName: register(new EditorClassName()),
-	defaultColorDecorators: register(new EditorBooleanOption(
-		EditorOption.defaultColorDecorators, 'defaultColorDecorators', false,
-		{ markdownDescription: nls.localize('defaultColorDecorators', "Controls whether inline color decorations should be shown using the default document color provider") }
+	defaultColorDecorators: register(new EditorStringEnumOption(
+		EditorOption.defaultColorDecorators, 'defaultColorDecorators', 'auto' as 'auto' | 'always' | 'never',
+		['auto', 'always', 'never'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('editor.defaultColorDecorators.auto', "Show default color decorators only when no extension provides colors decorators."),
+				nls.localize('editor.defaultColorDecorators.always', "Always show default color decorators."),
+				nls.localize('editor.defaultColorDecorators.never', "Never show default color decorators."),
+			],
+			description: nls.localize('defaultColorDecorators', "Controls whether inline color decorations should be shown using the default document color provider.")
+		}
 	)),
 	pixelRatio: register(new EditorPixelRatio()),
 	tabFocusMode: register(new EditorBooleanOption(EditorOption.tabFocusMode, 'tabFocusMode', false,

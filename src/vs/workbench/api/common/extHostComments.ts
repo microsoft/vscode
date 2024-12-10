@@ -370,6 +370,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 
 		set collapsibleState(newState: vscode.CommentThreadCollapsibleState) {
+			if (this._collapseState === newState) {
+				return;
+			}
 			this._collapseState = newState;
 			this.modifications.collapsibleState = newState;
 			this._onDidUpdateCommentThread.fire();

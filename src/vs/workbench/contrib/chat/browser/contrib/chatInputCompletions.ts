@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isPatternInWord } from '../../../../../base/common/filters.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -12,9 +13,10 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IWordAtPosition, getWordAtText } from '../../../../../editor/common/core/wordHelper.js';
-import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList } from '../../../../../editor/common/languages.js';
+import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, DocumentSymbol, Location, SymbolKind, SymbolKinds } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { IOutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -29,14 +31,15 @@ import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.
 import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
 import { ISearchService } from '../../../../services/search/common/search.js';
 import { ChatAgentLocation, IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { SubmitAction } from '../actions/chatExecuteActions.js';
+import { ChatEditingSessionSubmitAction, ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ChatInputPart } from '../chatInputPart.js';
-import { ChatDynamicVariableModel, SelectAndInsertFileAction } from './chatDynamicVariables.js';
+import { ChatDynamicVariableModel, SelectAndInsertFileAction, SelectAndInsertSymAction } from './chatDynamicVariables.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -60,6 +63,11 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				if (!isEmptyUpToCompletionWord(model, range)) {
+					// No text allowed before the completion
+					return;
+				}
+
 				const parsedRequest = widget.parsedInput.parts;
 				const usedAgent = parsedRequest.find(p => p instanceof ChatRequestAgentPart);
 				if (usedAgent) {
@@ -79,10 +87,10 @@ class SlashCommandCompletions extends Disposable {
 							label: withSlash,
 							insertText: c.executeImmediately ? '' : `${withSlash} `,
 							detail: c.detail,
-							range: new Range(1, 1, 1, 1),
+							range,
 							sortText: c.sortText ?? 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-							command: c.executeImmediately ? { id: SubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
+							command: c.executeImmediately ? { id: widget.location === ChatAgentLocation.EditingSession ? ChatEditingSessionSubmitAction.ID : ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
 						};
 					})
 				};
@@ -90,7 +98,7 @@ class SlashCommandCompletions extends Disposable {
 		}));
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'globalSlashCommandsAt',
-			triggerCharacters: ['@'],
+			triggerCharacters: [chatAgentLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
@@ -100,6 +108,11 @@ class SlashCommandCompletions extends Disposable {
 				const range = computeCompletionRanges(model, position, /@\w*/g);
 				if (!range) {
 					return null;
+				}
+
+				if (!isEmptyUpToCompletionWord(model, range)) {
+					// No text allowed before the completion
+					return;
 				}
 
 				const slashCommands = this.chatSlashCommandService.getCommands(widget.location);
@@ -114,11 +127,11 @@ class SlashCommandCompletions extends Disposable {
 							label: withSlash,
 							insertText: c.executeImmediately ? '' : `${withSlash} `,
 							detail: c.detail,
-							range: new Range(1, 1, 1, 1),
+							range,
 							filterText: `${chatAgentLeader}${c.command}`,
 							sortText: c.sortText ?? 'z'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-							command: c.executeImmediately ? { id: SubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
+							command: c.executeImmediately ? { id: widget.location === ChatAgentLocation.EditingSession ? ChatEditingSessionSubmitAction.ID : ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
 						};
 					})
 				};
@@ -205,6 +218,11 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
+				if (!isEmptyUpToCompletionWord(model, range)) {
+					// No text allowed before the completion
+					return;
+				}
+
 				const agents = this.chatAgentService.getAgents()
 					.filter(a => a.locations.includes(widget.location));
 
@@ -231,7 +249,7 @@ class AgentCompletions extends Disposable {
 							detail,
 							filterText: `${chatAgentLeader}${agent.name}`,
 							insertText: `${agentLabel} `,
-							range: new Range(1, 1, 1, 1),
+							range,
 							kind: CompletionItemKind.Text,
 							sortText: `${chatAgentLeader}${agent.name}`,
 							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
@@ -251,7 +269,7 @@ class AgentCompletions extends Disposable {
 								filterText: getFilterText(agent, c.name),
 								commitCharacters: [' '],
 								insertText: label + ' ',
-								range: new Range(1, 1, 1, 1),
+								range,
 								kind: CompletionItemKind.Text, // The icons are disabled here anyway
 								sortText: `x${chatAgentLeader}${agent.name}${c.name}`,
 								command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
@@ -286,6 +304,11 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
+				if (!isEmptyUpToCompletionWord(model, range)) {
+					// No text allowed before the completion
+					return;
+				}
+
 				const agents = this.chatAgentService.getAgents()
 					.filter(a => a.locations.includes(widget.location));
 
@@ -300,7 +323,7 @@ class AgentCompletions extends Disposable {
 							commitCharacters: [' '],
 							insertText: `${agentLabel} ${withSlash} `,
 							detail: `(${agentLabel}) ${c.description ?? ''}`,
-							range: new Range(1, 1, 1, 1),
+							range,
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
 							sortText,
 							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
@@ -333,11 +356,21 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
+				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
+				if (!range) {
+					return;
+				}
+
+				if (!isEmptyUpToCompletionWord(model, range)) {
+					// No text allowed before the completion
+					return;
+				}
+
 				const label = localize('installLabel', "Install Chat Extensions...");
 				const item: CompletionItem = {
 					label,
 					insertText: '',
-					range: new Range(1, 1, 1, 1),
+					range,
 					kind: CompletionItemKind.Text, // The icons are disabled here anyway
 					command: { id: 'workbench.extensions.search', title: '', arguments: ['@tag:chat-participant'] },
 					filterText: chatAgentLeader + label,
@@ -407,12 +440,15 @@ class BuiltinDynamicCompletions extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IOutlineModelService private readonly outlineService: IOutlineModelService,
 	) {
 		super();
 
+		// File completions
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
-			_debugDisplayName: 'chatDynamicCompletions',
+			_debugDisplayName: 'chatDynamicFileCompletions',
 			triggerCharacters: [chatVariableLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
@@ -445,6 +481,41 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 		}));
 
+		// Symbol completions
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'chatDynamicSymbolCompletions',
+			triggerCharacters: [chatVariableLeader],
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
+				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (!widget || !widget.supportsFileReferences) {
+					return null;
+				}
+
+				const result: CompletionList = { suggestions: [] };
+				const range = computeCompletionRanges(model, position, BuiltinDynamicCompletions.VariableNameDef, true);
+
+				if (range) {
+					const afterRangeSym = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#sym:'.length);
+					result.suggestions.push({
+						label: `${chatVariableLeader}sym`,
+						insertText: `${chatVariableLeader}sym:`,
+						detail: localize('pickSymbolLabel', "Pick a symbol"),
+						range,
+						kind: CompletionItemKind.Text,
+						command: { id: SelectAndInsertSymAction.ID, title: SelectAndInsertSymAction.ID, arguments: [{ widget, range: afterRangeSym }] },
+						sortText: 'z'
+					});
+				}
+
+				const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
+				if (range2) {
+					this.addSymbolEntries(widget, result, range2, token);
+				}
+
+				return result;
+			}
+		}));
+
 		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addReferenceCommand, (_services, arg) => this.cmdAddReference(arg)));
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
@@ -454,18 +525,23 @@ class BuiltinDynamicCompletions extends Disposable {
 
 	private async addFileEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
 
-		const makeFileCompletionItem = (resource: URI): CompletionItem => {
+		const makeFileCompletionItem = (resource: URI, description?: string): CompletionItem => {
 
 			const basename = this.labelService.getUriBasenameLabel(resource);
 			const text = `${chatVariableLeader}file:${basename}`;
+			const uriLabel = this.labelService.getUriLabel(resource, { relative: true });
+			const labelDescription = description
+				? localize('fileEntryDescription', '{0} ({1})', uriLabel, description)
+				: uriLabel;
+			const sortText = description ? 'z' : '{'; // after `z`
 
 			return {
-				label: { label: basename, description: this.labelService.getUriLabel(resource, { relative: true }) },
+				label: { label: basename, description: labelDescription },
 				filterText: `${chatVariableLeader}${basename}`,
 				insertText: info.varWord?.endColumn === info.replace.endColumn ? `${text} ` : text,
 				range: info,
 				kind: CompletionItemKind.File,
-				sortText: '{', // after `z`
+				sortText,
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
 						id: 'vscode.file',
@@ -485,6 +561,20 @@ class BuiltinDynamicCompletions extends Disposable {
 
 		const seen = new ResourceSet();
 		const len = result.suggestions.length;
+
+		// RELATED FILES
+		if (widget.location === ChatAgentLocation.EditingSession && widget.viewModel && this._chatEditingService.currentEditingSessionObs.get()?.chatSessionId === widget.viewModel?.sessionId) {
+			const relatedFiles = (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), token), 1000)) ?? [];
+			for (const relatedFileGroup of relatedFiles) {
+				for (const relatedFile of relatedFileGroup.files) {
+					if (seen.has(relatedFile.uri)) {
+						continue;
+					}
+					seen.add(relatedFile.uri);
+					result.suggestions.push(makeFileCompletionItem(relatedFile.uri, relatedFile.description));
+				}
+			}
+		}
 
 		// HISTORY
 		// always take the last N items
@@ -549,6 +639,70 @@ class BuiltinDynamicCompletions extends Disposable {
 		result.incomplete = true;
 	}
 
+	private addSymbolEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
+
+		const makeSymbolCompletionItem = (symbolItem: { name: string; location: Location; kind: SymbolKind }, pattern: string): CompletionItem => {
+			const text = `${chatVariableLeader}sym:${symbolItem.name}`;
+			const resource = symbolItem.location.uri;
+			const symbolLabelWithIcon = `$(${SymbolKinds.toIcon(symbolItem.kind).id}) ${symbolItem.name}`;
+			const uriLabel = this.labelService.getUriLabel(resource, { relative: true });
+			const sortText = pattern ? '{' /* after z */ : '|' /* after { */;
+
+			return {
+				label: { label: symbolLabelWithIcon, description: uriLabel },
+				filterText: `${chatVariableLeader}${symbolItem.name}`,
+				insertText: info.varWord?.endColumn === info.replace.endColumn ? `${text} ` : text,
+				range: info,
+				kind: SymbolKinds.toCompletionKind(symbolItem.kind),
+				sortText,
+				command: {
+					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
+						id: 'vscode.symbol',
+						prefix: 'sym',
+						fullName: symbolLabelWithIcon,
+						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + text.length },
+						data: symbolItem.location
+					})]
+				}
+			};
+		};
+
+		let pattern: string | undefined;
+		if (info.varWord?.word && info.varWord.word.startsWith(chatVariableLeader)) {
+			pattern = info.varWord.word.toLowerCase().slice(1); // remove leading #
+		}
+
+		const symbolsToAdd: { symbol: DocumentSymbol; uri: URI }[] = [];
+		for (const outlineModel of this.outlineService.getCachedModels()) {
+			if (pattern) {
+				symbolsToAdd.push(...outlineModel.asListOfDocumentSymbols().map(symbol => ({ symbol, uri: outlineModel.uri })));
+			} else {
+				symbolsToAdd.push(...outlineModel.getTopLevelSymbols().map(symbol => ({ symbol, uri: outlineModel.uri })));
+			}
+		}
+
+		const symbolsToAddFiltered = symbolsToAdd.filter(fileSymbol => {
+			switch (fileSymbol.symbol.kind) {
+				case SymbolKind.Enum:
+				case SymbolKind.Class:
+				case SymbolKind.Method:
+				case SymbolKind.Function:
+				case SymbolKind.Namespace:
+				case SymbolKind.Module:
+				case SymbolKind.Interface:
+					return true;
+				default:
+					return false;
+			}
+		});
+
+		for (const symbol of symbolsToAddFiltered) {
+			result.suggestions.push(makeSymbolCompletionItem({ ...symbol.symbol, location: { uri: symbol.uri, range: symbol.symbol.range } }, pattern ?? ''));
+		}
+
+		result.incomplete = !!pattern;
+	}
+
 	private cmdAddReference(arg: ReferenceArgument) {
 		// invoked via the completion command
 		arg.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference(arg.variable);
@@ -557,7 +711,13 @@ class BuiltinDynamicCompletions extends Disposable {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BuiltinDynamicCompletions, LifecyclePhase.Eventually);
 
-export function computeCompletionRanges(model: ITextModel, position: Position, reg: RegExp, onlyOnWordStart = false): { insert: Range; replace: Range; varWord: IWordAtPosition | null } | undefined {
+export interface IChatCompletionRangeResult {
+	insert: Range;
+	replace: Range;
+	varWord: IWordAtPosition | null;
+}
+
+export function computeCompletionRanges(model: ITextModel, position: Position, reg: RegExp, onlyOnWordStart = false): IChatCompletionRangeResult | undefined {
 	const varWord = getWordAtText(position.column, reg, model.getLineContent(position.lineNumber), 0);
 	if (!varWord && model.getWordUntilPosition(position).word) {
 		// inside a "normal" word
@@ -589,6 +749,11 @@ export function computeCompletionRanges(model: ITextModel, position: Position, r
 	}
 
 	return { insert, replace, varWord };
+}
+
+function isEmptyUpToCompletionWord(model: ITextModel, rangeResult: IChatCompletionRangeResult): boolean {
+	const startToCompletionWordStart = new Range(1, 1, rangeResult.replace.startLineNumber, rangeResult.replace.startColumn);
+	return !!model.getValueInRange(startToCompletionWordStart).match(/^\s*$/);
 }
 
 class VariableCompletions extends Disposable {
