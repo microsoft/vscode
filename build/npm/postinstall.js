@@ -96,7 +96,25 @@ function setNpmrcConfig(dir, env) {
 	}
 }
 
+function removeParcelWatcherPrebuild(dir) {
+	const parcelModuleFolder = path.join(root, dir, 'node_modules', '@parcel');
+	if (!fs.existsSync(parcelModuleFolder)) {
+		return;
+	}
+
+	const parcelModules = fs.readdirSync(parcelModuleFolder);
+	for (const moduleName of parcelModules) {
+		if (moduleName.startsWith('watcher-')) {
+			const modulePath = path.join(parcelModuleFolder, moduleName);
+			fs.rmSync(modulePath, { recursive: true, force: true });
+			log(dir, `Removed @parcel/watcher prebuilt module ${modulePath}`);
+		}
+	}
+}
+
 for (let dir of dirs) {
+
+	removeParcelWatcherPrebuild(dir);
 
 	if (dir === '') {
 		// already executed in root
