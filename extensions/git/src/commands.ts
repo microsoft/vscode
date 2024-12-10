@@ -2876,49 +2876,33 @@ export class CommandCenter {
 		let selectedItems: BranchDeleteItem[] = [];
 
 		const items = await getQuickPickItems();
-		const placeHolder = l10n.t('Select branches to delete (Press Escape to confirm)');
+		const placeHolder = l10n.t('Select branches to delete');
 		const choice = await window.showQuickPick(items, {
-			placeHolder,
-			canPickMany: true // Allow multi-selection within a single quick pick
+			placeHolder, canPickMany: true
 		});
 
 		if (!choice || choice.length === 0) {
-			return; // Exit loop if no selection or user cancels
+			return;
 		}
 
 		selectedItems = [...selectedItems, ...choice.filter(item => item instanceof BranchDeleteItem).map(item => item as BranchDeleteItem)];
 
-		if (!selectedItems || selectedItems.length === 0) {
-			return;
-		}
-
-		const confirmationMessage = l10n.t('Are you sure you want to delete these branches: {0}?', selectedItems.map(item => item.label).join(', '));
-		const confirm = await window.showWarningMessage(confirmationMessage, { modal: true }, l10n.t('Yes'), l10n.t('No'));
-
-		if (confirm !== l10n.t('Yes')) {
-			return;
-		}
+		if (!selectedItems || selectedItems.length === 0) { return; }
 
 		for (const item of selectedItems) {
 			try {
-				await item.run(repository, false);
-				console.log(`Deleted branch: ${item.refName}`);
+				await item.run(repository, force);
 			} catch (err) {
 				if (err.gitErrorCode !== GitErrorCodes.BranchNotFullyMerged) {
-					window.showErrorMessage(l10n.t('Failed to delete branch: {0}', name ?? 'unknown'));
+					window.showErrorMessage(l10n.t('Failed to delete branch: Git error code: {0}, {1}', err.gitErrorCode, item.label));
 					continue; // Skip to the next item
-				}
-				else if (force) {
-					await item.run(repository, true);
-					console.log(`Force deleted branch: ${item.refName}`);
-					continue;
-				}
-				const message = l10n.t('The branch "{0}" is not fully merged. Delete anyway?', item.refName ?? 'unknown');
-				const yes = l10n.t('Delete Branch');
-				const pick = await window.showWarningMessage(message, { modal: true }, yes);
-				if (pick === yes) {
-					await item.run(repository, true);
-					console.log(`Force deleted branch: ${item.refName}`);
+				} else {
+					const message = l10n.t('The branch "{0}" is not fully merged. Delete anyway?', name);
+					const yes = l10n.t('Delete Branch');
+					const pick = await window.showWarningMessage(message, { modal: true }, yes);
+					if (pick === yes) {
+						await item.run(repository, true);
+					}
 				}
 			}
 		}
