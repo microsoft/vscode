@@ -74,6 +74,10 @@
         "path": "./syntaxes/yaml-1.0.tmLanguage.json"
       },
       {
+        "scopeName": "source.yaml.embedded",
+        "path": "./syntaxes/yaml-embedded.tmLanguage.json"
+      },
+      {
         "language": "yaml",
         "scopeName": "source.yaml",
         "path": "./syntaxes/yaml.tmLanguage.json",
