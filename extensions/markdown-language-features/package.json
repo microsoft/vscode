@@ -734,7 +734,9 @@
     ],
     "markdown.previewStyles": [
       "./media/markdown.css",
-      "./media/highlight.css"
+      "./media/codicon.css",
+      "./media/highlight.css",
+      "./media/code.css"
     ],
     "markdown.previewScripts": [
       "./media/index.js"
@@ -783,6 +785,7 @@
     "@types/picomatch": "^2.3.0",
     "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",
+    "@vscode/codicons": "^0.0.36",
     "@vscode/markdown-it-katex": "^1.0.2",
     "lodash.throttle": "^4.1.1",
     "vscode-languageserver-types": "^3.17.2",
