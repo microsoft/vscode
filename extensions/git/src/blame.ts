@@ -161,7 +161,7 @@ export class GitBlameController {
 		this._model.onDidCloseRepository(this._onDidCloseRepository, this, this._disposables);
 
 		window.onDidChangeActiveTextEditor(e => this._updateTextEditorBlameInformation(e), this, this._disposables);
-		window.onDidChangeTextEditorSelection(e => this._updateTextEditorBlameInformation(e.textEditor), this, this._disposables);
+		window.onDidChangeTextEditorSelection(e => this._updateTextEditorBlameInformation(e.textEditor, true), this, this._disposables);
 		window.onDidChangeTextEditorDiffInformation(e => this._updateTextEditorBlameInformation(e.textEditor), this, this._disposables);
 
 		this._updateTextEditorBlameInformation(window.activeTextEditor);
@@ -207,13 +207,8 @@ export class GitBlameController {
 		markdownString.appendMarkdown(`---\n\n`);
 
 		markdownString.appendMarkdown(`[$(eye) View Commit](command:git.blameStatusBarItem.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, blameInformation.hash]))} "${l10n.t('View Commit')}")`);
-		markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
+		markdownString.appendMarkdown('&nbsp;&nbsp;&nbsp;&nbsp;');
 		markdownString.appendMarkdown(`[$(copy) ${blameInformation.hash.substring(0, 8)}](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.hash))} "${l10n.t('Copy Commit Hash')}")`);
-
-		if (blameInformation.subject) {
-			markdownString.appendMarkdown('&nbsp;&nbsp;');
-			markdownString.appendMarkdown(`[$(copy) Subject](command:git.blameStatusBarItem.copyContent?${encodeURIComponent(JSON.stringify(blameInformation.subject))} "${l10n.t('Copy Commit Subject')}")`);
-		}
 
 		return markdownString;
 	}
@@ -276,13 +271,24 @@ export class GitBlameController {
 	}
 
 	@throttle
-	private async _updateTextEditorBlameInformation(textEditor: TextEditor | undefined): Promise<void> {
+	private async _updateTextEditorBlameInformation(textEditor: TextEditor | undefined, showBlameInformationForPositionZero = false): Promise<void> {
 		if (!textEditor?.diffInformation || textEditor !== window.activeTextEditor) {
 			return;
 		}
 
 		const repository = this._model.getRepository(textEditor.document.uri);
 		if (!repository || !repository.HEAD?.commit) {
+			return;
+		}
+
+		// Do not show blame information when there is a single selection and it is at the beginning
+		// of the file [0, 0, 0, 0] unless the user explicitly navigates the cursor there. We do this
+		// to avoid showing blame information when the editor is not focused.
+		if (!showBlameInformationForPositionZero && textEditor.selections.length === 1 &&
+			textEditor.selections[0].start.line === 0 && textEditor.selections[0].start.character === 0 &&
+			textEditor.selections[0].end.line === 0 && textEditor.selections[0].end.character === 0) {
+			this.textEditorBlameInformation.set(textEditor, []);
+			this._onDidChangeBlameInformation.fire(textEditor);
 			return;
 		}
 
@@ -315,8 +321,8 @@ export class GitBlameController {
 				throw new Error(`Unexpected ref: ${ref}`);
 			}
 		} else {
-			// Working tree diff information
-			const diffInformationWorkingTree = this._findDiffInformation(textEditor, '');
+			// Working tree diff information. Diff Editor (Working Tree) -> Text Editor
+			const diffInformationWorkingTree = this._findDiffInformation(textEditor, '~') ?? this._findDiffInformation(textEditor, '');
 
 			// Working tree diff information is not present or it is stale
 			if (!diffInformationWorkingTree || diffInformationWorkingTree.isStale) {
@@ -357,7 +363,7 @@ export class GitBlameController {
 		}
 
 		const lineBlameInformation: LineBlameInformation[] = [];
-		for (const lineNumber of textEditor.selections.map(s => s.active.line)) {
+		for (const lineNumber of new Set(textEditor.selections.map(s => s.active.line))) {
 			// Check if the line is contained in the working tree diff information
 			if (lineRangesContainLine(workingTreeChanges, lineNumber + 1)) {
 				lineBlameInformation.push({ lineNumber, blameInformation: l10n.t('Not Committed Yet') });
@@ -466,10 +472,12 @@ class GitBlameEditorDecoration {
 
 		// Set decorations for the editor
 		const decorations = blameInformation.map(blame => {
-			const contentText = typeof blame.blameInformation === 'string'
-				? blame.blameInformation
-				: this._controller.formatBlameInformationMessage(template, blame.blameInformation);
-			const hoverMessage = this._controller.getBlameInformationHover(textEditor.document.uri, blame.blameInformation);
+			const contentText = typeof blame.blameInformation !== 'string'
+				? this._controller.formatBlameInformationMessage(template, blame.blameInformation)
+				: blame.blameInformation;
+			const hoverMessage = typeof blame.blameInformation !== 'string'
+				? this._controller.getBlameInformationHover(textEditor.document.uri, blame.blameInformation)
+				: undefined;
 
 			return this._createDecoration(blame.lineNumber, contentText, hoverMessage);
 		});
@@ -477,7 +485,7 @@ class GitBlameEditorDecoration {
 		textEditor.setDecorations(this._decorationType, decorations);
 	}
 
-	private _createDecoration(lineNumber: number, contentText: string, hoverMessage: MarkdownString): DecorationOptions {
+	private _createDecoration(lineNumber: number, contentText: string, hoverMessage: MarkdownString | undefined): DecorationOptions {
 		const position = new Position(lineNumber, Number.MAX_SAFE_INTEGER);
 
 		return {
@@ -571,10 +579,10 @@ class GitBlameStatusBarItem {
 
 		if (typeof blameInformation[0].blameInformation === 'string') {
 			this._statusBarItem.text = `$(git-commit) ${blameInformation[0].blameInformation}`;
-			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
+			this._statusBarItem.tooltip = l10n.t('Git Blame Information');
 			this._statusBarItem.command = undefined;
 		} else {
-			this._statusBarItem.text = this._controller.formatBlameInformationMessage(template, blameInformation[0].blameInformation);
+			this._statusBarItem.text = `$(git-commit) ${this._controller.formatBlameInformationMessage(template, blameInformation[0].blameInformation)}`;
 			this._statusBarItem.tooltip = this._controller.getBlameInformationHover(textEditor.document.uri, blameInformation[0].blameInformation);
 			this._statusBarItem.command = {
 				title: l10n.t('View Commit'),

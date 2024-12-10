@@ -13986,10 +13986,13 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The configuration scope which can be a
-	 * a 'resource' or a languageId or both or
-	 * a '{@link TextDocument}' or
-	 * a '{@link WorkspaceFolder}'
+	 * The configuration scope which can be:
+	 * - a {@link Uri} representing a resource
+	 * - a {@link TextDocument} representing an open text document
+	 * - a {@link WorkspaceFolder} representing a workspace folder
+	 * - an object containing:
+	 *   - `uri`: an optional {@link Uri} of a text document
+	 *   - `languageId`: the language identifier of a text document
 	 */
 	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | {
 		/**
@@ -17624,8 +17627,8 @@ declare module 'vscode' {
 		 * Often {@link TestRunProfile.loadDetailedCoverage} will be called first
 		 * when a user opens a file, and then this method will be called if they
 		 * drill down into specific per-test coverage information. This method
-		 * should then return coverage data only for constructs the given test item
-		 * executed during the test run.
+		 * should then return coverage data only for statements and declarations
+		 * executed by the specific test during the run.
 		 *
 		 * The {@link FileCoverage} object passed to this function is the same
 		 * instance emitted on {@link TestRun.addCoverage} calls associated with this profile.

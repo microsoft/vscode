@@ -124,12 +124,21 @@ suite('PolicyConfiguration', () => {
 	});
 
 	test('initialize: with object type policy', async () => {
-		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyObjectSetting': JSON.stringify({ 'a': 'b' }) })));
+		const expected = {
+			'microsoft': true,
+			'github': 'stable',
+			'other': 1,
+			'complex': {
+				'key': 'value'
+			},
+			'array': [1, 2, 3]
+		};
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyObjectSetting': JSON.stringify(expected) })));
 
 		await testObject.initialize();
 		const acutal = testObject.configurationModel;
 
-		assert.deepStrictEqual(acutal.getValue('policy.objectSetting'), { 'a': 'b' });
+		assert.deepStrictEqual(acutal.getValue('policy.objectSetting'), expected);
 	});
 
 	test('initialize: with array type policy', async () => {
@@ -139,6 +148,24 @@ suite('PolicyConfiguration', () => {
 		const acutal = testObject.configurationModel;
 
 		assert.deepStrictEqual(acutal.getValue('policy.arraySetting'), [1]);
+	});
+
+	test('initialize: with object type policy ignores policy if value is not valid', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyObjectSetting': '{"a": "b", "hello": }' })));
+
+		await testObject.initialize();
+		const acutal = testObject.configurationModel;
+
+		assert.deepStrictEqual(acutal.getValue('policy.objectSetting'), undefined);
+	});
+
+	test('initialize: with object type policy ignores policy if there are duplicate keys', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyObjectSetting': '{"microsoft": true, "microsoft": false }' })));
+
+		await testObject.initialize();
+		const acutal = testObject.configurationModel;
+
+		assert.deepStrictEqual(acutal.getValue('policy.objectSetting'), undefined);
 	});
 
 	test('change: when policy is added', async () => {

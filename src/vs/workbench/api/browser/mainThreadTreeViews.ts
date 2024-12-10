@@ -296,7 +296,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 	}
 
 	private convertTransferChildren(parents: ITreeItem[], children: (number | ITreeItem)[][] | undefined) {
-		const convertedChildren: ITreeItem[][] = Array(parents.length);
+		const convertedChildren: (ITreeItem[] | undefined)[] = Array(parents.length);
 		if (children) {
 			for (const childGroup of children) {
 				const childGroupIndex = childGroup[0] as number;
@@ -344,7 +344,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		return this.itemsMap.size === 0;
 	}
 
-	private async postGetChildren(elementGroups: ITreeItem[][] | undefined): Promise<ResolvableTreeItem[][] | undefined> {
+	private async postGetChildren(elementGroups: (ITreeItem[] | undefined)[] | undefined): Promise<ResolvableTreeItem[][] | undefined> {
 		if (elementGroups === undefined) {
 			return undefined;
 		}
@@ -354,6 +354,9 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 			for (const elements of elementGroups) {
 				const result: ResolvableTreeItem[] = [];
 				resultGroups.push(result);
+				if (!elements) {
+					continue;
+				}
 				for (const element of elements) {
 					const resolvable = new ResolvableTreeItem(element, hasResolve ? (token) => {
 						return this._proxy.$resolve(this.treeViewId, element.handle, token);

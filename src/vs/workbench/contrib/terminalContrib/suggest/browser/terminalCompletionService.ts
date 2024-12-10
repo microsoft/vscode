@@ -5,6 +5,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { basename } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -162,23 +163,16 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			if (!completions) {
 				return undefined;
 			}
-			const devModeEnabled = this._configurationService.getValue(TerminalSettingId.DevMode);
 			const completionItems = Array.isArray(completions) ? completions : completions.items ?? [];
-
-			const itemsWithModifiedLabels = completionItems.map(completion => {
-				if (devModeEnabled && !completion.detail?.includes(provider.id)) {
-					completion.detail = `(${provider.id}) ${completion.detail ?? ''}`;
-				}
-				return completion;
-			});
+			const itemsWithModifiedLabels = this._addDevModeLabel(completionItems, provider.id);
 
 			if (Array.isArray(completions)) {
 				return itemsWithModifiedLabels;
 			}
 			if (completions.resourceRequestConfig) {
-				const resourceCompletions = await this._resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition);
+				const resourceCompletions = await this.resolveResources(completions.resourceRequestConfig, promptValue, cursorPosition);
 				if (resourceCompletions) {
-					itemsWithModifiedLabels.push(...resourceCompletions);
+					itemsWithModifiedLabels.push(...this._addDevModeLabel(resourceCompletions, provider.id));
 				}
 				return itemsWithModifiedLabels;
 			}
@@ -189,7 +183,19 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		return results.filter(result => !!result).flat();
 	}
 
-	private async _resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number): Promise<ITerminalCompletion[] | undefined> {
+	private _addDevModeLabel(completions: ITerminalCompletion[], providerId: string): ITerminalCompletion[] {
+		const devModeEnabled = this._configurationService.getValue(TerminalSettingId.DevMode);
+		return completions.map(completion => {
+			// TODO: This providerId check shouldn't be necessary, instead we should ensure this
+			//       function is never called twice
+			if (devModeEnabled && !completion.detail?.includes(providerId)) {
+				completion.detail = `(${providerId}) ${completion.detail ?? ''}`;
+			}
+			return completion;
+		});
+	}
+
+	async resolveResources(resourceRequestConfig: TerminalResourceRequestConfig, promptValue: string, cursorPosition: number): Promise<ITerminalCompletion[] | undefined> {
 		const cwd = URI.revive(resourceRequestConfig.cwd);
 		const foldersRequested = resourceRequestConfig.foldersRequested ?? false;
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
@@ -197,43 +203,15 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			return;
 		}
 
-		const resourceCompletions: ITerminalCompletion[] = [];
-		const endsWithSpace = promptValue.substring(0, cursorPosition).endsWith(' ');
-		let lastWord;
-		if (endsWithSpace) {
-			lastWord = '';
-		} else {
-			lastWord = promptValue.substring(0, cursorPosition).trim().split(' ').at(-1) ?? '';
-		}
-		const pathStartsWithSlash = /^(\.\/|\.\.\/)/.test(lastWord);
-		if (pathStartsWithSlash) {
-			lastWord = '';
-		}
-
-		// This breaks folder completions because has a different replacement index
-		// which results in replacement index being set to 0
-		// const includeDirs = endsWithSpace || lastWord.match(/.*[\\\/]/);
-		// if (includeDirs) {
-		// 	resourceCompletions.push({
-		// 		label: '.' + resourceRequestConfig.pathSeparator,
-		// 		kind: TerminalCompletionItemKind.Folder,
-		// 		isDirectory: true,
-		// 		replacementIndex: cursorPosition,
-		// 		replacementLength: 2
-		// 	});
-		// 	resourceCompletions.push({
-		// 		label: '..' + resourceRequestConfig.pathSeparator,
-		// 		kind: TerminalCompletionItemKind.Folder,
-		// 		isDirectory: true,
-		// 		replacementIndex: cursorPosition,
-		// 		replacementLength: 3
-		// 	});
-		// }
-
 		const fileStat = await this._fileService.resolve(cwd, { resolveSingleChildDescendants: true });
 		if (!fileStat || !fileStat?.children) {
 			return;
 		}
+
+		const resourceCompletions: ITerminalCompletion[] = [];
+		const cursorPrefix = promptValue.substring(0, cursorPosition);
+		const endsWithSpace = cursorPrefix.endsWith(' ');
+		const lastWord = endsWithSpace ? '' : cursorPrefix.split(' ').at(-1) ?? '';
 
 		for (const stat of fileStat.children) {
 			let kind: TerminalCompletionItemKind | undefined;
@@ -247,23 +225,35 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				continue;
 			}
 			const isDirectory = kind === TerminalCompletionItemKind.Folder;
+			const fileName = basename(stat.resource.fsPath);
+
 			let label;
-			if (pathStartsWithSlash) {
-				label = isDirectory ? stat.resource.fsPath.replace(cwd.fsPath, '').substring(1) + resourceRequestConfig.pathSeparator : stat.resource.fsPath.replace(cwd.fsPath, '').substring(1).replace(cwd.fsPath, '');
+			if (!lastWord.startsWith('.' + resourceRequestConfig.pathSeparator) && !lastWord.startsWith('..' + resourceRequestConfig.pathSeparator)) {
+				// add a dot to the beginning of the label if it doesn't already have one
+				label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
 			} else {
-				label = isDirectory ? '.' + stat.resource.fsPath.replace(cwd.fsPath, '') + resourceRequestConfig.pathSeparator : '.' + stat.resource.fsPath.replace(cwd.fsPath, '');
+				if (lastWord.endsWith(resourceRequestConfig.pathSeparator)) {
+					label = `${lastWord}${fileName}`;
+				} else {
+					label = `${lastWord}${resourceRequestConfig.pathSeparator}${fileName}`;
+				}
+				if (lastWord.length && lastWord.at(-1) !== resourceRequestConfig.pathSeparator && lastWord.at(-1) !== '.') {
+					label = `.${resourceRequestConfig.pathSeparator}${fileName}`;
+				}
+			}
+			if (isDirectory && !label.endsWith(resourceRequestConfig.pathSeparator)) {
+				label = label + resourceRequestConfig.pathSeparator;
 			}
 			resourceCompletions.push({
 				label,
 				kind,
 				isDirectory,
 				isFile: kind === TerminalCompletionItemKind.File,
-				replacementIndex: cursorPosition - lastWord.length,
-				replacementLength: label.length
+				replacementIndex: cursorPosition - lastWord.length > 0 ? cursorPosition - lastWord.length : cursorPosition,
+				replacementLength: lastWord.length > 0 ? lastWord.length : label.length
 			});
 		}
 
 		return resourceCompletions.length ? resourceCompletions : undefined;
 	}
 }
-

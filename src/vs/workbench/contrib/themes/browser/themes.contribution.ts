@@ -661,7 +661,7 @@ registerAction2(class extends Action2 {
 
 		const theme = themeService.getColorTheme();
 		const colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
-		const colorIds = colors.map(c => c.id).sort();
+		const colorIds = colors.filter(c => !c.deprecationMessage).map(c => c.id).sort();
 		const resultingColors: { [key: string]: string | null } = {};
 		const inherited: string[] = [];
 		for (const colorId of colorIds) {

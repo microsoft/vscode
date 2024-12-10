@@ -15,7 +15,7 @@ import { ScopedAccountAccess } from '../common/accountAccess';
 export class CachedPublicClientApplication implements ICachedPublicClientApplication {
 	private _pca: PublicClientApplication;
 	private _sequencer = new Sequencer();
-	private readonly _refreshDelayer = new DelayerByKey<AuthenticationResult>();
+	// private readonly _refreshDelayer = new DelayerByKey<AuthenticationResult>();
 
 	private _accounts: AccountInfo[] = [];
 	private readonly _disposable: Disposable;
@@ -92,7 +92,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] starting...`);
 		const result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(request));
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got result`);
-		this._setupRefresh(result);
+		// this._setupRefresh(result);
 		if (result.account && !result.fromCache && this._verifyIfUsingBroker(result)) {
 			this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] firing event due to change`);
 			this._onDidAccountsChangeEmitter.fire({ added: [], changed: [result.account], deleted: [] });
@@ -114,7 +114,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 				1000 * 60 * 5
 			)
 		);
-		this._setupRefresh(result);
+		// this._setupRefresh(result);
 		if (this._isBrokerAvailable) {
 			await this._accountAccess.setAllowedAccess(result.account!, true);
 		}
@@ -131,7 +131,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		this._logger.debug(`[acquireTokenByRefreshToken] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}]`);
 		const result = await this._sequencer.queue(() => this._pca.acquireTokenByRefreshToken(request));
 		if (result) {
-			this._setupRefresh(result);
+			// this._setupRefresh(result);
 			if (this._isBrokerAvailable && result.account) {
 				await this._accountAccess.setAllowedAccess(result.account, true);
 			}
@@ -202,23 +202,23 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication update complete`);
 	}
 
-	private _setupRefresh(result: AuthenticationResult) {
-		const on = result.refreshOn || result.expiresOn;
-		if (!result.account || !on) {
-			return;
-		}
+	// private _setupRefresh(result: AuthenticationResult) {
+	// 	const on = result.refreshOn || result.expiresOn;
+	// 	if (!result.account || !on) {
+	// 		return;
+	// 	}
 
-		const account = result.account;
-		const scopes = result.scopes;
-		const timeToRefresh = on.getTime() - Date.now() - 5 * 60 * 1000; // 5 minutes before expiry
-		const key = JSON.stringify({ accountId: account.homeAccountId, scopes });
-		this._logger.debug(`[_setupRefresh] [${this._clientId}] [${this._authority}] [${scopes.join(' ')}] [${account.username}] timeToRefresh: ${timeToRefresh}`);
-		this._refreshDelayer.trigger(
-			key,
-			() => this.acquireTokenSilent({ account, scopes, redirectUri: 'https://vscode.dev/redirect', forceRefresh: true }),
-			timeToRefresh > 0 ? timeToRefresh : 0
-		);
-	}
+	// 	const account = result.account;
+	// 	const scopes = result.scopes;
+	// 	const timeToRefresh = on.getTime() - Date.now() - 5 * 60 * 1000; // 5 minutes before expiry
+	// 	const key = JSON.stringify({ accountId: account.homeAccountId, scopes });
+	// 	this._logger.debug(`[_setupRefresh] [${this._clientId}] [${this._authority}] [${scopes.join(' ')}] [${account.username}] timeToRefresh: ${timeToRefresh}`);
+	// 	this._refreshDelayer.trigger(
+	// 		key,
+	// 		() => this.acquireTokenSilent({ account, scopes, redirectUri: 'https://vscode.dev/redirect', forceRefresh: true }),
+	// 		timeToRefresh > 0 ? timeToRefresh : 0
+	// 	);
+	// }
 }
 
 export class Sequencer {
@@ -230,16 +230,16 @@ export class Sequencer {
 	}
 }
 
-class DelayerByKey<T> {
-	private _delayers = new Map<string, Delayer<T>>();
+// class DelayerByKey<T> {
+// 	private _delayers = new Map<string, Delayer<T>>();
 
-	trigger(key: string, fn: () => Promise<T>, delay: number): Promise<T> {
-		let delayer = this._delayers.get(key);
-		if (!delayer) {
-			delayer = new Delayer<T>(delay);
-			this._delayers.set(key, delayer);
-		}
+// 	trigger(key: string, fn: () => Promise<T>, delay: number): Promise<T> {
+// 		let delayer = this._delayers.get(key);
+// 		if (!delayer) {
+// 			delayer = new Delayer<T>(delay);
+// 			this._delayers.set(key, delayer);
+// 		}
 
-		return delayer.trigger(fn, delay);
-	}
-}
+// 		return delayer.trigger(fn, delay);
+// 	}
+// }
