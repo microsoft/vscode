@@ -61,6 +61,28 @@ export class PagedScreenReaderStrategy {
 		const selectionEndPage = PagedScreenReaderStrategy._getPageOfLine(selection.endLineNumber, linesPerPage);
 		const selectionEndPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionEndPage, linesPerPage);
 
+		// We want to limit the amount of rewrites to the screen reader content state
+		// We have two ways of determine the screen reader content:
+		// - using pagination that is regularly spaced
+		// - using pagination that starts at the selection precisely
+		// So we ideally do not want to rewrite the content on every single line up and down, even though that would fix the issue
+
+		// Suppose one pages up and remains in the same regular pagination
+		// Then no change is read out by the screen reader.
+		// This is a bug, the screen reader should read when we jump to a different selection
+
+		// Suppose one pages up and leaves the regular pagination and enters a different regular one
+		// Then perhaps we need to construct a new page that starts at the current selection, so the current selection is not midway.
+
+		// Both above problems would be fixed if instead of reading the whole page, Voice Over read the specific active line we landed upon, like it does when we mouse up and down.
+		// So independent of if we left the page or not, Voice Over should read the active line, and not focus on the page changes.
+
+		console.log('selection : ', selection);
+		console.log('selectionStartPage : ', selectionStartPage);
+		console.log('selectionStartPageRange : ', selectionStartPageRange);
+		console.log('selectionEndPage : ', selectionEndPage);
+		console.log('selectionEndPageRange : ', selectionEndPage);
+
 		let pretextRange = selectionStartPageRange.intersectRanges(new Range(1, 1, selection.startLineNumber, selection.startColumn))!;
 		if (trimLongText && model.getValueLengthInRange(pretextRange, EndOfLinePreference.LF) > LIMIT_CHARS) {
 			const pretextStart = model.modifyPosition(pretextRange.getEndPosition(), -LIMIT_CHARS);

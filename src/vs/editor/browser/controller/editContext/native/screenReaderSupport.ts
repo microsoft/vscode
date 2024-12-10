@@ -177,8 +177,10 @@ export class ScreenReaderSupport {
 		const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
 		if (isScreenReaderOptimized) {
 			this._screenReaderContentState = this._getScreenReaderContentState();
+			console.log('this._screenReaderContentState.value : ', this._screenReaderContentState.value);
 			if (this._domNode.domNode.textContent !== this._screenReaderContentState.value) {
 				this.setIgnoreSelectionChangeTime('setValue');
+				console.log('setting text content');
 				this._domNode.domNode.textContent = this._screenReaderContentState.value;
 			}
 			this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
