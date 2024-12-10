@@ -3,17 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EDITOR_DEFAULTS, WrappingIndent } from 'vs/editor/common/config/editorOptions';
-import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
-import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
-import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
-
-var global: any = self;
+import { EditorOptions, WrappingIndent, EditorAutoIndentStrategy } from './common/config/editorOptions.js';
+import { createMonacoBaseAPI } from './common/services/editorBaseApi.js';
+import { createMonacoEditorAPI } from './standalone/browser/standaloneEditor.js';
+import { createMonacoLanguagesAPI } from './standalone/browser/standaloneLanguages.js';
+import { FormattingConflicts } from './contrib/format/browser/format.js';
 
 // Set defaults for standalone editor
-(<any>EDITOR_DEFAULTS).wrappingIndent = WrappingIndent.None;
-(<any>EDITOR_DEFAULTS.viewInfo).glyphMargin = false;
-(<any>EDITOR_DEFAULTS).autoIndent = false;
+EditorOptions.wrappingIndent.defaultValue = WrappingIndent.None;
+EditorOptions.glyphMargin.defaultValue = false;
+EditorOptions.autoIndent.defaultValue = EditorAutoIndentStrategy.Advanced;
+EditorOptions.overviewRulerLanes.defaultValue = 2;
+
+// We need to register a formatter selector which simply picks the first available formatter.
+// See https://github.com/microsoft/monaco-editor/issues/2327
+FormattingConflicts.setFormatterSelector((formatter, document, mode) => Promise.resolve(formatter[0]));
 
 const api = createMonacoBaseAPI();
 api.editor = createMonacoEditorAPI();
@@ -33,13 +37,22 @@ export const Token = api.Token;
 export const editor = api.editor;
 export const languages = api.languages;
 
-global.monaco = api;
+interface IMonacoEnvironment {
+	globalAPI?: boolean;
+}
 
-if (typeof global.require !== 'undefined' && typeof global.require.config === 'function') {
-	global.require.config({
+const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
+if (monacoEnvironment?.globalAPI || (typeof (globalThis as any).define === 'function' && ((globalThis as any).define).amd)) {
+	globalThis.monaco = api;
+}
+
+if (typeof (globalThis as any).require !== 'undefined' && typeof (globalThis as any).require.config === 'function') {
+	(globalThis as any).require.config({
 		ignoreDuplicateModules: [
 			'vscode-languageserver-types',
 			'vscode-languageserver-types/main',
+			'vscode-languageserver-textdocument',
+			'vscode-languageserver-textdocument/main',
 			'vscode-nls',
 			'vscode-nls/vscode-nls',
 			'jsonc-parser',

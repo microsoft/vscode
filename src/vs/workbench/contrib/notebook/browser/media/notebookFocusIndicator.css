@@ -1,0 +1,92 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top:before {
+	top: 0;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left:before {
+	left: 0;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom:before {
+	bottom: 0px;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right:before {
+	right: 0;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator {
+	position: absolute;
+	top: 0px;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side {
+	/** Overidden for code cells */
+	top: 0px;
+	bottom: 0px;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .webview-backed-markdown-cell .cell-focus-indicator-side {
+	/* Disable pointer events for the folding container */
+	pointer-events: none;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .webview-backed-markdown-cell .cell-focus-indicator-side .notebook-folding-indicator {
+	/* But allow clicking on the folding indicator itself */
+	pointer-events: all;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom {
+	width: 100%;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right {
+	right: 0px;
+}
+
+/** cell border colors */
+
+.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-top:before,
+.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-bottom:before,
+.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container.cell-editor-focus:before {
+	border-color: var(--vscode-notebook-selectedCellBorder) !important;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before {
+	border-color: var(--vscode-notebook-inactiveFocusedCellBorder) !important;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-top:before,
+.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-bottom:before,
+.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-left:before,
+.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-right:before {
+	border-color: var(--vscode-notebook-focusedCellBorder) !important;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left .codeOutput-focus-indicator-container {
+	display: none;
+	position: relative;
+	cursor: pointer;
+	pointer-events: all; /* Take pointer-events in markdown cell */
+	width: 11px;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left .codeOutput-focus-indicator {
+	width: 0px;
+	height: 100%;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row .cell-inner-container {
+	cursor: grab;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator .codicon:hover {
+	cursor: pointer;
+}

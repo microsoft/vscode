@@ -1,0 +1,122 @@
+{
+  "name": "markdown-math",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "icon": "icon.png",
+  "publisher": "vscode",
+  "license": "MIT",
+  "aiKey": "0c6ae279ed8443289764825290e4f9e2-1a736e7c-1324-4338-be46-fc2a58ae4d14-7255",
+  "engines": {
+    "vscode": "^1.54.0"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "main": "./out/extension",
+  "browser": "./dist/browser/extension",
+  "activationEvents": [],
+  "contributes": {
+    "languages": [
+      {
+        "id": "markdown-math",
+        "aliases": []
+      }
+    ],
+    "grammars": [
+      {
+        "language": "markdown-math",
+        "scopeName": "text.html.markdown.math",
+        "path": "./syntaxes/md-math.tmLanguage.json"
+      },
+      {
+        "scopeName": "markdown.math.block",
+        "path": "./syntaxes/md-math-block.tmLanguage.json",
+        "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.math.markdown": "latex"
+        }
+      },
+      {
+        "scopeName": "markdown.math.inline",
+        "path": "./syntaxes/md-math-inline.tmLanguage.json",
+        "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.math.markdown": "latex",
+          "punctuation.definition.math.end.markdown": "latex"
+        }
+      },
+      {
+        "scopeName": "markdown.math.codeblock",
+        "path": "./syntaxes/md-math-fence.tmLanguage.json",
+        "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.math.markdown": "latex"
+        }
+      }
+    ],
+    "notebookRenderer": [
+      {
+        "id": "vscode.markdown-it-katex-extension",
+        "displayName": "Markdown it KaTeX renderer",
+        "entrypoint": {
+          "extends": "vscode.markdown-it-renderer",
+          "path": "./notebook-out/katex.js"
+        }
+      }
+    ],
+    "markdown.markdownItPlugins": true,
+    "markdown.previewStyles": [
+      "./notebook-out/katex.min.css",
+      "./preview-styles/index.css"
+    ],
+    "configuration": [
+      {
+        "title": "Markdown Math",
+        "properties": {
+          "markdown.math.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.markdown.math.enabled%"
+          },
+          "markdown.math.macros": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "default": {},
+            "description": "%config.markdown.math.macros%",
+            "scope": "resource"
+          }
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "npm run build-notebook",
+    "watch": "npm run build-notebook",
+    "build-notebook": "node ./esbuild"
+  },
+  "dependencies": {
+    "@vscode/markdown-it-katex": "^1.1.0"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^0.0.0",
+    "@types/vscode-notebook-renderer": "^1.60.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

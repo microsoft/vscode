@@ -3,39 +3,62 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { join } from 'path';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionManagementService, DidInstallExtensionEvent, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE } from 'vs/platform/extensions/common/extensions';
-import * as pfs from 'vs/base/node/pfs';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { DidUninstallExtensionEvent, IExtensionManagementService, InstallExtensionResult } from '../common/extensionManagement.js';
+import { USER_MANIFEST_CACHE_FILE } from '../../extensions/common/extensions.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
+import { ILogService } from '../../log/common/log.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
 export class ExtensionsManifestCache extends Disposable {
 
-	private extensionsManifestCache = join(this.environmentService.userDataPath, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE);
-
 	constructor(
-		private readonly environmentService: IEnvironmentService,
-		extensionsManagementServuce: IExtensionManagementService
+		private readonly userDataProfilesService: IUserDataProfilesService,
+		private readonly fileService: IFileService,
+		private readonly uriIdentityService: IUriIdentityService,
+		extensionsManagementService: IExtensionManagementService,
+		private readonly logService: ILogService,
 	) {
 		super();
-		this._register(extensionsManagementServuce.onDidInstallExtension(e => this.onDidInstallExtension(e)));
-		this._register(extensionsManagementServuce.onDidUninstallExtension(e => this.onDidUnInstallExtension(e)));
+		this._register(extensionsManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
+		this._register(extensionsManagementService.onDidUninstallExtension(e => this.onDidUnInstallExtension(e)));
 	}
 
-	private onDidInstallExtension(e: DidInstallExtensionEvent): void {
-		if (!e.error) {
-			this.invalidate();
+	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
+		for (const r of results) {
+			if (r.local) {
+				this.invalidate(r.profileLocation);
+			}
 		}
 	}
 
 	private onDidUnInstallExtension(e: DidUninstallExtensionEvent): void {
 		if (!e.error) {
-			this.invalidate();
+			this.invalidate(e.profileLocation);
 		}
 	}
 
-	invalidate(): void {
-		pfs.del(this.extensionsManifestCache).then(() => { }, () => { });
+	async invalidate(extensionsManifestLocation: URI | undefined): Promise<void> {
+		if (extensionsManifestLocation) {
+			for (const profile of this.userDataProfilesService.profiles) {
+				if (this.uriIdentityService.extUri.isEqual(profile.extensionsResource, extensionsManifestLocation)) {
+					await this.deleteUserCacheFile(profile);
+				}
+			}
+		} else {
+			await this.deleteUserCacheFile(this.userDataProfilesService.defaultProfile);
+		}
+	}
+
+	private async deleteUserCacheFile(profile: IUserDataProfile): Promise<void> {
+		try {
+			await this.fileService.del(this.uriIdentityService.extUri.joinPath(profile.cacheHome, USER_MANIFEST_CACHE_FILE));
+		} catch (error) {
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				this.logService.error(error);
+			}
+		}
 	}
 }

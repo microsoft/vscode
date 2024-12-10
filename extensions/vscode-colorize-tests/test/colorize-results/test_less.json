@@ -1,0 +1,4678 @@
+[
+	{
+		"c": "@",
+		"t": "source.css.less meta.at-rule.import.less keyword.control.at-rule.import.less punctuation.definition.keyword.less",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D",
+			"light_modern": "keyword.control: #AF00DB"
+		}
+	},
+	{
+		"c": "import",
+		"t": "source.css.less meta.at-rule.import.less keyword.control.at-rule.import.less",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D",
+			"light_modern": "keyword.control: #AF00DB"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.at-rule.import.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.css.less meta.at-rule.import.less string.quoted.double.less punctuation.definition.string.begin.less",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "mystyle.css",
+		"t": "source.css.less meta.at-rule.import.less string.quoted.double.less",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.css.less meta.at-rule.import.less string.quoted.double.less punctuation.definition.string.end.less",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.at-rule.import.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.at-rule.import.less keyword.control.at-rule.import.less punctuation.definition.keyword.less",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D",
+			"light_modern": "keyword.control: #AF00DB"
+		}
+	},
+	{
+		"c": "import",
+		"t": "source.css.less meta.at-rule.import.less keyword.control.at-rule.import.less",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D",
+			"light_modern": "keyword.control: #AF00DB"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.at-rule.import.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "url",
+		"t": "source.css.less meta.at-rule.import.less meta.function-call.less support.function.url.less",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"dark_modern": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC",
+			"light_modern": "support.function: #795E26"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.at-rule.import.less meta.function-call.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.css.less meta.at-rule.import.less meta.function-call.less string.quoted.double.less punctuation.definition.string.begin.less",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "mystyle.css",
+		"t": "source.css.less meta.at-rule.import.less meta.function-call.less string.quoted.double.less",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.css.less meta.at-rule.import.less meta.function-call.less string.quoted.double.less punctuation.definition.string.end.less",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.at-rule.import.less meta.function-call.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.at-rule.import.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.at-rule.import.less keyword.control.at-rule.import.less punctuation.definition.keyword.less",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D",
+			"light_modern": "keyword.control: #AF00DB"
+		}
+	},
+	{
+		"c": "import",
+		"t": "source.css.less meta.at-rule.import.less keyword.control.at-rule.import.less",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D",
+			"light_modern": "keyword.control: #AF00DB"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.at-rule.import.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "url",
+		"t": "source.css.less meta.at-rule.import.less meta.function-call.less support.function.url.less",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"dark_modern": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC",
+			"light_modern": "support.function: #795E26"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.at-rule.import.less meta.function-call.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.css.less meta.at-rule.import.less meta.function-call.less string.quoted.double.less punctuation.definition.string.begin.less",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "bluish.css",
+		"t": "source.css.less meta.at-rule.import.less meta.function-call.less string.quoted.double.less",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.css.less meta.at-rule.import.less meta.function-call.less string.quoted.double.less punctuation.definition.string.end.less",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.at-rule.import.less meta.function-call.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.at-rule.import.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "projection",
+		"t": "source.css.less meta.at-rule.import.less support.constant.media.less",
+		"r": {
+			"dark_plus": "support.constant.media: #CE9178",
+			"light_plus": "support.constant.media: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "support.constant.media: #0451A5",
+			"hc_black": "support.constant.media: #CE9178",
+			"dark_modern": "support.constant.media: #CE9178",
+			"hc_light": "support.constant.media: #0451A5",
+			"light_modern": "support.constant.media: #0451A5"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.at-rule.import.less punctuation.definition.arbitrary-repetition.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.at-rule.import.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "tv",
+		"t": "source.css.less meta.at-rule.import.less support.constant.media.less",
+		"r": {
+			"dark_plus": "support.constant.media: #CE9178",
+			"light_plus": "support.constant.media: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "support.constant.media: #0451A5",
+			"hc_black": "support.constant.media: #CE9178",
+			"dark_modern": "support.constant.media: #CE9178",
+			"hc_light": "support.constant.media: #0451A5",
+			"light_modern": "support.constant.media: #0451A5"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.at-rule.import.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-value.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "base",
+		"t": "source.css.less meta.property-value.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-value.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-value.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "#",
+		"t": "source.css.less meta.property-value.less constant.other.color.rgb-value.less punctuation.definition.constant.less",
+		"r": {
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178",
+			"dark_modern": "constant.other.color.rgb-value: #CE9178",
+			"hc_light": "constant.other.color.rgb-value: #0451A5",
+			"light_modern": "constant.other.color.rgb-value: #0451A5"
+		}
+	},
+	{
+		"c": "f938ab",
+		"t": "source.css.less meta.property-value.less constant.other.color.rgb-value.less",
+		"r": {
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178",
+			"dark_modern": "constant.other.color.rgb-value: #CE9178",
+			"hc_light": "constant.other.color.rgb-value: #0451A5",
+			"light_modern": "constant.other.color.rgb-value: #0451A5"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-value.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.css.less meta.selector.less entity.other.attribute-name.class.less punctuation.definition.entity.less",
+		"r": {
+			"dark_plus": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.class: #800000"
+		}
+	},
+	{
+		"c": "box-shadow",
+		"t": "source.css.less meta.selector.less entity.other.attribute-name.class.less",
+		"r": {
+			"dark_plus": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.class: #800000"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.selector.less meta.group.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "style",
+		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less punctuation.separator.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "c",
+		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.selector.less meta.group.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "when",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less keyword.control.conditional.less",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D",
+			"light_modern": "keyword.control: #AF00DB"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less meta.group.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "iscolor",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less meta.group.less meta.function-call.less support.function.type.less",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"dark_modern": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC",
+			"light_modern": "support.function: #795E26"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less meta.group.less meta.function-call.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less meta.group.less meta.function-call.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "c",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less meta.group.less meta.function-call.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less meta.group.less meta.function-call.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.less punctuation.definition.block.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "border-radius",
+		"t": "source.css.less meta.property-list.less support.type.property-name.less",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #E50000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #E50000",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name: #264F78",
+			"light_modern": "support.type.property-name: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-value.less variable.other.readwrite.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.less meta.property-value.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "style",
+		"t": "source.css.less meta.property-list.less meta.property-value.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-value.less variable.other.readwrite.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.less meta.property-value.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "c",
+		"t": "source.css.less meta.property-list.less meta.property-value.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less punctuation.definition.block.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.css.less meta.selector.less entity.other.attribute-name.class.less punctuation.definition.entity.less",
+		"r": {
+			"dark_plus": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.class: #800000"
+		}
+	},
+	{
+		"c": "box-shadow",
+		"t": "source.css.less meta.selector.less entity.other.attribute-name.class.less",
+		"r": {
+			"dark_plus": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.class: #800000"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.selector.less meta.group.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "style",
+		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less punctuation.separator.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "alpha",
+		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "50",
+		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": "%",
+		"t": "source.css.less meta.selector.less meta.group.less meta.property-value.less constant.numeric.less keyword.other.unit.less",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8",
+			"dark_modern": "keyword.other.unit: #B5CEA8",
+			"hc_light": "keyword.other.unit: #096D48",
+			"light_modern": "keyword.other.unit: #098658"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.selector.less meta.group.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "when",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less keyword.control.conditional.less",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0",
+			"dark_modern": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #B5200D",
+			"light_modern": "keyword.control: #AF00DB"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less meta.group.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "isnumber",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less meta.group.less meta.function-call.less support.function.type.less",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"dark_modern": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC",
+			"light_modern": "support.function: #795E26"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less meta.group.less meta.function-call.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less meta.group.less meta.function-call.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "alpha",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less meta.group.less meta.function-call.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less meta.group.less meta.function-call.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.selector.less meta.conditional.guarded-namespace.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.less punctuation.definition.block.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.css.less meta.property-list.less meta.selector.less entity.other.attribute-name.class.less punctuation.definition.entity.less",
+		"r": {
+			"dark_plus": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.class: #800000"
+		}
+	},
+	{
+		"c": "box-shadow",
+		"t": "source.css.less meta.property-list.less meta.selector.less entity.other.attribute-name.class.less",
+		"r": {
+			"dark_plus": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.class: #800000"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "style",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less punctuation.separator.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "rgba",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less meta.function-call.less support.function.color.less",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"dark_modern": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC",
+			"light_modern": "support.function: #795E26"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less meta.function-call.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less meta.function-call.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less meta.function-call.less punctuation.separator.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less meta.function-call.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less meta.function-call.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less meta.function-call.less punctuation.separator.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less meta.function-call.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less meta.function-call.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less meta.function-call.less punctuation.separator.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less meta.function-call.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less meta.function-call.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "alpha",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less meta.function-call.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less meta.property-value.less meta.function-call.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.less meta.selector.less meta.group.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less punctuation.definition.block.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.css.less meta.selector.less entity.other.attribute-name.class.less punctuation.definition.entity.less",
+		"r": {
+			"dark_plus": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.class: #800000"
+		}
+	},
+	{
+		"c": "box",
+		"t": "source.css.less meta.selector.less entity.other.attribute-name.class.less",
+		"r": {
+			"dark_plus": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.class: #800000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.selector.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.less punctuation.definition.block.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "color",
+		"t": "source.css.less meta.property-list.less support.type.property-name.less",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #E50000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #E50000",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name: #264F78",
+			"light_modern": "support.type.property-name: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "saturate",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less support.function.color-operation.less",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"dark_modern": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC",
+			"light_modern": "support.function: #795E26"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "base",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less punctuation.separator.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "5",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": "%",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less constant.numeric.less keyword.other.unit.less",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8",
+			"dark_modern": "keyword.other.unit: #B5CEA8",
+			"hc_light": "keyword.other.unit: #096D48",
+			"light_modern": "keyword.other.unit: #098658"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "border-color",
+		"t": "source.css.less meta.property-list.less support.type.property-name.less",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #E50000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #E50000",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name: #264F78",
+			"light_modern": "support.type.property-name: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "lighten",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less support.function.color-operation.less",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"dark_modern": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC",
+			"light_modern": "support.function: #795E26"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "base",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less punctuation.separator.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "30",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": "%",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less constant.numeric.less keyword.other.unit.less",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8",
+			"dark_modern": "keyword.other.unit: #B5CEA8",
+			"hc_light": "keyword.other.unit: #096D48",
+			"light_modern": "keyword.other.unit: #098658"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "div",
+		"t": "source.css.less meta.property-list.less meta.selector.less entity.name.tag.less",
+		"r": {
+			"dark_plus": "entity.name.tag.less: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.less: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.less: #D7BA7D",
+			"dark_modern": "entity.name.tag.less: #D7BA7D",
+			"hc_light": "entity.name.tag: #0F4A85",
+			"light_modern": "entity.name.tag: #800000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.selector.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.less meta.property-list.less punctuation.definition.block.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.css.less meta.property-list.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less entity.other.attribute-name.class.less punctuation.definition.entity.less",
+		"r": {
+			"dark_plus": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.class: #800000"
+		}
+	},
+	{
+		"c": "box-shadow",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less entity.other.attribute-name.class.less",
+		"r": {
+			"dark_plus": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.class: #800000"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less meta.group.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less meta.group.less meta.group.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less meta.group.less meta.group.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less meta.group.less meta.group.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less meta.group.less meta.group.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less meta.group.less meta.group.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "5",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less meta.group.less meta.group.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": "px",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less meta.group.less meta.group.less constant.numeric.less keyword.other.unit.less",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8",
+			"dark_modern": "keyword.other.unit: #B5CEA8",
+			"hc_light": "keyword.other.unit: #096D48",
+			"light_modern": "keyword.other.unit: #098658"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less meta.group.less meta.group.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less meta.group.less punctuation.separator.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less meta.group.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "30",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less meta.group.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": "%",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less meta.group.less constant.numeric.less keyword.other.unit.less",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8",
+			"dark_modern": "keyword.other.unit: #B5CEA8",
+			"hc_light": "keyword.other.unit: #096D48",
+			"light_modern": "keyword.other.unit: #098658"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less meta.group.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.less meta.property-list.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less meta.property-list.less punctuation.definition.block.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less punctuation.definition.block.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "#",
+		"t": "source.css.less meta.selector.less entity.other.attribute-name.id.less punctuation.definition.entity.less",
+		"r": {
+			"dark_plus": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_plus": "source.css.less entity.other.attribute-name.id: #800000",
+			"dark_vs": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_vs": "source.css.less entity.other.attribute-name.id: #800000",
+			"hc_black": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"dark_modern": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"hc_light": "source.css.less entity.other.attribute-name.id: #0F4A85",
+			"light_modern": "source.css.less entity.other.attribute-name.id: #800000"
+		}
+	},
+	{
+		"c": "header",
+		"t": "source.css.less meta.selector.less entity.other.attribute-name.id.less",
+		"r": {
+			"dark_plus": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_plus": "source.css.less entity.other.attribute-name.id: #800000",
+			"dark_vs": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_vs": "source.css.less entity.other.attribute-name.id: #800000",
+			"hc_black": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"dark_modern": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"hc_light": "source.css.less entity.other.attribute-name.id: #0F4A85",
+			"light_modern": "source.css.less entity.other.attribute-name.id: #800000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.selector.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.less punctuation.definition.block.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "h1",
+		"t": "source.css.less meta.property-list.less meta.selector.less entity.name.tag.less",
+		"r": {
+			"dark_plus": "entity.name.tag.less: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.less: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.less: #D7BA7D",
+			"dark_modern": "entity.name.tag.less: #D7BA7D",
+			"hc_light": "entity.name.tag: #0F4A85",
+			"light_modern": "entity.name.tag: #800000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.selector.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.less meta.property-list.less punctuation.definition.block.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.css.less meta.property-list.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "font-size",
+		"t": "source.css.less meta.property-list.less meta.property-list.less support.type.property-name.less",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #E50000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #E50000",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name: #264F78",
+			"light_modern": "support.type.property-name: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.less meta.property-list.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "26",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-value.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": "px",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-value.less constant.numeric.less keyword.other.unit.less",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8",
+			"dark_modern": "keyword.other.unit: #B5CEA8",
+			"hc_light": "keyword.other.unit: #096D48",
+			"light_modern": "keyword.other.unit: #098658"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.less meta.property-list.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.css.less meta.property-list.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "font-weight",
+		"t": "source.css.less meta.property-list.less meta.property-list.less support.type.property-name.less",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #E50000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #E50000",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name: #264F78",
+			"light_modern": "support.type.property-name: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.less meta.property-list.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "bold",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-value.less support.constant.property-value.less",
+		"r": {
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "support.constant.property-value: #0451A5",
+			"hc_black": "support.constant.property-value: #CE9178",
+			"dark_modern": "support.constant.property-value: #CE9178",
+			"hc_light": "support.constant.property-value: #0451A5",
+			"light_modern": "support.constant.property-value: #0451A5"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.less meta.property-list.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less meta.property-list.less punctuation.definition.block.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "p",
+		"t": "source.css.less meta.property-list.less meta.selector.less entity.name.tag.less",
+		"r": {
+			"dark_plus": "entity.name.tag.less: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.less: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.less: #D7BA7D",
+			"dark_modern": "entity.name.tag.less: #D7BA7D",
+			"hc_light": "entity.name.tag: #0F4A85",
+			"light_modern": "entity.name.tag: #800000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.selector.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.less meta.property-list.less punctuation.definition.block.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "font-size",
+		"t": "source.css.less meta.property-list.less meta.property-list.less support.type.property-name.less",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #E50000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #E50000",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name: #264F78",
+			"light_modern": "support.type.property-name: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.less meta.property-list.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "12",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-value.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": "px",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-value.less constant.numeric.less keyword.other.unit.less",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8",
+			"dark_modern": "keyword.other.unit: #B5CEA8",
+			"hc_light": "keyword.other.unit: #096D48",
+			"light_modern": "keyword.other.unit: #098658"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.less meta.property-list.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.css.less meta.property-list.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "a",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less entity.name.tag.less",
+		"r": {
+			"dark_plus": "entity.name.tag.less: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.less: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.less: #D7BA7D",
+			"dark_modern": "entity.name.tag.less: #D7BA7D",
+			"hc_light": "entity.name.tag: #0F4A85",
+			"light_modern": "entity.name.tag: #800000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.selector.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less punctuation.definition.block.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "text-decoration",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less support.type.property-name.less",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #E50000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #E50000",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name: #264F78",
+			"light_modern": "support.type.property-name: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "none",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less meta.property-value.less support.constant.property-value.less",
+		"r": {
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "support.constant.property-value: #0451A5",
+			"hc_black": "support.constant.property-value: #CE9178",
+			"dark_modern": "support.constant.property-value: #CE9178",
+			"hc_light": "support.constant.property-value: #0451A5",
+			"light_modern": "support.constant.property-value: #0451A5"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t\t",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "&",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less meta.selector.less entity.other.attribute-name.parent.less punctuation.definition.entity.less",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.parent.less: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.parent.less: #800000",
+			"dark_vs": "entity.other.attribute-name.parent.less: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.parent.less: #800000",
+			"hc_black": "entity.other.attribute-name.parent.less: #D7BA7D",
+			"dark_modern": "entity.other.attribute-name.parent.less: #D7BA7D",
+			"hc_light": "entity.other.attribute-name.parent.less: #0F4A85",
+			"light_modern": "entity.other.attribute-name.parent.less: #800000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less meta.selector.less meta.function-call.less punctuation.definition.entity.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "hover",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less meta.selector.less meta.function-call.less entity.other.attribute-name.pseudo-class.less",
+		"r": {
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less meta.selector.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less meta.property-list.less punctuation.definition.block.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "border-width",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less meta.property-list.less support.type.property-name.less",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #E50000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #E50000",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name: #264F78",
+			"light_modern": "support.type.property-name: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less meta.property-list.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less meta.property-list.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "1",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less meta.property-list.less meta.property-value.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": "px",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less meta.property-list.less meta.property-value.less constant.numeric.less keyword.other.unit.less",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8",
+			"dark_modern": "keyword.other.unit: #B5CEA8",
+			"hc_light": "keyword.other.unit: #096D48",
+			"light_modern": "keyword.other.unit: #098658"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less meta.property-list.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less meta.property-list.less meta.property-list.less meta.property-list.less punctuation.definition.block.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.css.less meta.property-list.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less meta.property-list.less meta.property-list.less punctuation.definition.block.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less meta.property-list.less punctuation.definition.block.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less punctuation.definition.block.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-value.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "the-border",
+		"t": "source.css.less meta.property-value.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-value.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-value.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "1",
+		"t": "source.css.less meta.property-value.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": "px",
+		"t": "source.css.less meta.property-value.less constant.numeric.less keyword.other.unit.less",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8",
+			"dark_modern": "keyword.other.unit: #B5CEA8",
+			"hc_light": "keyword.other.unit: #096D48",
+			"light_modern": "keyword.other.unit: #098658"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-value.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-value.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "base-color",
+		"t": "source.css.less meta.property-value.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-value.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-value.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "#",
+		"t": "source.css.less meta.property-value.less constant.other.color.rgb-value.less punctuation.definition.constant.less",
+		"r": {
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178",
+			"dark_modern": "constant.other.color.rgb-value: #CE9178",
+			"hc_light": "constant.other.color.rgb-value: #0451A5",
+			"light_modern": "constant.other.color.rgb-value: #0451A5"
+		}
+	},
+	{
+		"c": "111",
+		"t": "source.css.less meta.property-value.less constant.other.color.rgb-value.less",
+		"r": {
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178",
+			"dark_modern": "constant.other.color.rgb-value: #CE9178",
+			"hc_light": "constant.other.color.rgb-value: #0451A5",
+			"light_modern": "constant.other.color.rgb-value: #0451A5"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-value.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-value.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "red",
+		"t": "source.css.less meta.property-value.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-value.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "        ",
+		"t": "source.css.less meta.property-value.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "#",
+		"t": "source.css.less meta.property-value.less constant.other.color.rgb-value.less punctuation.definition.constant.less",
+		"r": {
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178",
+			"dark_modern": "constant.other.color.rgb-value: #CE9178",
+			"hc_light": "constant.other.color.rgb-value: #0451A5",
+			"light_modern": "constant.other.color.rgb-value: #0451A5"
+		}
+	},
+	{
+		"c": "842210",
+		"t": "source.css.less meta.property-value.less constant.other.color.rgb-value.less",
+		"r": {
+			"dark_plus": "constant.other.color.rgb-value: #CE9178",
+			"light_plus": "constant.other.color.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.color.rgb-value: #0451A5",
+			"hc_black": "constant.other.color.rgb-value: #CE9178",
+			"dark_modern": "constant.other.color.rgb-value: #CE9178",
+			"hc_light": "constant.other.color.rgb-value: #0451A5",
+			"light_modern": "constant.other.color.rgb-value: #0451A5"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-value.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "#",
+		"t": "source.css.less meta.selector.less entity.other.attribute-name.id.less punctuation.definition.entity.less",
+		"r": {
+			"dark_plus": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_plus": "source.css.less entity.other.attribute-name.id: #800000",
+			"dark_vs": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_vs": "source.css.less entity.other.attribute-name.id: #800000",
+			"hc_black": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"dark_modern": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"hc_light": "source.css.less entity.other.attribute-name.id: #0F4A85",
+			"light_modern": "source.css.less entity.other.attribute-name.id: #800000"
+		}
+	},
+	{
+		"c": "header",
+		"t": "source.css.less meta.selector.less entity.other.attribute-name.id.less",
+		"r": {
+			"dark_plus": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_plus": "source.css.less entity.other.attribute-name.id: #800000",
+			"dark_vs": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_vs": "source.css.less entity.other.attribute-name.id: #800000",
+			"hc_black": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"dark_modern": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"hc_light": "source.css.less entity.other.attribute-name.id: #0F4A85",
+			"light_modern": "source.css.less entity.other.attribute-name.id: #800000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.selector.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.less punctuation.definition.block.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "color",
+		"t": "source.css.less meta.property-list.less support.type.property-name.less",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #E50000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #E50000",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name: #264F78",
+			"light_modern": "support.type.property-name: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "base-color",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "*",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less keyword.operator.arithmetic.less",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "3",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "border-left",
+		"t": "source.css.less meta.property-list.less support.type.property-name.less",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #E50000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #E50000",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name: #264F78",
+			"light_modern": "support.type.property-name: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.less meta.property-value.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "the-border",
+		"t": "source.css.less meta.property-list.less meta.property-value.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "border-right",
+		"t": "source.css.less meta.property-list.less support.type.property-name.less",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #E50000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #E50000",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name: #264F78",
+			"light_modern": "support.type.property-name: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "the-border",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "*",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less keyword.operator.arithmetic.less",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "2",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less punctuation.definition.block.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "#",
+		"t": "source.css.less meta.selector.less entity.other.attribute-name.id.less punctuation.definition.entity.less",
+		"r": {
+			"dark_plus": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_plus": "source.css.less entity.other.attribute-name.id: #800000",
+			"dark_vs": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_vs": "source.css.less entity.other.attribute-name.id: #800000",
+			"hc_black": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"dark_modern": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"hc_light": "source.css.less entity.other.attribute-name.id: #0F4A85",
+			"light_modern": "source.css.less entity.other.attribute-name.id: #800000"
+		}
+	},
+	{
+		"c": "footer",
+		"t": "source.css.less meta.selector.less entity.other.attribute-name.id.less",
+		"r": {
+			"dark_plus": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_plus": "source.css.less entity.other.attribute-name.id: #800000",
+			"dark_vs": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_vs": "source.css.less entity.other.attribute-name.id: #800000",
+			"hc_black": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"dark_modern": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"hc_light": "source.css.less entity.other.attribute-name.id: #0F4A85",
+			"light_modern": "source.css.less entity.other.attribute-name.id: #800000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.selector.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.less punctuation.definition.block.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "color",
+		"t": "source.css.less meta.property-list.less support.type.property-name.less",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #E50000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #E50000",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name: #264F78",
+			"light_modern": "support.type.property-name: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "base-color",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "+",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less keyword.operator.arithmetic.less",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " #",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "003300",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.group.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "border-color",
+		"t": "source.css.less meta.property-list.less support.type.property-name.less",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #E50000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #E50000",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name: #264F78",
+			"light_modern": "support.type.property-name: #E50000"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.less punctuation.separator.key-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-value.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "desaturate",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less support.function.color-operation.less",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA",
+			"dark_modern": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC",
+			"light_modern": "support.function: #795E26"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less punctuation.definition.group.begin.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less variable.other.readwrite.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": "red",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less variable.other.readwrite.less support.other.variable.less",
+		"r": {
+			"dark_plus": "source.css variable: #9CDCFE",
+			"light_plus": "source.css variable: #E50000",
+			"dark_vs": "source.css variable: #9CDCFE",
+			"light_vs": "source.css variable: #E50000",
+			"hc_black": "source.css variable: #D4D4D4",
+			"dark_modern": "source.css variable: #9CDCFE",
+			"hc_light": "source.css variable: #264F78",
+			"light_modern": "source.css variable: #E50000"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less punctuation.separator.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "10",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less constant.numeric.less",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8",
+			"dark_modern": "constant.numeric: #B5CEA8",
+			"hc_light": "constant.numeric: #096D48",
+			"light_modern": "constant.numeric: #098658"
+		}
+	},
+	{
+		"c": "%",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less constant.numeric.less keyword.other.unit.less",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8",
+			"dark_modern": "keyword.other.unit: #B5CEA8",
+			"hc_light": "keyword.other.unit: #096D48",
+			"light_modern": "keyword.other.unit: #098658"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.less meta.property-value.less meta.function-call.less punctuation.definition.group.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.less punctuation.terminator.rule.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less punctuation.definition.block.end.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	}
+]

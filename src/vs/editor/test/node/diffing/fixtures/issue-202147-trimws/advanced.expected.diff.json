@@ -1,0 +1,32 @@
+{
+	"original": {
+		"content": "\n\n\t\titem.row!.domNode.classList.toggle('drop-target', item.dropTarget);\n\t}\n\n\na\nx\na\na\na",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "\n\n\t\titem.row!.domNode.classList.toggle('drop-target', item.dropTarget !== false);\n\t\tif (typeof item.dropTarget !== 'boolean') {\n\t\t\titem.row!.domNode.classList.toggle('drop-target-start', item.dropTarget.first);\n\t\t}\n\t}\n\n\na\nx\na\na\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[3,4)",
+			"modifiedRange": "[3,7)",
+			"innerChanges": [
+				{
+					"originalRange": "[3,68 -> 4,1]",
+					"modifiedRange": "[3,68 -> 7,1]"
+				}
+			]
+		},
+		{
+			"originalRange": "[11,12)",
+			"modifiedRange": "[14,15)",
+			"innerChanges": [
+				{
+					"originalRange": "[11,1 -> 11,2 EOL]",
+					"modifiedRange": "[14,1 -> 14,1 EOL]"
+				}
+			]
+		}
+	]
+}

@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { KeyCode, Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { Event } from '../../../base/common/event.js';
+import { IJSONSchema } from '../../../base/common/jsonSchema.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { ResolvedKeybinding, Keybinding } from '../../../base/common/keybindings.js';
+import { IContextKeyService, IContextKeyServiceTarget } from '../../contextkey/common/contextkey.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ResolutionResult } from './keybindingResolver.js';
+import { ResolvedKeybindingItem } from './resolvedKeybindingItem.js';
 
 export interface IUserFriendlyKeybinding {
 	key: string;
@@ -17,31 +19,32 @@ export interface IUserFriendlyKeybinding {
 	when?: string;
 }
 
-export const enum KeybindingSource {
-	Default = 1,
-	User
-}
-
-export interface IKeybindingEvent {
-	source: KeybindingSource;
-	keybindings?: IUserFriendlyKeybinding[];
-}
-
 export interface IKeyboardEvent {
+	readonly _standardKeyboardEventBrand: true;
+
 	readonly ctrlKey: boolean;
 	readonly shiftKey: boolean;
 	readonly altKey: boolean;
 	readonly metaKey: boolean;
+	readonly altGraphKey: boolean;
 	readonly keyCode: KeyCode;
 	readonly code: string;
+}
+
+export interface KeybindingsSchemaContribution {
+	readonly onDidChange?: Event<void>;
+
+	getSchemaAdditions(): IJSONSchema[];
 }
 
 export const IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
 
 export interface IKeybindingService {
-	_serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
-	onDidUpdateKeybindings: Event<IKeybindingEvent>;
+	readonly inChordMode: boolean;
+
+	onDidUpdateKeybindings: Event<void>;
 
 	/**
 	 * Returns none, one or many (depending on keyboard layout)!
@@ -60,7 +63,17 @@ export interface IKeybindingService {
 	/**
 	 * Resolve and dispatch `keyboardEvent`, but do not invoke the command or change inner state.
 	 */
-	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null;
+	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): ResolutionResult;
+
+	/**
+	 * Enable hold mode for this command. This is only possible if the command is current being dispatched, meaning
+	 * we are after its keydown and before is keyup event.
+	 *
+	 * @returns A promise that resolves when hold stops, returns undefined if hold mode could not be enabled.
+	 */
+	enableKeybindingHoldMode(commandId: string): Promise<void> | undefined;
+
+	dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void;
 
 	/**
 	 * Look up keybindings for a command.
@@ -72,13 +85,13 @@ export interface IKeybindingService {
 	 * Look up the preferred (last defined) keybinding for a command.
 	 * @returns The preferred keybinding or null if the command is not bound.
 	 */
-	lookupKeybinding(commandId: string): ResolvedKeybinding | null;
+	lookupKeybinding(commandId: string, context?: IContextKeyService, enforceContextCheck?: boolean): ResolvedKeybinding | undefined;
 
 	getDefaultKeybindingsContent(): string;
 
-	getDefaultKeybindings(): ResolvedKeybindingItem[];
+	getDefaultKeybindings(): readonly ResolvedKeybindingItem[];
 
-	getKeybindings(): ResolvedKeybindingItem[];
+	getKeybindings(): readonly ResolvedKeybindingItem[];
 
 	customKeybindingsCount(): number;
 
@@ -87,5 +100,11 @@ export interface IKeybindingService {
 	 * text box. *Note* that the results of this function can be incorrect.
 	 */
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
-}
 
+	registerSchemaContribution(contribution: KeybindingsSchemaContribution): void;
+
+	toggleLogging(): boolean;
+
+	_dumpDebugInfo(): string;
+	_dumpDebugInfoJSON(): string;
+}

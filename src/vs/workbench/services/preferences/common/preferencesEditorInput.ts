@@ -3,87 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OS } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import * as nls from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, SideBySideEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { IHashService } from 'vs/workbench/services/hash/common/hashService';
-import { KeybindingsEditorModel } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as nls from '../../../../nls.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IPreferencesService } from './preferences.js';
+import { Settings2EditorModel } from './preferencesModels.js';
 
-export class PreferencesEditorInput extends SideBySideEditorInput {
-	public static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
-
-	getTypeId(): string {
-		return PreferencesEditorInput.ID;
-	}
-
-	public getTitle(verbosity: Verbosity): string {
-		return this.master.getTitle(verbosity);
-	}
-}
-
-export class DefaultPreferencesEditorInput extends ResourceEditorInput {
-	public static readonly ID = 'workbench.editorinputs.defaultpreferences';
-	constructor(defaultSettingsResource: URI,
-		@ITextModelService textModelResolverService: ITextModelService,
-		@IHashService hashService: IHashService
-	) {
-		super(nls.localize('settingsEditorName', "Default Settings"), '', defaultSettingsResource, textModelResolverService, hashService);
-	}
-
-	getTypeId(): string {
-		return DefaultPreferencesEditorInput.ID;
-	}
-
-	matches(other: any): boolean {
-		if (other instanceof DefaultPreferencesEditorInput) {
-			return true;
-		}
-		if (!super.matches(other)) {
-			return false;
-		}
-		return true;
-	}
-}
-
-export class KeybindingsEditorInput extends EditorInput {
-
-	public static readonly ID: string = 'workbench.input.keybindings';
-	public readonly keybindingsModel: KeybindingsEditorModel;
-
-	constructor(@IInstantiationService instantiationService: IInstantiationService) {
-		super();
-		this.keybindingsModel = instantiationService.createInstance(KeybindingsEditorModel, OS);
-	}
-
-	getTypeId(): string {
-		return KeybindingsEditorInput.ID;
-	}
-
-	getName(): string {
-		return nls.localize('keybindingsInputName', "Keyboard Shortcuts");
-	}
-
-	resolve(): Promise<KeybindingsEditorModel> {
-		return Promise.resolve(this.keybindingsModel);
-	}
-
-	matches(otherInput: any): boolean {
-		return otherInput instanceof KeybindingsEditorInput;
-	}
-}
+const SettingsEditorIcon = registerIcon('settings-editor-label-icon', Codicon.settings, nls.localize('settingsEditorLabelIcon', 'Icon of the settings editor label.'));
 
 export class SettingsEditor2Input extends EditorInput {
 
-	public static readonly ID: string = 'workbench.input.settings2';
+	static readonly ID: string = 'workbench.input.settings2';
 	private readonly _settingsModel: Settings2EditorModel;
-	private resource: URI = URI.from({
-		scheme: 'vscode-settings',
+
+	readonly resource: URI = URI.from({
+		scheme: Schemas.vscodeSettings,
 		path: `settingseditor`
 	});
 
@@ -95,23 +34,29 @@ export class SettingsEditor2Input extends EditorInput {
 		this._settingsModel = _preferencesService.createSettings2EditorModel();
 	}
 
-	matches(otherInput: any): boolean {
-		return otherInput instanceof SettingsEditor2Input;
+	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
+		return super.matches(otherInput) || otherInput instanceof SettingsEditor2Input;
 	}
 
-	getTypeId(): string {
+	override get typeId(): string {
 		return SettingsEditor2Input.ID;
 	}
 
-	getName(): string {
+	override getName(): string {
 		return nls.localize('settingsEditor2InputName', "Settings");
 	}
 
-	resolve(): Promise<Settings2EditorModel> {
-		return Promise.resolve(this._settingsModel);
+	override getIcon(): ThemeIcon {
+		return SettingsEditorIcon;
 	}
 
-	public getResource(): URI {
-		return this.resource;
+	override async resolve(): Promise<Settings2EditorModel> {
+		return this._settingsModel;
+	}
+
+	override dispose(): void {
+		this._settingsModel.dispose();
+
+		super.dispose();
 	}
 }

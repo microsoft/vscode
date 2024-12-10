@@ -3,40 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import * as crypto from 'crypto';
-import * as stream from 'stream';
-import { once } from 'vs/base/common/functional';
+import * as fs from 'fs';
+import { createSingleCallFunction } from '../common/functional.js';
 
-export function checksum(path: string, sha1hash: string | undefined): Promise<void> {
-	const promise = new Promise<string | undefined>((c, e) => {
+export async function checksum(path: string, sha256hash: string | undefined): Promise<void> {
+	const checksumPromise = new Promise<string | undefined>((resolve, reject) => {
 		const input = fs.createReadStream(path);
-		const hash = crypto.createHash('sha1');
-		const hashStream = hash as any as stream.PassThrough;
-		input.pipe(hashStream);
+		const hash = crypto.createHash('sha256');
+		input.pipe(hash);
 
-		const done = once((err?: Error, result?: string) => {
+		const done = createSingleCallFunction((err?: Error, result?: string) => {
 			input.removeAllListeners();
-			hashStream.removeAllListeners();
+			hash.removeAllListeners();
 
 			if (err) {
-				e(err);
+				reject(err);
 			} else {
-				c(result);
+				resolve(result);
 			}
 		});
 
 		input.once('error', done);
 		input.once('end', done);
-		hashStream.once('error', done);
-		hashStream.once('data', (data: Buffer) => done(undefined, data.toString('hex')));
+		hash.once('error', done);
+		hash.once('data', (data: Buffer) => done(undefined, data.toString('hex')));
 	});
 
-	return promise.then(hash => {
-		if (hash !== sha1hash) {
-			return Promise.reject(new Error('Hash mismatch'));
-		}
+	const hash = await checksumPromise;
 
-		return Promise.resolve();
-	});
+	if (hash !== sha256hash) {
+		throw new Error('Hash mismatch');
+	}
 }

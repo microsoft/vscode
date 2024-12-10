@@ -3,55 +3,64 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { ScanCodeBinding } from 'vs/base/common/scanCode';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { KeybindingParser } from '../../../../base/common/keybindingParser.js';
+import { Keybinding } from '../../../../base/common/keybindings.js';
+import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { ResolvedKeybindingItem } from '../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 
 export interface IUserKeybindingItem {
-	firstPart: SimpleKeybinding | ScanCodeBinding | null;
-	chordPart: SimpleKeybinding | ScanCodeBinding | null;
+	keybinding: Keybinding | null;
 	command: string | null;
 	commandArgs?: any;
-	when: ContextKeyExpr | null;
+	when: ContextKeyExpression | undefined;
+	_sourceKey: string | undefined; /** captures `key` field from `keybindings.json`; `this.keybinding !== null` implies `_sourceKey !== null` */
 }
 
 export class KeybindingIO {
 
-	public static writeKeybindingItem(out: OutputBuilder, item: ResolvedKeybindingItem, OS: OperatingSystem): void {
+	public static writeKeybindingItem(out: OutputBuilder, item: ResolvedKeybindingItem): void {
 		if (!item.resolvedKeybinding) {
 			return;
 		}
-		let quotedSerializedKeybinding = JSON.stringify(item.resolvedKeybinding.getUserSettingsLabel());
+		const quotedSerializedKeybinding = JSON.stringify(item.resolvedKeybinding.getUserSettingsLabel());
 		out.write(`{ "key": ${rightPaddedString(quotedSerializedKeybinding + ',', 25)} "command": `);
 
-		let quotedSerializedWhen = item.when ? JSON.stringify(item.when.serialize()) : '';
-		let quotedSerializeCommand = JSON.stringify(item.command);
+		const quotedSerializedWhen = item.when ? JSON.stringify(item.when.serialize()) : '';
+		const quotedSerializeCommand = JSON.stringify(item.command);
 		if (quotedSerializedWhen.length > 0) {
 			out.write(`${quotedSerializeCommand},`);
 			out.writeLine();
-			out.write(`                                     "when": ${quotedSerializedWhen} `);
+			out.write(`                                     "when": ${quotedSerializedWhen}`);
 		} else {
-			out.write(`${quotedSerializeCommand} `);
+			out.write(`${quotedSerializeCommand}`);
 		}
-		// out.write(String(item.weight1 + '-' + item.weight2));
-		out.write('}');
+		if (item.commandArgs) {
+			out.write(',');
+			out.writeLine();
+			out.write(`                                     "args": ${JSON.stringify(item.commandArgs)}`);
+		}
+		out.write(' }');
 	}
 
-	public static readUserKeybindingItem(input: IUserFriendlyKeybinding, OS: OperatingSystem): IUserKeybindingItem {
-		const [firstPart, chordPart] = (typeof input.key === 'string' ? KeybindingParser.parseUserBinding(input.key) : [null, null]);
-		const when = (typeof input.when === 'string' ? ContextKeyExpr.deserialize(input.when) : null);
-		const command = (typeof input.command === 'string' ? input.command : null);
-		const commandArgs = (typeof input.args !== 'undefined' ? input.args : undefined);
+	public static readUserKeybindingItem(input: Object): IUserKeybindingItem {
+		const keybinding = 'key' in input && typeof input.key === 'string'
+			? KeybindingParser.parseKeybinding(input.key)
+			: null;
+		const when = 'when' in input && typeof input.when === 'string'
+			? ContextKeyExpr.deserialize(input.when)
+			: undefined;
+		const command = 'command' in input && typeof input.command === 'string'
+			? input.command
+			: null;
+		const commandArgs = 'args' in input && typeof input.args !== 'undefined'
+			? input.args
+			: undefined;
 		return {
-			firstPart: firstPart,
-			chordPart: chordPart,
-			command: command,
-			commandArgs: commandArgs,
-			when: when
+			keybinding,
+			command,
+			commandArgs,
+			when,
+			_sourceKey: 'key' in input && typeof input.key === 'string' ? input.key : undefined,
 		};
 	}
 }

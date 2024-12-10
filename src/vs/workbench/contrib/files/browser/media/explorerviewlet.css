@@ -1,0 +1,112 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* --- Explorer viewlet --- */
+.explorer-folders-view,
+.explorer-folders-view {
+	height: 100%;
+}
+
+.explorer-folders-view .monaco-list-row {
+	padding-left: 4px; /* align top level twistie with `Explorer` title label */
+}
+
+.explorer-folders-view .explorer-folders-view.highlight .monaco-list .explorer-item:not(.explorer-item-edited),
+.explorer-folders-view .explorer-folders-view.highlight .monaco-list .monaco-tl-twistie {
+	opacity: 0.3;
+}
+
+.explorer-folders-view .explorer-item,
+.explorer-folders-view .editor-group {
+	height: 22px;
+	line-height: 22px;
+}
+
+.explorer-folders-view .explorer-item {
+	display: flex; /* this helps showing the overflow ellipsis (...) even though we use display:inline-block for the labels */
+	flex-wrap: nowrap;
+}
+
+.explorer-folders-view .explorer-item > a,
+.explorer-folders-view .editor-group {
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.explorer-folders-view .explorer-item,
+.explorer-folders-view .explorer-item .monaco-inputbox {
+	flex: 1;
+}
+
+.explorer-folders-view .explorer-item.cut {
+	opacity: 0.5;
+}
+
+.explorer-folders-view .explorer-item.explorer-item-edited .label-name {
+	flex: 0; /* do not steal space when label is hidden because we are in edit mode */
+}
+
+.explorer-folders-view .explorer-item.nonexistent-root {
+	opacity: 0.5;
+}
+
+.explorer-folders-view .explorer-item .monaco-inputbox {
+	width: 100%;
+	line-height: normal;
+}
+
+.explorer-folders-view .monaco-list-row .explorer-item .monaco-count-badge {
+	margin-left: 5px;
+	display: none;
+}
+
+.explorer-folders-view .monaco-list-row[aria-expanded="false"] .explorer-item.highlight-badge .monaco-count-badge {
+	display: inline-block;
+}
+
+.explorer-folders-view .explorer-item .monaco-icon-name-container.multiple > .label-name > .monaco-highlighted-label {
+	border-radius: 3px;
+}
+
+.explorer-folders-view .explorer-item .monaco-icon-name-container.multiple > .label-name:hover > .monaco-highlighted-label,
+.explorer-folders-view .monaco-list .monaco-list-row.focused .explorer-item .monaco-icon-name-container.multiple > .label-name.active > .monaco-highlighted-label {
+	text-decoration: underline;
+}
+
+.explorer-folders-view .explorer-item .monaco-icon-name-container.multiple > .label-name.drop-target > .monaco-highlighted-label {
+	background-color: var(--vscode-list-dropBackground);
+}
+
+.explorer-folders-view .explorer-item.align-nest-icon-with-parent-icon {
+	margin-left: var(--vscode-explorer-align-offset-margin-left);
+}
+
+.monaco-workbench.linux .explorer-folders-view .explorer-item .monaco-inputbox,
+.monaco-workbench.mac .explorer-folders-view .explorer-item .monaco-inputbox {
+	height: 22px;
+}
+
+.monaco-workbench .explorer-folders-view .explorer-item .monaco-inputbox > .ibwrapper > .input {
+	padding: 0;
+	height: 20px;
+}
+
+/* High Contrast Theming */
+.monaco-workbench.hc-black .explorer-folders-view .explorer-item,
+.monaco-workbench.hc-light .explorer-folders-view .explorer-item {
+	line-height: 20px;
+}
+
+.monaco-workbench .explorer-folders-view .explorer-item .monaco-inputbox input[type="text"] {
+	outline-width: 1px;
+	outline-style: solid;
+	outline-offset: -1px;
+	outline-color: var(--vscode-focusBorder);
+	opacity: 1;
+}
+
+.monaco-workbench.context-menu-visible .explorer-folders-view.highlight .monaco-list-row {
+	outline: none !important;
+}

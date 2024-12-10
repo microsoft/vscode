@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SignatureHelpProvider, SignatureHelp, SignatureInformation, CancellationToken, TextDocument, Position, workspace } from 'vscode';
-import phpGlobals = require('./phpGlobals');
-import phpGlobalFunctions = require('./phpGlobalFunctions');
+import * as phpGlobals from './phpGlobals';
+import * as phpGlobalFunctions from './phpGlobalFunctions';
 
-var _NL = '\n'.charCodeAt(0);
-var _TAB = '\t'.charCodeAt(0);
-var _WSB = ' '.charCodeAt(0);
-var _LBracket = '['.charCodeAt(0);
-var _RBracket = ']'.charCodeAt(0);
-var _LCurly = '{'.charCodeAt(0);
-var _RCurly = '}'.charCodeAt(0);
-var _LParent = '('.charCodeAt(0);
-var _RParent = ')'.charCodeAt(0);
-var _Comma = ','.charCodeAt(0);
-var _Quote = '\''.charCodeAt(0);
-var _DQuote = '"'.charCodeAt(0);
-var _USC = '_'.charCodeAt(0);
-var _a = 'a'.charCodeAt(0);
-var _z = 'z'.charCodeAt(0);
-var _A = 'A'.charCodeAt(0);
-var _Z = 'Z'.charCodeAt(0);
-var _0 = '0'.charCodeAt(0);
-var _9 = '9'.charCodeAt(0);
+const _NL = '\n'.charCodeAt(0);
+const _TAB = '\t'.charCodeAt(0);
+const _WSB = ' '.charCodeAt(0);
+const _LBracket = '['.charCodeAt(0);
+const _RBracket = ']'.charCodeAt(0);
+const _LCurly = '{'.charCodeAt(0);
+const _RCurly = '}'.charCodeAt(0);
+const _LParent = '('.charCodeAt(0);
+const _RParent = ')'.charCodeAt(0);
+const _Comma = ','.charCodeAt(0);
+const _Quote = '\''.charCodeAt(0);
+const _DQuote = '"'.charCodeAt(0);
+const _USC = '_'.charCodeAt(0);
+const _a = 'a'.charCodeAt(0);
+const _z = 'z'.charCodeAt(0);
+const _A = 'A'.charCodeAt(0);
+const _Z = 'Z'.charCodeAt(0);
+const _0 = '0'.charCodeAt(0);
+const _9 = '9'.charCodeAt(0);
 
-var BOF = 0;
+const BOF = 0;
 
 
 class BackwardIterator {
@@ -58,7 +58,7 @@ class BackwardIterator {
 			this.lineNumber = -1;
 			return BOF;
 		}
-		var ch = this.line.charCodeAt(this.offset);
+		const ch = this.line.charCodeAt(this.offset);
 		this.offset--;
 		return ch;
 	}
@@ -69,36 +69,36 @@ class BackwardIterator {
 export default class PHPSignatureHelpProvider implements SignatureHelpProvider {
 
 	public provideSignatureHelp(document: TextDocument, position: Position, _token: CancellationToken): Promise<SignatureHelp> | null {
-		let enable = workspace.getConfiguration('php').get<boolean>('suggest.basic', true);
+		const enable = workspace.getConfiguration('php').get<boolean>('suggest.basic', true);
 		if (!enable) {
 			return null;
 		}
 
-		var iterator = new BackwardIterator(document, position.character - 1, position.line);
+		const iterator = new BackwardIterator(document, position.character - 1, position.line);
 
-		var paramCount = this.readArguments(iterator);
+		const paramCount = this.readArguments(iterator);
 		if (paramCount < 0) {
 			return null;
 		}
 
-		var ident = this.readIdent(iterator);
+		const ident = this.readIdent(iterator);
 		if (!ident) {
 			return null;
 		}
 
-		var entry = phpGlobalFunctions.globalfunctions[ident] || phpGlobals.keywords[ident];
+		const entry = phpGlobalFunctions.globalfunctions[ident] || phpGlobals.keywords[ident];
 		if (!entry || !entry.signature) {
 			return null;
 		}
-		var paramsString = entry.signature.substring(0, entry.signature.lastIndexOf(')') + 1);
-		let signatureInfo = new SignatureInformation(ident + paramsString, entry.description);
+		const paramsString = entry.signature.substring(0, entry.signature.lastIndexOf(')') + 1);
+		const signatureInfo = new SignatureInformation(ident + paramsString, entry.description);
 
-		var re = /\w*\s+\&?\$[\w_\.]+|void/g;
-		var match: RegExpExecArray | null = null;
+		const re = /\w*\s+\&?\$[\w_\.]+|void/g;
+		let match: RegExpExecArray | null = null;
 		while ((match = re.exec(paramsString)) !== null) {
 			signatureInfo.parameters.push({ label: match[0], documentation: '' });
 		}
-		let ret = new SignatureHelp();
+		const ret = new SignatureHelp();
 		ret.signatures.push(signatureInfo);
 		ret.activeSignature = 0;
 		ret.activeParameter = Math.min(paramCount, signatureInfo.parameters.length - 1);
@@ -106,12 +106,12 @@ export default class PHPSignatureHelpProvider implements SignatureHelpProvider {
 	}
 
 	private readArguments(iterator: BackwardIterator): number {
-		var parentNesting = 0;
-		var bracketNesting = 0;
-		var curlyNesting = 0;
-		var paramCount = 0;
+		let parentNesting = 0;
+		let bracketNesting = 0;
+		let curlyNesting = 0;
+		let paramCount = 0;
 		while (iterator.hasNext()) {
-			var ch = iterator.next();
+			const ch = iterator.next();
 			switch (ch) {
 				case _LParent:
 					parentNesting--;
@@ -153,10 +153,10 @@ export default class PHPSignatureHelpProvider implements SignatureHelpProvider {
 	}
 
 	private readIdent(iterator: BackwardIterator): string {
-		var identStarted = false;
-		var ident = '';
+		let identStarted = false;
+		let ident = '';
 		while (iterator.hasNext()) {
-			var ch = iterator.next();
+			const ch = iterator.next();
 			if (!identStarted && (ch === _WSB || ch === _TAB || ch === _NL)) {
 				continue;
 			}

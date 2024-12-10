@@ -5,12 +5,12 @@
 				"type": "git",
 				"git": {
 					"name": "language-php",
-					"repositoryUrl": "https://github.com/atom/language-php",
-					"commitHash": "13842b6dfb4568f76e8fa0c08dbff74347ee13c6"
+					"repositoryUrl": "https://github.com/KapitanOczywisty/language-php",
+					"commitHash": "5e8f000cb5a20f44f7a7a89d07ad0774031c53f3"
 				}
 			},
 			"license": "MIT",
-			"version": "0.43.2"
+			"version": "0.49.0"
 		}
 	],
 	"version": 1

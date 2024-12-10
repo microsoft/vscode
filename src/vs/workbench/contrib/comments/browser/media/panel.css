@@ -1,0 +1,171 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.comments-panel .comments-panel-container {
+	height: 100%;
+}
+
+.comments-panel .comments-panel-container .hidden {
+	display: none;
+}
+
+.comments-panel .comments-panel-container .tree-container {
+	height: 100%;
+}
+
+.comments-panel .comments-panel-container .tree-container.hidden {
+	display: none;
+	visibility: hidden;
+}
+
+.comments-panel .comments-panel-container .tree-container .comment-thread-container {
+	display: block;
+}
+
+.comments-panel .comments-panel-container .tree-container .comment-thread-container div {
+	overflow: hidden;
+}
+
+.comments-panel .comments-panel-container .tree-container .resource-container,
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container,
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container {
+	display: flex;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata {
+	flex: 1;
+	display: flex;
+}
+
+.comments-panel .count,
+.comments-panel .user {
+	padding-right: 5px;
+}
+
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .icon {
+	padding-top: 4px;
+	padding-right: 5px;
+	min-width: fit-content;
+}
+
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container .count,
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container .relevance,
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container .user {
+	min-width: fit-content;
+}
+
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container .relevance {
+	border-radius: 2px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	padding: 0px 4px 1px 4px;
+	font-size: 0.9em;
+	margin-right: 4px;
+	margin-top: 4px;
+	margin-bottom: 3px;
+	line-height: 14px;
+}
+
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container .text {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+}
+
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .reply-detail,
+.comments-panel .comments-panel-container .tree-container .resource-container .owner,
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .timestamp {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-size: 0.9em;
+	padding-right: 5px;
+	opacity: 0.8;
+}
+
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .text * {
+	margin: 0;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	padding-right: 5px;
+}
+
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata .text * {
+	max-width: 700px;
+}
+
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .range {
+	opacity: 0.8;
+}
+
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container .text code {
+	font-family: var(--monaco-monospace-font);
+}
+
+.comments-panel .comments-panel-container .tree-container .monaco-icon-label {
+	padding-right: 5px;
+}
+
+.comments-panel .comments-panel-container .tree-container .separator {
+	padding-right: 5px;
+	opacity: 0.8;
+}
+
+.comments-panel .comments-panel-container .message-box-container {
+	line-height: 22px;
+	padding-left: 20px;
+	height: inherit;
+}
+
+.comments-panel .comments-panel-container .tree-container .count-badge-wrapper {
+	margin-left: 10px;
+}
+
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container,
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container {
+	line-height: 22px;
+	margin-right: 5px;
+}
+
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container {
+	padding-left: 16px;
+}
+
+.comments-panel .hide {
+	display: none;
+}
+
+.comments-panel .comments-panel-container .text a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.comments-panel .comments-panel-container .text a:hover,
+.comments-panel .comments-panel-container a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.comments-panel .comments-panel-container .text a:focus {
+	outline-color: var(--vscode-focusBorder);
+}
+
+.comments-panel .comments-panel-container .text code {
+	color: var(--vscode-textPreformat-foreground);
+}
+
+.comments-panel .comments-panel-container .actions {
+	display: none;
+}
+
+.comments-panel .comments-panel-container .actions .action-label {
+	padding: 2px;
+}
+
+.comments-panel .monaco-list .monaco-list-row:hover .comment-metadata-container .actions,
+.comments-panel .monaco-list .monaco-list-row.selected .comment-metadata-container .actions,
+.comments-panel .monaco-list .monaco-list-row.focused .comment-metadata-container .actions {
+	display: block;
+}

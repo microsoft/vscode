@@ -3,24 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { LinkedList } from 'vs/base/common/linkedList';
+import assert from 'assert';
+import { LinkedList } from '../../common/linkedList.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('LinkedList', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertElements<E>(list: LinkedList<E>, ...elements: E[]) {
 
 		// check size
-		assert.equal(list.size, elements.length);
+		assert.strictEqual(list.size, elements.length);
 
 		// assert toArray
-		assert.deepEqual(list.toArray(), elements);
+		assert.deepStrictEqual(Array.from(list), elements);
 
-		// assert iterator
-		for (let iter = list.iterator(), element = iter.next(); !element.done; element = iter.next()) {
-			assert.equal(elements.shift(), element.value);
+		// assert Symbol.iterator (1)
+		assert.deepStrictEqual([...list], elements);
+
+		// assert Symbol.iterator (2)
+		for (const item of list) {
+			assert.strictEqual(item, elements.shift());
 		}
-		assert.equal(elements.length, 0);
+		assert.strictEqual(elements.length, 0);
 	}
 
 	test('Push/Iter', () => {
@@ -52,10 +58,18 @@ suite('LinkedList', function () {
 		disp = list.push(2);
 		disp();
 		assertElements(list, 0, 1);
+
+		list = new LinkedList<number>();
+		list.push(0);
+		list.push(1);
+		disp = list.push(2);
+		disp();
+		disp();
+		assertElements(list, 0, 1);
 	});
 
 	test('Push/toArray', () => {
-		let list = new LinkedList<string>();
+		const list = new LinkedList<string>();
 		list.push('foo');
 		list.push('bar');
 		list.push('far');
@@ -96,7 +110,7 @@ suite('LinkedList', function () {
 	});
 
 	test('unshift/toArray', () => {
-		let list = new LinkedList<string>();
+		const list = new LinkedList<string>();
 		list.unshift('foo');
 		list.unshift('bar');
 		list.unshift('far');
@@ -105,22 +119,21 @@ suite('LinkedList', function () {
 	});
 
 	test('pop/unshift', function () {
-		let list = new LinkedList<string>();
+		const list = new LinkedList<string>();
 		list.push('a');
 		list.push('b');
 
 		assertElements(list, 'a', 'b');
 
-		let a = list.shift();
-		assert.equal(a, 'a');
+		const a = list.shift();
+		assert.strictEqual(a, 'a');
 		assertElements(list, 'b');
 
 		list.unshift('a');
 		assertElements(list, 'a', 'b');
 
-		let b = list.pop();
-		assert.equal(b, 'b');
+		const b = list.pop();
+		assert.strictEqual(b, 'b');
 		assertElements(list, 'a');
-
 	});
 });

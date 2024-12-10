@@ -3,35 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { getEditOperation, testCommand } from 'vs/editor/test/browser/testCommand';
-import { withEditorModel } from 'vs/editor/test/common/editorTestUtils';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import assert from 'assert';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ShiftCommand } from '../../../common/commands/shiftCommand.js';
+import { EditorAutoIndentStrategy } from '../../../common/config/editorOptions.js';
+import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { getEditOperation, testCommand } from '../testCommand.js';
+import { javascriptOnEnterRules } from '../../common/modes/supports/onEnterRules.js';
+import { TestLanguageConfigurationService } from '../../common/modes/testLanguageConfigurationService.js';
+import { withEditorModel } from '../../common/testTextModel.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * Create single edit operation
  */
-export function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
+function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): ISingleEditOperation {
 	return {
 		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
-		text: text
+		text: text,
+		forceMoveMarkers: false
 	};
 }
 
-class DocBlockCommentMode extends MockMode {
+class DocBlockCommentMode extends Disposable {
 
-	private static readonly _id = new LanguageIdentifier('commentMode', 3);
+	public static languageId = 'commentMode';
+	public readonly languageId = DocBlockCommentMode.languageId;
 
-	constructor() {
-		super(DocBlockCommentMode._id);
-		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+	constructor(
+		@ILanguageService languageService: ILanguageService,
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
+	) {
+		super();
+		this._register(languageService.registerLanguage({ id: this.languageId }));
+		this._register(languageConfigurationService.register(this.languageId, {
 			brackets: [
 				['(', ')'],
 				['{', '}'],
@@ -43,31 +53,37 @@ class DocBlockCommentMode extends MockMode {
 	}
 }
 
-function testShiftCommand(lines: string[], languageIdentifier: LanguageIdentifier | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, languageIdentifier, selection, (sel) => new ShiftCommand(sel, {
+function testShiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection, prepare?: (accessor: ServicesAccessor, disposables: DisposableStore) => void): void {
+	testCommand(lines, languageId, selection, (accessor, sel) => new ShiftCommand(sel, {
 		isUnshift: false,
 		tabSize: 4,
-		oneIndent: '\t',
+		indentSize: 4,
+		insertSpaces: false,
 		useTabStops: useTabStops,
-	}), expectedLines, expectedSelection);
+		autoIndent: EditorAutoIndentStrategy.Full,
+	}, accessor.get(ILanguageConfigurationService)), expectedLines, expectedSelection, undefined, prepare);
 }
 
-function testUnshiftCommand(lines: string[], languageIdentifier: LanguageIdentifier | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, languageIdentifier, selection, (sel) => new ShiftCommand(sel, {
+function testUnshiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection, prepare?: (accessor: ServicesAccessor, disposables: DisposableStore) => void): void {
+	testCommand(lines, languageId, selection, (accessor, sel) => new ShiftCommand(sel, {
 		isUnshift: true,
 		tabSize: 4,
-		oneIndent: '\t',
+		indentSize: 4,
+		insertSpaces: false,
 		useTabStops: useTabStops,
-	}), expectedLines, expectedSelection);
+		autoIndent: EditorAutoIndentStrategy.Full,
+	}, accessor.get(ILanguageConfigurationService)), expectedLines, expectedSelection, undefined, prepare);
 }
 
-function withDockBlockCommentMode(callback: (mode: DocBlockCommentMode) => void): void {
-	let mode = new DocBlockCommentMode();
-	callback(mode);
-	mode.dispose();
+function prepareDocBlockCommentLanguage(accessor: ServicesAccessor, disposables: DisposableStore) {
+	const languageConfigurationService = accessor.get(ILanguageConfigurationService);
+	const languageService = accessor.get(ILanguageService);
+	disposables.add(new DocBlockCommentMode(languageService, languageConfigurationService));
 }
 
 suite('Editor Commands - ShiftCommand', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// --------- shift
 
@@ -90,7 +106,7 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
-			new Selection(1, 1, 1, 2)
+			new Selection(1, 2, 1, 2)
 		);
 	});
 
@@ -549,101 +565,99 @@ suite('Editor Commands - ShiftCommand', () => {
 	});
 
 	test('issue #348: indenting around doc block comments', () => {
-		withDockBlockCommentMode((mode) => {
+		testShiftCommand(
+			[
+				'',
+				'/**',
+				' * a doc comment',
+				' */',
+				'function hello() {}'
+			],
+			DocBlockCommentMode.languageId,
+			true,
+			new Selection(1, 1, 5, 20),
+			[
+				'',
+				'\t/**',
+				'\t * a doc comment',
+				'\t */',
+				'\tfunction hello() {}'
+			],
+			new Selection(1, 1, 5, 21),
+			prepareDocBlockCommentLanguage
+		);
 
-			testShiftCommand(
-				[
-					'',
-					'/**',
-					' * a doc comment',
-					' */',
-					'function hello() {}'
-				],
-				mode.getLanguageIdentifier(),
-				true,
-				new Selection(1, 1, 5, 20),
-				[
-					'',
-					'\t/**',
-					'\t * a doc comment',
-					'\t */',
-					'\tfunction hello() {}'
-				],
-				new Selection(1, 1, 5, 21)
-			);
+		testUnshiftCommand(
+			[
+				'',
+				'/**',
+				' * a doc comment',
+				' */',
+				'function hello() {}'
+			],
+			DocBlockCommentMode.languageId,
+			true,
+			new Selection(1, 1, 5, 20),
+			[
+				'',
+				'/**',
+				' * a doc comment',
+				' */',
+				'function hello() {}'
+			],
+			new Selection(1, 1, 5, 20),
+			prepareDocBlockCommentLanguage
+		);
 
-			testUnshiftCommand(
-				[
-					'',
-					'/**',
-					' * a doc comment',
-					' */',
-					'function hello() {}'
-				],
-				mode.getLanguageIdentifier(),
-				true,
-				new Selection(1, 1, 5, 20),
-				[
-					'',
-					'/**',
-					' * a doc comment',
-					' */',
-					'function hello() {}'
-				],
-				new Selection(1, 1, 5, 20)
-			);
-
-			testUnshiftCommand(
-				[
-					'\t',
-					'\t/**',
-					'\t * a doc comment',
-					'\t */',
-					'\tfunction hello() {}'
-				],
-				mode.getLanguageIdentifier(),
-				true,
-				new Selection(1, 1, 5, 21),
-				[
-					'',
-					'/**',
-					' * a doc comment',
-					' */',
-					'function hello() {}'
-				],
-				new Selection(1, 1, 5, 20)
-			);
-
-		});
+		testUnshiftCommand(
+			[
+				'\t',
+				'\t/**',
+				'\t * a doc comment',
+				'\t */',
+				'\tfunction hello() {}'
+			],
+			DocBlockCommentMode.languageId,
+			true,
+			new Selection(1, 1, 5, 21),
+			[
+				'',
+				'/**',
+				' * a doc comment',
+				' */',
+				'function hello() {}'
+			],
+			new Selection(1, 1, 5, 20),
+			prepareDocBlockCommentLanguage
+		);
 	});
 
 	test('issue #1609: Wrong indentation of block comments', () => {
-		withDockBlockCommentMode((mode) => {
-			testShiftCommand(
-				[
-					'',
-					'/**',
-					' * test',
-					' *',
-					' * @type {number}',
-					' */',
-					'var foo = 0;'
-				],
-				mode.getLanguageIdentifier(),
-				true,
-				new Selection(1, 1, 7, 13),
-				[
-					'',
-					'\t/**',
-					'\t * test',
-					'\t *',
-					'\t * @type {number}',
-					'\t */',
-					'\tvar foo = 0;'
-				],
-				new Selection(1, 1, 7, 14)
-			);
-		});
+		testShiftCommand(
+			[
+				'',
+				'/**',
+				' * test',
+				' *',
+				' * @type {number}',
+				' */',
+				'var foo = 0;'
+			],
+			DocBlockCommentMode.languageId,
+			true,
+			new Selection(1, 1, 7, 13),
+			[
+				'',
+				'\t/**',
+				'\t * test',
+				'\t *',
+				'\t * @type {number}',
+				'\t */',
+				'\tvar foo = 0;'
+			],
+			new Selection(1, 1, 7, 14),
+			prepareDocBlockCommentLanguage
+		);
 	});
 
 	test('issue #1620: a) Line indent doesn\'t handle leading whitespace properly', () => {
@@ -665,12 +679,14 @@ suite('Editor Commands - ShiftCommand', () => {
 			],
 			null,
 			new Selection(1, 1, 13, 1),
-			(sel) => new ShiftCommand(sel, {
+			(accessor, sel) => new ShiftCommand(sel, {
 				isUnshift: false,
 				tabSize: 4,
-				oneIndent: '    ',
-				useTabStops: false
-			}),
+				indentSize: 4,
+				insertSpaces: true,
+				useTabStops: false,
+				autoIndent: EditorAutoIndentStrategy.Full,
+			}, accessor.get(ILanguageConfigurationService)),
 			[
 				'       Written | Numeric',
 				'           one | 1',
@@ -709,12 +725,14 @@ suite('Editor Commands - ShiftCommand', () => {
 			],
 			null,
 			new Selection(1, 1, 13, 1),
-			(sel) => new ShiftCommand(sel, {
+			(accessor, sel) => new ShiftCommand(sel, {
 				isUnshift: true,
 				tabSize: 4,
-				oneIndent: '    ',
-				useTabStops: false
-			}),
+				indentSize: 4,
+				insertSpaces: true,
+				useTabStops: false,
+				autoIndent: EditorAutoIndentStrategy.Full,
+			}, accessor.get(ILanguageConfigurationService)),
 			[
 				'   Written | Numeric',
 				'       one | 1',
@@ -753,12 +771,14 @@ suite('Editor Commands - ShiftCommand', () => {
 			],
 			null,
 			new Selection(1, 1, 13, 1),
-			(sel) => new ShiftCommand(sel, {
+			(accessor, sel) => new ShiftCommand(sel, {
 				isUnshift: true,
 				tabSize: 4,
-				oneIndent: '\t',
-				useTabStops: false
-			}),
+				indentSize: 4,
+				insertSpaces: false,
+				useTabStops: false,
+				autoIndent: EditorAutoIndentStrategy.Full,
+			}, accessor.get(ILanguageConfigurationService)),
 			[
 				'   Written | Numeric',
 				'       one | 1',
@@ -797,12 +817,14 @@ suite('Editor Commands - ShiftCommand', () => {
 			],
 			null,
 			new Selection(1, 1, 13, 1),
-			(sel) => new ShiftCommand(sel, {
+			(accessor, sel) => new ShiftCommand(sel, {
 				isUnshift: true,
 				tabSize: 4,
-				oneIndent: '    ',
-				useTabStops: false
-			}),
+				indentSize: 4,
+				insertSpaces: true,
+				useTabStops: false,
+				autoIndent: EditorAutoIndentStrategy.Full,
+			}, accessor.get(ILanguageConfigurationService)),
 			[
 				'   Written | Numeric',
 				'       one | 1',
@@ -822,7 +844,7 @@ suite('Editor Commands - ShiftCommand', () => {
 		);
 	});
 
-	test('issue Microsoft/monaco-editor#443: Indentation of a single row deletes selected text in some cases', () => {
+	test('issue microsoft/monaco-editor#443: Indentation of a single row deletes selected text in some cases', () => {
 		testCommand(
 			[
 				'Hello world!',
@@ -830,12 +852,14 @@ suite('Editor Commands - ShiftCommand', () => {
 			],
 			null,
 			new Selection(1, 1, 1, 13),
-			(sel) => new ShiftCommand(sel, {
+			(accessor, sel) => new ShiftCommand(sel, {
 				isUnshift: false,
 				tabSize: 4,
-				oneIndent: '\t',
-				useTabStops: true
-			}),
+				indentSize: 4,
+				insertSpaces: false,
+				useTabStops: true,
+				autoIndent: EditorAutoIndentStrategy.Full,
+			}, accessor.get(ILanguageConfigurationService)),
 			[
 				'\tHello world!',
 				'another line'
@@ -846,7 +870,7 @@ suite('Editor Commands - ShiftCommand', () => {
 
 	test('bug #16815:Shift+Tab doesn\'t go back to tabstop', () => {
 
-		let repeatStr = (str: string, cnt: number): string => {
+		const repeatStr = (str: string, cnt: number): string => {
 			let r = '';
 			for (let i = 0; i < cnt; i++) {
 				r += str;
@@ -854,115 +878,120 @@ suite('Editor Commands - ShiftCommand', () => {
 			return r;
 		};
 
-		let testOutdent = (tabSize: number, oneIndent: string, lineText: string, expectedIndents: number) => {
-			let expectedIndent = repeatStr(oneIndent, expectedIndents);
+		const testOutdent = (tabSize: number, indentSize: number, insertSpaces: boolean, lineText: string, expectedIndents: number) => {
+			const oneIndent = insertSpaces ? repeatStr(' ', indentSize) : '\t';
+			const expectedIndent = repeatStr(oneIndent, expectedIndents);
 			if (lineText.length > 0) {
-				_assertUnshiftCommand(tabSize, oneIndent, [lineText + 'aaa'], [createSingleEditOp(expectedIndent, 1, 1, 1, lineText.length + 1)]);
+				_assertUnshiftCommand(tabSize, indentSize, insertSpaces, [lineText + 'aaa'], [createSingleEditOp(expectedIndent, 1, 1, 1, lineText.length + 1)]);
 			} else {
-				_assertUnshiftCommand(tabSize, oneIndent, [lineText + 'aaa'], []);
+				_assertUnshiftCommand(tabSize, indentSize, insertSpaces, [lineText + 'aaa'], []);
 			}
 		};
 
-		let testIndent = (tabSize: number, oneIndent: string, lineText: string, expectedIndents: number) => {
-			let expectedIndent = repeatStr(oneIndent, expectedIndents);
-			_assertShiftCommand(tabSize, oneIndent, [lineText + 'aaa'], [createSingleEditOp(expectedIndent, 1, 1, 1, lineText.length + 1)]);
+		const testIndent = (tabSize: number, indentSize: number, insertSpaces: boolean, lineText: string, expectedIndents: number) => {
+			const oneIndent = insertSpaces ? repeatStr(' ', indentSize) : '\t';
+			const expectedIndent = repeatStr(oneIndent, expectedIndents);
+			_assertShiftCommand(tabSize, indentSize, insertSpaces, [lineText + 'aaa'], [createSingleEditOp(expectedIndent, 1, 1, 1, lineText.length + 1)]);
 		};
 
-		let testIndentation = (tabSize: number, lineText: string, expectedOnOutdent: number, expectedOnIndent: number) => {
-			let spaceIndent = '';
-			for (let i = 0; i < tabSize; i++) {
-				spaceIndent += ' ';
-			}
+		const testIndentation = (tabSize: number, indentSize: number, lineText: string, expectedOnOutdent: number, expectedOnIndent: number) => {
+			testOutdent(tabSize, indentSize, true, lineText, expectedOnOutdent);
+			testOutdent(tabSize, indentSize, false, lineText, expectedOnOutdent);
 
-			testOutdent(tabSize, spaceIndent, lineText, expectedOnOutdent);
-			testOutdent(tabSize, '\t', lineText, expectedOnOutdent);
-
-			testIndent(tabSize, spaceIndent, lineText, expectedOnIndent);
-			testIndent(tabSize, '\t', lineText, expectedOnIndent);
+			testIndent(tabSize, indentSize, true, lineText, expectedOnIndent);
+			testIndent(tabSize, indentSize, false, lineText, expectedOnIndent);
 		};
 
 		// insertSpaces: true
 		// 0 => 0
-		testIndentation(4, '', 0, 1);
+		testIndentation(4, 4, '', 0, 1);
 
 		// 1 => 0
-		testIndentation(4, '\t', 0, 2);
-		testIndentation(4, ' ', 0, 1);
-		testIndentation(4, ' \t', 0, 2);
-		testIndentation(4, '  ', 0, 1);
-		testIndentation(4, '  \t', 0, 2);
-		testIndentation(4, '   ', 0, 1);
-		testIndentation(4, '   \t', 0, 2);
-		testIndentation(4, '    ', 0, 2);
+		testIndentation(4, 4, '\t', 0, 2);
+		testIndentation(4, 4, ' ', 0, 1);
+		testIndentation(4, 4, ' \t', 0, 2);
+		testIndentation(4, 4, '  ', 0, 1);
+		testIndentation(4, 4, '  \t', 0, 2);
+		testIndentation(4, 4, '   ', 0, 1);
+		testIndentation(4, 4, '   \t', 0, 2);
+		testIndentation(4, 4, '    ', 0, 2);
 
 		// 2 => 1
-		testIndentation(4, '\t\t', 1, 3);
-		testIndentation(4, '\t ', 1, 2);
-		testIndentation(4, '\t \t', 1, 3);
-		testIndentation(4, '\t  ', 1, 2);
-		testIndentation(4, '\t  \t', 1, 3);
-		testIndentation(4, '\t   ', 1, 2);
-		testIndentation(4, '\t   \t', 1, 3);
-		testIndentation(4, '\t    ', 1, 3);
-		testIndentation(4, ' \t\t', 1, 3);
-		testIndentation(4, ' \t ', 1, 2);
-		testIndentation(4, ' \t \t', 1, 3);
-		testIndentation(4, ' \t  ', 1, 2);
-		testIndentation(4, ' \t  \t', 1, 3);
-		testIndentation(4, ' \t   ', 1, 2);
-		testIndentation(4, ' \t   \t', 1, 3);
-		testIndentation(4, ' \t    ', 1, 3);
-		testIndentation(4, '  \t\t', 1, 3);
-		testIndentation(4, '  \t ', 1, 2);
-		testIndentation(4, '  \t \t', 1, 3);
-		testIndentation(4, '  \t  ', 1, 2);
-		testIndentation(4, '  \t  \t', 1, 3);
-		testIndentation(4, '  \t   ', 1, 2);
-		testIndentation(4, '  \t   \t', 1, 3);
-		testIndentation(4, '  \t    ', 1, 3);
-		testIndentation(4, '   \t\t', 1, 3);
-		testIndentation(4, '   \t ', 1, 2);
-		testIndentation(4, '   \t \t', 1, 3);
-		testIndentation(4, '   \t  ', 1, 2);
-		testIndentation(4, '   \t  \t', 1, 3);
-		testIndentation(4, '   \t   ', 1, 2);
-		testIndentation(4, '   \t   \t', 1, 3);
-		testIndentation(4, '   \t    ', 1, 3);
-		testIndentation(4, '    \t', 1, 3);
-		testIndentation(4, '     ', 1, 2);
-		testIndentation(4, '     \t', 1, 3);
-		testIndentation(4, '      ', 1, 2);
-		testIndentation(4, '      \t', 1, 3);
-		testIndentation(4, '       ', 1, 2);
-		testIndentation(4, '       \t', 1, 3);
-		testIndentation(4, '        ', 1, 3);
+		testIndentation(4, 4, '\t\t', 1, 3);
+		testIndentation(4, 4, '\t ', 1, 2);
+		testIndentation(4, 4, '\t \t', 1, 3);
+		testIndentation(4, 4, '\t  ', 1, 2);
+		testIndentation(4, 4, '\t  \t', 1, 3);
+		testIndentation(4, 4, '\t   ', 1, 2);
+		testIndentation(4, 4, '\t   \t', 1, 3);
+		testIndentation(4, 4, '\t    ', 1, 3);
+		testIndentation(4, 4, ' \t\t', 1, 3);
+		testIndentation(4, 4, ' \t ', 1, 2);
+		testIndentation(4, 4, ' \t \t', 1, 3);
+		testIndentation(4, 4, ' \t  ', 1, 2);
+		testIndentation(4, 4, ' \t  \t', 1, 3);
+		testIndentation(4, 4, ' \t   ', 1, 2);
+		testIndentation(4, 4, ' \t   \t', 1, 3);
+		testIndentation(4, 4, ' \t    ', 1, 3);
+		testIndentation(4, 4, '  \t\t', 1, 3);
+		testIndentation(4, 4, '  \t ', 1, 2);
+		testIndentation(4, 4, '  \t \t', 1, 3);
+		testIndentation(4, 4, '  \t  ', 1, 2);
+		testIndentation(4, 4, '  \t  \t', 1, 3);
+		testIndentation(4, 4, '  \t   ', 1, 2);
+		testIndentation(4, 4, '  \t   \t', 1, 3);
+		testIndentation(4, 4, '  \t    ', 1, 3);
+		testIndentation(4, 4, '   \t\t', 1, 3);
+		testIndentation(4, 4, '   \t ', 1, 2);
+		testIndentation(4, 4, '   \t \t', 1, 3);
+		testIndentation(4, 4, '   \t  ', 1, 2);
+		testIndentation(4, 4, '   \t  \t', 1, 3);
+		testIndentation(4, 4, '   \t   ', 1, 2);
+		testIndentation(4, 4, '   \t   \t', 1, 3);
+		testIndentation(4, 4, '   \t    ', 1, 3);
+		testIndentation(4, 4, '    \t', 1, 3);
+		testIndentation(4, 4, '     ', 1, 2);
+		testIndentation(4, 4, '     \t', 1, 3);
+		testIndentation(4, 4, '      ', 1, 2);
+		testIndentation(4, 4, '      \t', 1, 3);
+		testIndentation(4, 4, '       ', 1, 2);
+		testIndentation(4, 4, '       \t', 1, 3);
+		testIndentation(4, 4, '        ', 1, 3);
 
 		// 3 => 2
-		testIndentation(4, '         ', 2, 3);
+		testIndentation(4, 4, '         ', 2, 3);
 
-		function _assertUnshiftCommand(tabSize: number, oneIndent: string, text: string[], expected: IIdentifiedSingleEditOperation[]): void {
+		function _assertUnshiftCommand(tabSize: number, indentSize: number, insertSpaces: boolean, text: string[], expected: ISingleEditOperation[]): void {
 			return withEditorModel(text, (model) => {
-				let op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
+				const testLanguageConfigurationService = new TestLanguageConfigurationService();
+				const op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
 					isUnshift: true,
 					tabSize: tabSize,
-					oneIndent: oneIndent,
-					useTabStops: true
-				});
-				let actual = getEditOperation(model, op);
-				assert.deepEqual(actual, expected);
+					indentSize: indentSize,
+					insertSpaces: insertSpaces,
+					useTabStops: true,
+					autoIndent: EditorAutoIndentStrategy.Full,
+				}, testLanguageConfigurationService);
+				const actual = getEditOperation(model, op);
+				assert.deepStrictEqual(actual, expected);
+				testLanguageConfigurationService.dispose();
 			});
 		}
 
-		function _assertShiftCommand(tabSize: number, oneIndent: string, text: string[], expected: IIdentifiedSingleEditOperation[]): void {
+		function _assertShiftCommand(tabSize: number, indentSize: number, insertSpaces: boolean, text: string[], expected: ISingleEditOperation[]): void {
 			return withEditorModel(text, (model) => {
-				let op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
+				const testLanguageConfigurationService = new TestLanguageConfigurationService();
+				const op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
 					isUnshift: false,
 					tabSize: tabSize,
-					oneIndent: oneIndent,
-					useTabStops: true
-				});
-				let actual = getEditOperation(model, op);
-				assert.deepEqual(actual, expected);
+					indentSize: indentSize,
+					insertSpaces: insertSpaces,
+					useTabStops: true,
+					autoIndent: EditorAutoIndentStrategy.Full,
+				}, testLanguageConfigurationService);
+				const actual = getEditOperation(model, op);
+				assert.deepStrictEqual(actual, expected);
+				testLanguageConfigurationService.dispose();
 			});
 		}
 	});

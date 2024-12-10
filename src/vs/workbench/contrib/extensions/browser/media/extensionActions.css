@@ -1,0 +1,147 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-action-bar .action-item .action-label.extension-action {
+	line-height: initial;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.monaco-action-bar .action-item > .action-label.extension-action.label,
+.monaco-action-bar .action-dropdown-item > .action-label.extension-action.label {
+	padding: 0 5px;
+}
+
+.monaco-action-bar .action-dropdown-item > .monaco-dropdown .action-label {
+	padding: 0;
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label {
+	outline-offset: 1px;
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.text,
+.monaco-action-bar .action-item .action-label.extension-action.label,
+.monaco-action-bar .action-dropdown-item .action-label.extension-action.label {
+	width: auto;
+	height: auto;
+	line-height: 14px;
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.built-in-status {
+	border-color: var(--vscode-foreground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label,
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
+	background-color: var(--vscode-extensionButton-background) !important;
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label {
+	color: var(--vscode-extensionButton-foreground) !important;
+}
+
+.monaco-action-bar .action-item:not(.disabled) .action-label.extension-action.label:hover {
+	background-color: var(--vscode-extensionButton-hoverBackground) !important;
+}
+
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
+	background-color: var(--vscode-extensionButton-separator);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label.prominent,
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator.prominent {
+	background-color: var(--vscode-extensionButton-prominentBackground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label.prominent {
+	color: var(--vscode-extensionButton-prominentForeground) !important;
+}
+
+.monaco-action-bar .action-item.action-item:not(.disabled) .action-label.extension-action.label.prominent:hover {
+	background-color: var(--vscode-extensionButton-prominentHoverBackground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action:not(.disabled) {
+	border: 1px solid var(--vscode-contrastBorder);
+}
+
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
+	border-top: 1px solid var(--vscode-contrastBorder);
+	border-bottom: 1px solid var(--vscode-contrastBorder);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.extension-status-error::before {
+	color: var(--vscode-editorError-foreground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.extension-status-warning::before {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.extension-status-info::before {
+	color: var(--vscode-editorInfo-foreground);
+}
+
+.monaco-action-bar .action-item:not(.disabled) .action-label.extension-action.text,
+.monaco-action-bar .action-item:not(.disabled) .action-label.extension-action.label,
+.monaco-action-bar .action-item .action-label.extension-action.icon,
+.monaco-action-bar .action-dropdown-item .action-label.extension-action.label {
+	margin-top: 2px;
+	/* margin for outline */
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-action.hide,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.ignore,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.undo-ignore,
+.monaco-action-bar .action-item .action-label.extension-action.install.hide,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.install-other-server:not(.installing),
+.monaco-action-bar .action-item.disabled .action-label.extension-action.uninstall:not(.uninstalling),
+.monaco-action-bar .action-item.disabled .action-label.extension-action.hide-when-disabled,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.update,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.migrate,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.theme,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.language,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.extension-sync,
+.monaco-action-bar .action-item.action-dropdown-item.hide,
+.monaco-action-bar .action-item.action-dropdown-item .action-label.extension-action.hide,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.reload,
+.monaco-action-bar .action-item.disabled .action-label.disable-status.hide,
+.monaco-action-bar .action-item.disabled .action-label.extension-status.hide,
+.monaco-action-bar .action-item.disabled .action-label.extension-status-label.hide,
+.monaco-action-bar .action-item .action-label.extension-action.manage.hide {
+	display: none;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-action.label {
+	opacity: 0.4 !important;
+}
+
+.monaco-action-bar .action-item.checkbox-action-item.disabled {
+	display: none;
+}
+
+.monaco-action-bar .extension-action.label {
+	display: inherit;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-status:before {
+	opacity: 1;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-status-label:before {
+	content: '\2713';
+	padding-right: 4px;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-action {
+	opacity: 1;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-action.text {
+	opacity: 0.9;
+	font-style: italic;
+}

@@ -1,0 +1,17 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"plugins": [
+			{
+				"name": "tsec",
+				"exemptionConfig": "./tsec.exemptions.json"
+			}
+		]
+	},
+	"exclude": [
+		"./vs/workbench/contrib/webview/browser/pre/service-worker.js",
+		"*/test/*",
+		"**/*.test.ts"
+	]
+}

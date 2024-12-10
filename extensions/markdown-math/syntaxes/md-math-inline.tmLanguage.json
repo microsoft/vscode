@@ -1,0 +1,79 @@
+{
+	"fileTypes": [],
+	"injectionSelector": "L:meta.paragraph.markdown - (comment, string, markup.math.inline.markdown, markup.fenced_code.block.markdown)",
+	"patterns": [
+		{
+			"include": "#math_inline_double"
+		},
+		{
+			"include": "#math_inline_single"
+		},
+		{
+			"include": "#math_inline_block"
+		}
+	],
+	"repository": {
+		"math_inline_single": {
+			"name": "markup.math.inline.markdown",
+			"match": "(?<=\\s|\\W|^)(?<!\\$)(\\$)(.+?)(\\$)(?!\\$)(?=\\s|\\W|$)",
+			"captures": {
+				"1": {
+					"name": "punctuation.definition.math.begin.markdown"
+				},
+				"2": {
+					"name": "meta.embedded.math.markdown",
+					"patterns": [
+						{
+							"include": "text.html.markdown.math#math"
+						}
+					]
+				},
+				"3": {
+					"name": "punctuation.definition.math.end.markdown"
+				}
+			}
+		},
+		"math_inline_double": {
+			"name": "markup.math.inline.markdown",
+			"match": "(?<=\\s|\\W|^)(?<!\\$)(\\$\\$)(.+?)(\\$\\$)(?!\\$)(?=\\s|\\W|$)",
+			"captures": {
+				"1": {
+					"name": "punctuation.definition.math.begin.markdown"
+				},
+				"2": {
+					"name": "meta.embedded.math.markdown",
+					"patterns": [
+						{
+							"include": "text.html.markdown.math#math"
+						}
+					]
+				},
+				"3": {
+					"name": "punctuation.definition.math.end.markdown"
+				}
+			}
+		},
+		"math_inline_block": {
+			"name": "markup.math.inline.markdown",
+			"contentName": "meta.embedded.math.markdown",
+			"begin": "(?<=\\s|^)(\\${2})",
+			"beginCaptures": {
+				"2": {
+					"name": "punctuation.definition.math.begin.markdown"
+				}
+			},
+			"end": "(\\${2})(?=\\s|$)",
+			"endCaptures": {
+				"2": {
+					"name": "punctuation.definition.math.end.markdown"
+				}
+			},
+			"patterns": [
+				{
+					"include": "text.html.markdown.math#math"
+				}
+			]
+		}
+	},
+	"scopeName": "markdown.math.inline"
+}

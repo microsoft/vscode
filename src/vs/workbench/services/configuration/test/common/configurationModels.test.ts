@@ -2,18 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { join } from 'vs/base/common/paths';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { FolderSettingsModelParser, WorkspaceConfigurationChangeEvent, StandaloneConfigurationModelParser, AllKeysConfigurationChangeEvent, Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
-import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { URI } from 'vs/base/common/uri';
-import { ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ResourceMap } from 'vs/base/common/map';
+import assert from 'assert';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { StandaloneConfigurationModelParser, Configuration } from '../../common/configurationModels.js';
+import { ConfigurationModelParser, ConfigurationModel, ConfigurationParseOptions } from '../../../../../platform/configuration/common/configurationModels.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 
 suite('FolderSettingsModelParser', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suiteSetup(() => {
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -29,47 +32,72 @@ suite('FolderSettingsModelParser', () => {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.RESOURCE,
-					overridable: true
+				},
+				'FolderSettingsModelParser.resourceLanguage': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 				},
 				'FolderSettingsModelParser.application': {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.APPLICATION
+				},
+				'FolderSettingsModelParser.machine': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.MACHINE
 				}
 			}
 		});
 	});
 
 	test('parse all folder settings', () => {
-		const testObject = new FolderSettingsModelParser('settings', [ConfigurationScope.RESOURCE, ConfigurationScope.WINDOW]);
+		const testObject = new ConfigurationModelParser('settings', new NullLogService());
 
-		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'executable' }));
+		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'application', 'FolderSettingsModelParser.machine': 'executable' }), { scopes: [ConfigurationScope.RESOURCE, ConfigurationScope.WINDOW] });
 
-		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'window': 'window', 'resource': 'resource' } });
+		const expected = Object.create(null);
+		expected['FolderSettingsModelParser'] = Object.create(null);
+		expected['FolderSettingsModelParser']['window'] = 'window';
+		expected['FolderSettingsModelParser']['resource'] = 'resource';
+		assert.deepStrictEqual(testObject.configurationModel.contents, expected);
 	});
 
 	test('parse resource folder settings', () => {
-		const testObject = new FolderSettingsModelParser('settings', [ConfigurationScope.RESOURCE]);
+		const testObject = new ConfigurationModelParser('settings', new NullLogService());
 
-		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'executable' }));
+		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'application', 'FolderSettingsModelParser.machine': 'executable' }), { scopes: [ConfigurationScope.RESOURCE] });
 
-		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource' } });
+		const expected = Object.create(null);
+		expected['FolderSettingsModelParser'] = Object.create(null);
+		expected['FolderSettingsModelParser']['resource'] = 'resource';
+		assert.deepStrictEqual(testObject.configurationModel.contents, expected);
 	});
 
-	test('parse overridable resource settings', () => {
-		const testObject = new FolderSettingsModelParser('settings', [ConfigurationScope.RESOURCE]);
+	test('parse resource and resource language settings', () => {
+		const testObject = new ConfigurationModelParser('settings', new NullLogService());
 
-		testObject.parse(JSON.stringify({ '[json]': { 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'executable' } }));
+		testObject.parse(JSON.stringify({ '[json]': { 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.resourceLanguage': 'resourceLanguage', 'FolderSettingsModelParser.application': 'application', 'FolderSettingsModelParser.machine': 'executable' } }), { scopes: [ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE] });
 
-		assert.deepEqual(testObject.configurationModel.overrides, [{ 'contents': { 'FolderSettingsModelParser': { 'resource': 'resource' } }, 'identifiers': ['json'] }]);
+		const expected = Object.create(null);
+		expected['FolderSettingsModelParser'] = Object.create(null);
+		expected['FolderSettingsModelParser']['resource'] = 'resource';
+		expected['FolderSettingsModelParser']['resourceLanguage'] = 'resourceLanguage';
+		assert.deepStrictEqual(testObject.configurationModel.overrides, [{ 'contents': expected, 'identifiers': ['json'], 'keys': ['FolderSettingsModelParser.resource', 'FolderSettingsModelParser.resourceLanguage'] }]);
 	});
 
-	test('reprocess folder settings excludes application setting', () => {
-		const testObject = new FolderSettingsModelParser('settings', [ConfigurationScope.RESOURCE, ConfigurationScope.WINDOW]);
+	test('reparse folder settings excludes application and machine setting', () => {
+		const parseOptions: ConfigurationParseOptions = { scopes: [ConfigurationScope.RESOURCE, ConfigurationScope.WINDOW] };
+		const testObject = new ConfigurationModelParser('settings', new NullLogService());
 
-		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.anotherApplicationSetting': 'executable' }));
+		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.anotherApplicationSetting': 'executable' }), parseOptions);
 
-		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource', 'anotherApplicationSetting': 'executable' } });
+		let expected = Object.create(null);
+		expected['FolderSettingsModelParser'] = Object.create(null);
+		expected['FolderSettingsModelParser']['resource'] = 'resource';
+		expected['FolderSettingsModelParser']['anotherApplicationSetting'] = 'executable';
+		assert.deepStrictEqual(testObject.configurationModel.contents, expected);
 
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration({
@@ -80,165 +108,111 @@ suite('FolderSettingsModelParser', () => {
 					'type': 'string',
 					'default': 'isSet',
 					scope: ConfigurationScope.APPLICATION
+				},
+				'FolderSettingsModelParser.anotherMachineSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.MACHINE
 				}
 			}
 		});
 
-		testObject.reprocess();
-		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource' } });
+		testObject.reparse(parseOptions);
+
+		expected = Object.create(null);
+		expected['FolderSettingsModelParser'] = Object.create(null);
+		expected['FolderSettingsModelParser']['resource'] = 'resource';
+		assert.deepStrictEqual(testObject.configurationModel.contents, expected);
 	});
 
 });
 
 suite('StandaloneConfigurationModelParser', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('parse tasks stand alone configuration model', () => {
-		const testObject = new StandaloneConfigurationModelParser('tasks', 'tasks');
+		const testObject = new StandaloneConfigurationModelParser('tasks', 'tasks', new NullLogService());
 
 		testObject.parse(JSON.stringify({ 'version': '1.1.1', 'tasks': [] }));
 
-		assert.deepEqual(testObject.configurationModel.contents, { 'tasks': { 'version': '1.1.1', 'tasks': [] } });
+		const expected = Object.create(null);
+		expected['tasks'] = Object.create(null);
+		expected['tasks']['version'] = '1.1.1';
+		expected['tasks']['tasks'] = [];
+		assert.deepStrictEqual(testObject.configurationModel.contents, expected);
 	});
 
 });
 
-suite('WorkspaceConfigurationChangeEvent', () => {
+suite('Workspace Configuration', () => {
 
-	test('changeEvent affecting workspace folders', () => {
-		let configurationChangeEvent = new ConfigurationChangeEvent();
-		configurationChangeEvent.change(['window.title']);
-		configurationChangeEvent.change(['window.zoomLevel'], URI.file('folder1'));
-		configurationChangeEvent.change(['workbench.editor.enablePreview'], URI.file('folder2'));
-		configurationChangeEvent.change(['window.restoreFullscreen'], URI.file('folder1'));
-		configurationChangeEvent.change(['window.restoreWindows'], URI.file('folder2'));
-		configurationChangeEvent.telemetryData(ConfigurationTarget.WORKSPACE, {});
+	ensureNoDisposablesAreLeakedInTestSuite();
 
-		let testObject = new WorkspaceConfigurationChangeEvent(configurationChangeEvent, new Workspace('id',
-			[new WorkspaceFolder({ index: 0, name: '1', uri: URI.file('folder1') }),
-			new WorkspaceFolder({ index: 1, name: '2', uri: URI.file('folder2') }),
-			new WorkspaceFolder({ index: 2, name: '3', uri: URI.file('folder3') })]));
-
-		assert.deepEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
-		assert.equal(testObject.source, ConfigurationTarget.WORKSPACE);
-
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel', URI.file('folder1')));
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel', URI.file(join('folder1', 'file1'))));
-		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', URI.file('file1')));
-		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', URI.file('file2')));
-		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', URI.file(join('folder2', 'file2'))));
-		assert.ok(!testObject.affectsConfiguration('window.zoomLevel', URI.file(join('folder3', 'file3'))));
-
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen'));
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', URI.file(join('folder1', 'file1'))));
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', URI.file('folder1')));
-		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', URI.file('file1')));
-		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', URI.file('file2')));
-		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', URI.file(join('folder2', 'file2'))));
-		assert.ok(!testObject.affectsConfiguration('window.restoreFullscreen', URI.file(join('folder3', 'file3'))));
-
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows'));
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows', URI.file('folder2')));
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows', URI.file(join('folder2', 'file2'))));
-		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', URI.file('file2')));
-		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', URI.file(join('folder1', 'file1'))));
-		assert.ok(!testObject.affectsConfiguration('window.restoreWindows', URI.file(join('folder3', 'file3'))));
-
-		assert.ok(testObject.affectsConfiguration('window.title'));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file('folder1')));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file(join('folder1', 'file1'))));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file('folder2')));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file(join('folder2', 'file2'))));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file('folder3')));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file(join('folder3', 'file3'))));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file('file1')));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file('file2')));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file('file3')));
-
-		assert.ok(testObject.affectsConfiguration('window'));
-		assert.ok(testObject.affectsConfiguration('window', URI.file('folder1')));
-		assert.ok(testObject.affectsConfiguration('window', URI.file(join('folder1', 'file1'))));
-		assert.ok(testObject.affectsConfiguration('window', URI.file('folder2')));
-		assert.ok(testObject.affectsConfiguration('window', URI.file(join('folder2', 'file2'))));
-		assert.ok(testObject.affectsConfiguration('window', URI.file('folder3')));
-		assert.ok(testObject.affectsConfiguration('window', URI.file(join('folder3', 'file3'))));
-		assert.ok(testObject.affectsConfiguration('window', URI.file('file1')));
-		assert.ok(testObject.affectsConfiguration('window', URI.file('file2')));
-		assert.ok(testObject.affectsConfiguration('window', URI.file('file3')));
-
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file('folder2')));
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file(join('folder2', 'file2'))));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file('folder1')));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file(join('folder1', 'file1'))));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file('folder3')));
-
-		assert.ok(testObject.affectsConfiguration('workbench.editor'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor', URI.file('folder2')));
-		assert.ok(testObject.affectsConfiguration('workbench.editor', URI.file(join('folder2', 'file2'))));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor', URI.file('folder1')));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor', URI.file(join('folder1', 'file1'))));
-		assert.ok(!testObject.affectsConfiguration('workbench.editor', URI.file('folder3')));
-
-		assert.ok(testObject.affectsConfiguration('workbench'));
-		assert.ok(testObject.affectsConfiguration('workbench', URI.file('folder2')));
-		assert.ok(testObject.affectsConfiguration('workbench', URI.file(join('folder2', 'file2'))));
-		assert.ok(!testObject.affectsConfiguration('workbench', URI.file('folder1')));
-		assert.ok(!testObject.affectsConfiguration('workbench', URI.file('folder3')));
-
-		assert.ok(!testObject.affectsConfiguration('files'));
-		assert.ok(!testObject.affectsConfiguration('files', URI.file('folder1')));
-		assert.ok(!testObject.affectsConfiguration('files', URI.file(join('folder1', 'file1'))));
-		assert.ok(!testObject.affectsConfiguration('files', URI.file('folder2')));
-		assert.ok(!testObject.affectsConfiguration('files', URI.file(join('folder2', 'file2'))));
-		assert.ok(!testObject.affectsConfiguration('files', URI.file('folder3')));
-		assert.ok(!testObject.affectsConfiguration('files', URI.file(join('folder3', 'file3'))));
+	const defaultConfigurationModel = toConfigurationModel({
+		'editor.lineNumbers': 'on',
+		'editor.fontSize': 12,
+		'window.zoomLevel': 1,
+		'[markdown]': {
+			'editor.wordWrap': 'off'
+		},
+		'window.title': 'custom',
+		'workbench.enableTabs': false,
+		'editor.insertSpaces': true
 	});
+
+	test('Test compare same configurations', () => {
+		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: URI.file('folder1') }), new WorkspaceFolder({ index: 1, name: 'b', uri: URI.file('folder2') }), new WorkspaceFolder({ index: 2, name: 'c', uri: URI.file('folder3') })]);
+		const configuration1 = new Configuration(ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), new ResourceMap<ConfigurationModel>(), ConfigurationModel.createEmptyModel(new NullLogService()), new ResourceMap<ConfigurationModel>(), workspace, new NullLogService());
+		configuration1.updateDefaultConfiguration(defaultConfigurationModel);
+		configuration1.updateLocalUserConfiguration(toConfigurationModel({ 'window.title': 'native', '[typescript]': { 'editor.insertSpaces': false } }));
+		configuration1.updateWorkspaceConfiguration(toConfigurationModel({ 'editor.lineNumbers': 'on' }));
+		configuration1.updateFolderConfiguration(URI.file('folder1'), toConfigurationModel({ 'editor.fontSize': 14 }));
+		configuration1.updateFolderConfiguration(URI.file('folder2'), toConfigurationModel({ 'editor.wordWrap': 'on' }));
+
+		const configuration2 = new Configuration(ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), new ResourceMap<ConfigurationModel>(), ConfigurationModel.createEmptyModel(new NullLogService()), new ResourceMap<ConfigurationModel>(), workspace, new NullLogService());
+		configuration2.updateDefaultConfiguration(defaultConfigurationModel);
+		configuration2.updateLocalUserConfiguration(toConfigurationModel({ 'window.title': 'native', '[typescript]': { 'editor.insertSpaces': false } }));
+		configuration2.updateWorkspaceConfiguration(toConfigurationModel({ 'editor.lineNumbers': 'on' }));
+		configuration2.updateFolderConfiguration(URI.file('folder1'), toConfigurationModel({ 'editor.fontSize': 14 }));
+		configuration2.updateFolderConfiguration(URI.file('folder2'), toConfigurationModel({ 'editor.wordWrap': 'on' }));
+
+		const actual = configuration2.compare(configuration1);
+
+		assert.deepStrictEqual(actual, { keys: [], overrides: [] });
+	});
+
+	test('Test compare different configurations', () => {
+		const workspace = new Workspace('a', [new WorkspaceFolder({ index: 0, name: 'a', uri: URI.file('folder1') }), new WorkspaceFolder({ index: 1, name: 'b', uri: URI.file('folder2') }), new WorkspaceFolder({ index: 2, name: 'c', uri: URI.file('folder3') })]);
+		const configuration1 = new Configuration(ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), new ResourceMap<ConfigurationModel>(), ConfigurationModel.createEmptyModel(new NullLogService()), new ResourceMap<ConfigurationModel>(), workspace, new NullLogService());
+		configuration1.updateDefaultConfiguration(defaultConfigurationModel);
+		configuration1.updateLocalUserConfiguration(toConfigurationModel({ 'window.title': 'native', '[typescript]': { 'editor.insertSpaces': false } }));
+		configuration1.updateWorkspaceConfiguration(toConfigurationModel({ 'editor.lineNumbers': 'on' }));
+		configuration1.updateFolderConfiguration(URI.file('folder1'), toConfigurationModel({ 'editor.fontSize': 14 }));
+		configuration1.updateFolderConfiguration(URI.file('folder2'), toConfigurationModel({ 'editor.wordWrap': 'on' }));
+
+		const configuration2 = new Configuration(ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), new ResourceMap<ConfigurationModel>(), ConfigurationModel.createEmptyModel(new NullLogService()), new ResourceMap<ConfigurationModel>(), workspace, new NullLogService());
+		configuration2.updateDefaultConfiguration(defaultConfigurationModel);
+		configuration2.updateLocalUserConfiguration(toConfigurationModel({ 'workbench.enableTabs': true, '[typescript]': { 'editor.insertSpaces': true } }));
+		configuration2.updateWorkspaceConfiguration(toConfigurationModel({ 'editor.fontSize': 11 }));
+		configuration2.updateFolderConfiguration(URI.file('folder1'), toConfigurationModel({ 'editor.insertSpaces': true }));
+		configuration2.updateFolderConfiguration(URI.file('folder2'), toConfigurationModel({
+			'[markdown]': {
+				'editor.wordWrap': 'on',
+				'editor.lineNumbers': 'relative'
+			},
+		}));
+
+		const actual = configuration2.compare(configuration1);
+
+		assert.deepStrictEqual(actual, { keys: ['editor.wordWrap', 'editor.fontSize', '[markdown]', 'window.title', 'workbench.enableTabs', '[typescript]'], overrides: [['markdown', ['editor.lineNumbers', 'editor.wordWrap']], ['typescript', ['editor.insertSpaces']]] });
+	});
+
 
 });
 
-suite('AllKeysConfigurationChangeEvent', () => {
-
-	test('changeEvent affects keys for any resource', () => {
-		const configuraiton = new Configuration(new ConfigurationModel({}, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']),
-			new ConfigurationModel(), new ConfigurationModel(), new ResourceMap(), new ConfigurationModel(), new ResourceMap(), null);
-		let testObject = new AllKeysConfigurationChangeEvent(configuraiton, ConfigurationTarget.USER, null);
-
-		assert.deepEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
-
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel', URI.file('file1')));
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel', URI.file('file2')));
-
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen'));
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', URI.file('file1')));
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', URI.file('file2')));
-
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows'));
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows', URI.file('file2')));
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows', URI.file('file1')));
-
-		assert.ok(testObject.affectsConfiguration('window.title'));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file('file1')));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file('file2')));
-
-		assert.ok(testObject.affectsConfiguration('window'));
-		assert.ok(testObject.affectsConfiguration('window', URI.file('file1')));
-		assert.ok(testObject.affectsConfiguration('window', URI.file('file2')));
-
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file('file2')));
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file('file1')));
-
-		assert.ok(testObject.affectsConfiguration('workbench.editor'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor', URI.file('file2')));
-		assert.ok(testObject.affectsConfiguration('workbench.editor', URI.file('file1')));
-
-		assert.ok(testObject.affectsConfiguration('workbench'));
-		assert.ok(testObject.affectsConfiguration('workbench', URI.file('file2')));
-		assert.ok(testObject.affectsConfiguration('workbench', URI.file('file1')));
-
-		assert.ok(!testObject.affectsConfiguration('files'));
-		assert.ok(!testObject.affectsConfiguration('files', URI.file('file1')));
-	});
-});
+function toConfigurationModel(obj: any): ConfigurationModel {
+	const parser = new ConfigurationModelParser('test', new NullLogService());
+	parser.parse(JSON.stringify(obj));
+	return parser.configurationModel;
+}

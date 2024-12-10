@@ -4,18 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { MarkdownEngine } from '../markdownEngine';
-import { MarkdownContributions } from '../markdownExtensions';
+import { MarkdownItEngine } from '../markdownEngine';
+import { MarkdownContributionProvider, MarkdownContributions } from '../markdownExtensions';
 import { githubSlugifier } from '../slugify';
+import { nulLogger } from './nulLogging';
 
-const emptyContributions = new class implements MarkdownContributions {
-	readonly extensionPath = '';
-	readonly previewScripts: vscode.Uri[] = [];
-	readonly previewStyles: vscode.Uri[] = [];
-	readonly previewResourceRoots: vscode.Uri[] = [];
-	readonly markdownItPlugins: Promise<(md: any) => any>[] = [];
+const emptyContributions = new class implements MarkdownContributionProvider {
+	readonly extensionUri = vscode.Uri.file('/');
+	readonly contributions = MarkdownContributions.Empty;
+
+	private readonly _onContributionsChanged = new vscode.EventEmitter<this>();
+	readonly onContributionsChanged = this._onContributionsChanged.event;
+
+	dispose() {
+		this._onContributionsChanged.dispose();
+	}
 };
 
-export function createNewMarkdownEngine(): MarkdownEngine {
-	return new MarkdownEngine(emptyContributions, githubSlugifier);
+export function createNewMarkdownEngine(): MarkdownItEngine {
+	return new MarkdownItEngine(emptyContributions, githubSlugifier, nulLogger);
 }

@@ -1,0 +1,76 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.extension-sync-ignored.hide {
+	display: none;
+}
+
+.extension-ratings {
+	display: inline-block;
+}
+
+.extension-ratings.small {
+	font-size: 80%;
+}
+
+.extension-ratings > .codicon[class*='codicon-extensions-rating']:not(:first-child) {
+	margin-left: 3px;
+}
+
+.extension-ratings > .count {
+	margin-left: 6px;
+}
+
+.extension-ratings.small > .count {
+	margin-left: 0;
+}
+
+.extension-ratings .codicon-extensions-star-empty {
+	opacity: .75;
+}
+
+.extension-verified-publisher {
+	display: flex;
+	align-items: center;
+}
+
+.extension-verified-publisher > .extension-verified-publisher-domain {
+	padding-left: 2px;
+	color: var(--vscode-extensionIcon-verifiedForeground);
+	text-decoration: var(--text-link-decoration);
+}
+
+.extension-bookmark {
+	display: inline-block;
+	height: 20px;
+	width: 20px;
+}
+
+.extension-bookmark > .recommendation,
+.extension-bookmark > .pre-release {
+	border-right: 20px solid transparent;
+	border-top: 20px solid;
+	box-sizing: border-box;
+	position: relative;
+}
+
+.extension-bookmark > .pre-release {
+	border-top-color: var(--vscode-extensionIcon-preReleaseForeground);
+	color: #ffffff;
+}
+
+.extension-bookmark > .recommendation > .codicon,
+.extension-bookmark > .pre-release > .codicon {
+	position: absolute;
+	bottom: 9px;
+	left: 1px;
+	color: inherit;
+	font-size: 80% !important;
+}
+
+.extension-bookmark .recommendation {
+	border-top-color: var(--vscode-extensionButton-prominentBackground);
+	color: var(--vscode-extensionButton-prominentForeground);
+}

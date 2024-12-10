@@ -3,166 +3,139 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
+import { CodeWindow, mainWindow } from './window.js';
+import { Emitter } from '../common/event.js';
 
 class WindowManager {
 
-	public static readonly INSTANCE = new WindowManager();
+	static readonly INSTANCE = new WindowManager();
 
 	// --- Zoom Level
-	private _zoomLevel: number = 0;
-	private _lastZoomLevelChangeTime: number = 0;
-	private readonly _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
 
-	public readonly onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
-	public getZoomLevel(): number {
-		return this._zoomLevel;
+	private readonly mapWindowIdToZoomLevel = new Map<number, number>();
+
+	private readonly _onDidChangeZoomLevel = new Emitter<number>();
+	readonly onDidChangeZoomLevel = this._onDidChangeZoomLevel.event;
+
+	getZoomLevel(targetWindow: Window): number {
+		return this.mapWindowIdToZoomLevel.get(this.getWindowId(targetWindow)) ?? 0;
 	}
-	public getTimeSinceLastZoomLevelChanged(): number {
-		return Date.now() - this._lastZoomLevelChangeTime;
-	}
-	public setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
-		if (this._zoomLevel === zoomLevel) {
+	setZoomLevel(zoomLevel: number, targetWindow: Window): void {
+		if (this.getZoomLevel(targetWindow) === zoomLevel) {
 			return;
 		}
 
-		this._zoomLevel = zoomLevel;
-		// See https://github.com/Microsoft/vscode/issues/26151
-		this._lastZoomLevelChangeTime = isTrusted ? 0 : Date.now();
-		this._onDidChangeZoomLevel.fire(this._zoomLevel);
+		const targetWindowId = this.getWindowId(targetWindow);
+		this.mapWindowIdToZoomLevel.set(targetWindowId, zoomLevel);
+		this._onDidChangeZoomLevel.fire(targetWindowId);
 	}
 
 	// --- Zoom Factor
-	private _zoomFactor: number = 0;
 
-	public getZoomFactor(): number {
-		return this._zoomFactor;
-	}
-	public setZoomFactor(zoomFactor: number): void {
-		this._zoomFactor = zoomFactor;
-	}
+	private readonly mapWindowIdToZoomFactor = new Map<number, number>();
 
-	// --- Pixel Ratio
-	public getPixelRatio(): number {
-		let ctx = document.createElement('canvas').getContext('2d');
-		let dpr = window.devicePixelRatio || 1;
-		let bsr = (<any>ctx).webkitBackingStorePixelRatio ||
-			(<any>ctx).mozBackingStorePixelRatio ||
-			(<any>ctx).msBackingStorePixelRatio ||
-			(<any>ctx).oBackingStorePixelRatio ||
-			(<any>ctx).backingStorePixelRatio || 1;
-		return dpr / bsr;
+	getZoomFactor(targetWindow: Window): number {
+		return this.mapWindowIdToZoomFactor.get(this.getWindowId(targetWindow)) ?? 1;
+	}
+	setZoomFactor(zoomFactor: number, targetWindow: Window): void {
+		this.mapWindowIdToZoomFactor.set(this.getWindowId(targetWindow), zoomFactor);
 	}
 
 	// --- Fullscreen
-	private _fullscreen: boolean;
-	private readonly _onDidChangeFullscreen: Emitter<void> = new Emitter<void>();
 
-	public readonly onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;
-	public setFullscreen(fullscreen: boolean): void {
-		if (this._fullscreen === fullscreen) {
+	private readonly _onDidChangeFullscreen = new Emitter<number>();
+	readonly onDidChangeFullscreen = this._onDidChangeFullscreen.event;
+
+	private readonly mapWindowIdToFullScreen = new Map<number, boolean>();
+
+	setFullscreen(fullscreen: boolean, targetWindow: Window): void {
+		if (this.isFullscreen(targetWindow) === fullscreen) {
 			return;
 		}
 
-		this._fullscreen = fullscreen;
-		this._onDidChangeFullscreen.fire();
+		const windowId = this.getWindowId(targetWindow);
+		this.mapWindowIdToFullScreen.set(windowId, fullscreen);
+		this._onDidChangeFullscreen.fire(windowId);
 	}
-	public isFullscreen(): boolean {
-		return this._fullscreen;
+	isFullscreen(targetWindow: Window): boolean {
+		return !!this.mapWindowIdToFullScreen.get(this.getWindowId(targetWindow));
 	}
 
-	// --- Accessibility
-	private _accessibilitySupport = platform.AccessibilitySupport.Unknown;
-	private readonly _onDidChangeAccessibilitySupport: Emitter<void> = new Emitter<void>();
-
-	public readonly onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
-	public setAccessibilitySupport(accessibilitySupport: platform.AccessibilitySupport): void {
-		if (this._accessibilitySupport === accessibilitySupport) {
-			return;
-		}
-
-		this._accessibilitySupport = accessibilitySupport;
-		this._onDidChangeAccessibilitySupport.fire();
+	private getWindowId(targetWindow: Window): number {
+		return (targetWindow as CodeWindow).vscodeWindowId;
 	}
-	public getAccessibilitySupport(): platform.AccessibilitySupport {
-		return this._accessibilitySupport;
+}
+
+export function addMatchMediaChangeListener(targetWindow: Window, query: string | MediaQueryList, callback: (this: MediaQueryList, ev: MediaQueryListEvent) => unknown): void {
+	if (typeof query === 'string') {
+		query = targetWindow.matchMedia(query);
 	}
+	query.addEventListener('change', callback);
 }
 
 /** A zoom index, e.g. 1, 2, 3 */
-export function setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
-	WindowManager.INSTANCE.setZoomLevel(zoomLevel, isTrusted);
+export function setZoomLevel(zoomLevel: number, targetWindow: Window): void {
+	WindowManager.INSTANCE.setZoomLevel(zoomLevel, targetWindow);
 }
-export function getZoomLevel(): number {
-	return WindowManager.INSTANCE.getZoomLevel();
+export function getZoomLevel(targetWindow: Window): number {
+	return WindowManager.INSTANCE.getZoomLevel(targetWindow);
 }
-/** Returns the time (in ms) since the zoom level was changed */
-export function getTimeSinceLastZoomLevelChanged(): number {
-	return WindowManager.INSTANCE.getTimeSinceLastZoomLevelChanged();
-}
-export function onDidChangeZoomLevel(callback: (zoomLevel: number) => void): IDisposable {
-	return WindowManager.INSTANCE.onDidChangeZoomLevel(callback);
-}
+export const onDidChangeZoomLevel = WindowManager.INSTANCE.onDidChangeZoomLevel;
 
 /** The zoom scale for an index, e.g. 1, 1.2, 1.4 */
-export function getZoomFactor(): number {
-	return WindowManager.INSTANCE.getZoomFactor();
+export function getZoomFactor(targetWindow: Window): number {
+	return WindowManager.INSTANCE.getZoomFactor(targetWindow);
 }
-export function setZoomFactor(zoomFactor: number): void {
-	WindowManager.INSTANCE.setZoomFactor(zoomFactor);
-}
-
-export function getPixelRatio(): number {
-	return WindowManager.INSTANCE.getPixelRatio();
+export function setZoomFactor(zoomFactor: number, targetWindow: Window): void {
+	WindowManager.INSTANCE.setZoomFactor(zoomFactor, targetWindow);
 }
 
-export function setFullscreen(fullscreen: boolean): void {
-	WindowManager.INSTANCE.setFullscreen(fullscreen);
+export function setFullscreen(fullscreen: boolean, targetWindow: Window): void {
+	WindowManager.INSTANCE.setFullscreen(fullscreen, targetWindow);
 }
-export function isFullscreen(): boolean {
-	return WindowManager.INSTANCE.isFullscreen();
+export function isFullscreen(targetWindow: Window): boolean {
+	return WindowManager.INSTANCE.isFullscreen(targetWindow);
 }
 export const onDidChangeFullscreen = WindowManager.INSTANCE.onDidChangeFullscreen;
 
-export function setAccessibilitySupport(accessibilitySupport: platform.AccessibilitySupport): void {
-	WindowManager.INSTANCE.setAccessibilitySupport(accessibilitySupport);
-}
-export function getAccessibilitySupport(): platform.AccessibilitySupport {
-	return WindowManager.INSTANCE.getAccessibilitySupport();
-}
-export function onDidChangeAccessibilitySupport(callback: () => void): IDisposable {
-	return WindowManager.INSTANCE.onDidChangeAccessibilitySupport(callback);
-}
-
 const userAgent = navigator.userAgent;
 
-export const isIE = (userAgent.indexOf('Trident') >= 0);
-export const isEdge = (userAgent.indexOf('Edge/') >= 0);
-export const isEdgeOrIE = isIE || isEdge;
-
-export const isOpera = (userAgent.indexOf('Opera') >= 0);
 export const isFirefox = (userAgent.indexOf('Firefox') >= 0);
 export const isWebKit = (userAgent.indexOf('AppleWebKit') >= 0);
 export const isChrome = (userAgent.indexOf('Chrome') >= 0);
-export const isSafari = (userAgent.indexOf('Chrome') === -1) && (userAgent.indexOf('Safari') >= 0);
-export const isIPad = (userAgent.indexOf('iPad') >= 0);
-export const isEdgeWebView = isEdge && (userAgent.indexOf('WebView/') >= 0);
+export const isSafari = (!isChrome && (userAgent.indexOf('Safari') >= 0));
+export const isWebkitWebView = (!isChrome && !isSafari && isWebKit);
+export const isElectron = (userAgent.indexOf('Electron/') >= 0);
+export const isAndroid = (userAgent.indexOf('Android') >= 0);
 
-export function hasClipboardSupport() {
-	if (isIE) {
-		return false;
-	}
-
-	if (isEdge) {
-		let index = userAgent.indexOf('Edge/');
-		let version = parseInt(userAgent.substring(index + 5, userAgent.indexOf('.', index)), 10);
-
-		if (!version || (version >= 12 && version <= 16)) {
-			return false;
+let standalone = false;
+if (typeof mainWindow.matchMedia === 'function') {
+	const standaloneMatchMedia = mainWindow.matchMedia('(display-mode: standalone) or (display-mode: window-controls-overlay)');
+	const fullScreenMatchMedia = mainWindow.matchMedia('(display-mode: fullscreen)');
+	standalone = standaloneMatchMedia.matches;
+	addMatchMediaChangeListener(mainWindow, standaloneMatchMedia, ({ matches }) => {
+		// entering fullscreen would change standaloneMatchMedia.matches to false
+		// if standalone is true (running as PWA) and entering fullscreen, skip this change
+		if (standalone && fullScreenMatchMedia.matches) {
+			return;
 		}
-	}
+		// otherwise update standalone (browser to PWA or PWA to browser)
+		standalone = matches;
+	});
+}
+export function isStandalone(): boolean {
+	return standalone;
+}
 
-	return true;
+// Visible means that the feature is enabled, not necessarily being rendered
+// e.g. visible is true even in fullscreen mode where the controls are hidden
+// See docs at https://developer.mozilla.org/en-US/docs/Web/API/WindowControlsOverlay/visible
+export function isWCOEnabled(): boolean {
+	return (navigator as any)?.windowControlsOverlay?.visible;
+}
+
+// Returns the bounding rect of the titlebar area if it is supported and defined
+// See docs at https://developer.mozilla.org/en-US/docs/Web/API/WindowControlsOverlay/getTitlebarAreaRect
+export function getWCOTitlebarAreaRect(targetWindow: Window): DOMRect | undefined {
+	return (targetWindow.navigator as any)?.windowControlsOverlay?.getTitlebarAreaRect();
 }

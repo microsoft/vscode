@@ -5,22 +5,25 @@
 
 .monaco-editor .tokens-inspect-widget {
 	z-index: 50;
-	-webkit-user-select: text;
-	-ms-user-select: text;
-	-khtml-user-select: text;
-	-moz-user-select: text;
-	-o-user-select: text;
 	user-select: text;
+	-webkit-user-select: text;
 	padding: 10px;
+	color: var(--vscode-editorHoverWidget-foreground);
+	background-color: var(--vscode-editorHoverWidget-background);
+	border: 1px solid var(--vscode-editorHoverWidget-border);
+}
+.monaco-editor.hc-black .tokens-inspect-widget, .monaco-editor.hc-light .tokens-inspect-widget {
+	border-width: 2px;
 }
 
-.tokens-inspect-separator {
+.monaco-editor .tokens-inspect-widget .tokens-inspect-separator {
 	height: 1px;
 	border: 0;
+	background-color: var(--vscode-editorHoverWidget-border);
 }
 
 .monaco-editor .tokens-inspect-widget .tm-token {
-	font-family: monospace;
+	font-family: var(--monaco-monospace-font);
 }
 
 .monaco-editor .tokens-inspect-widget .tm-token-length {
@@ -34,10 +37,10 @@
 }
 
 .monaco-editor .tokens-inspect-widget .tm-metadata-value {
-	font-family: monospace;
+	font-family: var(--monaco-monospace-font);
 	text-align: right;
 }
 
 .monaco-editor .tokens-inspect-widget .tm-token-type {
-	font-family: monospace;
+	font-family: var(--monaco-monospace-font);
 }

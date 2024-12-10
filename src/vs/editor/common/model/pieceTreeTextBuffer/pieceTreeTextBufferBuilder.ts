@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { DefaultEndOfLine, ITextBuffer, ITextBufferBuilder, ITextBufferFactory } from 'vs/editor/common/model';
-import { StringBuffer, createLineStarts, createLineStartsFast } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import * as strings from '../../../../base/common/strings.js';
+import { DefaultEndOfLine, ITextBuffer, ITextBufferBuilder, ITextBufferFactory } from '../../model.js';
+import { StringBuffer, createLineStarts, createLineStartsFast } from './pieceTreeBase.js';
+import { PieceTreeTextBuffer } from './pieceTreeTextBuffer.js';
 
-export class PieceTreeTextBufferFactory implements ITextBufferFactory {
+class PieceTreeTextBufferFactory implements ITextBufferFactory {
 
 	constructor(
 		private readonly _chunks: StringBuffer[],
@@ -18,6 +19,7 @@ export class PieceTreeTextBufferFactory implements ITextBufferFactory {
 		private readonly _lf: number,
 		private readonly _crlf: number,
 		private readonly _containsRTL: boolean,
+		private readonly _containsUnusualLineTerminators: boolean,
 		private readonly _isBasicASCII: boolean,
 		private readonly _normalizeEOL: boolean
 	) { }
@@ -37,9 +39,9 @@ export class PieceTreeTextBufferFactory implements ITextBufferFactory {
 		return '\n';
 	}
 
-	public create(defaultEOL: DefaultEndOfLine): ITextBuffer {
+	public create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable } {
 		const eol = this._getEOL(defaultEOL);
-		let chunks = this._chunks;
+		const chunks = this._chunks;
 
 		if (this._normalizeEOL &&
 			((eol === '\r\n' && (this._cr > 0 || this._lf > 0))
@@ -47,32 +49,34 @@ export class PieceTreeTextBufferFactory implements ITextBufferFactory {
 		) {
 			// Normalize pieces
 			for (let i = 0, len = chunks.length; i < len; i++) {
-				let str = chunks[i].buffer.replace(/\r\n|\r|\n/g, eol);
-				let newLineStart = createLineStartsFast(str);
+				const str = chunks[i].buffer.replace(/\r\n|\r|\n/g, eol);
+				const newLineStart = createLineStartsFast(str);
 				chunks[i] = new StringBuffer(str, newLineStart);
 			}
 		}
 
-		return new PieceTreeTextBuffer(chunks, this._bom, eol, this._containsRTL, this._isBasicASCII, this._normalizeEOL);
+		const textBuffer = new PieceTreeTextBuffer(chunks, this._bom, eol, this._containsRTL, this._containsUnusualLineTerminators, this._isBasicASCII, this._normalizeEOL);
+		return { textBuffer: textBuffer, disposable: textBuffer };
 	}
 
 	public getFirstLineText(lengthLimit: number): string {
-		return this._chunks[0].buffer.substr(0, 100).split(/\r\n|\r|\n/)[0];
+		return this._chunks[0].buffer.substr(0, lengthLimit).split(/\r\n|\r|\n/)[0];
 	}
 }
 
 export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
-	private chunks: StringBuffer[];
+	private readonly chunks: StringBuffer[];
 	private BOM: string;
 
 	private _hasPreviousChar: boolean;
 	private _previousChar: number;
-	private _tmpLineStarts: number[];
+	private readonly _tmpLineStarts: number[];
 
 	private cr: number;
 	private lf: number;
 	private crlf: number;
 	private containsRTL: boolean;
+	private containsUnusualLineTerminators: boolean;
 	private isBasicASCII: boolean;
 
 	constructor() {
@@ -87,6 +91,7 @@ export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
 		this.lf = 0;
 		this.crlf = 0;
 		this.containsRTL = false;
+		this.containsUnusualLineTerminators = false;
 		this.isBasicASCII = true;
 	}
 
@@ -103,7 +108,7 @@ export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
 		}
 
 		const lastChar = chunk.charCodeAt(chunk.length - 1);
-		if (lastChar === CharCode.CarriageReturn || (lastChar >= 0xd800 && lastChar <= 0xdbff)) {
+		if (lastChar === CharCode.CarriageReturn || (lastChar >= 0xD800 && lastChar <= 0xDBFF)) {
 			// last character is \r or a high surrogate => keep it back
 			this._acceptChunk1(chunk.substr(0, chunk.length - 1), false);
 			this._hasPreviousChar = true;
@@ -136,12 +141,15 @@ export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
 		this.lf += lineStarts.lf;
 		this.crlf += lineStarts.crlf;
 
-		if (this.isBasicASCII) {
-			this.isBasicASCII = lineStarts.isBasicASCII;
-		}
-		if (!this.isBasicASCII && !this.containsRTL) {
-			// No need to check if is basic ASCII
-			this.containsRTL = strings.containsRTL(chunk);
+		if (!lineStarts.isBasicASCII) {
+			// this chunk contains non basic ASCII characters
+			this.isBasicASCII = false;
+			if (!this.containsRTL) {
+				this.containsRTL = strings.containsRTL(chunk);
+			}
+			if (!this.containsUnusualLineTerminators) {
+				this.containsUnusualLineTerminators = strings.containsUnusualLineTerminators(chunk);
+			}
 		}
 	}
 
@@ -154,6 +162,7 @@ export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
 			this.lf,
 			this.crlf,
 			this.containsRTL,
+			this.containsUnusualLineTerminators,
 			this.isBasicASCII,
 			normalizeEOL
 		);
@@ -167,9 +176,9 @@ export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
 		if (this._hasPreviousChar) {
 			this._hasPreviousChar = false;
 			// recreate last chunk
-			let lastChunk = this.chunks[this.chunks.length - 1];
+			const lastChunk = this.chunks[this.chunks.length - 1];
 			lastChunk.buffer += String.fromCharCode(this._previousChar);
-			let newLineStarts = createLineStartsFast(lastChunk.buffer);
+			const newLineStarts = createLineStartsFast(lastChunk.buffer);
 			lastChunk.lineStarts = newLineStarts;
 			if (this._previousChar === CharCode.CarriageReturn) {
 				this.cr++;

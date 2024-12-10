@@ -4,14 +4,14 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "language-go",
-					"repositoryUrl": "https://github.com/atom/language-go",
-					"commitHash": "b6fd68f74efa109679e31fe6f4a41ac105262d0e"
+					"name": "go-syntax",
+					"repositoryUrl": "https://github.com/worlpaker/go-syntax",
+					"commitHash": "fbdaec061157e98dda185c0ce771ce6a2c793045"
 				}
 			},
 			"license": "MIT",
-			"description": "The file syntaxes/go.json was derived from the Atom package https://atom.io/packages/language-go.",
-			"version": "0.44.3"
+			"description": "The file syntaxes/go.tmLanguage.json is from https://github.com/worlpaker/go-syntax, which in turn was derived from https://github.com/jeff-hykin/better-go-syntax.",
+			"version": "0.7.9"
 		}
 	],
 	"version": 1

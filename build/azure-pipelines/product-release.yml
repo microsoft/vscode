@@ -1,0 +1,34 @@
+parameters:
+  - name: VSCODE_RELEASE
+    type: boolean
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
+
+  - task: AzureCLI@2
+    displayName: Fetch secrets
+    inputs:
+      azureSubscription: vscode
+      scriptType: pscore
+      scriptLocation: inlineScript
+      addSpnToEnvironment: true
+      inlineScript: |
+        Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
+        Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
+        Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
+
+  - script: npm ci
+    workingDirectory: build
+    displayName: Install /build dependencies
+
+  - script: |
+      set -e
+      AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+      AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+      AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
+        node build/azure-pipelines/common/releaseBuild.js ${{ parameters.VSCODE_RELEASE }}
+    displayName: Release build

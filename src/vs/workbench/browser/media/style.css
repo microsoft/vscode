@@ -1,0 +1,323 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Animations */
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Font Families (with CJK support) */
+
+.mac { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+.mac:lang(zh-Hans) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
+.mac:lang(zh-Hant) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
+.mac:lang(ja) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
+.mac:lang(ko) { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Nanum Gothic", "AppleGothic", sans-serif; }
+
+.windows { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
+.windows:lang(zh-Hans) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
+.windows:lang(zh-Hant) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
+.windows:lang(ja) { font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif; }
+.windows:lang(ko) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
+
+/* Linux: add `system-ui` as first font and not `Ubuntu` to allow other distribution pick their standard OS font */
+.linux { font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif; }
+.linux:lang(zh-Hans) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
+.linux:lang(zh-Hant) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
+.linux:lang(ja) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
+.linux:lang(ko) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+
+.mac { --monaco-monospace-font: "SF Mono", Monaco, Menlo, Courier, monospace; }
+.windows { --monaco-monospace-font: Consolas, "Courier New", monospace; }
+.linux { --monaco-monospace-font: "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace; }
+
+/* Global Styles */
+
+body {
+	height: 100%;
+	width: 100%;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+	font-size: 11px;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+body.web {
+	position: fixed; /* prevent bounce effect */
+}
+
+.monaco-workbench {
+	font-size: 13px;
+	line-height: 1.4em;
+	position: relative;
+	z-index: 1;
+	overflow: hidden;
+	color: var(--vscode-foreground);
+}
+
+.monaco-workbench.web {
+	touch-action: none; /* Disable browser handling of all panning and zooming gestures. Removes 300ms touch delay. */
+}
+
+.monaco-workbench.border:not(.fullscreen) {
+	box-sizing: border-box;
+	border: 1px solid var(--window-border-color);
+}
+
+.monaco-workbench.border.mac {
+	border-radius: 5px;
+}
+
+.monaco-workbench.border.mac.macos-bigsur-or-newer {
+	border-radius: 10px; /* macOS Big Sur increased rounded corners size */
+}
+
+.monaco-workbench img {
+	border: 0;
+}
+
+.monaco-workbench label {
+	cursor: pointer;
+}
+
+.monaco-workbench a {
+	text-decoration: none;
+}
+
+
+.monaco-workbench p > a {
+	text-decoration: var(--text-link-decoration);
+}
+
+.monaco-workbench.underline-links {
+	--text-link-decoration: underline;
+}
+
+.monaco-workbench.hc-black p > a,
+.monaco-workbench.hc-light p > a {
+	text-decoration: underline !important;
+}
+
+.monaco-workbench a:active {
+	color: inherit;
+	background-color: inherit;
+}
+
+.monaco-workbench a.plain {
+	color: inherit;
+	text-decoration: none;
+}
+
+.monaco-workbench a.plain:hover,
+.monaco-workbench a.plain.hover {
+	color: inherit;
+	text-decoration: none;
+}
+
+.monaco-workbench input {
+	color: inherit;
+	font-family: inherit;
+	font-size: 100%;
+}
+
+.monaco-workbench table {
+	/*
+	 * Somehow this is required when tables show in floating windows
+	 * to override the user-agent style which sets a specific color
+	 * and font-size
+	 */
+	color: inherit;
+	font-size: inherit;
+}
+
+.monaco-workbench input::placeholder { color: var(--vscode-input-placeholderForeground); }
+.monaco-workbench input::-webkit-input-placeholder  { color: var(--vscode-input-placeholderForeground); }
+.monaco-workbench input::-moz-placeholder { color: var(--vscode-input-placeholderForeground); }
+
+.monaco-workbench textarea::placeholder { color: var(--vscode-input-placeholderForeground); }
+.monaco-workbench textarea::-webkit-input-placeholder { color: var(--vscode-input-placeholderForeground); }
+.monaco-workbench textarea::-moz-placeholder { color: var(--vscode-input-placeholderForeground); }
+
+.monaco-workbench .pointer {
+	cursor: pointer;
+}
+
+.monaco-workbench.mac.monaco-font-aliasing-antialiased {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+.monaco-workbench.mac.monaco-font-aliasing-none {
+	-webkit-font-smoothing: none;
+	-moz-osx-font-smoothing: unset;
+}
+
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+	.monaco-workbench.mac.monaco-font-aliasing-auto {
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+	}
+}
+
+.monaco-workbench .context-view {
+	-webkit-app-region: no-drag;
+}
+
+.monaco-workbench .codicon {
+	color: var(--vscode-icon-foreground);
+}
+
+.monaco-workbench .codicon[class*='codicon-'] {
+	font-size: 16px; /* sets font-size for codicons in workbench (https://github.com/microsoft/vscode/issues/98495) */
+}
+
+.monaco-workbench .predefined-file-icon[class*='codicon-']::before {
+	width: 16px;
+	padding-left: 3px; /* width (16px) - font-size (13px) = padding-left (3px) */
+	padding-right: 3px;
+}
+
+.predefined-file-icon::before { /* do add additional specificity to this selector, so it can be overridden by product themes */
+	font-family: 'codicon';
+}
+
+.monaco-workbench:not(.file-icons-enabled) .predefined-file-icon[class*='codicon-']::before {
+	content: unset !important;
+}
+
+.monaco-workbench.modal-dialog-visible .monaco-progress-container.infinite .progress-bit {
+	display: none; /* stop progress animations when dialogs are visible (https://github.com/microsoft/vscode/issues/138396) */
+}
+
+/* Custom Dropdown (select) Arrows */
+
+.monaco-workbench select {
+	font-family: inherit;
+	appearance: none;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	/* Hides inner border from FF */
+	border: 1px solid;
+}
+
+.monaco-workbench .select-container {
+	position: relative;
+}
+
+.monaco-workbench .select-container:after {
+	content: var(--vscode-icon-chevron-down-content);
+	font-family: var(--vscode-icon-chevron-down-font-family);
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+	line-height: 16px;
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	right: 6px;
+	margin: auto;
+	pointer-events: none;
+}
+
+/* Keyboard Focus Indication Styles */
+
+.monaco-workbench [tabindex="0"]:focus,
+.monaco-workbench [tabindex="-1"]:focus,
+.monaco-workbench .synthetic-focus,
+.monaco-workbench select:focus,
+.monaco-workbench input[type="button"]:focus,
+.monaco-workbench input[type="text"]:focus,
+.monaco-workbench button:focus,
+.monaco-workbench textarea:focus,
+.monaco-workbench input[type="search"]:focus,
+.monaco-workbench input[type="checkbox"]:focus {
+	outline-width: 1px;
+	outline-style: solid;
+	outline-offset: -1px;
+	outline-color: var(--vscode-focusBorder);
+	opacity: 1;
+}
+
+.monaco-workbench.hc-black .synthetic-focus input,
+.monaco-workbench.hc-light .synthetic-focus input {
+	background: transparent; /* Search input focus fix when in high contrast */
+}
+
+.monaco-workbench input[type="checkbox"]:focus {
+	outline-offset: 2px;
+}
+
+.monaco-workbench [tabindex="0"]:active,
+.monaco-workbench [tabindex="-1"]:active,
+.monaco-workbench select:active,
+.monaco-workbench input[type="button"]:active,
+.monaco-workbench input[type="checkbox"]:active {
+	outline: 0 !important; /* fixes some flashing outlines from showing up when clicking */
+}
+
+.monaco-workbench.mac select:focus {
+	border-color: transparent; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/microsoft/vscode/issues/26045) */
+}
+
+.monaco-workbench .monaco-list:not(.element-focused):focus:before {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 15; /* make sure we are on top of the tree sticky scroll widget */
+	content: "";
+	pointer-events: none; /* enable click through */
+	outline: 1px solid; /* we still need to handle the empty tree or no focus item case */
+	outline-width: 1px;
+	outline-style: solid;
+	outline-offset: -1px;
+	outline-color: var(--vscode-focusBorder);
+}
+
+.monaco-workbench .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
+	color: var(--vscode-list-highlightForeground);
+}
+
+.monaco-workbench .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight {
+	color: var(--vscode-list-focusHighlightForeground);
+}
+
+.monaco-workbench .synthetic-focus :focus {
+	outline: 0 !important; /* elements within widgets that draw synthetic-focus should never show focus */
+}
+
+.monaco-workbench .monaco-inputbox.info.synthetic-focus,
+.monaco-workbench .monaco-inputbox.warning.synthetic-focus,
+.monaco-workbench .monaco-inputbox.error.synthetic-focus,
+.monaco-workbench .monaco-inputbox.info input[type="text"]:focus,
+.monaco-workbench .monaco-inputbox.warning input[type="text"]:focus,
+.monaco-workbench .monaco-inputbox.error input[type="text"]:focus {
+	outline: 0 !important; /* outline is not going well with decoration */
+}
+
+.monaco-workbench .monaco-list:focus {
+	outline: 0 !important; /* tree indicates focus not via outline but through the focused item */
+}
+
+.monaco-workbench a.monaco-link:hover {
+	text-decoration: underline; /* render underline on hover for accessibility requirements */
+}
+
+.monaco-workbench .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover,
+.monaco-workbench .monaco-action-bar:not(.vertical) .monaco-dropdown-with-primary:not(.disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-workbench .monaco-action-bar:not(.vertical) .action-item.active .action-label:not(.disabled),
+.monaco-workbench .monaco-action-bar:not(.vertical) .monaco-dropdown.active .action-label:not(.disabled) {
+	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+.monaco-workbench .monaco-action-bar:not(.vertical) .action-item .action-label:hover:not(.disabled) {
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px;
+}

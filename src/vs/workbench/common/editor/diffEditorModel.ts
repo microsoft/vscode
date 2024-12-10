@@ -3,44 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorModel } from 'vs/workbench/common/editor';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { EditorModel } from './editorModel.js';
+import { IResolvableEditorModel } from '../../../platform/editor/common/editor.js';
 
 /**
  * The base editor model for the diff editor. It is made up of two editor models, the original version
  * and the modified version.
  */
 export class DiffEditorModel extends EditorModel {
-	protected _originalModel: IEditorModel;
-	protected _modifiedModel: IEditorModel;
 
-	constructor(originalModel: IEditorModel, modifiedModel: IEditorModel) {
+	protected readonly _originalModel: IResolvableEditorModel | undefined;
+	get originalModel(): IResolvableEditorModel | undefined { return this._originalModel; }
+
+	protected readonly _modifiedModel: IResolvableEditorModel | undefined;
+	get modifiedModel(): IResolvableEditorModel | undefined { return this._modifiedModel; }
+
+	constructor(originalModel: IResolvableEditorModel | undefined, modifiedModel: IResolvableEditorModel | undefined) {
 		super();
 
 		this._originalModel = originalModel;
 		this._modifiedModel = modifiedModel;
 	}
 
-	get originalModel(): EditorModel {
-		return this._originalModel as EditorModel;
+	override async resolve(): Promise<void> {
+		await Promise.all([
+			this._originalModel?.resolve(),
+			this._modifiedModel?.resolve()
+		]);
 	}
 
-	get modifiedModel(): EditorModel {
-		return this._modifiedModel as EditorModel;
+	override isResolved(): boolean {
+		return !!(this._originalModel?.isResolved() && this._modifiedModel?.isResolved());
 	}
 
-	load(): Promise<EditorModel> {
-		return Promise.all([
-			this._originalModel.load(),
-			this._modifiedModel.load()
-		]).then(() => this);
-	}
-
-	isResolved(): boolean {
-		return this.originalModel.isResolved() && this.modifiedModel.isResolved();
-	}
-
-	dispose(): void {
+	override dispose(): void {
 
 		// Do not propagate the dispose() call to the two models inside. We never created the two models
 		// (original and modified) so we can not dispose them without sideeffects. Rather rely on the

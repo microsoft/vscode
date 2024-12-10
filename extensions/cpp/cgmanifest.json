@@ -4,14 +4,52 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "atom/language-c",
-					"repositoryUrl": "https://github.com/atom/language-c",
-					"commitHash": "9c0c5f202741a5647025db8d5df5fefba47b036c"
+					"name": "jeff-hykin/better-cpp-syntax",
+					"repositoryUrl": "https://github.com/jeff-hykin/better-cpp-syntax",
+					"commitHash": "f1d127a8af2b184db570345f0bb179503c47fdf6"
 				}
 			},
 			"license": "MIT",
-			"version": "0.58.1",
-			"description": "The files syntaxes/c.json and syntaxes/c++.json were derived from the Atom package https://atom.io/packages/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
+			"licenseDetail": [
+				[
+					"MIT License",
+					"",
+					"Copyright (c) 2019 Jeff Hykin",
+					"",
+					"Permission is hereby granted, free of charge, to any person obtaining a copy",
+					"of this software and associated documentation files (the \"Software\"), to deal",
+					"in the Software without restriction, including without limitation the rights",
+					"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+					"copies of the Software, and to permit persons to whom the Software is",
+					"furnished to do so, subject to the following conditions:",
+					"",
+					"The above copyright notice and this permission notice shall be included in all",
+					"copies or substantial portions of the Software.",
+					"",
+					"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+					"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+					"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+					"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+					"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+					"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+					"SOFTWARE."
+				]
+			],
+			"version": "1.17.4",
+			"description": "The original JSON grammars were derived from https://github.com/atom/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "jeff-hykin/better-c-syntax",
+					"repositoryUrl": "https://github.com/jeff-hykin/better-c-syntax",
+					"commitHash": "34712a6106a4ffb0a04d2fa836fd28ff6c5849a4"
+				}
+			},
+			"license": "MIT",
+			"version": "1.13.2",
+			"description": "The original JSON grammars were derived from https://github.com/atom/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
 		},
 		{
 			"component": {
@@ -19,7 +57,7 @@
 				"git": {
 					"name": "textmate/c.tmbundle",
 					"repositoryUrl": "https://github.com/textmate/c.tmbundle",
-					"commitHash": "9aa365882274ca52f01722f3dbb169b9539a20ee"
+					"commitHash": "60daf83b9d45329524f7847a75e9298b3aae5805"
 				}
 			},
 			"licenseDetail": [
@@ -39,6 +77,19 @@
 			],
 			"license": "TextMate Bundle License",
 			"version": "0.0.0"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "NVIDIA/cuda-cpp-grammar",
+					"repositoryUrl": "https://github.com/NVIDIA/cuda-cpp-grammar",
+					"commitHash": "81e88eaec5170aa8585736c63627c73e3589998c"
+				}
+			},
+			"license": "MIT",
+			"version": "0.0.0",
+			"description": "The file syntaxes/cuda-cpp.tmLanguage.json was derived from https://github.com/jeff-hykin/cpp-textmate-grammar, which was derived from https://github.com/atom/language-c, which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
 		}
 	],
 	"version": 1

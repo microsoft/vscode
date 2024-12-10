@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChordKeybinding, KeyCodeUtils, Keybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
+import { KeyCodeUtils, ScanCodeUtils } from './keyCodes.js';
+import { KeyCodeChord, ScanCodeChord, Keybinding, Chord } from './keybindings.js';
 
 export class KeybindingParser {
 
@@ -74,51 +73,30 @@ export class KeybindingParser {
 		};
 	}
 
-	private static parseSimpleKeybinding(input: string): [SimpleKeybinding, string] {
-		const mods = this._readModifiers(input);
-		const keyCode = KeyCodeUtils.fromUserSettings(mods.key);
-		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
-	}
-
-	public static parseKeybinding(input: string, OS: OperatingSystem): Keybinding | null {
-		if (!input) {
-			return null;
-		}
-
-		let [firstPart, remains] = this.parseSimpleKeybinding(input);
-		let chordPart: SimpleKeybinding | null = null;
-		if (remains.length > 0) {
-			[chordPart] = this.parseSimpleKeybinding(remains);
-		}
-
-		if (chordPart) {
-			return new ChordKeybinding(firstPart, chordPart);
-		}
-		return firstPart;
-	}
-
-	private static parseSimpleUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding, string] {
+	private static parseChord(input: string): [Chord, string] {
 		const mods = this._readModifiers(input);
 		const scanCodeMatch = mods.key.match(/^\[([^\]]+)\]$/);
 		if (scanCodeMatch) {
 			const strScanCode = scanCodeMatch[1];
 			const scanCode = ScanCodeUtils.lowerCaseToEnum(strScanCode);
-			return [new ScanCodeBinding(mods.ctrl, mods.shift, mods.alt, mods.meta, scanCode), mods.remains];
+			return [new ScanCodeChord(mods.ctrl, mods.shift, mods.alt, mods.meta, scanCode), mods.remains];
 		}
 		const keyCode = KeyCodeUtils.fromUserSettings(mods.key);
-		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
+		return [new KeyCodeChord(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
 	}
 
-	static parseUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding | null, SimpleKeybinding | ScanCodeBinding | null] {
+	static parseKeybinding(input: string): Keybinding | null {
 		if (!input) {
-			return [null, null];
+			return null;
 		}
 
-		let [firstPart, remains] = this.parseSimpleUserBinding(input);
-		let chordPart: SimpleKeybinding | ScanCodeBinding | null = null;
-		if (remains.length > 0) {
-			[chordPart] = this.parseSimpleUserBinding(remains);
+		const chords: Chord[] = [];
+		let chord: Chord;
+
+		while (input.length > 0) {
+			[chord, input] = this.parseChord(input);
+			chords.push(chord);
 		}
-		return [firstPart, chordPart];
+		return (chords.length > 0 ? new Keybinding(chords) : null);
 	}
 }

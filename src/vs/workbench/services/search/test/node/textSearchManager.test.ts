@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { ITextQuery, QueryType } from 'vs/platform/search/common/search';
-import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
-import * as vscode from 'vscode';
+import assert from 'assert';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Progress } from '../../../../../platform/progress/common/progress.js';
+import { ITextQuery, QueryType } from '../../common/search.js';
+import { ProviderResult, TextSearchComplete2, TextSearchProviderOptions, TextSearchProvider2, TextSearchQuery2, TextSearchResult2 } from '../../common/searchExtTypes.js';
+import { NativeTextSearchManager } from '../../node/textSearchManager.js';
 
-suite('TextSearchManager', () => {
+suite('NativeTextSearchManager', () => {
 	test('fixes encoding', async () => {
 		let correctEncoding = false;
-		const provider: vscode.TextSearchProvider = {
-			provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): vscode.ProviderResult<vscode.TextSearchComplete> {
-				correctEncoding = options.encoding === 'windows-1252';
+		const provider: TextSearchProvider2 = {
+			provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: Progress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2> {
+				correctEncoding = options.folderOptions[0].encoding === 'windows-1252';
 
 				return null;
 			}
@@ -32,9 +34,11 @@ suite('TextSearchManager', () => {
 			}]
 		};
 
-		const m = new TextSearchManager(query, provider);
-		await m.search(() => { }, new CancellationTokenSource().token);
+		const m = new NativeTextSearchManager(query, provider);
+		await m.search(() => { }, CancellationToken.None);
 
 		assert.ok(correctEncoding);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

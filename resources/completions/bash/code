@@ -1,0 +1,60 @@
+_@@APPNAME@@()
+{
+	local cur prev words cword split
+	_init_completion -s || return
+
+	_expand || return
+
+	case $prev in
+		-d|--diff)
+			_filedir
+			return
+			;;
+		-a|--add|--user-data-dir|--extensions-dir)
+			_filedir -d
+			return
+			;;
+		-g|--goto)
+			compopt -o nospace
+			_filedir
+			return
+			;;
+		--locale)
+			COMPREPLY=( $( compgen -W 'de en en-US es fr it ja ko ru zh-CN zh-TW bg hu pt-br tr' ) )
+			return
+			;;
+		--install-extension|--uninstall-extension)
+			_filedir vsix
+			return
+			;;
+		--log)
+			COMPREPLY=( $( compgen -W 'critical error warn info debug trace off' ) )
+			return
+			;;
+		--folder-uri|--disable-extension)
+			# argument required but no completions available
+			return 0
+			;;
+		--enable-proposed-api)
+			# argument optional but no completions available
+			;;
+	esac
+
+	$split && return
+
+	if [[ $cur == -* ]]; then
+		COMPREPLY=( $( compgen -W '-d --diff --folder-uri -a --add -g
+			--goto -n --new-window -r --reuse-window -w --wait --locale=
+			--user-data-dir -v --version -h --help --extensions-dir
+			--list-extensions --show-versions --install-extension
+			--uninstall-extension --enable-proposed-api --verbose --log -s
+			--status -p --performance --prof-startup --disable-extensions
+			--disable-extension --inspect-extensions --update-extensions
+			--inspect-brk-extensions --disable-gpu' -- "$cur") )
+		[[ $COMPREPLY == *= ]] && compopt -o nospace
+		return
+	fi
+
+	_filedir
+} &&
+complete -F _@@APPNAME@@ @@APPNAME@@

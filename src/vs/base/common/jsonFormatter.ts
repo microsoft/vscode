@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createScanner, SyntaxKind, ScanError } from './json';
+import { createScanner, ScanError, SyntaxKind } from './json.js';
 
 export interface FormattingOptions {
 	/**
@@ -80,7 +80,7 @@ export function format(documentText: string, range: Range | undefined, options: 
 		rangeStart = 0;
 		rangeEnd = documentText.length;
 	}
-	let eol = getEOL(options, documentText);
+	const eol = getEOL(options, documentText);
 
 	let lineBreak = false;
 	let indentLevel = 0;
@@ -91,7 +91,7 @@ export function format(documentText: string, range: Range | undefined, options: 
 		indentValue = '\t';
 	}
 
-	let scanner = createScanner(formatText, false);
+	const scanner = createScanner(formatText, false);
 	let hasError = false;
 
 	function newLineAndIndent(): string {
@@ -107,7 +107,7 @@ export function format(documentText: string, range: Range | undefined, options: 
 		hasError = token === SyntaxKind.Unknown || scanner.getTokenError() !== ScanError.None;
 		return token;
 	}
-	let editOperations: Edit[] = [];
+	const editOperations: Edit[] = [];
 	function addEdit(text: string, startOffset: number, endOffset: number) {
 		if (!hasError && startOffset < rangeEnd && endOffset > rangeStart && documentText.substring(startOffset, endOffset) !== text) {
 			editOperations.push({ offset: startOffset, length: endOffset - startOffset, content: text });
@@ -117,8 +117,8 @@ export function format(documentText: string, range: Range | undefined, options: 
 	let firstToken = scanNext();
 
 	if (firstToken !== SyntaxKind.EOF) {
-		let firstTokenStart = scanner.getTokenOffset() + formatTextStart;
-		let initialIndent = repeat(indentValue, initialIndentLevel);
+		const firstTokenStart = scanner.getTokenOffset() + formatTextStart;
+		const initialIndent = repeat(indentValue, initialIndentLevel);
 		addEdit(initialIndent, formatTextStart, firstTokenStart);
 	}
 
@@ -129,7 +129,7 @@ export function format(documentText: string, range: Range | undefined, options: 
 		let replaceContent = '';
 		while (!lineBreak && (secondToken === SyntaxKind.LineCommentTrivia || secondToken === SyntaxKind.BlockCommentTrivia)) {
 			// comments on the same line: keep them on the same line, but ignore them otherwise
-			let commentTokenStart = scanner.getTokenOffset() + formatTextStart;
+			const commentTokenStart = scanner.getTokenOffset() + formatTextStart;
 			addEdit(' ', firstTokenEnd, commentTokenStart);
 			firstTokenEnd = scanner.getTokenOffset() + scanner.getTokenLength() + formatTextStart;
 			replaceContent = secondToken === SyntaxKind.LineCommentTrivia ? newLineAndIndent() : '';
@@ -195,11 +195,24 @@ export function format(documentText: string, range: Range | undefined, options: 
 			}
 
 		}
-		let secondTokenStart = scanner.getTokenOffset() + formatTextStart;
+		const secondTokenStart = scanner.getTokenOffset() + formatTextStart;
 		addEdit(replaceContent, firstTokenEnd, secondTokenStart);
 		firstToken = secondToken;
 	}
 	return editOperations;
+}
+
+/**
+ * Creates a formatted string out of the object passed as argument, using the given formatting options
+ * @param any The object to stringify and format
+ * @param options The formatting options to use
+ */
+export function toFormattedString(obj: any, options: FormattingOptions) {
+	const content = JSON.stringify(obj, undefined, options.insertSpaces ? options.tabSize || 4 : '\t');
+	if (options.eol !== undefined) {
+		return content.replace(/\r\n|\r|\n/g, options.eol);
+	}
+	return content;
 }
 
 function repeat(s: string, count: number): string {
@@ -213,9 +226,9 @@ function repeat(s: string, count: number): string {
 function computeIndentLevel(content: string, options: FormattingOptions): number {
 	let i = 0;
 	let nChars = 0;
-	let tabSize = options.tabSize || 4;
+	const tabSize = options.tabSize || 4;
 	while (i < content.length) {
-		let ch = content.charAt(i);
+		const ch = content.charAt(i);
 		if (ch === ' ') {
 			nChars++;
 		} else if (ch === '\t') {
@@ -228,9 +241,9 @@ function computeIndentLevel(content: string, options: FormattingOptions): number
 	return Math.floor(nChars / tabSize);
 }
 
-function getEOL(options: FormattingOptions, text: string): string {
+export function getEOL(options: FormattingOptions, text: string): string {
 	for (let i = 0; i < text.length; i++) {
-		let ch = text.charAt(i);
+		const ch = text.charAt(i);
 		if (ch === '\r') {
 			if (i + 1 < text.length && text.charAt(i + 1) === '\n') {
 				return '\r\n';

@@ -1,0 +1,37 @@
+<!-- Copyright (C) Microsoft Corporation. All rights reserved. -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<title>Microsoft Account - Sign In</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" type="text/css" media="screen" href="auth.css" />
+</head>
+
+<body>
+	<a class="branding" href="https://code.visualstudio.com/">
+		Visual Studio Code
+	</a>
+	<div class="message-container">
+		<div class="message">
+			You are signed in now and can close this page.
+		</div>
+		<div class="error-message">
+			An error occurred while signing in:
+			<div class="error-text"></div>
+		</div>
+	</div>
+	<script>
+		var search = window.location.search;
+		var error = (/[?&^]error=([^&]+)/.exec(search) || [])[1];
+		if (error) {
+			document.querySelector('.error-text')
+				.textContent = decodeURIComponent(error);
+			document.querySelector('body')
+				.classList.add('error');
+		}
+	</script>
+</body>
+
+</html>

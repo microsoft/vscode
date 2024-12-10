@@ -3,35 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import * as extfs from 'vs/base/node/extfs';
-import { IFileMatch, IProgress, ITextQuery, ITextSearchStats, ITextSearchMatch } from 'vs/platform/search/common/search';
-import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
-import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
-import { ISerializedFileMatch, ISerializedSearchSuccess } from './search';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import * as pfs from '../../../../base/node/pfs.js';
+import { IFileMatch, IProgressMessage, ITextQuery, ITextSearchMatch, ISerializedFileMatch, ISerializedSearchSuccess, resultIsMatch } from '../common/search.js';
+import { RipgrepTextSearchEngine } from './ripgrepTextSearchEngine.js';
+import { NativeTextSearchManager } from './textSearchManager.js';
 
 export class TextSearchEngineAdapter {
 
-	constructor(private query: ITextQuery) {
-	}
+	constructor(private query: ITextQuery, private numThreads?: number) { }
 
-	search(token: CancellationToken, onResult: (matches: ISerializedFileMatch[]) => void, onMessage: (message: IProgress) => void): Promise<ISerializedSearchSuccess> {
+	search(token: CancellationToken, onResult: (matches: ISerializedFileMatch[]) => void, onMessage: (message: IProgressMessage) => void): Promise<ISerializedSearchSuccess> {
 		if ((!this.query.folderQueries || !this.query.folderQueries.length) && (!this.query.extraFileResources || !this.query.extraFileResources.length)) {
-			return Promise.resolve(<ISerializedSearchSuccess>{
+			return Promise.resolve({
 				type: 'success',
 				limitHit: false,
-				stats: <ITextSearchStats>{
+				stats: {
 					type: 'searchProcess'
-				}
+				},
+				messages: []
 			});
 		}
 
 		const pretendOutputChannel = {
-			appendLine(msg) {
+			appendLine(msg: string) {
 				onMessage({ message: msg });
 			}
 		};
-		const textSearchManager = new TextSearchManager(this.query, new RipgrepTextSearchEngine(pretendOutputChannel), extfs);
+		const textSearchManager = new NativeTextSearchManager(this.query, new RipgrepTextSearchEngine(pretendOutputChannel, this.numThreads), pfs);
 		return new Promise((resolve, reject) => {
 			return textSearchManager
 				.search(
@@ -40,7 +39,7 @@ export class TextSearchEngineAdapter {
 					},
 					token)
 				.then(
-					c => resolve({ limitHit: c.limitHit, stats: null, type: 'success' } as ISerializedSearchSuccess),
+					c => resolve({ limitHit: c.limitHit ?? false, type: 'success', stats: c.stats, messages: [] }),
 					reject);
 		});
 	}
@@ -48,12 +47,12 @@ export class TextSearchEngineAdapter {
 
 function fileMatchToSerialized(match: IFileMatch): ISerializedFileMatch {
 	return {
-		path: match.resource ? match.resource.fsPath : undefined,
+		path: match.resource && match.resource.fsPath,
 		results: match.results,
 		numMatches: (match.results || []).reduce((sum, r) => {
-			if (!!(<ITextSearchMatch>r).ranges) {
+			if (resultIsMatch(r)) {
 				const m = <ITextSearchMatch>r;
-				return sum + (Array.isArray(m.ranges) ? m.ranges.length : 1);
+				return sum + m.rangeLocations.length;
 			} else {
 				return sum + 1;
 			}

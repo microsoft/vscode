@@ -3,42 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiffEditorModel } from 'vs/editor/common/editorCommon';
-import { EditorModel } from 'vs/workbench/common/editor';
-import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
+import { IDiffEditorModel } from '../../../editor/common/editorCommon.js';
+import { BaseTextEditorModel } from './textEditorModel.js';
+import { DiffEditorModel } from './diffEditorModel.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 
 /**
  * The base text editor model for the diff editor. It is made up of two text editor models, the original version
  * and the modified version.
  */
 export class TextDiffEditorModel extends DiffEditorModel {
-	private _textDiffEditorModel: IDiffEditorModel;
+
+	protected override readonly _originalModel: BaseTextEditorModel | undefined;
+	override get originalModel(): BaseTextEditorModel | undefined { return this._originalModel; }
+
+	protected override readonly _modifiedModel: BaseTextEditorModel | undefined;
+	override get modifiedModel(): BaseTextEditorModel | undefined { return this._modifiedModel; }
+
+	private _textDiffEditorModel: IDiffEditorModel | undefined = undefined;
+	get textDiffEditorModel(): IDiffEditorModel | undefined { return this._textDiffEditorModel; }
 
 	constructor(originalModel: BaseTextEditorModel, modifiedModel: BaseTextEditorModel) {
 		super(originalModel, modifiedModel);
 
+		this._originalModel = originalModel;
+		this._modifiedModel = modifiedModel;
+
 		this.updateTextDiffEditorModel();
 	}
 
-	get originalModel(): BaseTextEditorModel {
-		return this._originalModel as BaseTextEditorModel;
-	}
+	override async resolve(): Promise<void> {
+		await super.resolve();
 
-	get modifiedModel(): BaseTextEditorModel {
-		return this._modifiedModel as BaseTextEditorModel;
-	}
-
-	load(): Promise<EditorModel> {
-		return super.load().then(() => {
-			this.updateTextDiffEditorModel();
-
-			return this;
-		});
+		this.updateTextDiffEditorModel();
 	}
 
 	private updateTextDiffEditorModel(): void {
-		if (this.originalModel.isResolved() && this.modifiedModel.isResolved()) {
+		if (this.originalModel?.isResolved() && this.modifiedModel?.isResolved()) {
 
 			// Create new
 			if (!this._textDiffEditorModel) {
@@ -56,25 +57,21 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		}
 	}
 
-	get textDiffEditorModel(): IDiffEditorModel {
-		return this._textDiffEditorModel;
-	}
-
-	isResolved(): boolean {
+	override isResolved(): boolean {
 		return !!this._textDiffEditorModel;
 	}
 
-	isReadonly(): boolean {
-		return this.modifiedModel.isReadonly();
+	isReadonly(): boolean | IMarkdownString {
+		return !!this.modifiedModel && this.modifiedModel.isReadonly();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 
 		// Free the diff editor model but do not propagate the dispose() call to the two models
 		// inside. We never created the two models (original and modified) so we can not dispose
 		// them without sideeffects. Rather rely on the models getting disposed when their related
 		// inputs get disposed from the diffEditorInput.
-		this._textDiffEditorModel = null;
+		this._textDiffEditorModel = undefined;
 
 		super.dispose();
 	}

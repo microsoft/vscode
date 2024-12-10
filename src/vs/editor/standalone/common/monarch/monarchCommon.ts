@@ -22,11 +22,13 @@ export const enum MonarchBracket {
 
 export interface ILexerMin {
 	languageId: string;
+	includeLF: boolean;
 	noThrow: boolean;
 	ignoreCase: boolean;
+	unicode: boolean;
 	usesEmbedded: boolean;
 	defaultToken: string;
-	stateNames: { [stateName: string]: any; };
+	stateNames: { [stateName: string]: any };
 	[attr: string]: any;
 }
 
@@ -34,9 +36,10 @@ export interface ILexer extends ILexerMin {
 	maxStack: number;
 	start: string | null;
 	ignoreCase: boolean;
+	unicode: boolean;
 	tokenPostfix: string;
 
-	tokenizer: { [stateName: string]: IRule[]; };
+	tokenizer: { [stateName: string]: IRule[] };
 	brackets: IBracket[];
 }
 
@@ -65,10 +68,10 @@ export function isIAction(what: FuzzyAction): what is IAction {
 }
 
 export interface IRule {
-	regex: RegExp;
 	action: FuzzyAction;
 	matchOnlyAtLineStart: boolean;
 	name: string;
+	resolveRegex(state: string): RegExp;
 }
 
 export interface IAction {
@@ -161,6 +164,26 @@ export function substituteMatches(lexer: ILexerMin, str: string, id: string, mat
 		if (!empty(attr) && lexer && typeof (lexer[attr]) === 'string') {
 			return lexer[attr]; //@attribute
 		}
+		if (stateMatches === null) { // split state on demand
+			stateMatches = state.split('.');
+			stateMatches.unshift(state);
+		}
+		if (!empty(s) && s < stateMatches.length) {
+			return fixCase(lexer, stateMatches[s]); //$Sn
+		}
+		return '';
+	});
+}
+
+/**
+ * substituteMatchesRe is used on lexer regex rules and can substitutes predefined patterns:
+ * 		$Sn => n'th part of state
+ *
+ */
+export function substituteMatchesRe(lexer: ILexerMin, str: string, state: string): string {
+	const re = /\$[sS](\d\d?)/g;
+	let stateMatches: string[] | null = null;
+	return str.replace(re, function (full, s) {
 		if (stateMatches === null) { // split state on demand
 			stateMatches = state.split('.');
 			stateMatches.unshift(state);

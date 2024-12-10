@@ -20,37 +20,36 @@
 	pointer-events: initial;
 }
 
-.monaco-split-view2 > .split-view-container {
-	display: flex;
+.monaco-split-view2 > .monaco-scrollable-element {
+	width: 100%;
+	height: 100%;
+}
+
+.monaco-split-view2 > .monaco-scrollable-element > .split-view-container {
 	width: 100%;
 	height: 100%;
 	white-space: nowrap;
-}
-
-.monaco-split-view2.vertical > .split-view-container {
-	flex-direction: column;
-}
-
-.monaco-split-view2.horizontal > .split-view-container {
-	flex-direction: row;
-}
-
-.monaco-split-view2 > .split-view-container > .split-view-view {
-	white-space: initial;
-	flex: none;
 	position: relative;
 }
 
-.monaco-split-view2.vertical > .split-view-container > .split-view-view {
+.monaco-split-view2 > .monaco-scrollable-element > .split-view-container > .split-view-view {
+	white-space: initial;
+	position: absolute;
+}
+
+.monaco-split-view2 > .monaco-scrollable-element > .split-view-container > .split-view-view:not(.visible) {
+	display: none;
+}
+
+.monaco-split-view2.vertical > .monaco-scrollable-element > .split-view-container > .split-view-view {
 	width: 100%;
 }
 
-.monaco-split-view2.horizontal > .split-view-container > .split-view-view {
+.monaco-split-view2.horizontal > .monaco-scrollable-element > .split-view-container > .split-view-view {
 	height: 100%;
-	display: inline-block;
 }
 
-.monaco-split-view2.separator-border > .split-view-container > .split-view-view:not(:first-child)::before {
+.monaco-split-view2.separator-border > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
 	content: ' ';
 	position: absolute;
 	top: 0;
@@ -60,12 +59,12 @@
 	background-color: var(--separator-border);
 }
 
-.monaco-split-view2.separator-border.horizontal > .split-view-container > .split-view-view:not(:first-child)::before {
+.monaco-split-view2.separator-border.horizontal > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
 	height: 100%;
 	width: 1px;
 }
 
-.monaco-split-view2.separator-border.vertical > .split-view-container > .split-view-view:not(:first-child)::before {
+.monaco-split-view2.separator-border.vertical > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
 	height: 1px;
 	width: 100%;
 }

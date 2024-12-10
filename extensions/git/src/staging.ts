@@ -3,17 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, Range, LineChange, Selection } from 'vscode';
+import { TextDocument, Range, LineChange, Selection, Uri } from 'vscode';
 
 export function applyLineChanges(original: TextDocument, modified: TextDocument, diffs: LineChange[]): string {
 	const result: string[] = [];
 	let currentLine = 0;
 
-	for (let diff of diffs) {
+	for (const diff of diffs) {
 		const isInsertion = diff.originalEndLineNumber === 0;
 		const isDeletion = diff.modifiedEndLineNumber === 0;
 
-		result.push(original.getText(new Range(currentLine, 0, isInsertion ? diff.originalStartLineNumber : diff.originalStartLineNumber - 1, 0)));
+		let endLine = isInsertion ? diff.originalStartLineNumber : diff.originalStartLineNumber - 1;
+		let endCharacter = 0;
+
+		// if this is a deletion at the very end of the document,then we need to account
+		// for a newline at the end of the last line which may have been deleted
+		// https://github.com/microsoft/vscode/issues/59670
+		if (isDeletion && diff.originalEndLineNumber === original.lineCount) {
+			endLine -= 1;
+			endCharacter = original.lineAt(endLine).range.end.character;
+		}
+
+		result.push(original.getText(new Range(currentLine, 0, endLine, endCharacter)));
 
 		if (!isDeletion) {
 			let fromLine = diff.modifiedStartLineNumber - 1;
@@ -38,7 +49,7 @@ export function applyLineChanges(original: TextDocument, modified: TextDocument,
 	return result.join('');
 }
 
-export function toLineRanges(selections: Selection[], textDocument: TextDocument): Range[] {
+export function toLineRanges(selections: readonly Selection[], textDocument: TextDocument): Range[] {
 	const lineRanges = selections.map(s => {
 		const startLine = textDocument.lineAt(s.start.line);
 		const endLine = textDocument.lineAt(s.end.line);
@@ -98,12 +109,28 @@ export function intersectDiffWithRange(textDocument: TextDocument, diff: LineCha
 	if (diff.modifiedEndLineNumber === 0) {
 		return diff;
 	} else {
-		return {
-			originalStartLineNumber: diff.originalStartLineNumber,
-			originalEndLineNumber: diff.originalEndLineNumber,
-			modifiedStartLineNumber: intersection.start.line + 1,
-			modifiedEndLineNumber: intersection.end.line + 1
-		};
+		const modifiedStartLineNumber = intersection.start.line + 1;
+		const modifiedEndLineNumber = intersection.end.line + 1;
+
+		// heuristic: same number of lines on both sides, let's assume line by line
+		if (diff.originalEndLineNumber - diff.originalStartLineNumber === diff.modifiedEndLineNumber - diff.modifiedStartLineNumber) {
+			const delta = modifiedStartLineNumber - diff.modifiedStartLineNumber;
+			const length = modifiedEndLineNumber - modifiedStartLineNumber;
+
+			return {
+				originalStartLineNumber: diff.originalStartLineNumber + delta,
+				originalEndLineNumber: diff.originalStartLineNumber + delta + length,
+				modifiedStartLineNumber,
+				modifiedEndLineNumber
+			};
+		} else {
+			return {
+				originalStartLineNumber: diff.originalStartLineNumber,
+				originalEndLineNumber: diff.originalEndLineNumber,
+				modifiedStartLineNumber,
+				modifiedEndLineNumber
+			};
+		}
 	}
 }
 
@@ -114,4 +141,15 @@ export function invertLineChange(diff: LineChange): LineChange {
 		originalStartLineNumber: diff.modifiedStartLineNumber,
 		originalEndLineNumber: diff.modifiedEndLineNumber
 	};
+}
+
+export interface DiffEditorSelectionHunkToolbarContext {
+	mapping: unknown;
+	/**
+	 * The original text with the selected modified changes applied.
+	*/
+	originalWithModifiedChanges: string;
+
+	modifiedUri: Uri;
+	originalUri: Uri;
 }

@@ -1,9 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getVersion = getVersion;
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 const path = require("path");
 const fs = require("fs");
 /**
@@ -17,14 +18,14 @@ function getVersion(repo) {
         head = fs.readFileSync(headPath, 'utf8').trim();
     }
     catch (e) {
-        return void 0;
+        return undefined;
     }
     if (/^[0-9a-f]{40}$/i.test(head)) {
         return head;
     }
     const refMatch = /^ref: (.*)$/.exec(head);
     if (!refMatch) {
-        return void 0;
+        return undefined;
     }
     const ref = refMatch[1];
     const refPath = path.join(git, ref);
@@ -40,14 +41,14 @@ function getVersion(repo) {
         refsRaw = fs.readFileSync(packedRefsPath, 'utf8').trim();
     }
     catch (e) {
-        return void 0;
+        return undefined;
     }
     const refsRegex = /^([0-9a-f]{40})\s+(.+)$/gm;
     let refsMatch;
-    let refs = {};
+    const refs = {};
     while (refsMatch = refsRegex.exec(refsRaw)) {
         refs[refsMatch[2]] = refsMatch[1];
     }
     return refs[ref];
 }
-exports.getVersion = getVersion;
+//# sourceMappingURL=git.js.map

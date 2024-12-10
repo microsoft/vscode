@@ -1,73 +1,91 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.createReporter = createReporter;
 const es = require("event-stream");
-const _ = require("underscore");
-const util = require("gulp-util");
+const fancyLog = require("fancy-log");
+const ansiColors = require("ansi-colors");
 const fs = require("fs");
 const path = require("path");
-const allErrors = [];
-let startTime = null;
-let count = 0;
-function onStart() {
-    if (count++ > 0) {
-        return;
+class ErrorLog {
+    id;
+    constructor(id) {
+        this.id = id;
     }
-    startTime = new Date().getTime();
-    util.log(`Starting ${util.colors.green('compilation')}...`);
-}
-function onEnd() {
-    if (--count > 0) {
-        return;
+    allErrors = [];
+    startTime = null;
+    count = 0;
+    onStart() {
+        if (this.count++ > 0) {
+            return;
+        }
+        this.startTime = new Date().getTime();
+        fancyLog(`Starting ${ansiColors.green('compilation')}${this.id ? ansiColors.blue(` ${this.id}`) : ''}...`);
     }
-    log();
+    onEnd() {
+        if (--this.count > 0) {
+            return;
+        }
+        this.log();
+    }
+    log() {
+        const errors = this.allErrors.flat();
+        const seen = new Set();
+        errors.map(err => {
+            if (!seen.has(err)) {
+                seen.add(err);
+                fancyLog(`${ansiColors.red('Error')}: ${err}`);
+            }
+        });
+        fancyLog(`Finished ${ansiColors.green('compilation')}${this.id ? ansiColors.blue(` ${this.id}`) : ''} with ${errors.length} errors after ${ansiColors.magenta((new Date().getTime() - this.startTime) + ' ms')}`);
+        const regex = /^([^(]+)\((\d+),(\d+)\): (.*)$/s;
+        const messages = errors
+            .map(err => regex.exec(err))
+            .filter(match => !!match)
+            .map(x => x)
+            .map(([, path, line, column, message]) => ({ path, line: parseInt(line), column: parseInt(column), message }));
+        try {
+            const logFileName = 'log' + (this.id ? `_${this.id}` : '');
+            fs.writeFileSync(path.join(buildLogFolder, logFileName), JSON.stringify(messages));
+        }
+        catch (err) {
+            //noop
+        }
+    }
 }
-const buildLogPath = path.join(path.dirname(path.dirname(__dirname)), '.build', 'log');
+const errorLogsById = new Map();
+function getErrorLog(id = '') {
+    let errorLog = errorLogsById.get(id);
+    if (!errorLog) {
+        errorLog = new ErrorLog(id);
+        errorLogsById.set(id, errorLog);
+    }
+    return errorLog;
+}
+const buildLogFolder = path.join(path.dirname(path.dirname(__dirname)), '.build');
 try {
-    fs.mkdirSync(path.dirname(buildLogPath));
+    fs.mkdirSync(buildLogFolder);
 }
 catch (err) {
     // ignore
 }
-function log() {
-    const errors = _.flatten(allErrors);
-    const seen = new Set();
-    errors.map(err => {
-        if (!seen.has(err)) {
-            seen.add(err);
-            util.log(`${util.colors.red('Error')}: ${err}`);
-        }
-    });
-    const regex = /^([^(]+)\((\d+),(\d+)\): (.*)$/;
-    const messages = errors
-        .map(err => regex.exec(err))
-        .filter(match => !!match)
-        .map(x => x)
-        .map(([, path, line, column, message]) => ({ path, line: parseInt(line), column: parseInt(column), message }));
-    try {
-        fs.writeFileSync(buildLogPath, JSON.stringify(messages));
-    }
-    catch (err) {
-        //noop
-    }
-    util.log(`Finished ${util.colors.green('compilation')} with ${errors.length} errors after ${util.colors.magenta((new Date().getTime() - startTime) + ' ms')}`);
-}
-function createReporter() {
+function createReporter(id) {
+    const errorLog = getErrorLog(id);
     const errors = [];
-    allErrors.push(errors);
+    errorLog.allErrors.push(errors);
     const result = (err) => errors.push(err);
     result.hasErrors = () => errors.length > 0;
     result.end = (emitError) => {
         errors.length = 0;
-        onStart();
+        errorLog.onStart();
         return es.through(undefined, function () {
-            onEnd();
+            errorLog.onEnd();
             if (emitError && errors.length > 0) {
                 if (!errors.__logged__) {
-                    log();
+                    errorLog.log();
                 }
                 errors.__logged__ = true;
                 const err = new Error(`Found ${errors.length} errors`);
@@ -81,4 +99,4 @@ function createReporter() {
     };
     return result;
 }
-exports.createReporter = createReporter;
+//# sourceMappingURL=reporter.js.map

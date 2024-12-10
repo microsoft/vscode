@@ -2,8 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { ok } from 'vs/base/common/assert';
+
+import assert from 'assert';
+import { ok } from '../../common/assert.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Assert', () => {
 	test('ok', () => {
@@ -30,4 +32,6 @@ suite('Assert', () => {
 		ok({});
 		ok(5);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -1,0 +1,112 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Menubar styles */
+
+.menubar {
+	display: flex;
+	flex-shrink: 1;
+	box-sizing: border-box;
+	height: 100%;
+	overflow: hidden;
+}
+
+.menubar.overflow-menu-only {
+	width: 38px;
+}
+
+.fullscreen .menubar:not(.compact) {
+	margin: 0px;
+	padding: 4px 5px;
+}
+
+.menubar > .menubar-menu-button {
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	cursor: default;
+	-webkit-app-region: no-drag;
+	zoom: 1;
+	white-space: nowrap;
+	outline: 0 !important;
+}
+
+.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .menubar-menu-title {
+	outline-width: 1px;
+	outline-style: solid;
+	outline-offset: -1px;
+	outline-color: var(--vscode-focusBorder);
+}
+
+.menubar.compact {
+	flex-shrink: 0;
+	overflow: visible; /* to avoid the compact menu to be repositioned when clicking */
+}
+
+.menubar.compact > .menubar-menu-button {
+	width: 100%;
+	height: 100%;
+	padding: 0px;
+}
+
+.menubar-menu-title {
+	padding: 0px 8px;
+	border-radius: 5px;
+}
+
+.menubar .menubar-menu-items-holder {
+	position: fixed;
+	left: 0px;
+	opacity: 1;
+	z-index: 2000;
+}
+
+.menubar.compact .menubar-menu-items-holder {
+	position: fixed;
+}
+
+.menubar .menubar-menu-items-holder.monaco-menu-container {
+	outline: 0;
+	border: none;
+}
+
+.menubar .menubar-menu-items-holder.monaco-menu-container :focus {
+	outline: 0;
+}
+
+.menubar .toolbar-toggle-more {
+	width: 22px;
+	height: 22px;
+	padding: 0 8px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	vertical-align: sub;
+}
+
+.menubar.compact .toolbar-toggle-more {
+	position: relative;
+	left: 0px;
+	top: 0px;
+	cursor: pointer;
+	width: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.menubar:not(.compact) .menubar-menu-button:first-child .toolbar-toggle-more::before,
+.menubar.compact .toolbar-toggle-more::before {
+	content: var(--vscode-icon-menu-content) !important;
+	font-family: var(--vscode-icon-menu-font-family) !important;
+}
+
+/* Match behavior of outline for activity bar icons */
+.menubar.compact > .menubar-menu-button.open .menubar-menu-title,
+.menubar.compact > .menubar-menu-button:focus .menubar-menu-title,
+.menubar.compact > .menubar-menu-button:hover .menubar-menu-title{
+	outline-width: 1px !important;
+	outline-offset: -8px !important;
+}

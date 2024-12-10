@@ -6,3 +6,5 @@ AddToPath=PATH에 추가(다시 시작한 후 사용 가능)
 RunAfter=설치 후 %1 실행
 Other=기타:
 SourceFile=%1 원본 파일
+OpenWithCodeContextMenu=%1(으)로 열기
+UpdatingVisualStudioCode=Visual Studio Code 업데이트 중...

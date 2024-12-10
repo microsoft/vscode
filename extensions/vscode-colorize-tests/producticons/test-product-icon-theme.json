@@ -1,0 +1,43 @@
+{
+	// ElegantIcons from https://www.elegantthemes.com/icons/elegant_font.zip
+	"fonts": [
+		{
+			"id": "elegant",
+			"src": [
+				{
+					"path": "./ElegantIcons.woff",
+					"format": "woff"
+				}
+			],
+			"weight": "normal",
+			"style": "normal",
+		}
+	],
+	"iconDefinitions": {
+		"chevron-down": {
+			"fontCharacter": "\\43",
+		},
+		"chevron-right": {
+			"fontCharacter": "\\45"
+		},
+		"error": {
+			"fontCharacter": "\\e062"
+		},
+		"warning": {
+			"fontCharacter": "\\e063"
+		},
+		"settings-gear": {
+			"fontCharacter": "\\e030"
+		},
+		"files": {
+			"fontCharacter": "\\e056"
+		},
+		"extensions": {
+			"fontCharacter": "\\e015"
+		},
+		"run-view-icon": {
+			"fontCharacter": "\\e072"
+		}
+
+	}
+}

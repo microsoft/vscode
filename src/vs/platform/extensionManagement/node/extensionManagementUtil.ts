@@ -3,33 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as semver from 'semver';
-import { adoptToGalleryExtensionId, LOCAL_EXTENSION_ID_REGEX } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { buffer } from 'vs/platform/node/zip';
-import { localize } from 'vs/nls';
+import { buffer, ExtractError } from '../../../base/node/zip.js';
+import { localize } from '../../../nls.js';
+import { toExtensionManagementError } from '../common/abstractExtensionManagementService.js';
+import { ExtensionManagementError, ExtensionManagementErrorCode } from '../common/extensionManagement.js';
+import { IExtensionManifest } from '../../extensions/common/extensions.js';
 
-export function getIdAndVersionFromLocalExtensionId(localExtensionId: string): { id: string, version: string | null } {
-	const matches = LOCAL_EXTENSION_ID_REGEX.exec(localExtensionId);
-	if (matches && matches[1] && matches[2]) {
-		const version = semver.valid(matches[2]);
-		if (version) {
-			return { id: adoptToGalleryExtensionId(matches[1]), version };
+export function fromExtractError(e: Error): ExtensionManagementError {
+	let errorCode = ExtensionManagementErrorCode.Extract;
+	if (e instanceof ExtractError) {
+		if (e.type === 'CorruptZip') {
+			errorCode = ExtensionManagementErrorCode.CorruptZip;
+		} else if (e.type === 'Incomplete') {
+			errorCode = ExtensionManagementErrorCode.IncompleteZip;
 		}
 	}
-	return {
-		id: adoptToGalleryExtensionId(localExtensionId),
-		version: null
-	};
+	return toExtensionManagementError(e, errorCode);
 }
 
-export function getManifest(vsix: string): Promise<IExtensionManifest> {
-	return buffer(vsix, 'extension/package.json')
-		.then(buffer => {
-			try {
-				return JSON.parse(buffer.toString('utf8'));
-			} catch (err) {
-				throw new Error(localize('invalidManifest', "VSIX invalid: package.json is not a JSON file."));
-			}
-		});
+export async function getManifest(vsixPath: string): Promise<IExtensionManifest> {
+	let data;
+	try {
+		data = await buffer(vsixPath, 'extension/package.json');
+	} catch (e) {
+		throw fromExtractError(e);
+	}
+
+	try {
+		return JSON.parse(data.toString('utf8'));
+	} catch (err) {
+		throw new ExtensionManagementError(localize('invalidManifest', "VSIX invalid: package.json is not a JSON file."), ExtensionManagementErrorCode.Invalid);
+	}
 }

@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as es from 'event-stream';
-import debounce = require('debounce');
+import _debounce = require('debounce');
 import * as _filter from 'gulp-filter';
 import * as rename from 'gulp-rename';
-import * as _ from 'underscore';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as _rimraf from 'rimraf';
-import * as git from './git';
 import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map';
+import { pathToFileURL } from 'url';
+import * as ternaryStream from 'ternary-stream';
+
+const root = path.dirname(path.dirname(__dirname));
 
 export interface ICancellationToken {
 	isCancellationRequested(): boolean;
@@ -54,7 +54,7 @@ export function incremental(streamProvider: IStreamProvider, initial: NodeJS.Rea
 		run(initial, false);
 	}
 
-	const eventuallyRun = debounce(() => {
+	const eventuallyRun = _debounce(() => {
 		const paths = Object.keys(buffer);
 
 		if (paths.length === 0) {
@@ -77,6 +77,41 @@ export function incremental(streamProvider: IStreamProvider, initial: NodeJS.Rea
 	return es.duplex(input, output);
 }
 
+export function debounce(task: () => NodeJS.ReadWriteStream, duration = 500): NodeJS.ReadWriteStream {
+	const input = es.through();
+	const output = es.through();
+	let state = 'idle';
+
+	const run = () => {
+		state = 'running';
+
+		task()
+			.pipe(es.through(undefined, () => {
+				const shouldRunAgain = state === 'stale';
+				state = 'idle';
+
+				if (shouldRunAgain) {
+					eventuallyRun();
+				}
+			}))
+			.pipe(output);
+	};
+
+	run();
+
+	const eventuallyRun = _debounce(() => run(), duration);
+
+	input.on('data', () => {
+		if (state === 'idle') {
+			eventuallyRun();
+		} else {
+			state = 'stale';
+		}
+	});
+
+	return es.duplex(input, output);
+}
+
 export function fixWin32DirectoryPermissions(): NodeJS.ReadWriteStream {
 	if (!/win32/.test(process.platform)) {
 		return es.through();
@@ -93,6 +128,9 @@ export function fixWin32DirectoryPermissions(): NodeJS.ReadWriteStream {
 
 export function setExecutableBit(pattern?: string | string[]): NodeJS.ReadWriteStream {
 	const setBit = es.mapSync<VinylFile, VinylFile>(f => {
+		if (!f.stat) {
+			f.stat = { isFile() { return true; } } as any;
+		}
 		f.stat.mode = /* 100755 */ 33261;
 		return f;
 	});
@@ -129,23 +167,21 @@ export function skipDirectories(): NodeJS.ReadWriteStream {
 	});
 }
 
-export function cleanNodeModule(name: string, excludes: string[], includes?: string[]): NodeJS.ReadWriteStream {
-	const toGlob = (path: string) => '**/node_modules/' + name + (path ? '/' + path : '');
-	const negate = (str: string) => '!' + str;
+export function cleanNodeModules(rulePath: string): NodeJS.ReadWriteStream {
+	const rules = fs.readFileSync(rulePath, 'utf8')
+		.split(/\r?\n/g)
+		.map(line => line.trim())
+		.filter(line => line && !/^#/.test(line));
 
-	const allFilter = _filter(toGlob('**'), { restore: true });
-	const globs = [toGlob('**')].concat(excludes.map(_.compose(negate, toGlob) as (x: string) => string));
+	const excludes = rules.filter(line => !/^!/.test(line)).map(line => `!**/node_modules/${line}`);
+	const includes = rules.filter(line => /^!/.test(line)).map(line => `**/node_modules/${line.substr(1)}`);
 
 	const input = es.through();
-	const nodeModuleInput = input.pipe(allFilter);
-	let output: NodeJS.ReadWriteStream = nodeModuleInput.pipe(_filter(globs));
+	const output = es.merge(
+		input.pipe(_filter(['**', ...excludes])),
+		input.pipe(_filter(includes))
+	);
 
-	if (includes) {
-		const includeGlobs = includes.map(toGlob);
-		output = es.merge(output, nodeModuleInput.pipe(_filter(includeGlobs)));
-	}
-
-	output = output.pipe(allFilter.restore);
 	return es.duplex(input, output);
 }
 
@@ -164,15 +200,15 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 			}
 
 			if (!f.contents) {
-				cb(new Error('empty file'));
+				cb(undefined, f);
 				return;
 			}
 
 			const contents = (<Buffer>f.contents).toString('utf8');
 
 			const reg = /\/\/# sourceMappingURL=(.*)$/g;
-			let lastMatch: RegExpMatchArray | null = null;
-			let match: RegExpMatchArray | null = null;
+			let lastMatch: RegExpExecArray | null = null;
+			let match: RegExpExecArray | null = null;
 
 			while (match = reg.exec(contents)) {
 				lastMatch = match;
@@ -183,7 +219,7 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 					version: '3',
 					names: [],
 					mappings: '',
-					sources: [f.relative.replace(/\//g, '/')],
+					sources: [f.relative.replace(/\\/g, '/')],
 					sourcesContent: [contents]
 				};
 
@@ -217,34 +253,94 @@ export function stripSourceMappingURL(): NodeJS.ReadWriteStream {
 	return es.duplex(input, output);
 }
 
-export function rimraf(dir: string): (cb: any) => void {
-	let retries = 0;
-
-	const retry = (cb: (err?: any) => void) => {
-		_rimraf(dir, { maxBusyTries: 1 }, (err: any) => {
-			if (!err) {
-				return cb();
-			}
-
-			if (err.code === 'ENOTEMPTY' && ++retries < 5) {
-				return setTimeout(() => retry(cb), 10);
-			}
-
-			return cb(err);
-		});
-	};
-
-	return cb => retry(cb);
-}
-
-export function getVersion(root: string): string | undefined {
-	let version = process.env['BUILD_SOURCEVERSION'];
-
-	if (!version || !/^[0-9a-f]{40}$/i.test(version)) {
-		version = git.getVersion(root);
+/** Splits items in the stream based on the predicate, sending them to onTrue if true, or onFalse otherwise */
+export function $if(test: boolean | ((f: VinylFile) => boolean), onTrue: NodeJS.ReadWriteStream, onFalse: NodeJS.ReadWriteStream = es.through()) {
+	if (typeof test === 'boolean') {
+		return test ? onTrue : onFalse;
 	}
 
-	return version;
+	return ternaryStream(test, onTrue, onFalse);
+}
+
+/** Operator that appends the js files' original path a sourceURL, so debug locations map */
+export function appendOwnPathSourceURL(): NodeJS.ReadWriteStream {
+	const input = es.through();
+
+	const output = input
+		.pipe(es.mapSync<VinylFile, VinylFile>(f => {
+			if (!(f.contents instanceof Buffer)) {
+				throw new Error(`contents of ${f.path} are not a buffer`);
+			}
+
+			f.contents = Buffer.concat([f.contents, Buffer.from(`\n//# sourceURL=${pathToFileURL(f.path)}`)]);
+			return f;
+		}));
+
+	return es.duplex(input, output);
+}
+
+export function rewriteSourceMappingURL(sourceMappingURLBase: string): NodeJS.ReadWriteStream {
+	const input = es.through();
+
+	const output = input
+		.pipe(es.mapSync<VinylFile, VinylFile>(f => {
+			const contents = (<Buffer>f.contents).toString('utf8');
+			const str = `//# sourceMappingURL=${sourceMappingURLBase}/${path.dirname(f.relative).replace(/\\/g, '/')}/$1`;
+			f.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, str));
+			return f;
+		}));
+
+	return es.duplex(input, output);
+}
+
+export function rimraf(dir: string): () => Promise<void> {
+	const result = () => new Promise<void>((c, e) => {
+		let retries = 0;
+
+		const retry = () => {
+			_rimraf(dir, { maxBusyTries: 1 }, (err: any) => {
+				if (!err) {
+					return c();
+				}
+
+				if (err.code === 'ENOTEMPTY' && ++retries < 5) {
+					return setTimeout(() => retry(), 10);
+				}
+
+				return e(err);
+			});
+		};
+
+		retry();
+	});
+
+	result.taskName = `clean-${path.basename(dir).toLowerCase()}`;
+	return result;
+}
+
+function _rreaddir(dirPath: string, prepend: string, result: string[]): void {
+	const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+	for (const entry of entries) {
+		if (entry.isDirectory()) {
+			_rreaddir(path.join(dirPath, entry.name), `${prepend}/${entry.name}`, result);
+		} else {
+			result.push(`${prepend}/${entry.name}`);
+		}
+	}
+}
+
+export function rreddir(dirPath: string): string[] {
+	const result: string[] = [];
+	_rreaddir(dirPath, '', result);
+	return result;
+}
+
+export function ensureDir(dirPath: string): void {
+	if (fs.existsSync(dirPath)) {
+		return;
+	}
+	ensureDir(path.dirname(dirPath));
+	fs.mkdirSync(dirPath);
 }
 
 export function rebase(count: number): NodeJS.ReadWriteStream {
@@ -271,12 +367,16 @@ export function filter(fn: (data: any) => boolean): FilterStream {
 	return result;
 }
 
-export function versionStringToNumber(versionStr: string) {
-	const semverRegex = /(\d+)\.(\d+)\.(\d+)/;
-	const match = versionStr.match(semverRegex);
-	if (!match) {
-		throw new Error('Version string is not properly formatted: ' + versionStr);
-	}
+export function streamToPromise(stream: NodeJS.ReadWriteStream): Promise<void> {
+	return new Promise((c, e) => {
+		stream.on('error', err => e(err));
+		stream.on('end', () => c());
+	});
+}
 
-	return parseInt(match[1], 10) * 1e4 + parseInt(match[2], 10) * 1e2 + parseInt(match[3], 10);
+export function getElectronVersion(): Record<string, string> {
+	const npmrc = fs.readFileSync(path.join(root, '.npmrc'), 'utf8');
+	const electronVersion = /^target="(.*)"$/m.exec(npmrc)![1];
+	const msBuildId = /^ms_build_id="(.*)"$/m.exec(npmrc)![1];
+	return { electronVersion, msBuildId };
 }

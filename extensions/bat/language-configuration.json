@@ -1,6 +1,6 @@
 {
 	"comments": {
-		"lineComment": "REM"
+		"lineComment": "@REM"
 	},
 	"brackets": [
 		["{", "}"],
@@ -11,18 +11,19 @@
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
-		["\"", "\""]
+		{ "open": "\"", "close": "\"", "notIn": ["string"] }
 	],
 	"surroundingPairs": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
+		["%", "%"],
 		["\"", "\""]
 	],
 	"folding": {
 		"markers": {
-			"start": "^\\s*(::\\s*|REM\\s+)#region",
-			"end": "^\\s*(::\\s*|REM\\s+)#endregion"
+			"start": "^\\s*(::|REM|@REM)\\s*#region",
+			"end": "^\\s*(::|REM|@REM)\\s*#endregion"
 		}
 	}
 }

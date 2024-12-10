@@ -1,4 +1,5 @@
 {
 	"displayName": "Monokai Theme",
-	"description": "Monokai theme for Visual Studio Code"
+	"description": "Monokai theme for Visual Studio Code",
+	"themeLabel": "Monokai"
 }

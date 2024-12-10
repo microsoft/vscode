@@ -3,53 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as gracefulFs from 'graceful-fs';
-import { join, sep } from 'path';
-import * as arrays from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import * as objects from 'vs/base/common/objects';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import * as strings from 'vs/base/common/strings';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
-import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
-import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgress, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery } from 'vs/platform/search/common/search';
-import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
-import { LegacyTextSearchService } from 'vs/workbench/services/search/node/legacy/rawLegacyTextSearchService';
-import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
-import { IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from './search';
+import * as arrays from '../../../../base/common/arrays.js';
+import { CancelablePromise, createCancelablePromise } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { canceled } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { compareItemsByFuzzyScore, FuzzyScorerCache, IItemAccessor, prepareQuery } from '../../../../base/common/fuzzyScorer.js';
+import { revive } from '../../../../base/common/marshalling.js';
+import { basename, dirname, join, sep } from '../../../../base/common/path.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { ByteSize } from '../../../../platform/files/common/files.js';
+import { DEFAULT_MAX_SEARCH_RESULTS, ICachedSearchStats, IFileQuery, IFileSearchProgressItem, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, IRawFileQuery, IRawQuery, IRawSearchService, IRawTextQuery, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFilePatternMatch, ITextQuery } from '../common/search.js';
+import { Engine as FileSearchEngine } from './fileSearch.js';
+import { TextSearchEngineAdapter } from './textSearchAdapter.js';
 
-gracefulFs.gracefulify(fs);
-
-type IProgressCallback = (p: ISerializedSearchProgressItem) => void;
+export type IProgressCallback = (p: ISerializedSearchProgressItem) => void;
 type IFileProgressCallback = (p: IFileSearchProgressItem) => void;
 
 export class SearchService implements IRawSearchService {
 
 	private static readonly BATCH_SIZE = 512;
 
-	private legacyTextSearchService = new LegacyTextSearchService();
-	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
+	private caches: { [cacheKey: string]: Cache } = Object.create(null);
 
-	public fileSearch(config: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
+	constructor(private readonly processType: IFileSearchStats['type'] = 'searchProcess', private readonly getNumThreads?: () => Promise<number | undefined>) { }
+
+	fileSearch(config: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		let promise: CancelablePromise<ISerializedSearchSuccess>;
 
 		const query = reviveQuery(config);
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
-			onFirstListenerDidAdd: () => {
-				promise = createCancelablePromise(token => {
-					return this.doFileSearchWithEngine(FileSearchEngine, query, p => emitter.fire(p), token);
+			onDidAddFirstListener: () => {
+				promise = createCancelablePromise(async token => {
+					const numThreads = await this.getNumThreads?.();
+					return this.doFileSearchWithEngine(FileSearchEngine, query, p => emitter.fire(p), token, SearchService.BATCH_SIZE, numThreads);
 				});
 
 				promise.then(
 					c => emitter.fire(c),
 					err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				promise.cancel();
 			}
 		});
@@ -57,23 +52,21 @@ export class SearchService implements IRawSearchService {
 		return emitter.event;
 	}
 
-	public textSearch(rawQuery: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
+	textSearch(rawQuery: IRawTextQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		let promise: CancelablePromise<ISerializedSearchComplete>;
 
 		const query = reviveQuery(rawQuery);
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
-			onFirstListenerDidAdd: () => {
+			onDidAddFirstListener: () => {
 				promise = createCancelablePromise(token => {
-					return (rawQuery.useRipgrep ?
-						this.ripgrepTextSearch(query, p => emitter.fire(p), token) :
-						this.legacyTextSearchService.textSearch(query, p => emitter.fire(p), token));
+					return this.ripgrepTextSearch(query, p => emitter.fire(p), token);
 				});
 
 				promise.then(
 					c => emitter.fire(c),
 					err => emitter.fire({ type: 'error', error: { message: err.message, stack: err.stack } }));
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				promise.cancel();
 			}
 		});
@@ -81,18 +74,25 @@ export class SearchService implements IRawSearchService {
 		return emitter.event;
 	}
 
-	private ripgrepTextSearch(config: ITextQuery, progressCallback: IProgressCallback, token: CancellationToken): Promise<ISerializedSearchSuccess> {
-		config.maxFileSize = MAX_FILE_SIZE;
-		const engine = new TextSearchEngineAdapter(config);
+	private async ripgrepTextSearch(config: ITextQuery, progressCallback: IProgressCallback, token: CancellationToken): Promise<ISerializedSearchSuccess> {
+		config.maxFileSize = this.getPlatformFileLimits().maxFileSize;
+		const numThreads = await this.getNumThreads?.();
+		const engine = new TextSearchEngineAdapter(config, numThreads);
 
 		return engine.search(token, progressCallback, progressCallback);
 	}
 
-	doFileSearch(config: IFileQuery, progressCallback: IProgressCallback, token?: CancellationToken): Promise<ISerializedSearchSuccess> {
-		return this.doFileSearchWithEngine(FileSearchEngine, config, progressCallback, token);
+	private getPlatformFileLimits(): { readonly maxFileSize: number } {
+		return {
+			maxFileSize: 16 * ByteSize.GB
+		};
 	}
 
-	doFileSearchWithEngine(EngineClass: { new(config: IFileQuery): ISearchEngine<IRawFileMatch>; }, config: IFileQuery, progressCallback: IProgressCallback, token?: CancellationToken, batchSize = SearchService.BATCH_SIZE): Promise<ISerializedSearchSuccess> {
+	doFileSearch(config: IFileQuery, numThreads: number | undefined, progressCallback: IProgressCallback, token?: CancellationToken): Promise<ISerializedSearchSuccess> {
+		return this.doFileSearchWithEngine(FileSearchEngine, config, progressCallback, token, SearchService.BATCH_SIZE, numThreads);
+	}
+
+	doFileSearchWithEngine(EngineClass: { new(config: IFileQuery, numThreads?: number | undefined): ISearchEngine<IRawFileMatch> }, config: IFileQuery, progressCallback: IProgressCallback, token?: CancellationToken, batchSize = SearchService.BATCH_SIZE, threads?: number): Promise<ISerializedSearchSuccess> {
 		let resultCount = 0;
 		const fileProgressCallback: IFileProgressCallback = progress => {
 			if (Array.isArray(progress)) {
@@ -102,15 +102,15 @@ export class SearchService implements IRawSearchService {
 				resultCount++;
 				progressCallback(this.rawMatchToSearchItem(<IRawFileMatch>progress));
 			} else {
-				progressCallback(<IProgress>progress);
+				progressCallback(<IProgressMessage>progress);
 			}
 		};
 
 		if (config.sortByScore) {
 			let sortedSearch = this.trySortedSearchFromCache(config, fileProgressCallback, token);
 			if (!sortedSearch) {
-				const walkerConfig = config.maxResults ? objects.assign({}, config, { maxResults: null }) : config;
-				const engine = new EngineClass(walkerConfig);
+				const walkerConfig = config.maxResults ? Object.assign({}, config, { maxResults: null }) : config;
+				const engine = new EngineClass(walkerConfig, threads);
 				sortedSearch = this.doSortedSearch(engine, config, progressCallback, fileProgressCallback, token);
 			}
 
@@ -123,19 +123,20 @@ export class SearchService implements IRawSearchService {
 			});
 		}
 
-		const engine = new EngineClass(config);
+		const engine = new EngineClass(config, threads);
 
 		return this.doSearch(engine, fileProgressCallback, batchSize, token).then(complete => {
-			return <ISerializedSearchSuccess>{
+			return {
 				limitHit: complete.limitHit,
 				type: 'success',
 				stats: {
 					detailStats: complete.stats,
-					type: 'searchProcess',
+					type: this.processType,
 					fromCache: false,
 					resultCount,
 					sortingTime: undefined
-				}
+				},
+				messages: []
 			};
 		});
 	}
@@ -173,22 +174,22 @@ export class SearchService implements IRawSearchService {
 				event: emitter.event,
 				resolved: false
 			};
-			cache.resultsToSearchCache[config.filePattern] = cacheRow;
+			cache.resultsToSearchCache[config.filePattern || ''] = cacheRow;
 			allResultsPromise.then(() => {
 				cacheRow.resolved = true;
 			}, err => {
-				delete cache.resultsToSearchCache[config.filePattern];
+				delete cache.resultsToSearchCache[config.filePattern || ''];
 			});
 
 			allResultsPromise = this.preventCancellation(allResultsPromise);
 		}
 
 		return allResultsPromise.then(([result, results]) => {
-			const scorerCache: ScorerCache = cache ? cache.scorerCache : Object.create(null);
+			const scorerCache: FuzzyScorerCache = cache ? cache.scorerCache : Object.create(null);
 			const sortSW = (typeof config.maxResults !== 'number' || config.maxResults > 0) && StopWatch.create(false);
 			return this.sortResults(config, results, scorerCache, token)
 				.then<[ISerializedSearchSuccess, IRawFileMatch[]]>(sortedResults => {
-					// sortingTime: -1 indicates a "sorted" search that was not sorted, i.e. populating the cache when quickopen is opened.
+					// sortingTime: -1 indicates a "sorted" search that was not sorted, i.e. populating the cache when quickaccess is opened.
 					// Contrasting with findFiles which is not sorted and will have sortingTime: undefined
 					const sortingTime = sortSW ? sortSW.elapsed() : -1;
 
@@ -198,12 +199,12 @@ export class SearchService implements IRawSearchService {
 							detailStats: result.stats,
 							sortingTime,
 							fromCache: false,
-							type: 'searchProcess',
-							workspaceFolderCount: config.folderQueries.length,
+							type: this.processType,
 							resultCount: sortedResults.length
 						},
+						messages: result.messages,
 						limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults
-					} as ISerializedSearchSuccess, sortedResults];
+					}, sortedResults];
 				});
 		});
 	}
@@ -216,13 +217,13 @@ export class SearchService implements IRawSearchService {
 		return this.caches[cacheKey] = new Cache();
 	}
 
-	private trySortedSearchFromCache(config: IFileQuery, progressCallback: IFileProgressCallback, token?: CancellationToken): Promise<[ISerializedSearchSuccess, IRawFileMatch[]]> {
+	private trySortedSearchFromCache(config: IFileQuery, progressCallback: IFileProgressCallback, token?: CancellationToken): Promise<[ISerializedSearchSuccess, IRawFileMatch[]]> | undefined {
 		const cache = config.cacheKey && this.caches[config.cacheKey];
 		if (!cache) {
 			return undefined;
 		}
 
-		const cached = this.getResultsFromCache(cache, config.filePattern, progressCallback, token);
+		const cached = this.getResultsFromCache(cache, config.filePattern || '', progressCallback, token);
 		if (cached) {
 			return cached.then(([result, results, cacheStats]) => {
 				const sortSW = StopWatch.create(false);
@@ -232,7 +233,7 @@ export class SearchService implements IRawSearchService {
 						const stats: IFileSearchStats = {
 							fromCache: true,
 							detailStats: cacheStats,
-							type: 'searchProcess',
+							type: this.processType,
 							resultCount: results.length,
 							sortingTime
 						};
@@ -241,8 +242,9 @@ export class SearchService implements IRawSearchService {
 							{
 								type: 'success',
 								limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults,
-								stats
-							} as ISerializedSearchSuccess,
+								stats,
+								messages: [],
+							} satisfies ISerializedSearchSuccess,
 							sortedResults
 						];
 					});
@@ -251,15 +253,16 @@ export class SearchService implements IRawSearchService {
 		return undefined;
 	}
 
-	private sortResults(config: IFileQuery, results: IRawFileMatch[], scorerCache: ScorerCache, token?: CancellationToken): Promise<IRawFileMatch[]> {
+	private sortResults(config: IFileQuery, results: IRawFileMatch[], scorerCache: FuzzyScorerCache, token?: CancellationToken): Promise<IRawFileMatch[]> {
 		// we use the same compare function that is used later when showing the results using fuzzy scoring
 		// this is very important because we are also limiting the number of results by config.maxResults
 		// and as such we want the top items to be included in this result set if the number of items
 		// exceeds config.maxResults.
-		const query = prepareQuery(config.filePattern);
-		const compare = (matchA: IRawFileMatch, matchB: IRawFileMatch) => compareItemsByScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
+		const query = prepareQuery(config.filePattern || '');
+		const compare = (matchA: IRawFileMatch, matchB: IRawFileMatch) => compareItemsByFuzzyScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
 
-		return arrays.topAsync(results, compare, config.maxResults, 10000, token);
+		const maxResults = typeof config.maxResults === 'number' ? config.maxResults : DEFAULT_MAX_SEARCH_RESULTS;
+		return arrays.topAsync(results, compare, maxResults, 10000, token);
 	}
 
 	private sendProgress(results: ISerializedFileMatch[], progressCb: IProgressCallback, batchSize: number) {
@@ -272,16 +275,16 @@ export class SearchService implements IRawSearchService {
 		}
 	}
 
-	private getResultsFromCache(cache: Cache, searchValue: string, progressCallback: IFileProgressCallback, token?: CancellationToken): Promise<[ISearchEngineSuccess, IRawFileMatch[], ICachedSearchStats]> {
+	private getResultsFromCache(cache: Cache, searchValue: string, progressCallback: IFileProgressCallback, token?: CancellationToken): Promise<[ISearchEngineSuccess, IRawFileMatch[], ICachedSearchStats]> | null {
 		const cacheLookupSW = StopWatch.create(false);
 
 		// Find cache entries by prefix of search value
 		const hasPathSep = searchValue.indexOf(sep) >= 0;
-		let cachedRow: ICacheRow;
-		for (let previousSearch in cache.resultsToSearchCache) {
+		let cachedRow: ICacheRow | undefined;
+		for (const previousSearch in cache.resultsToSearchCache) {
 			// If we narrow down, we might be able to reuse the cached results
-			if (strings.startsWith(searchValue, previousSearch)) {
-				if (hasPathSep && previousSearch.indexOf(sep) < 0) {
+			if (searchValue.startsWith(previousSearch)) {
+				if (hasPathSep && previousSearch.indexOf(sep) < 0 && previousSearch !== '') {
 					continue; // since a path character widens the search for potential more matches, require it in previous search too
 				}
 
@@ -315,13 +318,12 @@ export class SearchService implements IRawSearchService {
 			}
 
 			// Pattern match on results
-			let results: IRawFileMatch[] = [];
-			const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
-			for (let i = 0; i < cachedEntries.length; i++) {
-				let entry = cachedEntries[i];
+			const results: IRawFileMatch[] = [];
+			const normalizedSearchValueLowercase = prepareQuery(searchValue).normalizedLowercase;
+			for (const entry of cachedEntries) {
 
 				// Check if this entry is a match for the search value
-				if (!strings.fuzzyContains(entry.relativePath, normalizedSearchValueLowercase)) {
+				if (!isFilePatternMatch(entry, normalizedSearchValueLowercase)) {
 					continue;
 				}
 
@@ -342,9 +344,7 @@ export class SearchService implements IRawSearchService {
 	private doSearch(engine: ISearchEngine<IRawFileMatch>, progressCallback: IFileProgressCallback, batchSize: number, token?: CancellationToken): Promise<ISearchEngineSuccess> {
 		return new Promise<ISearchEngineSuccess>((c, e) => {
 			let batch: IRawFileMatch[] = [];
-			if (token) {
-				token.onCancellationRequested(() => engine.cancel());
-			}
+			token?.onCancellationRequested(() => engine.cancel());
 
 			engine.search((match) => {
 				if (match) {
@@ -366,15 +366,17 @@ export class SearchService implements IRawSearchService {
 				}
 
 				if (error) {
+					progressCallback({ message: 'Search finished. Error: ' + error.message });
 					e(error);
 				} else {
+					progressCallback({ message: 'Search finished. Stats: ' + JSON.stringify(complete.stats) });
 					c(complete);
 				}
 			});
 		});
 	}
 
-	public clearCache(cacheKey: string): Promise<void> {
+	clearCache(cacheKey: string): Promise<void> {
 		delete this.caches[cacheKey];
 		return Promise.resolve(undefined);
 	}
@@ -385,14 +387,18 @@ export class SearchService implements IRawSearchService {
 	 */
 	private preventCancellation<C>(promise: CancelablePromise<C>): CancelablePromise<C> {
 		return new class implements CancelablePromise<C> {
+			get [Symbol.toStringTag]() { return this.toString(); }
 			cancel() {
 				// Do nothing
 			}
-			then(resolve, reject) {
+			then<TResult1 = C, TResult2 = never>(resolve?: ((value: C) => TResult1 | Promise<TResult1>) | undefined | null, reject?: ((reason: any) => TResult2 | Promise<TResult2>) | undefined | null): Promise<TResult1 | TResult2> {
 				return promise.then(resolve, reject);
 			}
-			catch(reject?) {
+			catch(reject?: any) {
 				return this.then(undefined, reject);
+			}
+			finally(onFinally: any) {
+				return promise.finally(onFinally);
 			}
 		};
 	}
@@ -407,22 +413,22 @@ interface ICacheRow {
 
 class Cache {
 
-	public resultsToSearchCache: { [searchValue: string]: ICacheRow; } = Object.create(null);
+	resultsToSearchCache: { [searchValue: string]: ICacheRow } = Object.create(null);
 
-	public scorerCache: ScorerCache = Object.create(null);
+	scorerCache: FuzzyScorerCache = Object.create(null);
 }
 
 const FileMatchItemAccessor = new class implements IItemAccessor<IRawFileMatch> {
 
-	public getItemLabel(match: IRawFileMatch): string {
-		return match.basename; // e.g. myFile.txt
+	getItemLabel(match: IRawFileMatch): string {
+		return basename(match.relativePath); // e.g. myFile.txt
 	}
 
-	public getItemDescription(match: IRawFileMatch): string {
-		return match.relativePath.substr(0, match.relativePath.length - match.basename.length - 1); // e.g. some/path/to/file
+	getItemDescription(match: IRawFileMatch): string {
+		return dirname(match.relativePath); // e.g. some/path/to/file
 	}
 
-	public getItemPath(match: IRawFileMatch): string {
+	getItemPath(match: IRawFileMatch): string {
 		return match.relativePath; // e.g. some/path/to/file/myFile.txt
 	}
 };
@@ -438,8 +444,5 @@ function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTextQuery 
 }
 
 function reviveFolderQuery(rawFolderQuery: IFolderQuery<UriComponents>): IFolderQuery<URI> {
-	return {
-		...rawFolderQuery,
-		folder: URI.revive(rawFolderQuery.folder)
-	};
+	return revive(rawFolderQuery);
 }

@@ -3,17 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as net from 'net';
-import * as ports from 'vs/base/node/ports';
+import * as ports from '../../node/ports.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
+import { flakySuite } from './testUtils.js';
 
-suite('Ports', () => {
-	test('Finds a free port (no timeout)', function (done) {
-		this.timeout(1000 * 10); // higher timeout for this test
-
-		if (process.env['VSCODE_PID']) {
-			return done(); // this test fails when run from within VS Code
-		}
+flakySuite('Ports', () => {
+	(process.env['VSCODE_PID'] ? test.skip /* this test fails when run from within VS Code */ : test)('Finds a free port (no timeout)', function (done) {
 
 		// get an initial freeport >= 7000
 		ports.findFreePort(7000, 100, 300000).then(initialPort => {
@@ -21,7 +18,7 @@ suite('Ports', () => {
 
 			// create a server to block this port
 			const server = net.createServer();
-			server.listen(initialPort, void 0, void 0, () => {
+			server.listen(initialPort, undefined, undefined, () => {
 
 				// once listening, find another free port and assert that the port is different from the opened one
 				ports.findFreePort(7000, 50, 300000).then(freePort => {
@@ -33,4 +30,6 @@ suite('Ports', () => {
 			});
 		}, err => done(err));
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

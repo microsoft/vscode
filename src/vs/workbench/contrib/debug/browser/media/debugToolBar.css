@@ -1,0 +1,52 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .debug-toolbar {
+	position: absolute;
+	z-index: 2520; /* Below quick input at 2550, above custom titlebar toolbar at 2500 */
+	height: 26px;
+	display: flex;
+	padding-left: 7px;
+	border-radius: 4px;
+	left: 0;
+	top: 0;
+	-webkit-app-region: no-drag;
+}
+
+.monaco-workbench .debug-toolbar .monaco-action-bar .action-item {
+	margin-right: 4px;
+}
+
+.monaco-workbench .debug-toolbar .monaco-action-bar .action-item.select-container {
+	margin-right: 7px;
+}
+
+.monaco-workbench .debug-toolbar .monaco-action-bar .action-item.select-container .monaco-select-box,
+.monaco-workbench .start-debug-action-item .select-container .monaco-select-box {
+	padding: 0 22px 0 6px;
+}
+
+.monaco-workbench .debug-toolbar .drag-area {
+	cursor: grab;
+	width: 16px;
+	opacity: 0.5;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.monaco-workbench .debug-toolbar .drag-area.dragged {
+	cursor: grabbing;
+}
+
+.monaco-workbench  .debug-toolbar .monaco-action-bar .action-item .action-label {
+	margin-right: 0;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}

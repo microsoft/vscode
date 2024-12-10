@@ -1,0 +1,339 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Debug viewlet */
+
+.debug-pane {
+	height: 100%;
+}
+
+.debug-view-content {
+	height: 100%;
+}
+
+.monaco-workbench .debug-action.notification:after {
+	content: '';
+	width: 6px;
+	height: 6px;
+	background-color: #CC6633;
+	position: absolute;
+	top: 10px;
+	right: 6px;
+	border-radius: 10px;
+	border: 1px solid white;
+}
+
+.monaco-workbench .part > .title > .title-actions .start-debug-action-item {
+	display: flex;
+	align-items: center;
+	line-height: 20px;
+	flex-shrink: 1;
+}
+
+.monaco-workbench.mac .part > .title > .title-actions .start-debug-action-item {
+	border-radius: 4px;
+}
+
+.monaco-workbench .part > .title > .title-actions .start-debug-action-item .codicon {
+	line-height: inherit;
+	flex-shrink: 0;
+}
+
+.monaco-workbench .part > .title > .title-actions .start-debug-action-item .codicon-debug-start {
+	width: 18px;
+	height: 21px;
+	padding-left: 2px;
+}
+
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
+	border: none;
+	margin-top: 0px;
+	cursor: pointer;
+	line-height: inherit;
+	padding-top: 0;
+	padding-bottom: 0;
+
+	/* The debug view title is crowded, let this one get narrower than others */
+	min-width: 90px;
+}
+
+
+.monaco-workbench.safari .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
+	margin-bottom: 0px;
+}
+
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .monaco-select-box {
+	opacity: 0.7;
+	font-style: italic;
+	cursor: initial;
+}
+
+/* Debug viewlet trees */
+
+.debug-pane .line-number {
+	padding-left: 4px;
+	padding-right: 4px;
+}
+
+.debug-pane .disabled {
+	opacity: 0.65;
+	cursor: initial;
+}
+
+.debug-pane .monaco-list:focus .monaco-list-row.selected .state.label,
+.debug-pane .monaco-list:focus .monaco-list-row.selected .load-all,
+.debug-pane .monaco-list:focus .monaco-list-row.selected.focused .state.label {
+	color: inherit;
+}
+
+/* Call stack */
+
+.debug-pane .call-stack-state-message {
+	flex: 1;
+	text-align: right;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+	margin: 0px 10px;
+}
+
+.debug-pane .call-stack-state-message > .label {
+	border-radius: 3px;
+	padding: 1px 2px;
+	font-size: 9px;
+}
+
+.debug-pane .debug-call-stack .thread,
+.debug-pane .debug-call-stack .session {
+	display: flex;
+	align-items: center;
+}
+
+.debug-pane .debug-call-stack .thread > .name,
+.debug-pane .debug-call-stack .session > .name {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.debug-pane .debug-call-stack .thread > .state.label,
+.debug-pane .debug-call-stack .session > .state.label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	margin: 0 10px;
+	text-transform: uppercase;
+	align-self: center;
+	font-size: 0.8em;
+}
+
+.debug-pane .debug-call-stack .monaco-list-row:hover .state.label {
+	display: none;
+}
+
+.debug-pane .debug-call-stack .monaco-list-row:hover .stack-frame.has-actions .file .line-number {
+	display: none;
+}
+
+.debug-pane .monaco-list-row .monaco-action-bar {
+	display: none;
+	flex-shrink: 0;
+	margin-right: 6px;
+}
+
+.debug-pane .monaco-list-row:hover .monaco-action-bar,
+.debug-pane .monaco-list-row.focused .monaco-action-bar {
+	display: initial;
+}
+
+.debug-pane .monaco-list-row .monaco-action-bar .action-label {
+	padding: 2px;
+}
+
+.debug-pane .session .codicon {
+	line-height: 22px;
+	margin-right: 2px;
+}
+
+.debug-pane .debug-call-stack .stack-frame {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	padding-right: 0.8em;
+	display: flex;
+}
+
+.debug-pane .debug-call-stack .stack-frame.label {
+	text-align: center;
+	font-style: italic;
+}
+
+.debug-pane .debug-call-stack .stack-frame .label {
+	flex: 1;
+	flex-shrink: 0;
+	min-width: fit-content;
+}
+
+.debug-pane .debug-call-stack .stack-frame.label > .file {
+	display: none;
+}
+
+.debug-pane .debug-call-stack .stack-frame > .file {
+	display: flex;
+	overflow: hidden;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+}
+
+.debug-pane .debug-call-stack .stack-frame > .file > .line-number.unavailable {
+	display: none;
+}
+
+.debug-pane .debug-call-stack .stack-frame > .file > .file-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	margin-right: 0.8em;
+}
+
+.debug-pane .debug-call-stack .stack-frame > .file:not(:first-child) {
+	margin-left: 0.8em;
+}
+
+.debug-pane .debug-call-stack .load-all {
+	text-align: center;
+}
+
+.debug-pane .debug-call-stack .show-more {
+	opacity: 0.5;
+	text-align: center;
+}
+
+.debug-pane .debug-call-stack .error {
+	font-style: italic;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+/* Variables & Expression view */
+
+.debug-pane .scope {
+	font-weight: bold;
+	font-size: 11px;
+}
+
+.debug-pane .monaco-list-row .expression .actionbar-spacer {
+	flex-grow: 1;
+}
+
+.debug-pane .monaco-list-row .expression .value {
+	height: 22px;
+	overflow: hidden;
+	white-space: pre;
+	text-overflow: ellipsis;
+}
+
+.debug-pane .monaco-list-row .expression .value.changed {
+	border-radius: 4px;
+}
+
+.debug-pane .monaco-inputbox {
+	width: 100%;
+	line-height: normal;
+}
+
+.debug-pane .inputBoxContainer {
+	box-sizing: border-box;
+	flex-grow: 1;
+}
+
+.debug-pane .debug-watch .monaco-inputbox {
+	font-family: var(--monaco-monospace-font);
+}
+
+.debug-pane .monaco-inputbox > .ibwrapper {
+	height: 19px;
+}
+
+.debug-pane .monaco-inputbox > .ibwrapper > .input {
+	padding: 0px;
+	color: initial;
+}
+
+.debug-pane .watch-expression {
+	display: flex;
+}
+
+.debug-pane .watch-expression .expression {
+	flex : 1;
+}
+
+.debug-pane .debug-variables .scope .error {
+	font-style: italic;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	font-family: var(--monaco-monospace-font);
+	font-weight: normal;
+}
+
+/* Breakpoints */
+
+.debug-pane .monaco-list-row {
+	line-height: 22px;
+}
+
+.debug-pane .debug-breakpoints .monaco-list-row .breakpoint {
+	padding-left: 2px;
+}
+
+.debug-pane .debug-breakpoints .breakpoint.exception {
+	padding-left: 21px;
+}
+
+.debug-pane .debug-breakpoints .breakpoint {
+	display: flex;
+	padding-right: 0.8em;
+	flex: 1;
+	align-items: center;
+}
+
+.debug-pane .debug-breakpoints .breakpoint input {
+	flex-shrink: 0;
+}
+
+.debug-pane .debug-breakpoints .breakpoint > .codicon {
+	width: 19px;
+	height: 19px;
+	min-width: 19px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.debug-pane .debug-breakpoints .breakpoint > .access-type {
+	opacity: 0.7;
+	margin-left: 0.9em;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+.debug-pane .debug-breakpoints .breakpoint > .file-path,
+.debug-pane .debug-breakpoints .breakpoint > .condition {
+	opacity: 0.7;
+	margin-left: 0.9em;
+	flex: 1;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.debug-pane .debug-breakpoints .breakpoint .name {
+	overflow: hidden;
+	text-overflow: ellipsis
+}
+
+.debug-pane .pane-header .breakpoint-warning {
+	margin-left: 3px;
+}
+
+.debug-pane .pane-header .breakpoint-warning .monaco-icon-label .codicon {
+	display: flex;
+	align-items: center;
+}

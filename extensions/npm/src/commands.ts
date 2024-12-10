@@ -4,28 +4,64 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+
 import {
-	runScript, findScriptAtPosition
+	detectNpmScriptsForFolder,
+	findScriptAtPosition,
+	runScript,
+	IFolderTaskItem
 } from './tasks';
-import * as nls from 'vscode-nls';
 
-const localize = nls.loadMessageBundle();
 
-export function runSelectedScript() {
-	let editor = vscode.window.activeTextEditor;
+export function runSelectedScript(context: vscode.ExtensionContext) {
+	const editor = vscode.window.activeTextEditor;
 	if (!editor) {
 		return;
 	}
-	let document = editor.document;
-	let contents = document.getText();
-	let selection = editor.selection;
-	let offset = document.offsetAt(selection.anchor);
-
-	let script = findScriptAtPosition(contents, offset);
+	const document = editor.document;
+	const contents = document.getText();
+	const script = findScriptAtPosition(editor.document, contents, editor.selection.anchor);
 	if (script) {
-		runScript(script, document);
+		runScript(context, script, document);
 	} else {
-		let message = localize('noScriptFound', 'Could not find a valid npm script at the selection.');
+		const message = vscode.l10n.t("Could not find a valid npm script at the selection.");
 		vscode.window.showErrorMessage(message);
+	}
+}
+
+export async function selectAndRunScriptFromFolder(context: vscode.ExtensionContext, selectedFolders: vscode.Uri[]) {
+	if (selectedFolders.length === 0) {
+		return;
+	}
+	const selectedFolder = selectedFolders[0];
+
+	const taskList: IFolderTaskItem[] = await detectNpmScriptsForFolder(context, selectedFolder);
+
+	if (taskList && taskList.length > 0) {
+		const quickPick = vscode.window.createQuickPick<IFolderTaskItem>();
+		quickPick.placeholder = 'Select an npm script to run in folder';
+		quickPick.items = taskList;
+
+		const toDispose: vscode.Disposable[] = [];
+
+		const pickPromise = new Promise<IFolderTaskItem | undefined>((c) => {
+			toDispose.push(quickPick.onDidAccept(() => {
+				toDispose.forEach(d => d.dispose());
+				c(quickPick.selectedItems[0]);
+			}));
+			toDispose.push(quickPick.onDidHide(() => {
+				toDispose.forEach(d => d.dispose());
+				c(undefined);
+			}));
+		});
+		quickPick.show();
+		const result = await pickPromise;
+		quickPick.dispose();
+		if (result) {
+			vscode.tasks.executeTask(result.task);
+		}
+	}
+	else {
+		vscode.window.showInformationMessage(`No npm scripts found in ${selectedFolder.fsPath}`, { modal: true });
 	}
 }

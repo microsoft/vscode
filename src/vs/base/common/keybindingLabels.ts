@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { OperatingSystem } from 'vs/base/common/platform';
+import { Modifiers } from './keybindings.js';
+import { OperatingSystem } from './platform.js';
+import * as nls from '../../nls.js';
 
 export interface ModifierLabels {
 	readonly ctrlKey: string;
@@ -14,11 +15,8 @@ export interface ModifierLabels {
 	readonly separator: string;
 }
 
-export interface Modifiers {
-	readonly ctrlKey: boolean;
-	readonly shiftKey: boolean;
-	readonly altKey: boolean;
-	readonly metaKey: boolean;
+export interface KeyLabelProvider<T extends Modifiers> {
+	(keybinding: T): string | null;
 }
 
 export class ModifierLabelProvider {
@@ -32,11 +30,22 @@ export class ModifierLabelProvider {
 		this.modifierLabels[OperatingSystem.Linux] = linux;
 	}
 
-	public toLabel(firstPartMod: Modifiers | null, firstPartKey: string | null, chordPartMod: Modifiers | null, chordPartKey: string | null, OS: OperatingSystem): string | null {
-		if (firstPartMod === null || firstPartKey === null) {
+	public toLabel<T extends Modifiers>(OS: OperatingSystem, chords: readonly T[], keyLabelProvider: KeyLabelProvider<T>): string | null {
+		if (chords.length === 0) {
 			return null;
 		}
-		return _asString(firstPartMod, firstPartKey, chordPartMod, chordPartKey, this.modifierLabels[OS]);
+
+		const result: string[] = [];
+		for (let i = 0, len = chords.length; i < len; i++) {
+			const chord = chords[i];
+			const keyLabel = keyLabelProvider(chord);
+			if (keyLabel === null) {
+				// this keybinding cannot be expressed...
+				return null;
+			}
+			result[i] = _simpleAsString(chord, keyLabel, this.modifierLabels[OS]);
+		}
+		return result.join(' ');
 	}
 }
 
@@ -45,7 +54,7 @@ export class ModifierLabelProvider {
  */
 export const UILabelProvider = new ModifierLabelProvider(
 	{
-		ctrlKey: '⌃',
+		ctrlKey: '\u2303',
 		shiftKey: '⇧',
 		altKey: '⌥',
 		metaKey: '⌘',
@@ -74,7 +83,7 @@ export const AriaLabelProvider = new ModifierLabelProvider(
 	{
 		ctrlKey: nls.localize({ key: 'ctrlKey.long', comment: ['This is the long form for the Control key on the keyboard'] }, "Control"),
 		shiftKey: nls.localize({ key: 'shiftKey.long', comment: ['This is the long form for the Shift key on the keyboard'] }, "Shift"),
-		altKey: nls.localize({ key: 'altKey.long', comment: ['This is the long form for the Alt key on the keyboard'] }, "Alt"),
+		altKey: nls.localize({ key: 'optKey.long', comment: ['This is the long form for the Alt/Option key on the keyboard'] }, "Option"),
 		metaKey: nls.localize({ key: 'cmdKey.long', comment: ['This is the long form for the Command key on the keyboard'] }, "Command"),
 		separator: '+',
 	},
@@ -147,7 +156,7 @@ function _simpleAsString(modifiers: Modifiers, key: string, labels: ModifierLabe
 		return '';
 	}
 
-	let result: string[] = [];
+	const result: string[] = [];
 
 	// translate modifier keys: Ctrl-Shift-Alt-Meta
 	if (modifiers.ctrlKey) {
@@ -167,18 +176,9 @@ function _simpleAsString(modifiers: Modifiers, key: string, labels: ModifierLabe
 	}
 
 	// the actual key
-	result.push(key);
-
-	return result.join(labels.separator);
-}
-
-function _asString(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers | null, chordPartKey: string | null, labels: ModifierLabels): string {
-	let result = _simpleAsString(firstPartMod, firstPartKey, labels);
-
-	if (chordPartMod !== null && chordPartKey !== null) {
-		result += ' ';
-		result += _simpleAsString(chordPartMod, chordPartKey, labels);
+	if (key !== '') {
+		result.push(key);
 	}
 
-	return result;
+	return result.join(labels.separator);
 }

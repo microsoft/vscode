@@ -1,0 +1,65 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .menubar > .menubar-menu-button,
+.monaco-workbench .menubar .toolbar-toggle-more {
+	color: var(--vscode-titleBar-activeForeground);
+}
+
+.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button,
+.monaco-workbench .activitybar .menubar.compact .toolbar-toggle-more {
+	color: var(--vscode-activityBar-inactiveForeground);
+}
+
+.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button.open,
+.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus,
+.monaco-workbench .activitybar .menubar.compact:not(:focus-within) > .menubar-menu-button:hover,
+.monaco-workbench .activitybar .menubar.compact  > .menubar-menu-button.open .toolbar-toggle-more,
+.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus .toolbar-toggle-more,
+.monaco-workbench .activitybar .menubar.compact:not(:focus-within) > .menubar-menu-button:hover .toolbar-toggle-more {
+	color: var(--vscode-activityBar-foreground);
+}
+
+.monaco-workbench .activitybar .menubar.compact > .menubar-menu-button:focus {
+	background-color: var(--vscode-menubar-selectionBackground);
+}
+
+.monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button,
+.monaco-workbench .menubar.inactive:not(.compact) > .menubar-menu-button .toolbar-toggle-more  {
+	color: var(--vscode-titleBar-inactiveForeground);
+}
+
+.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open,
+.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus,
+.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover,
+.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open .toolbar-toggle-more,
+.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .toolbar-toggle-more,
+.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover .toolbar-toggle-more {
+	color: var(--vscode-menubar-selectionForeground);
+}
+
+.monaco-workbench .menubar:not(.compact) > .menubar-menu-button.open .menubar-menu-title,
+.monaco-workbench .menubar:not(.compact) > .menubar-menu-button:focus .menubar-menu-title,
+.monaco-workbench .menubar:not(:focus-within):not(.compact) > .menubar-menu-button:hover .menubar-menu-title {
+	background-color: var(--vscode-menubar-selectionBackground);
+}
+
+.monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title  {
+	outline: dashed 1px var(--vscode-menubar-selectionBorder);
+}
+
+.monaco-workbench .menubar > .menubar-menu-button.open .menubar-menu-title,
+.monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title {
+	outline: solid 1px var(--vscode-menubar-selectionBorder);
+}
+
+.monaco-workbench .menubar > .menubar-menu-button.open .menubar-menu-title,
+.monaco-workbench .menubar > .menubar-menu-button:focus .menubar-menu-title,
+.monaco-workbench .menubar > .menubar-menu-button:hover .menubar-menu-title {
+	outline-color: var(--vscode-menubar-selectionBorder);
+	outline-offset: -1px;
+}
+
+

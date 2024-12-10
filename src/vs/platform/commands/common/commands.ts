@@ -3,27 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
-import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event, Emitter } from 'vs/base/common/event';
-import { LinkedList } from 'vs/base/common/linkedList';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Iterable } from '../../../base/common/iterator.js';
+import { IJSONSchema } from '../../../base/common/jsonSchema.js';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../base/common/linkedList.js';
+import { TypeConstraint, validateConstraints } from '../../../base/common/types.js';
+import { ILocalizedString } from '../../action/common/action.js';
+import { createDecorator, ServicesAccessor } from '../../instantiation/common/instantiation.js';
 
 export const ICommandService = createDecorator<ICommandService>('commandService');
 
 export interface ICommandEvent {
 	commandId: string;
+	args: any[];
 }
 
 export interface ICommandService {
-	_serviceBrand: any;
+	readonly _serviceBrand: undefined;
 	onWillExecuteCommand: Event<ICommandEvent>;
+	onDidExecuteCommand: Event<ICommandEvent>;
 	executeCommand<T = any>(commandId: string, ...args: any[]): Promise<T | undefined>;
 }
 
-export interface ICommandsMap {
-	[id: string]: ICommand;
-}
+export type ICommandsMap = Map<string, ICommand>;
 
 export interface ICommandHandler {
 	(accessor: ServicesAccessor, ...args: any[]): void;
@@ -32,13 +35,26 @@ export interface ICommandHandler {
 export interface ICommand {
 	id: string;
 	handler: ICommandHandler;
-	description?: ICommandHandlerDescription | null;
+	metadata?: ICommandMetadata | null;
 }
 
-export interface ICommandHandlerDescription {
-	description: string;
-	args: { name: string; description?: string; constraint?: TypeConstraint; }[];
-	returns?: string;
+export interface ICommandMetadata {
+	/**
+	 * NOTE: Please use an ILocalizedString. string is in the type for backcompat for now.
+	 * A short summary of what the command does. This will be used in:
+	 * - API commands
+	 * - when showing keybindings that have no other UX
+	 * - when searching for commands in the Command Palette
+	 */
+	readonly description: ILocalizedString | string;
+	readonly args?: ReadonlyArray<{
+		readonly name: string;
+		readonly isOptional?: boolean;
+		readonly description?: string;
+		readonly constraint?: TypeConstraint;
+		readonly schema?: IJSONSchema;
+	}>;
+	readonly returns?: string;
 }
 
 export interface ICommandRegistry {
@@ -71,9 +87,9 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		}
 
 		// add argument validation if rich command metadata is provided
-		if (idOrCommand.description) {
+		if (idOrCommand.metadata && Array.isArray(idOrCommand.metadata.args)) {
 			const constraints: Array<TypeConstraint | undefined> = [];
-			for (let arg of idOrCommand.description.args) {
+			for (const arg of idOrCommand.metadata.args) {
 				constraints.push(arg.constraint);
 			}
 			const actualHandler = idOrCommand.handler;
@@ -92,11 +108,12 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 			this._commands.set(id, commands);
 		}
 
-		let removeFn = commands.unshift(idOrCommand);
+		const removeFn = commands.unshift(idOrCommand);
 
-		let ret = toDisposable(() => {
+		const ret = toDisposable(() => {
 			removeFn();
-			if (this._commands.get(id).isEmpty()) {
+			const command = this._commands.get(id);
+			if (command?.isEmpty()) {
 				this._commands.delete(id);
 			}
 		});
@@ -108,9 +125,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 	}
 
 	registerCommandAlias(oldId: string, newId: string): IDisposable {
-		return CommandsRegistry.registerCommand(oldId, (accessor, ...args) => {
-			accessor.get(ICommandService).executeCommand(newId, ...args);
-		});
+		return CommandsRegistry.registerCommand(oldId, (accessor, ...args) => accessor.get(ICommandService).executeCommand(newId, ...args));
 	}
 
 	getCommand(id: string): ICommand | undefined {
@@ -118,22 +133,19 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		if (!list || list.isEmpty()) {
 			return undefined;
 		}
-		return list.iterator().next().value;
+		return Iterable.first(list);
 	}
 
 	getCommands(): ICommandsMap {
-		const result: ICommandsMap = Object.create(null);
-		this._commands.forEach((value, key) => {
-			result[key] = this.getCommand(key)!;
-		});
+		const result = new Map<string, ICommand>();
+		for (const key of this._commands.keys()) {
+			const command = this.getCommand(key);
+			if (command) {
+				result.set(key, command);
+			}
+		}
 		return result;
 	}
 };
 
-export const NullCommandService: ICommandService = {
-	_serviceBrand: undefined,
-	onWillExecuteCommand: () => ({ dispose: () => { } }),
-	executeCommand<T = any>() {
-		return Promise.resolve<T>(undefined);
-	}
-};
+CommandsRegistry.registerCommand('noop', () => { });

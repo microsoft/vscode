@@ -3,20 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as path from 'path';
 import * as es from 'event-stream';
-const pickle = require('chromium-pickle-js');
-const Filesystem = require('asar/lib/filesystem');
+const pickle = require('chromium-pickle-js');
+const Filesystem = <typeof AsarFilesystem>require('asar/lib/filesystem');
 import * as VinylFile from 'vinyl';
 import * as minimatch from 'minimatch';
 
-export function createAsar(folderPath: string, unpackGlobs: string[], destFilename: string): NodeJS.ReadWriteStream {
+declare class AsarFilesystem {
+	readonly header: unknown;
+	constructor(src: string);
+	insertDirectory(path: string, shouldUnpack?: boolean): unknown;
+	insertFile(path: string, shouldUnpack: boolean, file: { stat: { size: number; mode: number } }, options: {}): Promise<void>;
+}
+
+export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs: string[], duplicateGlobs: string[], destFilename: string): NodeJS.ReadWriteStream {
 
 	const shouldUnpackFile = (file: VinylFile): boolean => {
 		for (let i = 0; i < unpackGlobs.length; i++) {
 			if (minimatch(file.relative, unpackGlobs[i])) {
+				return true;
+			}
+		}
+		return false;
+	};
+
+	const shouldSkipFile = (file: VinylFile): boolean => {
+		for (const skipGlob of skipGlobs) {
+			if (minimatch(file.relative, skipGlob)) {
+				return true;
+			}
+		}
+		return false;
+	};
+
+	// Files that should be duplicated between
+	// node_modules.asar and node_modules
+	const shouldDuplicateFile = (file: VinylFile): boolean => {
+		for (const duplicateGlob of duplicateGlobs) {
+			if (minimatch(file.relative, duplicateGlob)) {
 				return true;
 			}
 		}
@@ -31,7 +56,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], destFilena
 	let onFileInserted = () => { pendingInserts--; };
 
 	// Do not insert twice the same directory
-	const seenDir: { [key: string]: boolean; } = {};
+	const seenDir: { [key: string]: boolean } = {};
 	const insertDirectoryRecursive = (dir: string) => {
 		if (seenDir[dir]) {
 			return;
@@ -58,10 +83,12 @@ export function createAsar(folderPath: string, unpackGlobs: string[], destFilena
 		}
 	};
 
-	const insertFile = (relativePath: string, stat: { size: number; mode: number; }, shouldUnpack: boolean) => {
+	const insertFile = (relativePath: string, stat: { size: number; mode: number }, shouldUnpack: boolean) => {
 		insertDirectoryForFile(relativePath);
 		pendingInserts++;
-		filesystem.insertFile(relativePath, shouldUnpack, { stat: stat }, {}, onFileInserted);
+		// Do not pass `onFileInserted` directly because it gets overwritten below.
+		// Create a closure capturing `onFileInserted`.
+		filesystem.insertFile(relativePath, shouldUnpack, { stat: stat }, {}).then(() => onFileInserted(), () => onFileInserted());
 	};
 
 	return es.through(function (file) {
@@ -71,6 +98,23 @@ export function createAsar(folderPath: string, unpackGlobs: string[], destFilena
 		if (!file.stat.isFile()) {
 			throw new Error(`unknown item in stream!`);
 		}
+		if (shouldSkipFile(file)) {
+			this.queue(new VinylFile({
+				base: '.',
+				path: file.path,
+				stat: file.stat,
+				contents: file.contents
+			}));
+			return;
+		}
+		if (shouldDuplicateFile(file)) {
+			this.queue(new VinylFile({
+				base: '.',
+				path: file.path,
+				stat: file.stat,
+				contents: file.contents
+			}));
+		}
 		const shouldUnpack = shouldUnpackFile(file);
 		insertFile(file.relative, { size: file.contents.length, mode: file.stat.mode }, shouldUnpack);
 
@@ -78,8 +122,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], destFilena
 			// The file goes outside of xx.asar, in a folder xx.asar.unpacked
 			const relative = path.relative(folderPath, file.path);
 			this.queue(new VinylFile({
-				cwd: folderPath,
-				base: folderPath,
+				base: '.',
 				path: path.join(destFilename + '.unpacked', relative),
 				stat: file.stat,
 				contents: file.contents
@@ -90,7 +133,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], destFilena
 		}
 	}, function () {
 
-		let finish = () => {
+		const finish = () => {
 			{
 				const headerPickle = pickle.createEmpty();
 				headerPickle.writeString(JSON.stringify(filesystem.header));
@@ -108,8 +151,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], destFilena
 			out.length = 0;
 
 			this.queue(new VinylFile({
-				cwd: folderPath,
-				base: folderPath,
+				base: '.',
 				path: destFilename,
 				contents: contents
 			}));

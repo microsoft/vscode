@@ -4,7 +4,9 @@
   "description": "Extension to add Grunt capabilities to VS Code.",
   "displayName": "Grunt support for VS Code",
   "version": "1.0.0",
+  "private": true,
   "icon": "images/grunt.png",
+  "license": "MIT",
   "engines": {
     "vscode": "*"
   },
@@ -15,16 +17,20 @@
     "compile": "gulp compile-extension:grunt",
     "watch": "gulp watch-extension:grunt"
   },
-  "dependencies": {
-    "vscode-nls": "^4.0.0"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@types/node": "^8.10.25"
+    "@types/node": "20.x"
   },
   "main": "./out/main",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask"
+    "onTaskType:grunt"
   ],
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
     "configuration": {
       "id": "grunt",
@@ -32,13 +38,13 @@
       "title": "Grunt",
       "properties": {
         "grunt.autoDetect": {
-          "scope": "resource",
+          "scope": "application",
           "type": "string",
           "enum": [
             "off",
             "on"
           ],
-          "default": "on",
+          "default": "off",
           "description": "%config.grunt.autoDetect%"
         }
       }
@@ -54,12 +60,21 @@
             "type": "string",
             "description": "%grunt.taskDefinition.type.description%"
           },
+          "args": {
+            "type": "array",
+            "description": "%grunt.taskDefinition.args.description%"
+          },
           "file": {
             "type": "string",
             "description": "%grunt.taskDefinition.file.description%"
           }
-        }
+        },
+        "when": "shellExecutionSupported"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

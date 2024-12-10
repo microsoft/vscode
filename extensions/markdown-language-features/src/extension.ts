@@ -4,66 +4,53 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { CommandManager } from './commandManager';
-import * as commands from './commands/index';
-import LinkProvider from './features/documentLinkProvider';
-import MDDocumentSymbolProvider from './features/documentSymbolProvider';
-import MarkdownFoldingProvider from './features/foldingProvider';
-import { MarkdownContentProvider } from './features/previewContentProvider';
-import { MarkdownPreviewManager } from './features/previewManager';
-import MarkdownWorkspaceSymbolProvider from './features/workspaceSymbolProvider';
-import { Logger } from './logger';
-import { MarkdownEngine } from './markdownEngine';
+import { LanguageClient, ServerOptions, TransportKind } from 'vscode-languageclient/node';
+import { MdLanguageClient, startClient } from './client/client';
+import { activateShared } from './extension.shared';
+import { VsCodeOutputLogger } from './logging';
+import { IMdParser, MarkdownItEngine } from './markdownEngine';
 import { getMarkdownExtensionContributions } from './markdownExtensions';
-import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
-import { loadDefaultTelemetryReporter } from './telemetryReporter';
 import { githubSlugifier } from './slugify';
 
-
-export function activate(context: vscode.ExtensionContext) {
-	const telemetryReporter = loadDefaultTelemetryReporter();
-	context.subscriptions.push(telemetryReporter);
-
+export async function activate(context: vscode.ExtensionContext) {
 	const contributions = getMarkdownExtensionContributions(context);
+	context.subscriptions.push(contributions);
 
-	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
-	const engine = new MarkdownEngine(contributions, githubSlugifier);
-	const logger = new Logger();
+	const logger = new VsCodeOutputLogger();
+	context.subscriptions.push(logger);
 
-	const selector: vscode.DocumentSelector = [
-		{ language: 'markdown', scheme: 'file' },
-		{ language: 'markdown', scheme: 'untitled' }
-	];
+	const engine = new MarkdownItEngine(contributions, githubSlugifier, logger);
 
-	const contentProvider = new MarkdownContentProvider(engine, context, cspArbiter, contributions, logger);
-	const symbolProvider = new MDDocumentSymbolProvider(engine);
-	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions);
-	context.subscriptions.push(previewManager);
+	const client = await startServer(context, engine);
+	context.subscriptions.push(client);
+	activateShared(context, client, engine, logger, contributions);
+}
 
-	context.subscriptions.push(vscode.languages.setLanguageConfiguration('markdown', {
-		wordPattern: new RegExp('(\\p{Alphabetic}|\\p{Number})+', 'ug'),
-	}));
-	context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider));
-	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()));
-	context.subscriptions.push(vscode.languages.registerFoldingRangeProvider(selector, new MarkdownFoldingProvider(engine)));
-	context.subscriptions.push(vscode.languages.registerWorkspaceSymbolProvider(new MarkdownWorkspaceSymbolProvider(symbolProvider)));
+function startServer(context: vscode.ExtensionContext, parser: IMdParser): Promise<MdLanguageClient> {
+	const isDebugBuild = context.extension.packageJSON.main.includes('/out/');
 
-	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, previewManager);
+	const serverModule = context.asAbsolutePath(
+		isDebugBuild
+			// For local non bundled version of vscode-markdown-languageserver
+			// ? './node_modules/vscode-markdown-languageserver/out/node/workerMain'
+			? './node_modules/vscode-markdown-languageserver/dist/node/workerMain'
+			: './dist/serverWorkerMain'
+	);
 
-	const commandManager = new CommandManager();
-	context.subscriptions.push(commandManager);
-	commandManager.register(new commands.ShowPreviewCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowPreviewToSideCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowLockedPreviewToSideCommand(previewManager, telemetryReporter));
-	commandManager.register(new commands.ShowSourceCommand(previewManager));
-	commandManager.register(new commands.RefreshPreviewCommand(previewManager));
-	commandManager.register(new commands.MoveCursorToPositionCommand());
-	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector, previewManager));
-	commandManager.register(new commands.OpenDocumentLinkCommand(engine));
-	commandManager.register(new commands.ToggleLockCommand(previewManager));
+	// The debug options for the server
+	const debugOptions = { execArgv: ['--nolazy', '--inspect=' + (7000 + Math.round(Math.random() * 999))] };
 
-	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
-		logger.updateConfiguration();
-		previewManager.updateConfiguration();
-	}));
+	// If the extension is launch in debug mode the debug server options are use
+	// Otherwise the run options are used
+	const serverOptions: ServerOptions = {
+		run: { module: serverModule, transport: TransportKind.ipc },
+		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
+	};
+
+	// pass the location of the localization bundle to the server
+	process.env['VSCODE_L10N_BUNDLE_LOCATION'] = vscode.l10n.uri?.toString() ?? '';
+
+	return startClient((id, name, clientOptions) => {
+		return new LanguageClient(id, name, serverOptions, clientOptions);
+	}, parser);
 }

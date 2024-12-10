@@ -1,0 +1,113 @@
+{
+  "name": "git-base",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "0.10.x"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "browser": "./dist/browser/extension.js",
+  "icon": "resources/icons/git.png",
+  "scripts": {
+    "compile": "gulp compile-extension:git-base",
+    "watch": "gulp watch-extension:git-base",
+    "update-grammar": "node ./build/update-grammars.js"
+  },
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "git-base.api.getRemoteSources",
+        "title": "%command.api.getRemoteSources%",
+        "category": "Git Base API"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "git-base.api.getRemoteSources",
+          "when": "false"
+        }
+      ]
+    },
+    "languages": [
+      {
+        "id": "git-commit",
+        "aliases": [
+          "Git Commit Message",
+          "git-commit"
+        ],
+        "filenames": [
+          "COMMIT_EDITMSG",
+          "MERGE_MSG"
+        ],
+        "configuration": "./languages/git-commit.language-configuration.json"
+      },
+      {
+        "id": "git-rebase",
+        "aliases": [
+          "Git Rebase Message",
+          "git-rebase"
+        ],
+        "filenames": [
+          "git-rebase-todo"
+        ],
+        "filenamePatterns": [
+          "**/rebase-merge/done"
+        ],
+        "configuration": "./languages/git-rebase.language-configuration.json"
+      },
+      {
+        "id": "ignore",
+        "aliases": [
+          "Ignore",
+          "ignore"
+        ],
+        "extensions": [
+          ".gitignore_global",
+          ".gitignore",
+          ".git-blame-ignore-revs"
+        ],
+        "configuration": "./languages/ignore.language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "git-commit",
+        "scopeName": "text.git-commit",
+        "path": "./syntaxes/git-commit.tmLanguage.json"
+      },
+      {
+        "language": "git-rebase",
+        "scopeName": "text.git-rebase",
+        "path": "./syntaxes/git-rebase.tmLanguage.json"
+      },
+      {
+        "language": "ignore",
+        "scopeName": "source.ignore",
+        "path": "./syntaxes/ignore.tmLanguage.json"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "20.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

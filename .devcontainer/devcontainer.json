@@ -1,0 +1,53 @@
+{
+	"name": "Code - OSS",
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"features": {
+		"ghcr.io/devcontainers/features/desktop-lite:1": {},
+		"ghcr.io/devcontainers/features/rust:1": {}
+	},
+	"containerEnv": {
+		"DISPLAY": "" // Allow the Dev Containers extension to set DISPLAY, post-create.sh will add it back in ~/.bashrc and ~/.zshrc if not set.
+	},
+	"overrideCommand": false,
+	"privileged": true,
+	"mounts": [
+		{
+			"source": "vscode-dev",
+			"target": "/vscode-dev",
+			"type": "volume"
+		}
+	],
+	"postCreateCommand": "./.devcontainer/post-create.sh",
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"resmon.show.battery": false,
+				"resmon.show.cpufreq": false
+			},
+			"extensions": [
+				"dbaeumer.vscode-eslint",
+				"EditorConfig.EditorConfig",
+				"GitHub.vscode-pull-request-github",
+				"ms-vscode.vscode-github-issue-notebooks",
+				"ms-vscode.vscode-selfhost-test-provider",
+				"mutantdino.resourcemonitor"
+			]
+		}
+	},
+	"forwardPorts": [6080, 5901],
+	"portsAttributes": {
+		"6080": {
+			"label": "VNC web client (noVNC)",
+			"onAutoForward": "silent"
+		},
+		"5901": {
+			"label": "VNC TCP port",
+			"onAutoForward": "silent"
+		}
+	},
+	"hostRequirements": {
+		"memory": "9gb"
+	}
+}

@@ -3,37 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import * as dom from 'vs/base/browser/dom';
-import * as arrays from 'vs/base/common/arrays';
-import { ISelectBoxDelegate, ISelectOptionItem, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
-import { isMacintosh } from 'vs/base/common/platform';
+import * as dom from '../../dom.js';
+import { EventType, Gesture } from '../../touch.js';
+import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData, ISelectOptionItem } from './selectBox.js';
+import * as arrays from '../../../common/arrays.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import { Disposable } from '../../../common/lifecycle.js';
+import { isMacintosh } from '../../../common/platform.js';
 
-export class SelectBoxNative implements ISelectBoxDelegate {
+export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 
 	private selectElement: HTMLSelectElement;
 	private selectBoxOptions: ISelectBoxOptions;
 	private options: ISelectOptionItem[];
-	private selected: number;
+	private selected = 0;
 	private readonly _onDidSelect: Emitter<ISelectData>;
-	private toDispose: IDisposable[];
 	private styles: ISelectBoxStyles;
 
 	constructor(options: ISelectOptionItem[], selected: number, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
-		this.toDispose = [];
+		super();
 		this.selectBoxOptions = selectBoxOptions || Object.create(null);
 
 		this.options = [];
 
 		this.selectElement = document.createElement('select');
-
-		// Workaround for Electron 2.x
-		// Native select should not require explicit role attribute, however, Electron 2.x
-		// incorrectly exposes select as menuItem which interferes with labeling and results
-		// in the unlabeled not been read.  Electron 3 appears to fix.
-		this.selectElement.setAttribute('role', 'combobox');
 
 		this.selectElement.className = 'monaco-select-box';
 
@@ -41,8 +35,11 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 			this.selectElement.setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
 		}
 
-		this._onDidSelect = new Emitter<ISelectData>();
-		this.toDispose.push(this._onDidSelect);
+		if (typeof this.selectBoxOptions.ariaDescription === 'string') {
+			this.selectElement.setAttribute('aria-description', this.selectBoxOptions.ariaDescription);
+		}
+
+		this._onDidSelect = this._register(new Emitter<ISelectData>());
 
 		this.styles = styles;
 
@@ -51,8 +48,18 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 	}
 
 	private registerListeners() {
+		this._register(Gesture.addTarget(this.selectElement));
+		[EventType.Tap].forEach(eventType => {
+			this._register(dom.addDisposableListener(this.selectElement, eventType, (e) => {
+				this.selectElement.focus();
+			}));
+		});
 
-		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
+		this._register(dom.addStandardDisposableListener(this.selectElement, 'click', (e) => {
+			dom.EventHelper.stop(e, true);
+		}));
+
+		this._register(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
 			this.selectElement.title = e.target.value;
 			this._onDidSelect.fire({
 				index: e.target.selectedIndex,
@@ -60,7 +67,7 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 			});
 		}));
 
-		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'keydown', (e) => {
+		this._register(dom.addStandardDisposableListener(this.selectElement, 'keydown', (e) => {
 			let showSelect = false;
 
 			if (isMacintosh) {
@@ -115,7 +122,7 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		}
 
 		this.selectElement.selectedIndex = this.selected;
-		if (this.options.length && typeof this.options[this.selected].text === 'string') {
+		if ((this.selected < this.options.length) && typeof this.options[this.selected].text === 'string') {
 			this.selectElement.title = this.options[this.selected].text;
 		} else {
 			this.selectElement.title = '';
@@ -129,18 +136,28 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 
 	public focus(): void {
 		if (this.selectElement) {
+			this.selectElement.tabIndex = 0;
 			this.selectElement.focus();
 		}
 	}
 
 	public blur(): void {
 		if (this.selectElement) {
+			this.selectElement.tabIndex = -1;
 			this.selectElement.blur();
 		}
 	}
 
+	public setEnabled(enable: boolean): void {
+		this.selectElement.disabled = !enable;
+	}
+
+	public setFocusable(focusable: boolean): void {
+		this.selectElement.tabIndex = focusable ? 0 : -1;
+	}
+
 	public render(container: HTMLElement): void {
-		dom.addClass(container, 'select-container');
+		container.classList.add('select-container');
 		container.appendChild(this.selectElement);
 		this.setOptions(this.options, this.selected);
 		this.applyStyles();
@@ -155,13 +172,9 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 
 		// Style native select
 		if (this.selectElement) {
-			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : null;
-			const foreground = this.styles.selectForeground ? this.styles.selectForeground.toString() : null;
-			const border = this.styles.selectBorder ? this.styles.selectBorder.toString() : null;
-
-			this.selectElement.style.backgroundColor = background;
-			this.selectElement.style.color = foreground;
-			this.selectElement.style.borderColor = border;
+			this.selectElement.style.backgroundColor = this.styles.selectBackground ?? '';
+			this.selectElement.style.color = this.styles.selectForeground ?? '';
+			this.selectElement.style.borderColor = this.styles.selectBorder ?? '';
 		}
 
 	}
@@ -173,9 +186,5 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		option.disabled = !!disabled;
 
 		return option;
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
 	}
 }

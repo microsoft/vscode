@@ -3,32 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
-
-function createEditableTextModelFromString(text: string): TextModel {
-	return new TextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
-}
+import assert from 'assert';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { Range } from '../../../common/core/range.js';
+import { EndOfLinePreference, EndOfLineSequence } from '../../../common/model.js';
+import { MirrorTextModel } from '../../../common/model/mirrorTextModel.js';
+import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
+import { assertSyncedModels, testApplyEditsWithSyncedModels } from './editableTextModelTestUtils.js';
+import { createTextModel } from '../testTextModel.js';
 
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () => {
 
-	function testApplyEdits(original: string[], edits: IIdentifiedSingleEditOperation[], before: boolean, after: boolean): void {
-		let model = createEditableTextModelFromString(original.join('\n'));
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function testApplyEdits(original: string[], edits: ISingleEditOperation[], before: boolean, after: boolean): void {
+		const model = createTextModel(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
 
-		assert.equal(model.mightContainRTL(), before);
+		assert.strictEqual(model.mightContainRTL(), before);
 
 		model.applyEdits(edits);
-		assert.equal(model.mightContainRTL(), after);
+		assert.strictEqual(model.mightContainRTL(), after);
 		model.dispose();
 	}
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): ISingleEditOperation {
 		return {
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			text: text.join('\n')
@@ -63,18 +64,20 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () =
 
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainNonBasicASCII', () => {
 
-	function testApplyEdits(original: string[], edits: IIdentifiedSingleEditOperation[], before: boolean, after: boolean): void {
-		let model = createEditableTextModelFromString(original.join('\n'));
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function testApplyEdits(original: string[], edits: ISingleEditOperation[], before: boolean, after: boolean): void {
+		const model = createTextModel(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
 
-		assert.equal(model.mightContainNonBasicASCII(), before);
+		assert.strictEqual(model.mightContainNonBasicASCII(), before);
 
 		model.applyEdits(edits);
-		assert.equal(model.mightContainNonBasicASCII(), after);
+		assert.strictEqual(model.mightContainNonBasicASCII(), after);
 		model.dispose();
 	}
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): ISingleEditOperation {
 		return {
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			text: text.join('\n')
@@ -105,9 +108,10 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainNonBasicAS
 
 suite('EditorModel - EditableTextModel.applyEdits', () => {
 
-	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): IIdentifiedSingleEditOperation {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): ISingleEditOperation {
 		return {
-			identifier: null,
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			text: text.join('\n'),
 			forceMoveMarkers: false
@@ -209,7 +213,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		);
 	});
 
-	test('Bug 19872: Undo is funky', () => {
+	test('Bug 19872: Undo is funky (2)', () => {
 		testApplyEditsWithSyncedModels(
 			[
 				'something',
@@ -856,8 +860,8 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		);
 	});
 
-	function testApplyEditsFails(original: string[], edits: IIdentifiedSingleEditOperation[]): void {
-		let model = createEditableTextModelFromString(original.join('\n'));
+	function testApplyEditsFails(original: string[], edits: ISingleEditOperation[]): void {
+		const model = createTextModel(original.join('\n'));
 
 		let hasThrown = false;
 		try {
@@ -985,7 +989,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 	});
 
 	test('change while emitting events 1', () => {
-
+		let disposable!: IDisposable;
 		assertSyncedModels('Hello', (model, assertMirrorModels) => {
 			model.applyEdits([{
 				range: new Range(1, 6, 1, 6),
@@ -997,7 +1001,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		}, (model) => {
 			let isFirstTime = true;
-			model.onDidChangeRawContent(() => {
+			disposable = model.onDidChangeContent(() => {
 				if (!isFirstTime) {
 					return;
 				}
@@ -1010,10 +1014,11 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				}]);
 			});
 		});
+		disposable.dispose();
 	});
 
 	test('change while emitting events 2', () => {
-
+		let disposable!: IDisposable;
 		assertSyncedModels('Hello', (model, assertMirrorModels) => {
 			model.applyEdits([{
 				range: new Range(1, 6, 1, 6),
@@ -1025,7 +1030,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		}, (model) => {
 			let isFirstTime = true;
-			model.onDidChangeContent((e: IModelContentChangedEvent) => {
+			disposable = model.onDidChangeContent((e: IModelContentChangedEvent) => {
 				if (!isFirstTime) {
 					return;
 				}
@@ -1038,17 +1043,18 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				}]);
 			});
 		});
+		disposable.dispose();
 	});
 
 	test('issue #1580: Changes in line endings are not correctly reflected in the extension host, leading to invalid offsets sent to external refactoring tools', () => {
-		let model = createEditableTextModelFromString('Hello\nWorld!');
-		assert.equal(model.getEOL(), '\n');
+		const model = createTextModel('Hello\nWorld!');
+		assert.strictEqual(model.getEOL(), '\n');
 
-		let mirrorModel2 = new MirrorTextModel(null!, model.getLinesContent(), model.getEOL(), model.getVersionId());
+		const mirrorModel2 = new MirrorTextModel(null!, model.getLinesContent(), model.getEOL(), model.getVersionId());
 		let mirrorModel2PrevVersionId = model.getVersionId();
 
-		model.onDidChangeContent((e: IModelContentChangedEvent) => {
-			let versionId = e.versionId;
+		const disposable = model.onDidChangeContent((e: IModelContentChangedEvent) => {
+			const versionId = e.versionId;
 			if (versionId < mirrorModel2PrevVersionId) {
 				console.warn('Model version id did not advance between edits (2)');
 			}
@@ -1056,42 +1062,43 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			mirrorModel2.onEvents(e);
 		});
 
-		let assertMirrorModels = () => {
-			assert.equal(mirrorModel2.getText(), model.getValue(), 'mirror model 2 text OK');
-			assert.equal(mirrorModel2.version, model.getVersionId(), 'mirror model 2 version OK');
+		const assertMirrorModels = () => {
+			assert.strictEqual(mirrorModel2.getText(), model.getValue(), 'mirror model 2 text OK');
+			assert.strictEqual(mirrorModel2.version, model.getVersionId(), 'mirror model 2 version OK');
 		};
 
 		model.setEOL(EndOfLineSequence.CRLF);
 		assertMirrorModels();
 
+		disposable.dispose();
 		model.dispose();
 		mirrorModel2.dispose();
 	});
 
 	test('issue #47733: Undo mangles unicode characters', () => {
-		let model = createEditableTextModelFromString('\'👁\'');
+		const model = createTextModel('\'👁\'');
 
 		model.applyEdits([
 			{ range: new Range(1, 1, 1, 1), text: '"' },
 			{ range: new Range(1, 2, 1, 2), text: '"' },
 		]);
 
-		assert.equal(model.getValue(EndOfLinePreference.LF), '"\'"👁\'');
+		assert.strictEqual(model.getValue(EndOfLinePreference.LF), '"\'"👁\'');
 
-		assert.deepEqual(model.validateRange(new Range(1, 3, 1, 4)), new Range(1, 3, 1, 4));
+		assert.deepStrictEqual(model.validateRange(new Range(1, 3, 1, 4)), new Range(1, 3, 1, 4));
 
 		model.applyEdits([
 			{ range: new Range(1, 1, 1, 2), text: null },
 			{ range: new Range(1, 3, 1, 4), text: null },
 		]);
 
-		assert.equal(model.getValue(EndOfLinePreference.LF), '\'👁\'');
+		assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\'👁\'');
 
 		model.dispose();
 	});
 
 	test('issue #48741: Broken undo stack with move lines up with multiple cursors', () => {
-		let model = createEditableTextModelFromString([
+		const model = createTextModel([
 			'line1',
 			'line2',
 			'line3',
@@ -1103,11 +1110,11 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			{ range: new Range(3, 1, 3, 6), text: null, },
 			{ range: new Range(2, 1, 3, 1), text: null, },
 			{ range: new Range(3, 6, 3, 6), text: '\nline2' }
-		]);
+		], true);
 
 		model.applyEdits(undoEdits);
 
-		assert.deepEqual(model.getValue(), 'line1\nline2\nline3\n');
+		assert.deepStrictEqual(model.getValue(), 'line1\nline2\nline3\n');
 
 		model.dispose();
 	});

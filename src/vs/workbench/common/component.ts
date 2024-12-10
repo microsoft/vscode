@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Memento } from 'vs/workbench/common/memento';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Themable } from 'vs/workbench/common/theme';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { Memento, MementoObject } from './memento.js';
+import { IThemeService, Themable } from '../../platform/theme/common/themeService.js';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
+import { DisposableStore } from '../../base/common/lifecycle.js';
+import { Event } from '../../base/common/event.js';
 
 export class Component extends Themable {
-	private id: string;
-	private memento: Memento;
+
+	private readonly memento: Memento;
 
 	constructor(
-		id: string,
+		private readonly id: string,
 		themeService: IThemeService,
 		storageService: IStorageService
 	) {
 		super(themeService);
 
-		this.id = id;
 		this.memento = new Memento(this.id, storageService);
 
 		this._register(storageService.onWillSaveState(() => {
@@ -36,8 +36,16 @@ export class Component extends Themable {
 		return this.id;
 	}
 
-	protected getMemento(scope: StorageScope): object {
-		return this.memento.getMemento(scope);
+	protected getMemento(scope: StorageScope, target: StorageTarget): MementoObject {
+		return this.memento.getMemento(scope, target);
+	}
+
+	protected reloadMemento(scope: StorageScope): void {
+		return this.memento.reloadMemento(scope);
+	}
+
+	protected onDidChangeMementoValue(scope: StorageScope, disposables: DisposableStore): Event<IStorageValueChangeEvent> {
+		return this.memento.onDidChangeValue(scope, disposables);
 	}
 
 	protected saveState(): void {

@@ -1,19 +1,38 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.incremental = incremental;
+exports.debounce = debounce;
+exports.fixWin32DirectoryPermissions = fixWin32DirectoryPermissions;
+exports.setExecutableBit = setExecutableBit;
+exports.toFileUri = toFileUri;
+exports.skipDirectories = skipDirectories;
+exports.cleanNodeModules = cleanNodeModules;
+exports.loadSourcemaps = loadSourcemaps;
+exports.stripSourceMappingURL = stripSourceMappingURL;
+exports.$if = $if;
+exports.appendOwnPathSourceURL = appendOwnPathSourceURL;
+exports.rewriteSourceMappingURL = rewriteSourceMappingURL;
+exports.rimraf = rimraf;
+exports.rreddir = rreddir;
+exports.ensureDir = ensureDir;
+exports.rebase = rebase;
+exports.filter = filter;
+exports.streamToPromise = streamToPromise;
+exports.getElectronVersion = getElectronVersion;
 const es = require("event-stream");
-const debounce = require("debounce");
+const _debounce = require("debounce");
 const _filter = require("gulp-filter");
 const rename = require("gulp-rename");
-const _ = require("underscore");
 const path = require("path");
 const fs = require("fs");
 const _rimraf = require("rimraf");
-const git = require("./git");
-const VinylFile = require("vinyl");
+const url_1 = require("url");
+const ternaryStream = require("ternary-stream");
+const root = path.dirname(path.dirname(__dirname));
 const NoCancellationToken = { isCancellationRequested: () => false };
 function incremental(streamProvider, initial, supportsCancellation) {
     const input = es.through();
@@ -35,7 +54,7 @@ function incremental(streamProvider, initial, supportsCancellation) {
     if (initial) {
         run(initial, false);
     }
-    const eventuallyRun = debounce(() => {
+    const eventuallyRun = _debounce(() => {
         const paths = Object.keys(buffer);
         if (paths.length === 0) {
             return;
@@ -52,7 +71,34 @@ function incremental(streamProvider, initial, supportsCancellation) {
     });
     return es.duplex(input, output);
 }
-exports.incremental = incremental;
+function debounce(task, duration = 500) {
+    const input = es.through();
+    const output = es.through();
+    let state = 'idle';
+    const run = () => {
+        state = 'running';
+        task()
+            .pipe(es.through(undefined, () => {
+            const shouldRunAgain = state === 'stale';
+            state = 'idle';
+            if (shouldRunAgain) {
+                eventuallyRun();
+            }
+        }))
+            .pipe(output);
+    };
+    run();
+    const eventuallyRun = _debounce(() => run(), duration);
+    input.on('data', () => {
+        if (state === 'idle') {
+            eventuallyRun();
+        }
+        else {
+            state = 'stale';
+        }
+    });
+    return es.duplex(input, output);
+}
 function fixWin32DirectoryPermissions() {
     if (!/win32/.test(process.platform)) {
         return es.through();
@@ -64,9 +110,11 @@ function fixWin32DirectoryPermissions() {
         return f;
     });
 }
-exports.fixWin32DirectoryPermissions = fixWin32DirectoryPermissions;
 function setExecutableBit(pattern) {
     const setBit = es.mapSync(f => {
+        if (!f.stat) {
+            f.stat = { isFile() { return true; } };
+        }
         f.stat.mode = /* 100755 */ 33261;
         return f;
     });
@@ -81,7 +129,6 @@ function setExecutableBit(pattern) {
         .pipe(filter.restore);
     return es.duplex(input, output);
 }
-exports.setExecutableBit = setExecutableBit;
 function toFileUri(filePath) {
     const match = filePath.match(/^([a-z])\:(.*)$/i);
     if (match) {
@@ -89,7 +136,6 @@ function toFileUri(filePath) {
     }
     return 'file://' + filePath.replace(/\\/g, '/');
 }
-exports.toFileUri = toFileUri;
 function skipDirectories() {
     return es.mapSync(f => {
         if (!f.isDirectory()) {
@@ -97,23 +143,17 @@ function skipDirectories() {
         }
     });
 }
-exports.skipDirectories = skipDirectories;
-function cleanNodeModule(name, excludes, includes) {
-    const toGlob = (path) => '**/node_modules/' + name + (path ? '/' + path : '');
-    const negate = (str) => '!' + str;
-    const allFilter = _filter(toGlob('**'), { restore: true });
-    const globs = [toGlob('**')].concat(excludes.map(_.compose(negate, toGlob)));
+function cleanNodeModules(rulePath) {
+    const rules = fs.readFileSync(rulePath, 'utf8')
+        .split(/\r?\n/g)
+        .map(line => line.trim())
+        .filter(line => line && !/^#/.test(line));
+    const excludes = rules.filter(line => !/^!/.test(line)).map(line => `!**/node_modules/${line}`);
+    const includes = rules.filter(line => /^!/.test(line)).map(line => `**/node_modules/${line.substr(1)}`);
     const input = es.through();
-    const nodeModuleInput = input.pipe(allFilter);
-    let output = nodeModuleInput.pipe(_filter(globs));
-    if (includes) {
-        const includeGlobs = includes.map(toGlob);
-        output = es.merge(output, nodeModuleInput.pipe(_filter(includeGlobs)));
-    }
-    output = output.pipe(allFilter.restore);
+    const output = es.merge(input.pipe(_filter(['**', ...excludes])), input.pipe(_filter(includes)));
     return es.duplex(input, output);
 }
-exports.cleanNodeModule = cleanNodeModule;
 function loadSourcemaps() {
     const input = es.through();
     const output = input
@@ -123,7 +163,7 @@ function loadSourcemaps() {
             return;
         }
         if (!f.contents) {
-            cb(new Error('empty file'));
+            cb(undefined, f);
             return;
         }
         const contents = f.contents.toString('utf8');
@@ -138,7 +178,7 @@ function loadSourcemaps() {
                 version: '3',
                 names: [],
                 mappings: '',
-                sources: [f.relative.replace(/\//g, '/')],
+                sources: [f.relative.replace(/\\/g, '/')],
                 sourcesContent: [contents]
             };
             cb(undefined, f);
@@ -155,7 +195,6 @@ function loadSourcemaps() {
     }));
     return es.duplex(input, output);
 }
-exports.loadSourcemaps = loadSourcemaps;
 function stripSourceMappingURL() {
     const input = es.through();
     const output = input
@@ -166,38 +205,85 @@ function stripSourceMappingURL() {
     }));
     return es.duplex(input, output);
 }
-exports.stripSourceMappingURL = stripSourceMappingURL;
-function rimraf(dir) {
-    let retries = 0;
-    const retry = (cb) => {
-        _rimraf(dir, { maxBusyTries: 1 }, (err) => {
-            if (!err) {
-                return cb();
-            }
-            if (err.code === 'ENOTEMPTY' && ++retries < 5) {
-                return setTimeout(() => retry(cb), 10);
-            }
-            return cb(err);
-        });
-    };
-    return cb => retry(cb);
-}
-exports.rimraf = rimraf;
-function getVersion(root) {
-    let version = process.env['BUILD_SOURCEVERSION'];
-    if (!version || !/^[0-9a-f]{40}$/i.test(version)) {
-        version = git.getVersion(root);
+/** Splits items in the stream based on the predicate, sending them to onTrue if true, or onFalse otherwise */
+function $if(test, onTrue, onFalse = es.through()) {
+    if (typeof test === 'boolean') {
+        return test ? onTrue : onFalse;
     }
-    return version;
+    return ternaryStream(test, onTrue, onFalse);
 }
-exports.getVersion = getVersion;
+/** Operator that appends the js files' original path a sourceURL, so debug locations map */
+function appendOwnPathSourceURL() {
+    const input = es.through();
+    const output = input
+        .pipe(es.mapSync(f => {
+        if (!(f.contents instanceof Buffer)) {
+            throw new Error(`contents of ${f.path} are not a buffer`);
+        }
+        f.contents = Buffer.concat([f.contents, Buffer.from(`\n//# sourceURL=${(0, url_1.pathToFileURL)(f.path)}`)]);
+        return f;
+    }));
+    return es.duplex(input, output);
+}
+function rewriteSourceMappingURL(sourceMappingURLBase) {
+    const input = es.through();
+    const output = input
+        .pipe(es.mapSync(f => {
+        const contents = f.contents.toString('utf8');
+        const str = `//# sourceMappingURL=${sourceMappingURLBase}/${path.dirname(f.relative).replace(/\\/g, '/')}/$1`;
+        f.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, str));
+        return f;
+    }));
+    return es.duplex(input, output);
+}
+function rimraf(dir) {
+    const result = () => new Promise((c, e) => {
+        let retries = 0;
+        const retry = () => {
+            _rimraf(dir, { maxBusyTries: 1 }, (err) => {
+                if (!err) {
+                    return c();
+                }
+                if (err.code === 'ENOTEMPTY' && ++retries < 5) {
+                    return setTimeout(() => retry(), 10);
+                }
+                return e(err);
+            });
+        };
+        retry();
+    });
+    result.taskName = `clean-${path.basename(dir).toLowerCase()}`;
+    return result;
+}
+function _rreaddir(dirPath, prepend, result) {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+        if (entry.isDirectory()) {
+            _rreaddir(path.join(dirPath, entry.name), `${prepend}/${entry.name}`, result);
+        }
+        else {
+            result.push(`${prepend}/${entry.name}`);
+        }
+    }
+}
+function rreddir(dirPath) {
+    const result = [];
+    _rreaddir(dirPath, '', result);
+    return result;
+}
+function ensureDir(dirPath) {
+    if (fs.existsSync(dirPath)) {
+        return;
+    }
+    ensureDir(path.dirname(dirPath));
+    fs.mkdirSync(dirPath);
+}
 function rebase(count) {
     return rename(f => {
         const parts = f.dirname ? f.dirname.split(/[\/\\]/) : [];
         f.dirname = parts.slice(count).join(path.sep);
     });
 }
-exports.rebase = rebase;
 function filter(fn) {
     const result = es.through(function (data) {
         if (fn(data)) {
@@ -210,13 +296,16 @@ function filter(fn) {
     result.restore = es.through();
     return result;
 }
-exports.filter = filter;
-function versionStringToNumber(versionStr) {
-    const semverRegex = /(\d+)\.(\d+)\.(\d+)/;
-    const match = versionStr.match(semverRegex);
-    if (!match) {
-        throw new Error('Version string is not properly formatted: ' + versionStr);
-    }
-    return parseInt(match[1], 10) * 1e4 + parseInt(match[2], 10) * 1e2 + parseInt(match[3], 10);
+function streamToPromise(stream) {
+    return new Promise((c, e) => {
+        stream.on('error', err => e(err));
+        stream.on('end', () => c());
+    });
 }
-exports.versionStringToNumber = versionStringToNumber;
+function getElectronVersion() {
+    const npmrc = fs.readFileSync(path.join(root, '.npmrc'), 'utf8');
+    const electronVersion = /^target="(.*)"$/m.exec(npmrc)[1];
+    const msBuildId = /^ms_build_id="(.*)"$/m.exec(npmrc)[1];
+    return { electronVersion, msBuildId };
+}
+//# sourceMappingURL=util.js.map

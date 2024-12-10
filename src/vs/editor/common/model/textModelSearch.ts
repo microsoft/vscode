@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, FindMatch } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { CharCode } from '../../../base/common/charCode.js';
+import * as strings from '../../../base/common/strings.js';
+import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } from '../core/wordCharacterClassifier.js';
+import { Position } from '../core/position.js';
+import { Range } from '../core/range.js';
+import { EndOfLinePreference, FindMatch, SearchData } from '../model.js';
+import { TextModel } from './textModel.js';
 
 const LIMIT_FIND_COUNT = 999;
 
@@ -45,7 +45,8 @@ export class SearchParams {
 				matchCase: this.matchCase,
 				wholeWord: false,
 				multiline: multiline,
-				global: true
+				global: true,
+				unicode: true
 			});
 		} catch (err) {
 			return null;
@@ -61,7 +62,7 @@ export class SearchParams {
 			canUseSimpleSearch = this.matchCase;
 		}
 
-		return new SearchData(regex, this.wordSeparators ? getMapForWordSeparators(this.wordSeparators) : null, canUseSimpleSearch ? this.searchString : null);
+		return new SearchData(regex, this.wordSeparators ? getMapForWordSeparators(this.wordSeparators, []) : null, canUseSimpleSearch ? this.searchString : null);
 	}
 }
 
@@ -72,6 +73,10 @@ export function isMultilineRegexSource(searchString: string): boolean {
 
 	for (let i = 0, len = searchString.length; i < len; i++) {
 		const chCode = searchString.charCodeAt(i);
+
+		if (chCode === CharCode.LineFeed) {
+			return true;
+		}
 
 		if (chCode === CharCode.Backslash) {
 
@@ -93,33 +98,11 @@ export function isMultilineRegexSource(searchString: string): boolean {
 	return false;
 }
 
-export class SearchData {
-
-	/**
-	 * The regex to search for. Always defined.
-	 */
-	public readonly regex: RegExp;
-	/**
-	 * The word separator classifier.
-	 */
-	public readonly wordSeparators: WordCharacterClassifier | null;
-	/**
-	 * The simple string to search for (if possible).
-	 */
-	public readonly simpleSearch: string | null;
-
-	constructor(regex: RegExp, wordSeparators: WordCharacterClassifier | null, simpleSearch: string | null) {
-		this.regex = regex;
-		this.wordSeparators = wordSeparators;
-		this.simpleSearch = simpleSearch;
-	}
-}
-
 export function createFindMatch(range: Range, rawMatches: RegExpExecArray, captureMatches: boolean): FindMatch {
 	if (!captureMatches) {
 		return new FindMatch(range, null);
 	}
-	let matches: string[] = [];
+	const matches: string[] = [];
 	for (let i = 0, len = rawMatches.length; i < len; i++) {
 		matches[i] = rawMatches[i];
 	}
@@ -131,7 +114,7 @@ class LineFeedCounter {
 	private readonly _lineFeedsOffsets: number[];
 
 	constructor(text: string) {
-		let lineFeedsOffsets: number[] = [];
+		const lineFeedsOffsets: number[] = [];
 		let lineFeedsOffsetsLen = 0;
 		for (let i = 0, textLen = text.length; i < textLen; i++) {
 			if (text.charCodeAt(i) === CharCode.LineFeed) {
@@ -205,8 +188,8 @@ export class TextModelSearch {
 
 		let endOffset: number;
 		if (lfCounter) {
-			let lineFeedCountBeforeEndOfMatch = lfCounter.findLineFeedCountBeforeOffset(matchIndex + match0.length);
-			let lineFeedCountInMatch = lineFeedCountBeforeEndOfMatch - lineFeedCountBeforeMatch;
+			const lineFeedCountBeforeEndOfMatch = lfCounter.findLineFeedCountBeforeOffset(matchIndex + match0.length);
+			const lineFeedCountInMatch = lineFeedCountBeforeEndOfMatch - lineFeedCountBeforeMatch;
 			endOffset = startOffset + match0.length + lineFeedCountInMatch /* add as many \r as there were \n */;
 		} else {
 			endOffset = startOffset + match0.length;
@@ -328,7 +311,7 @@ export class TextModelSearch {
 		const text = model.getValueInRange(new Range(searchTextStart.lineNumber, searchTextStart.column, lineCount, model.getLineMaxColumn(lineCount)), EndOfLinePreference.LF);
 		const lfCounter = (model.getEOL() === '\r\n' ? new LineFeedCounter(text) : null);
 		searcher.reset(searchStart.column - 1);
-		let m = searcher.next(text);
+		const m = searcher.next(text);
 		if (m) {
 			return createFindMatch(
 				this._getMultilineMatchRange(model, deltaOffset, text, lfCounter, m.index, m[0]),
@@ -509,12 +492,12 @@ export function isValidMatch(wordSeparators: WordCharacterClassifier, text: stri
 }
 
 export class Searcher {
-	private _wordSeparators: WordCharacterClassifier | null;
-	private _searchRegex: RegExp;
+	public readonly _wordSeparators: WordCharacterClassifier | null;
+	private readonly _searchRegex: RegExp;
 	private _prevMatchStartIndex: number;
 	private _prevMatchLength: number;
 
-	constructor(wordSeparators: WordCharacterClassifier | null, searchRegex: RegExp, ) {
+	constructor(wordSeparators: WordCharacterClassifier | null, searchRegex: RegExp,) {
 		this._wordSeparators = wordSeparators;
 		this._searchRegex = searchRegex;
 		this._prevMatchStartIndex = -1;
@@ -545,6 +528,16 @@ export class Searcher {
 			const matchStartIndex = m.index;
 			const matchLength = m[0].length;
 			if (matchStartIndex === this._prevMatchStartIndex && matchLength === this._prevMatchLength) {
+				if (matchLength === 0) {
+					// the search result is an empty string and won't advance `regex.lastIndex`, so `regex.exec` will stuck here
+					// we attempt to recover from that by advancing by two if surrogate pair found and by one otherwise
+					if (strings.getNextCodePoint(text, textLength, this._searchRegex.lastIndex) > 0xFFFF) {
+						this._searchRegex.lastIndex += 2;
+					} else {
+						this._searchRegex.lastIndex += 1;
+					}
+					continue;
+				}
 				// Exit early if the regex matches the same range twice
 				return null;
 			}

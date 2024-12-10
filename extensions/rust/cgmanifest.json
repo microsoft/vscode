@@ -4,14 +4,14 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "language-rust",
-					"repositoryUrl": "https://github.com/zargony/atom-language-rust",
-					"commitHash": "5238d9834953ed7c58d9b5b9bb0c084c3c11ecd6"
+					"name": "rust-syntax",
+					"repositoryUrl": "https://github.com/dustypomerleau/rust-syntax",
+					"commitHash": "e90d3dbdb61b96e4afdce6f7a3572426b1a86d9d"
 				}
 			},
 			"license": "MIT",
-			"description": "The files syntaxes/rust.tmLanguage.json was derived from the Atom package https://atom.io/packages/language-rust.",
-			"version": "0.4.12"
+			"description": "A TextMate-style grammar for Rust.",
+			"version": "0.6.1"
 		}
 	],
 	"version": 1

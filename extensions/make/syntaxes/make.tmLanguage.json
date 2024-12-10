@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/fadeevab/make.tmbundle/commit/c6b3ae6e4f22e01fc483be5bb34a9682c28f3219",
+	"version": "https://github.com/fadeevab/make.tmbundle/commit/1d4c0b541959995db098df751ffc129da39a294b",
 	"name": "Makefile",
 	"scopeName": "source.makefile",
 	"patterns": [
@@ -18,18 +18,22 @@
 			"include": "#variable-assignment"
 		},
 		{
-			"include": "#target"
+			"include": "#directives"
 		},
 		{
 			"include": "#recipe"
 		},
 		{
-			"include": "#directives"
+			"include": "#target"
 		}
 	],
 	"repository": {
+		"comma": {
+			"match": ",",
+			"name": "punctuation.separator.delimeter.comma.makefile"
+		},
 		"comment": {
-			"begin": "(^[ \\t]+)?(?=#)",
+			"begin": "(^[ ]+)?((?<!\\\\)(\\\\\\\\)*)(?=#)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.whitespace.comment.leading.makefile"
@@ -131,7 +135,7 @@
 							"include": "#variables"
 						},
 						{
-							"include": "#comment"
+							"include": "#directives"
 						}
 					]
 				},
@@ -192,37 +196,7 @@
 					]
 				},
 				{
-					"begin": "^\\s*(ifdef|ifndef)\\s*([^\\s]+)(?=\\s)",
-					"captures": {
-						"1": {
-							"name": "keyword.control.$1.makefile"
-						},
-						"2": {
-							"name": "variable.other.makefile"
-						},
-						"3": {
-							"name": "punctuation.separator.key-value.makefile"
-						}
-					},
-					"end": "^\\s*(endif)\\b",
-					"name": "meta.scope.conditional.makefile",
-					"patterns": [
-						{
-							"begin": "\\G(?!\\n)",
-							"end": "^",
-							"patterns": [
-								{
-									"include": "#comment"
-								}
-							]
-						},
-						{
-							"include": "$self"
-						}
-					]
-				},
-				{
-					"begin": "^\\s*(ifeq|ifneq)(?=\\s)",
+					"begin": "^\\s*(ifeq|ifneq|ifdef|ifndef)(?=\\s)",
 					"captures": {
 						"1": {
 							"name": "keyword.control.$1.makefile"
@@ -237,6 +211,9 @@
 							"name": "meta.scope.condition.makefile",
 							"patterns": [
 								{
+									"include": "#comma"
+								},
+								{
 									"include": "#variables"
 								},
 								{
@@ -245,47 +222,27 @@
 							]
 						},
 						{
-							"begin": "^\\s*else(?=\\s)",
+							"begin": "^\\s*else(?=\\s)\\s*(ifeq|ifneq|ifdef|ifndef)*(?=\\s)",
 							"beginCaptures": {
 								"0": {
 									"name": "keyword.control.else.makefile"
 								}
 							},
-							"end": "^"
+							"end": "^",
+							"patterns": [
+								{
+									"include": "#comma"
+								},
+								{
+									"include": "#variables"
+								},
+								{
+									"include": "#comment"
+								}
+							]
 						},
 						{
 							"include": "$self"
-						}
-					]
-				}
-			]
-		},
-		"shell-interpolation": {
-			"begin": "(?=`)",
-			"end": "(?!\\G)",
-			"name": "meta.embedded.line.shell",
-			"patterns": [
-				{
-					"begin": "`",
-					"beginCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.makefile"
-						}
-					},
-					"contentName": "source.shell",
-					"end": "(`)",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.makefile"
-						},
-						"1": {
-							"name": "source.shell"
-						}
-					},
-					"name": "string.interpolated.backtick.makefile",
-					"patterns": [
-						{
-							"include": "source.shell"
 						}
 					]
 				}
@@ -351,7 +308,12 @@
 			]
 		},
 		"recipe": {
-			"begin": "^\\t",
+			"begin": "^\\t([+\\-@]*)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.$1.makefile"
+				}
+			},
 			"end": "[^\\\\]$",
 			"name": "meta.scope.recipe.makefile",
 			"patterns": [
@@ -361,17 +323,19 @@
 				},
 				{
 					"include": "#variables"
-				},
-				{
-					"include": "source.shell"
 				}
 			]
 		},
 		"variable-assignment": {
-			"begin": "(^[ ]*|\\G\\s*)([^\\s]+)\\s*((?<![?:+!])=|\\?=|:=|\\+=|!=)",
+			"begin": "(^[ ]*|\\G\\s*)([^\\s:#=]+)\\s*((?<![?:+!])=|\\?=|:=|\\+=|!=)",
 			"beginCaptures": {
 				"2": {
-					"name": "variable.other.makefile"
+					"name": "variable.other.makefile",
+					"patterns": [
+						{
+							"include": "#variables"
+						}
+					]
 				},
 				"3": {
 					"name": "punctuation.separator.key-value.makefile"
@@ -388,9 +352,6 @@
 				},
 				{
 					"include": "#variables"
-				},
-				{
-					"include": "#shell-interpolation"
 				}
 			]
 		},
@@ -540,6 +501,9 @@
 					"name": "meta.scope.function-call.makefile",
 					"patterns": [
 						{
+							"include": "#comma"
+						},
+						{
 							"include": "#variables"
 						},
 						{
@@ -569,6 +533,9 @@
 					"end": "(?=}|((?<!\\\\)\\n))",
 					"name": "meta.scope.function-call.makefile",
 					"patterns": [
+						{
+							"include": "#comma"
+						},
 						{
 							"include": "#variables"
 						},

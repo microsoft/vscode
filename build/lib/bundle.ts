@@ -15,7 +15,7 @@ interface IPosition {
 interface IBuildModuleInfo {
 	id: string;
 	path: string;
-	defineLocation: IPosition;
+	defineLocation: IPosition | null;
 	dependencies: string[];
 	shim: string;
 	exports: any;
@@ -42,12 +42,17 @@ interface ILoaderPluginReqFunc {
 	toUrl(something: string): string;
 }
 
+export interface IExtraFile {
+	path: string;
+	amdModuleId?: string;
+}
+
 export interface IEntryPoint {
 	name: string;
 	include?: string[];
 	exclude?: string[];
-	prepend?: string[];
-	append?: string[];
+	/** @deprecated unsupported by ESM */
+	prepend?: IExtraFile[];
 	dest?: string;
 }
 
@@ -75,7 +80,7 @@ export interface IConcatFile {
 
 export interface IBundleData {
 	graph: IGraph;
-	bundles: { [moduleId: string]: string[]; };
+	bundles: { [moduleId: string]: string[] };
 }
 
 export interface IBundleResult {
@@ -91,7 +96,14 @@ interface IPartialBundleResult {
 
 export interface ILoaderConfig {
 	isBuild?: boolean;
-	paths?: { [path: string]: any; };
+	paths?: { [path: string]: any };
+	/*
+	 * Normally, during a build, no module factories are invoked. This can be used
+	 * to forcefully execute a module's factory.
+	 */
+	buildForceInvokeFactory: {
+		[moduleId: string]: boolean;
+	};
 }
 
 /**
@@ -100,16 +112,19 @@ export interface ILoaderConfig {
 export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callback: (err: any, result: IBundleResult | null) => void): void {
 	const entryPointsMap: IEntryPointMap = {};
 	entryPoints.forEach((module: IEntryPoint) => {
+		if (entryPointsMap[module.name]) {
+			throw new Error(`Cannot have two entry points with the same name '${module.name}'`);
+		}
 		entryPointsMap[module.name] = module;
 	});
 
-	const allMentionedModulesMap: { [modules: string]: boolean; } = {};
+	const allMentionedModulesMap: { [modules: string]: boolean } = {};
 	entryPoints.forEach((module: IEntryPoint) => {
 		allMentionedModulesMap[module.name] = true;
-		(module.include || []).forEach(function (includedModule) {
+		module.include?.forEach(function (includedModule) {
 			allMentionedModulesMap[includedModule] = true;
 		});
-		(module.exclude || []).forEach(function (excludedModule) {
+		module.exclude?.forEach(function (excludedModule) {
 			allMentionedModulesMap[excludedModule] = true;
 		});
 	});
@@ -123,27 +138,25 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 	const loader: any = loaderModule.exports;
 	config.isBuild = true;
 	config.paths = config.paths || {};
-	if (!config.paths['vs/nls']) {
-		config.paths['vs/nls'] = 'out-build/vs/nls.build';
-	}
 	if (!config.paths['vs/css']) {
 		config.paths['vs/css'] = 'out-build/vs/css.build';
 	}
+	config.buildForceInvokeFactory = config.buildForceInvokeFactory || {};
+	config.buildForceInvokeFactory['vs/css'] = true;
 	loader.config(config);
 
 	loader(['require'], (localRequire: any) => {
-		const resolvePath = (path: string) => {
-			const r = localRequire.toUrl(path);
-			if (!/\.js/.test(r)) {
-				return r + '.js';
+		const resolvePath = (entry: IExtraFile) => {
+			let r = localRequire.toUrl(entry.path);
+			if (!r.endsWith('.js')) {
+				r += '.js';
 			}
-			return r;
+			// avoid packaging the build version of plugins:
+			r = r.replace('vs/css.build.js', 'vs/css.js');
+			return { path: r, amdModuleId: entry.amdModuleId };
 		};
 		for (const moduleId in entryPointsMap) {
 			const entryPoint = entryPointsMap[moduleId];
-			if (entryPoint.append) {
-				entryPoint.append = entryPoint.append.map(resolvePath);
-			}
 			if (entryPoint.prepend) {
 				entryPoint.prepend = entryPoint.prepend.map(resolvePath);
 			}
@@ -207,7 +220,6 @@ function emitEntryPoints(modules: IBuildModuleInfo[], entryPoints: IEntryPointMa
 			moduleToBundle,
 			includedModules,
 			info.prepend || [],
-			info.append || [],
 			info.dest
 		);
 
@@ -235,7 +247,7 @@ function emitEntryPoints(modules: IBuildModuleInfo[], entryPoints: IEntryPointMa
 
 	return {
 		// TODO@TS 2.1.2
-		files: extractStrings(removeDuplicateTSBoilerplate(result)),
+		files: extractStrings(removeAllDuplicateTSBoilerplate(result)),
 		bundleData: bundleData
 	};
 }
@@ -280,7 +292,7 @@ function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
 		}
 
 		// Do one pass to record the usage counts for each module id
-		const useCounts: { [moduleId: string]: number; } = {};
+		const useCounts: { [moduleId: string]: number } = {};
 		destFile.sources.forEach((source) => {
 			const matches = source.contents.match(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/);
 			if (!matches) {
@@ -299,7 +311,7 @@ function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
 			return useCounts[b] - useCounts[a];
 		});
 
-		const replacementMap: { [moduleId: string]: number; } = {};
+		const replacementMap: { [moduleId: string]: number } = {};
 		sortedByUseModules.forEach((module, index) => {
 			replacementMap[module] = index;
 		});
@@ -334,56 +346,68 @@ function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
 	return destFiles;
 }
 
-function removeDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
-	// Taken from typescript compiler => emitFiles
-	const BOILERPLATE = [
-		{ start: /^var __extends/, end: /^}\)\(\);$/ },
-		{ start: /^var __assign/, end: /^};$/ },
-		{ start: /^var __decorate/, end: /^};$/ },
-		{ start: /^var __metadata/, end: /^};$/ },
-		{ start: /^var __param/, end: /^};$/ },
-		{ start: /^var __awaiter/, end: /^};$/ },
-		{ start: /^var __generator/, end: /^};$/ },
-	];
-
+function removeAllDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
 	destFiles.forEach((destFile) => {
 		const SEEN_BOILERPLATE: boolean[] = [];
 		destFile.sources.forEach((source) => {
-			const lines = source.contents.split(/\r\n|\n|\r/);
-			const newLines: string[] = [];
-			let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE: RegExp;
-
-			for (let i = 0; i < lines.length; i++) {
-				const line = lines[i];
-				if (IS_REMOVING_BOILERPLATE) {
-					newLines.push('');
-					if (END_BOILERPLATE!.test(line)) {
-						IS_REMOVING_BOILERPLATE = false;
-					}
-				} else {
-					for (let j = 0; j < BOILERPLATE.length; j++) {
-						const boilerplate = BOILERPLATE[j];
-						if (boilerplate.start.test(line)) {
-							if (SEEN_BOILERPLATE[j]) {
-								IS_REMOVING_BOILERPLATE = true;
-								END_BOILERPLATE = boilerplate.end;
-							} else {
-								SEEN_BOILERPLATE[j] = true;
-							}
-						}
-					}
-					if (IS_REMOVING_BOILERPLATE) {
-						newLines.push('');
-					} else {
-						newLines.push(line);
-					}
-				}
-			}
-			source.contents = newLines.join('\n');
+			source.contents = removeDuplicateTSBoilerplate(source.contents, SEEN_BOILERPLATE);
 		});
 	});
 
 	return destFiles;
+}
+
+export function removeAllTSBoilerplate(source: string) {
+	const seen = new Array<boolean>(BOILERPLATE.length).fill(true, 0, 10);
+	return removeDuplicateTSBoilerplate(source, seen);
+}
+
+// Taken from typescript compiler => emitFiles
+const BOILERPLATE = [
+	{ start: /^var __extends/, end: /^}\)\(\);$/ },
+	{ start: /^var __assign/, end: /^};$/ },
+	{ start: /^var __decorate/, end: /^};$/ },
+	{ start: /^var __metadata/, end: /^};$/ },
+	{ start: /^var __param/, end: /^};$/ },
+	{ start: /^var __awaiter/, end: /^};$/ },
+	{ start: /^var __generator/, end: /^};$/ },
+	{ start: /^var __createBinding/, end: /^}\)\);$/ },
+	{ start: /^var __setModuleDefault/, end: /^}\);$/ },
+	{ start: /^var __importStar/, end: /^};$/ },
+];
+
+function removeDuplicateTSBoilerplate(source: string, SEEN_BOILERPLATE: boolean[] = []): string {
+	const lines = source.split(/\r\n|\n|\r/);
+	const newLines: string[] = [];
+	let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE: RegExp;
+
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		if (IS_REMOVING_BOILERPLATE) {
+			newLines.push('');
+			if (END_BOILERPLATE!.test(line)) {
+				IS_REMOVING_BOILERPLATE = false;
+			}
+		} else {
+			for (let j = 0; j < BOILERPLATE.length; j++) {
+				const boilerplate = BOILERPLATE[j];
+				if (boilerplate.start.test(line)) {
+					if (SEEN_BOILERPLATE[j]) {
+						IS_REMOVING_BOILERPLATE = true;
+						END_BOILERPLATE = boilerplate.end;
+					} else {
+						SEEN_BOILERPLATE[j] = true;
+					}
+				}
+			}
+			if (IS_REMOVING_BOILERPLATE) {
+				newLines.push('');
+			} else {
+				newLines.push(line);
+			}
+		}
+	}
+	return newLines.join('\n');
 }
 
 interface IPluginMap {
@@ -400,8 +424,7 @@ function emitEntryPoint(
 	deps: IGraph,
 	entryPoint: string,
 	includedModules: string[],
-	prepend: string[],
-	append: string[],
+	prepend: IExtraFile[],
 	dest: string | undefined
 ): IEmitEntryPointResult {
 	if (!dest) {
@@ -441,8 +464,16 @@ function emitEntryPoint(
 
 		if (module.shim) {
 			mainResult.sources.push(emitShimmedModule(c, deps[c], module.shim, module.path, contents));
-		} else {
+		} else if (module.defineLocation) {
 			mainResult.sources.push(emitNamedModule(c, module.defineLocation, module.path, contents));
+		} else {
+			const moduleCopy = {
+				id: module.id,
+				path: module.path,
+				defineLocation: module.defineLocation,
+				dependencies: module.dependencies
+			};
+			throw new Error(`Cannot bundle module '${module.id}' for entry point '${entryPoint}' because it has no shim and it lacks a defineLocation: ${JSON.stringify(moduleCopy)}`);
 		}
 	});
 
@@ -467,18 +498,20 @@ function emitEntryPoint(
 		}
 	});
 
-	const toIFile = (path: string): IFile => {
-		const contents = readFileAndRemoveBOM(path);
+	const toIFile = (entry: IExtraFile): IFile => {
+		let contents = readFileAndRemoveBOM(entry.path);
+		if (entry.amdModuleId) {
+			contents = contents.replace(/^define\(/m, `define("${entry.amdModuleId}",`);
+		}
 		return {
-			path: path,
+			path: entry.path,
 			contents: contents
 		};
 	};
 
 	const toPrepend = (prepend || []).map(toIFile);
-	const toAppend = (append || []).map(toIFile);
 
-	mainResult.sources = toPrepend.concat(mainResult.sources).concat(toAppend);
+	mainResult.sources = toPrepend.concat(mainResult.sources);
 
 	return {
 		files: results,
@@ -596,7 +629,7 @@ function visit(rootNodes: string[], graph: IGraph): INodeSet {
 function topologicalSort(graph: IGraph): string[] {
 
 	const allNodes: INodeSet = {},
-		outgoingEdgeCount: { [node: string]: number; } = {},
+		outgoingEdgeCount: { [node: string]: number } = {},
 		inverseEdges: IGraph = {};
 
 	Object.keys(graph).forEach((fromNode: string) => {

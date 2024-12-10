@@ -1,0 +1,80 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .debug-hover-widget {
+	position: absolute;
+	z-index: 50;
+	animation-duration: 0.15s;
+	animation-name: fadeIn;
+	user-select: text;
+	-webkit-user-select: text;
+	word-break: break-all;
+	white-space: pre;
+}
+
+.monaco-editor .debug-hover-widget .complex-value {
+	max-width: 550px;
+}
+
+.monaco-editor .debug-hover-widget .complex-value .title,
+.monaco-editor .debug-hover-widget .complex-value .tip {
+	padding-left: 15px;
+	padding-right: 2px;
+	font-size: 11px;
+	line-height: 18px;
+	word-break: normal;
+	text-overflow: ellipsis;
+	height: 18px;
+	overflow: hidden;
+	white-space: pre;
+}
+
+.monaco-editor .debug-hover-widget .complex-value .title {
+	border-bottom: 1px solid rgba(128, 128, 128, 0.35);
+}
+
+.monaco-editor .debug-hover-widget .complex-value .tip {
+	border-top: 1px solid rgba(128, 128, 128, 0.35);
+	opacity: 0.5;
+}
+
+.monaco-editor .debug-hover-widget .debug-hover-tree {
+	line-height: 18px;
+	cursor: pointer;
+}
+
+.monaco-editor .debug-hover-widget .debug-hover-tree .monaco-list-row .monaco-tl-contents {
+	user-select: text;
+	-webkit-user-select: text;
+	white-space: pre;
+}
+
+/* Disable tree highlight in debug hover tree. */
+.monaco-editor .debug-hover-widget .debug-hover-tree .monaco-list-rows .monaco-list-row:hover:not(.highlighted):not(.selected):not(.focused)  {
+	background-color: inherit;
+}
+
+.monaco-editor .debug-hover-widget pre {
+	margin-top: 0;
+	margin-bottom: 0;
+}
+
+.monaco-editor .debugHoverHighlight {
+	background-color: rgba(173, 214, 255, 0.15);
+}
+
+.monaco-editor .debug-hover-widget > .monaco-scrollable-element > .value {
+	color: rgba(108, 108, 108, 0.8);
+	overflow: auto;
+	font-family: var(--monaco-monospace-font);
+	max-height: 500px;
+	padding: 4px 5px;
+	white-space: pre-wrap;
+}
+
+.monaco-editor.vs-dark .debugHoverHighlight,
+.monaco-editor.hc-theme .debugHoverHighlight {
+	background-color: rgba(38, 79, 120, 0.25);
+}

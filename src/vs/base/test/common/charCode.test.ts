@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CharCode } from 'vs/base/common/charCode';
+import assert from 'assert';
+import { CharCode } from '../../common/charCode.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('CharCode', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('has good values', () => {
 
 		function assertValue(actual: CharCode, expected: string): void {
-			assert.equal(actual, expected.charCodeAt(0), 'char code ok for <<' + expected + '>>');
+			assert.strictEqual(actual, expected.charCodeAt(0), 'char code ok for <<' + expected + '>>');
 		}
 
 		assertValue(CharCode.Tab, '\t');

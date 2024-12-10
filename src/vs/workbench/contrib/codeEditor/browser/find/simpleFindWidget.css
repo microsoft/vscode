@@ -1,0 +1,113 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .simple-find-part-wrapper {
+	overflow: hidden;
+	z-index: 10;
+	position: absolute;
+	top: 0;
+	right: 18px;
+	max-width: calc(100% - 28px - 28px - 8px);
+	pointer-events: none;
+	padding: 0 10px 10px;
+}
+
+.simple-find-part .monaco-inputbox > .ibwrapper > input {
+	text-overflow: clip;
+}
+
+.monaco-workbench .simple-find-part {
+	visibility: hidden; /* Use visibility to maintain flex layout while hidden otherwise interferes with transition */
+	z-index: 10;
+	position: relative;
+	top: -45px;
+	display: flex;
+	padding: 4px;
+	align-items: center;
+	pointer-events: all;
+	transition: top 200ms linear;
+	background-color: var(--vscode-editorWidget-background) !important;
+	color: var(--vscode-editorWidget-foreground);
+	box-shadow: 0 0 8px 2px var(--vscode-widget-shadow);
+	border: 1px solid var(--vscode-widget-border);
+	border-bottom-left-radius: 4px;
+	border-bottom-right-radius: 4px;
+	font-size: 12px;
+}
+
+.monaco-workbench.reduce-motion .monaco-editor .find-widget {
+	transition: top 0ms linear;
+}
+
+.monaco-workbench .simple-find-part.visible {
+	visibility: visible;
+}
+
+.monaco-workbench .simple-find-part.suppress-transition {
+	transition: none;
+}
+
+.monaco-workbench .simple-find-part.visible-transition {
+	top: 0;
+}
+
+.monaco-workbench .simple-find-part .monaco-findInput {
+	flex: 1;
+}
+
+.monaco-workbench .simple-find-part .matchesCount {
+	width: 73px;
+	max-width: 73px;
+	min-width: 73px;
+	padding-left: 5px;
+}
+
+.monaco-workbench .simple-find-part.reduced-find-widget .matchesCount {
+	display: none;
+}
+
+.monaco-workbench .simple-find-part .button {
+	min-width: 20px;
+	width: 20px;
+	height: 20px;
+	line-height: 20px;
+	display: flex;
+	flex: initial;
+	justify-content: center;
+	margin-left: 3px;
+	background-position: center center;
+	background-repeat: no-repeat;
+	cursor: pointer;
+}
+
+.monaco-workbench div.simple-find-part div.button.disabled {
+	opacity: 0.3 !important;
+	cursor: default;
+}
+
+div.simple-find-part-wrapper div.button {
+	border-radius: 5px;
+}
+
+.no-results.matchesCount {
+	color: var(--vscode-errorForeground);
+}
+
+div.simple-find-part-wrapper div.button:hover:not(.disabled) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px;
+}
+
+.monaco-workbench .simple-find-part .monaco-sash {
+	left: 0 !important;
+	border-left: 1px solid;
+	border-bottom-left-radius: 4px;
+}
+
+.monaco-workbench .simple-find-part .monaco-sash.vertical:before{
+	width: 2px;
+	left: calc(50% - (var(--vscode-sash-hover-size) / 4));
+}

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as platform from 'vs/platform/registry/common/platform';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { getCompressedContent, IJSONSchema } from '../../../base/common/jsonSchema.js';
+import * as platform from '../../registry/common/platform.js';
 
 export const Extensions = {
 	JSONContribution: 'base.contributions.json'
 };
 
 export interface ISchemaContributions {
-	schemas?: { [id: string]: IJSONSchema };
+	schemas: { [id: string]: IJSONSchema };
 }
 
 export interface IJSONContributionRegistry {
@@ -26,7 +26,7 @@ export interface IJSONContributionRegistry {
 
 
 	/**
-	 * Notifies all listeneres that the content of the given schema has changed.
+	 * Notifies all listeners that the content of the given schema has changed.
 	 * @param uri The id of the schema
 	 */
 	notifySchemaChanged(uri: string): void;
@@ -35,6 +35,18 @@ export interface IJSONContributionRegistry {
 	 * Get all schemas
 	 */
 	getSchemaContributions(): ISchemaContributions;
+
+	/**
+	 * Gets the (compressed) content of the schema with the given schema ID (if any)
+	 * @param uri The id of the schema
+	 */
+	getSchemaContent(uri: string): string | undefined;
+
+	/**
+	 * Returns true if there's a schema that matches the given schema ID
+	 * @param uri The id of the schema
+	 */
+	hasSchemaContent(uri: string): boolean;
 }
 
 
@@ -52,7 +64,7 @@ class JSONContributionRegistry implements IJSONContributionRegistry {
 
 	private schemasById: { [id: string]: IJSONSchema };
 
-	private readonly _onDidChangeSchema: Emitter<string> = new Emitter<string>();
+	private readonly _onDidChangeSchema = new Emitter<string>();
 	readonly onDidChangeSchema: Event<string> = this._onDidChangeSchema.event;
 
 	constructor() {
@@ -72,6 +84,15 @@ class JSONContributionRegistry implements IJSONContributionRegistry {
 		return {
 			schemas: this.schemasById,
 		};
+	}
+
+	public getSchemaContent(uri: string): string | undefined {
+		const schema = this.schemasById[uri];
+		return schema ? getCompressedContent(schema) : undefined;
+	}
+
+	public hasSchemaContent(uri: string): boolean {
+		return !!this.schemasById[uri];
 	}
 
 }

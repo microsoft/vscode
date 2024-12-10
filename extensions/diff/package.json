@@ -1,0 +1,39 @@
+{
+  "name": "diff",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "0.10.x"
+  },
+  "scripts": {
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/diff.tmbundle Syntaxes/Diff.plist ./syntaxes/diff.tmLanguage.json"
+  },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "diff",
+        "aliases": [
+          "Diff",
+          "diff"
+        ],
+        "extensions": [
+          ".diff",
+          ".patch",
+          ".rej"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "diff",
+        "scopeName": "source.diff",
+        "path": "./syntaxes/diff.tmLanguage.json"
+      }
+    ]
+  }
+}

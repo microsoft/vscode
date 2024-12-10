@@ -3,26 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Menu, MenuItem, BrowserWindow, Event, ipcMain } from 'electron';
-import { ISerializableContextMenuItem, CONTEXT_MENU_CLOSE_CHANNEL, CONTEXT_MENU_CHANNEL, IPopupOptions } from 'vs/base/parts/contextmenu/common/contextmenu';
+import { IpcMainEvent, Menu, MenuItem } from 'electron';
+import { validatedIpcMain } from '../../ipc/electron-main/ipcMain.js';
+import { CONTEXT_MENU_CHANNEL, CONTEXT_MENU_CLOSE_CHANNEL, IPopupOptions, ISerializableContextMenuItem } from '../common/contextmenu.js';
 
 export function registerContextMenuListener(): void {
-	ipcMain.on(CONTEXT_MENU_CHANNEL, (event: Event, contextMenuId: number, items: ISerializableContextMenuItem[], onClickChannel: string, options?: IPopupOptions) => {
+	validatedIpcMain.on(CONTEXT_MENU_CHANNEL, (event: IpcMainEvent, contextMenuId: number, items: ISerializableContextMenuItem[], onClickChannel: string, options?: IPopupOptions) => {
 		const menu = createMenu(event, onClickChannel, items);
 
 		menu.popup({
-			window: BrowserWindow.fromWebContents(event.sender),
-			x: options ? options.x : void 0,
-			y: options ? options.y : void 0,
-			positioningItem: options ? options.positioningItem : void 0,
+			x: options ? options.x : undefined,
+			y: options ? options.y : undefined,
+			positioningItem: options ? options.positioningItem : undefined,
 			callback: () => {
-				event.sender.send(CONTEXT_MENU_CLOSE_CHANNEL, contextMenuId);
+				// Workaround for https://github.com/microsoft/vscode/issues/72447
+				// It turns out that the menu gets GC'ed if not referenced anymore
+				// As such we drag it into this scope so that it is not being GC'ed
+				if (menu) {
+					event.sender.send(CONTEXT_MENU_CLOSE_CHANNEL, contextMenuId);
+				}
 			}
 		});
 	});
 }
 
-function createMenu(event: Event, onClickChannel: string, items: ISerializableContextMenuItem[]): Menu {
+function createMenu(event: IpcMainEvent, onClickChannel: string, items: ISerializableContextMenuItem[]): Menu {
 	const menu = new Menu();
 
 	items.forEach(item => {

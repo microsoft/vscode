@@ -3,34 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { SubmenuAction } from 'vs/base/browser/ui/menu/menu';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { StandardMouseEvent } from './mouseEvent.js';
+import { IActionViewItemOptions } from './ui/actionbar/actionViewItems.js';
+import { IActionViewItem } from './ui/actionbar/actionbar.js';
+import { AnchorAlignment, AnchorAxisAlignment, IAnchor } from './ui/contextview/contextview.js';
+import { IAction, IActionRunner } from '../common/actions.js';
+import { ResolvedKeybinding } from '../common/keybindings.js';
+import { OmitOptional } from '../common/types.js';
 
 export interface IContextMenuEvent {
-	shiftKey?: boolean;
-	ctrlKey?: boolean;
-	altKey?: boolean;
-	metaKey?: boolean;
+	readonly shiftKey?: boolean;
+	readonly ctrlKey?: boolean;
+	readonly altKey?: boolean;
+	readonly metaKey?: boolean;
 }
 
-export class ContextSubMenu extends SubmenuAction {
-	constructor(label: string, public entries: Array<ContextSubMenu | IAction>) {
-		super(label, entries, 'contextsubmenu');
-	}
-}
+/**
+ * A specific context menu location to position the menu at.
+ * Uses some TypeScript type tricks to prevent allowing to
+ * pass in a `MouseEvent` and force people to use `StandardMouseEvent`.
+ */
+type ContextMenuLocation = OmitOptional<IAnchor> & { getModifierState?: never };
 
 export interface IContextMenuDelegate {
-	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number; };
-	getActions(): Array<IAction | ContextSubMenu>;
-	getActionItem?(action: IAction): IActionItem | null;
-	getActionsContext?(event?: IContextMenuEvent): any;
-	getKeyBinding?(action: IAction): ResolvedKeybinding | null;
+	/**
+	 * The anchor where to position the context view.
+	 * Use a `HTMLElement` to position the view at the element,
+	 * a `StandardMouseEvent` to position it at the mouse position
+	 * or an `ContextMenuLocation` to position it at a specific location.
+	 */
+	getAnchor(): HTMLElement | StandardMouseEvent | ContextMenuLocation;
+	getActions(): readonly IAction[];
+	getCheckedActionsRepresentation?(action: IAction): 'radio' | 'checkbox';
+	getActionViewItem?(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined;
+	getActionsContext?(event?: IContextMenuEvent): unknown;
+	getKeyBinding?(action: IAction): ResolvedKeybinding | undefined;
 	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;
 	actionRunner?: IActionRunner;
+	skipTelemetry?: boolean;
 	autoSelectFirstItem?: boolean;
 	anchorAlignment?: AnchorAlignment;
+	anchorAxisAlignment?: AnchorAxisAlignment;
+	domForShadowRoot?: HTMLElement;
+}
+
+export interface IContextMenuProvider {
+	showContextMenu(delegate: IContextMenuDelegate): void;
 }

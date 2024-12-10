@@ -14,6 +14,10 @@
 	"command.compare": "Compare Current Conflict",
 	"config.title": "Merge Conflict",
 	"config.autoNavigateNextConflictEnabled": "Whether to automatically navigate to the next merge conflict after resolving a merge conflict.",
-	"config.codeLensEnabled": "Create a Code Lens for merge conflict blocks within editor.",
-	"config.decoratorsEnabled": "Create decorators for merge conflict blocks within editor."
+	"config.codeLensEnabled": "Create a CodeLens for merge conflict blocks within editor.",
+	"config.decoratorsEnabled": "Create decorators for merge conflict blocks within editor.",
+	"config.diffViewPosition": "Controls where the diff view should be opened when comparing changes in merge conflicts.",
+	"config.diffViewPosition.current": "Open the diff view in the current editor group.",
+	"config.diffViewPosition.beside": "Open the diff view next to the current editor group.",
+	"config.diffViewPosition.below": "Open the diff view below the current editor group."
 }

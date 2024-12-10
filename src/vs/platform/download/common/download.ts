@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { URI } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IDownloadService = createDecorator<IDownloadService>('downloadService');
 
 export interface IDownloadService {
 
-	_serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
-	download(uri: URI, to: string, cancellationToken?: CancellationToken): Promise<void>;
+	download(uri: URI, to: URI, cancellationToken?: CancellationToken): Promise<void>;
 
 }

@@ -1,0 +1,34 @@
+{
+  "name": "vscode-automation",
+  "version": "1.71.0",
+  "description": "VS Code UI automation driver",
+  "author": {
+    "name": "Microsoft Corporation"
+  },
+  "license": "MIT",
+  "main": "./out/index.js",
+  "private": true,
+  "scripts": {
+    "compile": "npm run copy-driver-definition && node ../../node_modules/typescript/bin/tsc",
+    "watch": "npm-run-all -lp watch-driver-definition watch-tsc",
+    "watch-tsc": "node ../../node_modules/typescript/bin/tsc --watch --preserveWatchOutput",
+    "copy-driver-definition": "node tools/copy-driver-definition.js",
+    "watch-driver-definition": "watch \"node tools/copy-driver-definition.js\"",
+    "copy-package-version": "node tools/copy-package-version.js",
+    "prepublishOnly": "npm run copy-package-version"
+  },
+  "dependencies": {
+    "ncp": "^2.0.0",
+    "tmp": "0.2.1",
+    "tree-kill": "1.2.2",
+    "vscode-uri": "3.0.2"
+  },
+  "devDependencies": {
+    "@types/ncp": "2.0.1",
+    "@types/node": "20.x",
+    "@types/tmp": "0.2.2",
+    "cpx2": "3.0.0",
+    "npm-run-all": "^4.1.5",
+    "watch": "^1.0.2"
+  }
+}

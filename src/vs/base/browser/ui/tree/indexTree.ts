@@ -3,35 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/tree';
-import { Iterator, ISequence } from 'vs/base/common/iterator';
-import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
-import { ISpliceable } from 'vs/base/common/sequence';
-import { IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ITreeElement, ITreeModel, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate } from '../list/list.js';
+import { AbstractTree, IAbstractTreeOptions } from './abstractTree.js';
+import { IndexTreeModel } from './indexTreeModel.js';
+import { ITreeElement, ITreeModel, ITreeRenderer, TreeError } from './tree.js';
+import { Iterable } from '../../../common/iterator.js';
+import './media/tree.css';
 
 export interface IIndexTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> { }
 
 export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterData, number[]> {
 
-	protected model: IndexTreeModel<T, TFilterData>;
+	protected declare model: IndexTreeModel<T, TFilterData>;
 
 	constructor(
+		private readonly user: string,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<any /* TODO@joao */, TFilterData, any>[],
+		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private rootElement: T,
 		options: IIndexTreeOptions<T, TFilterData> = {}
 	) {
-		super(container, delegate, renderers, options);
+		super(user, container, delegate, renderers, options);
 	}
 
-	splice(location: number[], deleteCount: number, toInsert: ISequence<ITreeElement<T>> = Iterator.empty()): Iterator<ITreeElement<T>> {
-		return this.model.splice(location, deleteCount, toInsert);
+	splice(location: number[], deleteCount: number, toInsert: Iterable<ITreeElement<T>> = Iterable.empty()): void {
+		this.model.splice(location, deleteCount, toInsert);
 	}
 
-	protected createModel(view: ISpliceable<ITreeNode<T, TFilterData>>, options: IIndexTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, number[]> {
-		return new IndexTreeModel(view, this.rootElement, options);
+	rerender(location?: number[]): void {
+		if (location === undefined) {
+			this.view.rerender();
+			return;
+		}
+
+		this.model.rerender(location);
+	}
+
+	updateElementHeight(location: number[], height: number): void {
+		if (location.length === 0) {
+			throw new TreeError(this.user, `Update element height failed: invalid location`);
+		}
+
+		const elementIndex = this.model.getListIndex(location);
+		if (elementIndex === -1) {
+			return;
+		}
+
+		this.view.updateElementHeight(elementIndex, height);
+	}
+
+	protected createModel(user: string, options: IIndexTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, number[]> {
+		return new IndexTreeModel(user, this.rootElement, options);
 	}
 }

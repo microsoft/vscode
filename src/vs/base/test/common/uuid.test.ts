@@ -2,21 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as uuid from 'vs/base/common/uuid';
+import assert from 'assert';
+import * as uuid from '../../common/uuid.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('UUID', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('generation', () => {
-		var asHex = uuid.v4().asHex();
-		assert.equal(asHex.length, 36);
-		assert.equal(asHex[14], '4');
+		const asHex = uuid.generateUuid();
+		assert.strictEqual(asHex.length, 36);
+		assert.strictEqual(asHex[14], '4');
 		assert.ok(asHex[19] === '8' || asHex[19] === '9' || asHex[19] === 'a' || asHex[19] === 'b');
 	});
 
-	test('parse', () => {
-		var id = uuid.v4();
-		var asHext = id.asHex();
-		var id2 = uuid.parse(asHext);
-		assert.equal(id.asHex(), id2.asHex());
+	test('self-check', function () {
+		const t1 = Date.now();
+		while (Date.now() - t1 < 50) {
+			const value = uuid.generateUuid();
+			assert.ok(uuid.isUUID(value));
+		}
 	});
 });

@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ListView } from 'vs/base/browser/ui/list/listView';
-import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { range } from 'vs/base/common/arrays';
+import assert from 'assert';
+import { IListRenderer, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
+import { ListView } from '../../../../browser/ui/list/listView.js';
+import { range } from '../../../../common/arrays.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ListView', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('all rows get disposed', function () {
 		const element = document.createElement('div');
 		element.style.height = '200px';
@@ -31,10 +34,10 @@ suite('ListView', function () {
 		const listView = new ListView<number>(element, delegate, [renderer]);
 		listView.layout(200);
 
-		assert.equal(templatesCount, 0, 'no templates have been allocated');
+		assert.strictEqual(templatesCount, 0, 'no templates have been allocated');
 		listView.splice(0, 0, range(100));
-		assert.equal(templatesCount, 10, 'some templates have been allocated');
+		assert.strictEqual(templatesCount, 10, 'some templates have been allocated');
 		listView.dispose();
-		assert.equal(templatesCount, 0, 'all templates have been disposed');
+		assert.strictEqual(templatesCount, 0, 'all templates have been disposed');
 	});
 });

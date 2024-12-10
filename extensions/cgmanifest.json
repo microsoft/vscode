@@ -5,7 +5,7 @@
 				"type": "git",
 				"git": {
 					"name": "typescript",
-					"repositoryUrl": "https://github.com/Microsoft/TypeScript",
+					"repositoryUrl": "https://github.com/microsoft/TypeScript",
 					"commitHash": "54426a14f4c232da8e563d20ca8e71263e1c96b5"
 				}
 			},

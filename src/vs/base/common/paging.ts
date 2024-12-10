@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isArray } from 'vs/base/common/types';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { range } from 'vs/base/common/arrays';
+import { range } from './arrays.js';
+import { CancellationToken, CancellationTokenSource } from './cancellation.js';
+import { CancellationError } from './errors.js';
 
 /**
  * A Pager is a stateless abstraction over a paged collection.
@@ -65,7 +64,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 	get length(): number { return this.pager.total; }
 
 	constructor(arg: IPager<T> | T[]) {
-		this.pager = isArray(arg) ? singlePagePager<T>(arg) : arg;
+		this.pager = Array.isArray(arg) ? singlePagePager<T>(arg) : arg;
 
 		const totalPages = Math.ceil(this.pager.total / this.pager.pageSize);
 
@@ -92,7 +91,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 
 	resolve(index: number, cancellationToken: CancellationToken): Promise<T> {
 		if (cancellationToken.isCancellationRequested) {
-			return Promise.reject(canceled());
+			return Promise.reject(new CancellationError());
 		}
 
 		const pageIndex = Math.floor(index / this.pager.pageSize);
@@ -119,7 +118,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 				});
 		}
 
-		cancellationToken.onCancellationRequested(() => {
+		const listener = cancellationToken.onCancellationRequested(() => {
 			if (!page.cts) {
 				return;
 			}
@@ -133,7 +132,8 @@ export class PagedModel<T> implements IPagedModel<T> {
 
 		page.promiseIndexes.add(index);
 
-		return page.promise.then(() => page.elements[indexInPage]);
+		return page.promise.then(() => page.elements[indexInPage])
+			.finally(() => listener.dispose());
 	}
 }
 
@@ -154,12 +154,12 @@ export class DelayedPagedModel<T> implements IPagedModel<T> {
 	resolve(index: number, cancellationToken: CancellationToken): Promise<T> {
 		return new Promise((c, e) => {
 			if (cancellationToken.isCancellationRequested) {
-				return e(canceled());
+				return e(new CancellationError());
 			}
 
 			const timer = setTimeout(() => {
 				if (cancellationToken.isCancellationRequested) {
-					return e(canceled());
+					return e(new CancellationError());
 				}
 
 				timeoutCancellation.dispose();
@@ -169,7 +169,7 @@ export class DelayedPagedModel<T> implements IPagedModel<T> {
 			const timeoutCancellation = cancellationToken.onCancellationRequested(() => {
 				clearTimeout(timer);
 				timeoutCancellation.dispose();
-				e(canceled());
+				e(new CancellationError());
 			});
 		});
 	}
@@ -185,20 +185,5 @@ export function mapPager<T, R>(pager: IPager<T>, fn: (t: T) => R): IPager<R> {
 		total: pager.total,
 		pageSize: pager.pageSize,
 		getPage: (pageIndex, token) => pager.getPage(pageIndex, token).then(r => r.map(fn))
-	};
-}
-
-/**
- * Merges two pagers.
- */
-export function mergePagers<T>(one: IPager<T>, other: IPager<T>): IPager<T> {
-	return {
-		firstPage: [...one.firstPage, ...other.firstPage],
-		total: one.total + other.total,
-		pageSize: one.pageSize + other.pageSize,
-		getPage(pageIndex: number, token): Promise<T[]> {
-			return Promise.all([one.getPage(pageIndex, token), other.getPage(pageIndex, token)])
-				.then(([onePage, otherPage]) => [...onePage, ...otherPage]);
-		}
 	};
 }
