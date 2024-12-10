@@ -840,7 +840,7 @@ class ChatSetupWelcomeContent extends Disposable {
 
 		// Header
 		{
-			const header = localize({ key: 'setupHeader', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0} 'Copilot') is your AI pair programmer.", this.context.state.installed ? 'command:github.copilot.open.walkthrough' : defaultChat.documentationUrl);
+			const header = localize({ key: 'setupHeader', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0}) is your AI pair programmer.", this.context.state.installed ? 'command:github.copilot.open.walkthrough' : defaultChat.documentationUrl);
 			this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element);
 
 			const features = this.element.appendChild($('div.chat-features-container'));
