@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeWindow, mainWindow } from 'vs/base/browser/window';
-import { Emitter } from 'vs/base/common/event';
+import { CodeWindow, mainWindow } from './window.js';
+import { Emitter } from '../common/event.js';
 
 class WindowManager {
 
@@ -66,7 +66,7 @@ class WindowManager {
 	}
 }
 
-export function addMatchMediaChangeListener(targetWindow: Window, query: string | MediaQueryList, callback: (this: MediaQueryList, ev: MediaQueryListEvent) => any): void {
+export function addMatchMediaChangeListener(targetWindow: Window, query: string | MediaQueryList, callback: (this: MediaQueryList, ev: MediaQueryListEvent) => unknown): void {
 	if (typeof query === 'string') {
 		query = targetWindow.matchMedia(query);
 	}
@@ -136,6 +136,6 @@ export function isWCOEnabled(): boolean {
 
 // Returns the bounding rect of the titlebar area if it is supported and defined
 // See docs at https://developer.mozilla.org/en-US/docs/Web/API/WindowControlsOverlay/getTitlebarAreaRect
-export function getWCOBoundingRect(): DOMRect | undefined {
-	return (navigator as any)?.windowControlsOverlay?.getTitlebarAreaRect();
+export function getWCOTitlebarAreaRect(targetWindow: Window): DOMRect | undefined {
+	return (targetWindow.navigator as any)?.windowControlsOverlay?.getTitlebarAreaRect();
 }

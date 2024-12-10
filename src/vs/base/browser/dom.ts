@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as event from 'vs/base/common/event';
-import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { hash } from 'vs/base/common/hash';
-import { CodeWindow, ensureCodeWindow, mainWindow } from 'vs/base/browser/window';
-import { isPointWithinTriangle } from 'vs/base/common/numbers';
+import * as browser from './browser.js';
+import { BrowserFeatures } from './canIUse.js';
+import { IKeyboardEvent, StandardKeyboardEvent } from './keyboardEvent.js';
+import { IMouseEvent, StandardMouseEvent } from './mouseEvent.js';
+import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from '../common/async.js';
+import { onUnexpectedError } from '../common/errors.js';
+import * as event from '../common/event.js';
+import dompurify from './dompurify/dompurify.js';
+import { KeyCode } from '../common/keyCodes.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../common/lifecycle.js';
+import { RemoteAuthorities, Schemas } from '../common/network.js';
+import * as platform from '../common/platform.js';
+import { URI } from '../common/uri.js';
+import { hash } from '../common/hash.js';
+import { CodeWindow, ensureCodeWindow, mainWindow } from './window.js';
+import { isPointWithinTriangle } from '../common/numbers.js';
 
 export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;
@@ -922,105 +922,6 @@ export function getActiveWindow(): CodeWindow {
 	return (document.defaultView?.window ?? mainWindow) as CodeWindow;
 }
 
-const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HTMLStyleElement /* aux window clones that track the main stylesheet */>>();
-
-export function isGlobalStylesheet(node: Node): boolean {
-	return globalStylesheets.has(node as HTMLStyleElement);
-}
-
-/**
- * A version of createStyleSheet which has a unified API to initialize/set the style content.
- */
-export function createStyleSheet2(): WrappedStyleElement {
-	return new WrappedStyleElement();
-}
-
-class WrappedStyleElement {
-	private _currentCssStyle = '';
-	private _styleSheet: HTMLStyleElement | undefined = undefined;
-
-	public setStyle(cssStyle: string): void {
-		if (cssStyle === this._currentCssStyle) {
-			return;
-		}
-		this._currentCssStyle = cssStyle;
-
-		if (!this._styleSheet) {
-			this._styleSheet = createStyleSheet(mainWindow.document.head, (s) => s.innerText = cssStyle);
-		} else {
-			this._styleSheet.innerText = cssStyle;
-		}
-	}
-
-	public dispose(): void {
-		if (this._styleSheet) {
-			this._styleSheet.remove();
-			this._styleSheet = undefined;
-		}
-	}
-}
-
-export function createStyleSheet(container: HTMLElement = mainWindow.document.head, beforeAppend?: (style: HTMLStyleElement) => void, disposableStore?: DisposableStore): HTMLStyleElement {
-	const style = document.createElement('style');
-	style.type = 'text/css';
-	style.media = 'screen';
-	beforeAppend?.(style);
-	container.appendChild(style);
-
-	if (disposableStore) {
-		disposableStore.add(toDisposable(() => style.remove()));
-	}
-
-	// With <head> as container, the stylesheet becomes global and is tracked
-	// to support auxiliary windows to clone the stylesheet.
-	if (container === mainWindow.document.head) {
-		const globalStylesheetClones = new Set<HTMLStyleElement>();
-		globalStylesheets.set(style, globalStylesheetClones);
-
-		for (const { window: targetWindow, disposables } of getWindows()) {
-			if (targetWindow === mainWindow) {
-				continue; // main window is already tracked
-			}
-
-			const cloneDisposable = disposables.add(cloneGlobalStyleSheet(style, globalStylesheetClones, targetWindow));
-			disposableStore?.add(cloneDisposable);
-		}
-	}
-
-	return style;
-}
-
-export function cloneGlobalStylesheets(targetWindow: Window): IDisposable {
-	const disposables = new DisposableStore();
-
-	for (const [globalStylesheet, clonedGlobalStylesheets] of globalStylesheets) {
-		disposables.add(cloneGlobalStyleSheet(globalStylesheet, clonedGlobalStylesheets, targetWindow));
-	}
-
-	return disposables;
-}
-
-function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, globalStylesheetClones: Set<HTMLStyleElement>, targetWindow: Window): IDisposable {
-	const disposables = new DisposableStore();
-
-	const clone = globalStylesheet.cloneNode(true) as HTMLStyleElement;
-	targetWindow.document.head.appendChild(clone);
-	disposables.add(toDisposable(() => clone.remove()));
-
-	for (const rule of getDynamicStyleSheetRules(globalStylesheet)) {
-		clone.sheet?.insertRule(rule.cssText, clone.sheet?.cssRules.length);
-	}
-
-	disposables.add(sharedMutationObserver.observe(globalStylesheet, disposables, { childList: true })(() => {
-		clone.textContent = globalStylesheet.textContent;
-	}));
-
-	globalStylesheetClones.add(clone);
-	disposables.add(toDisposable(() => globalStylesheetClones.delete(clone)));
-
-	return disposables;
-}
-
 interface IMutationObserver {
 	users: number;
 	readonly observer: MutationObserver;
@@ -1086,67 +987,6 @@ function createHeadElement(tagName: string, container: HTMLElement = mainWindow.
 	const element = document.createElement(tagName);
 	container.appendChild(element);
 	return element;
-}
-
-let _sharedStyleSheet: HTMLStyleElement | null = null;
-function getSharedStyleSheet(): HTMLStyleElement {
-	if (!_sharedStyleSheet) {
-		_sharedStyleSheet = createStyleSheet();
-	}
-	return _sharedStyleSheet;
-}
-
-function getDynamicStyleSheetRules(style: HTMLStyleElement) {
-	if (style?.sheet?.rules) {
-		// Chrome, IE
-		return style.sheet.rules;
-	}
-	if (style?.sheet?.cssRules) {
-		// FF
-		return style.sheet.cssRules;
-	}
-	return [];
-}
-
-export function createCSSRule(selector: string, cssText: string, style = getSharedStyleSheet()): void {
-	if (!style || !cssText) {
-		return;
-	}
-
-	style.sheet?.insertRule(`${selector} {${cssText}}`, 0);
-
-	// Apply rule also to all cloned global stylesheets
-	for (const clonedGlobalStylesheet of globalStylesheets.get(style) ?? []) {
-		createCSSRule(selector, cssText, clonedGlobalStylesheet);
-	}
-}
-
-export function removeCSSRulesContainingSelector(ruleName: string, style = getSharedStyleSheet()): void {
-	if (!style) {
-		return;
-	}
-
-	const rules = getDynamicStyleSheetRules(style);
-	const toDelete: number[] = [];
-	for (let i = 0; i < rules.length; i++) {
-		const rule = rules[i];
-		if (isCSSStyleRule(rule) && rule.selectorText.indexOf(ruleName) !== -1) {
-			toDelete.push(i);
-		}
-	}
-
-	for (let i = toDelete.length - 1; i >= 0; i--) {
-		style.sheet?.deleteRule(toDelete[i]);
-	}
-
-	// Remove rules also from all cloned global stylesheets
-	for (const clonedGlobalStylesheet of globalStylesheets.get(style) ?? []) {
-		removeCSSRulesContainingSelector(ruleName, clonedGlobalStylesheet);
-	}
-}
-
-function isCSSStyleRule(rule: CSSRule): rule is CSSStyleRule {
-	return typeof (rule as CSSStyleRule).selectorText === 'string';
 }
 
 export function isHTMLElement(e: unknown): e is HTMLElement {
@@ -1556,7 +1396,7 @@ export function removeTabIndexAndUpdateFocus(node: HTMLElement): void {
 	node.removeAttribute('tabindex');
 }
 
-export function finalHandler<T extends Event>(fn: (event: T) => any): (event: T) => any {
+export function finalHandler<T extends Event>(fn: (event: T) => unknown): (event: T) => unknown {
 	return e => {
 		e.preventDefault();
 		e.stopPropagation();
@@ -1675,35 +1515,6 @@ export function animate(targetWindow: Window, fn: () => void): IDisposable {
 }
 
 RemoteAuthorities.setPreferredWebSchema(/^https:/.test(mainWindow.location.href) ? 'https' : 'http');
-
-/**
- * returns url('...')
- */
-export function asCSSUrl(uri: URI | null | undefined): string {
-	if (!uri) {
-		return `url('')`;
-	}
-	return `url('${FileAccess.uriToBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
-}
-
-export function asCSSPropertyValue(value: string) {
-	return `'${value.replace(/'/g, '%27')}'`;
-}
-
-export function asCssValueWithDefault(cssPropertyValue: string | undefined, dflt: string): string {
-	if (cssPropertyValue !== undefined) {
-		const variableMatch = cssPropertyValue.match(/^\s*var\((.+)\)$/);
-		if (variableMatch) {
-			const varArguments = variableMatch[1].split(',', 2);
-			if (varArguments.length === 2) {
-				dflt = asCssValueWithDefault(varArguments[1].trim(), dflt);
-			}
-			return `var(${varArguments[0]}, ${dflt})`;
-		}
-		return cssPropertyValue;
-	}
-	return dflt;
-}
 
 export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
 
@@ -1951,10 +1762,10 @@ const defaultDomPurifyConfig = Object.freeze<dompurify.Config & { RETURN_TRUSTED
 /**
  * Sanitizes the given `value` and reset the given `node` with it.
  */
-export function safeInnerHtml(node: HTMLElement, value: string): void {
+export function safeInnerHtml(node: HTMLElement, value: string, extraDomPurifyConfig?: dompurify.Config): void {
 	const hook = hookDomPurifyHrefAndSrcSanitizer(defaultSafeProtocols);
 	try {
-		const html = dompurify.sanitize(value, defaultDomPurifyConfig);
+		const html = dompurify.sanitize(value, { ...defaultDomPurifyConfig, ...extraDomPurifyConfig });
 		node.innerHTML = html as unknown as string;
 	} finally {
 		hook.dispose();
@@ -2514,6 +2325,10 @@ export function trackAttributes(from: Element, to: Element, filter?: string[]): 
 	}));
 
 	return disposables;
+}
+
+export function isEditableElement(element: Element): boolean {
+	return element.tagName.toLowerCase() === 'input' || element.tagName.toLowerCase() === 'textarea' || isHTMLElement(element) && !!element.editContext;
 }
 
 /**

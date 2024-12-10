@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { IPosition } from 'vs/editor/common/core/position';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageIdCodec } from 'vs/editor/common/languages';
-import { IAttachedView } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { IModelContentChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-import { BackgroundTokenizationState } from 'vs/editor/common/tokenizationTextModelPart';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { equals } from '../../../base/common/arrays.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { LineRange } from '../core/lineRange.js';
+import { StandardTokenType } from '../encodedTokenAttributes.js';
+import { ILanguageIdCodec } from '../languages.js';
+import { IAttachedView } from '../model.js';
+import { TextModel } from './textModel.js';
+import { IModelContentChangedEvent, IModelTokensChangedEvent } from '../textModelEvents.js';
+import { BackgroundTokenizationState, ITokenizeLineWithEditResult, LineEditWithAdditionalLines } from '../tokenizationTextModelPart.js';
+import { LineTokens } from '../tokens/lineTokens.js';
 
 /**
  * @internal
@@ -132,7 +131,7 @@ export abstract class AbstractTokens extends Disposable {
 
 	public abstract getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType;
 
-	public abstract tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null;
+	public abstract tokenizeLineWithEdit(lineNumber: number, edit: LineEditWithAdditionalLines): ITokenizeLineWithEditResult;
 
 	public abstract get hasTokens(): boolean;
 }

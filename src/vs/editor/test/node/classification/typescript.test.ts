@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { StandardTokenType } from '../../../common/encodedTokenAttributes.js';
 import * as fs from 'fs';
 // import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 // import { parse } from 'vs/editor/common/modes/tokenization/typescript';
-import { toStandardTokenType } from 'vs/editor/common/languages/supports/tokenization';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { toStandardTokenType } from '../../../common/languages/supports/tokenization.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 interface IParseFunc {
 	(text: string): number[];

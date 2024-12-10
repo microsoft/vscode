@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { ResourceMap } from 'vs/base/common/map';
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Configuration, ConfigurationChangeEvent, ConfigurationModel, ConfigurationModelParser, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
-import { IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { join } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Configuration, ConfigurationChangeEvent, ConfigurationModel, ConfigurationModelParser, mergeChanges } from '../../common/configurationModels.js';
+import { IConfigurationRegistry, Extensions, ConfigurationScope } from '../../common/configurationRegistry.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { Registry } from '../../../registry/common/platform.js';
+import { WorkspaceFolder } from '../../../workspace/common/workspace.js';
+import { Workspace } from '../../../workspace/test/common/testWorkspace.js';
 
 suite('ConfigurationModelParser', () => {
 

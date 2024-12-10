@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IWindowOpenable, isWorkspaceToOpen, isFileToOpen } from 'vs/platform/window/common/window';
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, FileFilter, IFileDialogService, IDialogService, ConfirmResult, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import { isSavedWorkspace, isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { URI } from 'vs/base/common/uri';
-import * as resources from 'vs/base/common/resources';
-import { isAbsolute as localPathIsAbsolute, normalize as localPathNormalize } from 'vs/base/common/path';
-import { IInstantiationService, } from 'vs/platform/instantiation/common/instantiation';
-import { ISimpleFileDialog, SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import Severity from 'vs/base/common/severity';
-import { coalesce, distinct } from 'vs/base/common/arrays';
-import { trim } from 'vs/base/common/strings';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { Schemas } from 'vs/base/common/network';
-import { PLAINTEXT_EXTENSION } from 'vs/editor/common/languages/modesRegistry';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorOpenSource } from 'vs/platform/editor/common/editor';
-import { ILogService } from 'vs/platform/log/common/log';
+import * as nls from '../../../../nls.js';
+import { IWindowOpenable, isWorkspaceToOpen, isFileToOpen } from '../../../../platform/window/common/window.js';
+import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, FileFilter, IFileDialogService, IDialogService, ConfirmResult, getFileNamesMessage } from '../../../../platform/dialogs/common/dialogs.js';
+import { isSavedWorkspace, isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState, WORKSPACE_EXTENSION } from '../../../../platform/workspace/common/workspace.js';
+import { IHistoryService } from '../../history/common/history.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as resources from '../../../../base/common/resources.js';
+import { isAbsolute as localPathIsAbsolute, normalize as localPathNormalize } from '../../../../base/common/path.js';
+import { IInstantiationService, } from '../../../../platform/instantiation/common/instantiation.js';
+import { ISimpleFileDialog, SimpleFileDialog } from './simpleFileDialog.js';
+import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IHostService } from '../../host/browser/host.js';
+import Severity from '../../../../base/common/severity.js';
+import { coalesce, distinct } from '../../../../base/common/arrays.js';
+import { trim } from '../../../../base/common/strings.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IPathService } from '../../path/common/pathService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { PLAINTEXT_EXTENSION } from '../../../../editor/common/languages/modesRegistry.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { EditorOpenSource } from '../../../../platform/editor/common/editor.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextResourceConfigurationService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfiguration';
-import { IConfigurationService, ConfigurationTarget, IConfigurationValue, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { IPosition, Position } from '../core/position.js';
+import { ILanguageService } from '../languages/language.js';
+import { IModelService } from './model.js';
+import { ITextResourceConfigurationService, ITextResourceConfigurationChangeEvent } from './textResourceConfiguration.js';
+import { IConfigurationService, ConfigurationTarget, IConfigurationValue, IConfigurationChangeEvent } from '../../../platform/configuration/common/configuration.js';
 
 export class TextResourceConfigurationService extends Disposable implements ITextResourceConfigurationService {
 

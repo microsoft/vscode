@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import * as nls from 'vs/nls';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { DiffElementCellViewModelBase, SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { DiffSide, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { ICellOutputViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import * as DOM from '../../../../../base/browser/dom.js';
+import * as nls from '../../../../../nls.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DiffElementCellViewModelBase, SideBySideDiffElementViewModel } from './diffElementViewModel.js';
+import { DiffSide, INotebookTextDiffEditor } from './notebookDiffEditorBrowser.js';
+import { ICellOutputViewModel, IInsetRenderOutput, RenderOutputType } from '../notebookBrowser.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { NotebookCellOutputsSplice } from '../../common/notebookCommon.js';
+import { INotebookService } from '../../common/notebookService.js';
+import { DiffNestedCellViewModel } from './diffNestedCellViewModel.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { mimetypeIcon } from '../notebookIcons.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -47,7 +47,7 @@ export class OutputElement extends Disposable {
 		let result: IInsetRenderOutput | undefined = undefined;
 
 		const [mimeTypes, pick] = this.output.resolveMimeTypes(this._notebookTextModel, undefined);
-		const pickedMimeTypeRenderer = mimeTypes[pick];
+		const pickedMimeTypeRenderer = this.output.pickedMimeType || mimeTypes[pick];
 		if (mimeTypes.length > 1) {
 			outputItemDiv.style.position = 'relative';
 			const mimeTypePicker = DOM.$('.multi-mimetype-output');

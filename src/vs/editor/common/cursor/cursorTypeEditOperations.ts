@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
-import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
-import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/cursorCommon';
-import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Position } from 'vs/editor/common/core/position';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { EnterAction, IndentAction, StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
-import { getIndentationAtPosition } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
-import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
-import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from 'vs/editor/common/languages/autoIndent';
-import { getEnterAction } from 'vs/editor/common/languages/enterAction';
+import { CharCode } from '../../../base/common/charCode.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
+import * as strings from '../../../base/common/strings.js';
+import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection, ReplaceOvertypeCommand, ReplaceOvertypeCommandOnCompositionEnd } from '../commands/replaceCommand.js';
+import { ShiftCommand } from '../commands/shiftCommand.js';
+import { SurroundSelectionCommand } from '../commands/surroundSelectionCommand.js';
+import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from '../cursorCommon.js';
+import { WordCharacterClass, getMapForWordSeparators } from '../core/wordCharacterClassifier.js';
+import { Range } from '../core/range.js';
+import { Selection } from '../core/selection.js';
+import { Position } from '../core/position.js';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../editorCommon.js';
+import { ITextModel } from '../model.js';
+import { EnterAction, IndentAction, StandardAutoClosingPairConditional } from '../languages/languageConfiguration.js';
+import { getIndentationAtPosition } from '../languages/languageConfigurationRegistry.js';
+import { IElectricAction } from '../languages/supports/electricCharacter.js';
+import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from '../config/editorOptions.js';
+import { createScopedLineTokens } from '../languages/supports.js';
+import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from '../languages/autoIndent.js';
+import { getEnterAction } from '../languages/enterAction.js';
+import { CompositionOutcome } from './cursorTypeOperations.js';
 
 export class AutoIndentOperation {
 
@@ -354,6 +355,21 @@ export class AutoClosingOpenCharTypeOperation {
 	}
 }
 
+export class CompositionEndOvertypeOperation {
+
+	public static getEdits(config: CursorConfiguration, compositions: CompositionOutcome[]): EditOperationResult | null {
+		const isOvertypeMode = config.inputMode === 'overtype';
+		if (!isOvertypeMode) {
+			return null;
+		}
+		const commands = compositions.map(composition => new ReplaceOvertypeCommandOnCompositionEnd(composition.insertedTextRange));
+		return new EditOperationResult(EditOperationType.TypingOther, commands, {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: false
+		});
+	}
+}
+
 export class SurroundSelectionOperation {
 
 	public static getEdits(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, isDoingComposition: boolean): EditOperationResult | undefined {
@@ -483,11 +499,12 @@ export class InterceptorElectricCharOperation {
 
 export class SimpleCharacterTypeOperation {
 
-	public static getEdits(prevEditOperationType: EditOperationType, selections: Selection[], ch: string): EditOperationResult {
+	public static getEdits(config: CursorConfiguration, prevEditOperationType: EditOperationType, selections: Selection[], ch: string, isDoingComposition: boolean): EditOperationResult {
 		// A simple character type
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
-			commands[i] = new ReplaceCommand(selections[i], ch);
+			const ChosenReplaceCommand = config.inputMode === 'overtype' && !isDoingComposition ? ReplaceOvertypeCommand : ReplaceCommand;
+			commands[i] = new ChosenReplaceCommand(selections[i], ch);
 		}
 
 		const opType = getTypingOperation(ch, prevEditOperationType);
@@ -677,7 +694,9 @@ export class PasteOperation {
 	private static _distributedPaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string[]): EditOperationResult {
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
-			commands[i] = new ReplaceCommand(selections[i], text[i]);
+			const shouldOvertypeOnPaste = config.overtypeOnPaste && config.inputMode === 'overtype';
+			const ChosenReplaceCommand = shouldOvertypeOnPaste ? ReplaceOvertypeCommand : ReplaceCommand;
+			commands[i] = new ChosenReplaceCommand(selections[i], text[i]);
 		}
 		return new EditOperationResult(EditOperationType.Other, commands, {
 			shouldPushStackElementBefore: true,
@@ -701,7 +720,9 @@ export class PasteOperation {
 				const typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
 				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text, selection, true);
 			} else {
-				commands[i] = new ReplaceCommand(selection, text);
+				const shouldOvertypeOnPaste = config.overtypeOnPaste && config.inputMode === 'overtype';
+				const ChosenReplaceCommand = shouldOvertypeOnPaste ? ReplaceOvertypeCommand : ReplaceCommand;
+				commands[i] = new ChosenReplaceCommand(selection, text);
 			}
 		}
 		return new EditOperationResult(EditOperationType.Other, commands, {
@@ -732,11 +753,6 @@ export class CompositionOperation {
 		const startColumn = Math.max(1, pos.column - replacePrevCharCnt);
 		const endColumn = Math.min(model.getLineMaxColumn(pos.lineNumber), pos.column + replaceNextCharCnt);
 		const range = new Range(pos.lineNumber, startColumn, pos.lineNumber, endColumn);
-		const oldText = model.getValueInRange(range);
-		if (oldText === text && positionDelta === 0) {
-			// => ignore composition that doesn't do anything
-			return null;
-		}
 		return new ReplaceCommandWithOffsetCursorState(range, text, 0, positionDelta);
 	}
 }

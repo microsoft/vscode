@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs, ConfigurationMigration } from 'vs/workbench/common/configuration';
-import { AccessibilitySignal } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { AccessibilityVoiceSettingId, ISpeechService, SPEECH_LANGUAGES } from 'vs/workbench/contrib/speech/common/speechService';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Event } from 'vs/base/common/event';
-import { isDefined } from 'vs/base/common/types';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { localize } from '../../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs, ConfigurationMigration } from '../../../common/configuration.js';
+import { AccessibilitySignal } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { AccessibilityVoiceSettingId, ISpeechService, SPEECH_LANGUAGES } from '../../speech/common/speechService.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { Event } from '../../../../base/common/event.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
@@ -58,10 +58,11 @@ export const enum AccessibilityVerbositySettingId {
 	Hover = 'accessibility.verbosity.hover',
 	Notification = 'accessibility.verbosity.notification',
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
-	ReplInputHint = 'accessibility.verbosity.replInputHint',
+	ReplEditor = 'accessibility.verbosity.replEditor',
 	Comments = 'accessibility.verbosity.comments',
 	DiffEditorActive = 'accessibility.verbosity.diffEditorActive',
 	Debug = 'accessibility.verbosity.debug',
+	Walkthrough = 'accessibility.verbosity.walkthrough',
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -162,8 +163,8 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.emptyEditorHint', 'Provide information about relevant actions in an empty text editor.'),
 			...baseVerbosityProperty
 		},
-		[AccessibilityVerbositySettingId.ReplInputHint]: {
-			description: localize('verbosity.replInputHint', 'Provide information about relevant actions For the Repl input.'),
+		[AccessibilityVerbositySettingId.ReplEditor]: {
+			description: localize('verbosity.replEditor.description', 'Provide information about how to access the REPL editor accessibility help menu when the REPL editor is focused.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Comments]: {
@@ -176,6 +177,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.Debug]: {
 			description: localize('verbosity.debug', 'Provide information about how to access the debug console accessibility help dialog when the debug console or run and debug viewlet is focused. Note that a reload of the window is required for this to take effect.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.Walkthrough]: {
+			description: localize('verbosity.walkthrough', 'Provide information about how to open the walkthrough in an Accessible View.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress]: {
@@ -525,20 +530,6 @@ const configuration: IConfigurationNode = {
 				},
 			}
 		},
-		'accessibility.signals.chatRequestSent': {
-			...signalFeatureBase,
-			'description': localize('accessibility.signals.chatRequestSent', "Plays a signal - sound (audio cue) and/or announcement (alert) - when a chat request is made."),
-			'properties': {
-				'sound': {
-					'description': localize('accessibility.signals.chatRequestSent.sound', "Plays a sound when a chat request is made."),
-					...soundFeatureBase
-				},
-				'announcement': {
-					'description': localize('accessibility.signals.chatRequestSent.announcement', "Announces when a chat request is made."),
-					...announcementFeatureBase
-				},
-			}
-		},
 		'accessibility.signals.progress': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.progress', "Plays a signal - sound (audio cue) and/or announcement (alert) - on loop while progress is occurring."),
@@ -553,12 +544,46 @@ const configuration: IConfigurationNode = {
 				},
 			},
 		},
+		'accessibility.signals.chatRequestSent': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.chatRequestSent', "Plays a signal - sound (audio cue) and/or announcement (alert) - when a chat request is made."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.chatRequestSent.sound', "Plays a sound when a chat request is made."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.chatRequestSent.announcement', "Announces when a chat request is made."),
+					...announcementFeatureBase
+				},
+			}
+		},
 		'accessibility.signals.chatResponseReceived': {
 			...defaultNoAnnouncement,
 			'description': localize('accessibility.signals.chatResponseReceived', "Plays a sound / audio cue when the response has been received."),
 			'properties': {
 				'sound': {
-					'description': localize('accessibility.signals.chatResponseReceived.sound', "Plays a sound on loop while the response has been received."),
+					'description': localize('accessibility.signals.chatResponseReceived.sound', "Plays a sound on when the response has been received."),
+					...soundFeatureBase
+				},
+			}
+		},
+		'accessibility.signals.codeActionTriggered': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.codeActionTriggered', "Plays a sound / audio cue - when a code action has been triggered."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.codeActionTriggered.sound', "Plays a sound when a code action has been triggered."),
+					...soundFeatureBase
+				}
+			}
+		},
+		'accessibility.signals.codeActionApplied': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.codeActionApplied', "Plays a sound / audio cue when the code action has been applied."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.codeActionApplied.sound', "Plays a sound when the code action has been applied."),
 					...soundFeatureBase
 				},
 			}
@@ -679,6 +704,17 @@ const configuration: IConfigurationNode = {
 			'description': localize('accessibility.debugWatchVariableAnnouncements', "Controls whether variable changes should be announced in the debug watch view."),
 			'default': true,
 		},
+		'accessibility.replEditor.readLastExecutionOutput': {
+			'type': 'boolean',
+			'description': localize('accessibility.replEditor.readLastExecutedOutput', "Controls whether the output from an execution in the native REPL will be announced."),
+			'default': true,
+		},
+		'accessibility.replEditor.autoFocusReplExecution': {
+			type: 'string',
+			enum: ['none', 'input', 'lastExecution'],
+			default: 'input',
+			description: localize('replEditor.autoFocusAppendedCell', "Control whether focus should automatically be sent to the REPL when code is executed."),
+		}
 	}
 };
 

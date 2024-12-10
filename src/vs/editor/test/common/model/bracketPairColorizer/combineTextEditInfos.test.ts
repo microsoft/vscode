@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
-import { TextEditInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/beforeEditPositionMapper';
-import { combineTextEditInfos } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/combineTextEditInfos';
-import { lengthAdd, lengthToObj, lengthToPosition, positionToLength, toLength } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { Random } from 'vs/editor/test/common/core/random';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Range } from '../../../../common/core/range.js';
+import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { TextEditInfo } from '../../../../common/model/bracketPairsTextModelPart/bracketPairsTree/beforeEditPositionMapper.js';
+import { combineTextEditInfos } from '../../../../common/model/bracketPairsTextModelPart/bracketPairsTree/combineTextEditInfos.js';
+import { lengthAdd, lengthToObj, lengthToPosition, positionToLength, toLength } from '../../../../common/model/bracketPairsTextModelPart/bracketPairsTree/length.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { Random } from '../../core/random.js';
+import { createTextModel } from '../../testTextModel.js';
 
 suite('combineTextEditInfos', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

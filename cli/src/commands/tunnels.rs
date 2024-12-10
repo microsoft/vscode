@@ -155,6 +155,8 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 		code_server_args: (&ctx.args).into(),
 	};
 
+	args.server_args.apply_to(&mut params.code_server_args);
+
 	let mut listener: Box<dyn AsyncRWAccepter> =
 		match (args.on_port.first(), &args.on_host, args.on_socket) {
 			(_, _, true) => {
@@ -211,7 +213,7 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 				match socket {
 					Ok((read, write)) => servers.push(serve_stream(read, write, params.clone())),
 					Err(e) => {
-						error!(params.log, &format!("Error accepting connection: {}", e));
+						error!(params.log, &format!("Error accepting connection: {e}"));
 						return Ok(1);
 					}
 				}
@@ -277,7 +279,7 @@ pub async fn service(
 					],
 				)
 				.await?;
-			ctx.log.result(format!("Service successfully installed! You can use `{} tunnel service log` to monitor it, and `{} tunnel service uninstall` to remove it.", APPLICATION_NAME, APPLICATION_NAME));
+			ctx.log.result(format!("Service successfully installed! You can use `{APPLICATION_NAME} tunnel service log` to monitor it, and `{APPLICATION_NAME} tunnel service uninstall` to remove it."));
 		}
 		TunnelServiceSubCommands::Uninstall => {
 			manager.unregister().await?;
@@ -440,7 +442,7 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 	legal::require_consent(&paths, gateway_args.accept_server_license_terms)?;
 
 	let mut csa = (&args).into();
-	gateway_args.apply_to_server_args(&mut csa);
+	gateway_args.server_args.apply_to(&mut csa);
 	let result = serve_with_csa(paths, log, gateway_args, csa, TUNNEL_CLI_LOCK_NAME).await;
 	drop(no_sleep);
 
@@ -587,7 +589,7 @@ async fn serve_with_csa(
 			Ok(SingletonConnection::Client(stream)) => {
 				debug!(log, "starting as client to singleton");
 				if gateway_args.name.is_some()
-					|| !gateway_args.install_extension.is_empty()
+					|| !gateway_args.server_args.install_extension.is_empty()
 					|| gateway_args.tunnel.tunnel_id.is_some()
 				{
 					warning!(

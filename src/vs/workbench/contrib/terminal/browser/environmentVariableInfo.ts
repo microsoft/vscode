@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ITerminalStatus, ITerminalStatusHoverAction, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { localize } from 'vs/nls';
-import { Codicon } from 'vs/base/common/codicons';
-import { EnvironmentVariableScope, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
-import { TerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import Severity from 'vs/base/common/severity';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IEnvironmentVariableInfo } from '../common/environmentVariable.js';
+import { ITerminalStatus, ITerminalStatusHoverAction, TerminalCommandId } from '../common/terminal.js';
+import { ITerminalService } from './terminal.js';
+import { localize } from '../../../../nls.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { EnvironmentVariableScope, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from '../../../../platform/terminal/common/environmentVariable.js';
+import { TerminalStatus } from './terminalStatusList.js';
+import Severity from '../../../../base/common/severity.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 
 export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	readonly requiresAction = true;

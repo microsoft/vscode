@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { CharacterPair, IndentAction } from 'vs/editor/common/languages/languageConfiguration';
-import { OnEnterSupport } from 'vs/editor/common/languages/supports/onEnter';
-import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CharacterPair, IndentAction } from '../../../../common/languages/languageConfiguration.js';
+import { OnEnterSupport } from '../../../../common/languages/supports/onEnter.js';
+import { javascriptOnEnterRules } from './onEnterRules.js';
+import { EditorAutoIndentStrategy } from '../../../../common/config/editorOptions.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('OnEnter', () => {
 

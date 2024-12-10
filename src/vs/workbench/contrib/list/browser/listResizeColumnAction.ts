@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TableColumnResizeQuickPick } from 'vs/workbench/contrib/list/browser/tableColumnResizeQuickPick';
-import { Table } from 'vs/base/browser/ui/table/tableWidget';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
+import { TableColumnResizeQuickPick } from './tableColumnResizeQuickPick.js';
+import { Table } from '../../../../base/browser/ui/table/tableWidget.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IListService, WorkbenchListFocusContextKey } from '../../../../platform/list/browser/listService.js';
+import { Action2 } from '../../../../platform/actions/common/actions.js';
+import { localize } from '../../../../nls.js';
 
 export class ListResizeColumnAction extends Action2 {
 	constructor() {

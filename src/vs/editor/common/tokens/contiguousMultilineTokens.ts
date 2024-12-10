@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { readUInt32BE, writeUInt32BE } from 'vs/base/common/buffer';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { countEOL } from 'vs/editor/common/core/eolCounter';
-import { ContiguousTokensEditing } from 'vs/editor/common/tokens/contiguousTokensEditing';
-import { LineRange } from 'vs/editor/common/core/lineRange';
+import * as arrays from '../../../base/common/arrays.js';
+import { readUInt32BE, writeUInt32BE } from '../../../base/common/buffer.js';
+import { Position } from '../core/position.js';
+import { IRange } from '../core/range.js';
+import { countEOL } from '../core/eolCounter.js';
+import { ContiguousTokensEditing } from './contiguousTokensEditing.js';
+import { LineRange } from '../core/lineRange.js';
 
 /**
  * Represents contiguous tokens over a contiguous range of lines.

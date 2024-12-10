@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { isAbsolute, join, normalize, posix, sep } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { equalsIgnoreCase, rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { isNumber } from 'vs/base/common/types';
+import { CharCode } from './charCode.js';
+import { isAbsolute, join, normalize, posix, sep } from './path.js';
+import { isWindows } from './platform.js';
+import { equalsIgnoreCase, rtrim, startsWithIgnoreCase } from './strings.js';
+import { isNumber } from './types.js';
 
 export function isPathSeparator(code: number) {
 	return code === CharCode.Slash || code === CharCode.Backslash;

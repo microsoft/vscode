@@ -4,9 +4,9 @@
   responderUsername: "",
   responderAvatarIconUri: undefined,
   initialLocation: "panel",
-  welcomeMessage: undefined,
   requests: [
     {
+      requestId: undefined,
       message: {
         parts: [
           {
@@ -56,10 +56,20 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
+      responseId: undefined,
+      isHidden: false,
       result: { metadata: { metadataKey: "value" } },
-      followups: undefined,
+      followups: [
+        {
+          kind: "reply",
+          message: "Something else",
+          agentId: "",
+          tooltip: "a tooltip"
+        }
+      ],
       isCanceled: false,
       vote: undefined,
+      voteDownReason: undefined,
       agent: {
         name: "ChatProviderWithUsedContext",
         id: "ChatProviderWithUsedContext",
@@ -75,6 +85,7 @@
         slashCommands: [  ],
         disambiguation: [  ]
       },
+      workingSet: undefined,
       slashCommand: undefined,
       usedContext: {
         documents: [
@@ -94,7 +105,61 @@
         kind: "usedContext"
       },
       contentReferences: [  ],
-      codeCitations: [  ]
+      codeCitations: [  ],
+      timestamp: undefined
+    },
+    {
+      requestId: undefined,
+      message: {
+        parts: [
+          {
+            range: {
+              start: 0,
+              endExclusive: 14
+            },
+            editorRange: {
+              startLineNumber: 1,
+              startColumn: 1,
+              endLineNumber: 1,
+              endColumn: 15
+            },
+            text: "test request 2",
+            kind: "text"
+          }
+        ],
+        text: "test request 2"
+      },
+      variableData: { variables: [  ] },
+      response: [  ],
+      responseId: undefined,
+      isHidden: false,
+      result: {  },
+      followups: [  ],
+      isCanceled: false,
+      vote: undefined,
+      voteDownReason: undefined,
+      agent: {
+        name: "testAgent",
+        id: "testAgent",
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        extensionPublisherId: "",
+        publisherDisplayName: "",
+        extensionDisplayName: "",
+        locations: [ "panel" ],
+        metadata: { requester: { name: "test" } },
+        slashCommands: [  ],
+        disambiguation: [  ],
+        isDefault: true
+      },
+      workingSet: undefined,
+      slashCommand: undefined,
+      usedContext: undefined,
+      contentReferences: [  ],
+      codeCitations: [  ],
+      timestamp: undefined
     }
   ]
 }

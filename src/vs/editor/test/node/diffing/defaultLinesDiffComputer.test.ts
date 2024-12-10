@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
-import { RangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { getLineRangeMapping } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
-import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
-import { MyersDiffAlgorithm } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm';
-import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/dynamicProgrammingDiffing';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Range } from '../../../common/core/range.js';
+import { getLineRangeMapping, RangeMapping } from '../../../common/diff/rangeMapping.js';
+import { OffsetRange } from '../../../common/core/offsetRange.js';
+import { LinesSliceCharSequence } from '../../../common/diff/defaultLinesDiffComputer/linesSliceCharSequence.js';
+import { MyersDiffAlgorithm } from '../../../common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm.js';
+import { DynamicProgrammingDiffing } from '../../../common/diff/defaultLinesDiffComputer/algorithms/dynamicProgrammingDiffing.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ArrayText } from '../../../common/core/textEdit.js';
 
 suite('myers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -35,15 +35,15 @@ suite('lineRangeMapping', () => {
 					new Range(2, 1, 3, 1),
 					new Range(2, 1, 2, 1)
 				),
-				[
+				new ArrayText([
 					'const abc = "helloworld".split("");',
 					'',
 					''
-				],
-				[
+				]),
+				new ArrayText([
 					'const asciiLower = "helloworld".split("");',
 					''
-				]
+				])
 			).toString(),
 			"{[2,3)->[2,2)}"
 		);
@@ -56,16 +56,16 @@ suite('lineRangeMapping', () => {
 					new Range(2, 1, 2, 1),
 					new Range(2, 1, 4, 1),
 				),
-				[
+				new ArrayText([
 					'',
 					'',
-				],
-				[
+				]),
+				new ArrayText([
 					'',
 					'',
 					'',
 					'',
-				]
+				])
 			).toString(),
 			"{[2,2)->[2,4)}"
 		);

@@ -7,7 +7,6 @@ import { PackageManager } from '@vscode/ts-package-manager';
 import { basename, join } from 'path';
 import * as vscode from 'vscode';
 import { URI } from 'vscode-uri';
-import { Throttler } from '../utils/async';
 import { Disposable } from '../utils/dispose';
 import { MemFs } from './memFs';
 import { Logger } from '../logging/logger';
@@ -19,9 +18,7 @@ export class AutoInstallerFs extends Disposable implements vscode.FileSystemProv
 
 	private readonly memfs: MemFs;
 	private readonly packageManager: PackageManager;
-	private readonly _projectCache = new Map</* root */ string, {
-		readonly throttler: Throttler;
-	}>();
+	private readonly _projectCache = new Map</* root */ string, Promise<void> | undefined>();
 
 	private readonly _emitter = this._register(new vscode.EventEmitter<vscode.FileChangeEvent[]>());
 	readonly onDidChangeFile = this._emitter.event;
@@ -78,9 +75,8 @@ export class AutoInstallerFs extends Disposable implements vscode.FileSystemProv
 	}
 
 	watch(resource: vscode.Uri): vscode.Disposable {
-		const mapped = URI.file(new MappedUri(resource).path);
-		this.logger.trace(`AutoInstallerFs.watch. Original: ${resource.toString()}, Mapped: ${mapped.toString()}`);
-		return this.memfs.watch(mapped);
+		this.logger.trace(`AutoInstallerFs.watch. Resource: ${resource.toString()}}`);
+		return this.memfs.watch(resource);
 	}
 
 	async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
@@ -151,20 +147,20 @@ export class AutoInstallerFs extends Disposable implements vscode.FileSystemProv
 			throw vscode.FileSystemError.FileNotFound();
 		}
 
-		const root = this.getProjectRoot(incomingUri.path);
+		const root = await this.getProjectRoot(incomingUri.original);
 		if (!root) {
 			return;
 		}
 
 		this.logger.trace(`AutoInstallerFs.ensurePackageContents. Path: ${incomingUri.path}, Root: ${root}`);
 
-		let projectEntry = this._projectCache.get(root);
-		if (!projectEntry) {
-			projectEntry = { throttler: new Throttler() };
-			this._projectCache.set(root, projectEntry);
+		const existingInstall = this._projectCache.get(root);
+		if (existingInstall) {
+			this.logger.trace(`AutoInstallerFs.ensurePackageContents. Found ongoing install for: ${root}/node_modules`);
+			return existingInstall;
 		}
 
-		projectEntry.throttler.queue(async () => {
+		const installing = (async () => {
 			const proj = await this.packageManager.resolveProject(root, await this.getInstallOpts(incomingUri.original, root));
 			try {
 				await proj.restore();
@@ -172,15 +168,16 @@ export class AutoInstallerFs extends Disposable implements vscode.FileSystemProv
 				console.error(`failed to restore package at ${incomingUri.path}: `, e);
 				throw e;
 			}
-		});
+		})();
+		this._projectCache.set(root, installing);
+		await installing;
 	}
 
 	private async getInstallOpts(originalUri: URI, root: string) {
 		const vsfs = vscode.workspace.fs;
-		let pkgJson;
-		try {
-			pkgJson = TEXT_DECODER.decode(await vsfs.readFile(originalUri.with({ path: join(root, 'package.json') })));
-		} catch (e) { }
+
+		// We definitely need a package.json to be there.
+		const pkgJson = TEXT_DECODER.decode(await vsfs.readFile(originalUri.with({ path: join(root, 'package.json') })));
 
 		let kdlLock;
 		try {
@@ -199,9 +196,19 @@ export class AutoInstallerFs extends Disposable implements vscode.FileSystemProv
 		};
 	}
 
-	private getProjectRoot(path: string): string | undefined {
-		const pkgPath = path.match(/(^.*)\/node_modules/);
-		return pkgPath?.[1];
+	private async getProjectRoot(incomingUri: URI): Promise<string | undefined> {
+		const vsfs = vscode.workspace.fs;
+		const pkgPath = incomingUri.path.match(/^(.*?)\/node_modules/);
+		const ret = pkgPath?.[1];
+		if (!ret) {
+			return;
+		}
+		try {
+			await vsfs.stat(incomingUri.with({ path: join(ret, 'package.json') }));
+			return ret;
+		} catch (e) {
+			return;
+		}
 	}
 }
 
@@ -214,7 +221,7 @@ class MappedUri {
 
 		const parts = uri.path.match(/^\/([^\/]+)\/([^\/]*)(?:\/(.+))?$/);
 		if (!parts) {
-			throw new Error(`Invalid path: ${uri.path}`);
+			throw new Error(`Invalid uri: ${uri.toString()}, ${uri.path}`);
 		}
 
 		const scheme = parts[1];

@@ -67,12 +67,12 @@ async function initMicrosoftSovereignCloudAuthProvider(
 	return disposable;
 }
 
-export async function activate(context: ExtensionContext) {
+export async function activate(context: ExtensionContext, mainTelemetryReporter: MicrosoftAuthenticationTelemetryReporter) {
 	const uriHandler = new UriEventHandler();
 	context.subscriptions.push(uriHandler);
 	const authProvider = new MsalAuthProvider(
 		context,
-		new MicrosoftAuthenticationTelemetryReporter(context.extension.packageJSON.aiKey),
+		mainTelemetryReporter,
 		Logger,
 		uriHandler
 	);

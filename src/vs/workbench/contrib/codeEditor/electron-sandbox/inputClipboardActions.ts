@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import * as platform from 'vs/base/common/platform';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { getActiveWindow } from 'vs/base/browser/dom';
+import { KeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import * as platform from '../../../../base/common/platform.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { getActiveWindow } from '../../../../base/browser/dom.js';
 
 if (platform.isMacintosh) {
 

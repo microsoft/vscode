@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextSearchResult } from 'vs/workbench/services/search/common/search';
-import { TextSearchPreviewOptions } from 'vs/workbench/services/search/common/searchExtTypes';
-import { Range } from 'vs/editor/common/core/range';
+import { ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult } from './search.js';
+import { Range } from '../../../../editor/common/core/range.js';
 
 export const getFileResults = (
 	bytes: Uint8Array,
 	pattern: RegExp,
 	options: {
 		surroundingContext: number;
-		previewOptions: TextSearchPreviewOptions | undefined;
+		previewOptions: ITextSearchPreviewOptions | undefined;
 		remainingResultQuota: number;
 	}
 ): ITextSearchResult[] => {
@@ -101,10 +100,14 @@ export const getFileResults = (
 				matchStartIndex + matchedText.length - lineRanges[endLine].start - (endLine === startLine ? offset : 0)
 			);
 
-			const match: ITextSearchResult = {
-				ranges: fileRange,
-				preview: { text: previewText, matches: previewRange },
+			const match: ITextSearchMatch = {
+				rangeLocations: [{
+					source: fileRange,
+					preview: previewRange,
+				}],
+				previewText: previewText
 			};
+
 			results.push(match);
 
 			if (options.surroundingContext) {

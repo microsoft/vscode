@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeColor } from 'vs/base/common/themables';
-import { Command } from 'vs/editor/common/languages';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { IAuxiliaryStatusbarPart, IStatusbarEntryContainer } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeColor } from '../../../../base/common/themables.js';
+import { Command } from '../../../../editor/common/languages.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { ColorIdentifier } from '../../../../platform/theme/common/colorRegistry.js';
+import { IAuxiliaryStatusbarPart, IStatusbarEntryContainer } from '../../../browser/parts/statusbar/statusbarPart.js';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
@@ -196,4 +196,16 @@ export interface IStatusbarEntryAccessor extends IDisposable {
 	 * Allows to update an existing status bar entry.
 	 */
 	update(properties: IStatusbarEntry): void;
+}
+
+/**
+ * A way to override a status bar entry appearance. Only a subset of
+ * properties are currently allowed to override.
+ */
+export interface IStatusbarEntryOverride {
+
+	/**
+	 * The kind of status bar entry. This applies different colors to the entry.
+	 */
+	readonly kind?: StatusbarEntryKind;
 }

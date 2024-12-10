@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { INotebookVariableElement } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesDataSource';
+import * as dom from '../../../../../../base/browser/dom.js';
+import { IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
+import { IListAccessibilityProvider } from '../../../../../../base/browser/ui/list/listWidget.js';
+import { ITreeNode, ITreeRenderer } from '../../../../../../base/browser/ui/tree/tree.js';
+import { FuzzyScore } from '../../../../../../base/common/filters.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../../nls.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { WorkbenchObjectTree } from '../../../../../../platform/list/browser/listService.js';
+import { DebugExpressionRenderer } from '../../../../debug/browser/debugExpressionRenderer.js';
+import { INotebookVariableElement } from './notebookVariablesDataSource.js';
 
 const $ = dom.$;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
@@ -40,15 +40,16 @@ export interface IVariableTemplateData {
 
 export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariableElement, FuzzyScore, IVariableTemplateData> {
 
+	private expressionRenderer: DebugExpressionRenderer;
+
 	static readonly ID = 'variableElement';
 
 	get templateId(): string {
 		return NotebookVariableRenderer.ID;
 	}
 
-	constructor(
-		@IHoverService private readonly _hoverService: IHoverService
-	) {
+	constructor(@IInstantiationService instantiationService: IInstantiationService) {
+		this.expressionRenderer = instantiationService.createInstance(DebugExpressionRenderer);
 	}
 
 	renderTemplate(container: HTMLElement): IVariableTemplateData {
@@ -66,10 +67,11 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 		data.name.textContent = text;
 		data.name.title = element.element.type ?? '';
 
-		renderExpressionValue(data.elementDisposables, element.element, data.value, {
+		data.elementDisposables.add(this.expressionRenderer.renderValue(data.value, element.element, {
 			colorize: true,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-		}, this._hoverService);
+			session: undefined,
+		}));
 	}
 
 	disposeElement(element: ITreeNode<INotebookVariableElement, FuzzyScore>, index: number, templateData: IVariableTemplateData, height: number | undefined): void {

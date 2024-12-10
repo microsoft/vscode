@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { localize } from '../../../../nls.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 
 export const terminalViewIcon = registerIcon('terminal-view-icon', Codicon.terminal, localize('terminalViewIcon', 'View icon of the terminal view.'));
 
@@ -23,3 +23,4 @@ export const terminalDecorationSuccess = registerIcon('terminal-decoration-succe
 export const commandHistoryRemoveIcon = registerIcon('terminal-command-history-remove', Codicon.close, localize('terminalCommandHistoryRemove', 'Icon for removing a terminal command from command history.'));
 export const commandHistoryOutputIcon = registerIcon('terminal-command-history-output', Codicon.output, localize('terminalCommandHistoryOutput', 'Icon for viewing output of a terminal command.'));
 export const commandHistoryFuzzySearchIcon = registerIcon('terminal-command-history-fuzzy-search', Codicon.searchFuzzy, localize('terminalCommandHistoryFuzzySearch', 'Icon for toggling fuzzy search of command history.'));
+export const commandHistoryOpenFileIcon = registerIcon('terminal-command-history-open-file', Codicon.symbolReference, localize('terminalCommandHistoryOpenFile', 'Icon for opening a shell history file.'));

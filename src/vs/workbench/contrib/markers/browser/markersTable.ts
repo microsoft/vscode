@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
-import { ITableContextMenuEvent, ITableEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenEvent, IWorkbenchTableOptions, WorkbenchTable } from 'vs/platform/list/browser/listService';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { compareMarkersByUri, Marker, MarkerTableItem, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
-import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
-import { Link } from 'vs/platform/opener/browser/link';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { MarkersViewModel } from 'vs/workbench/contrib/markers/browser/markersTreeViewer';
-import { IAction } from 'vs/base/common/actions';
-import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersViewActions';
-import { DomEmitter } from 'vs/base/browser/event';
-import Messages from 'vs/workbench/contrib/markers/browser/messages';
-import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IProblemsWidget } from 'vs/workbench/contrib/markers/browser/markersView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Range } from 'vs/editor/common/core/range';
-import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
-import Severity from 'vs/base/common/severity';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { localize } from '../../../../nls.js';
+import * as DOM from '../../../../base/browser/dom.js';
+import { Event } from '../../../../base/common/event.js';
+import { ITableContextMenuEvent, ITableEvent, ITableRenderer, ITableVirtualDelegate } from '../../../../base/browser/ui/table/table.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IOpenEvent, IWorkbenchTableOptions, WorkbenchTable } from '../../../../platform/list/browser/listService.js';
+import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { compareMarkersByUri, Marker, MarkerTableItem, ResourceMarkers } from './markersModel.js';
+import { MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { FilterOptions } from './markersFilterOptions.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { MarkersViewModel } from './markersTreeViewer.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { QuickFixAction, QuickFixActionViewItem } from './markersViewActions.js';
+import { DomEmitter } from '../../../../base/browser/event.js';
+import Messages from './messages.js';
+import { isUndefinedOrNull } from '../../../../base/common/types.js';
+import { IProblemsWidget } from './markersView.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { unsupportedSchemas } from '../../../../platform/markers/common/markerService.js';
+import Severity from '../../../../base/common/severity.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 const $ = DOM.$;
 
@@ -157,8 +157,8 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 				codeLinkLabel.set(element.marker.code.value, element.codeMatches);
 
 				templateData.codeLink.link = {
-					href: element.marker.code.target.toString(),
-					title: element.marker.code.target.toString(),
+					href: element.marker.code.target.toString(true),
+					title: element.marker.code.target.toString(true),
 					label: codeLinkLabel.element,
 				};
 			}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProcessEnvironment, isLinux } from 'vs/base/common/platform';
+import { IProcessEnvironment, isLinux } from './platform.js';
 
 /**
  * Options to be passed to the external program or shell.

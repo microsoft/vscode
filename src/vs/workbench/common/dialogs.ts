@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from 'vs/base/common/async';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IDialogArgs, IDialogResult } from 'vs/platform/dialogs/common/dialogs';
+import { DeferredPromise } from '../../base/common/async.js';
+import { Event, Emitter } from '../../base/common/event.js';
+import { Disposable } from '../../base/common/lifecycle.js';
+import { IDialogArgs, IDialogResult } from '../../platform/dialogs/common/dialogs.js';
 
 export interface IDialogViewItem {
 	readonly args: IDialogArgs;

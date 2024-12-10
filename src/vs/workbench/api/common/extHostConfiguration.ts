@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mixin, deepClone } from 'vs/base/common/objects';
-import { Event, Emitter } from 'vs/base/common/event';
+import { mixin, deepClone } from '../../../base/common/objects.js';
+import { Event, Emitter } from '../../../base/common/event.js';
 import type * as vscode from 'vscode';
-import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { ExtHostConfigurationShape, MainThreadConfigurationShape, IConfigurationInitData, MainContext } from './extHost.protocol';
-import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
-import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
-import { Configuration, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
-import { ConfigurationScope, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
-import { isObject } from 'vs/base/common/types';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { Barrier } from 'vs/base/common/async';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
-import { URI } from 'vs/base/common/uri';
+import { ExtHostWorkspace, IExtHostWorkspace } from './extHostWorkspace.js';
+import { ExtHostConfigurationShape, MainThreadConfigurationShape, IConfigurationInitData, MainContext } from './extHost.protocol.js';
+import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes.js';
+import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from '../../../platform/configuration/common/configuration.js';
+import { Configuration, ConfigurationChangeEvent } from '../../../platform/configuration/common/configurationModels.js';
+import { ConfigurationScope, OVERRIDE_PROPERTY_REGEX } from '../../../platform/configuration/common/configurationRegistry.js';
+import { isObject } from '../../../base/common/types.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { Barrier } from '../../../base/common/async.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { Workspace } from '../../../platform/workspace/common/workspace.js';
+import { URI } from '../../../base/common/uri.js';
 
 function lookUp(tree: any, key: string) {
 	if (key) {

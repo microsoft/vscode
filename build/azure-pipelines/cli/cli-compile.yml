@@ -108,6 +108,34 @@ steps:
             ${{ pair.key }}: ${{ pair.value }}
 
     - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
+      - task: PublishSymbols@2
+        inputs:
+          IndexSources: false
+          SymbolsFolder: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release
+          SearchPattern: 'code.pdb'
+          SymbolServerType: TeamServices
+          SymbolsProduct: 'code'
+          ArtifactServices.Symbol.AccountName: microsoft
+          ArtifactServices.Symbol.PAT: $(System.AccessToken)
+          ArtifactServices.Symbol.UseAAD: false
+        displayName: Publish Symbols
+
+      - task: CopyFiles@2
+        inputs:
+          SourceFolder: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release
+          Contents: 'code.*'
+          TargetFolder: $(Agent.TempDirectory)/binskim-cli
+        displayName: Copy files for BinSkim
+
+      - task: BinSkim@4
+        inputs:
+          InputType: Basic
+          Function: analyze
+          TargetPattern: guardianGlob
+          AnalyzeTargetGlob: $(Agent.TempDirectory)/binskim-cli/*.*
+          AnalyzeSymPath: $(Agent.TempDirectory)/binskim-cli
+        displayName: Run BinSkim
+
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"

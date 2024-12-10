@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISettingsEditorModel, ISetting, ISettingsGroup, ISearchResult, IGroupFilter, SettingMatchType, ISettingMatch } from 'vs/workbench/services/preferences/common/preferences';
-import { IRange } from 'vs/editor/common/core/range';
-import { distinct } from 'vs/base/common/arrays';
-import * as strings from 'vs/base/common/strings';
-import { IMatch, matchesContiguousSubString, matchesWords } from 'vs/base/common/filters';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IAiRelatedInformationService, RelatedInformationType, SettingInformationResult } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
-import { TfIdfCalculator, TfIdfDocument } from 'vs/base/common/tfIdf';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { nullRange } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { ISettingsEditorModel, ISetting, ISettingsGroup, ISearchResult, IGroupFilter, SettingMatchType, ISettingMatch } from '../../../services/preferences/common/preferences.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { distinct } from '../../../../base/common/arrays.js';
+import * as strings from '../../../../base/common/strings.js';
+import { IMatch, matchesContiguousSubString, matchesWords } from '../../../../base/common/filters.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration } from '../common/preferences.js';
+import { IExtensionManagementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IAiRelatedInformationService, RelatedInformationType, SettingInformationResult } from '../../../services/aiRelatedInformation/common/aiRelatedInformation.js';
+import { TfIdfCalculator, TfIdfDocument } from '../../../../base/common/tfIdf.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { nullRange } from '../../../services/preferences/common/preferencesModels.js';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -360,7 +360,6 @@ class AiRelatedInformationSearchKeysProvider {
 }
 
 class AiRelatedInformationSearchProvider implements IRemoteSearchProvider {
-	private static readonly AI_RELATED_INFORMATION_THRESHOLD = 0.73;
 	private static readonly AI_RELATED_INFORMATION_MAX_PICKS = 5;
 
 	private readonly _keysProvider: AiRelatedInformationSearchKeysProvider;
@@ -399,7 +398,7 @@ class AiRelatedInformationSearchProvider implements IRemoteSearchProvider {
 		relatedInformation.sort((a, b) => b.weight - a.weight);
 
 		for (const info of relatedInformation) {
-			if (info.weight < AiRelatedInformationSearchProvider.AI_RELATED_INFORMATION_THRESHOLD || filterMatches.length === AiRelatedInformationSearchProvider.AI_RELATED_INFORMATION_MAX_PICKS) {
+			if (filterMatches.length === AiRelatedInformationSearchProvider.AI_RELATED_INFORMATION_MAX_PICKS) {
 				break;
 			}
 			const pick = info.setting;

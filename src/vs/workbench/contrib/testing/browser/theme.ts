@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color, RGBA } from 'vs/base/common/color';
-import { localize } from 'vs/nls';
-import { badgeBackground, badgeForeground, chartsGreen, chartsRed, contrastBorder, diffInserted, diffRemoved, editorBackground, editorErrorForeground, editorForeground, editorInfoForeground, opaque, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { localize } from '../../../../nls.js';
+import { activityErrorBadgeBackground, activityErrorBadgeForeground, badgeBackground, badgeForeground, chartsGreen, chartsRed, contrastBorder, diffInserted, diffRemoved, editorBackground, editorErrorForeground, editorForeground, editorInfoForeground, opaque, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { TestResultState } from '../common/testTypes.js';
 
 export const testingColorIconFailed = registerColor('testing.iconFailed', {
 	dark: '#f14c4c',
@@ -120,14 +119,24 @@ export const testingCoverCountBadgeBackground = registerColor('testing.coverCoun
 export const testingCoverCountBadgeForeground = registerColor('testing.coverCountBadgeForeground', badgeForeground, localize('testing.coverCountBadgeForeground', 'Foreground for the badge indicating execution count'));
 
 
+const messageBadgeBackground = registerColor(
+	'testing.message.error.badgeBackground',
+	activityErrorBadgeBackground,
+	localize('testing.message.error.badgeBackground', 'Background color of test error messages shown inline in the editor.')
+);
 registerColor(
-	'testing.message.error.decorationForeground',
-	{ dark: editorErrorForeground, light: editorErrorForeground, hcDark: editorForeground, hcLight: editorForeground },
-	localize('testing.message.error.decorationForeground', 'Text color of test error messages shown inline in the editor.')
+	'testing.message.error.badgeBorder',
+	messageBadgeBackground,
+	localize('testing.message.error.badgeBorder', 'Border color of test error messages shown inline in the editor.')
+);
+registerColor(
+	'testing.message.error.badgeForeground',
+	activityErrorBadgeForeground,
+	localize('testing.message.error.badgeForeground', 'Text color of test error messages shown inline in the editor.')
 );
 registerColor(
 	'testing.message.error.lineBackground',
-	{ dark: new Color(new RGBA(255, 0, 0, 0.1)), light: new Color(new RGBA(255, 0, 0, 0.1)), hcDark: null, hcLight: null },
+	null,
 	localize('testing.message.error.marginBackground', 'Margin color beside error messages shown inline in the editor.')
 );
 registerColor(

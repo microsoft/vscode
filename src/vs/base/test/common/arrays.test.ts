@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import * as arrays from 'vs/base/common/arrays';
-import * as arraysFind from 'vs/base/common/arraysFind';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import * as arrays from '../../common/arrays.js';
+import * as arraysFind from '../../common/arraysFind.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Arrays', () => {
 

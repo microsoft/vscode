@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { Color } from 'vs/base/common/color';
-import { IColorTheme, IThemeService, IFileIconTheme, IProductIconTheme } from 'vs/platform/theme/common/themeService';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { isBoolean, isString } from 'vs/base/common/types';
-import { IconContribution, IconDefinition } from 'vs/platform/theme/common/iconRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Event } from '../../../../base/common/event.js';
+import { Color } from '../../../../base/common/color.js';
+import { IColorTheme, IThemeService, IFileIconTheme, IProductIconTheme } from '../../../../platform/theme/common/themeService.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { isBoolean, isString } from '../../../../base/common/types.js';
+import { IconContribution, IconDefinition } from '../../../../platform/theme/common/iconRegistry.js';
+import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 
 export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWorkbenchThemeService>(IThemeService);
 

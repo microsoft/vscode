@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
-import { registerIcon, spinningLoading } from 'vs/platform/theme/common/iconRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { testingColorRunAction, testStatesToIconColors, testStatesToRetiredIconColors } from 'vs/workbench/contrib/testing/browser/theme';
-import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { localize } from '../../../../nls.js';
+import { registerIcon, spinningLoading } from '../../../../platform/theme/common/iconRegistry.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { testingColorRunAction, testStatesToIconColors, testStatesToRetiredIconColors } from './theme.js';
+import { TestResultState } from '../common/testTypes.js';
 
 export const testingViewIcon = registerIcon('test-view-icon', Codicon.beaker, localize('testViewIcon', 'View icon of the test view.'));
 export const testingResultsIcon = registerIcon('test-results-icon', Codicon.checklist, localize('testingResultsIcon', 'Icons for test results.'));
 export const testingRunIcon = registerIcon('testing-run-icon', Codicon.run, localize('testingRunIcon', 'Icon of the "run test" action.'));
-export const testingRerunIcon = registerIcon('testing-rerun-icon', Codicon.refresh, localize('testingRerunIcon', 'Icon of the "rerun tests" action.'));
+export const testingRerunIcon = registerIcon('testing-rerun-icon', Codicon.debugRerun, localize('testingRerunIcon', 'Icon of the "rerun tests" action.'));
 export const testingRunAllIcon = registerIcon('testing-run-all-icon', Codicon.runAll, localize('testingRunAllIcon', 'Icon of the "run all tests" action.'));
 // todo: https://github.com/microsoft/vscode-codicons/issues/72
 export const testingDebugAllIcon = registerIcon('testing-debug-all-icon', Codicon.debugAltSmall, localize('testingDebugAllIcon', 'Icon of the "debug all tests" action.'));

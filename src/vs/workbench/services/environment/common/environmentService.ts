@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IPath } from 'vs/platform/window/common/window';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
+import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IPath } from '../../../../platform/window/common/window.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export const IWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, IWorkbenchEnvironmentService>(IEnvironmentService);
 

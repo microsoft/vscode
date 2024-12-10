@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
-import { PixelRatio } from 'vs/base/browser/pixelRatio';
-import { Color } from 'vs/base/common/color';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { defaultInsertColor, defaultRemoveColor, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { IDiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
-import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { createFastDomNode, FastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { PixelRatio } from '../../../../../base/browser/pixelRatio.js';
+import { Color } from '../../../../../base/common/color.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { defaultInsertColor, defaultRemoveColor, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from '../../../../../platform/theme/common/colorRegistry.js';
+import { IColorTheme, IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
+import { IDiffElementViewModelBase } from './diffElementViewModel.js';
+import { NotebookDiffEditorEventDispatcher } from './eventDispatcher.js';
+import { INotebookTextDiffEditor } from './notebookDiffEditorBrowser.js';
 
 const MINIMUM_SLIDER_SIZE = 20;
 
@@ -193,8 +193,10 @@ export class NotebookDiffOverviewRuler extends Themable {
 					ctx.fillRect(0, currentFrom, laneWidth, cellHeight);
 					break;
 				case 'unchanged':
+				case 'unchangedMetadata':
 					break;
 				case 'modified':
+				case 'modifiedMetadata':
 					ctx.fillStyle = this._removeColorHex;
 					ctx.fillRect(0, currentFrom, laneWidth, cellHeight);
 					ctx.fillStyle = this._insertColorHex;

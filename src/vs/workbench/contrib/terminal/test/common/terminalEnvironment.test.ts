@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { URI as Uri } from 'vs/base/common/uri';
-import { addTerminalEnvironmentKeys, createTerminalEnvironment, getCwd, getLangEnvVariable, mergeEnvironments, preparePathForShell, shouldSetLangEnvVariable } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { GeneralShellType, PosixShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
+import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
+import { URI as Uri } from '../../../../../base/common/uri.js';
+import { addTerminalEnvironmentKeys, createTerminalEnvironment, getCwd, getLangEnvVariable, mergeEnvironments, preparePathForShell, shouldSetLangEnvVariable } from '../../common/terminalEnvironment.js';
+import { GeneralShellType, PosixShellType, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('Workbench - TerminalEnvironment', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

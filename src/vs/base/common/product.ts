@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { PlatformName } from 'vs/base/common/platform';
+import { IStringDictionary } from './collections.js';
+import { PlatformName } from './platform.js';
 
 export interface IBuiltInExtension {
 	readonly name: string;
@@ -100,9 +100,12 @@ export interface IProductConfiguration {
 		readonly itemUrl: string;
 		readonly publisherUrl: string;
 		readonly resourceUrlTemplate: string;
+		readonly extensionUrlTemplate: string;
 		readonly controlUrl: string;
 		readonly nlsBaseUrl: string;
 	};
+
+	readonly extensionPublisherOrgs?: readonly string[];
 
 	readonly extensionRecommendations?: IStringDictionary<IExtensionRecommendations>;
 	readonly configBasedExtensionTips?: IStringDictionary<IConfigBasedExtensionTip>;
@@ -115,6 +118,7 @@ export interface IProductConfiguration {
 	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: IStringDictionary<string[]>;
 	readonly trustedExtensionAuthAccess?: string[] | IStringDictionary<string[]>;
+	readonly inheritAuthAccountPreference?: IStringDictionary<string[]>;
 	readonly trustedExtensionProtocolHandlers?: readonly string[];
 
 	readonly commandPaletteSuggestedCommandIds?: string[];
@@ -189,8 +193,11 @@ export interface IProductConfiguration {
 
 	readonly commonlyUsedSettings?: string[];
 	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
-	readonly gitHubEntitlement?: IGitHubEntitlement;
+
+	readonly defaultChatAgent?: IDefaultChatAgent;
 	readonly chatParticipantRegistry?: string;
+
+	readonly emergencyAlertUrl?: string;
 }
 
 export interface ITunnelApplicationConfig {
@@ -296,12 +303,20 @@ export interface IAiGeneratedWorkspaceTrust {
 	readonly startupTrustRequestLearnMore: string;
 }
 
-export interface IGitHubEntitlement {
-	providerId: string;
-	command: { title: string; titleWithoutPlaceHolder: string; action: string; when: string };
-	entitlementUrl: string;
-	extensionId: string;
-	enablementKey: string;
-	confirmationMessage: string;
-	confirmationAction: string;
+export interface IDefaultChatAgent {
+	readonly extensionId: string;
+	readonly chatExtensionId: string;
+	readonly documentationUrl: string;
+	readonly termsStatementUrl: string;
+	readonly privacyStatementUrl: string;
+	readonly skusDocumentationUrl: string;
+	readonly publicCodeMatchesUrl: string;
+	readonly manageSettingsUrl: string;
+	readonly managePlanUrl: string;
+	readonly upgradePlanUrl: string;
+	readonly providerId: string;
+	readonly providerName: string;
+	readonly providerScopes: string[][];
+	readonly entitlementUrl: string;
+	readonly entitlementSignupLimitedUrl: string;
 }

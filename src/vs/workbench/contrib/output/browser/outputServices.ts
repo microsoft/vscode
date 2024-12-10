@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT } from 'vs/workbench/services/output/common/output';
-import { OutputLinkProvider } from 'vs/workbench/contrib/output/browser/outputLinkProvider';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILogService, ILoggerService, LogLevelToString } from 'vs/platform/log/common/log';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IOutputChannelModel } from 'vs/workbench/contrib/output/common/outputChannelModel';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
-import { IOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModelService';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SetLogLevelAction } from 'vs/workbench/contrib/logs/common/logsActions';
-import { IDefaultLogLevelsService } from 'vs/workbench/contrib/logs/common/defaultLogLevels';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT } from '../../../services/output/common/output.js';
+import { OutputLinkProvider } from './outputLinkProvider.js';
+import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { ILogService, ILoggerService, LogLevelToString } from '../../../../platform/log/common/log.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { IOutputChannelModel } from '../common/outputChannelModel.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { OutputViewPane } from './outputView.js';
+import { IOutputChannelModelService } from '../common/outputChannelModelService.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { SetLogLevelAction } from '../../logs/common/logsActions.js';
+import { IDefaultLogLevelsService } from '../../logs/common/defaultLogLevels.js';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 

@@ -5,30 +5,30 @@
 
 import assert from 'assert';
 import * as vscode from 'vscode';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { mock } from 'vs/base/test/common/mock';
-import { IModelAddedData, MainContext, MainThreadCommandsShape, MainThreadNotebookShape, NotebookCellsChangedEventDto, NotebookOutputItemDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
-import { CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { isEqual } from 'vs/base/common/resources';
-import { Event } from 'vs/base/common/event';
-import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
-import { ExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
-import { ExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
-import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { ExtHostDocumentsAndEditors } from '../../common/extHostDocumentsAndEditors.js';
+import { TestRPCProtocol } from '../common/testRPCProtocol.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { IModelAddedData, MainContext, MainThreadCommandsShape, MainThreadNotebookShape, NotebookCellsChangedEventDto, NotebookOutputItemDto } from '../../common/extHost.protocol.js';
+import { ExtHostNotebookController } from '../../common/extHostNotebook.js';
+import { ExtHostNotebookDocument } from '../../common/extHostNotebookDocument.js';
+import { CellKind, CellUri, NotebookCellsChangeType } from '../../../contrib/notebook/common/notebookCommon.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ExtHostDocuments } from '../../common/extHostDocuments.js';
+import { ExtHostCommands } from '../../common/extHostCommands.js';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { Event } from '../../../../base/common/event.js';
+import { ExtHostNotebookDocuments } from '../../common/extHostNotebookDocuments.js';
+import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
+import { ExtHostConsumerFileSystem } from '../../common/extHostFileSystemConsumer.js';
+import { ExtHostFileSystemInfo } from '../../common/extHostFileSystemInfo.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ExtHostSearch } from '../../common/extHostSearch.js';
+import { URITransformerService } from '../../common/extHostUriTransformerService.js';
 
 suite('NotebookCell#Document', function () {
 	let rpcProtocol: TestRPCProtocol;
@@ -97,7 +97,8 @@ suite('NotebookCell#Document', function () {
 				documentUri: notebookUri,
 				id: '_notebook_editor_0',
 				selections: [{ start: 0, end: 1 }],
-				visibleRanges: []
+				visibleRanges: [],
+				viewType: 'test'
 			}]
 		}));
 		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ newActiveEditor: '_notebook_editor_0' }));
@@ -369,7 +370,8 @@ suite('NotebookCell#Document', function () {
 				documentUri: notebookUri,
 				id: '_notebook_editor_2',
 				selections: [{ start: 0, end: 1 }],
-				visibleRanges: []
+				visibleRanges: [],
+				viewType: 'test'
 			}]
 		}));
 

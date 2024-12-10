@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importAMDNodeModule } from 'vs/amdX';
-import { AbstractSignService, IVsdaValidator } from 'vs/platform/sign/common/abstractSignService';
-import { ISignService } from 'vs/platform/sign/common/sign';
+import { AbstractSignService, IVsdaValidator } from '../common/abstractSignService.js';
+import { ISignService } from '../common/sign.js';
 
 declare module vsda {
 	// the signer is a native module that for historical reasons uses a lower case class name
@@ -29,7 +28,9 @@ export class SignService extends AbstractSignService implements ISignService {
 		return this.vsda().then(vsda => new vsda.signer().sign(arg));
 	}
 
-	private vsda(): Promise<typeof vsda> {
-		return importAMDNodeModule('vsda', 'index.js');
+	private async vsda(): Promise<typeof vsda> {
+		const mod = 'vsda';
+		const { default: vsda } = await import(mod);
+		return vsda;
 	}
 }

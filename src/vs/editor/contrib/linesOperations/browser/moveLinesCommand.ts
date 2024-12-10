@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { CompleteEnterAction, IndentAction } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IndentConsts } from 'vs/editor/common/languages/supports/indentRules';
-import * as indentUtils from 'vs/editor/contrib/indentation/common/indentUtils';
-import { getGoodIndentForLine, getIndentMetadata, IIndentConverter, IVirtualModel } from 'vs/editor/common/languages/autoIndent';
-import { getEnterAction } from 'vs/editor/common/languages/enterAction';
+import * as strings from '../../../../base/common/strings.js';
+import { ShiftCommand } from '../../../common/commands/shiftCommand.js';
+import { EditorAutoIndentStrategy } from '../../../common/config/editorOptions.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../../../common/editorCommon.js';
+import { ITextModel } from '../../../common/model.js';
+import { CompleteEnterAction, IndentAction } from '../../../common/languages/languageConfiguration.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { IndentConsts } from '../../../common/languages/supports/indentRules.js';
+import * as indentUtils from '../../indentation/common/indentUtils.js';
+import { getGoodIndentForLine, getIndentMetadata, IIndentConverter, IVirtualModel } from '../../../common/languages/autoIndent.js';
+import { getEnterAction } from '../../../common/languages/enterAction.js';
 
 export class MoveLinesCommand implements ICommand {
 
