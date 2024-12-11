@@ -6,17 +6,16 @@
 import { MarkdownRenderOptions, MarkedOptions, renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownStringTrustedOptions } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import './renderedMarkdown.css';
-import { applyFontInfo } from '../../../config/domFontInfo.js';
-import { ICodeEditor } from '../../../editorBrowser.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { ILanguageService } from '../../../../common/languages/language.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../common/languages/modesRegistry.js';
 import { tokenizeToString } from '../../../../common/languages/textToHtmlTokenizer.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { applyFontInfo } from '../../../config/domFontInfo.js';
+import { ICodeEditor } from '../../../editorBrowser.js';
+import './renderedMarkdown.css';
 
 export interface IMarkdownRenderResult extends IDisposable {
 	readonly element: HTMLElement;
@@ -40,18 +39,11 @@ export class MarkdownRenderer {
 		}
 	});
 
-	private readonly _onDidRenderAsync = new Emitter<void>();
-	readonly onDidRenderAsync = this._onDidRenderAsync.event;
-
 	constructor(
 		private readonly _options: IMarkdownRendererOptions,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
-
-	dispose(): void {
-		this._onDidRenderAsync.dispose();
-	}
 
 	render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, markedOptions?: MarkedOptions): IMarkdownRenderResult {
 		if (!markdown) {
@@ -103,7 +95,6 @@ export class MarkdownRenderer {
 
 				return element;
 			},
-			asyncRenderCallback: () => this._onDidRenderAsync.fire(),
 			actionHandler: {
 				callback: (link) => this.openMarkdownLink(link, markdown),
 				disposables: disposables

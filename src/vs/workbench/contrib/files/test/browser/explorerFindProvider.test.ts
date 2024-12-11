@@ -9,11 +9,11 @@ import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compres
 import { ExplorerItem } from '../../common/explorerModel.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
-import { ITreeNode, IAsyncDataSource } from '../../../../../base/browser/ui/tree/tree.js';
+import { ITreeNode, IAsyncDataSource, ITreeFilter, TreeFilterResult } from '../../../../../base/browser/ui/tree/tree.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { NullFilesConfigurationService } from '../../../../test/common/workbenchTestServices.js';
-import { ExplorerFindProvider } from '../../browser/views/explorerViewer.js';
+import { ExplorerFindProvider, FilesFilter } from '../../browser/views/explorerViewer.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IWorkbenchCompressibleAsyncDataTreeOptions, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
@@ -120,7 +120,13 @@ class CompressionDelegate implements ITreeCompressionDelegate<ExplorerItem> {
 	}
 }
 
-suite('Files - ExplorerView', () => {
+class TestFilesFilter implements ITreeFilter<ExplorerItem> {
+	filter(): TreeFilterResult<void> { return true; }
+	isIgnored(): boolean { return false; }
+	dispose() { }
+}
+
+suite('Find Provider - ExplorerView', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const fileService = new TestFileService();
@@ -196,6 +202,7 @@ suite('Files - ExplorerView', () => {
 		const compressionDelegate = new CompressionDelegate(dataSource);
 		const keyboardNavigationLabelProvider = new KeyboardNavigationLabelProvider();
 		const accessibilityProvider = new AccessibilityProvider();
+		const filter = instantiationService.createInstance(TestFilesFilter) as unknown as FilesFilter;
 
 		const options: IWorkbenchCompressibleAsyncDataTreeOptions<ExplorerItem, FuzzyScore> = { identityProvider: new IdentityProvider(), keyboardNavigationLabelProvider, accessibilityProvider };
 		const tree = disposables.add(instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, 'test', container, new VirtualDelegate(), compressionDelegate, [new Renderer()], dataSource, options));
@@ -203,7 +210,7 @@ suite('Files - ExplorerView', () => {
 
 		await tree.setInput(root);
 
-		const findProvider = instantiationService.createInstance(ExplorerFindProvider, () => tree);
+		const findProvider = instantiationService.createInstance(ExplorerFindProvider, filter, () => tree);
 
 		findProvider.startSession();
 
@@ -211,9 +218,9 @@ suite('Files - ExplorerView', () => {
 		assert.strictEqual(find(root, 'bba.txt') !== undefined, false);
 		assert.strictEqual(find(root, 'bbb.txt') !== undefined, false);
 
-		assert.strictEqual(find(root, 'abb.txt')?.isMarkedAsFound(), false);
-		assert.strictEqual(find(root, 'a')?.isMarkedAsFound(), false);
-		assert.strictEqual(find(root, 'ab')?.isMarkedAsFound(), false);
+		assert.strictEqual(find(root, 'abb.txt')?.isMarkedAsFiltered(), false);
+		assert.strictEqual(find(root, 'a')?.isMarkedAsFiltered(), false);
+		assert.strictEqual(find(root, 'ab')?.isMarkedAsFiltered(), false);
 
 		await findProvider.find('bb', { matchType: TreeFindMatchType.Contiguous, findMode: TreeFindMode.Filter }, new CancellationTokenSource().token);
 
@@ -221,18 +228,18 @@ suite('Files - ExplorerView', () => {
 		assert.strictEqual(find(root, 'bba.txt') !== undefined, true);
 		assert.strictEqual(find(root, 'bbb.txt') !== undefined, true);
 
-		assert.strictEqual(find(root, 'abb.txt')?.isMarkedAsFound(), true);
-		assert.strictEqual(find(root, 'bba.txt')?.isMarkedAsFound(), true);
-		assert.strictEqual(find(root, 'bbb.txt')?.isMarkedAsFound(), true);
+		assert.strictEqual(find(root, 'abb.txt')?.isMarkedAsFiltered(), true);
+		assert.strictEqual(find(root, 'bba.txt')?.isMarkedAsFiltered(), true);
+		assert.strictEqual(find(root, 'bbb.txt')?.isMarkedAsFiltered(), true);
 
-		assert.strictEqual(find(root, 'a')?.isMarkedAsFound(), true);
-		assert.strictEqual(find(root, 'ab')?.isMarkedAsFound(), true);
-		assert.strictEqual(find(root, 'b')?.isMarkedAsFound(), true);
-		assert.strictEqual(find(root, 'bb')?.isMarkedAsFound(), true);
+		assert.strictEqual(find(root, 'a')?.isMarkedAsFiltered(), true);
+		assert.strictEqual(find(root, 'ab')?.isMarkedAsFiltered(), true);
+		assert.strictEqual(find(root, 'b')?.isMarkedAsFiltered(), true);
+		assert.strictEqual(find(root, 'bb')?.isMarkedAsFiltered(), true);
 
-		assert.strictEqual(find(root, 'aa')?.isMarkedAsFound(), false);
-		assert.strictEqual(find(root, 'ba')?.isMarkedAsFound(), false);
-		assert.strictEqual(find(root, 'aba.txt')?.isMarkedAsFound(), false);
+		assert.strictEqual(find(root, 'aa')?.isMarkedAsFiltered(), false);
+		assert.strictEqual(find(root, 'ba')?.isMarkedAsFiltered(), false);
+		assert.strictEqual(find(root, 'aba.txt')?.isMarkedAsFiltered(), false);
 
 		await findProvider.endSession();
 
@@ -242,10 +249,10 @@ suite('Files - ExplorerView', () => {
 		assert.strictEqual(find(root, 'bba.txt') !== undefined, false);
 		assert.strictEqual(find(root, 'bbb.txt') !== undefined, false);
 
-		assert.strictEqual(find(root, 'a')?.isMarkedAsFound(), false);
-		assert.strictEqual(find(root, 'ab')?.isMarkedAsFound(), false);
-		assert.strictEqual(find(root, 'b')?.isMarkedAsFound(), false);
-		assert.strictEqual(find(root, 'bb')?.isMarkedAsFound(), false);
+		assert.strictEqual(find(root, 'a')?.isMarkedAsFiltered(), false);
+		assert.strictEqual(find(root, 'ab')?.isMarkedAsFiltered(), false);
+		assert.strictEqual(find(root, 'b')?.isMarkedAsFiltered(), false);
+		assert.strictEqual(find(root, 'bb')?.isMarkedAsFiltered(), false);
 
 		disposables.dispose();
 	});

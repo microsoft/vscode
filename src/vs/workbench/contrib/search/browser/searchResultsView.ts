@@ -181,6 +181,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		const label = this.labels.create(folderMatchElement, { supportDescriptionHighlights: true, supportHighlights: true });
 		disposables.add(label);
 		const badge = new CountBadge(DOM.append(folderMatchElement, DOM.$('.badge')), {}, defaultCountBadgeStyles);
+		disposables.add(badge);
 		const actionBarContainer = DOM.append(folderMatchElement, DOM.$('.actionBarContainer'));
 
 		const elementDisposables = new DisposableStore();
@@ -283,6 +284,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		const label = this.labels.create(fileMatchElement);
 		disposables.add(label);
 		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')), {}, defaultCountBadgeStyles);
+		disposables.add(badge);
 		const actionBarContainer = DOM.append(fileMatchElement, DOM.$('.actionBarContainer'));
 
 		const contextKeyServiceMain = disposables.add(this.contextKeyService.createScoped(container));

@@ -196,7 +196,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 				return;
 			}
 
-			this.textModelResolverService.createModelReference(result.uri).then(ref => {
+			return this.textModelResolverService.createModelReference(result.uri).then(ref => {
 
 				if (!ref.object || !ref.object.textEditorModel) {
 					ref.dispose();

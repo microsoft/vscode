@@ -13,6 +13,20 @@ declare module 'vscode' {
 	class DocumentDropOrPasteEditKind {
 		static readonly Empty: DocumentDropOrPasteEditKind;
 
+		/**
+		 * The root kind for basic text edits.
+		 *
+		 * This kind should be used for edits that insert basic text into the document. A good example of this is
+		 * an edit that pastes the clipboard text while also updating imports in the file based on the pasted text.
+		 * For this we could use a kind such as `text.updateImports.someLanguageId`.
+		 *
+		 * Even though most drop/paste edits ultimately insert text, you should not use {@linkcode Text} as the base kind
+		 * for every edit as this is redundant. Instead a more specific kind that describes the type of content being
+		 * inserted should be used instead For example, if the edit adds a Markdown link, use `markdown.link` since even
+		 * though the content being inserted is text, it's more important to know that the edit inserts Markdown syntax.
+		 */
+		static readonly Text: DocumentDropOrPasteEditKind;
+
 		private constructor(value: string);
 
 		/**
@@ -66,12 +80,17 @@ declare module 'vscode' {
 	/**
 	 * Additional information about the paste operation.
 	 */
-
+	// TODO: Should we also have this for drop?
 	export interface DocumentPasteEditContext {
 		/**
 		 * Requested kind of paste edits to return.
+		 *
+		 * When a explicit kind if requested by {@linkcode DocumentPasteTriggerKind.PasteAs PasteAs}, providers are
+		 * encourage to be more flexible when generating an edit of the requested kind.
 		 */
 		readonly only: DocumentDropOrPasteEditKind | undefined;
+
+		// TODO: should we also expose preferences?
 
 		/**
 		 * The reason why paste edits were requested.

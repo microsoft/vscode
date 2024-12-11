@@ -18,7 +18,9 @@ export const enum InlineChatConfigKeys {
 	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
 	StartWithOverlayWidget = 'inlineChat.startWithOverlayWidget',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
-	AccessibleDiffView = 'inlineChat.accessibleDiffView'
+	AccessibleDiffView = 'inlineChat.accessibleDiffView',
+	LineEmptyHint = 'inlineChat.lineEmptyHint',
+	LineNLHint = 'inlineChat.lineNaturalLanguageHint'
 }
 
 export const enum EditMode {
@@ -60,6 +62,18 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
 			],
 		},
+		[InlineChatConfigKeys.LineEmptyHint]: {
+			description: localize('emptyLineHint', "Whether empty lines show a hint to generate code with inline chat."),
+			default: false,
+			type: 'boolean',
+			tags: ['experimental'],
+		},
+		[InlineChatConfigKeys.LineNLHint]: {
+			markdownDescription: localize('lineSuffixHint', "Whether lines that are dominated by natural language or pseudo code show a hint to continue with inline chat. For instance, `class Person with name and hobbies` would show a hint to continue with chat."),
+			default: true,
+			type: 'boolean',
+			tags: ['experimental'],
+		},
 	}
 });
 
@@ -98,6 +112,7 @@ export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatRespons
 
 // --- (selected) action identifier
 
+export const ACTION_START = 'inlineChat.start';
 export const ACTION_ACCEPT_CHANGES = 'inlineChat.acceptChanges';
 export const ACTION_DISCARD_CHANGES = 'inlineChat.discardHunkChange';
 export const ACTION_REGENERATE_RESPONSE = 'inlineChat.regenerate';

@@ -13,7 +13,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
-import { EditorAction, ServicesAccessor } from '../../../../browser/editorExtensions.js';
+import { EditorAction, EditorCommand, ServicesAccessor } from '../../../../browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../common/editorContextKeys.js';
 import { Context as SuggestContext } from '../../../suggest/browser/suggest.js';
 import { inlineSuggestCommitId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from './commandIds.js';
@@ -80,12 +80,12 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 	}
 }
 
-export class TriggerInlineEditAction extends EditorAction {
+export class ExplicitTriggerInlineEditAction extends EditorAction {
 	constructor() {
 		super({
-			id: 'editor.action.inlineSuggest.trigger.inlineEdit',
-			label: nls.localize2('action.inlineSuggest.trigger.inlineEdit', "Trigger Inline Edit"),
-			precondition: EditorContextKeys.writable
+			id: 'editor.action.inlineSuggest.triggerInlineEditExplicit',
+			label: nls.localize2('action.inlineSuggest.trigger.explicitInlineEdit', "Trigger Inline Edit"),
+			precondition: EditorContextKeys.writable,
 		});
 	}
 
@@ -100,6 +100,20 @@ export class TriggerInlineEditAction extends EditorAction {
 				message: nls.localize('noInlineEditAvailable', "No inline edit is available.")
 			});
 		}
+	}
+}
+
+export class TriggerInlineEditAction extends EditorCommand {
+	constructor() {
+		super({
+			id: 'editor.action.inlineSuggest.triggerInlineEdit',
+			precondition: EditorContextKeys.writable,
+		});
+	}
+
+	public override async runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: { triggerKind?: 'automatic' | 'explicit' }): Promise<void> {
+		const controller = InlineCompletionsController.get(editor);
+		await controller?.model.get()?.trigger(undefined, true);
 	}
 }
 
@@ -163,12 +177,12 @@ export class AcceptInlineCompletion extends EditorAction {
 				menuId: MenuId.InlineSuggestionToolbar,
 				title: nls.localize('accept', "Accept"),
 				group: 'primary',
-				order: 1,
+				order: 2,
 			}, {
 				menuId: MenuId.InlineEditsActions,
 				title: nls.localize('accept', "Accept"),
 				group: 'primary',
-				order: 1,
+				order: 2,
 			}],
 			kbOpts: [
 				{
@@ -191,17 +205,6 @@ export class AcceptInlineCompletion extends EditorAction {
 
 							InlineCompletionContextKeys.tabShouldAcceptInlineEdit,
 						)
-					),
-				},
-				{
-					primary: KeyMod.CtrlCmd | KeyCode.Enter,
-					weight: 200,
-					kbExpr: ContextKeyExpr.and(
-						EditorContextKeys.editorTextFocus,
-						InlineCompletionContextKeys.inlineEditVisible,
-						SuggestContext.Visible.toNegated(),
-						EditorContextKeys.hoverFocused.toNegated(),
-						EditorContextKeys.tabMovesFocus.toNegated(),
 					),
 				}
 			],
@@ -227,7 +230,7 @@ export class JumpToNextInlineEdit extends EditorAction {
 				menuId: MenuId.InlineEditsActions,
 				title: nls.localize('jump', "Jump"),
 				group: 'primary',
-				order: 2,
+				order: 1,
 				when: InlineCompletionContextKeys.cursorAtInlineEdit.toNegated(),
 			}],
 			kbOpts: {
@@ -263,7 +266,13 @@ export class HideInlineCompletion extends EditorAction {
 			kbOpts: {
 				weight: 100,
 				primary: KeyCode.Escape,
-			}
+			},
+			menuOpts: [{
+				menuId: MenuId.InlineEditsActions,
+				title: nls.localize('reject', "Reject"),
+				group: 'primary',
+				order: 3,
+			}]
 		});
 	}
 
@@ -293,7 +302,7 @@ export class ToggleAlwaysShowInlineSuggestionToolbar extends Action2 {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor): Promise<void> {
 		const configService = accessor.get(IConfigurationService);
 		const currentValue = configService.getValue<'always' | 'onHover'>('editor.inlineSuggest.showToolbar');
 		const newValue = currentValue === 'always' ? 'onHover' : 'always';

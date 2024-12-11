@@ -31,7 +31,7 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { isChatViewTitleActionContext } from '../../contrib/chat/common/chatActions.js';
-import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
+import { IChatRelatedFile, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 
 class ChatAgentResponseStream {
 
@@ -366,17 +366,17 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		});
 	}
 
-	registerRelatedFilesProvider(extension: IExtensionDescription, provider: vscode.ChatRelatedFilesProvider): vscode.Disposable {
+	registerRelatedFilesProvider(extension: IExtensionDescription, provider: vscode.ChatRelatedFilesProvider, metadata: vscode.ChatRelatedFilesProviderMetadata): vscode.Disposable {
 		const handle = ExtHostChatAgents2._relatedFilesProviderIdPool++;
 		this._relatedFilesProviders.set(handle, new ExtHostRelatedFilesProvider(extension, provider));
-		this._proxy.$registerRelatedFilesProvider(handle);
+		this._proxy.$registerRelatedFilesProvider(handle, metadata);
 		return toDisposable(() => {
 			this._relatedFilesProviders.delete(handle);
 			this._proxy.$unregisterRelatedFilesProvider(handle);
 		});
 	}
 
-	async $provideRelatedFiles(handle: number, request: IChatRequestDraft, token: CancellationToken): Promise<URI[] | undefined> {
+	async $provideRelatedFiles(handle: number, request: IChatRequestDraft, token: CancellationToken): Promise<Dto<IChatRelatedFile>[] | undefined> {
 		const provider = this._relatedFilesProviders.get(handle);
 		if (!provider) {
 			return Promise.resolve([]);
@@ -490,7 +490,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 						responseIsIncomplete: true
 					};
 				}
-				if (errorDetails?.responseIsRedacted) {
+				if (errorDetails?.responseIsRedacted || errorDetails?.isQuotaExceeded) {
 					checkProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
 				}
 
@@ -503,7 +503,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				e = e.cause;
 			}
 
-			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true } };
+			const isQuotaExceeded = e instanceof Error && e.name === 'ChatQuotaExceeded';
+			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true, isQuotaExceeded } };
 
 		} finally {
 			stream?.close();
