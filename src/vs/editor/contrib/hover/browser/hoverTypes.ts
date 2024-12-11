@@ -103,7 +103,7 @@ export interface IEditorHoverContext {
 	/**
 	 * Set the minimum dimensions of the resizable hover
 	 */
-	setMinimumDimensions?(dimensions: Dimension): void;
+	setMinimumDimensions(dimensions: Dimension): void;
 	/**
 	 * Hide the hover.
 	 */
