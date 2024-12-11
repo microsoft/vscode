@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
-import { FileOperation, IFileService, IFilesConfiguration, IWatchOptions } from '../../../platform/files/common/files.js';
+import { FileOperation, IFileService, IWatchOptions } from '../../../platform/files/common/files.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostFileSystemEventServiceShape, MainContext, MainThreadFileSystemEventServiceShape } from '../common/extHost.protocol.js';
 import { localize } from '../../../nls.js';
@@ -22,12 +22,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { reviveWorkspaceEditDto } from './mainThreadBulkEdits.js';
-import { GLOBSTAR } from '../../../base/common/glob.js';
-import { rtrim } from '../../../base/common/strings.js';
 import { UriComponents, URI } from '../../../base/common/uri.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { normalizeWatcherPattern } from '../../../platform/files/common/watcher.js';
-import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystemEventService)
 export class MainThreadFileSystemEventService implements MainThreadFileSystemEventServiceShape {
@@ -50,9 +45,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 		@ILogService logService: ILogService,
 		@IEnvironmentService envService: IEnvironmentService,
 		@IUriIdentityService uriIdentService: IUriIdentityService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
 
@@ -234,9 +227,9 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 			}
 		}
 
-		// Correlated file watching is taken as is
+		// Correlated file watching: use an exclusive `createWatcher()`
 		if (correlate) {
-			this._logService.trace(`MainThreadFileSystemEventService#$watch(): request to start watching correlated (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
+			this._logService.trace(`MainThreadFileSystemEventService#$watch(): request to start watching correlated (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session}, excludes: ${JSON.stringify(opts.excludes)}, includes: ${JSON.stringify(opts.includes)})`);
 
 			const watcherDisposables = new DisposableStore();
 			const subscription = watcherDisposables.add(this._fileService.createWatcher(uri, opts));
@@ -252,60 +245,9 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 			this._watches.set(session, watcherDisposables);
 		}
 
-		// Uncorrelated file watching gets special treatment
+		// Uncorrelated file watching: via shared `watch()`
 		else {
-			this._logService.trace(`MainThreadFileSystemEventService#$watch(): request to start watching uncorrelated (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
-
-			const workspaceFolder = this._contextService.getWorkspaceFolder(uri);
-
-			// Automatically add `files.watcherExclude` patterns when watching
-			// recursively to give users a chance to configure exclude rules
-			// for reducing the overhead of watching recursively
-			if (opts.recursive && opts.excludes.length === 0) {
-				const config = this._configurationService.getValue<IFilesConfiguration>();
-				if (config.files?.watcherExclude) {
-					for (const key in config.files.watcherExclude) {
-						if (key && config.files.watcherExclude[key] === true) {
-							opts.excludes.push(key);
-						}
-					}
-				}
-			}
-
-			// Non-recursive watching inside the workspace will overlap with
-			// our standard workspace watchers. To prevent duplicate events,
-			// we only want to include events for files that are otherwise
-			// excluded via `files.watcherExclude`. As such, we configure
-			// to include each configured exclude pattern so that only those
-			// events are reported that are otherwise excluded.
-			// However, we cannot just use the pattern as is, because a pattern
-			// such as `bar` for a exclude, will work to exclude any of
-			// `<workspace path>/bar` but will not work as include for files within
-			// `bar` unless a suffix of `/**` if added.
-			// (https://github.com/microsoft/vscode/issues/148245)
-			else if (!opts.recursive && workspaceFolder) {
-				const config = this._configurationService.getValue<IFilesConfiguration>();
-				if (config.files?.watcherExclude) {
-					for (const key in config.files.watcherExclude) {
-						if (key && config.files.watcherExclude[key] === true) {
-							if (!opts.includes) {
-								opts.includes = [];
-							}
-
-							const includePattern = `${rtrim(key, '/')}/${GLOBSTAR}`;
-							opts.includes.push(normalizeWatcherPattern(workspaceFolder.uri.fsPath, includePattern));
-						}
-					}
-				}
-
-				// Still ignore watch request if there are actually no configured
-				// exclude rules, because in that case our default recursive watcher
-				// should be able to take care of all events.
-				if (!opts.includes || opts.includes.length === 0) {
-					this._logService.trace(`MainThreadFileSystemEventService#$watch(): ignoring request to start watching because path is inside workspace and no excludes are configured (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
-					return;
-				}
-			}
+			this._logService.trace(`MainThreadFileSystemEventService#$watch(): request to start watching uncorrelated (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session}, excludes: ${JSON.stringify(opts.excludes)}, includes: ${JSON.stringify(opts.includes)})`);
 
 			const subscription = this._fileService.watch(uri, opts);
 			this._watches.set(session, subscription);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { BidirectionalMap, FourKeyMap, LinkedMap, LRUCache, mapsStrictEqualIgnoreOrder, MRUCache, ResourceMap, SetMap, Touch, TwoKeyMap } from '../../common/map.js';
+import { BidirectionalMap, FourKeyMap, LinkedMap, LRUCache, mapsStrictEqualIgnoreOrder, MRUCache, ResourceMap, SetMap, ThreeKeyMap, Touch, TwoKeyMap } from '../../common/map.js';
 import { extUriIgnorePathCase } from '../../common/resources.js';
 import { URI } from '../../common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
@@ -717,6 +717,39 @@ suite('TwoKeyMap', () => {
 	});
 });
 
+suite('ThreeKeyMap', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('set and get', () => {
+		const map = new ThreeKeyMap<string, string, string, number>();
+		map.set('a', 'b', 'c', 1);
+		map.set('a', 'c', 'd', 2);
+		map.set('b', 'c', 'e', 3);
+		assert.strictEqual(map.get('a', 'b', 'c'), 1);
+		assert.strictEqual(map.get('a', 'c', 'd'), 2);
+		assert.strictEqual(map.get('b', 'c', 'e'), 3);
+		assert.strictEqual(map.get('a', 'd', 'e'), undefined);
+	});
+
+	test('clear', () => {
+		const map = new ThreeKeyMap<string, string, string, number>();
+		map.set('a', 'b', 'c', 1);
+		map.set('a', 'c', 'd', 2);
+		map.set('b', 'c', 'e', 3);
+		map.clear();
+		assert.strictEqual(map.get('a', 'b', 'c'), undefined);
+		assert.strictEqual(map.get('a', 'c', 'd'), undefined);
+		assert.strictEqual(map.get('b', 'c', 'e'), undefined);
+	});
+
+	test('values', () => {
+		const map = new ThreeKeyMap<string, string, string, number>();
+		map.set('a', 'b', 'c', 1);
+		map.set('a', 'c', 'd', 2);
+		map.set('b', 'c', 'e', 3);
+		assert.deepStrictEqual(Array.from(map.values()), [1, 2, 3]);
+	});
+});
 
 suite('FourKeyMap', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

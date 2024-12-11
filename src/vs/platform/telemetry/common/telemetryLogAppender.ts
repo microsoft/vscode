@@ -38,8 +38,8 @@ export class TelemetryLogAppender extends Disposable implements ITelemetryAppend
 		}
 	}
 
-	flush(): Promise<any> {
-		return Promise.resolve(undefined);
+	flush(): Promise<void> {
+		return Promise.resolve();
 	}
 
 	log(eventName: string, data: any): void {

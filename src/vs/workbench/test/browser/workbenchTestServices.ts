@@ -79,7 +79,7 @@ import { BrowserTextFileService } from '../../services/textfile/browser/browserT
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { createTextBufferFactoryFromStream } from '../../../editor/common/model/textModel.js';
 import { IPathService } from '../../services/path/common/pathService.js';
-import { Direction } from '../../../base/browser/ui/grid/grid.js';
+import { Direction, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { IProgressService, IProgressOptions, IProgressWindowOptions, IProgressNotificationOptions, IProgressCompositeOptions, IProgress, IProgressStep, Progress, IProgressDialogOptions, IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { IWorkingCopyFileService, WorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
 import { UndoRedoService } from '../../../platform/undoRedo/common/undoRedoService.js';
@@ -93,13 +93,13 @@ import { TestDialogService } from '../../../platform/dialogs/test/common/testDia
 import { CodeEditorService } from '../../services/editor/browser/codeEditorService.js';
 import { MainEditorPart } from '../../browser/parts/editor/editorPart.js';
 import { ICodeEditor } from '../../../editor/browser/editorBrowser.js';
-import { IDiffEditor } from '../../../editor/common/editorCommon.js';
+import { IDiffEditor, IEditor } from '../../../editor/common/editorCommon.js';
 import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
 import { QuickInputService } from '../../services/quickinput/browser/quickInputService.js';
 import { IListService } from '../../../platform/list/browser/listService.js';
 import { win32, posix } from '../../../base/common/path.js';
 import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService, TestMarkerService, TestHistoryService } from '../common/workbenchTestServices.js';
-import { IView, ViewContainer, ViewContainerLocation } from '../../common/views.js';
+import { IView, IViewDescriptor, ViewContainer, ViewContainerLocation } from '../../common/views.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
 import { IPaneComposite } from '../../common/panecomposite.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
@@ -181,6 +181,8 @@ import { EnvironmentVariableService } from '../../contrib/terminal/common/enviro
 import { ContextMenuService } from '../../../platform/contextview/browser/contextMenuService.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../platform/hover/test/browser/nullHoverService.js';
+import { IActionViewItemService, NullActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -257,7 +259,10 @@ export function workbenchInstantiationService(
 	},
 	disposables: Pick<DisposableStore, 'add'> = new DisposableStore()
 ): TestInstantiationService {
-	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([ILifecycleService, disposables.add(new TestLifecycleService())])));
+	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
+		[ILifecycleService, disposables.add(new TestLifecycleService())],
+		[IActionViewItemService, new SyncDescriptor(NullActionViewItemService)],
+	)));
 
 	instantiationService.stub(IProductService, TestProductService);
 	instantiationService.stub(IEditorWorkerService, new TestEditorWorkerService());
@@ -637,7 +642,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	hasMainWindowBorder(): boolean { return false; }
 	getMainWindowBorderRadius(): string | undefined { return undefined; }
 	isVisible(_part: Parts): boolean { return true; }
-	getContainer(): HTMLElement { return null!; }
+	getContainer(): HTMLElement { return mainWindow.document.body; }
 	whenContainerStylesLoaded() { return undefined; }
 	isTitleBarHidden(): boolean { return false; }
 	isStatusBarHidden(): boolean { return false; }
@@ -667,6 +672,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	isMainEditorLayoutCentered(): boolean { return false; }
 	centerMainEditorLayout(_active: boolean): void { }
 	resizePart(_part: Parts, _sizeChangeWidth: number, _sizeChangeHeight: number): void { }
+	getSize(part: Parts): IViewSize { throw new Error('Method not implemented.'); }
+	setSize(part: Parts, size: IViewSize): void { throw new Error('Method not implemented.'); }
 	registerPart(part: Part): IDisposable { return Disposable.None; }
 	isWindowMaximized(targetWindow: Window) { return false; }
 	updateWindowMaximizedState(targetWindow: Window, maximized: boolean): void { }
@@ -724,6 +731,10 @@ export class TestPaneCompositeService extends Disposable implements IPaneComposi
 		throw new Error('Method not implemented.');
 	}
 
+	getPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
+		throw new Error('Method not implemented.');
+	}
+
 	getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
 		return assertIsDefined(this.parts.get(viewContainerLocation));
 	}
@@ -759,6 +770,7 @@ export class TestSideBarPart implements IPaneCompositePart {
 	dispose() { }
 	getPinnedPaneCompositeIds() { return []; }
 	getVisiblePaneCompositeIds() { return []; }
+	getPaneCompositeIds() { return []; }
 	layout(width: number, height: number, top: number, left: number): void { }
 }
 
@@ -780,6 +792,7 @@ export class TestPanelPart implements IPaneCompositePart {
 	getPaneComposites() { return []; }
 	getPinnedPaneCompositeIds() { return []; }
 	getVisiblePaneCompositeIds() { return []; }
+	getPaneCompositeIds() { return []; }
 	getActivePaneComposite(): IPaneComposite { return activeViewlet; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
 	dispose() { }
@@ -812,6 +825,7 @@ export class TestViewsService implements IViewsService {
 	getViewProgressIndicator(id: string) { return null!; }
 	getActiveViewPaneContainerWithId(id: string) { return null; }
 	getFocusedViewName(): string { return ''; }
+	getFocusedView(): IViewDescriptor | null { return null; }
 }
 
 export class TestEditorGroupsService implements IEditorGroupsService {
@@ -1024,6 +1038,7 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 	mostRecentlyActiveEditors: readonly IEditorIdentifier[] = [];
 	visibleEditorPanes: readonly IVisibleEditorPane[] = [];
 	visibleTextEditorControls = [];
+	getVisibleTextEditorControls(order: EditorsOrder): readonly (IEditor | IDiffEditor)[] { return this.visibleTextEditorControls; }
 	visibleEditors: readonly EditorInput[] = [];
 	count = this.editors.length;
 
@@ -1557,12 +1572,12 @@ export class TestHostService implements IHostService {
 
 	async toggleFullScreen(): Promise<void> { }
 
+	async getScreenshot(): Promise<ArrayBufferLike | undefined> { return undefined; }
+
+	async getNativeWindowHandle(_windowId: number): Promise<VSBuffer | undefined> { return undefined; }
+
 	readonly colorScheme = ColorScheme.DARK;
 	onDidChangeColorScheme = Event.None;
-
-	getPathForFile(file: File): string | undefined {
-		return undefined;
-	}
 }
 
 export class TestFilesConfigurationService extends FilesConfigurationService {
@@ -1968,13 +1983,14 @@ export class TestWorkspacesService implements IWorkspacesService {
 
 export class TestTerminalInstanceService implements ITerminalInstanceService {
 	onDidCreateInstance = Event.None;
+	onDidRegisterBackend = Event.None;
 	declare readonly _serviceBrand: undefined;
 
 	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig { throw new Error('Method not implemented.'); }
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, remoteAuthority: string | undefined): Promise<string> { throw new Error('Method not implemented.'); }
 	createInstance(options: ICreateTerminalOptions, target: TerminalLocation): ITerminalInstance { throw new Error('Method not implemented.'); }
 	async getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined> { throw new Error('Method not implemented.'); }
-	didRegisterBackend(remoteAuthority?: string): void { throw new Error('Method not implemented.'); }
+	didRegisterBackend(backend: ITerminalBackend): void { throw new Error('Method not implemented.'); }
 	getRegisteredBackends(): IterableIterator<ITerminalBackend> { throw new Error('Method not implemented.'); }
 }
 
@@ -2176,6 +2192,8 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	onProfileAwareDidInstallExtensions = Event.None;
 	onProfileAwareUninstallExtension = Event.None;
 	onProfileAwareDidUninstallExtension = Event.None;
+	onDidProfileAwareUninstallExtensions = Event.None;
+	onProfileAwareDidUpdateExtensionMetadata = Event.None;
 	onDidChangeProfile = Event.None;
 	onDidEnableExtensions = Event.None;
 	installVSIX(location: URI, manifest: Readonly<IRelaxedExtensionManifest>, installOptions?: InstallOptions | undefined): Promise<ILocalExtension> {
@@ -2197,7 +2215,8 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	install(vsix: URI, options?: InstallOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
-	async canInstall(extension: IGalleryExtension): Promise<boolean> { return false; }
+	isAllowed(): true | IMarkdownString { return true; }
+	async canInstall(extension: IGalleryExtension): Promise<true> { return true; }
 	installFromGallery(extension: IGalleryExtension, options?: InstallOptions | undefined): Promise<ILocalExtension> {
 		throw new Error('Method not implemented.');
 	}
@@ -2238,7 +2257,6 @@ export class TestUserDataProfileService implements IUserDataProfileService {
 	readonly onDidChangeCurrentProfile = Event.None;
 	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }), URI.file('tests').with({ scheme: 'vscode-tests' }));
 	async updateCurrentProfile(): Promise<void> { }
-	getShortName(profile: IUserDataProfile): string { return profile.shortName ?? profile.name; }
 }
 
 export class TestWebExtensionsScannerService implements IWebExtensionsScannerService {

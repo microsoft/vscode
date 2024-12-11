@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isESM, canASAR } from './base/common/amd.js';
 import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath, Schemas, VSCODE_AUTHORITY } from './base/common/network.js';
 import * as platform from './base/common/platform.js';
 import { IProductConfiguration } from './base/common/product.js';
-import { assertType } from './base/common/types.js';
 import { URI } from './base/common/uri.js';
 import { generateUuid } from './base/common/uuid.js';
+
+export const canASAR = false; // TODO@esm: ASAR disabled in ESM
 
 class DefineCall {
 	constructor(
@@ -42,7 +42,6 @@ class AMDModuleImporter {
 	private _initialize(): void {
 		if (this._state === AMDModuleImporterState.Uninitialized) {
 			if ((globalThis as any).define) {
-				console.log('[amdX] AMD loader already present externally');
 				this._state = AMDModuleImporterState.InitializedExternal;
 				return;
 			}
@@ -71,10 +70,8 @@ class AMDModuleImporter {
 		(globalThis as any).define.amd = true;
 
 		if (this._isRenderer) {
-			// eslint-disable-next-line no-restricted-globals
 			this._amdPolicy = (globalThis as any)._VSCODE_WEB_PACKAGE_TTP ?? window.trustedTypes?.createPolicy('amdLoader', {
 				createScriptURL(value) {
-					// eslint-disable-next-line no-restricted-globals
 					if (value.startsWith(window.location.origin)) {
 						return value;
 					}
@@ -99,9 +96,7 @@ class AMDModuleImporter {
 		if (this._state === AMDModuleImporterState.InitializedExternal) {
 			return new Promise<T>(resolve => {
 				const tmpModuleId = generateUuid();
-				console.log(`[amdX] Using external define("${tmpModuleId}", ["${scriptSrc}"])`);
 				(globalThis as any).define(tmpModuleId, [scriptSrc], function (moduleResult: T) {
-					console.log(`[amdX] Got a result for ${tmpModuleId}: ${!!moduleResult}`);
 					resolve(moduleResult);
 				});
 			});
@@ -109,7 +104,6 @@ class AMDModuleImporter {
 
 		const defineCall = await (this._isWebWorker ? this._workerLoadScript(scriptSrc) : this._isRenderer ? this._rendererLoadScript(scriptSrc) : this._nodeJSLoadScript(scriptSrc));
 		if (!defineCall) {
-			// throw new Error(`Did not receive a define call from script ${scriptSrc}`);
 			console.warn(`Did not receive a define call from script ${scriptSrc}`);
 			return <T>undefined;
 		}
@@ -166,7 +160,6 @@ class AMDModuleImporter {
 				scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as any as string;
 			}
 			scriptElement.setAttribute('src', scriptSrc);
-			// eslint-disable-next-line no-restricted-globals
 			window.document.getElementsByTagName('head')[0].appendChild(scriptElement);
 		});
 	}
@@ -175,11 +168,7 @@ class AMDModuleImporter {
 		if (this._amdPolicy) {
 			scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as any as string;
 		}
-		if (isESM) {
-			await import(scriptSrc);
-		} else {
-			importScripts(scriptSrc);
-		}
+		await import(scriptSrc);
 		return this._defineCalls.pop();
 	}
 
@@ -211,39 +200,32 @@ const cache = new Map<string, Promise<any>>();
  * e.g. pass in `vscode-textmate/release/main.js`
  */
 export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideNodeModule: string, isBuilt?: boolean): Promise<T> {
-	if (isESM) {
-
-		if (isBuilt === undefined) {
-			const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
-			isBuilt = Boolean((product ?? (globalThis as any).vscode?.context?.configuration()?.product)?.commit);
-		}
-
-		const nodeModulePath = pathInsideNodeModule ? `${nodeModuleName}/${pathInsideNodeModule}` : nodeModuleName;
-		if (cache.has(nodeModulePath)) {
-			return cache.get(nodeModulePath)!;
-		}
-		let scriptSrc: string;
-		if (/^\w[\w\d+.-]*:\/\//.test(nodeModulePath)) {
-			// looks like a URL
-			// bit of a special case for: src/vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker.ts
-			scriptSrc = nodeModulePath;
-		} else {
-			const useASAR = (canASAR && isBuilt && !platform.isWeb);
-			const actualNodeModulesPath = (useASAR ? nodeModulesAsarPath : nodeModulesPath);
-			const resourcePath: AppResourcePath = `${actualNodeModulesPath}/${nodeModulePath}`;
-			scriptSrc = FileAccess.asBrowserUri(resourcePath).toString(true);
-		}
-		const result = AMDModuleImporter.INSTANCE.load<T>(scriptSrc);
-		cache.set(nodeModulePath, result);
-		return result;
-	} else {
-		return await import(nodeModuleName);
+	if (isBuilt === undefined) {
+		const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
+		isBuilt = Boolean((product ?? (globalThis as any).vscode?.context?.configuration()?.product)?.commit);
 	}
+
+	const nodeModulePath = pathInsideNodeModule ? `${nodeModuleName}/${pathInsideNodeModule}` : nodeModuleName;
+	if (cache.has(nodeModulePath)) {
+		return cache.get(nodeModulePath)!;
+	}
+	let scriptSrc: string;
+	if (/^\w[\w\d+.-]*:\/\//.test(nodeModulePath)) {
+		// looks like a URL
+		// bit of a special case for: src/vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker.ts
+		scriptSrc = nodeModulePath;
+	} else {
+		const useASAR = (canASAR && isBuilt && !platform.isWeb);
+		const actualNodeModulesPath = (useASAR ? nodeModulesAsarPath : nodeModulesPath);
+		const resourcePath: AppResourcePath = `${actualNodeModulesPath}/${nodeModulePath}`;
+		scriptSrc = FileAccess.asBrowserUri(resourcePath).toString(true);
+	}
+	const result = AMDModuleImporter.INSTANCE.load<T>(scriptSrc);
+	cache.set(nodeModulePath, result);
+	return result;
 }
 
 export function resolveAmdNodeModulePath(nodeModuleName: string, pathInsideNodeModule: string): string {
-	assertType(isESM);
-
 	const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
 	const isBuilt = Boolean((product ?? (globalThis as any).vscode?.context?.configuration()?.product)?.commit);
 	const useASAR = (canASAR && isBuilt && !platform.isWeb);

@@ -14,15 +14,16 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { Promises as FSPromises } from '../../../base/node/pfs.js';
 import { buffer, CorruptZipMessage } from '../../../base/node/zip.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
-import { ExtensionVerificationStatus, toExtensionManagementError } from '../common/abstractExtensionManagementService.js';
-import { ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from '../common/extensionManagement.js';
+import { toExtensionManagementError } from '../common/abstractExtensionManagementService.js';
+import { ExtensionManagementError, ExtensionManagementErrorCode, ExtensionSignatureVerificationCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from '../common/extensionManagement.js';
 import { ExtensionKey, groupByExtension } from '../common/extensionManagementUtil.js';
 import { fromExtractError } from './extensionManagementUtil.js';
-import { ExtensionSignatureVerificationError, ExtensionSignatureVerificationCode, IExtensionSignatureVerificationService } from './extensionSignatureVerificationService.js';
+import { IExtensionSignatureVerificationService } from './extensionSignatureVerificationService.js';
 import { TargetPlatform } from '../../extensions/common/extensions.js';
-import { IFileService, IFileStatWithMetadata } from '../../files/common/files.js';
+import { FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 
 type RetryDownloadClassification = {
 	owner: 'sandy081';
@@ -40,6 +41,7 @@ export class ExtensionsDownloader extends Disposable {
 	private static readonly SignatureArchiveExtension = '.sigzip';
 
 	readonly extensionsDownloadDir: URI;
+	private readonly extensionsTrashDir: URI;
 	private readonly cache: number;
 	private readonly cleanUpPromise: Promise<void>;
 
@@ -49,45 +51,33 @@ export class ExtensionsDownloader extends Disposable {
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IExtensionSignatureVerificationService private readonly extensionSignatureVerificationService: IExtensionSignatureVerificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this.extensionsDownloadDir = environmentService.extensionsDownloadLocation;
+		this.extensionsTrashDir = uriIdentityService.extUri.joinPath(environmentService.extensionsDownloadLocation, `.trash`);
 		this.cache = 20; // Cache 20 downloaded VSIX files
 		this.cleanUpPromise = this.cleanUp();
 	}
 
-	async download(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean, clientTargetPlatform?: TargetPlatform): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionVerificationStatus }> {
+	async download(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean, clientTargetPlatform?: TargetPlatform): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionSignatureVerificationCode | undefined }> {
 		await this.cleanUpPromise;
 
 		const location = await this.downloadVSIX(extension, operation);
 
 		if (!verifySignature) {
-			return { location, verificationStatus: false };
+			return { location, verificationStatus: undefined };
 		}
 
 		if (!extension.isSigned) {
-			return { location, verificationStatus: 'PackageIsUnsigned' };
+			return { location, verificationStatus: ExtensionSignatureVerificationCode.NotSigned };
 		}
 
 		let signatureArchiveLocation;
 		try {
 			signatureArchiveLocation = await this.downloadSignatureArchive(extension);
-		} catch (error) {
-			try {
-				// Delete the downloaded VSIX if signature archive download fails
-				await this.delete(location);
-			} catch (error) {
-				this.logService.error(error);
-			}
-			throw error;
-		}
-
-		let verificationStatus;
-		try {
-			verificationStatus = await this.extensionSignatureVerificationService.verify(extension, location.fsPath, signatureArchiveLocation.fsPath, clientTargetPlatform);
-		} catch (error) {
-			verificationStatus = (error as ExtensionSignatureVerificationError).code;
+			const verificationStatus = (await this.extensionSignatureVerificationService.verify(extension.identifier.id, extension.version, location.fsPath, signatureArchiveLocation.fsPath, clientTargetPlatform))?.code;
 			if (verificationStatus === ExtensionSignatureVerificationCode.PackageIsInvalidZip || verificationStatus === ExtensionSignatureVerificationCode.SignatureArchiveIsInvalidZip) {
 				try {
 					// Delete the downloaded vsix if VSIX or signature archive is invalid
@@ -97,16 +87,25 @@ export class ExtensionsDownloader extends Disposable {
 				}
 				throw new ExtensionManagementError(CorruptZipMessage, ExtensionManagementErrorCode.CorruptZip);
 			}
-		} finally {
+			return { location, verificationStatus };
+		} catch (error) {
 			try {
-				// Delete signature archive always
-				await this.delete(signatureArchiveLocation);
+				// Delete the downloaded VSIX if signature archive download fails
+				await this.delete(location);
 			} catch (error) {
 				this.logService.error(error);
 			}
+			throw error;
+		} finally {
+			if (signatureArchiveLocation) {
+				try {
+					// Delete signature archive always
+					await this.delete(signatureArchiveLocation);
+				} catch (error) {
+					this.logService.error(error);
+				}
+			}
 		}
-
-		return { location, verificationStatus };
 	}
 
 	private async downloadVSIX(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
@@ -141,7 +140,7 @@ export class ExtensionsDownloader extends Disposable {
 
 	private async downloadSignatureArchive(extension: IGalleryExtension): Promise<URI> {
 		try {
-			const location = joinPath(this.extensionsDownloadDir, `.${generateUuid()}`);
+			const location = joinPath(this.extensionsDownloadDir, `${this.getName(extension)}${ExtensionsDownloader.SignatureArchiveExtension}`);
 			const attempts = await this.doDownload(extension, 'sigzip', async () => {
 				await this.extensionGalleryService.downloadSignatureArchive(extension, location);
 				try {
@@ -233,7 +232,12 @@ export class ExtensionsDownloader extends Disposable {
 
 	async delete(location: URI): Promise<void> {
 		await this.cleanUpPromise;
-		await this.fileService.del(location);
+		const trashRelativePath = this.uriIdentityService.extUri.relativePath(this.extensionsDownloadDir, location);
+		if (trashRelativePath) {
+			await this.fileService.move(location, this.uriIdentityService.extUri.joinPath(this.extensionsTrashDir, trashRelativePath), true);
+		} else {
+			await this.fileService.del(location);
+		}
 	}
 
 	private async cleanUp(): Promise<void> {
@@ -242,6 +246,15 @@ export class ExtensionsDownloader extends Disposable {
 				this.logService.trace('Extension VSIX downloads cache dir does not exist');
 				return;
 			}
+
+			try {
+				await this.fileService.del(this.extensionsTrashDir, { recursive: true });
+			} catch (error) {
+				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+					this.logService.error(error);
+				}
+			}
+
 			const folderStat = await this.fileService.resolve(this.extensionsDownloadDir, { resolveMetadata: true });
 			if (folderStat.children) {
 				const toDelete: URI[] = [];
@@ -281,7 +294,7 @@ export class ExtensionsDownloader extends Disposable {
 	}
 
 	private getName(extension: IGalleryExtension): string {
-		return this.cache ? ExtensionKey.create(extension).toString().toLowerCase() : generateUuid();
+		return ExtensionKey.create(extension).toString().toLowerCase();
 	}
 
 }

@@ -103,7 +103,7 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 		onDidChangeProfile: Event.None,
 		async getInstalled() { return []; },
 		async getInstalledWorkspaceExtensions() { return []; },
-		async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
+		async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [], publisherMapping: {} }; },
 		async updateMetadata(local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) {
 			local.identifier.uuid = metadata.id;
 			local.publisherDisplayName = metadata.publisherDisplayName!;
@@ -1030,6 +1030,7 @@ suite('ExtensionRuntimeStateAction', () => {
 			canAddExtension: (extension) => true,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
+		instantiationService.set(IExtensionsWorkbenchService, disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 		const testObject: ExtensionsActions.ExtensionRuntimeStateAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ExtensionRuntimeStateAction));
 		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const gallery = aGalleryExtension('a');
@@ -1118,6 +1119,7 @@ suite('ExtensionRuntimeStateAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
+		instantiationService.set(IExtensionsWorkbenchService, disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
 		const testObject: ExtensionsActions.ExtensionRuntimeStateAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ExtensionRuntimeStateAction));
 		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a');
@@ -2547,7 +2549,7 @@ function aLocalExtension(name: string = 'someext', manifest: any = {}, propertie
 
 function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: any = {}): IGalleryExtension {
 	const targetPlatform = getTargetPlatform(platform, arch);
-	const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', allTargetPlatforms: [targetPlatform], properties: {}, assets: {}, ...properties });
+	const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', allTargetPlatforms: [targetPlatform], properties: {}, assets: {}, isSigned: true, ...properties });
 	galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], targetPlatform, ...galleryExtensionProperties };
 	galleryExtension.assets = { ...galleryExtension.assets, ...assets };
 	galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: generateUuid() };
@@ -2650,6 +2652,6 @@ function createExtensionManagementService(installed: ILocalExtension[] = []): IP
 			return local;
 		},
 		async getTargetPlatform() { return getTargetPlatform(platform, arch); },
-		async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {}, search: [] }; },
+		async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {}, search: [], publisherMapping: {} }; },
 	};
 }

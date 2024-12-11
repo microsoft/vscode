@@ -35,6 +35,7 @@ export class ViewCursors extends ViewPart {
 	private _cursorBlinking: TextEditorCursorBlinkingStyle;
 	private _cursorStyle: TextEditorCursorStyle;
 	private _cursorSmoothCaretAnimation: 'off' | 'explicit' | 'on';
+	private _experimentalEditContextEnabled: boolean;
 	private _selectionIsEmpty: boolean;
 	private _isComposingInput: boolean;
 
@@ -58,8 +59,9 @@ export class ViewCursors extends ViewPart {
 		const options = this._context.configuration.options;
 		this._readOnly = options.get(EditorOption.readOnly);
 		this._cursorBlinking = options.get(EditorOption.cursorBlinking);
-		this._cursorStyle = options.get(EditorOption.cursorStyle);
+		this._cursorStyle = options.get(EditorOption.effectiveCursorStyle);
 		this._cursorSmoothCaretAnimation = options.get(EditorOption.cursorSmoothCaretAnimation);
+		this._experimentalEditContextEnabled = options.get(EditorOption.experimentalEditContextEnabled);
 		this._selectionIsEmpty = true;
 		this._isComposingInput = false;
 
@@ -112,8 +114,9 @@ export class ViewCursors extends ViewPart {
 
 		this._readOnly = options.get(EditorOption.readOnly);
 		this._cursorBlinking = options.get(EditorOption.cursorBlinking);
-		this._cursorStyle = options.get(EditorOption.cursorStyle);
+		this._cursorStyle = options.get(EditorOption.effectiveCursorStyle);
 		this._cursorSmoothCaretAnimation = options.get(EditorOption.cursorSmoothCaretAnimation);
+		this._experimentalEditContextEnabled = options.get(EditorOption.experimentalEditContextEnabled);
 
 		this._updateBlinking();
 		this._updateDomClassName();
@@ -222,7 +225,8 @@ export class ViewCursors extends ViewPart {
 	// ---- blinking logic
 
 	private _getCursorBlinking(): TextEditorCursorBlinkingStyle {
-		if (this._isComposingInput) {
+		// TODO: Remove the following if statement when experimental edit context is made default sole implementation
+		if (this._isComposingInput && !this._experimentalEditContextEnabled) {
 			// avoid double cursors
 			return TextEditorCursorBlinkingStyle.Hidden;
 		}

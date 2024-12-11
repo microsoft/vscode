@@ -9,19 +9,27 @@ export interface IGlyphRasterizer {
 	/**
 	 * A unique identifier for the rasterizer.
 	 */
-	id: number;
+	readonly id: number;
+
+	/**
+	 * An identifier for properties inherent to rendering with this rasterizer. This will be the
+	 * same as other rasterizer cache keys provided they share the same property values in question.
+	 */
+	readonly cacheKey: string;
 
 	/**
 	 * Rasterizes a glyph.
 	 * @param chars The character(s) to rasterize. This can be a single character, a ligature, an
 	 * emoji, etc.
-	 * @param metadata The metadata of the glyph to rasterize. See {@link MetadataConsts} for how
-	 * this works.
+	 * @param tokenMetadata The token metadata of the glyph to rasterize. See {@link MetadataConsts}
+	 * for how this works.
+	 * @param charMetadata The chracter metadata of the glyph to rasterize.
 	 * @param colorMap A theme's color map.
 	 */
 	rasterizeGlyph(
 		chars: string,
-		metadata: number,
+		tokenMetadata: number,
+		charMetadata: number,
 		colorMap: string[],
 	): Readonly<IRasterizedGlyph>;
 }
@@ -56,4 +64,18 @@ export interface IRasterizedGlyph {
 	 * The offset to the glyph's origin (where it should be drawn to).
 	 */
 	originOffset: { x: number; y: number };
+	/**
+	 * The distance from the the glyph baseline to the top of the highest bounding rectangle of all
+	 * fonts used to render the text.
+	 *
+	 * @see {@link TextMetrics.fontBoundingBoxAscent}
+	 */
+	fontBoundingBoxAscent: number;
+	/**
+	 * The distance from the the glyph baseline to the bottom of the bounding rectangle of all fonts
+	 * used to render the text.
+	 *
+	 * @see {@link TextMetrics.fontBoundingBoxDescent}
+	 */
+	fontBoundingBoxDescent: number;
 }

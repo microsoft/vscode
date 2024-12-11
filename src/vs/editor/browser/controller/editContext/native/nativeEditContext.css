@@ -13,44 +13,38 @@
 	text-wrap: nowrap;
 }
 
-.monaco-editor .edit-context-format-decoration {
-	text-decoration-line: underline;
-	/* TODO @aiday chose a theme color */
-	text-decoration-color: blue;
-	color: var(--vscode-editor-foreground, inherit);
-	opacity: 0.8;
+.monaco-editor .native-edit-context-textarea {
+	min-width: 0;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	position: absolute;
+	outline: none !important;
+	resize: none;
+	border: none;
+	overflow: hidden;
+	color: transparent;
+	background-color: transparent;
+	z-index: -10;
+}
 
-	&.underline-style-none {
-		text-decoration-line: none;
-		text-decoration-style: none;
-	}
+.monaco-editor .edit-context-composition-none {
+	background-color: transparent;
+	border-bottom: none;
+}
 
-	&.underline-style-solid {
-		text-decoration-style: solid;
-	}
+.monaco-editor :not(.hc-black, .hc-light) .edit-context-composition-secondary {
+	border-bottom: 1px solid var(--vscode-editor-compositionBorder);
+}
 
-	&.underline-style-dotted {
-		text-decoration-style: dotted;
-	}
+.monaco-editor :not(.hc-black, .hc-light) .edit-context-composition-primary {
+	border-bottom: 2px solid var(--vscode-editor-compositionBorder);
+}
 
-	&.underline-style-dashed {
-		text-decoration-style: dashed;
-	}
+.monaco-editor :is(.hc-black, .hc-light) .edit-context-composition-secondary {
+	border: 1px solid var(--vscode-editor-compositionBorder);
+}
 
-	&.underline-style-wavy {
-		text-decoration-style: wavy;
-	}
-
-	&.underline-thickness-none {
-		text-decoration-line: none;
-		text-decoration-thickness: none;
-	}
-
-	&.underline-thickness-thin {
-		text-decoration-thickness: 1px;
-	}
-
-	&.underline-thickness-thick {
-		text-decoration-thickness: 2px;
-	}
+.monaco-editor :is(.hc-black, .hc-light) .edit-context-composition-primary {
+	border: 2px solid var(--vscode-editor-compositionBorder);
 }

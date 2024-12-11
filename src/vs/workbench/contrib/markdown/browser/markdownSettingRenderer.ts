@@ -17,7 +17,8 @@ import { IPreferencesService, ISetting } from '../../../services/preferences/com
 import { settingKeyToDisplayFormat } from '../../preferences/browser/settingsTreeModels.js';
 
 export class SimpleSettingRenderer {
-	private readonly codeSettingRegex: RegExp;
+	private readonly codeSettingAnchorRegex: RegExp;
+	private readonly codeSettingSimpleRegex: RegExp;
 
 	private _updatedSettings = new Map<string, any>(); // setting ID to user's original setting value
 	private _encounteredSettings = new Map<string, ISetting>(); // setting ID to setting
@@ -30,7 +31,8 @@ export class SimpleSettingRenderer {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 	) {
-		this.codeSettingRegex = new RegExp(`^<a (href)=".*code.*://settings/([^\\s"]+)"(?:\\s*codesetting="([^"]+)")?>`);
+		this.codeSettingAnchorRegex = new RegExp(`^<a (href)=".*code.*://settings/([^\\s"]+)"(?:\\s*codesetting="([^"]+)")?>`);
+		this.codeSettingSimpleRegex = new RegExp(`^setting\\(([^\\s:)]+)(?::([^)]+))?\\)$`);
 	}
 
 	get featuredSettingStates(): Map<string, boolean> {
@@ -41,17 +43,47 @@ export class SimpleSettingRenderer {
 		return result;
 	}
 
+	private replaceAnchor(raw: string): string | undefined {
+		const match = this.codeSettingAnchorRegex.exec(raw);
+		if (match && match.length === 4) {
+			const settingId = match[2];
+			const rendered = this.render(settingId, match[3]);
+			if (rendered) {
+				return raw.replace(this.codeSettingAnchorRegex, rendered);
+			}
+		}
+		return undefined;
+	}
+
+	private replaceSimple(raw: string): string | undefined {
+		const match = this.codeSettingSimpleRegex.exec(raw);
+		if (match && match.length === 3) {
+			const settingId = match[1];
+			const rendered = this.render(settingId, match[2]);
+			if (rendered) {
+				return raw.replace(this.codeSettingSimpleRegex, rendered);
+			}
+		}
+		return undefined;
+	}
+
 	getHtmlRenderer(): (token: Tokens.HTML | Tokens.Tag) => string {
 		return ({ raw }: Tokens.HTML | Tokens.Tag): string => {
-			const match = this.codeSettingRegex.exec(raw);
-			if (match && match.length === 4) {
-				const settingId = match[2];
-				const rendered = this.render(settingId, match[3]);
-				if (rendered) {
-					raw = raw.replace(this.codeSettingRegex, rendered);
-				}
+			const replacedAnchor = this.replaceAnchor(raw);
+			if (replacedAnchor) {
+				raw = replacedAnchor;
 			}
 			return raw;
+		};
+	}
+
+	getCodeSpanRenderer(): (token: Tokens.Codespan) => string {
+		return ({ text }: Tokens.Codespan): string => {
+			const replacedSimple = this.replaceSimple(text);
+			if (replacedSimple) {
+				return replacedSimple;
+			}
+			return `<code>${text}</code>`;
 		};
 	}
 
@@ -66,7 +98,7 @@ export class SimpleSettingRenderer {
 		return this._preferencesService.getSetting(settingId);
 	}
 
-	parseValue(settingId: string, value: string): any {
+	parseValue(settingId: string, value: string) {
 		if (value === 'undefined' || value === '') {
 			return undefined;
 		}
@@ -109,13 +141,21 @@ export class SimpleSettingRenderer {
 		return nls.localize('restorePreviousValue', "Restore value of \"{0}: {1}\"", displayName.category, displayName.label);
 	}
 
-	private booleanSettingMessage(setting: ISetting, booleanValue: boolean): string | undefined {
+	private isAlreadySet(setting: ISetting, value: string | number | boolean): boolean {
 		const currentValue = this._configurationService.getValue<boolean>(setting.key);
-		if (currentValue === booleanValue || (currentValue === undefined && setting.value === booleanValue)) {
-			return undefined;
+		return (currentValue === value || (currentValue === undefined && setting.value === value));
+	}
+
+	private booleanSettingMessage(setting: ISetting, booleanValue: boolean): string | undefined {
+		const displayName = settingKeyToDisplayFormat(setting.key);
+		if (this.isAlreadySet(setting, booleanValue)) {
+			if (booleanValue) {
+				return nls.localize('alreadysetBoolTrue', "\"{0}: {1}\" is already enabled", displayName.category, displayName.label);
+			} else {
+				return nls.localize('alreadysetBoolFalse', "\"{0}: {1}\" is already disabled", displayName.category, displayName.label);
+			}
 		}
 
-		const displayName = settingKeyToDisplayFormat(setting.key);
 		if (booleanValue) {
 			return nls.localize('trueMessage', "Enable \"{0}: {1}\"", displayName.category, displayName.label);
 		} else {
@@ -124,22 +164,20 @@ export class SimpleSettingRenderer {
 	}
 
 	private stringSettingMessage(setting: ISetting, stringValue: string): string | undefined {
-		const currentValue = this._configurationService.getValue<string>(setting.key);
-		if (currentValue === stringValue || (currentValue === undefined && setting.value === stringValue)) {
-			return undefined;
+		const displayName = settingKeyToDisplayFormat(setting.key);
+		if (this.isAlreadySet(setting, stringValue)) {
+			return nls.localize('alreadysetString', "\"{0}: {1}\" is already set to \"{2}\"", displayName.category, displayName.label, stringValue);
 		}
 
-		const displayName = settingKeyToDisplayFormat(setting.key);
 		return nls.localize('stringValue', "Set \"{0}: {1}\" to \"{2}\"", displayName.category, displayName.label, stringValue);
 	}
 
 	private numberSettingMessage(setting: ISetting, numberValue: number): string | undefined {
-		const currentValue = this._configurationService.getValue<number>(setting.key);
-		if (currentValue === numberValue || (currentValue === undefined && setting.value === numberValue)) {
-			return undefined;
+		const displayName = settingKeyToDisplayFormat(setting.key);
+		if (this.isAlreadySet(setting, numberValue)) {
+			return nls.localize('alreadysetNum', "\"{0}: {1}\" is already set to {2}", displayName.category, displayName.label, numberValue);
 		}
 
-		const displayName = settingKeyToDisplayFormat(setting.key);
 		return nls.localize('numberValue', "Set \"{0}: {1}\" to {2}", displayName.category, displayName.label, numberValue);
 
 	}
@@ -206,7 +244,7 @@ export class SimpleSettingRenderer {
 				actions.push({
 					class: undefined,
 					id: 'trySetting',
-					enabled: currentSettingValue !== newSettingValue,
+					enabled: !this.isAlreadySet(setting, newSettingValue),
 					tooltip: trySettingMessage,
 					label: trySettingMessage,
 					run: () => {

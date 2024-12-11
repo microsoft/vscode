@@ -199,8 +199,8 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		return this.proxy.$resolveHistoryItemRefsCommonAncestor(this.handle, historyItemRefs, CancellationToken.None);
 	}
 
-	async provideHistoryItemRefs(): Promise<ISCMHistoryItemRef[] | undefined> {
-		const historyItemRefs = await this.proxy.$provideHistoryItemRefs(this.handle, CancellationToken.None);
+	async provideHistoryItemRefs(historyItemsRefs?: string[]): Promise<ISCMHistoryItemRef[] | undefined> {
+		const historyItemRefs = await this.proxy.$provideHistoryItemRefs(this.handle, historyItemsRefs, CancellationToken.None);
 		return historyItemRefs?.map(ref => ({ ...ref, icon: getIconFromIconDto(ref.icon) }));
 	}
 
@@ -271,7 +271,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get contextValue(): string { return this._providerId; }
 
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
-	get actionButton(): ISCMActionButtonDescriptor | undefined { return this.features.actionButton ?? undefined; }
 
 	private readonly _count = observableValue<number | undefined>(this, undefined);
 	get count() { return this._count; }
@@ -285,11 +284,12 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	private readonly _commitTemplate = observableValue<string>(this, '');
 	get commitTemplate() { return this._commitTemplate; }
 
-	private readonly _onDidChange = new Emitter<void>();
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	private readonly _actionButton = observableValue<ISCMActionButtonDescriptor | undefined>(this, undefined);
+	get actionButton(): IObservable<ISCMActionButtonDescriptor | undefined> { return this._actionButton; }
 
 	private _quickDiff: IDisposable | undefined;
 	public readonly isSCM: boolean = true;
+	public readonly visible: boolean = true;
 
 	private readonly _historyProvider = observableValue<MainThreadSCMHistoryProvider | undefined>(this, undefined);
 	get historyProvider() { return this._historyProvider; }
@@ -317,10 +317,13 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 
 	$updateSourceControl(features: SCMProviderFeatures): void {
 		this.features = { ...this.features, ...features };
-		this._onDidChange.fire();
 
 		if (typeof features.commitTemplate !== 'undefined') {
 			this._commitTemplate.set(features.commitTemplate, undefined);
+		}
+
+		if (typeof features.actionButton !== 'undefined') {
+			this._actionButton.set(features.actionButton ?? undefined, undefined);
 		}
 
 		if (typeof features.count !== 'undefined') {
@@ -336,6 +339,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 				label: features.quickDiffLabel ?? this.label,
 				rootUri: this.rootUri,
 				isSCM: this.isSCM,
+				visible: this.visible,
 				getOriginalResource: (uri: URI) => this.getOriginalResource(uri)
 			});
 		} else if (features.hasQuickDiffProvider === false && this._quickDiff) {

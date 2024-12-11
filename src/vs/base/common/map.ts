@@ -878,7 +878,7 @@ export function mapsStrictEqualIgnoreOrder(a: Map<unknown, unknown>, b: Map<unkn
 
 /**
  * A map that is addressable with 2 separate keys. This is useful in high performance scenarios
- * where creating a composite key is too expensive.
+ * where creating a composite key whenever the data is accessed is too expensive.
  */
 export class TwoKeyMap<TFirst extends string | number, TSecond extends string | number, TValue> {
 	private _data: { [key: string | number]: { [key: string | number]: TValue | undefined } | undefined } = {};
@@ -911,8 +911,41 @@ export class TwoKeyMap<TFirst extends string | number, TSecond extends string | 
 }
 
 /**
+ * A map that is addressable with 3 separate keys. This is useful in high performance scenarios
+ * where creating a composite key whenever the data is accessed is too expensive.
+ */
+export class ThreeKeyMap<TFirst extends string | number, TSecond extends string | number, TThird extends string | number, TValue> {
+	private _data: { [key: string | number]: TwoKeyMap<TSecond, TThird, TValue> | undefined } = {};
+
+	public set(first: TFirst, second: TSecond, third: TThird, value: TValue): void {
+		if (!this._data[first]) {
+			this._data[first] = new TwoKeyMap();
+		}
+		this._data[first as string | number]!.set(second, third, value);
+	}
+
+	public get(first: TFirst, second: TSecond, third: TThird): TValue | undefined {
+		return this._data[first as string | number]?.get(second, third);
+	}
+
+	public clear(): void {
+		this._data = {};
+	}
+
+	public *values(): IterableIterator<TValue> {
+		for (const first in this._data) {
+			for (const value of this._data[first]!.values()) {
+				if (value) {
+					yield value;
+				}
+			}
+		}
+	}
+}
+
+/**
  * A map that is addressable with 4 separate keys. This is useful in high performance scenarios
- * where creating a composite key is too expensive.
+ * where creating a composite key whenever the data is accessed is too expensive.
  */
 export class FourKeyMap<TFirst extends string | number, TSecond extends string | number, TThird extends string | number, TFourth extends string | number, TValue> {
 	private _data: TwoKeyMap<TFirst, TSecond, TwoKeyMap<TThird, TFourth, TValue>> = new TwoKeyMap();

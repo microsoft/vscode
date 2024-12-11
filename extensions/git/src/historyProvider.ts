@@ -45,6 +45,29 @@ function toSourceControlHistoryItemRef(ref: Ref): SourceControlHistoryItemRef {
 	}
 }
 
+function compareSourceControlHistoryItemRef(ref1: SourceControlHistoryItemRef, ref2: SourceControlHistoryItemRef): number {
+	const getOrder = (ref: SourceControlHistoryItemRef): number => {
+		if (ref.id.startsWith('refs/heads/')) {
+			return 1;
+		} else if (ref.id.startsWith('refs/remotes/')) {
+			return 2;
+		} else if (ref.id.startsWith('refs/tags/')) {
+			return 3;
+		}
+
+		return 99;
+	};
+
+	const ref1Order = getOrder(ref1);
+	const ref2Order = getOrder(ref2);
+
+	if (ref1Order !== ref2Order) {
+		return ref1Order - ref2Order;
+	}
+
+	return ref1.name.localeCompare(ref2.name);
+}
+
 export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
 	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
 	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
@@ -154,8 +177,9 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.logger.trace(`[GitHistoryProvider][onDidRunWriteOperation] currentHistoryItemBaseRef: ${JSON.stringify(this._currentHistoryItemBaseRef)}`);
 
 		// Refs (alphabetically)
-		const refs = await this.repository.getRefs({ sort: 'alphabetically' });
-		const historyItemRefs = refs.map(ref => toSourceControlHistoryItemRef(ref));
+		const historyItemRefs = this.repository.refs
+			.map(ref => toSourceControlHistoryItemRef(ref))
+			.sort((a, b) => a.id.localeCompare(b.id));
 
 		// Auto-fetch
 		const silent = result.operation.kind === OperationKind.Fetch && result.operation.showProgress === false;
@@ -173,8 +197,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.logger.trace(`[GitHistoryProvider][onDidRunWriteOperation] historyItemRefs: ${JSON.stringify(deltaLog)}`);
 	}
 
-	async provideHistoryItemRefs(): Promise<SourceControlHistoryItemRef[]> {
-		const refs = await this.repository.getRefs();
+	async provideHistoryItemRefs(historyItemRefs: string[] | undefined): Promise<SourceControlHistoryItemRef[]> {
+		const refs = await this.repository.getRefs({ pattern: historyItemRefs });
 
 		const branches: SourceControlHistoryItemRef[] = [];
 		const remoteBranches: SourceControlHistoryItemRef[] = [];
@@ -227,7 +251,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			await ensureEmojis();
 
 			return commits.map(commit => {
-				const references = this.resolveHistoryItemRefs(commit);
+				const references = this._resolveHistoryItemRefs(commit);
 
 				return {
 					id: commit.hash,
@@ -320,7 +344,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return this.historyItemDecorations.get(uri.toString());
 	}
 
-	private resolveHistoryItemRefs(commit: Commit): SourceControlHistoryItemRef[] {
+	private _resolveHistoryItemRefs(commit: Commit): SourceControlHistoryItemRef[] {
 		const references: SourceControlHistoryItemRef[] = [];
 
 		for (const ref of commit.refNames) {
@@ -331,14 +355,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						name: ref.substring('HEAD -> refs/heads/'.length),
 						revision: commit.hash,
 						icon: new ThemeIcon('target')
-					});
-					break;
-				case ref.startsWith('tag: refs/tags/'):
-					references.push({
-						id: ref.substring('tag: '.length),
-						name: ref.substring('tag: refs/tags/'.length),
-						revision: commit.hash,
-						icon: new ThemeIcon('tag')
 					});
 					break;
 				case ref.startsWith('refs/heads/'):
@@ -357,19 +373,32 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						icon: new ThemeIcon('cloud')
 					});
 					break;
+				case ref.startsWith('tag: refs/tags/'):
+					references.push({
+						id: ref.substring('tag: '.length),
+						name: ref.substring('tag: refs/tags/'.length),
+						revision: commit.hash,
+						icon: new ThemeIcon('tag')
+					});
+					break;
 			}
 		}
 
-		return references;
+		return references.sort(compareSourceControlHistoryItemRef);
 	}
 
 	private async resolveHEADMergeBase(): Promise<Branch | undefined> {
-		if (this.repository.HEAD?.type !== RefType.Head || !this.repository.HEAD?.name) {
+		try {
+			if (this.repository.HEAD?.type !== RefType.Head || !this.repository.HEAD?.name) {
+				return undefined;
+			}
+
+			const mergeBase = await this.repository.getBranchBase(this.repository.HEAD.name);
+			return mergeBase;
+		} catch (err) {
+			this.logger.error(`[GitHistoryProvider][resolveHEADMergeBase] Failed to resolve merge base for ${this.repository.HEAD?.name}: ${err}`);
 			return undefined;
 		}
-
-		const mergeBase = await this.repository.getBranchBase(this.repository.HEAD.name);
-		return mergeBase;
 	}
 
 	dispose(): void {

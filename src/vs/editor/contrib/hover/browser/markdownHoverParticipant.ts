@@ -34,6 +34,7 @@ import { AsyncIterableObject } from '../../../../base/common/async.js';
 import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
 import { getHoverProviderResultsAsAsyncIterable } from './getHover.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { HoverStartSource } from './hoverOperation.js';
 
 const $ = dom.$;
 const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.add, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
@@ -151,7 +152,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return result;
 	}
 
-	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<MarkdownHover> {
+	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource, token: CancellationToken): AsyncIterableObject<MarkdownHover> {
 		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
 			return AsyncIterableObject.EMPTY;
 		}
@@ -488,12 +489,14 @@ function renderMarkdownInContainer(
 		}
 		const markdownHoverElement = $('div.markdown-hover');
 		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-		const renderer = disposables.add(new MarkdownRenderer({ editor }, languageService, openerService));
-		disposables.add(renderer.onDidRenderAsync(() => {
-			hoverContentsElement.className = 'hover-contents code-hover-contents';
-			onFinishedRendering();
+		const renderer = new MarkdownRenderer({ editor }, languageService, openerService);
+
+		const renderedContents = disposables.add(renderer.render(markdownString, {
+			asyncRenderCallback: () => {
+				hoverContentsElement.className = 'hover-contents code-hover-contents';
+				onFinishedRendering();
+			}
 		}));
-		const renderedContents = disposables.add(renderer.render(markdownString));
 		hoverContentsElement.appendChild(renderedContents.element);
 		renderedMarkdownContents.appendChild(markdownHoverElement);
 	}

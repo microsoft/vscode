@@ -5,11 +5,12 @@
 
 import { localize } from '../../../../nls.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { buttonForeground, chartsBlue, chartsPurple, foreground } from '../../../../platform/theme/common/colorRegistry.js';
-import { asCssVariable, ColorIdentifier, registerColor, transparent } from '../../../../platform/theme/common/colorUtils.js';
+import { badgeBackground, buttonForeground, chartsBlue, chartsPurple, foreground } from '../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, ColorIdentifier, registerColor } from '../../../../platform/theme/common/colorUtils.js';
 import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel } from '../common/history.js';
 import { rot } from '../../../../base/common/numbers.js';
 import { svgElem } from '../../../../base/browser/dom.js';
+import { compareHistoryItemRefs } from './util.js';
 
 export const SWIMLANE_HEIGHT = 22;
 export const SWIMLANE_WIDTH = 11;
@@ -28,10 +29,10 @@ export const historyItemBaseRefColor = registerColor('scmGraph.historyItemBaseRe
  * History item hover color
  */
 export const historyItemHoverDefaultLabelForeground = registerColor('scmGraph.historyItemHoverDefaultLabelForeground', foreground, localize('scmGraphHistoryItemHoverDefaultLabelForeground', "History item hover default label foreground color."));
-export const historyItemHoverDefaultLabelBackground = registerColor('scmGraph.historyItemHoverDefaultLabelBackground', transparent(foreground, 0.2), localize('scmGraphHistoryItemHoverDefaultLabelBackground', "History item hover default label background color."));
+export const historyItemHoverDefaultLabelBackground = registerColor('scmGraph.historyItemHoverDefaultLabelBackground', badgeBackground, localize('scmGraphHistoryItemHoverDefaultLabelBackground', "History item hover default label background color."));
 export const historyItemHoverLabelForeground = registerColor('scmGraph.historyItemHoverLabelForeground', buttonForeground, localize('scmGraphHistoryItemHoverLabelForeground', "History item hover label foreground color."));
-export const historyItemHoverAdditionsForeground = registerColor('scmGraph.historyItemHoverAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scmGraph.HistoryItemHoverAdditionsForeground', "History item hover additions foreground color."));
-export const historyItemHoverDeletionsForeground = registerColor('scmGraph.historyItemHoverDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scmGraph.HistoryItemHoverDeletionsForeground', "History item hover deletions foreground color."));
+export const historyItemHoverAdditionsForeground = registerColor('scmGraph.historyItemHoverAdditionsForeground', { light: '#587C0C', dark: '#81B88B', hcDark: '#A1E3AD', hcLight: '#374E06' }, localize('scmGraph.HistoryItemHoverAdditionsForeground', "History item hover additions foreground color."));
+export const historyItemHoverDeletionsForeground = registerColor('scmGraph.historyItemHoverDeletionsForeground', { light: '#AD0707', dark: '#C74E39', hcDark: '#C74E39', hcLight: '#AD0707' }, localize('scmGraph.HistoryItemHoverDeletionsForeground', "History item hover deletions foreground color."));
 
 /**
  * History graph color registry
@@ -256,7 +257,9 @@ export function renderSCMHistoryGraphPlaceholder(columns: ISCMHistoryItemGraphNo
 export function toISCMHistoryItemViewModelArray(
 	historyItems: ISCMHistoryItem[],
 	colorMap = new Map<string, ColorIdentifier | undefined>(),
-	currentHistoryItemRef?: ISCMHistoryItemRef
+	currentHistoryItemRef?: ISCMHistoryItemRef,
+	currentHistoryItemRemoteRef?: ISCMHistoryItemRef,
+	currentHistoryItemBaseRef?: ISCMHistoryItemRef
 ): ISCMHistoryItemViewModel[] {
 	let colorIndex = -1;
 	const viewModels: ISCMHistoryItemViewModel[] = [];
@@ -295,7 +298,7 @@ export function toISCMHistoryItemViewModelArray(
 			// Color index (label -> next color)
 			let colorIdentifier: string | undefined;
 
-			if (!firstParentAdded) {
+			if (i === 0) {
 				colorIdentifier = getLabelColorIdentifier(historyItem, colorMap);
 			} else {
 				const historyItemParent = historyItems
@@ -332,6 +335,10 @@ export function toISCMHistoryItemViewModelArray(
 
 				return { ...ref, color };
 			});
+
+		// Sort references
+		references.sort((ref1, ref2) =>
+			compareHistoryItemRefs(ref1, ref2, currentHistoryItemRef, currentHistoryItemRemoteRef, currentHistoryItemBaseRef));
 
 		viewModels.push({
 			historyItem: {

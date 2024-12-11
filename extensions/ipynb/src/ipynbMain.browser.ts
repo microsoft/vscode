@@ -5,9 +5,10 @@
 
 import * as vscode from 'vscode';
 import * as main from './ipynbMain';
+import { NotebookSerializer } from './notebookSerializer.web';
 
 export function activate(context: vscode.ExtensionContext) {
-	return main.activate(context, true);
+	return main.activate(context, new NotebookSerializer(context));
 }
 
 export function deactivate() {

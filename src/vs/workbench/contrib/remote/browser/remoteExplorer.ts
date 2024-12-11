@@ -6,8 +6,8 @@ import * as nls from '../../../../nls.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { Extensions, IViewContainersRegistry, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
-import { IRemoteExplorerService, PORT_AUTO_FALLBACK_SETTING, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID } from '../../../services/remote/common/remoteExplorerService.js';
-import { Attributes, AutoTunnelSource, forwardedPortsViewEnabled, makeAddress, mapHasAddressLocalhostOrAllInterfaces, OnPortForward, Tunnel, TunnelCloseReason, TunnelSource } from '../../../services/remote/common/tunnelModel.js';
+import { IRemoteExplorerService, PORT_AUTO_FALLBACK_SETTING, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, PortsEnablement, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID } from '../../../services/remote/common/remoteExplorerService.js';
+import { Attributes, AutoTunnelSource, forwardedPortsFeaturesEnabled, forwardedPortsViewEnabled, makeAddress, mapHasAddressLocalhostOrAllInterfaces, OnPortForward, Tunnel, TunnelCloseReason, TunnelSource } from '../../../services/remote/common/tunnelModel.js';
 import { ForwardPortAction, OpenPortInBrowserAction, TunnelPanel, TunnelPanelDescriptor, TunnelViewModel, OpenPortInPreviewAction, openPreviewEnabledContext } from './tunnelView.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
@@ -44,6 +44,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	private readonly contextKeyListener = this._register(new MutableDisposable<IDisposable>());
 	private readonly activityBadge = this._register(new MutableDisposable<IDisposable>());
 	private entryAccessor: IStatusbarEntryAccessor | undefined;
+	private hasPortsInSession: boolean = false;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -59,7 +60,12 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 				: nls.localize('noRemoteNoPorts', "No forwarded ports. Forward a port to access your locally running services over the internet.\n[Forward a Port]({0})", `command:${ForwardPortAction.INLINE_ID}`),
 		}));
 		this.enableBadgeAndStatusBar();
-		this.enableForwardedPortsView();
+		this.enableForwardedPortsFeatures();
+		if (!this.environmentService.remoteAuthority) {
+			this._register(Event.once(this.tunnelService.onTunnelOpened)(() => {
+				this.hasPortsInSession = true;
+			}));
+		}
 	}
 
 	private async getViewContainer(): Promise<ViewContainer | null> {
@@ -74,23 +80,28 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		}, ViewContainerLocation.Panel);
 	}
 
-	private async enableForwardedPortsView() {
+	private async enableForwardedPortsFeatures() {
 		this.contextKeyListener.clear();
 
+		const featuresEnabled: boolean = !!forwardedPortsFeaturesEnabled.getValue(this.contextKeyService);
 		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
 
-		if (viewEnabled) {
+		if (featuresEnabled || viewEnabled) {
+			// Also enable the view if it isn't already.
+			if (!viewEnabled) {
+				this.contextKeyService.createKey(forwardedPortsViewEnabled.key, true);
+			}
 			const viewContainer = await this.getViewContainer();
 			const tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService, this.tunnelService), this.environmentService);
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			if (viewContainer) {
-				this.remoteExplorerService.enablePortsFeatures();
+				this.remoteExplorerService.enablePortsFeatures(!featuresEnabled);
 				viewsRegistry.registerViews([tunnelPanelDescriptor], viewContainer);
 			}
 		} else {
 			this.contextKeyListener.value = this.contextKeyService.onDidChangeContext(e => {
-				if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
-					this.enableForwardedPortsView();
+				if (e.affectsSome(new Set([...forwardedPortsFeaturesEnabled.keys(), ...forwardedPortsViewEnabled.keys()]))) {
+					this.enableForwardedPortsFeatures();
 				}
 			});
 		}
@@ -120,10 +131,17 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 			this.activityBadge.value = this.activityService.showViewActivity(TUNNEL_VIEW_ID, {
 				badge: new NumberBadge(this.remoteExplorerService.tunnelModel.forwarded.size, n => n === 1 ? nls.localize('1forwardedPort', "1 forwarded port") : nls.localize('nForwardedPorts', "{0} forwarded ports", n))
 			});
+		} else {
+			this.activityBadge.clear();
 		}
 	}
 
 	private updateStatusBar() {
+		if (!this.environmentService.remoteAuthority && !this.hasPortsInSession) {
+			// We only want to show the ports status bar entry when the user has taken an action that indicates that they might care about it.
+			return;
+		}
+
 		if (!this.entryAccessor) {
 			this._register(this.entryAccessor = this.statusbarService.addEntry(this.entry, 'status.forwardedPorts', StatusbarAlignment.LEFT, 40));
 		} else {
@@ -569,7 +587,7 @@ class OutputAutomaticPortForwarding extends Disposable {
 	}
 
 	private startUrlFinder() {
-		if (!this.urlFinder && !this.remoteExplorerService.portsFeaturesEnabled) {
+		if (!this.urlFinder && (this.remoteExplorerService.portsFeaturesEnabled !== PortsEnablement.AdditionalFeatures)) {
 			return;
 		}
 		this.portsFeatures?.dispose();
@@ -666,7 +684,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 	}
 
 	private async startCandidateListener() {
-		if (this.candidateListener || !this.remoteExplorerService.portsFeaturesEnabled) {
+		if (this.candidateListener || (this.remoteExplorerService.portsFeaturesEnabled !== PortsEnablement.AdditionalFeatures)) {
 			return;
 		}
 		this.portsFeatures?.dispose();

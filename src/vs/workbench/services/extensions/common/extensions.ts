@@ -28,7 +28,8 @@ export const nullExtensionDescription = Object.freeze<IExtensionDescription>({
 	isBuiltin: false,
 	targetPlatform: TargetPlatform.UNDEFINED,
 	isUserBuiltin: false,
-	isUnderDevelopment: false
+	isUnderDevelopment: false,
+	preRelease: false,
 });
 
 export type WebWorkerExtHostConfigValue = boolean | 'auto';
@@ -559,7 +560,8 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 		location: extensionDescription.extensionLocation,
 		targetPlatform: extensionDescription.targetPlatform,
 		validations: [],
-		isValid: true
+		isValid: true,
+		preRelease: extensionDescription.preRelease,
 	};
 }
 
@@ -575,6 +577,7 @@ export function toExtensionDescription(extension: IExtension, isUnderDevelopment
 		uuid: extension.identifier.uuid,
 		targetPlatform: extension.targetPlatform,
 		publisherDisplayName: extension.publisherDisplayName,
+		preRelease: extension.preRelease,
 		...extension.manifest
 	};
 }
@@ -597,7 +600,7 @@ export class NullExtensionService implements IExtensionService {
 	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus } { return Object.create(null); }
 	getInspectPorts(_extensionHostKind: ExtensionHostKind, _tryEnableInspector: boolean): Promise<{ port: number; host: string }[]> { return Promise.resolve([]); }
-	stopExtensionHosts(): any { }
+	async stopExtensionHosts(): Promise<boolean> { return true; }
 	async startExtensionHosts(): Promise<void> { }
 	async setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> { }
 	canAddExtension(): boolean { return false; }

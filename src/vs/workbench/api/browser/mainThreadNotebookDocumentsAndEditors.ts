@@ -239,7 +239,8 @@ export class MainThreadNotebooksAndEditors {
 			documentUri: add.textModel.uri,
 			selections: add.getSelections(),
 			visibleRanges: add.visibleRanges,
-			viewColumn: pane && editorGroupToColumn(this._editorGroupService, pane.group)
+			viewColumn: pane && editorGroupToColumn(this._editorGroupService, pane.group),
+			viewType: add.getViewModel().viewType
 		};
 	}
 }

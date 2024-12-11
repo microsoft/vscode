@@ -29,7 +29,8 @@ const TUNNELS_TO_RESTORE = 'remote.tunnels.toRestore';
 const TUNNELS_TO_RESTORE_EXPIRATION = 'remote.tunnels.toRestoreExpiration';
 const RESTORE_EXPIRATION_TIME = 1000 * 60 * 60 * 24 * 14; // 2 weeks
 export const ACTIVATION_EVENT = 'onTunnel';
-export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
+export const forwardedPortsFeaturesEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
+export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewOnlyEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
 
 export interface RestorableTunnel {
 	remoteHost: string;
@@ -497,13 +498,14 @@ export class TunnelModel extends Disposable {
 				});
 			}
 			await this.storeForwarded();
-			this.checkExtensionActivationEvents();
+			this.checkExtensionActivationEvents(true);
 			this.remoteTunnels.set(key, tunnel);
 			this._onForwardPort.fire(this.forwarded.get(key)!);
 		}));
 		this._register(this.tunnelService.onTunnelClosed(address => {
 			return this.onTunnelClosed(address, TunnelCloseReason.Other);
 		}));
+		this.checkExtensionActivationEvents(false);
 	}
 
 	private extensionHasActivationEvent() {
@@ -514,7 +516,19 @@ export class TunnelModel extends Disposable {
 		return false;
 	}
 
-	private checkExtensionActivationEvents() {
+	private hasCheckedExtensionsOnTunnelOpened = false;
+	private checkExtensionActivationEvents(tunnelOpened: boolean) {
+		if (this.hasCheckedExtensionsOnTunnelOpened) {
+			return;
+		}
+		if (tunnelOpened) {
+			this.hasCheckedExtensionsOnTunnelOpened = true;
+		}
+		const hasRemote = this.environmentService.remoteAuthority !== undefined;
+		if (hasRemote && !tunnelOpened) {
+			// We don't activate extensions on startup if there is a remote
+			return;
+		}
 		if (this.extensionHasActivationEvent()) {
 			return;
 		}
