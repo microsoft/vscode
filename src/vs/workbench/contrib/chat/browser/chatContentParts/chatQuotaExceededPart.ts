@@ -28,7 +28,7 @@ const $ = dom.$;
 let shouldShowRetryButton = false;
 
 /**
- * Once the 'retry' button is clicked, the 2 minute warning should be shown every time.
+ * Once the 'retry' button is clicked, the wait warning should be shown every time.
  */
 let shouldShowWaitWarning = false;
 
@@ -68,7 +68,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 			}
 
 			hasAddedWaitWarning = true;
-			dom.append(messageContainer, $('.chat-quota-wait-warning', undefined, localize('waitWarning', "Signing up may take up to 2 minutes to take effect.")));
+			dom.append(messageContainer, $('.chat-quota-wait-warning', undefined, localize('waitWarning', "Signing up may take a few minutes to take effect.")));
 		};
 
 		let hasAddedRetryButton = false;
