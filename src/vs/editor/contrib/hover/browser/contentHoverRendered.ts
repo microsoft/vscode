@@ -79,6 +79,10 @@ export class RenderedContentHover extends Disposable {
 		return this._renderedHoverParts.focusedHoverPartIndex;
 	}
 
+	public get hoverPartsCount(): number {
+		return this._renderedHoverParts.hoverPartsCount;
+	}
+
 	public focusHoverPartWithIndex(index: number): void {
 		this._renderedHoverParts.focusHoverPartWithIndex(index);
 	}
@@ -435,5 +439,9 @@ class RenderedContentHoverParts extends Disposable {
 
 	public get focusedHoverPartIndex(): number {
 		return this._focusedHoverPartIndex;
+	}
+
+	public get hoverPartsCount(): number {
+		return this._renderedParts.length;
 	}
 }
