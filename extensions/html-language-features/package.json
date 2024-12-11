@@ -165,7 +165,37 @@
           "markdownDescription": "%html.format.wrapAttributesIndentSize.desc%"
         },
         "html.format.templating": {
-          "type": "boolean",
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "none",
+                  "angular",
+                  "django",
+                  "erb",
+                  "php",
+                  "smarty"
+                ],
+                "enumDescriptions": [
+                  "%html.format.templating.auto%",
+                  "%html.format.templating.none%",
+                  "%html.format.templating.angular%",
+                  "%html.format.templating.django%",
+                  "%html.format.templating.erb%",
+                  "%html.format.templating.php%",
+                  "%html.format.templating.smarty%"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          ],
           "scope": "resource",
           "default": false,
           "description": "%html.format.templating.desc%"
