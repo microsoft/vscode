@@ -211,15 +211,14 @@ export const startEntries: GettingStartedStartEntryContent = [
 const Button = (title: string, href: string) => `[${title}](${href})`;
 
 const CopilotStepTitle = localize('gettingStarted.copilotSetup.title', "Use AI features with Copilot for free");
-const CopilotDescription = localize({ key: 'gettingStarted.copilotSetup.description', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "Write code faster and smarter using [Copilot]({0}) for free with your GitHub account.", product.defaultChatAgent?.documentationUrl ?? '');
-const CopilotTermsString = localize({ key: 'copilotTerms', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to Copilot [Terms]({0}) and [Privacy Policy]({1}).", product.defaultChatAgent?.termsStatementUrl ?? '', product.defaultChatAgent?.privacyStatementUrl ?? '');
-const CopilotSignedOutButton = Button(localize('setupCopilotButton.signIn', "Sign in to Use Copilot"), `command:workbench.action.chat.triggerSetup?${encodeURIComponent(JSON.stringify([true]))}`);
-const CopilotSignedInButton = Button(localize('setupCopilotButton.setup', "Set Up Copilot"), `command:workbench.action.chat.triggerSetup?${encodeURIComponent(JSON.stringify([true]))}`);
+const CopilotDescription = localize({ key: 'gettingStarted.copilotSetup.description', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "You can use [Copilot]({0}) to generate code across multiple files, fix errors, ask questions about your code and much more using natural language.", product.defaultChatAgent?.documentationUrl ?? '');
+const CopilotSignedOutButton = Button(localize('setupCopilotButton.signIn', "Set Up Copilot for Free"), `command:workbench.action.chat.triggerSetup`);
+const CopilotSignedInButton = Button(localize('setupCopilotButton.setup', "Set Up Copilot for Free"), `command:workbench.action.chat.triggerSetup`);
 const CopilotCompleteButton = Button(localize('setupCopilotButton.chatWithCopilot', "Chat with Copilot"), 'command:workbench.action.chat.open');
 
 function createCopilotSetupStep(id: string, button: string, when: string, includeTerms: boolean): BuiltinGettingStartedStep {
 	const description = includeTerms ?
-		`${CopilotDescription}\n\n${CopilotTermsString}\n${button}` :
+		`${CopilotDescription}\n\n${button}` :
 		`${CopilotDescription}\n${button}`;
 
 	return {
