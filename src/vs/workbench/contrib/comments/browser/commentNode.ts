@@ -145,9 +145,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this.createScroll(this._commentDetailsContainer, this._body);
 		this.updateCommentBody(this.comment.body);
 
-		if (this.comment.commentReactions && this.comment.commentReactions.length && this.comment.commentReactions.filter(reaction => !!reaction.count).length) {
-			this.createReactionsContainer(this._commentDetailsContainer);
-		}
+		this.createReactionsContainer(this._commentDetailsContainer);
 
 		this._domNode.setAttribute('aria-label', `${comment.userName}, ${this.commentBodyValue}`);
 		this._domNode.setAttribute('role', 'treeitem');
@@ -744,9 +742,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 		this._reactionsActionBar?.clear();
 
-		if (this.comment.commentReactions && this.comment.commentReactions.some(reaction => !!reaction.count)) {
-			this.createReactionsContainer(this._commentDetailsContainer);
-		}
+		this.createReactionsContainer(this._commentDetailsContainer);
 
 		if (this.comment.contextValue) {
 			this._commentContextValue.set(this.comment.contextValue);
