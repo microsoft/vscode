@@ -70,7 +70,7 @@
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
-    "@parcel/watcher": "2.1.0",
+    "@parcel/watcher": "2.5.0",
     "@types/semver": "^7.5.8",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.0",
@@ -223,9 +223,6 @@
   "overrides": {
     "node-gyp-build": "4.8.1",
     "kerberos@2.1.1": {
-      "node-addon-api": "7.1.0"
-    },
-    "@parcel/watcher@2.1.0": {
       "node-addon-api": "7.1.0"
     }
   },
