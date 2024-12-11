@@ -335,17 +335,20 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                 }
                 // (6th) check for cyclic dependencies
                 else if (toBeCheckedForCycles.length) {
-                    const oneCycle = outHost.hasCyclicDependency(toBeCheckedForCycles);
                     toBeCheckedForCycles.length = 0;
+                    const oneCycle = outHost.hasCyclicDependency();
                     if (oneCycle) {
-                        onError({
+                        const cycleError = {
                             category: ts.DiagnosticCategory.Error,
                             code: 1,
                             file: undefined,
                             start: undefined,
                             length: undefined,
                             messageText: `CYCLIC dependency between ${oneCycle}`
-                        });
+                        };
+                        onError(cycleError);
+                        delete oldErrors[projectFile];
+                        newErrors[projectFile] = [cycleError];
                     }
                 }
                 // (last) done
@@ -549,59 +552,15 @@ class LanguageServiceHost {
             utils.collections.forEach(node.incoming, entry => target.push(entry.key));
         }
     }
-    hasCyclicDependency(filenames) {
+    hasCyclicDependency() {
         // Ensure dependencies are up to date
         while (this._dependenciesRecomputeList.length) {
             this._processFile(this._dependenciesRecomputeList.pop());
         }
-        // Normalize all filenames
-        const normalizedFiles = filenames.map(normalize);
-        const visited = new Set();
-        const recursionStack = new Set();
-        const pathStack = [];
-        const hasPath = (from, to) => {
-            if (from === to && recursionStack.has(from)) {
-                pathStack.push(from); // Complete the cycle
-                return true;
-            }
-            visited.add(from);
-            recursionStack.add(from);
-            pathStack.push(from);
-            const node = this._dependencies.lookup(from);
-            if (node) {
-                for (const key in node.outgoing) {
-                    if (recursionStack.has(key)) {
-                        if (key === to) {
-                            pathStack.push(key); // Found cycle back to target
-                            return true;
-                        }
-                    }
-                    else if (!visited.has(key)) {
-                        if (hasPath(key, to)) {
-                            return true;
-                        }
-                    }
-                }
-            }
-            recursionStack.delete(from);
-            pathStack.pop();
-            return false;
-        };
-        // Check for cycles between each pair of files
-        for (let i = 0; i < normalizedFiles.length; i++) {
-            for (let j = i + 1; j < normalizedFiles.length; j++) {
-                visited.clear();
-                recursionStack.clear();
-                pathStack.length = 0;
-                if (hasPath(normalizedFiles[i], normalizedFiles[j])) {
-                    // Format the cycle path
-                    const last = pathStack.at(-1);
-                    const idx = last ? pathStack.indexOf(last) : 0;
-                    return pathStack.slice(idx).join(' → ');
-                }
-            }
-        }
-        return undefined;
+        const cycle = this._dependencies.findCycle();
+        return cycle
+            ? cycle.join(' -> ')
+            : undefined;
     }
     _processFile(filename) {
         if (filename.match(/.*\.d\.ts$/)) {
@@ -622,6 +581,10 @@ class LanguageServiceHost {
         });
         // (2) import-require statements
         info.importedFiles.forEach(ref => {
+            if (!ref.fileName.startsWith('.') || path.extname(ref.fileName) === '') {
+                // node module?
+                return;
+            }
             const stopDirname = normalize(this.getCurrentDirectory());
             let dirname = filename;
             let found = false;

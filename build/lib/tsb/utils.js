@@ -120,6 +120,47 @@ var graph;
         lookup(data) {
             return collections.lookup(this._nodes, this._hashFn(data));
         }
+        findCycle() {
+            let path;
+            let foundStartNodes = false;
+            const checked = new Set();
+            for (const [_start, value] of Object.entries(this._nodes)) {
+                if (Object.values(value.incoming).length > 0) {
+                    continue;
+                }
+                foundStartNodes = true;
+                const dfs = (node, visited) => {
+                    if (checked.has(node)) {
+                        return;
+                    }
+                    if (visited.has(node)) {
+                        const end = this._hashFn(node.data);
+                        path = [...visited, node].map(n => this._hashFn(n.data));
+                        const idx = path.indexOf(end);
+                        path = path.slice(idx);
+                        return;
+                    }
+                    visited.add(node);
+                    for (const child of Object.values(node.outgoing)) {
+                        dfs(child, visited);
+                        if (path) {
+                            break;
+                        }
+                    }
+                    visited.delete(node);
+                    checked.add(node);
+                };
+                dfs(value, new Set());
+                if (path) {
+                    break;
+                }
+            }
+            if (!foundStartNodes) {
+                // everything is a cycle
+                return Object.keys(this._nodes);
+            }
+            return path;
+        }
     }
     graph.Graph = Graph;
 })(graph || (exports.graph = graph = {}));
