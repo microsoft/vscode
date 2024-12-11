@@ -8,7 +8,11 @@ import { Emitter } from '../event.js';
 import { ReadableStream } from '../stream.js';
 import { AsyncDecoder } from './asyncDecoder.js';
 import { Disposable, IDisposable } from '../lifecycle.js';
-import { TStreamListenerNames } from './types/TStreamListenerEventNames.js';
+
+/**
+ * Event names of {@link ReadableStream} stream.
+ */
+export type TStreamListenerNames = 'data' | 'error' | 'end';
 
 /**
  * Base decoder class that can be used to convert stream messages data type

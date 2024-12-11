@@ -8,7 +8,6 @@ import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -24,7 +23,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { ChatImplicitContext } from '../contrib/chatImplicitContext.js';
+import { IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
 
 export class ImplicitContextAttachmentWidget extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -32,7 +31,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(
-		private readonly attachment: ChatImplicitContext,
+		private readonly attachment: IChatRequestImplicitVariableEntry,
 		private readonly resourceLabels: ResourceLabels,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -63,26 +62,20 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const friendlyName = `${fileBasename} ${fileDirname}`;
 		const ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
 
+		const uriLabel = this.labelService.getUriLabel(file, { relative: true });
 		const currentFile = localize('openEditor', "Current file context");
 		const inactive = localize('enableHint', "disabled");
-		const currentFileHint = new MarkdownString(currentFile + (this.attachment.enabled ? '' : ` (${inactive})`));
-
-		const title = [currentFileHint, ...this.getUriLabel(file)]
-			.map((markdown) => {
-				return markdown.value;
-			})
-			.join('\n');
-
+		const currentFileHint = currentFile + (this.attachment.enabled ? '' : ` (${inactive})`);
+		const title = `${currentFileHint}\n${uriLabel}`;
 		label.setFile(file, {
 			fileKind: FileKind.FILE,
 			hidePath: true,
 			range,
-			title,
+			title
 		});
 		this.domNode.ariaLabel = ariaLabel;
 		this.domNode.tabIndex = 0;
-
-		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, localize('current file', 'Current file')));
+		const hintElement = dom.append(this.domNode, dom.$('span.chat-implicit-hint', undefined, 'Current file'));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), hintElement, title));
 
 		const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current file context") : localize('enable', "Enable current file context");
@@ -112,25 +105,5 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 				},
 			});
 		}));
-	}
-
-	/**
-	 * Get file URIs label, including its possible nested file references.
-	 */
-	private getUriLabel(
-		file: URI,
-	): IMarkdownString[] {
-		const result = [new MarkdownString(
-			`- ${this.labelService.getUriLabel(file, { relative: true })}`,
-		)];
-
-		// if file is a prompt that references other files, add them to the label
-		for (const child of this.attachment.validFileReferenceUris) {
-			result.push(new MarkdownString(
-				` - ${this.labelService.getUriLabel(child, { relative: true })}`,
-			));
-		}
-
-		return result;
 	}
 }

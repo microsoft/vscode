@@ -16,7 +16,6 @@ import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AnythingQuickAccessProviderRunOptions, IQuickAccessOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
@@ -92,20 +91,13 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 							startColumn: ref.range.startColumn + delta,
 							endLineNumber: ref.range.endLineNumber,
 							endColumn: ref.range.endColumn + delta,
-							ref.range = {
-								startLineNumber: ref.range.startLineNumber,
-								startColumn: ref.range.startColumn + delta,
-								endLineNumber: ref.range.endLineNumber,
-								endColumn: ref.range.endColumn + delta,
-							};
-
-							return ref;
-
-							return ref;
-						}
+						};
 
 						return ref;
-					}));
+					}
+
+					return ref;
+				}));
 			});
 
 			this.updateDecorations();
@@ -192,11 +184,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 				variable.dispose();
 			}
 		}
-	}
-
-	public override dispose() {
-		this.disposeVariables();
-		super.dispose();
 	}
 
 	public override dispose() {
