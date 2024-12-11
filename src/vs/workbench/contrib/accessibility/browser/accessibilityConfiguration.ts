@@ -792,7 +792,7 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 				[AccessibilityVoiceSettingId.IgnoreCodeBlocks]: {
 					'markdownDescription': localize('voice.ignoreCodeBlocks', "Whether to ignore code snippets in text-to-speech synthesis."),
 					'type': 'boolean',
-					'default': true,
+					'default': false,
 					'tags': ['accessibility']
 				},
 				[AccessibilityVoiceSettingId.SpeechLanguage]: {
