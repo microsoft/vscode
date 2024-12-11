@@ -2860,6 +2860,15 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.fetchPruneAndDelete', { repository: true })
+	async fetchPruneAndDelete(repository: Repository): Promise<void> {
+		try {
+			repository.fetchPruneAndDelete();
+		} catch (error) {
+			throw error;
+		}
+	}
+
 	@command('git.renameBranch', { repository: true })
 	async renameBranch(repository: Repository): Promise<void> {
 		const currentBranchName = repository.HEAD && repository.HEAD.name;
