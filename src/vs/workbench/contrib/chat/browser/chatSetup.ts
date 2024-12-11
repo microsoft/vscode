@@ -52,7 +52,7 @@ import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { ChatViewId, EditsViewId, ensureSideBarChatViewSize, IChatWidget, showChatView, showEditsView } from './chat.js';
-import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
+import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID, SetupWelcomeViewCondition } from './chatViewPane.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry } from './viewsWelcome/chatViewsWelcome.js';
 import { IChatQuotasService } from './chatQuotasService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -94,25 +94,6 @@ enum ChatEntitlement {
 
 const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
 const TRIGGER_SETUP_COMMAND_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
-
-export const SetupWelcomeViewKeys = new Set([ChatContextKeys.Setup.triggered.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Setup.signedOut.key, ChatContextKeys.Setup.canSignUp.key]);
-export const SetupWelcomeViewCondition = ContextKeyExpr.and(
-	ContextKeyExpr.has('config.chat.experimental.offerSetup'),
-	ContextKeyExpr.or(
-		ContextKeyExpr.and(
-			ChatContextKeys.Setup.triggered,
-			ChatContextKeys.Setup.installed.negate()
-		),
-		ContextKeyExpr.and(
-			ChatContextKeys.Setup.canSignUp,
-			ChatContextKeys.Setup.installed
-		),
-		ContextKeyExpr.and(
-			ChatContextKeys.Setup.signedOut,
-			ChatContextKeys.Setup.installed
-		)
-	)
-)!;
 
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
