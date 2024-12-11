@@ -56,11 +56,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	) {
 		super();
 
-		this.updateDecorations = this.updateDecorations.bind(this);
-
-
-		this.updateDecorations = this.updateDecorations.bind(this);
-
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
 			e.changes.forEach(c => {
 				// Don't mutate entries in _variables, since they will be returned from the getter
@@ -79,7 +74,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 						}
 
 						// dispose the reference if possible before dropping it off
-						if ('dispose' in ref) {
+						if ('dispose' in ref && typeof ref.dispose === 'function') {
 							ref.dispose();
 						}
 
@@ -113,9 +108,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			s = [];
 		}
 
-		this.disposeVariables();
-		this.disposeVariables();
-		this._variables = s;
+		this._variables = s.filter(isDynamicVariable);
 		this.updateDecorations();
 	}
 
@@ -147,32 +140,17 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		})));
 	}
 
-	private getHoverForReference(variable: IDynamicVariable): IMarkdownString | IMarkdownString[] {
-		const result: IMarkdownString[] = [];
-		const { data } = variable;
-
-		if (isLocation(data)) {
-			const prefix = variable.fullName ? ` ${variable.fullName}` : '';
-			const rangeString = `#${data.range.startLineNumber}-${data.range.endLineNumber}`;
-			return new MarkdownString(prefix + this.labelService.getUriLabel(data.uri, { relative: true }) + rangeString);
+	private getHoverForReference(ref: IDynamicVariable): IMarkdownString | undefined {
+		const value = ref.data;
+		if (URI.isUri(value)) {
+			return new MarkdownString(this.labelService.getUriLabel(value, { relative: true }));
+		} else if (isLocation(value)) {
+			const prefix = ref.fullName ? ` ${ref.fullName}` : '';
+			const rangeString = `#${value.range.startLineNumber}-${value.range.endLineNumber}`;
+			return new MarkdownString(prefix + this.labelService.getUriLabel(value.uri, { relative: true }) + rangeString);
+		} else {
+			return undefined;
 		}
-
-		if (!URI.isUri(data)) {
-			return result;
-		}
-
-		result.push(new MarkdownString(
-			`${this.labelService.getUriLabel(data, { relative: true })}`,
-		));
-
-		// if reference has nested child file references, include them in the label
-		for (const childUri of variable.validFileReferenceUris ?? []) {
-			result.push(new MarkdownString(
-				`  • ${this.labelService.getUriLabel(childUri, { relative: true })}`,
-			));
-		}
-
-		return result;
 	}
 
 	/**
@@ -180,7 +158,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	 */
 	private disposeVariables(): void {
 		for (const variable of this._variables) {
-			if ('dispose' in variable) {
+			if ('dispose' in variable && typeof variable.dispose === 'function') {
 				variable.dispose();
 			}
 		}
@@ -190,6 +168,16 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		this.disposeVariables();
 		super.dispose();
 	}
+}
+
+/**
+ * Loose check to filter objects that are obviously missing data
+ */
+function isDynamicVariable(obj: any): obj is IDynamicVariable {
+	return obj &&
+		typeof obj.id === 'string' &&
+		Range.isIRange(obj.range) &&
+		'data' in obj;
 }
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
