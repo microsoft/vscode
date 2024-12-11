@@ -84,25 +84,6 @@ export module graph {
             // empty
         }
 
-        traverse(start: T, inwards: boolean, callback: (data: T) => void): void {
-            const startNode = this.lookup(start);
-            if (!startNode) {
-                return;
-            }
-            this._traverse(startNode, inwards, {}, callback);
-        }
-
-        private _traverse(node: Node<T>, inwards: boolean, seen: { [key: string]: boolean }, callback: (data: T) => void): void {
-            const key = this._hashFn(node.data);
-            if (collections.contains(seen, key)) {
-                return;
-            }
-            seen[key] = true;
-            callback(node.data);
-            const nodes = inwards ? node.outgoing : node.incoming;
-            collections.forEach(nodes, (entry) => this._traverse(entry.value, inwards, seen, callback));
-        }
-
         inertEdge(from: T, to: T): void {
             const fromNode = this.lookupOrInsertNode(from);
             const toNode = this.lookupOrInsertNode(to);
@@ -118,6 +99,18 @@ export module graph {
                 delete entry.value.outgoing[key];
                 delete entry.value.incoming[key];
             });
+        }
+
+        resetNode(data: T): void {
+            const key = this._hashFn(data);
+            const node = this._nodes[key];
+            if (!node) {
+                return;
+            }
+            for (const [key, value] of Object.entries(node.outgoing)) {
+                delete node.outgoing[key];
+                delete value.incoming[key];
+            }
         }
 
         lookupOrInsertNode(data: T): Node<T> {

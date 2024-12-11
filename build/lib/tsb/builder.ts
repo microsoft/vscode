@@ -612,10 +612,6 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		}
 		if (!old || old.getVersion() !== snapshot.getVersion()) {
 			this._dependenciesRecomputeList.push(filename);
-			const node = this._dependencies.lookup(filename);
-			if (node) {
-				node.outgoing = Object.create(null);
-			}
 
 			// (cheap) check for declare module
 			LanguageServiceHost._declareModule.lastIndex = 0;
@@ -690,6 +686,9 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 			return;
 		}
 		const info = ts.preProcessFile(snapshot.getText(0, snapshot.getLength()), true);
+
+		// (0) clear out old dependencies
+		this._dependencies.resetNode(filename);
 
 		// (1) ///-references
 		info.referencedFiles.forEach(ref => {

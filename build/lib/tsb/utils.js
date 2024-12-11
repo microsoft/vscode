@@ -77,23 +77,6 @@ var graph;
             this._hashFn = _hashFn;
             // empty
         }
-        traverse(start, inwards, callback) {
-            const startNode = this.lookup(start);
-            if (!startNode) {
-                return;
-            }
-            this._traverse(startNode, inwards, {}, callback);
-        }
-        _traverse(node, inwards, seen, callback) {
-            const key = this._hashFn(node.data);
-            if (collections.contains(seen, key)) {
-                return;
-            }
-            seen[key] = true;
-            callback(node.data);
-            const nodes = inwards ? node.outgoing : node.incoming;
-            collections.forEach(nodes, (entry) => this._traverse(entry.value, inwards, seen, callback));
-        }
         inertEdge(from, to) {
             const fromNode = this.lookupOrInsertNode(from);
             const toNode = this.lookupOrInsertNode(to);
@@ -107,6 +90,17 @@ var graph;
                 delete entry.value.outgoing[key];
                 delete entry.value.incoming[key];
             });
+        }
+        resetNode(data) {
+            const key = this._hashFn(data);
+            const node = this._nodes[key];
+            if (!node) {
+                return;
+            }
+            for (const [key, value] of Object.entries(node.outgoing)) {
+                delete node.outgoing[key];
+                delete value.incoming[key];
+            }
         }
         lookupOrInsertNode(data) {
             const key = this._hashFn(data);
