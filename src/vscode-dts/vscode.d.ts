@@ -13986,10 +13986,13 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The configuration scope which can be a
-	 * a 'resource' or a languageId or both or
-	 * a '{@link TextDocument}' or
-	 * a '{@link WorkspaceFolder}'
+	 * The configuration scope which can be:
+	 * - a {@link Uri} representing a resource
+	 * - a {@link TextDocument} representing an open text document
+	 * - a {@link WorkspaceFolder} representing a workspace folder
+	 * - an object containing:
+	 *   - `uri`: an optional {@link Uri} of a text document
+	 *   - `languageId`: the language identifier of a text document
 	 */
 	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | {
 		/**

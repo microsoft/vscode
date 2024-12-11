@@ -497,7 +497,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 
 	private async onDidAccept(): Promise<URI | undefined> {
 		this.busy = true;
-		if (this.filePickBox.activeItems.length === 1) {
+		if (!this.updatingPromise && this.filePickBox.activeItems.length === 1) {
 			const item = this.filePickBox.selectedItems[0];
 			if (item.isFolder) {
 				if (this.trailing) {
@@ -519,7 +519,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 				this.filePickBox.busy = false;
 				return;
 			}
-		} else {
+		} else if (!this.updatingPromise) {
 			// If the items have updated, don't try to resolve
 			if ((await this.tryUpdateItems(this.filePickBox.value, this.filePickBoxValue())) !== UpdateResult.NotUpdated) {
 				this.filePickBox.busy = false;
@@ -862,6 +862,8 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	private async updateItems(newFolder: URI, force: boolean = false, trailing?: string): Promise<boolean> {
 		this.busy = true;
 		this.autoCompletePathSegment = '';
+		const wasDotDot = trailing === '..';
+		trailing = wasDotDot ? undefined : trailing;
 		const isSave = !!trailing;
 		let result = false;
 
@@ -892,7 +894,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 				this.filePickBox.items = items;
 
 				// the user might have continued typing while we were updating. Only update the input box if it doesn't match the directory.
-				if (!equalsIgnoreCase(this.filePickBox.value, newValue) && force) {
+				if (!equalsIgnoreCase(this.filePickBox.value, newValue) && (force || wasDotDot)) {
 					this.filePickBox.valueSelection = [0, this.filePickBox.value.length];
 					this.insertText(newValue, newValue);
 				}
