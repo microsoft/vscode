@@ -340,6 +340,7 @@ export class LiveTestResult extends Disposable implements ITestResult {
 		public readonly id: string,
 		public readonly persist: boolean,
 		public readonly request: ResolvedTestRunRequest,
+		public readonly insertOrder: number,
 		@ITelemetryService private readonly telemetry: ITelemetryService,
 	) {
 		super();

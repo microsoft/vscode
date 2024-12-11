@@ -489,12 +489,14 @@ function renderMarkdownInContainer(
 		}
 		const markdownHoverElement = $('div.markdown-hover');
 		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-		const renderer = disposables.add(new MarkdownRenderer({ editor }, languageService, openerService));
-		disposables.add(renderer.onDidRenderAsync(() => {
-			hoverContentsElement.className = 'hover-contents code-hover-contents';
-			onFinishedRendering();
+		const renderer = new MarkdownRenderer({ editor }, languageService, openerService);
+
+		const renderedContents = disposables.add(renderer.render(markdownString, {
+			asyncRenderCallback: () => {
+				hoverContentsElement.className = 'hover-contents code-hover-contents';
+				onFinishedRendering();
+			}
 		}));
-		const renderedContents = disposables.add(renderer.render(markdownString));
 		hoverContentsElement.appendChild(renderedContents.element);
 		renderedMarkdownContents.appendChild(markdownHoverElement);
 	}
