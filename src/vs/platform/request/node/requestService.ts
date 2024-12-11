@@ -155,7 +155,7 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 			? options.getRawRequest(options)
 			: await getNodeRequest(options);
 
-		const opts: https.RequestOptions = {
+		const opts: https.RequestOptions & { cache?: 'default' | 'no-store' | 'reload' | 'no-cache' | 'force-cache' | 'only-if-cached' } = {
 			hostname: endpoint.hostname,
 			port: endpoint.port ? parseInt(endpoint.port) : (endpoint.protocol === 'https:' ? 443 : 80),
 			protocol: endpoint.protocol,
@@ -168,6 +168,10 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 
 		if (options.user && options.password) {
 			opts.auth = options.user + ':' + options.password;
+		}
+
+		if (options.disableCache) {
+			opts.cache = 'no-store';
 		}
 
 		const req = rawRequest(opts, (res: http.IncomingMessage) => {

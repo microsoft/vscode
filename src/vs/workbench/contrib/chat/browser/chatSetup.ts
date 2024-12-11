@@ -836,11 +836,11 @@ class ChatSetupWelcomeContent extends Disposable {
 	}
 
 	private create(): void {
-		const markdown = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
+		const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		// Header
 		{
-			const header = localize({ key: 'setupHeader', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0} 'Copilot') is your AI pair programmer.", this.context.state.installed ? 'command:github.copilot.open.walkthrough' : defaultChat.documentationUrl);
+			const header = localize({ key: 'setupHeader', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0}) is your AI pair programmer.", this.context.state.installed ? 'command:github.copilot.open.walkthrough' : defaultChat.documentationUrl);
 			this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element);
 
 			const features = this.element.appendChild($('div.chat-features-container'));
@@ -866,7 +866,7 @@ class ChatSetupWelcomeContent extends Disposable {
 		}
 
 		// Limited SKU
-		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) We now offer [Copilot for free]({0}) with 2,000 code completions and 50 chat messages per month.", defaultChat.skusDocumentationUrl);
+		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) We now offer [Copilot for free]({0}).", defaultChat.skusDocumentationUrl);
 		const limitedSkuHeaderContainer = this.element.appendChild($('p'));
 		limitedSkuHeaderContainer.appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true, supportThemeIcons: true }))).element);
 
