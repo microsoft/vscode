@@ -1,0 +1,9 @@
+[package]
+name = "vscode-rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+web-sys = "0.3"
+wasm-bindgen = "0.2"
+serde = { version = "1.0", features = ["derive"] }
