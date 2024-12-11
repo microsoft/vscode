@@ -121,6 +121,7 @@ export const TITLE_BAR_SETTINGS = [
 	LayoutSettings.COMMAND_CENTER,
 	LayoutSettings.EDITOR_ACTIONS_LOCATION,
 	LayoutSettings.LAYOUT_ACTIONS,
+	'workbench.navigationControl.enabled',
 	'window.menuBarVisibility',
 	TitleBarSetting.TITLE_BAR_STYLE,
 	TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY,
@@ -424,12 +425,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// The menu bar toggles the title bar in web because it does not need to be shown for window controls only
 			if (isWeb && menuBarVisibility === 'toggle') {
-				this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled, this.isZenModeActive()));
+				this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
 			}
 
 			// The menu bar toggles the title bar in full screen for toggle and classic settings
 			else if (this.state.runtime.mainWindowFullscreen && (menuBarVisibility === 'toggle' || menuBarVisibility === 'classic')) {
-				this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled, this.isZenModeActive()));
+				this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
 			}
 
 			// Move layout call to any time the menubar
@@ -478,7 +479,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (hasCustomTitlebar(this.configurationService)) {
 
 			// Propagate to grid
-			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled, this.isZenModeActive()));
+			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
 
 			this.updateWindowsBorder(true);
 		}
@@ -706,9 +707,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Auxiliary Panel to restore
 		if (this.isVisible(Parts.AUXILIARYBAR_PART)) {
-			const viewContainerToRestore = this.storageService.get(AuxiliaryBarPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id);
-
+			let viewContainerToRestore = this.storageService.get(AuxiliaryBarPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id);
 			if (viewContainerToRestore) {
+				if (viewContainerToRestore === 'workbench.panel.chatSidebar') {
+					viewContainerToRestore = 'workbench.panel.chat'; // TODO@bpasero remove me after some months
+				}
 				this.state.initialization.views.containerToRestore.auxiliaryBar = viewContainerToRestore;
 			} else {
 				this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, true);
@@ -1226,7 +1229,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				return shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled, this.isZenModeActive());
+				return shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled);
 			case Parts.SIDEBAR_PART:
 				return !this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN);
 			case Parts.PANEL_PART:
@@ -1615,6 +1618,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._onDidChangeMainEditorCenteredLayout.fire(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED));
 	}
 
+	getSize(part: Parts): IViewSize {
+		return this.workbenchGrid.getViewSize(this.getPart(part));
+	}
+
+	setSize(part: Parts, size: IViewSize): void {
+		this.workbenchGrid.resizeView(this.getPart(part), size);
+	}
+
 	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void {
 		const sizeChangePxWidth = Math.sign(sizeChangeWidth) * computeScreenAwareSize(getActiveWindow(), Math.abs(sizeChangeWidth));
 		const sizeChangePxHeight = Math.sign(sizeChangeHeight) * computeScreenAwareSize(getActiveWindow(), Math.abs(sizeChangeHeight));
@@ -1743,9 +1754,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
 			const viewletToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Sidebar);
 			if (viewletToOpen) {
-				const viewlet = this.paneCompositeService.openPaneComposite(viewletToOpen, ViewContainerLocation.Sidebar, true);
+				const viewlet = this.paneCompositeService.openPaneComposite(viewletToOpen, ViewContainerLocation.Sidebar);
 				if (!viewlet) {
-					this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, ViewContainerLocation.Sidebar, true);
+					this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, ViewContainerLocation.Sidebar);
 				}
 			}
 		}
@@ -1884,8 +1895,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (panelToOpen) {
-				const focus = !skipLayout;
-				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.Panel, focus);
+				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.Panel);
 			}
 		}
 
@@ -1984,8 +1994,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (panelToOpen) {
-				const focus = !skipLayout;
-				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.AuxiliaryBar, focus);
+				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.AuxiliaryBar);
 			}
 		}
 
@@ -2035,14 +2044,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	updateMenubarVisibility(skipLayout: boolean): void {
-		const shouldShowTitleBar = shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled, this.isZenModeActive());
+		const shouldShowTitleBar = shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled);
 		if (!skipLayout && this.workbenchGrid && shouldShowTitleBar !== this.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
 		}
 	}
 
 	updateCustomTitleBarVisibility(): void {
-		const shouldShowTitleBar = shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled, this.isZenModeActive());
+		const shouldShowTitleBar = shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled);
 		const titlebarVisible = this.isVisible(Parts.TITLEBAR_PART);
 		if (shouldShowTitleBar !== titlebarVisible) {
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
@@ -2202,7 +2211,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.workbenchGrid.moveView(this.bannerPartView, Sizing.Distribute, this.titleBarPartView, shouldBannerBeFirst ? Direction.Up : Direction.Down);
 		}
 
-		this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled, this.isZenModeActive()));
+		this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
 	}
 
 	private arrangeEditorNodes(nodes: { editor: ISerializedNode; sideBar?: ISerializedNode; auxiliaryBar?: ISerializedNode }, availableHeight: number, availableWidth: number): ISerializedNode {
@@ -2646,7 +2655,7 @@ class LayoutStateModel extends Disposable {
 		}
 
 		// Register for runtime key changes
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._register(new DisposableStore()))(storageChangeEvent => {
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(storageChangeEvent => {
 			let key: keyof typeof LayoutStateKeys;
 			for (key in LayoutStateKeys) {
 				const stateKey = LayoutStateKeys[key] as WorkbenchLayoutStateKey<StorageKeyType>;

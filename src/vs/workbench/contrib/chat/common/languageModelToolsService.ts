@@ -11,21 +11,21 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export interface IToolData {
 	id: string;
-	name?: string;
+	extensionId?: ExtensionIdentifier;
+	toolReferenceName?: string;
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	when?: ContextKeyExpression;
 	tags?: string[];
-	displayName?: string;
+	displayName: string;
 	userDescription?: string;
 	modelDescription: string;
-	parametersSchema?: IJSONSchema;
-	canBeInvokedManually?: boolean;
-	supportedContentTypes: string[];
-	requiresConfirmation?: boolean;
+	inputSchema?: IJSONSchema;
+	canBeReferencedInPrompt?: boolean;
 }
 
 export interface IToolInvocation {
@@ -34,15 +34,28 @@ export interface IToolInvocation {
 	parameters: Object;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
-	requestedContentTypes: string[];
 }
 
 export interface IToolInvocationContext {
 	sessionId: string;
 }
 
+export function isToolInvocationContext(obj: any): obj is IToolInvocationContext {
+	return typeof obj === 'object' && typeof obj.sessionId === 'string';
+}
+
 export interface IToolResult {
-	[contentType: string]: any;
+	content: (IToolResultPromptTsxPart | IToolResultTextPart)[];
+}
+
+export interface IToolResultPromptTsxPart {
+	kind: 'promptTsx';
+	value: unknown;
+}
+
+export interface IToolResultTextPart {
+	kind: 'text';
+	value: string;
 }
 
 export interface IToolConfirmationMessages {
@@ -51,13 +64,13 @@ export interface IToolConfirmationMessages {
 }
 
 export interface IPreparedToolInvocation {
-	invocationMessage?: string;
+	invocationMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 }
 
 export interface IToolImpl {
 	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
-	prepareToolInvocation?(participantName: string, parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
+	prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');

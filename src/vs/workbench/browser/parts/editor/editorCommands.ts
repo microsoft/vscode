@@ -325,7 +325,13 @@ function registerEditorGroupsLayoutCommands(): void {
 		id: 'vscode.setEditorLayout',
 		handler: (accessor: ServicesAccessor, args: EditorGroupLayout) => applyEditorLayout(accessor, args),
 		metadata: {
-			description: 'Set Editor Layout',
+			'description': `Set the editor layout. Editor layout is represented as a tree of groups in which the first group is the root group of the layout.
+					The orientation of the first group is 0 (horizontal) by default unless specified otherwise. The other orientations are 1 (vertical).
+					The orientation of subsequent groups is the opposite of the orientation of the group that contains it.
+					Here are some examples: A layout representing 1 row and 2 columns: { orientation: 0, groups: [{}, {}] }.
+					A layout representing 3 rows and 1 column: { orientation: 1, groups: [{}, {}, {}] }.
+					A layout representing 3 rows and 1 column in which the second row has 2 columns: { orientation: 1, groups: [{}, { groups: [{}, {}] }, {}] }
+					`,
 			args: [{
 				name: 'args',
 				schema: {
@@ -335,6 +341,7 @@ function registerEditorGroupsLayoutCommands(): void {
 						'orientation': {
 							'type': 'number',
 							'default': 0,
+							'description': `The orientation of the root group in the layout. 0 for horizontal, 1 for vertical.`,
 							'enum': [0, 1],
 							'enumDescriptions': [
 								localize('editorGroupLayout.horizontal', "Horizontal"),

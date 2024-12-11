@@ -17,7 +17,7 @@ import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from 
 import { ChatRequestDynamicVariablePart, ChatRequestToolPart, ChatRequestVariablePart, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatContentReference } from '../common/chatService.js';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
-import { IChatWidgetService, showChatView } from './chat.js';
+import { IChatWidgetService, showChatView, showEditsView } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 
 interface IChatData {
@@ -60,7 +60,7 @@ export class ChatVariablesService implements IChatVariablesService {
 						}).catch(onUnexpectedExternalError));
 					}
 				} else if (part instanceof ChatRequestDynamicVariablePart) {
-					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data, fullName: part.fullName, icon: part.icon };
+					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data, fullName: part.fullName, icon: part.icon, isFile: part.isFile };
 				} else if (part instanceof ChatRequestToolPart) {
 					resolvedVariables[i] = { id: part.toolId, name: part.toolName, range: part.range, value: undefined, isTool: true, icon: ThemeIcon.isThemeIcon(part.icon) ? part.icon : undefined, fullName: part.displayName };
 				}
@@ -85,7 +85,7 @@ export class ChatVariablesService implements IChatVariablesService {
 						}
 					}).catch(onUnexpectedExternalError));
 				} else if (attachment.isDynamic || attachment.isTool) {
-					resolvedAttachedContext[i] = { ...attachment };
+					resolvedAttachedContext[i] = attachment;
 				}
 			});
 
@@ -161,11 +161,13 @@ export class ChatVariablesService implements IChatVariablesService {
 	}
 
 	async attachContext(name: string, value: string | URI | Location, location: ChatAgentLocation) {
-		if (location !== ChatAgentLocation.Panel) {
+		if (location !== ChatAgentLocation.Panel && location !== ChatAgentLocation.EditingSession) {
 			return;
 		}
 
-		const widget = this.chatWidgetService.lastFocusedWidget ?? await showChatView(this.viewsService);
+		const widget = location === ChatAgentLocation.EditingSession
+			? await showEditsView(this.viewsService)
+			: (this.chatWidgetService.lastFocusedWidget ?? await showChatView(this.viewsService));
 		if (!widget || !widget.viewModel) {
 			return;
 		}

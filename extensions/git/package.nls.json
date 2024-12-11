@@ -62,6 +62,7 @@
 	"command.undoCommit": "Undo Last Commit",
 	"command.checkout": "Checkout to...",
 	"command.checkoutDetached": "Checkout to (Detached)...",
+	"command.checkoutRef": "Checkout",
 	"command.checkoutRefDetached": "Checkout (Detached)",
 	"command.branch": "Create Branch...",
 	"command.branchFrom": "Create Branch From...",
@@ -276,6 +277,10 @@
 	"config.publishBeforeContinueOn.never": "Never publish unpublished Git state when using Continue Working On from a Git repository",
 	"config.publishBeforeContinueOn.prompt": "Prompt to publish unpublished Git state when using Continue Working On from a Git repository",
 	"config.similarityThreshold": "Controls the threshold of the similarity index (the amount of additions/deletions compared to the file's size) for changes in a pair of added/deleted files to be considered a rename. **Note:** Requires Git version `2.18.0` or later.",
+	"config.blameEditorDecoration.enabled": "Controls whether to show blame information in the editor using editor decorations.",
+	"config.blameEditorDecoration.template": "Template for the blame information editor decoration. Supported variables:\n\n* `hash`: Commit hash\n\n* `hashShort`: First 8 characters of the commit hash\n\n* `subject`: First line of the commit message\n\n* `authorName`: Author name\n\n* `authorEmail`: Author email\n\n* `authorDate`: Author date\n\n* `authorDateAgo`: Time difference between now and the author date\n\n",
+	"config.blameStatusBarItem.enabled": "Controls whether to show blame information in the status bar.",
+	"config.blameStatusBarItem.template": "Template for the blame information status bar item. Supported variables:\n\n* `hash`: Commit hash\n\n* `hashShort`: First 8 characters of the commit hash\n\n* `subject`: First line of the commit message\n\n* `authorName`: Author name\n\n* `authorEmail`: Author email\n\n* `authorDate`: Author date\n\n* `authorDateAgo`: Time difference between now and the author date\n\n",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",
@@ -300,6 +305,7 @@
 	"colors.incomingDeleted": "Color for deleted incoming resource.",
 	"colors.incomingRenamed": "Color for renamed incoming resource.",
 	"colors.incomingModified": "Color for modified incoming resource.",
+	"colors.blameEditorDecoration": "Color for the blame editor decoration.",
 	"view.workbench.scm.missing.windows": {
 		"message": "[Download Git for Windows](https://git-scm.com/download/win)\nAfter installing, please [reload](command:workbench.action.reloadWindow) (or [troubleshoot](command:git.showOutput)). Additional source control providers can be installed [from the Marketplace](command:workbench.extensions.search?%22%40category%3A%5C%22scm%20providers%5C%22%22).",
 		"comment": [

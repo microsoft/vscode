@@ -50,6 +50,11 @@
 							"meta.embedded.inline.sql": "sql"
 					}
 			}
-		]
+		],
+		"configurationDefaults": {
+			"[julia]": {
+				"editor.defaultColorDecorators": false
+			}
+		}
 	}
 }

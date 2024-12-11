@@ -278,6 +278,7 @@ export interface ICustomDialogOptions {
 	readonly classes?: string[];
 	readonly icon?: ThemeIcon;
 	readonly disableCloseAction?: boolean;
+	readonly closeOnLinkClick?: boolean;
 }
 
 export interface ICustomDialogMarkdown {

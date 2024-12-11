@@ -928,7 +928,7 @@ export class SuggestWidget implements IDisposable {
 			typicalHalfwidthCharacterWidth: fontInfo.typicalHalfwidthCharacterWidth,
 			verticalPadding: 22,
 			horizontalPadding: 14,
-			defaultSize: new dom.Dimension(430, statusBarHeight + 12 * itemHeight + borderHeight)
+			defaultSize: new dom.Dimension(430, statusBarHeight + 12 * itemHeight)
 		};
 	}
 

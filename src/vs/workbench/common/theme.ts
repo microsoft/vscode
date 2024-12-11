@@ -268,6 +268,13 @@ export const PANEL_BORDER = registerColor('panel.border', {
 	hcLight: contrastBorder
 }, localize('panelBorder', "Panel border color to separate the panel from the editor. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
+export const PANEL_TITLE_BORDER = registerColor('panelTitle.border', {
+	dark: null,
+	light: null,
+	hcDark: PANEL_BORDER,
+	hcLight: PANEL_BORDER
+}, localize('panelTitleBorder', "Panel title border color on the bottom, separating the title from the views. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
 export const PANEL_ACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.activeForeground', {
 	dark: '#E7E7E7',
 	light: '#424242',
@@ -417,12 +424,7 @@ export const STATUS_BAR_PROMINENT_ITEM_BACKGROUND = registerColor('statusBarItem
 
 export const STATUS_BAR_PROMINENT_ITEM_HOVER_FOREGROUND = registerColor('statusBarItem.prominentHoverForeground', STATUS_BAR_ITEM_HOVER_FOREGROUND, localize('statusBarProminentItemHoverForeground', "Status bar prominent items foreground color when hovering. Prominent items stand out from other status bar entries to indicate importance. The status bar is shown in the bottom of the window."));
 
-export const STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.prominentHoverBackground', {
-	dark: Color.black.transparent(0.3),
-	light: Color.black.transparent(0.3),
-	hcDark: Color.black.transparent(0.3),
-	hcLight: null
-}, localize('statusBarProminentItemHoverBackground', "Status bar prominent items background color when hovering. Prominent items stand out from other status bar entries to indicate importance. The status bar is shown in the bottom of the window."));
+export const STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.prominentHoverBackground', STATUS_BAR_ITEM_HOVER_BACKGROUND, localize('statusBarProminentItemHoverBackground', "Status bar prominent items background color when hovering. Prominent items stand out from other status bar entries to indicate importance. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_ERROR_ITEM_BACKGROUND = registerColor('statusBarItem.errorBackground', {
 	dark: darken(errorForeground, .4),
@@ -611,6 +613,13 @@ export const SIDE_BAR_BORDER = registerColor('sideBar.border', {
 export const SIDE_BAR_TITLE_BACKGROUND = registerColor('sideBarTitle.background', SIDE_BAR_BACKGROUND, localize('sideBarTitleBackground', "Side bar title background color. The side bar is the container for views like explorer and search."));
 
 export const SIDE_BAR_TITLE_FOREGROUND = registerColor('sideBarTitle.foreground', SIDE_BAR_FOREGROUND, localize('sideBarTitleForeground', "Side bar title foreground color. The side bar is the container for views like explorer and search."));
+
+export const SIDE_BAR_TITLE_BORDER = registerColor('sideBarTitle.border', {
+	dark: null,
+	light: null,
+	hcDark: SIDE_BAR_BORDER,
+	hcLight: SIDE_BAR_BORDER
+}, localize('sideBarTitleBorder', "Side bar title border color on the bottom, separating the title from the views. The side bar is the container for views like explorer and search."));
 
 export const SIDE_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('sideBar.dropBackground', EDITOR_DRAG_AND_DROP_BACKGROUND, localize('sideBarDragAndDropBackground', "Drag and drop feedback color for the side bar sections. The color should have transparency so that the side bar sections can still shine through. The side bar is the container for views like explorer and search. Side bar sections are views nested within the side bar."));
 

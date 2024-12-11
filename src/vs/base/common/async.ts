@@ -1858,7 +1858,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 		});
 	}
 
-	public static fromPromises<T>(promises: Promise<T>[]): AsyncIterableObject<T> {
+	public static fromPromisesResolveOrder<T>(promises: Promise<T>[]): AsyncIterableObject<T> {
 		return new AsyncIterableObject<T>(async (emitter) => {
 			await Promise.all(promises.map(async (p) => emitter.emitOne(await p)));
 		});

@@ -258,6 +258,10 @@ export function removeFromValueTree(valueTree: any, key: string): void {
 }
 
 function doRemoveFromValueTree(valueTree: any, segments: string[]): void {
+	if (!valueTree) {
+		return;
+	}
+
 	const first = segments.shift()!;
 	if (segments.length === 0) {
 		// Reached last segment
@@ -279,7 +283,9 @@ function doRemoveFromValueTree(valueTree: any, segments: string[]): void {
 /**
  * A helper function to get the configuration value with a specific settings path (e.g. config.some.setting)
  */
-export function getConfigurationValue<T>(config: any, settingPath: string, defaultValue?: T): T {
+export function getConfigurationValue<T>(config: any, settingPath: string): T | undefined;
+export function getConfigurationValue<T>(config: any, settingPath: string, defaultValue: T): T;
+export function getConfigurationValue<T>(config: any, settingPath: string, defaultValue?: T): T | undefined {
 	function accessSetting(config: any, path: string[]): any {
 		let current = config;
 		for (const component of path) {

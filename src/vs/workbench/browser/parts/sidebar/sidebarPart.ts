@@ -13,7 +13,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
-import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER } from '../../../common/theme.js';
+import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER } from '../../../common/theme.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
@@ -90,6 +90,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			'sideBar',
 			'viewlet',
 			SIDE_BAR_TITLE_FOREGROUND,
+			SIDE_BAR_TITLE_BORDER,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -179,10 +180,12 @@ export class SidebarPart extends AbstractPaneCompositePart {
 				position: () => this.getCompositeBarPosition() === CompositeBarPosition.BOTTOM ? HoverPosition.ABOVE : HoverPosition.BELOW,
 			},
 			fillExtraContextMenuActions: actions => {
-				const viewsSubmenuAction = this.getViewsSubmenuAction();
-				if (viewsSubmenuAction) {
-					actions.push(new Separator());
-					actions.push(viewsSubmenuAction);
+				if (this.getCompositeBarPosition() === CompositeBarPosition.TITLE) {
+					const viewsSubmenuAction = this.getViewsSubmenuAction();
+					if (viewsSubmenuAction) {
+						actions.push(new Separator());
+						actions.push(viewsSubmenuAction);
+					}
 				}
 			},
 			compositeSize: 0,
@@ -248,6 +251,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	override getVisiblePaneCompositeIds(): string[] {
 		return this.shouldShowCompositeBar() ? super.getVisiblePaneCompositeIds() : this.activityBarPart.getVisiblePaneCompositeIds();
+	}
+
+	override getPaneCompositeIds(): string[] {
+		return this.shouldShowCompositeBar() ? super.getPaneCompositeIds() : this.activityBarPart.getPaneCompositeIds();
 	}
 
 	async focusActivityBar(): Promise<void> {

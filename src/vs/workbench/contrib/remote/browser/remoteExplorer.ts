@@ -125,6 +125,8 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 			this.activityBadge.value = this.activityService.showViewActivity(TUNNEL_VIEW_ID, {
 				badge: new NumberBadge(this.remoteExplorerService.tunnelModel.forwarded.size, n => n === 1 ? nls.localize('1forwardedPort', "1 forwarded port") : nls.localize('nForwardedPorts', "{0} forwarded ports", n))
 			});
+		} else {
+			this.activityBadge.clear();
 		}
 	}
 

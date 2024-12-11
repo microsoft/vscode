@@ -289,6 +289,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 
 	private _quickDiff: IDisposable | undefined;
 	public readonly isSCM: boolean = true;
+	public readonly visible: boolean = true;
 
 	private readonly _historyProvider = observableValue<MainThreadSCMHistoryProvider | undefined>(this, undefined);
 	get historyProvider() { return this._historyProvider; }
@@ -322,7 +323,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 
 		if (typeof features.actionButton !== 'undefined') {
-			this._actionButton.set(features.actionButton, undefined);
+			this._actionButton.set(features.actionButton ?? undefined, undefined);
 		}
 
 		if (typeof features.count !== 'undefined') {
@@ -338,6 +339,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 				label: features.quickDiffLabel ?? this.label,
 				rootUri: this.rootUri,
 				isSCM: this.isSCM,
+				visible: this.visible,
 				getOriginalResource: (uri: URI) => this.getOriginalResource(uri)
 			});
 		} else if (features.hasQuickDiffProvider === false && this._quickDiff) {

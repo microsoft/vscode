@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertNever } from '../../../../../base/common/assert.js';
-import { DeferredPromise, raceFilter } from '../../../../../base/common/async.js';
+import { AsyncIterableObject, DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { SetMap } from '../../../../../base/common/map.js';
 import { onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { SetMap } from '../../../../../base/common/map.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
+import { OffsetRange } from '../../../../common/core/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
+import { SingleTextEdit } from '../../../../common/core/textEdit.js';
 import { LanguageFeatureRegistry } from '../../../../common/languageFeatureRegistry.js';
 import { Command, InlineCompletion, InlineCompletionContext, InlineCompletionProviderGroupId, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
-import { getReadonlyEmptyArray } from '../utils.js';
-import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
+import { TextModelText } from '../../../../common/model/textModelText.js';
 import { LineEditWithAdditionalLines } from '../../../../common/tokenizationTextModelPart.js';
-import { OffsetRange } from '../../../../common/core/offsetRange.js';
-import { isDefined } from '../../../../../base/common/types.js';
+import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
+import { getReadonlyEmptyArray } from '../utils.js';
 
 export async function provideInlineCompletions(
 	registry: LanguageFeatureRegistry<InlineCompletionsProvider>,
@@ -132,16 +132,7 @@ export async function provideInlineCompletions(
 		return list;
 	}
 
-	const promises = providers.map(queryProviderOrPreferredProvider);
-
-	let inlineCompletionLists: (InlineCompletionList | undefined)[];
-	if (context.triggerKind === InlineCompletionTriggerKind.Automatic) {
-		// in automatic mode, we only show the first result.
-		// When the user cycles through the completions, it will be an explicit request.
-		inlineCompletionLists = [await raceFilter(promises, result => !!result && result.inlineCompletions.items.length > 0)];
-	} else {
-		inlineCompletionLists = await Promise.all(promises);
-	}
+	const inlineCompletionLists = AsyncIterableObject.fromPromisesResolveOrder(providers.map(queryProviderOrPreferredProvider));
 
 	if (token.isCancellationRequested) {
 		tokenSource.dispose(true);
@@ -149,7 +140,7 @@ export async function provideInlineCompletions(
 		return new InlineCompletionProviderResult([], new Set(), []);
 	}
 
-	const result = addRefAndCreateResult(inlineCompletionLists, defaultReplaceRange, model, languageConfigurationService);
+	const result = await addRefAndCreateResult(context, inlineCompletionLists, defaultReplaceRange, model, languageConfigurationService);
 	tokenSource.dispose(true); // This disposes results that are not referenced.
 	return result;
 }
@@ -168,19 +159,30 @@ function runWhenCancelled(token: CancellationToken, callback: () => void): IDisp
 	}
 }
 
-function addRefAndCreateResult(
-	inlineCompletionLists: (InlineCompletionList | undefined)[],
+// TODO: check cancellation token!
+async function addRefAndCreateResult(
+	context: InlineCompletionContext,
+	inlineCompletionLists: AsyncIterable<(InlineCompletionList | undefined)>,
 	defaultReplaceRange: Range,
 	model: ITextModel,
 	languageConfigurationService: ILanguageConfigurationService | undefined
-): InlineCompletionProviderResult {
+): Promise<InlineCompletionProviderResult> {
 	// for deduplication
 	const itemsByHash = new Map<string, InlineCompletionItem>();
 
-	const lists = inlineCompletionLists.filter(isDefined);
-	for (const completions of lists) {
+	let shouldStop = false;
+	const lists: InlineCompletionList[] = [];
+	for await (const completions of inlineCompletionLists) {
+		if (!completions) { continue; }
 		completions.addRef();
+		lists.push(completions);
 		for (const item of completions.inlineCompletions.items) {
+			if (!context.includeInlineEdits && item.isInlineEdit) {
+				continue;
+			}
+			if (!context.includeInlineCompletions && !item.isInlineEdit) {
+				continue;
+			}
 			const inlineCompletionItem = InlineCompletionItem.from(
 				item,
 				completions,
@@ -188,7 +190,20 @@ function addRefAndCreateResult(
 				model,
 				languageConfigurationService
 			);
+
 			itemsByHash.set(inlineCompletionItem.hash(), inlineCompletionItem);
+
+			// Stop after first visible inline completion
+			if (!item.isInlineEdit && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
+				const minifiedEdit = inlineCompletionItem.toSingleTextEdit().removeCommonPrefix(new TextModelText(model));
+				if (!minifiedEdit.isEmpty) {
+					shouldStop = true;
+				}
+			}
+		}
+
+		if (shouldStop) {
+			break;
 		}
 	}
 
@@ -308,6 +323,7 @@ export class InlineCompletionItem {
 		return new InlineCompletionItem(
 			insertText,
 			inlineCompletion.command,
+			inlineCompletion.shownCommand,
 			range,
 			insertText,
 			snippetInfo,
@@ -317,9 +333,12 @@ export class InlineCompletionItem {
 		);
 	}
 
+	private _didCallShow = false;
+
 	constructor(
 		readonly filterText: string,
 		readonly command: Command | undefined,
+		readonly shownCommand: Command | undefined,
 		readonly range: Range,
 		readonly insertText: string,
 		readonly snippetInfo: SnippetInfo | undefined,
@@ -343,10 +362,18 @@ export class InlineCompletionItem {
 		insertText = filterText.replace(/\r\n|\r/g, '\n');
 	}
 
+	public get didShow(): boolean {
+		return this._didCallShow;
+	}
+	public markAsShown(): void {
+		this._didCallShow = true;
+	}
+
 	public withRange(updatedRange: Range): InlineCompletionItem {
 		return new InlineCompletionItem(
 			this.filterText,
 			this.command,
+			this.shownCommand,
 			updatedRange,
 			this.insertText,
 			this.snippetInfo,
