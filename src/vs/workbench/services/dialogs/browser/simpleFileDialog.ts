@@ -422,7 +422,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			// onDidChangeValue can also be triggered by the auto complete, so if it looks like the auto complete, don't do anything
 			if (this.isValueChangeFromUser()) {
 				// If the user has just entered more bad path, don't change anything
-				if (!equalsIgnoreCase(value, this.constructFullUserPath()) && !this.isBadSubpath(value)) {
+				if (!equalsIgnoreCase(value, this.constructFullUserPath()) && (!this.isBadSubpath(value) || this.canTildaEscapeHatch(value))) {
 					this.filePickBox.validationMessage = undefined;
 					const filePickBoxUri = this.filePickBoxValue();
 					let updated: UpdateResult = UpdateResult.NotUpdated;
@@ -555,10 +555,16 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		return dir;
 	}
 
+	private canTildaEscapeHatch(value: string): boolean {
+		return !!(value.endsWith('~') && this.isBadSubpath(value));
+	}
+
 	private tildaReplace(value: string): URI {
 		const home = this.trueHome;
 		if ((value.length > 0) && (value[0] === '~')) {
 			return resources.joinPath(home, value.substring(1));
+		} else if (this.canTildaEscapeHatch(value)) {
+			return home;
 		}
 		return this.remoteUriFrom(value);
 	}
@@ -574,7 +580,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	}
 
 	private async tryUpdateItems(value: string, valueUri: URI): Promise<UpdateResult> {
-		if ((value.length > 0) && (value[0] === '~')) {
+		if ((value.length > 0) && ((value[0] === '~') || this.canTildaEscapeHatch(value))) {
 			const newDir = this.tildaReplace(value);
 			return await this.updateItems(newDir, true) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 		} else if (value === '\\') {
@@ -598,7 +604,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 					return await this.updateItems(valueUri) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 				} else if (this.endsWithSlash(value)) {
 					// The input box contains a path that doesn't exist on the system.
-					this.filePickBox.validationMessage = nls.localize('remoteFileDialog.badPath', 'The path does not exist.');
+					this.filePickBox.validationMessage = nls.localize('remoteFileDialog.badPath', 'The path does not exist. Use ~ to go to your home directory.');
 					// Save this bad path. It can take too long to a stat on every user entered character, but once a user enters a bad path they are likely
 					// to keep typing more bad path. We can compare against this bad path and see if the user entered path starts with it.
 					this.badPath = value;
