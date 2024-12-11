@@ -231,7 +231,8 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		const setMinimumDimensions = (dimensions: dom.Dimension) => {
 			this._contentHoverWidget.setMinimumDimensions(dimensions);
 		};
-		return { hide, onContentsChanged, setMinimumDimensions };
+		const focus = () => this.focus();
+		return { hide, onContentsChanged, setMinimumDimensions, focus };
 	}
 
 
