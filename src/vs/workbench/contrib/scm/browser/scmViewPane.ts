@@ -1957,7 +1957,7 @@ class SCMInputWidget {
 						this.contextViewService.hideContextView();
 					}));
 
-					const renderer = disposables.add(this.instantiationService.createInstance(MarkdownRenderer, {}));
+					const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 					const renderedMarkdown = renderer.render(message, {
 						actionHandler: {
 							callback: (link) => {

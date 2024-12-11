@@ -287,14 +287,12 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 	}
 
 	private registerDefaultParticipantView(): IDisposable {
-		// Register View. Name must be hardcoded because we want to show it even when the extension fails to load due to an API version incompatibility.
-		const name = 'GitHub Copilot';
 		const viewDescriptor: IViewDescriptor[] = [{
 			id: ChatViewId,
 			containerIcon: this._viewContainer.icon,
 			containerTitle: this._viewContainer.title.value,
 			singleViewPaneContainerTitle: this._viewContainer.title.value,
-			name: { value: name, original: name },
+			name: localize2('chat.viewContainer.label', "Chat"),
 			canToggleVisibility: false,
 			canMoveView: true,
 			openCommandActionDescriptor: {
@@ -313,9 +311,9 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			when: ContextKeyExpr.or(
 				ContextKeyExpr.and(
 					ContextKeyExpr.has('config.chat.experimental.offerSetup'),
-					ContextKeyExpr.or(
-						ChatContextKeys.Setup.triggered,
-						ChatContextKeys.Setup.installed)),
+					ChatContextKeys.Setup.triggered
+				),
+				ChatContextKeys.Setup.installed,
 				ChatContextKeys.panelParticipantRegistered,
 				ChatContextKeys.extensionInvalid
 			)
@@ -364,9 +362,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			},
 			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.EditingSession }]),
 			when: ContextKeyExpr.or(
-				ContextKeyExpr.and(
-					ContextKeyExpr.has('config.chat.experimental.offerSetup'),
-					ChatContextKeys.Setup.installed),
+				ChatContextKeys.Setup.installed,
 				ChatContextKeys.editingParticipantRegistered
 			)
 		}];

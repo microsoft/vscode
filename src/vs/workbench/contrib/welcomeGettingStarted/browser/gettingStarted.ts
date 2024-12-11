@@ -1511,7 +1511,6 @@ export class GettingStartedPage extends EditorPane {
 			"{0} collects usage data. Read our {1} and learn how to {2}.", this.productService.nameShort, privacyStatementButton, optOutButton);
 
 		parent.append(mdRenderer.render({ value: text, isTrusted: true }).element);
-		mdRenderer.dispose();
 	}
 
 	private getKeybindingLabel(command: string) {

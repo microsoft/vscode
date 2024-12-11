@@ -296,7 +296,7 @@ class ActionViewItemWithClassName extends ActionViewItem {
 
 class StatusBarViewItem extends MenuEntryActionViewItem {
 	protected override updateLabel() {
-		const kb = this._keybindingService.lookupKeybinding(this._action.id, this._contextKeyService);
+		const kb = this._keybindingService.lookupKeybinding(this._action.id, this._contextKeyService, true);
 		if (!kb) {
 			return super.updateLabel();
 		}

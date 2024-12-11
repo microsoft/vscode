@@ -20,9 +20,9 @@ import { lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../
 import { TextModel } from '../../../../../common/model/textModel.js';
 import './inlineEditsView.css';
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineDiffView.js';
-import { applyEditToModifiedRangeMappings, createReindentEdit, maxContentWidthInRange, PathBuilder, Point, StatusBarViewItem } from './utils.js';
+import { applyEditToModifiedRangeMappings, createReindentEdit, getOffsetForPos, maxContentWidthInRange, PathBuilder, Point, StatusBarViewItem } from './utils.js';
 import { IInlineEditsIndicatorState, InlineEditsIndicator } from './inlineEditsIndicatorView.js';
-import { darken, lighten, registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
+import { darken, lighten, registerColor } from '../../../../../../platform/theme/common/colorUtils.js';
 import { diffInserted, diffRemoved } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
 import { Command } from '../../../../../common/languages.js';
@@ -38,13 +38,13 @@ import { Color } from '../../../../../../base/common/color.js';
 
 export const originalBackgroundColor = registerColor(
 	'inlineEdit.originalBackground',
-	transparent(diffRemoved, 0.4),
+	Color.transparent,
 	'',
 	true
 );
 export const modifiedBackgroundColor = registerColor(
 	'inlineEdit.modifiedBackground',
-	transparent(diffInserted, 0.4),
+	Color.transparent,
 	'',
 	true
 );
@@ -77,8 +77,19 @@ export const modifiedChangedTextOverlayColor = registerColor(
 	true
 );
 
-export const border = registerColor(
-	'inlineEdit.border',
+export const originalBorder = registerColor(
+	'inlineEdit.originalBorder',
+	{
+		light: darken(editorLineHighlightBorder, 0.15),
+		dark: lighten(editorLineHighlightBorder, 0.50),
+		hcDark: editorLineHighlightBorder,
+		hcLight: editorLineHighlightBorder
+	},
+	''
+);
+
+export const modifiedBorder = registerColor(
+	'inlineEdit.modifiedBorder',
 	{
 		light: darken(editorLineHighlightBorder, 0.15),
 		dark: lighten(editorLineHighlightBorder, 0.50),
@@ -126,10 +137,9 @@ export class InlineEditsView extends Disposable {
 			position: constObservable(null),
 			allowEditorOverflow: false,
 			minContentWidthInPx: derived(reader => {
-				const x = this._previewEditorLayoutInfo.read(reader)?.previewEditorLeft;
+				const x = this._previewEditorLayoutInfo.read(reader)?.maxContentWidth;
 				if (x === undefined) { return 0; }
-				const width = this._previewEditorWidth.read(reader) + 70;
-				return x + width;
+				return x;
 			}),
 		}));
 
@@ -146,7 +156,7 @@ export class InlineEditsView extends Disposable {
 			const topEdit = layoutInfo.edit1;
 			const editHeight = layoutInfo.editHeight;
 
-			const width = this._previewEditorWidth.read(reader) + 10;
+			const width = this._previewEditorWidth.read(reader);
 
 			const pathBuilder1 = new PathBuilder();
 			pathBuilder1.moveTo(layoutInfo.code2);
@@ -175,14 +185,14 @@ export class InlineEditsView extends Disposable {
 			const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 			path1.setAttribute('d', pathBuilder1.build());
 			path1.style.fill = 'var(--vscode-inlineEdit-originalBackground, transparent)';
-			path1.style.stroke = 'var(--vscode-inlineEdit-border)';
+			path1.style.stroke = 'var(--vscode-inlineEdit-originalBorder)';
 			path1.style.strokeWidth = '1px';
 
 
 			const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 			path2.setAttribute('d', pathBuilder2.build());
 			path2.style.fill = 'var(--vscode-inlineEdit-modifiedBackground, transparent)';
-			path2.style.stroke = 'var(--vscode-inlineEdit-border)';
+			path2.style.stroke = 'var(--vscode-inlineEdit-modifiedBorder)';
 			path2.style.strokeWidth = '1px';
 
 			const pathModifiedBackground = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -202,11 +212,11 @@ export class InlineEditsView extends Disposable {
 
 				const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
 				stop1.setAttribute('offset', '0%');
-				stop1.setAttribute('style', 'stop-color:var(--vscode-inlineEdit-border);stop-opacity:0');
+				stop1.setAttribute('style', 'stop-color:var(--vscode-inlineEdit-modifiedBorder);stop-opacity:0');
 
 				const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
 				stop2.setAttribute('offset', '100%');
-				stop2.setAttribute('style', 'stop-color:var(--vscode-inlineEdit-border);stop-opacity:1');
+				stop2.setAttribute('style', 'stop-color:var(--vscode-inlineEdit-modifiedBorder);stop-opacity:1');
 
 				linearGradient.appendChild(stop1);
 				linearGradient.appendChild(stop2);
@@ -231,7 +241,7 @@ export class InlineEditsView extends Disposable {
 
 				const path3 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 				path3.setAttribute('d', pathBuilder3.build());
-				path3.style.stroke = 'var(--vscode-inlineEdit-border)';
+				path3.style.stroke = 'var(--vscode-inlineEdit-modifiedBorder)';
 				path3.style.strokeWidth = '1px';
 				elements.push(path3);
 			}
@@ -431,7 +441,14 @@ export class InlineEditsView extends Disposable {
 		if (!edit) { return 0; }
 		this._updatePreviewEditor.read(reader);
 
-		return maxContentWidthInRange(this._previewEditorObs, edit.modifiedLineRange, reader);
+		return maxContentWidthInRange(this._previewEditorObs, edit.modifiedLineRange, reader) + 10;
+	});
+
+	private readonly _cursorPosIfTouchesEdit = derived(this, reader => {
+		const cursorPos = this._editorObs.cursorPosition.read(reader);
+		const edit = this._edit.read(reader);
+		if (!edit || !cursorPos) { return undefined; }
+		return edit.modifiedLineRange.contains(cursorPos.lineNumber) ? cursorPos : undefined;
 	});
 
 	/**
@@ -449,27 +466,33 @@ export class InlineEditsView extends Disposable {
 
 		const range = inlineEdit.originalLineRange;
 
-		const scrollLeft = this._editorObs.scrollLeft.read(reader);
+		const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);
 
-		const maxContentWidth = maxContentWidthInRange(this._editorObs, state.originalDisplayRange, reader);
-		const contentLeft = this._editorObs.layoutInfoContentLeft.read(reader);
-		const editorLayoutInfo = this._editorObs.layoutInfo.read(reader);
-		const previewEditorWidth = this._previewEditorWidth.read(reader);
-		const textAreaWidth = (editorLayoutInfo.width - editorLayoutInfo.contentLeft - editorLayoutInfo.minimap.minimapWidth);
+		const editorContentMaxWidthInRange = maxContentWidthInRange(this._editorObs, state.originalDisplayRange, reader);
+		const editorLayout = this._editorObs.layoutInfo.read(reader);
+		const previewWidth = this._previewEditorWidth.read(reader);
+		const editorContentAreaWidth = editorLayout.width - editorLayout.contentLeft - editorLayout.minimap.minimapWidth - editorLayout.verticalScrollbarWidth;
+
+		const cursorPos = this._cursorPosIfTouchesEdit.read(reader);
+
 		const maxPreviewEditorLeft = Math.max(
-			textAreaWidth * 0.65 + scrollLeft,
-			textAreaWidth - previewEditorWidth - 60,
+			editorContentAreaWidth * 0.65 + horizontalScrollOffset - 10,
+			editorContentAreaWidth - previewWidth - 70 + horizontalScrollOffset - 10,
+			cursorPos ? getOffsetForPos(this._editorObs, cursorPos, reader) + 50 : 0,
 		);
+		const previewEditorLeftInTextArea = Math.min(editorContentMaxWidthInRange + 20, maxPreviewEditorLeft);
 
-		const previewEditorLeft = Math.min(contentLeft + maxContentWidth, maxPreviewEditorLeft);
-		const dist = maxPreviewEditorLeft - previewEditorLeft;
+		const previewEditorLeft = editorLayout.contentLeft + previewEditorLeftInTextArea;
+		const maxContentWidth = editorContentMaxWidthInRange + 20 + previewWidth + 70;
 
-		const left = previewEditorLeft + 20 - scrollLeft;
+		const dist = maxPreviewEditorLeft - previewEditorLeftInTextArea;
+
+		const left = Math.max(editorLayout.contentLeft, previewEditorLeft - horizontalScrollOffset);
 
 		const selectionTop = this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
 		const selectionBottom = this._editor.getTopForLineNumber(range.endLineNumberExclusive) - this._editorObs.scrollTop.read(reader);
 
-		const codeLeft = this._editorObs.layoutInfoContentLeft.read(reader);
+		const codeLeft = editorLayout.contentLeft;
 
 		const code1 = new Point(left, selectionTop);
 		const codeStart1 = new Point(codeLeft, selectionTop);
@@ -501,6 +524,7 @@ export class InlineEditsView extends Disposable {
 			edit2,
 			editHeight,
 			previewEditorLeft,
+			maxContentWidth,
 			shouldShowShadow: clipped,
 		};
 	});

@@ -22,6 +22,7 @@ import { InlayHintsHover } from '../../inlayHints/browser/inlayHintsHover.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { HoverAction } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IOffsetRange } from '../../../common/core/offsetRange.js';
 
 export class RenderedContentHover extends Disposable {
 
@@ -77,6 +78,10 @@ export class RenderedContentHover extends Disposable {
 
 	public get focusedHoverPartIndex(): number {
 		return this._renderedHoverParts.focusedHoverPartIndex;
+	}
+
+	public get hoverPartsCount(): number {
+		return this._renderedHoverParts.hoverPartsCount;
 	}
 
 	public focusHoverPartWithIndex(index: number): void {
@@ -374,20 +379,35 @@ class RenderedContentHoverParts extends Disposable {
 		if (!this._markdownHoverParticipant) {
 			return;
 		}
-		const normalizedMarkdownHoverIndex = this._normalizedIndexToMarkdownHoverIndexRange(this._markdownHoverParticipant, index);
-		if (normalizedMarkdownHoverIndex === undefined) {
-			return;
+		let rangeOfIndicesToUpdate: IOffsetRange;
+		if (index >= 0) {
+			rangeOfIndicesToUpdate = { start: index, endExclusive: index + 1 };
+		} else {
+			rangeOfIndicesToUpdate = this._findRangeOfMarkdownHoverParts(this._markdownHoverParticipant);
 		}
-		const renderedPart = await this._markdownHoverParticipant.updateMarkdownHoverVerbosityLevel(action, normalizedMarkdownHoverIndex, focus);
-		if (!renderedPart) {
-			return;
+		for (let i = rangeOfIndicesToUpdate.start; i < rangeOfIndicesToUpdate.endExclusive; i++) {
+			const normalizedMarkdownHoverIndex = this._normalizedIndexToMarkdownHoverIndexRange(this._markdownHoverParticipant, i);
+			if (normalizedMarkdownHoverIndex === undefined) {
+				continue;
+			}
+			const renderedPart = await this._markdownHoverParticipant.updateMarkdownHoverVerbosityLevel(action, normalizedMarkdownHoverIndex);
+			if (!renderedPart) {
+				continue;
+			}
+			this._renderedParts[i] = {
+				type: 'hoverPart',
+				participant: this._markdownHoverParticipant,
+				hoverPart: renderedPart.hoverPart,
+				hoverElement: renderedPart.hoverElement,
+			};
 		}
-		this._renderedParts[index] = {
-			type: 'hoverPart',
-			participant: this._markdownHoverParticipant,
-			hoverPart: renderedPart.hoverPart,
-			hoverElement: renderedPart.hoverElement,
-		};
+		if (focus) {
+			if (index >= 0) {
+				this.focusHoverPartWithIndex(index);
+			} else {
+				this._context.focus();
+			}
+		}
 		this._context.onContentsChanged();
 	}
 
@@ -425,6 +445,14 @@ class RenderedContentHoverParts extends Disposable {
 		return index - firstIndexOfMarkdownHovers;
 	}
 
+	private _findRangeOfMarkdownHoverParts(markdownHoverParticipant: MarkdownHoverParticipant): IOffsetRange {
+		const copiedRenderedParts = this._renderedParts.slice();
+		const firstIndexOfMarkdownHovers = copiedRenderedParts.findIndex(renderedPart => renderedPart.type === 'hoverPart' && renderedPart.participant === markdownHoverParticipant);
+		const inversedLastIndexOfMarkdownHovers = copiedRenderedParts.reverse().findIndex(renderedPart => renderedPart.type === 'hoverPart' && renderedPart.participant === markdownHoverParticipant);
+		const lastIndexOfMarkdownHovers = inversedLastIndexOfMarkdownHovers >= 0 ? copiedRenderedParts.length - inversedLastIndexOfMarkdownHovers : inversedLastIndexOfMarkdownHovers;
+		return { start: firstIndexOfMarkdownHovers, endExclusive: lastIndexOfMarkdownHovers + 1 };
+	}
+
 	public get domNode(): DocumentFragment {
 		return this._fragment;
 	}
@@ -435,5 +463,9 @@ class RenderedContentHoverParts extends Disposable {
 
 	public get focusedHoverPartIndex(): number {
 		return this._focusedHoverPartIndex;
+	}
+
+	public get hoverPartsCount(): number {
+		return this._renderedParts.length;
 	}
 }

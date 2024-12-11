@@ -61,6 +61,7 @@ import { ChatConfirmationContentPart } from './chatContentParts/chatConfirmation
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts/chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from './chatContentParts/chatMarkdownContentPart.js';
 import { ChatProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
+import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.js';
 import { ChatCollapsibleListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatTextEditContentPart, DiffEditorPool } from './chatContentParts/chatTextEditContentPart.js';
@@ -156,7 +157,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	) {
 		super();
 
-		this.renderer = this._register(this.instantiationService.createInstance(ChatMarkdownRenderer, undefined));
+		this.renderer = this.instantiationService.createInstance(ChatMarkdownRenderer, undefined);
 		this.markdownDecorationsRenderer = this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode));
 		this._diffEditorPool = this._register(this.instantiationService.createInstance(DiffEditorPool, editorOptions, delegate, overflowWidgetsDomNode));
@@ -565,9 +566,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if (isResponseVM(element) && element.errorDetails?.message) {
-			const renderedError = this.instantiationService.createInstance(ChatWarningContentPart, element.errorDetails.responseIsFiltered ? 'info' : 'error', new MarkdownString(element.errorDetails.message), this.renderer);
-			templateData.elementDisposables.add(renderedError);
-			templateData.value.appendChild(renderedError.domNode);
+			if (element.errorDetails.isQuotaExceeded) {
+				const renderedError = this.instantiationService.createInstance(ChatQuotaExceededPart, element, this.renderer);
+				templateData.elementDisposables.add(renderedError);
+				templateData.value.appendChild(renderedError.domNode);
+				templateData.elementDisposables.add(renderedError.onDidChangeHeight(() => this.updateItemHeight(templateData)));
+			} else {
+				const renderedError = this.instantiationService.createInstance(ChatWarningContentPart, element.errorDetails.responseIsFiltered ? 'info' : 'error', new MarkdownString(element.errorDetails.message), this.renderer);
+				templateData.elementDisposables.add(renderedError);
+				templateData.value.appendChild(renderedError.domNode);
+			}
 		}
 
 		if (this.rendererOptions.renderStyle === 'minimal' && isRequestVM(element) && !element.isComplete) {
