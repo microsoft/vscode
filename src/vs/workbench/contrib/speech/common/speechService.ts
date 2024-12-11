@@ -138,7 +138,7 @@ export const enum AccessibilityVoiceSettingId {
 	SpeechTimeout = 'accessibility.voice.speechTimeout',
 	AutoSynthesize = 'accessibility.voice.autoSynthesize',
 	SpeechLanguage = 'accessibility.voice.speechLanguage',
-	IgnoreCodeBlocks = 'accesibility.voice.ignoreCodeBlocks',
+	IgnoreCodeBlocks = 'accessibility.voice.ignoreCodeBlocks'
 }
 
 export const SPEECH_LANGUAGE_CONFIG = AccessibilityVoiceSettingId.SpeechLanguage;

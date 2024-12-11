@@ -707,6 +707,11 @@ class ChatSynthesizerSessionController {
 	}
 }
 
+interface IChatSyntheSizerContext {
+	readonly ignoreCodeBlocks: boolean;
+	insideCodeBlock: boolean;
+}
+
 class ChatSynthesizerSessions {
 
 	private static instance: ChatSynthesizerSessions | undefined = undefined;
@@ -769,26 +774,21 @@ class ChatSynthesizerSessions {
 	}
 
 	private async *nextChatResponseChunk(response: IChatResponseModel, token: CancellationToken): AsyncIterable<string> {
+		const context: IChatSyntheSizerContext = {
+			ignoreCodeBlocks: this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.IgnoreCodeBlocks),
+			insideCodeBlock: false
+		};
+
 		let totalOffset = 0;
 		let complete = false;
-		let insideCodeBlock = false;
 		do {
 			const responseLength = response.response.toString().length;
-			const { chunk, offset } = this.parseNextChatResponseChunk(response, totalOffset);
+			const { chunk, offset } = this.parseNextChatResponseChunk(response, totalOffset, context);
 			totalOffset = offset;
 			complete = response.isComplete;
 
 			if (chunk) {
-				if (this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.IgnoreCodeBlocks)) {
-					const { filteredChunk, isInsideCodeBlock } = this.filterCodeBlocks(chunk, insideCodeBlock);
-					insideCodeBlock = isInsideCodeBlock;
-					if (filteredChunk) {
-						yield filteredChunk;
-					}
-				}
-				else {
-					yield chunk;
-				}
+				yield chunk;
 			}
 
 			if (token.isCancellationRequested) {
@@ -801,7 +801,7 @@ class ChatSynthesizerSessions {
 		} while (!token.isCancellationRequested && !complete);
 	}
 
-	private parseNextChatResponseChunk(response: IChatResponseModel, offset: number): { readonly chunk: string | undefined; readonly offset: number } {
+	private parseNextChatResponseChunk(response: IChatResponseModel, offset: number, context: IChatSyntheSizerContext): { readonly chunk: string | undefined; readonly offset: number } {
 		let chunk: string | undefined = undefined;
 
 		const text = response.response.toString();
@@ -815,33 +815,27 @@ class ChatSynthesizerSessions {
 			offset = res.offset;
 		}
 
+		if (chunk && context.ignoreCodeBlocks) {
+			chunk = this.filterCodeBlocks(chunk, context);
+		}
+
 		return {
 			chunk: chunk ? renderStringAsPlaintext({ value: chunk }) : chunk, // convert markdown to plain text
 			offset
 		};
 	}
 
-	private filterCodeBlocks(chunk: string, insideCodeBlock: boolean): { filteredChunk: string | undefined; isInsideCodeBlock: boolean } {
-		const lines = chunk.split('\n');
-		const filteredLines: string[] = [];
-		let isInsideCodeBlock = insideCodeBlock;
-	
-		for (const line of lines) {
-			if (line.trim().startsWith('```')) {
-				isInsideCodeBlock = !isInsideCodeBlock;
-				continue;
-			}
-			
-			if (!isInsideCodeBlock) {
-				filteredLines.push(line);
-			}
-		}
-	
-		return {
-			filteredChunk: filteredLines.join('\n') || undefined,
-			isInsideCodeBlock
-		};
-	}	
+	private filterCodeBlocks(chunk: string, context: IChatSyntheSizerContext): string {
+		return chunk.split('\n')
+			.filter(line => {
+				if (line.trimStart().startsWith('```')) {
+					context.insideCodeBlock = !context.insideCodeBlock;
+					return false;
+				}
+				return !context.insideCodeBlock;
+			})
+			.join('\n');
+	}
 
 	stop(): void {
 		this.activeSession?.dispose(true);
