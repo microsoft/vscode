@@ -178,34 +178,61 @@ export class QuickInputController extends Disposable {
 		}));
 
 		// Drag and move support
+		const snaplineHorizontal = dom.append(this._container, $('.quick-input-widget-snapline.horizontal.hidden'));
+		const snaplineVertical1 = dom.append(this._container, $('.quick-input-widget-snapline.vertical.hidden'));
+		const snaplineVertical2 = dom.append(this._container, $('.quick-input-widget-snapline.vertical.hidden'));
+
 		const dragDisposable = this._register(new DisposableStore());
 		this._register(dom.addDisposableGenericMouseDownListener(headerContainer, (e: MouseEvent) => {
-			const snapThreshold = 50;
+			const snapThreshold = 20;
 			const dragOffsetX = e.offsetX;
 			const dragOffsetY = e.offsetY;
 
-			const centerX = (this.dimension!.width / 2) - (container.clientWidth / 2);
+			let snapLinesVisible = false;
+			const snapCoordinateY = this.dimension!.height * 0.15;
+			const snapCoordinateX = (this.dimension!.width / 2) - (container.clientWidth / 2);
 
 			dragDisposable.add(dom.addDisposableGenericMouseMoveListener(this._container, (e: MouseEvent) => {
-				container.style.top = `${e.clientY - dragOffsetY}px`;
+				if (!snapLinesVisible) {
+					snaplineHorizontal.classList.remove('hidden');
+					snaplineHorizontal.style.top = `${snapCoordinateY}px`;
+
+					snaplineVertical1.classList.remove('hidden');
+					snaplineVertical1.style.left = `${(this.dimension!.width / 2) - (container.clientWidth / 2)}px`;
+
+					snaplineVertical2.classList.remove('hidden');
+					snaplineVertical2.style.left = `${(this.dimension!.width / 2) + (container.clientWidth / 2)}px`;
+
+					snapLinesVisible = true;
+				}
+
+				const top = e.clientY - dragOffsetY;
+				container.style.top = Math.abs(top - snapCoordinateY) < snapThreshold
+					? `${snapCoordinateY}px`
+					: `${top}px`;
 
 				const left = e.clientX - dragOffsetX;
-				container.style.left = Math.abs(left - centerX) < snapThreshold
-					? `${centerX}px`
+				container.style.left = Math.abs(left - snapCoordinateX) < snapThreshold
+					? `${snapCoordinateX}px`
 					: `${left}px`;
 			}));
 		}));
 		this._register(dom.addDisposableGenericMouseUpListener(headerContainer, (e: MouseEvent) => {
 			// TODO - save state
 
+			// Hide snaplines
+			snaplineHorizontal.classList.add('hidden');
+			snaplineVertical1.classList.add('hidden');
+			snaplineVertical2.classList.add('hidden');
+
 			// Top ratio
-			const widgetTopRatio = parseInt(container.style.top) / this.dimension!.height;
-			this.quickPickTop = parseFloat(widgetTopRatio.toFixed(2));
+			const topRatio = parseInt(container.style.top) / this.dimension!.height;
+			this.quickPickTop = parseFloat(topRatio.toFixed(2));
 
 			// Left ratio
-			const widgetCenter = parseInt(container.style.left) + (container.clientWidth / 2);
-			const widgetCenterRatio = widgetCenter / this.dimension!.width;
-			this.quickPickLeft = parseFloat(widgetCenterRatio.toFixed(2));
+			const center = parseInt(container.style.left) + (container.clientWidth / 2);
+			const centerRatio = center / this.dimension!.width;
+			this.quickPickLeft = parseFloat(centerRatio.toFixed(2));
 
 			dragDisposable.clear();
 		}));
