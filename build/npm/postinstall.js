@@ -10,6 +10,7 @@ const cp = require('child_process');
 const { dirs } = require('./dirs');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const root = path.dirname(path.dirname(__dirname));
+const target_arch = process.env['npm_config_arch'] || process.arch;
 
 function log(dir, message) {
 	if (process.stdout.isTTY) {
@@ -94,6 +95,8 @@ function setNpmrcConfig(dir, env) {
 	if (dir === 'build') {
 		env['npm_config_target'] = process.versions.node;
 		env['npm_config_arch'] = process.arch;
+	} else {
+		env['npm_config_arch'] = target_arch;
 	}
 }
 
