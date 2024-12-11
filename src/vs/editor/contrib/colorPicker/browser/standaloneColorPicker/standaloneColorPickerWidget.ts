@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../colorPicker.css';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IEditorHoverRenderContext } from '../../../hover/browser/hoverTypes.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../browser/editorBrowser.js';
 import { PositionAffinity } from '../../../../common/model.js';
@@ -51,8 +51,8 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 	private readonly _onResult = this._register(new Emitter<StandaloneColorPickerResult>());
 	public readonly onResult = this._onResult.event;
 
-	private _renderedHoverParts: StandaloneColorPickerRenderedParts | undefined;
-	private _renderedStatusBar: EditorHoverStatusBar | undefined;
+	private readonly _renderedHoverParts: MutableDisposable<StandaloneColorPickerRenderedParts> = this._register(new MutableDisposable());
+	private readonly _renderedStatusBar: MutableDisposable<EditorHoverStatusBar> = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -135,7 +135,6 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 
 	public hide(): void {
 		this.dispose();
-		this._disposeRenderedParts();
 		this._standaloneColorPickerVisible.set(false);
 		this._standaloneColorPickerFocused.set(false);
 		this._editor.removeContentWidget(this);
@@ -171,25 +170,25 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 	}
 
 	private _render(colorHover: StandaloneColorPickerHover, foundInEditor: boolean) {
-		this._disposeRenderedParts();
-
 		const fragment = document.createDocumentFragment();
-		this._renderedStatusBar = this._register(new EditorHoverStatusBar(this._keybindingService, this._hoverService));
+		this._renderedStatusBar.value = this._register(new EditorHoverStatusBar(this._keybindingService, this._hoverService));
 
 		const context: IEditorHoverRenderContext = {
 			fragment,
-			statusBar: this._renderedStatusBar,
+			statusBar: this._renderedStatusBar.value,
 			onContentsChanged: () => { },
 			setMinimumDimensions: () => { },
 			hide: () => this.hide(),
 		};
 
 		this._colorHover = colorHover;
-		this._renderedHoverParts = this._standaloneColorPickerParticipant.renderHoverParts(context, [colorHover]);
-		if (!this._renderedHoverParts) {
+		this._renderedHoverParts.value = this._standaloneColorPickerParticipant.renderHoverParts(context, [colorHover]);
+		if (!this._renderedHoverParts.value) {
+			this._renderedStatusBar.clear();
+			this._renderedHoverParts.clear();
 			return;
 		}
-		const colorPicker = this._renderedHoverParts.colorPicker;
+		const colorPicker = this._renderedHoverParts.value.colorPicker;
 		this._body.classList.add('standalone-colorpicker-body');
 		this._body.style.maxHeight = Math.max(this._editor.getLayoutInfo().height / 4, 250) + 'px';
 		this._body.style.maxWidth = Math.max(this._editor.getLayoutInfo().width * 0.66, 500) + 'px';
@@ -223,10 +222,5 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 			this._editor.setSelection(colorHover.range);
 		}
 		this._editor.layoutContentWidget(this);
-	}
-
-	private _disposeRenderedParts(): void {
-		this._renderedStatusBar?.dispose();
-		this._renderedHoverParts?.dispose();
 	}
 }
