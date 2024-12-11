@@ -8,7 +8,6 @@
 	width: 600px;
 	z-index: 2550;
 	left: 50%;
-	margin-left: -300px;
 	-webkit-app-region: no-drag;
 	border-radius: 6px;
 }
@@ -63,6 +62,7 @@
 }
 
 .quick-input-header {
+	cursor: move;
 	display: flex;
 	padding: 8px 6px 2px 6px;
 }

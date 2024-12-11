@@ -36,6 +36,8 @@ export class QuickInputController extends Disposable {
 	private ui: QuickInputUI | undefined;
 	private dimension?: dom.IDimension;
 	private titleBarOffset?: number;
+	private quickPickTop: number | undefined;
+	private quickPickLeft: number = 0.5; /* center */
 	private enabled = true;
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 	private readonly onDidCustomEmitter = this._register(new Emitter<void>());
@@ -111,6 +113,7 @@ export class QuickInputController extends Disposable {
 		}
 
 		const container = dom.append(this._container, $('.quick-input-widget.show-file-icons'));
+		container.draggable = true;
 		container.tabIndex = -1;
 		container.style.display = 'none';
 
@@ -172,6 +175,39 @@ export class QuickInputController extends Disposable {
 		customButton.label = localize('custom', "Custom");
 		this._register(customButton.onDidClick(e => {
 			this.onDidCustomEmitter.fire();
+		}));
+
+		// Drag and move support
+		const dragDisposable = this._register(new DisposableStore());
+		this._register(dom.addDisposableGenericMouseDownListener(headerContainer, (e: MouseEvent) => {
+			const snapThreshold = 50;
+			const dragOffsetX = e.offsetX;
+			const dragOffsetY = e.offsetY;
+
+			const centerX = (this.dimension!.width / 2) - (container.clientWidth / 2);
+
+			dragDisposable.add(dom.addDisposableGenericMouseMoveListener(this._container, (e: MouseEvent) => {
+				container.style.top = `${e.clientY - dragOffsetY}px`;
+
+				const left = e.clientX - dragOffsetX;
+				container.style.left = Math.abs(left - centerX) < snapThreshold
+					? `${centerX}px`
+					: `${left}px`;
+			}));
+		}));
+		this._register(dom.addDisposableGenericMouseUpListener(headerContainer, (e: MouseEvent) => {
+			// TODO - save state
+
+			// Top ratio
+			const widgetTopRatio = parseInt(container.style.top) / this.dimension!.height;
+			this.quickPickTop = parseFloat(widgetTopRatio.toFixed(2));
+
+			// Left ratio
+			const widgetCenter = parseInt(container.style.left) + (container.clientWidth / 2);
+			const widgetCenterRatio = widgetCenter / this.dimension!.width;
+			this.quickPickLeft = parseFloat(widgetCenterRatio.toFixed(2));
+
+			dragDisposable.clear();
 		}));
 
 		const message = dom.append(inputContainer, $(`#${this.idPrefix}message.quick-input-message`));
@@ -729,12 +765,13 @@ export class QuickInputController extends Disposable {
 
 	private updateLayout() {
 		if (this.ui && this.isVisible()) {
-			this.ui.container.style.top = `${this.titleBarOffset}px`;
-
 			const style = this.ui.container.style;
+
 			const width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
 			style.width = width + 'px';
-			style.marginLeft = '-' + (width / 2) + 'px';
+
+			style.top = `${this.quickPickTop ? Math.round(this.dimension!.height * this.quickPickTop) : this.titleBarOffset}px`;
+			style.left = `${Math.round((this.dimension!.width * this.quickPickLeft) - (width / 2))}px`;
 
 			this.ui.inputBox.layout();
 			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
