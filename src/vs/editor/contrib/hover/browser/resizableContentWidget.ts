@@ -10,7 +10,6 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IPosition, Position } from '../../../common/core/position.js';
 import * as dom from '../../../../base/browser/dom.js';
 
-const TOP_HEIGHT = 30;
 const BOTTOM_HEIGHT = 24;
 
 export abstract class ResizableContentWidget extends Disposable implements IContentWidget {
@@ -62,13 +61,11 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 	}
 
 	protected _availableVerticalSpaceAbove(position: IPosition): number | undefined {
-		const editorDomNode = this._editor.getDomNode();
 		const mouseBox = this._editor.getScrolledVisiblePosition(position);
-		if (!editorDomNode || !mouseBox) {
+		if (!mouseBox) {
 			return;
 		}
-		const editorBox = dom.getDomNodePagePosition(editorDomNode);
-		return editorBox.top + mouseBox.top - TOP_HEIGHT;
+		return mouseBox.top;
 	}
 
 	protected _availableVerticalSpaceBelow(position: IPosition): number | undefined {

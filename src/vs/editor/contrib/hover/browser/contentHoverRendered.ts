@@ -392,7 +392,7 @@ class RenderedContentHoverParts extends Disposable {
 			hoverPart: renderedPart.hoverPart,
 			hoverElement: renderedPart.hoverElement,
 		};
-		this._context.onContentsChanged();
+		this._context.onContentsChanged({ allowPositionPreferenceRecomputation: false });
 	}
 
 	public doesHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
