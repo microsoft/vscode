@@ -119,6 +119,7 @@ interface IInitialEditorsState {
 export const TITLE_BAR_SETTINGS = [
 	LayoutSettings.ACTIVITY_BAR_LOCATION,
 	LayoutSettings.COMMAND_CENTER,
+	LayoutSettings.COMMAND_PALETTE_OFFSET,
 	LayoutSettings.EDITOR_ACTIONS_LOCATION,
 	LayoutSettings.LAYOUT_ACTIONS,
 	'workbench.navigationControl.enabled',
@@ -242,6 +243,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// If the command center is visible then the quickinput
 			// should go over the title bar and the banner
 			quickPickTop = 6;
+		}
+
+		// Override the quick pick top based on the user setting
+		const commandPaletteTop = this.configurationService.getValue<number>(LayoutSettings.COMMAND_PALETTE_OFFSET);
+		if (typeof commandPaletteTop === 'number' && commandPaletteTop > 0) {
+			quickPickTop = commandPaletteTop < 1
+				? Math.round(targetWindow.innerHeight * commandPaletteTop)
+				: commandPaletteTop;
 		}
 
 		return { top, quickPickTop };
@@ -368,6 +377,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					if (this.configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY) === CustomTitleBarVisibility.NEVER) {
 						this.configurationService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.AUTO);
 					}
+				}
+
+				if (e.affectsConfiguration(LayoutSettings.COMMAND_PALETTE_OFFSET)) {
+					// Emit event to update quick input position
+					this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
 				}
 
 				this.doUpdateLayoutConfiguration();

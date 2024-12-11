@@ -480,6 +480,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('enableNaturalLanguageSearch', "Controls whether the command palette should include similar commands. You must have an extension installed that provides Natural Language support."),
 				'default': true
 			},
+			[LayoutSettings.COMMAND_PALETTE_OFFSET]: {
+				'type': 'number',
+				'tags': ['experimental'],
+				'markdownDescription': localize('commandPaletteOffset', "Controls the offset of the command palette from the top of the window. Values betweem `0` and `1` will be interpreted as a percentage of the window height, while values greater than 1 will be interpreted as pixels."),
+				'minimum': 0,
+				'default': 0,
+			},
 			'workbench.quickOpen.closeOnFocusLost': {
 				'type': 'boolean',
 				'description': localize('closeOnFocusLost', "Controls whether Quick Open should close automatically once it loses focus."),
