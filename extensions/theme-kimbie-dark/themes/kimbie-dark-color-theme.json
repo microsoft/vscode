@@ -187,7 +187,8 @@
 			"scope": [
 				"string",
 				"constant.other.symbol",
-				"entity.other.inherited-class"
+				"entity.other.inherited-class",
+				"punctuation.separator.namespace.ruby"
 			],
 			"settings": {
 				"foreground": "#889b4a"
