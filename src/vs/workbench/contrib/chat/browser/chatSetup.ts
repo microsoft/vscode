@@ -36,7 +36,7 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { asText, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -581,7 +581,7 @@ class ChatSetupRequests extends Disposable {
 
 	async signUpLimited(session: AuthenticationSession): Promise<boolean> {
 		const body = {
-			restricted_telemetry: 'disabled',
+			restricted_telemetry: this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? 'disabled' : 'enabled',
 			public_code_suggestions: 'enabled'
 		};
 
