@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .outline-pane {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 }
