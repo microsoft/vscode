@@ -375,10 +375,10 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                 lastBuildVersion[key] = value;
             });
             // print old errors and keep them
-            utils.collections.forEach(oldErrors, entry => {
-                entry.value.forEach(diag => onError(diag));
-                newErrors[entry.key] = entry.value;
-            });
+            for (const [key, value] of Object.entries(oldErrors)) {
+                value.forEach(diag => onError(diag));
+                newErrors[key] = value;
+            }
             oldErrors = newErrors;
             // print stats
             const headNow = process.memoryUsage().heapUsed;
@@ -443,7 +443,7 @@ class LanguageServiceHost {
         this._snapshots = Object.create(null);
         this._filesInProject = new Set(_cmdLine.fileNames);
         this._filesAdded = new Set();
-        this._dependencies = new utils.graph.Graph(s => s);
+        this._dependencies = new utils.graph.Graph();
         this._dependenciesRecomputeList = [];
         this._fileNameToDeclaredModule = Object.create(null);
         this._projectVersion = 1;
@@ -547,7 +547,7 @@ class LanguageServiceHost {
         filename = normalize(filename);
         const node = this._dependencies.lookup(filename);
         if (node) {
-            utils.collections.forEach(node.incoming, entry => target.push(entry.key));
+            node.incoming.forEach(entry => target.push(entry.data));
         }
     }
     hasCyclicDependency() {
