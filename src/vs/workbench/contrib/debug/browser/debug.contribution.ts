@@ -395,7 +395,7 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
 	id: REPL_VIEW_ID,
 	name: nls.localize2({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, "Debug Console"),
 	containerIcon: icons.debugConsoleViewIcon,
-	canToggleVisibility: false,
+	canToggleVisibility: true,
 	canMoveView: true,
 	when: CONTEXT_DEBUGGERS_AVAILABLE,
 	ctorDescriptor: new SyncDescriptor(Repl),
