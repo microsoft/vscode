@@ -27,6 +27,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
     const _log = config.logFn;
     const host = new LanguageServiceHost(cmd, projectFile, _log);
     const outHost = new LanguageServiceHost({ ...cmd, options: { ...cmd.options, sourceRoot: cmd.options.outDir } }, cmd.options.outDir ?? '', _log);
+    let lastCycleCheckVersion;
     const service = ts.createLanguageService(host, ts.createDocumentRegistry());
     const lastBuildVersion = Object.create(null);
     const lastDtsHash = Object.create(null);
@@ -216,7 +217,6 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
         const toBeCheckedSemantically = [];
         const filesWithChangedSignature = [];
         const dependentFiles = [];
-        const toBeCheckedForCycles = [];
         const newLastBuildVersion = new Map();
         for (const fileName of host.getScriptFileNames()) {
             if (lastBuildVersion[fileName] !== host.getScriptVersion(fileName)) {
@@ -256,7 +256,6 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                         // line up for cycle check
                         const jsValue = value.files.find(candidate => candidate.basename.endsWith('.js'));
                         if (jsValue) {
-                            toBeCheckedForCycles.push(jsValue.path);
                             outHost.addScriptSnapshot(jsValue.path, new ScriptSnapshot(String(jsValue.contents), new Date()));
                         }
                     }).catch(e => {
@@ -333,24 +332,6 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                         }
                     }
                 }
-                // (6th) check for cyclic dependencies
-                else if (toBeCheckedForCycles.length) {
-                    toBeCheckedForCycles.length = 0;
-                    const oneCycle = outHost.hasCyclicDependency();
-                    if (oneCycle) {
-                        const cycleError = {
-                            category: ts.DiagnosticCategory.Error,
-                            code: 1,
-                            file: undefined,
-                            start: undefined,
-                            length: undefined,
-                            messageText: `CYCLIC dependency between ${oneCycle}`
-                        };
-                        onError(cycleError);
-                        delete oldErrors[projectFile];
-                        newErrors[projectFile] = [cycleError];
-                    }
-                }
                 // (last) done
                 else {
                     resolve();
@@ -367,6 +348,27 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                 });
             }
             workOnNext();
+        }).then(() => {
+            // check for cyclic dependencies
+            const thisCycleCheckVersion = outHost.getProjectVersion();
+            if (thisCycleCheckVersion === lastCycleCheckVersion) {
+                return;
+            }
+            const oneCycle = outHost.hasCyclicDependency();
+            lastCycleCheckVersion = thisCycleCheckVersion;
+            delete oldErrors[projectFile];
+            if (oneCycle) {
+                const cycleError = {
+                    category: ts.DiagnosticCategory.Error,
+                    code: 1,
+                    file: undefined,
+                    start: undefined,
+                    length: undefined,
+                    messageText: `CYCLIC dependency between ${oneCycle}`
+                };
+                onError(cycleError);
+                newErrors[projectFile] = [cycleError];
+            }
         }).then(() => {
             // store the build versions to not rebuilt the next time
             newLastBuildVersion.forEach((value, key) => {
