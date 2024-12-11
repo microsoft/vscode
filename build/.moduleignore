@@ -110,6 +110,9 @@ node-pty/third_party/**
 @parcel/watcher/src/**
 !@parcel/watcher/build/Release/*.node
 
+# exclude parcel watcher prebuilds
+@parcel/watcher-**
+
 vsda/**
 !vsda/index.js
 !vsda/index.d.ts
