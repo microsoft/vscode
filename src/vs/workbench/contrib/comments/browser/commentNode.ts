@@ -339,9 +339,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		const actions: IAction[] = [];
 
 		const hasReactionHandler = this.commentService.hasReactionHandler(this.owner);
-
-		if (hasReactionHandler) {
-			const toggleReactionAction = this.createReactionPicker(this.comment.commentReactions || []);
+		const toggleReactionAction = hasReactionHandler ? this.createReactionPicker(this.comment.commentReactions || []) : undefined;
+		if (toggleReactionAction) {
 			actions.push(toggleReactionAction);
 		}
 
@@ -352,7 +351,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			if (!this.toolbar && (primary.length || secondary.length)) {
 				this.createToolbar();
 			}
-
+			if (toggleReactionAction) {
+				primary.unshift(toggleReactionAction);
+			}
 			this.toolbar!.setActions(primary, secondary);
 		}));
 
