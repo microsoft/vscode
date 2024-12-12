@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -104,7 +104,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 
 		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(SetupWelcomeViewKeys)) {
+			if (e.affectsSome(ChatContextKeys.SetupViewKeys)) {
 				this._onDidChangeViewWelcomeState.fire();
 			}
 		}));
@@ -139,7 +139,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	override shouldShowWelcome(): boolean {
-		const showSetup = this.contextKeyService.contextMatchesRules(SetupWelcomeViewCondition);
+		const showSetup = this.contextKeyService.contextMatchesRules(ChatContextKeys.SetupViewCondition);
 		const noPersistedSessions = !this.chatService.hasSessions();
 		const shouldShow = this.didUnregisterProvider || !this._widget?.viewModel && noPersistedSessions || this.defaultParticipantRegistrationFailed || showSetup;
 		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: didUnregister=${this.didUnregisterProvider} || noViewModel:${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions} || defaultParticipantRegistrationFailed=${this.defaultParticipantRegistrationFailed} || showSetup=${showSetup}`);
@@ -279,22 +279,3 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 }
-
-export const SetupWelcomeViewKeys = new Set([ChatContextKeys.Setup.triggered.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Setup.signedOut.key, ChatContextKeys.Setup.canSignUp.key]);
-export const SetupWelcomeViewCondition = ContextKeyExpr.and(
-	ContextKeyExpr.has('config.chat.experimental.offerSetup'),
-	ContextKeyExpr.or(
-		ContextKeyExpr.and(
-			ChatContextKeys.Setup.triggered,
-			ChatContextKeys.Setup.installed.negate()
-		),
-		ContextKeyExpr.and(
-			ChatContextKeys.Setup.canSignUp,
-			ChatContextKeys.Setup.installed
-		),
-		ContextKeyExpr.and(
-			ChatContextKeys.Setup.signedOut,
-			ChatContextKeys.Setup.installed
-		)
-	)
-)!;

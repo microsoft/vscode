@@ -1474,9 +1474,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.chat-quota-error-secondary-button {
 		margin-top: 6px;
-		font-size: 12px;
 		padding: 0px;
 		border: none;
+	}
+
+	.chat-quota-error-secondary-button,
+	.chat-quota-wait-warning {
+		font-size: 12px;
+	}
+
+	.chat-quota-wait-warning {
+		margin-top: 2px;
 	}
 
 	.chat-quota-error-message {
