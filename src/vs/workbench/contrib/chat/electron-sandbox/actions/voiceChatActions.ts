@@ -373,7 +373,7 @@ class VoiceChatSessions {
 		if (autoSynthesize === 'on' || autoSynthesize === 'auto' && !this.accessibilityService.isScreenReaderOptimized()) {
 			let context: IVoiceChatSessionController | 'focused';
 			if (controller.context === 'inline') {
-				// TODO@bpasero this is ugly, but the lightweight inline chat turns into
+				// This is ugly, but the lightweight inline chat turns into
 				// a different widget as soon as a response comes in, so we fallback to
 				// picking up from the focused chat widget
 				context = 'focused';
@@ -695,7 +695,7 @@ class ChatSynthesizerSessionController {
 		const contextKeyService = accessor.get(IContextKeyService);
 		let chatWidget = chatWidgetService.getWidgetBySessionId(response.session.sessionId);
 		if (chatWidget?.location === ChatAgentLocation.Editor) {
-			// TODO@bpasero workaround for https://github.com/microsoft/vscode/issues/212785
+			// workaround for https://github.com/microsoft/vscode/issues/212785
 			chatWidget = chatWidgetService.lastFocusedWidget;
 		}
 
