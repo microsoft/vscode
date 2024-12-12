@@ -323,7 +323,7 @@
 	},
 	{
 		"c": "constructor",
-		"t": "variable meta.definition.method entity.name.function storage.type",
+		"t": "variable meta.definition.method storage.type",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -1457,7 +1457,7 @@
 	},
 	{
 		"c": "constructor",
-		"t": "variable meta.definition.method entity.name.function storage.type",
+		"t": "variable meta.definition.method storage.type",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -2717,7 +2717,7 @@
 	},
 	{
 		"c": "=>",
-		"t": "keyword.operator storage.type",
+		"t": "storage.type",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -3319,7 +3319,7 @@
 	},
 	{
 		"c": "=>",
-		"t": "keyword.operator storage.type",
+		"t": "storage.type",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -3879,7 +3879,7 @@
 	},
 	{
 		"c": "=>",
-		"t": "keyword.operator storage.type",
+		"t": "storage.type",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",

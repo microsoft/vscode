@@ -395,7 +395,7 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
 	id: REPL_VIEW_ID,
 	name: nls.localize2({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, "Debug Console"),
 	containerIcon: icons.debugConsoleViewIcon,
-	canToggleVisibility: false,
+	canToggleVisibility: true,
 	canMoveView: true,
 	when: CONTEXT_DEBUGGERS_AVAILABLE,
 	ctorDescriptor: new SyncDescriptor(Repl),
@@ -641,6 +641,11 @@ configurationRegistry.registerConfiguration({
 		'debug.hideLauncherWhileDebugging': {
 			type: 'boolean',
 			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'debug.hideLauncherWhileDebugging' }, "Hide 'Start Debugging' control in title bar of 'Run and Debug' view while debugging is active. Only relevant when {0} is not `docked`.", '`#debug.toolBarLocation#`'),
+			default: false
+		},
+		'debug.hideSlowPreLaunchWarning': {
+			type: 'boolean',
+			markdownDescription: nls.localize('debug.hideSlowPreLaunchWarning', "Hide the warning shown when a `preLaunchTask` has been running for a while."),
 			default: false
 		}
 	}

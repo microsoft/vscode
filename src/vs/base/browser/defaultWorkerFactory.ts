@@ -119,7 +119,7 @@ class WebWorker extends Disposable implements IWorker {
 	private readonly label: string;
 	private worker: Promise<Worker> | null;
 
-	constructor(esmWorkerLocation: URI | undefined, amdModuleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
+	constructor(esmWorkerLocation: URI | undefined, moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
 		super();
 		this.id = id;
 		this.label = label;
@@ -129,7 +129,7 @@ class WebWorker extends Disposable implements IWorker {
 		} else {
 			this.worker = Promise.resolve(workerOrPromise);
 		}
-		this.postMessage(amdModuleId, []);
+		this.postMessage(moduleId, []);
 		this.worker.then((w) => {
 			w.onmessage = function (ev) {
 				onMessageCallback(ev.data);
@@ -171,10 +171,10 @@ export class WorkerDescriptor implements IWorkerDescriptor {
 	public readonly esmModuleLocation: URI | undefined;
 
 	constructor(
-		public readonly amdModuleId: string,
+		public readonly moduleId: string,
 		readonly label: string | undefined,
 	) {
-		this.esmModuleLocation = FileAccess.asBrowserUri(`${amdModuleId}.esm.js` as AppResourcePath);
+		this.esmModuleLocation = FileAccess.asBrowserUri(`${moduleId}Main.js` as AppResourcePath);
 	}
 }
 
@@ -194,7 +194,7 @@ class DefaultWorkerFactory implements IWorkerFactory {
 			throw this._webWorkerFailedBeforeError;
 		}
 
-		return new WebWorker(desc.esmModuleLocation, desc.amdModuleId, workerId, desc.label || 'anonymous' + workerId, onMessageCallback, (err) => {
+		return new WebWorker(desc.esmModuleLocation, desc.moduleId, workerId, desc.label || 'anonymous' + workerId, onMessageCallback, (err) => {
 			logOnceWebWorkerWarning(err);
 			this._webWorkerFailedBeforeError = err;
 			onErrorCallback(err);
@@ -202,7 +202,7 @@ class DefaultWorkerFactory implements IWorkerFactory {
 	}
 }
 
-export function createWebWorker<T extends object>(amdModuleId: string, label: string | undefined): IWorkerClient<T>;
+export function createWebWorker<T extends object>(moduleId: string, label: string | undefined): IWorkerClient<T>;
 export function createWebWorker<T extends object>(workerDescriptor: IWorkerDescriptor): IWorkerClient<T>;
 export function createWebWorker<T extends object>(arg0: string | IWorkerDescriptor, arg1?: string | undefined): IWorkerClient<T> {
 	const workerDescriptor = (typeof arg0 === 'string' ? new WorkerDescriptor(arg0, arg1) : arg0);

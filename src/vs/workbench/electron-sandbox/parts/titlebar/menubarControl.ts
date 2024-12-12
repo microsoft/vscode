@@ -25,7 +25,7 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { OpenRecentAction } from '../../../browser/actions/windowActions.js';
 import { isICommandActionToggleInfo } from '../../../../platform/action/common/action.js';
-import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 
 export class NativeMenubarControl extends MenubarControl {
 
@@ -93,8 +93,7 @@ export class NativeMenubarControl extends MenubarControl {
 			const menu = this.menus[topLevelMenuName];
 			if (menu) {
 				const menubarMenu: IMenubarMenu = { items: [] };
-				const menuActions: IAction[] = [];
-				createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, menuActions);
+				const menuActions = getFlatContextMenuActions(menu.getActions({ shouldForwardArgs: true }));
 				this.populateMenuItems(menuActions, menubarMenu, menubarData.keybindings);
 				if (menubarMenu.items.length === 0) {
 					return false; // Menus are incomplete

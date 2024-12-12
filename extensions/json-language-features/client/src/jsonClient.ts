@@ -597,7 +597,7 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 
 function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[] {
 	const associations: ISchemaAssociation[] = [];
-	extensions.all.forEach(extension => {
+	extensions.allAcrossExtensionHosts.forEach(extension => {
 		const packageJSON = extension.packageJSON;
 		if (packageJSON && packageJSON.contributes && packageJSON.contributes.jsonValidation) {
 			const jsonValidation = packageJSON.contributes.jsonValidation;

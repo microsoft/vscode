@@ -71,12 +71,15 @@ BUILD_TARGETS.forEach(buildTarget => {
 	gulp.task(setupSymbolsTask);
 });
 
-function nodeModules(destinationExe, destinationPdb, platform) {
+function getProductionDependencySources() {
 	const productionDependencies = deps.getProductionDependencies(root);
-	const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
+	return productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
+}
+
+function nodeModules(destinationExe, destinationPdb, platform) {
 
 	const exe = () => {
-		return gulp.src(dependenciesSrc, { base: '.', dot: true })
+		return gulp.src(getProductionDependencySources(), { base: '.', dot: true })
 			.pipe(filter([
 				'**/*.node',
 				// Exclude these paths.
@@ -89,7 +92,7 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 
 	if (platform === 'win32') {
 		const pdb = () => {
-			return gulp.src(dependenciesSrc, { base: '.', dot: true })
+			return gulp.src(getProductionDependencySources(), { base: '.', dot: true })
 				.pipe(filter(['**/*.pdb']))
 				.pipe(gulp.dest(destinationPdb));
 		};
@@ -99,7 +102,7 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 
 	if (platform === 'linux') {
 		const pdb = () => {
-			return gulp.src(dependenciesSrc, { base: '.', dot: true })
+			return gulp.src(getProductionDependencySources(), { base: '.', dot: true })
 				.pipe(filter(['**/*.sym']))
 				.pipe(gulp.dest(destinationPdb));
 		};

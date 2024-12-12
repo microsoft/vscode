@@ -42,7 +42,7 @@ function collect(ts: typeof import('typescript'), node: ts.Node, fn: (node: ts.N
 }
 
 function clone<T extends object>(object: T): T {
-	const result = <T>{};
+	const result = {} as any as T;
 	for (const id in object) {
 		result[id] = object[id];
 	}

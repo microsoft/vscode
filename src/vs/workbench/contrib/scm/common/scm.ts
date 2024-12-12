@@ -80,7 +80,6 @@ export interface ISCMProvider extends IDisposable {
 	readonly acceptInputCommand?: Command;
 	readonly actionButton: IObservable<ISCMActionButtonDescriptor | undefined>;
 	readonly statusBarCommands: IObservable<readonly Command[] | undefined>;
-	readonly onDidChange: Event<void>;
 
 	getOriginalResource(uri: URI): Promise<URI | null>;
 }

@@ -85,16 +85,16 @@
 	},
 	{
 		"c": "foo",
-		"t": "variable entity.name.function variable.other.constant",
+		"t": "variable entity.name.function",
 		"r": {
-			"dark_plus": "variable.other.constant: #4FC1FF",
-			"light_plus": "variable.other.constant: #0070C1",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable.other.constant: #4FC1FF",
-			"hc_light": "variable.other.constant: #02715D",
-			"light_modern": "variable.other.constant: #0070C1"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -169,7 +169,7 @@
 	},
 	{
 		"c": "=>",
-		"t": "keyword.operator storage.type",
+		"t": "storage.type",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",

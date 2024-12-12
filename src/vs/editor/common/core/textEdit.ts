@@ -3,15 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../base/common/arrays.js';
 import { assert, assertFn, checkAdjacentItems } from '../../../base/common/assert.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
+import { commonPrefixLength, commonSuffixLength, splitLines } from '../../../base/common/strings.js';
 import { ISingleEditOperation } from './editOperation.js';
+import { LineRange } from './lineRange.js';
+import { OffsetEdit } from './offsetEdit.js';
 import { Position } from './position.js';
 import { PositionOffsetTransformer } from './positionToOffset.js';
 import { Range } from './range.js';
 import { TextLength } from './textLength.js';
 
 export class TextEdit {
+	public static fromOffsetEdit(edit: OffsetEdit, initialState: AbstractText): TextEdit {
+		const edits = edit.edits.map(e => new SingleTextEdit(initialState.getTransformer().getRange(e.replaceRange), e.newText));
+		return new TextEdit(edits);
+	}
+
 	public static single(originalRange: Range, newText: string): TextEdit {
 		return new TextEdit([new SingleTextEdit(originalRange, newText)]);
 	}
@@ -158,9 +167,57 @@ export class TextEdit {
 		}
 		return newRanges;
 	}
+
+	toSingle(text: AbstractText) {
+		if (this.edits.length === 0) { throw new BugIndicatingError(); }
+		if (this.edits.length === 1) { return this.edits[0]; }
+
+		const startPos = this.edits[0].range.getStartPosition();
+		const endPos = this.edits[this.edits.length - 1].range.getEndPosition();
+
+		let newText = '';
+
+		for (let i = 0; i < this.edits.length; i++) {
+			const curEdit = this.edits[i];
+			newText += curEdit.text;
+			if (i < this.edits.length - 1) {
+				const nextEdit = this.edits[i + 1];
+				const gapRange = Range.fromPositions(curEdit.range.getEndPosition(), nextEdit.range.getStartPosition());
+				const gapText = text.getValueOfRange(gapRange);
+				newText += gapText;
+			}
+		}
+		return new SingleTextEdit(Range.fromPositions(startPos, endPos), newText);
+	}
+
+	equals(other: TextEdit): boolean {
+		return equals(this.edits, other.edits, (a, b) => a.equals(b));
+	}
 }
 
 export class SingleTextEdit {
+	public static joinEdits(edits: SingleTextEdit[], initialValue: AbstractText): SingleTextEdit {
+		if (edits.length === 0) { throw new BugIndicatingError(); }
+		if (edits.length === 1) { return edits[0]; }
+
+		const startPos = edits[0].range.getStartPosition();
+		const endPos = edits[edits.length - 1].range.getEndPosition();
+
+		let newText = '';
+
+		for (let i = 0; i < edits.length; i++) {
+			const curEdit = edits[i];
+			newText += curEdit.text;
+			if (i < edits.length - 1) {
+				const nextEdit = edits[i + 1];
+				const gapRange = Range.fromPositions(curEdit.range.getEndPosition(), nextEdit.range.getStartPosition());
+				const gapText = initialValue.getValueOfRange(gapRange);
+				newText += gapText;
+			}
+		}
+		return new SingleTextEdit(Range.fromPositions(startPos, endPos), newText);
+	}
+
 	constructor(
 		public readonly range: Range,
 		public readonly text: string,
@@ -189,6 +246,52 @@ export class SingleTextEdit {
 	public equals(other: SingleTextEdit): boolean {
 		return SingleTextEdit.equals(this, other);
 	}
+
+	public extendToCoverRange(range: Range, initialValue: AbstractText): SingleTextEdit {
+		if (this.range.containsRange(range)) { return this; }
+
+		const newRange = this.range.plusRange(range);
+		const textBefore = initialValue.getValueOfRange(Range.fromPositions(newRange.getStartPosition(), this.range.getStartPosition()));
+		const textAfter = initialValue.getValueOfRange(Range.fromPositions(this.range.getEndPosition(), newRange.getEndPosition()));
+		const newText = textBefore + this.text + textAfter;
+		return new SingleTextEdit(newRange, newText);
+	}
+
+	public extendToFullLine(initialValue: AbstractText): SingleTextEdit {
+		const newRange = new Range(
+			this.range.startLineNumber,
+			1,
+			this.range.endLineNumber,
+			initialValue.getTransformer().getLineLength(this.range.endLineNumber) + 1
+		);
+		return this.extendToCoverRange(newRange, initialValue);
+	}
+
+	public removeCommonPrefix(text: AbstractText): SingleTextEdit {
+		const normalizedOriginalText = text.getValueOfRange(this.range).replaceAll('\r\n', '\n');
+		const normalizedModifiedText = this.text.replaceAll('\r\n', '\n');
+
+		const commonPrefixLen = commonPrefixLength(normalizedOriginalText, normalizedModifiedText);
+		const start = TextLength.ofText(normalizedOriginalText.substring(0, commonPrefixLen))
+			.addToPosition(this.range.getStartPosition());
+
+		const newText = normalizedModifiedText.substring(commonPrefixLen);
+		const range = Range.fromPositions(start, this.range.getEndPosition());
+		return new SingleTextEdit(range, newText);
+	}
+
+	public isEffectiveDeletion(text: AbstractText): boolean {
+		let newText = this.text.replaceAll('\r\n', '\n');
+		let existingText = text.getValueOfRange(this.range).replaceAll('\r\n', '\n');
+		const l = commonPrefixLength(newText, existingText);
+		newText = newText.substring(l);
+		existingText = existingText.substring(l);
+		const r = commonSuffixLength(newText, existingText);
+		newText = newText.substring(0, newText.length - r);
+		existingText = existingText.substring(0, existingText.length - r);
+
+		return newText === '';
+	}
 }
 
 function rangeFromPositions(start: Position, end: Position): Range {
@@ -208,12 +311,34 @@ export abstract class AbstractText {
 		return this.length.addToPosition(new Position(1, 1));
 	}
 
-	getValue() {
+	get lineRange(): LineRange {
+		return this.length.toLineRange();
+	}
+
+	getValue(): string {
 		return this.getValueOfRange(this.length.toRange());
 	}
 
 	getLineLength(lineNumber: number): number {
 		return this.getValueOfRange(new Range(lineNumber, 1, lineNumber, Number.MAX_SAFE_INTEGER)).length;
+	}
+
+	private _transformer: PositionOffsetTransformer | undefined = undefined;
+
+	getTransformer(): PositionOffsetTransformer {
+		if (!this._transformer) {
+			this._transformer = new PositionOffsetTransformer(this.getValue());
+		}
+		return this._transformer;
+	}
+
+	getLineAt(lineNumber: number): string {
+		return this.getValueOfRange(new Range(lineNumber, 1, lineNumber, Number.MAX_SAFE_INTEGER));
+	}
+
+	getLines(): string[] {
+		const value = this.getValue();
+		return splitLines(value);
 	}
 }
 

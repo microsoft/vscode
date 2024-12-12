@@ -29,7 +29,7 @@ export interface IWorkerFactory {
 }
 
 export interface IWorkerDescriptor {
-	readonly amdModuleId: string;
+	readonly moduleId: string;
 	readonly esmModuleLocation: URI | undefined;
 	readonly label: string | undefined;
 }
@@ -332,7 +332,7 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 
 		this._worker = this._register(workerFactory.create(
 			{
-				amdModuleId: 'vs/base/common/worker/simpleWorker',
+				moduleId: 'vs/base/common/worker/simpleWorker',
 				esmModuleLocation: workerDescriptor.esmModuleLocation,
 				label: workerDescriptor.label
 			},
@@ -375,12 +375,12 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 		this._onModuleLoaded = this._protocol.sendMessage(DEFAULT_CHANNEL, INITIALIZE, [
 			this._worker.getId(),
 			JSON.parse(JSON.stringify(loaderConfiguration)),
-			workerDescriptor.amdModuleId,
+			workerDescriptor.moduleId,
 		]);
 
 		this.proxy = this._protocol.createProxyToRemoteChannel(DEFAULT_CHANNEL, async () => { await this._onModuleLoaded; });
 		this._onModuleLoaded.catch((e) => {
-			this._onError('Worker failed to load ' + workerDescriptor.amdModuleId, e);
+			this._onError('Worker failed to load ' + workerDescriptor.moduleId, e);
 		});
 	}
 
@@ -566,7 +566,7 @@ export class SimpleWorkerServer implements IWorkerServer {
 
 			// Since this is in a web worker, enable catching errors
 			loaderConfig.catchError = true;
-			globalThis.require.config(loaderConfig);
+			(globalThis as any).require.config(loaderConfig);
 		}
 
 		const url = FileAccess.asBrowserUri(`${moduleId}.js` as AppResourcePath).toString(true);

@@ -8,15 +8,13 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CharCode } from '../../../../../base/common/charCode.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import * as strings from '../../../../../base/common/strings.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { ConversationRequest, ConversationResponse, DocumentContextItem, isLocation, IWorkspaceFileEdit, IWorkspaceTextEdit } from '../../../../../editor/common/languages.js';
+import { ConversationRequest, ConversationResponse, DocumentContextItem, IWorkspaceFileEdit, IWorkspaceTextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
@@ -31,7 +29,8 @@ import { InlineChatController } from '../../../inlineChat/browser/inlineChatCont
 import { insertCell } from '../../../notebook/browser/controller/cellOperations.js';
 import { IActiveNotebookEditor, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
-import { ChatUserAction, IChatContentReference, IChatService } from '../../common/chatService.js';
+import { getReferencesAsDocumentContext } from '../../common/chatCodeMapperService.js';
+import { ChatUserAction, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ICodeBlockActionContext } from '../codeBlockPart.js';
 
@@ -271,7 +270,7 @@ export class ApplyCodeBlockOperation {
 				let isOpen = true;
 				const firstEdit = textEdits[0];
 				editorToApply.revealLineInCenterIfOutsideViewport(firstEdit.range.startLineNumber);
-				const promise = inlineChatController.reviewEdits(textEdits[0].range, AsyncIterableObject.fromArray(textEdits), tokenSource.token);
+				const promise = inlineChatController.reviewEdits(textEdits[0].range, AsyncIterableObject.fromArray([textEdits]), tokenSource.token);
 				promise.finally(() => {
 					isOpen = false;
 					tokenSource.dispose();
@@ -391,7 +390,7 @@ function getChatConversation(context: ICodeBlockActionContext): (ConversationReq
 	if (isResponseVM(context.element)) {
 		return [{
 			type: 'response',
-			message: context.element.response.toMarkdown(),
+			message: context.element.response.getMarkdown(),
 			references: getReferencesAsDocumentContext(context.element.contentReferences)
 		}];
 	} else if (isRequestVM(context.element)) {
@@ -403,32 +402,6 @@ function getChatConversation(context: ICodeBlockActionContext): (ConversationReq
 		return [];
 	}
 }
-
-function getReferencesAsDocumentContext(res: readonly IChatContentReference[]): DocumentContextItem[] {
-	const map = new ResourceMap<DocumentContextItem>();
-	for (const r of res) {
-		let uri;
-		let range;
-		if (URI.isUri(r.reference)) {
-			uri = r.reference;
-		} else if (isLocation(r.reference)) {
-			uri = r.reference.uri;
-			range = r.reference.range;
-		}
-		if (uri) {
-			const item = map.get(uri);
-			if (item) {
-				if (range) {
-					item.ranges.push(range);
-				}
-			} else {
-				map.set(uri, { uri, version: -1, ranges: range ? [range] : [] });
-			}
-		}
-	}
-	return [...map.values()];
-}
-
 
 function reindent(codeBlockContent: string, model: ITextModel, seletionStartLine: number): string {
 	const newContent = strings.splitLines(codeBlockContent);

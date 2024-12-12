@@ -7,7 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { DisposableStore, dispose, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICellViewModel, INotebookEditorDelegate, KERNEL_EXTENSIONS } from '../notebookBrowser.js';
-import { NOTEBOOK_CELL_TOOLBAR_LOCATION, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_HAS_SOMETHING_RUNNING, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SELECTED, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_VIEW_TYPE } from '../../common/notebookContextKeys.js';
+import { KERNEL_HAS_VARIABLE_PROVIDER, NOTEBOOK_CELL_TOOLBAR_LOCATION, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_HAS_SOMETHING_RUNNING, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SELECTED, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_VIEW_TYPE } from '../../common/notebookContextKeys.js';
 import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, INotebookFailStateChangedEvent, NotebookExecutionType } from '../../common/notebookExecutionStateService.js';
 import { INotebookKernelService } from '../../common/notebookKernelService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -19,6 +19,7 @@ export class NotebookEditorContextKeys {
 	private readonly _notebookKernelSourceCount: IContextKey<number>;
 	private readonly _notebookKernelSelected: IContextKey<boolean>;
 	private readonly _interruptibleKernel: IContextKey<boolean>;
+	private readonly _hasVariableProvider: IContextKey<boolean>;
 	private readonly _someCellRunning: IContextKey<boolean>;
 	private readonly _kernelRunning: IContextKey<boolean>;
 	private readonly _hasOutputs: IContextKey<boolean>;
@@ -44,6 +45,7 @@ export class NotebookEditorContextKeys {
 		this._notebookKernelCount = NOTEBOOK_KERNEL_COUNT.bindTo(contextKeyService);
 		this._notebookKernelSelected = NOTEBOOK_KERNEL_SELECTED.bindTo(contextKeyService);
 		this._interruptibleKernel = NOTEBOOK_INTERRUPTIBLE_KERNEL.bindTo(contextKeyService);
+		this._hasVariableProvider = KERNEL_HAS_VARIABLE_PROVIDER.bindTo(contextKeyService);
 		this._someCellRunning = NOTEBOOK_HAS_RUNNING_CELL.bindTo(contextKeyService);
 		this._kernelRunning = NOTEBOOK_HAS_SOMETHING_RUNNING.bindTo(contextKeyService);
 		this._useConsolidatedOutputButton = NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON.bindTo(contextKeyService);
@@ -73,6 +75,7 @@ export class NotebookEditorContextKeys {
 		this._notebookKernelCount.reset();
 		this._notebookKernelSourceCount.reset();
 		this._interruptibleKernel.reset();
+		this._hasVariableProvider.reset();
 		this._someCellRunning.reset();
 		this._kernelRunning.reset();
 		this._viewType.reset();
@@ -174,6 +177,7 @@ export class NotebookEditorContextKeys {
 			this._notebookKernelCount.reset();
 			this._notebookKernelSourceCount.reset();
 			this._interruptibleKernel.reset();
+			this._hasVariableProvider.reset();
 			return;
 		}
 
@@ -182,6 +186,7 @@ export class NotebookEditorContextKeys {
 		this._notebookKernelCount.set(all.length);
 		this._notebookKernelSourceCount.set(sourceActions.length);
 		this._interruptibleKernel.set(selected?.implementsInterrupt ?? false);
+		this._hasVariableProvider.set(selected?.hasVariableProvider ?? false);
 		this._notebookKernelSelected.set(Boolean(selected));
 		this._notebookKernel.set(selected?.id ?? '');
 

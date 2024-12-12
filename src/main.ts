@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-import-patterns */
-
 import * as path from 'path';
 import * as fs from 'original-fs';
 import * as os from 'os';
+import { performance } from 'perf_hooks';
 import { configurePortable } from './bootstrap-node.js';
-import { load } from './bootstrap-esm.js';
+import { bootstrapESM } from './bootstrap-esm.js';
 import { fileURLToPath } from 'url';
 import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
 import minimist from 'minimist';
@@ -25,6 +24,14 @@ import { NativeParsedArgs } from './vs/platform/environment/common/argv.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 perf.mark('code/didStartMain');
+
+perf.mark('code/willLoadMainBundle', {
+	// When built, the main bundle is a single JS file with all
+	// dependencies inlined. As such, we mark `willLoadMainBundle`
+	// as the start of the main bundle loading process.
+	startTime: Math.floor(performance.timeOrigin)
+});
+perf.mark('code/didLoadMainBundle');
 
 // Enable portable support
 const portable = configurePortable(product);
@@ -162,7 +169,7 @@ async function onReady() {
 			resolveNlsConfiguration()
 		]);
 
-		startup(codeCachePath, nlsConfig);
+		await startup(codeCachePath, nlsConfig);
 	} catch (error) {
 		console.error(error);
 	}
@@ -171,14 +178,16 @@ async function onReady() {
 /**
  * Main startup routine
  */
-function startup(codeCachePath: string | undefined, nlsConfig: INLSConfiguration): void {
+async function startup(codeCachePath: string | undefined, nlsConfig: INLSConfiguration): Promise<void> {
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
-	perf.mark('code/willLoadMainBundle');
-	load('vs/code/electron-main/main', () => {
-		perf.mark('code/didLoadMainBundle');
-	});
+	// Bootstrap ESM
+	await bootstrapESM();
+
+	// Load Main
+	await import('./vs/code/electron-main/main.js');
+	perf.mark('code/didRunMainBundle');
 }
 
 function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
@@ -279,14 +288,16 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 
 	// Following features are disabled from the runtime:
 	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
+	// `PlzDedicatedWorker` - Refs https://github.com/microsoft/vscode/issues/233060#issuecomment-2523212427
 	const featuresToDisable =
-		`CalculateNativeWinOcclusion,${app.commandLine.getSwitchValue('disable-features')}`;
+		`CalculateNativeWinOcclusion,PlzDedicatedWorker,${app.commandLine.getSwitchValue('disable-features')}`;
 	app.commandLine.appendSwitch('disable-features', featuresToDisable);
 
 	// Blink features to configure.
 	// `FontMatchingCTMigration` - Siwtch font matching on macOS to Appkit (Refs https://github.com/microsoft/vscode/issues/224496#issuecomment-2270418470).
+	// `StandardizedBrowserZoom` - Disable zoom adjustment for bounding box (https://github.com/microsoft/vscode/issues/232750#issuecomment-2459495394)
 	const blinkFeaturesToDisable =
-		`FontMatchingCTMigration,${app.commandLine.getSwitchValue('disable-blink-features')}`;
+		`FontMatchingCTMigration,StandardizedBrowserZoom,${app.commandLine.getSwitchValue('disable-blink-features')}`;
 	app.commandLine.appendSwitch('disable-blink-features', blinkFeaturesToDisable);
 
 	// Support JS Flags
@@ -642,7 +653,7 @@ async function resolveNlsConfiguration(): Promise<INLSConfiguration> {
 }
 
 /**
- * Language tags are case insensitive however an amd loader is case sensitive
+ * Language tags are case insensitive however an ESM loader is case sensitive
  * To make this work on case preserving & insensitive FS we do the following:
  * the language bundles have lower case language tags and we always lower case
  * the locale we receive from the user or OS.
