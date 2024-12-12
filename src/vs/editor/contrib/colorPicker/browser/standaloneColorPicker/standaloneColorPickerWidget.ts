@@ -179,6 +179,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 			onContentsChanged: () => { },
 			setMinimumDimensions: () => { },
 			hide: () => this.hide(),
+			focus: () => this.focus()
 		};
 
 		this._colorHover = colorHover;

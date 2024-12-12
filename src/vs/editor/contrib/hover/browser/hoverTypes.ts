@@ -95,11 +95,15 @@ export interface IEditorHoverColorPickerWidget {
 	layout(): void;
 }
 
+export interface IContentsChangeOptions {
+	allowPositionPreferenceRecomputation: boolean;
+}
+
 export interface IEditorHoverContext {
 	/**
 	 * The contents rendered inside the fragment have been changed, which means that the hover should relayout.
 	 */
-	onContentsChanged(): void;
+	onContentsChanged(opts?: IContentsChangeOptions): void;
 	/**
 	 * Set the minimum dimensions of the resizable hover
 	 */
@@ -108,6 +112,10 @@ export interface IEditorHoverContext {
 	 * Hide the hover.
 	 */
 	hide(): void;
+	/**
+	 * Focus the hover.
+	 */
+	focus(): void;
 }
 
 export interface IEditorHoverRenderContext extends IEditorHoverContext {
