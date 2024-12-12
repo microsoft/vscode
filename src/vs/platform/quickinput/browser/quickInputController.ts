@@ -27,6 +27,7 @@ import { QuickInputTree } from './quickInputTree.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import './quickInputActions.js';
 import { observableValue, transaction } from '../../../base/common/observable.js';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 
 const $ = dom.$;
 
@@ -319,7 +320,8 @@ export class QuickInputController extends Disposable {
 		}));
 
 		// Drag and Drop support
-		this.dndController = this._register(new QuickInputDragAndDropController(this._container, container, headerContainer));
+		this.dndController = this._register(new QuickInputDragAndDropController(
+			this._container, container, headerContainer, this.layoutService));
 
 		this.ui = {
 			container,
@@ -824,12 +826,11 @@ class QuickInputDragAndDropController extends Disposable {
 	private readonly _snapLineVertical1: HTMLElement;
 	private readonly _snapLineVertical2: HTMLElement;
 
-	private readonly _dragDisposables = this._register(new DisposableStore());
-
 	constructor(
 		private readonly _container: HTMLElement,
 		private readonly _quickInputContainer: HTMLElement,
-		private readonly _quickInputHeader: HTMLElement
+		private readonly _quickInputDragArea: HTMLElement,
+		private readonly _layoutService: ILayoutService
 	) {
 		super();
 
@@ -841,15 +842,21 @@ class QuickInputDragAndDropController extends Disposable {
 	}
 
 	private registerMouseListeners() {
-		this._register(dom.addDisposableGenericMouseDownListener(this._quickInputHeader, (e: MouseEvent) => {
-			const dragOffsetX = e.offsetX;
-			const dragOffsetY = e.offsetY;
+		this._register(dom.addDisposableGenericMouseDownListener(this._quickInputDragArea, (e: MouseEvent) => {
+			const activeWindow = dom.getWindow(this._layoutService.activeContainer);
+			const originEvent = new StandardMouseEvent(activeWindow, e);
+
+			const dragOffsetX = originEvent.browserEvent.offsetX;
+			const dragOffsetY = originEvent.browserEvent.offsetY;
 
 			let snapLinesVisible = false;
 			const snapCoordinateY = Math.round(this._container.clientHeight * this._snapLineHorizontalRatio);
 			const snapCoordinateX = Math.round(this._container.clientWidth / 2) - Math.round(this._quickInputContainer.clientWidth / 2);
 
-			this._dragDisposables.add(dom.addDisposableGenericMouseMoveListener(this._container, (e: MouseEvent) => {
+			const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(activeWindow, (e: MouseEvent) => {
+				const mouseMoveEvent = new StandardMouseEvent(activeWindow, e);
+				mouseMoveEvent.preventDefault();
+
 				if (!snapLinesVisible) {
 					this._showSnapLines(snapCoordinateY, snapCoordinateX);
 					snapLinesVisible = true;
@@ -864,24 +871,25 @@ class QuickInputDragAndDropController extends Disposable {
 				this._quickInputContainer.style.left = Math.abs(left - snapCoordinateX) < this._snapThreshold
 					? `${snapCoordinateX}px`
 					: `${left}px`;
-			}));
-		}));
-
-		this._register(dom.addDisposableGenericMouseUpListener(this._quickInputHeader, (e: MouseEvent) => {
-			// Hide snaplines
-			this._hideSnapLines();
-
-			// Calculate and set ratios
-			const topRatio = parseInt(this._quickInputContainer.style.top) / this._container.clientHeight;
-			const center = parseInt(this._quickInputContainer.style.left) + (this._quickInputContainer.clientWidth / 2);
-			const centerRatio = center / this._container.clientWidth;
-
-			transaction(tx => {
-				this.dragTop.set(parseFloat(topRatio.toFixed(2)), tx);
-				this.dragLeft.set(parseFloat(centerRatio.toFixed(2)), tx);
 			});
 
-			this._dragDisposables.clear();
+			const mouseUpListener = dom.addDisposableGenericMouseUpListener(activeWindow, (e: MouseEvent) => {
+				// Hide snaplines
+				this._hideSnapLines();
+
+				// Calculate and set ratios
+				const topRatio = parseInt(this._quickInputContainer.style.top) / this._container.clientHeight;
+				const center = parseInt(this._quickInputContainer.style.left) + (this._quickInputContainer.clientWidth / 2);
+				const centerRatio = center / this._container.clientWidth;
+
+				transaction(tx => {
+					this.dragTop.set(parseFloat(topRatio.toFixed(2)), tx);
+					this.dragLeft.set(parseFloat(centerRatio.toFixed(2)), tx);
+				});
+
+				mouseMoveListener.dispose();
+				mouseUpListener.dispose();
+			});
 		}));
 	}
 
