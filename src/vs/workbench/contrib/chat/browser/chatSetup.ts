@@ -474,7 +474,7 @@ class ChatSetupRequests extends Disposable {
 		try {
 			responseText = await asText(response);
 		} catch (error) {
-			// ignore
+			// ignore - handled below
 		}
 		if (token.isCancellationRequested) {
 			return undefined;
@@ -593,7 +593,7 @@ class ChatSetupRequests extends Disposable {
 					}
 				}
 			} catch (error) {
-				// ignore issues trying to parse error
+				// ignore - handled below
 			}
 			this.onSignUpError(`[chat setup] sign-up: unexpected status code ${response.res.statusCode}`);
 			return false;
@@ -603,7 +603,7 @@ class ChatSetupRequests extends Disposable {
 		try {
 			responseText = await asText(response);
 		} catch (error) {
-			// ignore
+			// ignore - handled below
 		}
 
 		if (!responseText) {
