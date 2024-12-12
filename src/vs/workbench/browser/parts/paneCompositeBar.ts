@@ -795,8 +795,7 @@ class ViewContainerActivityAction extends CompositeBarAction {
 	}
 
 	private updateActivity(): void {
-		const activities = this.activityService.getViewContainerActivities(this.compositeBarActionItem.id);
-		this.activity = activities[0];
+		this.activities = this.activityService.getViewContainerActivities(this.compositeBarActionItem.id);
 	}
 
 	override async run(event: { preserveFocus: boolean }): Promise<void> {
