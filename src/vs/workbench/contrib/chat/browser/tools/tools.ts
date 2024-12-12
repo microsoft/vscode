@@ -8,7 +8,6 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -37,11 +36,12 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 
 interface EditToolParams {
 	filePath: string;
+	expanation: string;
 	code: string;
 }
 
 class EditTool implements IToolData, IToolImpl {
-	readonly id = 'vscode-editFile';
+	readonly id = 'vscode_editFile';
 	readonly tags = ['editing'];
 	readonly displayName = localize('chat.tools.editFile', "Edit File");
 	readonly modelDescription = 'Edit a file in the workspace. Use this tool once per file that needs to be modified, even if there are multiple changes for a file.';
@@ -69,11 +69,16 @@ Avoid repeating existing code, instead use comments to represent regions of unch
 					type: 'string',
 					description: 'An absolute path to the file to edit',
 				},
+				expanation: {
+					type: 'string',
+					description: 'A short explanation of the edit being made. Can be the same as the explanation you showed to the user.',
+				},
 				code: {
 					type: 'string',
 					description: codeInstructions
 				}
-			}
+			},
+			required: ['filePath', 'expanation', 'code']
 		};
 	}
 
@@ -87,10 +92,6 @@ Avoid repeating existing code, instead use comments to represent regions of unch
 		const request = model.getRequests().at(-1)!;
 
 		const uri = URI.file(parameters.filePath);
-		model.acceptResponseProgress(request, {
-			kind: 'markdownContent',
-			content: new MarkdownString(`### [${basename(uri)}](${uri.toString()})\n\n`)
-		});
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
 			content: new MarkdownString('````\n')
@@ -109,7 +110,7 @@ Avoid repeating existing code, instead use comments to represent regions of unch
 		}
 
 		const result = await this.codeMapperService.mapCode({
-			codeBlocks: [{ code: parameters.code, resource: uri, markdownBeforeBlock: undefined }],
+			codeBlocks: [{ code: parameters.code, resource: uri, markdownBeforeBlock: parameters.expanation }],
 			conversation: []
 		}, {
 			textEdit: (target, edits) => {
