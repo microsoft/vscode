@@ -84,6 +84,7 @@ import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, Work
 import { IChatRequestVariableEntry, isPasteVariableEntry } from '../common/chatModel.js';
 import { ChatRequestDynamicVariablePart } from '../common/chatParserTypes.js';
 import { IChatFollowup } from '../common/chatService.js';
+import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
@@ -99,6 +100,7 @@ import { ChatEditingRemoveAllFilesAction, ChatEditingShowChangesAction } from '.
 import { ChatEditingSaveAllAction } from './chatEditorSaving.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatViewState } from './chatWidget.js';
+import { ChatFileReference } from './contrib/chatDynamicVariables/chatFileReference.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 
 const $ = dom.$;
@@ -150,25 +152,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._attachmentModel;
 	}
 
-	public getAttachedAndImplicitContext(chatWidget: IChatWidget): IChatRequestVariableEntry[] {
+	public getAttachedAndImplicitContext(sessionId: string): IChatRequestVariableEntry[] {
 		const contextArr = [...this.attachmentModel.attachments];
 		if (this.implicitContext?.enabled && this.implicitContext.value) {
 			contextArr.push(this.implicitContext.toBaseEntry());
 		}
 
-		// factor in nested references of dynamic variables into the implicit attached context
-		for (const part of chatWidget.parsedInput.parts) {
-			if (!(part instanceof ChatRequestDynamicVariablePart)) {
+		// factor in nested file references into the implicit context
+		const variables = this.variableService.getDynamicVariables(sessionId);
+		for (const variable of variables) {
+			if (!(variable instanceof ChatFileReference)) {
 				continue;
 			}
 
-			if (!(part.isFile && URI.isUri(part.data))) {
-				continue;
-			}
-
-			for (const childUri of part.childReferences ?? []) {
+			for (const childUri of variable.validFileReferenceUris) {
 				contextArr.push({
-					id: part.id,
+					id: variable.id,
 					name: basename(childUri.path),
 					value: childUri,
 					kind: 'implicit',
@@ -311,6 +310,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IChatVariablesService private readonly variableService: IChatVariablesService,
 	) {
 		super();
 
