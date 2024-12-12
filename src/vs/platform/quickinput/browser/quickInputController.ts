@@ -856,8 +856,14 @@ class QuickInputDragAndDropController extends Disposable {
 	private registerMouseListeners() {
 		// Double click
 		this._register(dom.addDisposableGenericMouseUpListener(this._quickInputDragArea, (event: MouseEvent) => {
-			const mouseClickEvent = new StandardMouseEvent(dom.getWindow(this._quickInputDragArea), event);
-			if (mouseClickEvent.detail === 2) {
+			const originEvent = new StandardMouseEvent(dom.getWindow(this._quickInputDragArea), event);
+
+			// Ignore event if the target is not the drag area
+			if (originEvent.target !== this._quickInputDragArea) {
+				return;
+			}
+
+			if (originEvent.detail === 2) {
 				this._storageService.remove(POSITION_KEY, StorageScope.APPLICATION);
 
 				transaction(tx => {
@@ -871,6 +877,11 @@ class QuickInputDragAndDropController extends Disposable {
 		this._register(dom.addDisposableGenericMouseDownListener(this._quickInputDragArea, (e: MouseEvent) => {
 			const activeWindow = dom.getWindow(this._layoutService.activeContainer);
 			const originEvent = new StandardMouseEvent(activeWindow, e);
+
+			// Ignore event if the target is not the drag area
+			if (originEvent.target !== this._quickInputDragArea) {
+				return;
+			}
 
 			const dragOffsetX = originEvent.browserEvent.offsetX;
 			const dragOffsetY = originEvent.browserEvent.offsetY;
