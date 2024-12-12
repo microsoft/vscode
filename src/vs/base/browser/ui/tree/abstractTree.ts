@@ -20,7 +20,7 @@ import { IToggleStyles, Toggle, unthemedToggleStyles } from '../toggle/toggle.js
 import { getVisibleState, isFilterResult } from './indexTreeModel.js';
 import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeError, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from './tree.js';
 import { Action } from '../../../common/actions.js';
-import { distinct, equals, range } from '../../../common/arrays.js';
+import { distinct, equals, insertInto, range } from '../../../common/arrays.js';
 import { Delayer, disposableTimeout, timeout } from '../../../common/async.js';
 import { Codicon } from '../../../common/codicons.js';
 import { ThemeIcon } from '../../../common/themables.js';
@@ -3089,7 +3089,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 				state.expanded[getId(node.element)] = node.collapsed ? 0 : 1;
 			}
 
-			queue.push(...node.children);
+			insertInto(queue, queue.length, node.children);
 		}
 
 		return state;
