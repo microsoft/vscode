@@ -468,7 +468,12 @@ class ChatSetupRequests extends Disposable {
 			return { entitlement: ChatEntitlement.Unresolved };
 		}
 
-		const responseText = await asText(response);
+		let responseText: string | null = null;
+		try {
+			responseText = await asText(response);
+		} catch (error) {
+			// ignore
+		}
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
@@ -576,11 +581,29 @@ class ChatSetupRequests extends Disposable {
 		}
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
+			try {
+				if (response.res.statusCode === 422) {
+					const responseText = await asText(response);
+					if (responseText) {
+						const responseError: { message: string } = JSON.parse(responseText);
+						this.onSignUpError(`[chat setup] sign-up: unexpected status code ${response.res.statusCode}`, responseError.message);
+						return false;
+					}
+				}
+			} catch (error) {
+				// ignore issues trying to parse error
+			}
 			this.onSignUpError(`[chat setup] sign-up: unexpected status code ${response.res.statusCode}`);
 			return false;
 		}
 
-		const responseText = await asText(response);
+		let responseText: string | null = null;
+		try {
+			responseText = await asText(response);
+		} catch (error) {
+			// ignore
+		}
+
 		if (!responseText) {
 			this.onSignUpError('[chat setup] sign-up: response has no content');
 			return false;
@@ -608,8 +631,8 @@ class ChatSetupRequests extends Disposable {
 		return subscribed;
 	}
 
-	private onSignUpError(logMessage: string): void {
-		this.dialogService.error(localize('chatSetupSignupError', "An error occurred while signing up for Copilot Free."), localize('chatSetupSignupDetail', "Please try again later."));
+	private onSignUpError(logMessage: string, logDetails = localize('chatSetupSignupDetail', "Please try again later.")): void {
+		this.dialogService.error(localize('chatSetupSignupError', "An error occurred while signing up for Copilot Free."), logDetails);
 		this.logService.error(logMessage);
 	}
 
