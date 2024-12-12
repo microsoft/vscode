@@ -59,6 +59,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import Severity from '../../../../base/common/severity.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -346,7 +347,8 @@ class ChatSetupRequests extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
 
@@ -586,7 +588,7 @@ class ChatSetupRequests extends Disposable {
 					const responseText = await asText(response);
 					if (responseText) {
 						const responseError: { message: string } = JSON.parse(responseText);
-						this.onSignUpError(`[chat setup] sign-up: unexpected status code ${response.res.statusCode}`, responseError.message);
+						this.onSignUpError(`[chat setup] sign-up: unexpected status code ${response.res.statusCode}`, typeof responseError.message === 'string' && responseError.message ? responseError.message : undefined);
 						return false;
 					}
 				}
@@ -632,7 +634,21 @@ class ChatSetupRequests extends Disposable {
 	}
 
 	private onSignUpError(logMessage: string, logDetails = localize('chatSetupSignupDetail', "Please try again later.")): void {
-		this.dialogService.error(localize('chatSetupSignupError', "An error occurred while signing up for Copilot Free."), logDetails);
+		this.dialogService.prompt({
+			type: Severity.Error,
+			message: localize('chatSetupSignupError', "An error occurred while signing up for Copilot Free."),
+			detail: logDetails,
+			buttons: [
+				{
+					label: localize('ok', "OK"),
+					run: () => { /* noop */ }
+				},
+				{
+					label: localize('learnMore', "Learn More"),
+					run: () => this.openerService.open(URI.parse(defaultChat.upgradePlanUrl))
+				}
+			],
+		});
 		this.logService.error(logMessage);
 	}
 
