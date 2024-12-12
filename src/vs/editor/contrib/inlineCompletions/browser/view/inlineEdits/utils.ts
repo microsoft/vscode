@@ -177,13 +177,9 @@ type Value<T> = T | IObservable<T>;
 type ValueOrList<T> = Value<T> | Value<T>[];
 type ValueOrList2<T> = ValueOrList<T> | ValueOrList<ValueOrList<T>>;
 
-type ElementTagNameMap = HTMLElementTagNameMap & Pick<SVGElementTagNameMap2, Exclude<keyof SVGElementTagNameMap2, keyof HTMLElementTagNameMap>>;
-
 type Element = HTMLElement | SVGElement;
 
-type Override<TMap, TOverride> = Omit<TMap, keyof TOverride> & TOverride;
-
-type SVGElementTagNameMap2 = Override<SVGElementTagNameMap, {
+type SVGElementTagNameMap2 = {
 	svg: SVGElement & {
 		width: number;
 		height: number;
@@ -207,7 +203,7 @@ type SVGElementTagNameMap2 = Override<SVGElementTagNameMap, {
 		height: number;
 		fill: string;
 	};
-}>;
+};
 
 export namespace n {
 	function nodeNs<TMap extends Record<string, any>>(elementNs: string | undefined = undefined): <TKey extends keyof TMap>(
@@ -225,18 +221,18 @@ export namespace n {
 		};
 	}
 
-	function node<TKey extends keyof ElementTagNameMap>(tag: TKey, elementNs: string | undefined = undefined): (
-		attributes: ElementAttributeKeys<ElementTagNameMap[TKey]> & { class?: Value<string | string[]>; ref?: IRef<ElementTagNameMap[TKey]> },
+	function node<TMap extends Record<string, any>, TKey extends keyof TMap>(tag: TKey, elementNs: string | undefined = undefined): (
+		attributes: ElementAttributeKeys<TMap[TKey]> & { class?: Value<string | string[]>; ref?: IRef<TMap[TKey]> },
 		children?: ValueOrList2<Element | string | ObserverNode | undefined>,
-	) => ObserverNode<ElementTagNameMap[TKey]> {
+	) => ObserverNode<TMap[TKey]> {
 		const f = nodeNs(elementNs) as any;
 		return (attributes, children) => {
 			return f(tag, attributes, children);
 		};
 	}
 
-	export const div = node('div');
-	export const svg = node('svg', 'http://www.w3.org/2000/svg');
+	export const div = node<HTMLElementTagNameMap, 'div'>('div');
+	export const svg = node<SVGElementTagNameMap2, 'svg'>('svg', 'http://www.w3.org/2000/svg');
 
 	export const svgElem = nodeNs<SVGElementTagNameMap2>('http://www.w3.org/2000/svg');
 
