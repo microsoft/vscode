@@ -62,7 +62,7 @@
 }
 
 .quick-input-header {
-	cursor: move;
+	cursor: grab;
 	display: flex;
 	padding: 8px 6px 2px 6px;
 }
@@ -368,14 +368,14 @@
 }
 
 .quick-input-widget-snapline.horizontal {
-	border-top: 1px dashed #d3d3d3;
+	border-top: 1px dashed var(--vscode-editorRuler-foreground);
 	height: 0;
 	width: 100%;
 	left: 0;
 }
 
 .quick-input-widget-snapline.vertical {
-	border-left: 1px dashed #d3d3d3;
+	border-left: 1px dashed var(--vscode-editorRuler-foreground);
 	height: 100%;
 	width: 0;
 	top: 0;
