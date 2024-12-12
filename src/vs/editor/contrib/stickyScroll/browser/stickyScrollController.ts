@@ -29,7 +29,7 @@ import { StickyRange } from './stickyScrollElement.js';
 import { IMouseEvent, StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { FoldingController } from '../../folding/browser/folding.js';
 import { FoldingModel, toggleCollapseState } from '../../folding/browser/foldingModel.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 
 export interface IStickyScrollController {
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;
@@ -41,6 +41,7 @@ export interface IStickyScrollController {
 	findScrollWidgetState(): StickyScrollWidgetState;
 	dispose(): void;
 	selectEditor(): void;
+	onDidChangeStickyScrollHeight: Event<{ height: number }>;
 }
 
 export class StickyScrollController extends Disposable implements IEditorContribution, IStickyScrollController {
