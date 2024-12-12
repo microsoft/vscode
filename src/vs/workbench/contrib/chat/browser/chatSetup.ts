@@ -346,6 +346,7 @@ class ChatSetupRequests extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IChatQuotasService private readonly chatQuotasService: IChatQuotasService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super();
 
@@ -570,18 +571,18 @@ class ChatSetupRequests extends Disposable {
 
 		const response = await this.request(defaultChat.entitlementSignupLimitedUrl, 'POST', body, session, CancellationToken.None);
 		if (!response) {
-			this.logService.error('[chat setup] sign-up: no response');
+			this.onSignUpError('[chat setup] sign-up: no response');
 			return false;
 		}
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
-			this.logService.error(`[chat setup] sign-up: unexpected status code ${response.res.statusCode}`);
+			this.onSignUpError(`[chat setup] sign-up: unexpected status code ${response.res.statusCode}`);
 			return false;
 		}
 
 		const responseText = await asText(response);
 		if (!responseText) {
-			this.logService.error('[chat setup] sign-up: response has no content');
+			this.onSignUpError('[chat setup] sign-up: response has no content');
 			return false;
 		}
 
@@ -590,7 +591,7 @@ class ChatSetupRequests extends Disposable {
 			parsedResult = JSON.parse(responseText);
 			this.logService.trace(`[chat setup] sign-up: response is ${responseText}`);
 		} catch (err) {
-			this.logService.error(`[chat setup] sign-up: error parsing response (${err})`);
+			this.onSignUpError(`[chat setup] sign-up: error parsing response (${err})`);
 		}
 
 		const subscribed = Boolean(parsedResult?.subscribed);
@@ -605,6 +606,11 @@ class ChatSetupRequests extends Disposable {
 		}
 
 		return subscribed;
+	}
+
+	private onSignUpError(logMessage: string): void {
+		this.dialogService.error(localize('chatSetupSignupError', "An error occurred while signing up for Copilot Free."), localize('chatSetupSignupDetail', "Please try again later."));
+		this.logService.error(logMessage);
 	}
 
 	override dispose(): void {
