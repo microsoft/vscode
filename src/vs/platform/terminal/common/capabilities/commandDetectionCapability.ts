@@ -49,6 +49,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 		return undefined;
 	}
+	get executingCommandConfidence(): 'low' | 'medium' | 'high' | undefined {
+		const casted = this._currentCommand as PartialTerminalCommand | ITerminalCommand;
+		return 'commandLineConfidence' in casted ? casted.commandLineConfidence : undefined;
+	}
 	get currentCommand(): ICurrentPartialCommand {
 		return this._currentCommand;
 	}

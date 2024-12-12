@@ -2515,9 +2515,11 @@ export class TerminalLabelComputer extends Disposable {
 				: (instance.fixedRows ? `\u2195${instance.fixedRows}` : ''),
 			separator: { label: this._terminalConfigurationService.config.tabs.separator },
 			shellType: instance.shellType,
-			shellCommand: commandDetection?.executingCommand && promptInputModel
+			// Shell command requires high confidence
+			shellCommand: commandDetection?.executingCommand && commandDetection.executingCommandConfidence === 'high' && promptInputModel
 				? promptInputModel.value + nonTaskSpinner
 				: undefined,
+			// Shell prompt input does not require high confidence as it's largely for VS Code developers
 			shellPromptInput: commandDetection?.executingCommand && promptInputModel
 				? promptInputModel.getCombinedString(true) + nonTaskSpinner
 				: promptInputModel?.getCombinedString(true),
