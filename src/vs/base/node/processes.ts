@@ -5,6 +5,7 @@
 
 import * as cp from 'child_process';
 import { Stats, promises } from 'fs';
+import { getCaseInsensitive } from '../common/objects.js';
 import * as path from '../common/path.js';
 import * as Platform from '../common/platform.js';
 import * as process from '../common/process.js';
@@ -64,58 +65,61 @@ export function createQueuedSender(childProcess: cp.ChildProcess): IQueuedSender
 	return { send };
 }
 
-export namespace win32 {
-	export async function findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string> {
-		// If we have an absolute path then we take it.
-		if (path.isAbsolute(command)) {
-			return command;
+async function fileExistsDefault(path: string): Promise<boolean> {
+	if (await pfs.Promises.exists(path)) {
+		let statValue: Stats | undefined;
+		try {
+			statValue = await promises.stat(path);
+		} catch (e) {
+			if (e.message.startsWith('EACCES')) {
+				// it might be symlink
+				statValue = await promises.lstat(path);
+			}
 		}
-		if (cwd === undefined) {
-			cwd = process.cwd();
-		}
-		const dir = path.dirname(command);
-		if (dir !== '.') {
-			// We have a directory and the directory is relative (see above). Make the path absolute
-			// to the current working directory.
-			return path.join(cwd, command);
-		}
-		if (paths === undefined && Types.isString(process.env['PATH'])) {
-			paths = process.env['PATH'].split(path.delimiter);
-		}
-		// No PATH environment. Make path absolute to the cwd.
-		if (paths === undefined || paths.length === 0) {
-			return path.join(cwd, command);
-		}
+		return statValue ? !statValue.isDirectory() : false;
+	}
+	return false;
+}
 
-		async function fileExists(path: string): Promise<boolean> {
-			if (await pfs.Promises.exists(path)) {
-				let statValue: Stats | undefined;
-				try {
-					statValue = await promises.stat(path);
-				} catch (e) {
-					if (e.message.startsWith('EACCES')) {
-						// it might be symlink
-						statValue = await promises.lstat(path);
-					}
-				}
-				return statValue ? !statValue.isDirectory() : false;
-			}
-			return false;
-		}
+export async function findExecutable(command: string, cwd?: string, paths?: string[], env: Platform.IProcessEnvironment = process.env as Platform.IProcessEnvironment, fileExists: (path: string) => Promise<boolean> = fileExistsDefault): Promise<string | undefined> {
+	// If we have an absolute path then we take it.
+	if (path.isAbsolute(command)) {
+		return await fileExists(command) ? command : undefined;
+	}
+	if (cwd === undefined) {
+		cwd = process.cwd();
+	}
+	const dir = path.dirname(command);
+	if (dir !== '.') {
+		// We have a directory and the directory is relative (see above). Make the path absolute
+		// to the current working directory.
+		const fullPath = path.join(cwd, command);
+		return await fileExists(fullPath) ? fullPath : undefined;
+	}
+	const envPath = getCaseInsensitive(env, 'PATH');
+	if (paths === undefined && Types.isString(envPath)) {
+		paths = envPath.split(path.delimiter);
+	}
+	// No PATH environment. Make path absolute to the cwd.
+	if (paths === undefined || paths.length === 0) {
+		const fullPath = path.join(cwd, command);
+		return await fileExists(fullPath) ? fullPath : undefined;
+	}
 
-		// We have a simple file name. We get the path variable from the env
-		// and try to find the executable on the path.
-		for (const pathEntry of paths) {
-			// The path entry is absolute.
-			let fullPath: string;
-			if (path.isAbsolute(pathEntry)) {
-				fullPath = path.join(pathEntry, command);
-			} else {
-				fullPath = path.join(cwd, pathEntry, command);
-			}
-			if (await fileExists(fullPath)) {
-				return fullPath;
-			}
+	// We have a simple file name. We get the path variable from the env
+	// and try to find the executable on the path.
+	for (const pathEntry of paths) {
+		// The path entry is absolute.
+		let fullPath: string;
+		if (path.isAbsolute(pathEntry)) {
+			fullPath = path.join(pathEntry, command);
+		} else {
+			fullPath = path.join(cwd, pathEntry, command);
+		}
+		if (await fileExists(fullPath)) {
+			return fullPath;
+		}
+		if (Platform.isWindows) {
 			let withExtension = fullPath + '.com';
 			if (await fileExists(withExtension)) {
 				return withExtension;
@@ -125,6 +129,7 @@ export namespace win32 {
 				return withExtension;
 			}
 		}
-		return path.join(cwd, command);
 	}
+	const fullPath = path.join(cwd, command);
+	return await fileExists(fullPath) ? fullPath : undefined;
 }

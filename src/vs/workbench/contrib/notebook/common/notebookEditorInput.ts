@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from '../../../../base/common/glob.js';
-import { GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity, IUntypedEditorInput, IFileLimitedEditorInputOptions } from '../../../common/editor.js';
+import { GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity, IUntypedEditorInput, IFileLimitedEditorInputOptions, isResourceEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { INotebookService, SimpleNotebookProviderInfo } from './notebookService.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -13,7 +13,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotebookEditorModelResolverService } from './notebookEditorModelResolverService.js';
 import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
-import { CellEditType, IResolvedNotebookEditorModel } from './notebookCommon.js';
+import { CellEditType, CellUri, IResolvedNotebookEditorModel } from './notebookCommon.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -357,6 +357,9 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 		if (otherInput instanceof NotebookEditorInput) {
 			return this.viewType === otherInput.viewType && isEqual(this.resource, otherInput.resource);
+		}
+		if (isResourceEditorInput(otherInput) && otherInput.resource.scheme === CellUri.scheme) {
+			return isEqual(this.resource, CellUri.parse(otherInput.resource)?.notebook);
 		}
 		return false;
 	}

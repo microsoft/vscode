@@ -707,6 +707,11 @@ class ChatSynthesizerSessionController {
 	}
 }
 
+interface IChatSynthesizerContext {
+	readonly ignoreCodeBlocks: boolean;
+	insideCodeBlock: boolean;
+}
+
 class ChatSynthesizerSessions {
 
 	private static instance: ChatSynthesizerSessions | undefined = undefined;
@@ -722,6 +727,7 @@ class ChatSynthesizerSessions {
 
 	constructor(
 		@ISpeechService private readonly speechService: ISpeechService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
@@ -768,11 +774,16 @@ class ChatSynthesizerSessions {
 	}
 
 	private async *nextChatResponseChunk(response: IChatResponseModel, token: CancellationToken): AsyncIterable<string> {
+		const context: IChatSynthesizerContext = {
+			ignoreCodeBlocks: this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.IgnoreCodeBlocks),
+			insideCodeBlock: false
+		};
+
 		let totalOffset = 0;
 		let complete = false;
 		do {
 			const responseLength = response.response.toString().length;
-			const { chunk, offset } = this.parseNextChatResponseChunk(response, totalOffset);
+			const { chunk, offset } = this.parseNextChatResponseChunk(response, totalOffset, context);
 			totalOffset = offset;
 			complete = response.isComplete;
 
@@ -790,7 +801,7 @@ class ChatSynthesizerSessions {
 		} while (!token.isCancellationRequested && !complete);
 	}
 
-	private parseNextChatResponseChunk(response: IChatResponseModel, offset: number): { readonly chunk: string | undefined; readonly offset: number } {
+	private parseNextChatResponseChunk(response: IChatResponseModel, offset: number, context: IChatSynthesizerContext): { readonly chunk: string | undefined; readonly offset: number } {
 		let chunk: string | undefined = undefined;
 
 		const text = response.response.toString();
@@ -804,10 +815,26 @@ class ChatSynthesizerSessions {
 			offset = res.offset;
 		}
 
+		if (chunk && context.ignoreCodeBlocks) {
+			chunk = this.filterCodeBlocks(chunk, context);
+		}
+
 		return {
 			chunk: chunk ? renderStringAsPlaintext({ value: chunk }) : chunk, // convert markdown to plain text
 			offset
 		};
+	}
+
+	private filterCodeBlocks(chunk: string, context: IChatSynthesizerContext): string {
+		return chunk.split('\n')
+			.filter(line => {
+				if (line.trimStart().startsWith('```')) {
+					context.insideCodeBlock = !context.insideCodeBlock;
+					return false;
+				}
+				return !context.insideCodeBlock;
+			})
+			.join('\n');
 	}
 
 	stop(): void {

@@ -112,6 +112,10 @@ export interface IEditorHoverContext {
 	 * Hide the hover.
 	 */
 	hide(): void;
+	/**
+	 * Focus the hover.
+	 */
+	focus(): void;
 }
 
 export interface IEditorHoverRenderContext extends IEditorHoverContext {
