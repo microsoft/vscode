@@ -15,7 +15,7 @@ import { InlineCompletionsHintsWidget } from '../hintsWidget/inlineCompletionsHi
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import { convertItemsToStableObservables } from '../utils.js';
 import { GhostTextView } from './ghostText/ghostTextView.js';
-import { InlineEditsViewAndDiffProducer } from './inlineEdits/inlineEditsViewAndDiffProducer.js';
+import { InlineEditsViewAndDiffProducer } from './inlineEdits/viewAndDiffProducer.js';
 
 export class InlineCompletionsView extends Disposable {
 	private readonly _ghostTexts = derived(this, (reader) => {
