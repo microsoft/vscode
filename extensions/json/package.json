@@ -62,6 +62,7 @@
         ],
         "filenames": [
           "babel.config.json",
+          "bun.lock",
           ".babelrc.json",
           ".ember-cli",
           "typedoc.json"
