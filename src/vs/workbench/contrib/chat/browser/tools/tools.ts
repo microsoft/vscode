@@ -7,14 +7,14 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { waitForState } from '../../../../../base/common/observable.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
-import { ChatEditingSessionState, IChatEditingService } from '../../common/chatEditingService.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
@@ -117,13 +117,23 @@ Avoid repeating existing code, instead use comments to represent regions of unch
 			}
 		}, token);
 
+		model.acceptResponseProgress(request, { kind: 'textEdit', uri, edits: [], done: true });
+
 		if (result?.errorMessage) {
 			// ?
 			throw new Error(result.errorMessage);
 		}
 
-		// Doesn't work because this blocks on the chat response being done
-		await waitForState(this.chatEditingService.currentEditingSession.state, s => s === ChatEditingSessionState.Idle);
+		await new Promise((resolve) => {
+			autorun((r) => {
+				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.read(r);
+				const entries = currentEditingSession?.entries.read(r);
+				const currentFile = entries?.find((e) => e.modifiedURI.toString() === uri.toString());
+				if (currentFile && !currentFile.isCurrentlyBeingModified.read(r)) {
+					resolve(true);
+				}
+			});
+		});
 
 		return {
 			content: [{ kind: 'text', value: 'Success' }]
