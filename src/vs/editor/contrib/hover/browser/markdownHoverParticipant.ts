@@ -416,7 +416,7 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		if (index >= this.renderedHoverParts.length || index < 0) {
 			return undefined;
 		}
-		const renderedHoverPart = this._renderHoverPart(hoverPart, this._onFinishedRendering);
+		const renderedHoverPart = this._renderHoverPart(hoverPart, () => this.onContentsChanged({ allowPositionPreferenceRecomputation: false }));
 		const currentRenderedHoverPart = this.renderedHoverParts[index];
 		const currentRenderedMarkdown = currentRenderedHoverPart.hoverElement;
 		const renderedMarkdown = renderedHoverPart.hoverElement;
