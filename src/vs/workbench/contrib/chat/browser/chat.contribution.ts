@@ -7,7 +7,7 @@ import { timeout } from '../../../../base/common/async.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isMacintosh } from '../../../../base/common/platform.js';
+import { isMacintosh, isNative } from '../../../../base/common/platform.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -123,7 +123,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.experimental.offerSetup': {
 			type: 'boolean',
-			default: true,
+			default: isNative,
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: nls.localize('chat.experimental.offerSetup', "Controls whether setup is offered for Chat if not done already."),
 			tags: ['experimental', 'onExP']
