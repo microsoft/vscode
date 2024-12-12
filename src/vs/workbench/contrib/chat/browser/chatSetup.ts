@@ -266,7 +266,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 					const entitlement = await that.requests.forceResolveEntitlement(undefined);
 					if (entitlement === ChatEntitlement.Pro) {
-						commandService.executeCommand('github.copilot.refreshToken'); // ugly, but we need to signal to the extension that entitlements changed
+						refreshTokens(commandService);
 					}
 				}
 			}
@@ -787,7 +787,7 @@ class ChatSetupController extends Disposable {
 			installResult = isCancellationError(error) ? 'cancelled' : 'failedInstall';
 		} finally {
 			if (wasInstalled && didSignUp) {
-				this.commandService.executeCommand('github.copilot.refreshToken'); // ugly, but we need to signal to the extension that sign-up happened
+				refreshTokens(this.commandService);
 			}
 
 			if (installResult === 'installed') {
@@ -1087,4 +1087,10 @@ function showCopilotView(viewsService: IViewsService, layoutService: IWorkbenchL
 	} else {
 		return showChatView(viewsService);
 	}
+}
+
+function refreshTokens(commandService: ICommandService): void {
+	// ugly, but we need to signal to the extension that entitlements changed
+	commandService.executeCommand('github.copilot.signIn');
+	commandService.executeCommand('github.copilot.refreshToken');
 }
