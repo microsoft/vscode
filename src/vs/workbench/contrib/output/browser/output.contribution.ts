@@ -35,8 +35,9 @@ import { IDefaultLogLevelsService } from '../../logs/common/defaultLogLevels.js'
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
-import { IsWindowsContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { IsMacNativeContext, IsWindowsContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { FocusedViewContext } from '../../../common/contextkeys.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
@@ -104,6 +105,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		this.registerToggleAutoScrollAction();
 		this.registerOpenActiveOutputFileAction();
 		this.registerOpenActiveOutputFileInAuxWindowAction();
+		this.registerOpenActiveOutputInNativeViewer();
 		this.registerShowLogsAction();
 		this.registerOpenLogFileAction();
 		this.registerConfigureActiveOutputLogLevelAction();
@@ -314,6 +316,34 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			}
 			async run(): Promise<void> {
 				that.openActiveOutoutFile(AUX_WINDOW_GROUP);
+			}
+		}));
+	}
+
+	private registerOpenActiveOutputInNativeViewer(): void {
+		const that = this;
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.openActiveLogOutputFileNative`,
+					title: nls.localize2('openActiveOutputFileNative', "Open Output in Console"),
+					menu: [{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', OUTPUT_VIEW_ID), IsMacNativeContext),
+						group: 'navigation',
+						order: 6,
+						isHiddenByDefault: true
+					}],
+					icon: Codicon.goToFile,
+					precondition: ContextKeyExpr.and(CONTEXT_ACTIVE_FILE_OUTPUT, IsMacNativeContext)
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const hostService = accessor.get(INativeHostService);
+				const uri = that.getFileOutputChannelDescriptor()?.file;
+				if (uri) {
+					hostService.openExternal(uri.toString(true), 'open');
+				}
 			}
 		}));
 	}
