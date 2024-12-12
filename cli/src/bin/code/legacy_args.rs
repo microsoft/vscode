@@ -85,6 +85,7 @@ pub fn try_parse_legacy(
 				subcommand: ExtensionSubcommand::Install(InstallExtensionArgs {
 					id_or_path: exts,
 					pre_release: args.contains_key("pre-release"),
+					donotIncludePackAndDependencies: args.contains_key("do-not-include-pack-dependencies"),
 					force: args.contains_key("force"),
 				}),
 				desktop_code_options,
