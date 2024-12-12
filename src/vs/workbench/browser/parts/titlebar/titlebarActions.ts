@@ -259,7 +259,7 @@ registerAction2(class ToggleEditorActions extends Action2 {
 	}
 });
 
-if (isLinux && isNative) { // TODO@bpasero remove me later
+if (isLinux && isNative) {
 	registerAction2(class ToggleCustomTitleBar extends Action2 {
 		constructor() {
 			super({
