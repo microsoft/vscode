@@ -1313,9 +1313,9 @@ declare module 'vscode' {
 			 */
 			readonly undoStopAfter: boolean;
 			/**
-			 * Adjust the indentation of the snippet.
+			 * Keep whitespace of the {@link SnippetString.value} as is.
 			 */
-			readonly adjustWhitespace?: boolean;
+			readonly keepWhitespace?: boolean;
 		}): Thenable<boolean>;
 
 		/**

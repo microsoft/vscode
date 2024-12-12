@@ -117,7 +117,7 @@ suite('vscode API - editors', () => {
 				new Position(1, 3)
 			);
 
-			return editor.insertSnippet(snippetString, undefined, { undoStopAfter: false, undoStopBefore: false, adjustWhitespace: false }).then(inserted => {
+			return editor.insertSnippet(snippetString, undefined, { undoStopAfter: false, undoStopBefore: false, keepWhitespace: true }).then(inserted => {
 				assert.ok(inserted);
 				assert.strictEqual(doc.getText(), 'This is line 1\n  This is line 2\n  This is line 3');
 				assert.ok(doc.isDirty);

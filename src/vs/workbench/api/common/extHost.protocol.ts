@@ -262,7 +262,7 @@ export interface IApplyEditsOptions extends IUndoStopOptions {
 }
 
 export interface ISnippetOptions extends IUndoStopOptions {
-	adjustWhitespace?: boolean;
+	keepWhitespace?: boolean;
 }
 export interface ITextDocumentShowOptions {
 	position?: EditorGroupColumn;

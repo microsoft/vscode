@@ -542,7 +542,7 @@ export class MainThreadTextEditor {
 		snippetController.apply(edits, {
 			overwriteBefore: 0, overwriteAfter: 0,
 			undoStopBefore: opts.undoStopBefore, undoStopAfter: opts.undoStopAfter,
-			adjustWhitespace: opts.adjustWhitespace,
+			adjustWhitespace: !opts.keepWhitespace,
 			clipboardText
 		});
 
