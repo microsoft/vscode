@@ -83,7 +83,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 				buttonForeground: asCssVariable(textLinkForeground)
 			}));
 			button2.element.classList.add('chat-quota-error-secondary-button');
-			button2.label = localize('signedUpClickToContinue', "Signed up? Click to retry");
+			button2.label = localize('signedUpClickToContinue', "Signed up? Click to retry.");
 			this._onDidChangeHeight.fire();
 			this._register(button2.onDidClick(() => {
 				const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
