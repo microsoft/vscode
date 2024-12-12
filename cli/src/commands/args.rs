@@ -293,7 +293,7 @@ impl ExtensionSubcommand {
 				if args.pre_release {
 					target.push("--pre-release".to_string());
 				}
-				if args.donotIncludePackAndDependencies {
+				if args.donot_include_pack_and_dependencies {
 					target.push("do-not-include-pack-dependencies".to_string());
 				}
 				if args.force {
@@ -338,7 +338,7 @@ pub struct InstallExtensionArgs {
 
 	/// Don't include installing pack and dependencies of the extension
 	#[clap(long)]
-	pub donotIncludePackAndDependencies: bool,
+	pub donot_include_pack_and_dependencies: bool,
 
 	/// Update to the latest version of the extension if it's already installed.
 	#[clap(long)]
