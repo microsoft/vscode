@@ -26,6 +26,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { QuickInputTree } from './quickInputTree.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import './quickInputActions.js';
+import { observableValue, transaction } from '../../../base/common/observable.js';
 
 const $ = dom.$;
 
@@ -36,8 +37,6 @@ export class QuickInputController extends Disposable {
 	private ui: QuickInputUI | undefined;
 	private dimension?: dom.IDimension;
 	private titleBarOffset?: number;
-	private quickPickTop: number | undefined;
-	private quickPickLeft: number = 0.5; /* center */
 	private enabled = true;
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 	private readonly onDidCustomEmitter = this._register(new Emitter<void>());
@@ -59,6 +58,8 @@ export class QuickInputController extends Disposable {
 	readonly onHide = this.onHideEmitter.event;
 
 	private previousFocusElement?: HTMLElement;
+
+	private dndController: QuickInputDragAndDropController | undefined;
 
 	private readonly inQuickInputContext = InQuickInputContextKey.bindTo(this.contextKeyService);
 	private readonly quickInputTypeContext = QuickInputTypeContextKey.bindTo(this.contextKeyService);
@@ -175,66 +176,6 @@ export class QuickInputController extends Disposable {
 		customButton.label = localize('custom', "Custom");
 		this._register(customButton.onDidClick(e => {
 			this.onDidCustomEmitter.fire();
-		}));
-
-		// Drag and move support
-		const snaplineHorizontal = dom.append(this._container, $('.quick-input-widget-snapline.horizontal.hidden'));
-		const snaplineVertical1 = dom.append(this._container, $('.quick-input-widget-snapline.vertical.hidden'));
-		const snaplineVertical2 = dom.append(this._container, $('.quick-input-widget-snapline.vertical.hidden'));
-
-		const dragDisposable = this._register(new DisposableStore());
-		this._register(dom.addDisposableGenericMouseDownListener(headerContainer, (e: MouseEvent) => {
-			const snapThreshold = 20;
-			const dragOffsetX = e.offsetX;
-			const dragOffsetY = e.offsetY;
-
-			let snapLinesVisible = false;
-			const snapCoordinateY = this.dimension!.height * 0.15;
-			const snapCoordinateX = (this.dimension!.width / 2) - (container.clientWidth / 2);
-
-			dragDisposable.add(dom.addDisposableGenericMouseMoveListener(this._container, (e: MouseEvent) => {
-				if (!snapLinesVisible) {
-					snaplineHorizontal.classList.remove('hidden');
-					snaplineHorizontal.style.top = `${snapCoordinateY}px`;
-
-					snaplineVertical1.classList.remove('hidden');
-					snaplineVertical1.style.left = `${(this.dimension!.width / 2) - (container.clientWidth / 2)}px`;
-
-					snaplineVertical2.classList.remove('hidden');
-					snaplineVertical2.style.left = `${(this.dimension!.width / 2) + (container.clientWidth / 2)}px`;
-
-					snapLinesVisible = true;
-				}
-
-				const top = e.clientY - dragOffsetY;
-				container.style.top = Math.abs(top - snapCoordinateY) < snapThreshold
-					? `${snapCoordinateY}px`
-					: `${top}px`;
-
-				const left = e.clientX - dragOffsetX;
-				container.style.left = Math.abs(left - snapCoordinateX) < snapThreshold
-					? `${snapCoordinateX}px`
-					: `${left}px`;
-			}));
-		}));
-		this._register(dom.addDisposableGenericMouseUpListener(headerContainer, (e: MouseEvent) => {
-			// TODO - save state
-
-			// Hide snaplines
-			snaplineHorizontal.classList.add('hidden');
-			snaplineVertical1.classList.add('hidden');
-			snaplineVertical2.classList.add('hidden');
-
-			// Top ratio
-			const topRatio = parseInt(container.style.top) / this.dimension!.height;
-			this.quickPickTop = parseFloat(topRatio.toFixed(2));
-
-			// Left ratio
-			const center = parseInt(container.style.left) + (container.clientWidth / 2);
-			const centerRatio = center / this.dimension!.width;
-			this.quickPickLeft = parseFloat(centerRatio.toFixed(2));
-
-			dragDisposable.clear();
 		}));
 
 		const message = dom.append(inputContainer, $(`#${this.idPrefix}message.quick-input-message`));
@@ -376,6 +317,9 @@ export class QuickInputController extends Disposable {
 					break;
 			}
 		}));
+
+		// Drag and Drop support
+		this.dndController = this._register(new QuickInputDragAndDropController(this._container, container, headerContainer));
 
 		this.ui = {
 			container,
@@ -792,13 +736,16 @@ export class QuickInputController extends Disposable {
 
 	private updateLayout() {
 		if (this.ui && this.isVisible()) {
+			const quickPickTop = this.dndController?.dragTop.get();
+			const quickPickLeft = this.dndController?.dragLeft.get();
+
 			const style = this.ui.container.style;
 
 			const width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
 			style.width = width + 'px';
 
-			style.top = `${this.quickPickTop ? Math.round(this.dimension!.height * this.quickPickTop) : this.titleBarOffset}px`;
-			style.left = `${Math.round((this.dimension!.width * this.quickPickLeft) - (width / 2))}px`;
+			style.top = `${quickPickTop ? Math.round(this.dimension!.height * quickPickTop) : this.titleBarOffset}px`;
+			style.left = `${Math.round((this.dimension!.width * (quickPickLeft ?? 0.5 /* center */)) - (width / 2))}px`;
 
 			this.ui.inputBox.layout();
 			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
@@ -867,3 +814,90 @@ export class QuickInputController extends Disposable {
 }
 export interface IQuickInputControllerHost extends ILayoutService { }
 
+class QuickInputDragAndDropController extends Disposable {
+	readonly dragTop = observableValue<number | undefined>(this, undefined);
+	readonly dragLeft = observableValue<number | undefined>(this, undefined);
+
+	private readonly _snapThreshold = 20;
+	private readonly _snapLineHorizontalRatio = 0.15;
+	private readonly _snapLineHorizontal: HTMLElement;
+	private readonly _snapLineVertical1: HTMLElement;
+	private readonly _snapLineVertical2: HTMLElement;
+
+	private readonly _dragDisposables = this._register(new DisposableStore());
+
+	constructor(
+		private readonly _container: HTMLElement,
+		private readonly _quickInputContainer: HTMLElement,
+		private readonly _quickInputHeader: HTMLElement
+	) {
+		super();
+
+		this._snapLineHorizontal = dom.append(this._container, $('.quick-input-widget-snapline.horizontal.hidden'));
+		this._snapLineVertical1 = dom.append(this._container, $('.quick-input-widget-snapline.vertical.hidden'));
+		this._snapLineVertical2 = dom.append(this._container, $('.quick-input-widget-snapline.vertical.hidden'));
+
+		this.registerMouseListeners();
+	}
+
+	private registerMouseListeners() {
+		this._register(dom.addDisposableGenericMouseDownListener(this._quickInputHeader, (e: MouseEvent) => {
+			const dragOffsetX = e.offsetX;
+			const dragOffsetY = e.offsetY;
+
+			let snapLinesVisible = false;
+			const snapCoordinateY = Math.round(this._container.clientHeight * this._snapLineHorizontalRatio);
+			const snapCoordinateX = Math.round(this._container.clientWidth / 2) - Math.round(this._quickInputContainer.clientWidth / 2);
+
+			this._dragDisposables.add(dom.addDisposableGenericMouseMoveListener(this._container, (e: MouseEvent) => {
+				if (!snapLinesVisible) {
+					this._showSnapLines(snapCoordinateY, snapCoordinateX);
+					snapLinesVisible = true;
+				}
+
+				const top = e.clientY - dragOffsetY;
+				this._quickInputContainer.style.top = Math.abs(top - snapCoordinateY) < this._snapThreshold
+					? `${snapCoordinateY}px`
+					: `${top}px`;
+
+				const left = e.clientX - dragOffsetX;
+				this._quickInputContainer.style.left = Math.abs(left - snapCoordinateX) < this._snapThreshold
+					? `${snapCoordinateX}px`
+					: `${left}px`;
+			}));
+		}));
+
+		this._register(dom.addDisposableGenericMouseUpListener(this._quickInputHeader, (e: MouseEvent) => {
+			// Hide snaplines
+			this._hideSnapLines();
+
+			// Calculate and set ratios
+			const topRatio = parseInt(this._quickInputContainer.style.top) / this._container.clientHeight;
+			const center = parseInt(this._quickInputContainer.style.left) + (this._quickInputContainer.clientWidth / 2);
+			const centerRatio = center / this._container.clientWidth;
+
+			transaction(tx => {
+				this.dragTop.set(parseFloat(topRatio.toFixed(2)), tx);
+				this.dragLeft.set(parseFloat(centerRatio.toFixed(2)), tx);
+			});
+
+			this._dragDisposables.clear();
+		}));
+	}
+
+	private _showSnapLines(horizontal: number, vertical: number) {
+		this._snapLineHorizontal.style.top = `${horizontal}px`;
+		this._snapLineVertical1.style.left = `${vertical}px`;
+		this._snapLineVertical2.style.left = `${vertical + this._quickInputContainer.clientWidth}px`;
+
+		this._snapLineHorizontal.classList.remove('hidden');
+		this._snapLineVertical1.classList.remove('hidden');
+		this._snapLineVertical2.classList.remove('hidden');
+	}
+
+	private _hideSnapLines() {
+		this._snapLineHorizontal.classList.add('hidden');
+		this._snapLineVertical1.classList.add('hidden');
+		this._snapLineVertical2.classList.add('hidden');
+	}
+}
