@@ -441,15 +441,11 @@ export class ExtensionsListView extends ViewPane {
 	private async filterLocal(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): Promise<{ extensions: IExtension[]; canIncludeInstalledExtensions: boolean; description?: string }> {
 		const value = query.value;
 		let extensions: IExtension[] = [];
-		let canIncludeInstalledExtensions = true;
 		let description: string | undefined;
+		const includeBuiltin = /@builtin/i.test(value);
+		const canIncludeInstalledExtensions = !includeBuiltin;
 
-		if (/@builtin/i.test(value)) {
-			extensions = this.filterBuiltinExtensions(local, query, options);
-			canIncludeInstalledExtensions = false;
-		}
-
-		else if (/@installed/i.test(value)) {
+		if (/@installed/i.test(value)) {
 			extensions = this.filterInstalledExtensions(local, runningExtensions, query, options);
 		}
 
@@ -462,7 +458,7 @@ export class ExtensionsListView extends ViewPane {
 		}
 
 		else if (/@enabled/i.test(value)) {
-			extensions = this.filterEnabledExtensions(local, runningExtensions, query, options);
+			extensions = this.filterEnabledExtensions(local, runningExtensions, query, options, includeBuiltin);
 		}
 
 		else if (/@workspaceUnsupported/i.test(value)) {
@@ -483,6 +479,10 @@ export class ExtensionsListView extends ViewPane {
 				extensions = result.extensions;
 				description = result.description;
 			}
+		}
+
+		else if (includeBuiltin) {
+			extensions = this.filterBuiltinExtensions(local, query, options);
 		}
 
 		return { extensions, canIncludeInstalledExtensions, description };
@@ -625,7 +625,7 @@ export class ExtensionsListView extends ViewPane {
 	private filterDisabledExtensions(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
 		let { value, includedCategories, excludedCategories } = this.parseCategories(query.value);
 
-		value = value.replace(/@disabled/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+		value = value.replace(/@disabled|@builtin/gi, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
 		const result = local
 			.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
@@ -636,12 +636,14 @@ export class ExtensionsListView extends ViewPane {
 		return this.sortExtensions(result, options);
 	}
 
-	private filterEnabledExtensions(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
+	private filterEnabledExtensions(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions, includeBuiltin: boolean): IExtension[] {
 		let { value, includedCategories, excludedCategories } = this.parseCategories(query.value);
 
-		value = value ? value.replace(/@enabled/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
+		value = value ? value.replace(/@enabled|@builtin/gi, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
 
-		local = local.filter(e => !e.isBuiltin);
+		if (!includeBuiltin) {
+			local = local.filter(e => !e.isBuiltin);
+		}
 		const result = local
 			.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 			.filter(e => runningExtensions.some(r => areSameExtensions({ id: r.identifier.value, uuid: r.uuid }, e.identifier))
@@ -1271,11 +1273,11 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	static isEnabledExtensionsQuery(query: string): boolean {
-		return /@enabled/i.test(query);
+		return /@enabled/i.test(query) && !/@builtin/i.test(query);
 	}
 
 	static isDisabledExtensionsQuery(query: string): boolean {
-		return /@disabled/i.test(query);
+		return /@disabled/i.test(query) && !/@builtin/i.test(query);
 	}
 
 	static isSearchDeprecatedExtensionsQuery(query: string): boolean {
