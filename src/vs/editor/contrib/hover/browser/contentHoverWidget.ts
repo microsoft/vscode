@@ -408,6 +408,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._contentWidth = width;
 		this._updateMinimumWidth();
 		this._resizableNode.layout(height, width);
+		this._updateResizableNodeMaxDimensions();
 
 		if (opts.allowPositionPreferenceRecomputation && this._renderedHover?.showAtPosition) {
 			const widgetHeight = dom.getTotalHeight(this._hover.containerDomNode);
