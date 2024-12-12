@@ -29,6 +29,7 @@ import { StickyRange } from './stickyScrollElement.js';
 import { IMouseEvent, StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { FoldingController } from '../../folding/browser/folding.js';
 import { FoldingModel, toggleCollapseState } from '../../folding/browser/foldingModel.js';
+import { Emitter } from '../../../../base/common/event.js';
 
 export interface IStickyScrollController {
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;
@@ -69,6 +70,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _endLineNumbers: number[] = [];
 	private _showEndForLine: number | undefined;
 	private _minRebuildFromLine: number | undefined;
+
+	private readonly _onDidChangeStickyScrollHeight = this._register(new Emitter<{ height: number }>());
+	public readonly onDidChangeStickyScrollHeight = this._onDidChangeStickyScrollHeight.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -117,6 +121,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(dom.addDisposableListener(stickyScrollDomNode, dom.EventType.MOUSE_DOWN, (e) => {
 			this._onMouseDown = true;
 		}));
+		this._register(this._stickyScrollWidget.onDidChangeStickyScrollHeight((e) => {
+			this._onDidChangeStickyScrollHeight.fire(e);
+		}));
 		this._onDidResize();
 		this._readConfiguration();
 	}
@@ -127,6 +134,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	get stickyScrollWidgetState(): StickyScrollWidgetState {
 		return this._widgetState;
+	}
+
+	get stickyScrollWidgetHeight(): number {
+		return this._stickyScrollWidget.height;
 	}
 
 	public static get(editor: ICodeEditor): IStickyScrollController | null {
@@ -408,6 +419,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const options = this._editor.getOption(EditorOption.stickyScroll);
 		if (options.enabled === false) {
 			this._editor.removeOverlayWidget(this._stickyScrollWidget);
+			this._resetState();
 			this._sessionStore.clear();
 			this._enabled = false;
 			return;

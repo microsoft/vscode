@@ -19,6 +19,7 @@ import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, RenderLineInput, renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
 import { foldingCollapsedIcon, foldingExpandedIcon } from '../../folding/browser/foldingDecorations.js';
 import { FoldingModel } from '../../folding/browser/foldingModel.js';
+import { Emitter } from '../../../../base/common/event.js';
 
 export class StickyScrollWidgetState {
 	constructor(
@@ -49,6 +50,8 @@ const STICKY_IS_FOLDING_ICON_ATTR = 'data-sticky-is-folding-icon';
 
 export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
+	public height: number = 0;
+
 	private readonly _foldingIconStore = new DisposableStore();
 	private readonly _rootDomNode: HTMLElement = document.createElement('div');
 	private readonly _lineNumbersDomNode: HTMLElement = document.createElement('div');
@@ -62,6 +65,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private _lastLineRelativePosition: number = 0;
 	private _minContentWidthInPx: number = 0;
 	private _isOnGlyphMargin: boolean = false;
+
+	private readonly _onDidChangeStickyScrollHeight = this._register(new Emitter<{ height: number }>());
+	public readonly onDidChangeStickyScrollHeight = this._onDidChangeStickyScrollHeight.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor
@@ -213,6 +219,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private async _renderRootNode(state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | undefined, rebuildFromLine: number): Promise<void> {
 		this._clearStickyLinesFromLine(rebuildFromLine);
 		if (!state) {
+			this.height = 0;
 			return;
 		}
 		// For existing sticky lines update the top and z-index
@@ -236,11 +243,15 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._useFoldingOpacityTransition(!this._isOnGlyphMargin);
 		}
 
-		const widgetHeight = this._lineNumbers.length * this._lineHeight + this._lastLineRelativePosition;
+		const currentHeight = this._lineNumbers.length * this._lineHeight + this._lastLineRelativePosition;
+		if (currentHeight !== this.height) {
+			this._onDidChangeStickyScrollHeight.fire({ height: currentHeight });
+		}
+		this.height = currentHeight;
 		this._rootDomNode.style.display = 'block';
-		this._lineNumbersDomNode.style.height = `${widgetHeight}px`;
-		this._linesDomNodeScrollable.style.height = `${widgetHeight}px`;
-		this._rootDomNode.style.height = `${widgetHeight}px`;
+		this._lineNumbersDomNode.style.height = `${this.height}px`;
+		this._linesDomNodeScrollable.style.height = `${this.height}px`;
+		this._rootDomNode.style.height = `${this.height}px`;
 
 		this._rootDomNode.style.marginLeft = '0px';
 		this._minContentWidthInPx = Math.max(...this._renderedStickyLines.map(l => l.scrollWidth)) + layoutInfo.verticalScrollbarWidth;
