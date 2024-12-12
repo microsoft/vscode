@@ -408,7 +408,7 @@ class RenderedContentHoverParts extends Disposable {
 				this._context.focus();
 			}
 		}
-		this._context.onContentsChanged();
+		this._context.onContentsChanged({ allowPositionPreferenceRecomputation: false });
 	}
 
 	public doesHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {

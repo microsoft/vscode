@@ -15,7 +15,7 @@ import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { IModelDecoration, ITextModel } from '../../../common/model.js';
 import { ILanguageService } from '../../../common/languages/language.js';
-import { HoverAnchor, HoverAnchorType, HoverRangeAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from './hoverTypes.js';
+import { HoverAnchor, HoverAnchorType, HoverRangeAnchor, IContentsChangeOptions, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from './hoverTypes.js';
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -245,9 +245,9 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		private readonly _keybindingService: IKeybindingService,
 		private readonly _hoverService: IHoverService,
 		private readonly _configurationService: IConfigurationService,
-		private readonly _onFinishedRendering: () => void,
+		private readonly onContentsChanged: (opts?: IContentsChangeOptions | undefined) => void,
 	) {
-		this.renderedHoverParts = this._renderHoverParts(hoverParts, hoverPartsContainer, this._onFinishedRendering);
+		this.renderedHoverParts = this._renderHoverParts(hoverParts, hoverPartsContainer, this.onContentsChanged);
 		this._disposables.add(toDisposable(() => {
 			this.renderedHoverParts.forEach(renderedHoverPart => {
 				renderedHoverPart.dispose();
@@ -416,7 +416,7 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		if (index >= this.renderedHoverParts.length || index < 0) {
 			return undefined;
 		}
-		const renderedHoverPart = this._renderHoverPart(hoverPart, this._onFinishedRendering);
+		const renderedHoverPart = this._renderHoverPart(hoverPart, () => this.onContentsChanged({ allowPositionPreferenceRecomputation: false }));
 		const currentRenderedHoverPart = this.renderedHoverParts[index];
 		const currentRenderedMarkdown = currentRenderedHoverPart.hoverElement;
 		const renderedMarkdown = renderedHoverPart.hoverElement;

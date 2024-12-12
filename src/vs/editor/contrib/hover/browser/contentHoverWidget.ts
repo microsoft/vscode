@@ -17,6 +17,7 @@ import { getHoverAccessibleViewHint, HoverWidget } from '../../../../base/browse
 import { PositionAffinity } from '../../../common/model.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { RenderedContentHover } from './contentHoverRendered.js';
+import { IContentsChangeOptions } from './hoverTypes.js';
 
 const HORIZONTAL_SCROLLING_BY = 30;
 
@@ -392,7 +393,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._resizableNode.minSize = new dom.Dimension(width, this._minimumSize.height);
 	}
 
-	public onContentsChanged(): void {
+	public onContentsChanged(opts: IContentsChangeOptions = { allowPositionPreferenceRecomputation: true }): void {
 		this._removeConstraintsRenderNormally();
 		const contentsDomNode = this._hover.contentsDomNode;
 
@@ -407,8 +408,9 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._contentWidth = width;
 		this._updateMinimumWidth();
 		this._resizableNode.layout(height, width);
+		this._updateResizableNodeMaxDimensions();
 
-		if (this._renderedHover?.showAtPosition) {
+		if (opts.allowPositionPreferenceRecomputation && this._renderedHover?.showAtPosition) {
 			const widgetHeight = dom.getTotalHeight(this._hover.containerDomNode);
 			this._positionPreference = this._findPositionPreference(widgetHeight, this._renderedHover.showAtPosition);
 		}

@@ -312,6 +312,11 @@
 	cursor: pointer;
 }
 
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry > .more-info-entry-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry > .link,
 .extension-editor > .header > .details > .pre-release-text a,
 .extension-editor > .header > .details > .actions-status-container > .status a {
