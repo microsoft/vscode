@@ -84,7 +84,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 					electron.nativeTheme.themeSource = 'light';
 					break;
 				case 'auto':
-					switch (this.getStoredBaseTheme()) {
+					switch (this.getPreferredBaseTheme() ?? this.getStoredBaseTheme()) {
 						case ThemeTypeSelector.VS: electron.nativeTheme.themeSource = 'light'; break;
 						case ThemeTypeSelector.VS_DARK: electron.nativeTheme.themeSource = 'dark'; break;
 						default: electron.nativeTheme.themeSource = 'system';
