@@ -1787,6 +1787,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const preMoveSideBarSize = !this.isVisible(Parts.SIDEBAR_PART) ? Sizing.Invisible(this.workbenchGrid.getViewCachedVisibleSize(this.sideBarPartView) ?? this.sideBarPartView.minimumWidth) : this.workbenchGrid.getViewSize(this.sideBarPartView).width;
 		const preMoveAuxiliaryBarSize = !this.isVisible(Parts.AUXILIARYBAR_PART) ? Sizing.Invisible(this.workbenchGrid.getViewCachedVisibleSize(this.auxiliaryBarPartView) ?? this.auxiliaryBarPartView.minimumWidth) : this.workbenchGrid.getViewSize(this.auxiliaryBarPartView).width;
 
+		const focusedPart = [Parts.PANEL_PART, Parts.SIDEBAR_PART, Parts.AUXILIARYBAR_PART].find(part => this.hasFocus(part)) as SINGLE_WINDOW_PARTS | undefined;
+
 		if (sideBarPosition === Position.LEFT) {
 			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 0]);
 			this.workbenchGrid.moveView(this.sideBarPartView, preMoveSideBarSize, sideBarSiblingToEditor ? this.editorPartView : this.activityBarPartView, sideBarSiblingToEditor ? Direction.Left : Direction.Right);
@@ -1803,6 +1805,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			} else {
 				this.workbenchGrid.moveViewTo(this.auxiliaryBarPartView, [2, 0]);
 			}
+		}
+
+		// Maintain focus after moving parts
+		if (focusedPart) {
+			this.focusPart(focusedPart);
 		}
 
 		// We moved all the side parts based on the editor and ignored the panel
@@ -2122,6 +2129,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const sideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
 		const auxiliaryBarVisible = this.isVisible(Parts.AUXILIARYBAR_PART);
 
+		const hadFocus = this.hasFocus(Parts.PANEL_PART);
+
 		if (position === Position.BOTTOM) {
 			this.workbenchGrid.moveView(this.panelPartView, editorHidden ? size.height : this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_HEIGHT), this.editorPartView, Direction.Down);
 		} else if (position === Position.TOP) {
@@ -2130,6 +2139,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.workbenchGrid.moveView(this.panelPartView, editorHidden ? size.width : this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_WIDTH), this.editorPartView, Direction.Right);
 		} else {
 			this.workbenchGrid.moveView(this.panelPartView, editorHidden ? size.width : this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_WIDTH), this.editorPartView, Direction.Left);
+		}
+
+		if (hadFocus) {
+			this.focusPart(Parts.PANEL_PART);
 		}
 
 		// Reset sidebar to original size before shifting the panel
