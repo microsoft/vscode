@@ -24,7 +24,7 @@ import { Range } from '../../../../../common/core/range.js';
 import { Command } from '../../../../../common/languages.js';
 import { ITextModel } from '../../../../../common/model.js';
 import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
-import { InlineEditWithChanges } from './inlineEditsViewAndDiffProducer.js';
+import { InlineEditWithChanges } from './viewAndDiffProducer.js';
 import { StatusBarViewItem, maxContentWidthInRange, getOffsetForPos, Point, n, PathBuilder, mapOutFalsy } from './utils.js';
 
 

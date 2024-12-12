@@ -13,22 +13,13 @@ import { LineRange } from '../../../../../common/core/lineRange.js';
 import { StringText } from '../../../../../common/core/textEdit.js';
 import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
-import './inlineEditsView.css';
+import './view.css';
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineDiffView.js';
 import { applyEditToModifiedRangeMappings, createReindentEdit } from './utils.js';
-import { IInlineEditsIndicatorState, InlineEditsIndicator } from './inlineEditsIndicatorView.js';
+import { IInlineEditsIndicatorState, InlineEditsIndicator } from './indicatorView.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
-import { InlineEditWithChanges } from './inlineEditsViewAndDiffProducer.js';
-import { InlineEditsSideBySideDiff } from './inlineEditsSideBySideDiff.js';
-
-export interface IUiState {
-	state: 'collapsed' | 'mixedLines' | 'interleavedLines' | 'sideBySide';
-	diff: DetailedLineRangeMapping[];
-	edit: InlineEditWithChanges;
-	newText: string;
-	newTextLineCount: number;
-	originalDisplayRange: LineRange;
-}
+import { InlineEditWithChanges } from './viewAndDiffProducer.js';
+import { InlineEditsSideBySideDiff } from './sideBySideDiff.js';
 
 export class InlineEditsView extends Disposable {
 	private readonly _editorObs = observableCodeEditor(this._editor);
@@ -45,7 +36,14 @@ export class InlineEditsView extends Disposable {
 		super();
 	}
 
-	private readonly _uiState = derived<IUiState | undefined>(this, reader => {
+	private readonly _uiState = derived<{
+		state: 'collapsed' | 'mixedLines' | 'interleavedLines' | 'sideBySide';
+		diff: DetailedLineRangeMapping[];
+		edit: InlineEditWithChanges;
+		newText: string;
+		newTextLineCount: number;
+		originalDisplayRange: LineRange;
+	} | undefined>(this, reader => {
 		const edit = this._edit.read(reader);
 		if (!edit) {
 			return undefined;

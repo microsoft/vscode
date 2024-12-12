@@ -23,7 +23,7 @@ import { IModelService } from '../../../../../common/services/model.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineEdit } from '../../model/inlineEdit.js';
 import { InlineCompletionItem } from '../../model/provideInlineCompletions.js';
-import { InlineEditsView } from './inlineEditsView.js';
+import { InlineEditsView } from './view.js';
 import { UniqueUriGenerator } from './utils.js';
 
 export class InlineEditsViewAndDiffProducer extends Disposable {
