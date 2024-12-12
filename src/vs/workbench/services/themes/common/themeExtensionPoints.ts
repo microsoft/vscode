@@ -8,7 +8,7 @@ import * as nls from '../../../../nls.js';
 import * as types from '../../../../base/common/types.js';
 import * as resources from '../../../../base/common/resources.js';
 import { ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
-import { ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME } from './workbenchThemeService.js';
+import { ExtensionData, IThemeExtensionPoint } from './workbenchThemeService.js';
 
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -18,6 +18,7 @@ import { IExtensionManifest } from '../../../../platform/extensions/common/exten
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
 
 export function registerColorThemeExtensionPoint() {
 	return ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>({
@@ -27,7 +28,7 @@ export function registerColorThemeExtensionPoint() {
 			type: 'array',
 			items: {
 				type: 'object',
-				defaultSnippets: [{ body: { label: '${1:label}', id: '${2:id}', uiTheme: VS_DARK_THEME, path: './themes/${3:id}.tmTheme.' } }],
+				defaultSnippets: [{ body: { label: '${1:label}', id: '${2:id}', uiTheme: ThemeTypeSelector.VS_DARK, path: './themes/${3:id}.tmTheme.' } }],
 				properties: {
 					id: {
 						description: nls.localize('vscode.extension.contributes.themes.id', 'Id of the color theme as used in the user settings.'),
@@ -39,7 +40,7 @@ export function registerColorThemeExtensionPoint() {
 					},
 					uiTheme: {
 						description: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme. \'hc-black\' is the dark high contrast theme, \'hc-light\' is the light high contrast theme.'),
-						enum: [VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME]
+						enum: [ThemeTypeSelector.VS, ThemeTypeSelector.VS_DARK, ThemeTypeSelector.HC_BLACK, ThemeTypeSelector.HC_LIGHT]
 					},
 					path: {
 						description: nls.localize('vscode.extension.contributes.themes.path', 'Path of the tmTheme file. The path is relative to the extension folder and is typically \'./colorthemes/awesome-color-theme.json\'.'),

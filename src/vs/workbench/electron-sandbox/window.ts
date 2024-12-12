@@ -25,13 +25,13 @@ import { ipcRenderer, process } from '../../base/parts/sandbox/electron-sandbox/
 import { IWorkspaceEditingService } from '../services/workspaces/common/workspaceEditing.js';
 import { IMenuService, MenuId, IMenu, MenuItemAction, MenuRegistry } from '../../platform/actions/common/actions.js';
 import { ICommandAction } from '../../platform/action/common/action.js';
-import { createAndFillInActionBarActions } from '../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatActionBarActions } from '../../platform/actions/browser/menuEntryActionViewItem.js';
 import { RunOnceScheduler } from '../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent, BeforeShutdownEvent } from '../services/lifecycle/common/lifecycle.js';
 import { IWorkspaceFolderCreationData } from '../../platform/workspaces/common/workspaces.js';
 import { IIntegrityService } from '../services/integrity/common/integrity.js';
-import { isWindows, isMacintosh, isCI } from '../../base/common/platform.js';
+import { isWindows, isMacintosh } from '../../base/common/platform.js';
 import { IProductService } from '../../platform/product/common/productService.js';
 import { INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from '../../platform/notification/common/notification.js';
 import { IKeybindingService } from '../../platform/keybinding/common/keybinding.js';
@@ -80,7 +80,6 @@ import { ThemeIcon } from '../../base/common/themables.js';
 import { getWorkbenchContribution } from '../common/contributions.js';
 import { DynamicWorkbenchSecurityConfiguration } from '../common/configuration.js';
 import { nativeHoverDelegate } from '../../platform/hover/browser/hover.js';
-import { isESM } from '../../base/common/amd.js';
 
 export class NativeWindow extends BaseWindow {
 
@@ -708,17 +707,6 @@ export class NativeWindow extends BaseWindow {
 
 	private async handleWarnings(): Promise<void> {
 
-		// Check for cyclic dependencies
-		if (!isESM && typeof require.hasDependencyCycle === 'function' && require.hasDependencyCycle()) {
-			if (isCI) {
-				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
-				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
-			} else {
-				this.dialogService.error(localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
-				this.nativeHostService.openDevTools();
-			}
-		}
-
 		// After restored phase is fine for the following ones
 		await this.lifecycleService.when(LifecyclePhase.Restored);
 
@@ -761,12 +749,11 @@ export class NativeWindow extends BaseWindow {
 			}
 		}
 
-		// macOS 10.13 and 10.14 warning
+		// macOS 10.15 warning
 		if (isMacintosh) {
 			const majorVersion = this.nativeEnvironmentService.os.release.split('.')[0];
 			const eolReleases = new Map<string, string>([
-				['17', 'macOS High Sierra'],
-				['18', 'macOS Mojave'],
+				['19', 'macOS Catalina'],
 			]);
 
 			if (eolReleases.has(majorVersion)) {
@@ -858,7 +845,7 @@ export class NativeWindow extends BaseWindow {
 			if (portMappingRequest) {
 				const tunnel = await this.openTunnel(portMappingRequest.address, portMappingRequest.port);
 				if (tunnel && (typeof tunnel !== 'string')) {
-					const addressAsUri = URI.parse(tunnel.localAddress);
+					const addressAsUri = URI.parse(tunnel.localAddress).with({ path: uri.path });
 					const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
 					return {
 						resolved,
@@ -944,14 +931,12 @@ export class NativeWindow extends BaseWindow {
 			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => scheduler.schedule()));
 		}
 
-		const actions: Array<MenuItemAction | Separator> = [];
-
 		const disabled = this.configurationService.getValue('keyboard.touchbar.enabled') === false;
 		const touchbarIgnored = this.configurationService.getValue('keyboard.touchbar.ignored');
 		const ignoredItems = Array.isArray(touchbarIgnored) ? touchbarIgnored : [];
 
 		// Fill actions into groups respecting order
-		createAndFillInActionBarActions(this.touchBarMenu, undefined, actions);
+		const actions = getFlatActionBarActions(this.touchBarMenu.getActions());
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];

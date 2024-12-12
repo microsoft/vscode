@@ -18,10 +18,23 @@ export interface ITreeSitterParserService {
 	onDidAddLanguage: Event<{ id: string; language: Parser.Language }>;
 	getOrInitLanguage(languageId: string): Parser.Language | undefined;
 	getParseResult(textModel: ITextModel): ITreeSitterParseResult | undefined;
+	getTree(content: string, languageId: string): Promise<Parser.Tree | undefined>;
 	onDidUpdateTree: Event<{ textModel: ITextModel; ranges: Range[] }>;
+	/**
+	 * For testing purposes so that the time to parse can be measured.
+	*/
+	getTextModelTreeSitter(textModel: ITextModel): ITextModelTreeSitter | undefined;
 }
 
 export interface ITreeSitterParseResult {
 	readonly tree: Parser.Tree | undefined;
 	readonly language: Parser.Language;
+}
+
+export interface ITextModelTreeSitter {
+	/**
+	 * For testing purposes so that the time to parse can be measured.
+	 */
+	parse(languageId?: string): Promise<ITreeSitterParseResult | undefined>;
+	dispose(): void;
 }

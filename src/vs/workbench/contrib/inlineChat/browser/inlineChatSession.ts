@@ -81,12 +81,11 @@ export class SessionWholeRange {
 	}
 
 	fixup(changes: readonly DetailedLineRangeMapping[]): void {
-
 		const newDeco: IModelDeltaDecoration[] = [];
 		for (const { modified } of changes) {
-			const modifiedRange = modified.isEmpty
-				? new Range(modified.startLineNumber, 1, modified.startLineNumber, this._textModel.getLineLength(modified.startLineNumber))
-				: new Range(modified.startLineNumber, 1, modified.endLineNumberExclusive - 1, this._textModel.getLineLength(modified.endLineNumberExclusive - 1));
+			const modifiedRange = this._textModel.validateRange(modified.isEmpty
+				? new Range(modified.startLineNumber, 1, modified.startLineNumber, Number.MAX_SAFE_INTEGER)
+				: new Range(modified.startLineNumber, 1, modified.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER));
 
 			newDeco.push({ range: modifiedRange, options: SessionWholeRange._options });
 		}
@@ -298,8 +297,8 @@ export class StashedSession {
 
 function lineRangeAsRange(lineRange: LineRange, model: ITextModel): Range {
 	return lineRange.isEmpty
-		? new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, model.getLineLength(lineRange.startLineNumber))
-		: new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive - 1, model.getLineLength(lineRange.endLineNumberExclusive - 1));
+		? new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, Number.MAX_SAFE_INTEGER)
+		: new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER);
 }
 
 export class HunkData {

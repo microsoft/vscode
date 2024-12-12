@@ -67,9 +67,6 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 	}
 
 	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean): Promise<IUserDataProfilesManifestResourcePreview[]> {
-		if (!this.userDataProfilesService.isEnabled()) {
-			throw new UserDataSyncError('Cannot sync profiles because they are disabled', UserDataSyncErrorCode.LocalError);
-		}
 		const remoteProfiles: ISyncUserDataProfile[] | null = remoteUserData.syncData ? parseUserDataProfilesManifest(remoteUserData.syncData) : null;
 		const lastSyncProfiles: ISyncUserDataProfile[] | null = lastSyncUserData?.syncData ? parseUserDataProfilesManifest(lastSyncUserData.syncData) : null;
 		const localProfiles = this.getLocalUserDataProfiles();
@@ -194,14 +191,14 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 			}));
 			await Promise.all(local.added.map(async profile => {
 				this.logService.trace(`${this.syncResourceLogLabel}: Creating '${profile.name}' profile...`);
-				await this.userDataProfilesService.createProfile(profile.id, profile.name, { shortName: profile.shortName, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
+				await this.userDataProfilesService.createProfile(profile.id, profile.name, { icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
 				this.logService.info(`${this.syncResourceLogLabel}: Created profile '${profile.name}'.`);
 			}));
 			await Promise.all(local.updated.map(async profile => {
 				const localProfile = this.userDataProfilesService.profiles.find(p => p.id === profile.id);
 				if (localProfile) {
 					this.logService.trace(`${this.syncResourceLogLabel}: Updating '${profile.name}' profile...`);
-					await this.userDataProfilesService.updateProfile(localProfile, { name: profile.name, shortName: profile.shortName, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
+					await this.userDataProfilesService.updateProfile(localProfile, { name: profile.name, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
 					this.logService.info(`${this.syncResourceLogLabel}: Updated profile '${profile.name}'.`);
 				} else {
 					this.logService.info(`${this.syncResourceLogLabel}: Could not find profile with id '${profile.id}' to update.`);
@@ -217,7 +214,7 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 				for (const profile of remote?.added || []) {
 					const collection = await this.userDataSyncStoreService.createCollection(this.syncHeaders);
 					addedCollections.push(collection);
-					remoteProfiles.push({ id: profile.id, name: profile.name, collection, shortName: profile.shortName, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
+					remoteProfiles.push({ id: profile.id, name: profile.name, collection, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
 				}
 			} else {
 				this.logService.info(`${this.syncResourceLogLabel}: Could not create remote profiles as there are too many profiles.`);
@@ -228,7 +225,7 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 			for (const profile of remote?.updated || []) {
 				const profileToBeUpdated = remoteProfiles.find(({ id }) => profile.id === id);
 				if (profileToBeUpdated) {
-					remoteProfiles.splice(remoteProfiles.indexOf(profileToBeUpdated), 1, { ...profileToBeUpdated, id: profile.id, name: profile.name, shortName: profile.shortName, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
+					remoteProfiles.splice(remoteProfiles.indexOf(profileToBeUpdated), 1, { ...profileToBeUpdated, id: profile.id, name: profile.name, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
 				}
 			}
 

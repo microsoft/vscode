@@ -5,7 +5,7 @@
 import { isHotReloadEnabled } from '../../../base/common/hotReload.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { autorunWithStore, IObservable } from '../../../base/common/observable.js';
-import { BrandedService, GetLeadingNonServiceArgs, IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { BrandedService, IInstantiationService } from '../../instantiation/common/instantiation.js';
 
 export function hotClassGetOriginalInstance<T>(value: T): T {
 	if (value instanceof BaseClass) {
@@ -19,7 +19,7 @@ export function hotClassGetOriginalInstance<T>(value: T): T {
  * When the wrapper is created, the original class is created.
  * When the original class changes, the instance is re-created.
 */
-export function wrapInHotClass0<TArgs extends BrandedService[]>(clazz: IObservable<Result<TArgs>>): Result<GetLeadingNonServiceArgs<TArgs>> {
+export function wrapInHotClass0<TArgs extends BrandedService[]>(clazz: IObservable<Result<TArgs>>): Result<TArgs> {
 	return !isHotReloadEnabled() ? clazz.get() : createWrapper(clazz, BaseClass0);
 }
 
@@ -61,7 +61,7 @@ class BaseClass0 extends BaseClass {
  * When the wrapper is created, the original class is created.
  * When the original class changes, the instance is re-created.
 */
-export function wrapInHotClass1<TArgs extends [any, ...BrandedService[]]>(clazz: IObservable<Result<TArgs>>): Result<GetLeadingNonServiceArgs<TArgs>> {
+export function wrapInHotClass1<TArgs extends [any, ...BrandedService[]]>(clazz: IObservable<Result<TArgs>>): Result<TArgs> {
 	return !isHotReloadEnabled() ? clazz.get() : createWrapper(clazz, BaseClass1);
 }
 

@@ -12,6 +12,7 @@ import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { IModelDecoration } from '../../../common/model.js';
 import { BrandedService, IConstructorSignature } from '../../../../platform/instantiation/common/instantiation.js';
+import { HoverStartSource } from './hoverOperation.js';
 
 export interface IHoverPart {
 	/**
@@ -94,19 +95,27 @@ export interface IEditorHoverColorPickerWidget {
 	layout(): void;
 }
 
+export interface IContentsChangeOptions {
+	allowPositionPreferenceRecomputation: boolean;
+}
+
 export interface IEditorHoverContext {
 	/**
 	 * The contents rendered inside the fragment have been changed, which means that the hover should relayout.
 	 */
-	onContentsChanged(): void;
+	onContentsChanged(opts?: IContentsChangeOptions): void;
 	/**
 	 * Set the minimum dimensions of the resizable hover
 	 */
-	setMinimumDimensions?(dimensions: Dimension): void;
+	setMinimumDimensions(dimensions: Dimension): void;
 	/**
 	 * Hide the hover.
 	 */
 	hide(): void;
+	/**
+	 * Focus the hover.
+	 */
+	focus(): void;
 }
 
 export interface IEditorHoverRenderContext extends IEditorHoverContext {
@@ -155,12 +164,13 @@ export class RenderedHoverParts<T extends IHoverPart> implements IRenderedHoverP
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	readonly hoverOrdinal: number;
 	suggestHoverAnchor?(mouseEvent: IEditorMouseEvent): HoverAnchor | null;
-	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): T[];
-	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<T>;
+	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource): T[];
+	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource, token: CancellationToken): AsyncIterableObject<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IRenderedHoverParts<T>;
 	getAccessibleContent(hoverPart: T): string;
 	handleResize?(): void;
+	handleHide?(): void;
 }
 
 export type IEditorHoverParticipantCtor = IConstructorSignature<IEditorHoverParticipant, [ICodeEditor]>;

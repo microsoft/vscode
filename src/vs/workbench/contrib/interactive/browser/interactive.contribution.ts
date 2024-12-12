@@ -39,7 +39,7 @@ import { EditorExtensions, EditorsOrder, IEditorControl, IEditorFactoryRegistry,
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { PANEL_BORDER } from '../../../common/theme.js';
 import { ResourceNotebookCellEdit } from '../../bulkEdit/browser/bulkCellEdits.js';
-import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from './interactiveCommon.js';
+import { ReplEditorSettings, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from './interactiveCommon.js';
 import { IInteractiveDocumentService, InteractiveDocumentService } from './interactiveDocumentService.js';
 import { InteractiveEditor } from './interactiveEditor.js';
 import { InteractiveEditorInput } from './interactiveEditorInput.js';
@@ -453,11 +453,15 @@ registerAction2(class extends Action2 {
 			category: interactiveWindowCategory,
 			keybinding: [{
 				// when: NOTEBOOK_CELL_LIST_FOCUSED,
-				when: ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
+				when: ContextKeyExpr.and(
+					IS_COMPOSITE_NOTEBOOK,
+					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive')
+				),
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			}, {
 				when: ContextKeyExpr.and(
+					IS_COMPOSITE_NOTEBOOK,
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', true)
 				),
@@ -465,6 +469,7 @@ registerAction2(class extends Action2 {
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			}, {
 				when: ContextKeyExpr.and(
+					IS_COMPOSITE_NOTEBOOK,
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', false)
 				),
@@ -512,14 +517,13 @@ registerAction2(class extends Action2 {
 			editorControl = editorService.activeEditorPane?.getControl();
 		}
 
-
 		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.activeCodeEditor.getModel();
+			const textModel = editorControl.activeCodeEditor?.getModel();
 			const activeKernel = editorControl.notebookEditor.activeKernel;
 			const language = activeKernel?.supportedLanguages[0] ?? PLAINTEXT_LANGUAGE_ID;
 
-			if (notebookDocument && textModel) {
+			if (notebookDocument && textModel && editorControl.activeCodeEditor) {
 				const index = notebookDocument.length;
 				const value = textModel.getValue();
 
@@ -594,11 +598,12 @@ registerAction2(class extends Action2 {
 
 		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.activeCodeEditor.getModel();
-			const range = editorControl.activeCodeEditor.getModel()?.getFullModelRange();
+			const editor = editorControl.activeCodeEditor;
+			const range = editor?.getModel()?.getFullModelRange();
 
-			if (notebookDocument && textModel && range) {
-				editorControl.activeCodeEditor.executeEdits('', [EditOperation.replace(range, null)]);
+
+			if (notebookDocument && editor && range) {
+				editor.executeEdits('', [EditOperation.replace(range, null)]);
 			}
 		}
 	}
@@ -620,7 +625,7 @@ registerAction2(class extends Action2 {
 				primary: KeyCode.UpArrow,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			precondition: IS_COMPOSITE_NOTEBOOK
+			precondition: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED.negate())
 		});
 	}
 
@@ -633,7 +638,7 @@ registerAction2(class extends Action2 {
 
 		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.activeCodeEditor.getModel();
+			const textModel = editorControl.activeCodeEditor?.getModel();
 
 			if (notebookDocument && textModel) {
 				const previousValue = historyService.getPreviousValue(notebookDocument.uri);
@@ -661,7 +666,7 @@ registerAction2(class extends Action2 {
 				primary: KeyCode.DownArrow,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			precondition: IS_COMPOSITE_NOTEBOOK
+			precondition: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED.negate())
 		});
 	}
 
@@ -672,7 +677,7 @@ registerAction2(class extends Action2 {
 
 		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.activeCodeEditor.getModel();
+			const textModel = editorControl.activeCodeEditor?.getModel();
 
 			if (notebookDocument && textModel) {
 				const nextValue = historyService.getNextValue(notebookDocument.uri);
@@ -752,14 +757,8 @@ registerAction2(class extends Action2 {
 			category: interactiveWindowCategory,
 			menu: {
 				id: MenuId.CommandPalette,
-				when: InteractiveWindowOpen,
+				when: InteractiveWindowOpen
 			},
-			keybinding: {
-				when: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED),
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.DownArrow
-			},
-			precondition: InteractiveWindowOpen
 		});
 	}
 
@@ -803,7 +802,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none')),
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WorkbenchContrib + 5,
 				primary: KeyMod.CtrlCmd | KeyCode.UpArrow
 			},
 			{
@@ -845,7 +844,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	order: 100,
 	type: 'object',
 	'properties': {
-		[InteractiveWindowSetting.interactiveWindowAlwaysScrollOnNewCell]: {
+		[ReplEditorSettings.interactiveWindowAlwaysScrollOnNewCell]: {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('interactiveWindow.alwaysScrollOnNewCell', "Automatically scroll the interactive window to show the output of the last statement executed. If this value is false, the window will only scroll if the last cell was already the one scrolled to.")
@@ -855,13 +854,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			markdownDescription: localize('interactiveWindow.promptToSaveOnClose', "Prompt to save the interactive window when it is closed. Only new interactive windows will be affected by this setting change.")
 		},
-		[InteractiveWindowSetting.executeWithShiftEnter]: {
+		[ReplEditorSettings.executeWithShiftEnter]: {
 			type: 'boolean',
 			default: false,
 			markdownDescription: localize('interactiveWindow.executeWithShiftEnter', "Execute the Interactive Window (REPL) input box with shift+enter, so that enter can be used to create a newline."),
 			tags: ['replExecute']
 		},
-		[InteractiveWindowSetting.showExecutionHint]: {
+		[ReplEditorSettings.showExecutionHint]: {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('interactiveWindow.showExecutionHint', "Display a hint in the Interactive Window (REPL) input box to indicate how to execute code."),

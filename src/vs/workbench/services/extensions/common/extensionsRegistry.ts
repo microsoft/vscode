@@ -70,6 +70,7 @@ export interface IExtensionPoint<T> {
 	readonly name: string;
 	setHandler(handler: IExtensionPointHandler<T>): IDisposable;
 	readonly defaultExtensionKind: ExtensionKind[] | undefined;
+	readonly canHandleResolver?: boolean;
 }
 
 export class ExtensionPointUserDelta<T> {
@@ -109,14 +110,16 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 
 	public readonly name: string;
 	public readonly defaultExtensionKind: ExtensionKind[] | undefined;
+	public readonly canHandleResolver?: boolean;
 
 	private _handler: IExtensionPointHandler<T> | null;
 	private _users: IExtensionPointUser<T>[] | null;
 	private _delta: ExtensionPointUserDelta<T> | null;
 
-	constructor(name: string, defaultExtensionKind: ExtensionKind[] | undefined) {
+	constructor(name: string, defaultExtensionKind: ExtensionKind[] | undefined, canHandleResolver?: boolean) {
 		this.name = name;
 		this.defaultExtensionKind = defaultExtensionKind;
+		this.canHandleResolver = canHandleResolver;
 		this._handler = null;
 		this._users = null;
 		this._delta = null;
@@ -225,7 +228,7 @@ export const schema: IJSONSchema = {
 			type: 'object',
 			properties: {
 				// extensions will fill in
-			} as { [key: string]: any },
+			} as any as { [key: string]: any },
 			default: {}
 		},
 		preview: {
@@ -394,6 +397,11 @@ export const schema: IJSONSchema = {
 						label: 'onLanguageModelTool',
 						body: 'onLanguageModelTool:${1:toolId}',
 						description: nls.localize('vscode.extension.activationEvents.onLanguageModelTool', 'An activation event emitted when the specified language model tool is invoked.'),
+					},
+					{
+						label: 'onTerminalCompletionsRequested',
+						body: 'onTerminalCompletionsRequested',
+						description: nls.localize('vscode.extension.activationEvents.onTerminalCompletionsRequested', 'An activation event emitted when terminal completions are requested.'),
 					},
 					{
 						label: '*',
@@ -608,6 +616,7 @@ export interface IExtensionPointDescriptor<T> {
 	deps?: IExtensionPoint<any>[];
 	jsonSchema: IJSONSchema;
 	defaultExtensionKind?: ExtensionKind[];
+	canHandleResolver?: boolean;
 	/**
 	 * A function which runs before the extension point has been validated and which
 	 * should collect automatic activation events from the contribution.
@@ -623,7 +632,7 @@ export class ExtensionsRegistryImpl {
 		if (this._extensionPoints.has(desc.extensionPoint)) {
 			throw new Error('Duplicate extension point: ' + desc.extensionPoint);
 		}
-		const result = new ExtensionPoint<T>(desc.extensionPoint, desc.defaultExtensionKind);
+		const result = new ExtensionPoint<T>(desc.extensionPoint, desc.defaultExtensionKind, desc.canHandleResolver);
 		this._extensionPoints.set(desc.extensionPoint, result);
 		if (desc.activationEventsGenerator) {
 			ImplicitActivationEvents.register(desc.extensionPoint, desc.activationEventsGenerator);

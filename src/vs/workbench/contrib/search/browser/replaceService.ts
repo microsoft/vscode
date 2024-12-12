@@ -11,7 +11,7 @@ import { IReplaceService } from './replace.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { Match, FileMatch, FileMatchOrMatch, ISearchViewModelWorkbenchService, MatchInNotebook } from './searchModel.js';
+import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
 import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
 import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -29,6 +29,8 @@ import { Promises } from '../../../../base/common/async.js';
 import { SaveSourceRegistry } from '../../../common/editor.js';
 import { CellUri, IResolvedNotebookEditorModel } from '../../notebook/common/notebookCommon.js';
 import { INotebookEditorModelResolverService } from '../../notebook/common/notebookEditorModelResolverService.js';
+import { ISearchTreeFileMatch, isSearchTreeFileMatch, ISearchTreeMatch, FileMatchOrMatch, isSearchTreeMatch } from './searchTreeModel/searchTreeCommon.js';
+import { isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase.js';
 
 const REPLACE_PREVIEW = 'replacePreview';
 
@@ -72,7 +74,7 @@ class ReplacePreviewModel extends Disposable {
 
 	async resolve(replacePreviewUri: URI): Promise<ITextModel> {
 		const fileResource = toFileResource(replacePreviewUri);
-		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches(true).filter(match => match.resource.toString() === fileResource.toString())[0];
+		const fileMatch = <ISearchTreeFileMatch>this.searchWorkbenchService.searchModel.searchResult.matches(false).filter(match => match.resource.toString() === fileResource.toString())[0];
 		const ref = this._register(await this.textModelResolverService.createModelReference(fileResource));
 		const sourceModel = ref.object.textEditorModel;
 		const sourceModelLanguageId = sourceModel.getLanguageId();
@@ -85,7 +87,7 @@ class ReplacePreviewModel extends Disposable {
 		return replacePreviewModel;
 	}
 
-	private update(sourceModel: ITextModel, replacePreviewModel: ITextModel, fileMatch: FileMatch, override: boolean = false): void {
+	private update(sourceModel: ITextModel, replacePreviewModel: ITextModel, fileMatch: ISearchTreeFileMatch, override: boolean = false): void {
 		if (!sourceModel.isDisposed() && !replacePreviewModel.isDisposed()) {
 			this.replaceService.updateReplacePreview(fileMatch, override);
 		}
@@ -107,8 +109,8 @@ export class ReplaceService implements IReplaceService {
 		@INotebookEditorModelResolverService private readonly notebookEditorModelResolverService: INotebookEditorModelResolverService
 	) { }
 
-	replace(match: Match): Promise<any>;
-	replace(files: FileMatch[], progress?: IProgress<IProgressStep>): Promise<any>;
+	replace(match: ISearchTreeMatch): Promise<any>;
+	replace(files: ISearchTreeFileMatch[], progress?: IProgress<IProgressStep>): Promise<any>;
 	replace(match: FileMatchOrMatch, progress?: IProgress<IProgressStep>, resource?: URI): Promise<any>;
 	async replace(arg: any, progress: IProgress<IProgressStep> | undefined = undefined, resource: URI | null = null): Promise<any> {
 		const edits = this.createEdits(arg, resource);
@@ -136,7 +138,7 @@ export class ReplaceService implements IReplaceService {
 	}
 
 	async openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
-		const fileMatch = element instanceof Match ? element.parent() : element;
+		const fileMatch = isSearchTreeMatch(element) ? element.parent() : element;
 
 		const editor = await this.editorService.openEditor({
 			original: { resource: fileMatch.resource },
@@ -157,13 +159,13 @@ export class ReplaceService implements IReplaceService {
 		await this.updateReplacePreview(fileMatch);
 		if (editor) {
 			const editorControl = editor.getControl();
-			if (element instanceof Match && editorControl) {
+			if (isSearchTreeMatch(element) && editorControl) {
 				editorControl.revealLineInCenter(element.range().startLineNumber, ScrollType.Immediate);
 			}
 		}
 	}
 
-	async updateReplacePreview(fileMatch: FileMatch, override: boolean = false): Promise<void> {
+	async updateReplacePreview(fileMatch: ISearchTreeFileMatch, override: boolean = false): Promise<void> {
 		const replacePreviewUri = toReplaceResource(fileMatch.resource);
 		const [sourceModelRef, replaceModelRef] = await Promise.all([this.textModelResolverService.createModelReference(fileMatch.resource), this.textModelResolverService.createModelReference(replacePreviewUri)]);
 		const sourceModel = sourceModelRef.object.textEditorModel;
@@ -184,7 +186,7 @@ export class ReplaceService implements IReplaceService {
 		}
 	}
 
-	private applyEditsToPreview(fileMatch: FileMatch, replaceModel: ITextModel): void {
+	private applyEditsToPreview(fileMatch: ISearchTreeFileMatch, replaceModel: ITextModel): void {
 		const resourceEdits = this.createEdits(fileMatch, replaceModel.uri);
 		const modelEdits: ISingleEditOperation[] = [];
 		for (const resourceEdit of resourceEdits) {
@@ -196,29 +198,29 @@ export class ReplaceService implements IReplaceService {
 		replaceModel.pushEditOperations([], modelEdits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range)), () => []);
 	}
 
-	private createEdits(arg: FileMatchOrMatch | FileMatch[], resource: URI | null = null): ResourceTextEdit[] {
+	private createEdits(arg: FileMatchOrMatch | ISearchTreeFileMatch[], resource: URI | null = null): ResourceTextEdit[] {
 		const edits: ResourceTextEdit[] = [];
 
-		if (arg instanceof Match) {
-			if (!arg.isReadonly()) {
-				if (arg instanceof MatchInNotebook) {
+		if (isSearchTreeMatch(arg)) {
+			if (!arg.isReadonly) {
+				if (isIMatchInNotebook(arg)) {
 					// only apply edits if it's not a webview match, since webview matches are read-only
-					const match = <MatchInNotebook>arg;
+					const match = arg;
 					edits.push(this.createEdit(match, match.replaceString, match.cell?.uri));
 				} else {
-					const match = <Match>arg;
+					const match = <ISearchTreeMatch>arg;
 					edits.push(this.createEdit(match, match.replaceString, resource));
 				}
 			}
 		}
 
-		if (arg instanceof FileMatch) {
+		if (isSearchTreeFileMatch(arg)) {
 			arg = [arg];
 		}
 
 		if (arg instanceof Array) {
 			arg.forEach(element => {
-				const fileMatch = <FileMatch>element;
+				const fileMatch = <ISearchTreeFileMatch>element;
 				if (fileMatch.count() > 0) {
 					edits.push(...fileMatch.matches().flatMap(
 						match => this.createEdits(match, resource)
@@ -229,8 +231,8 @@ export class ReplaceService implements IReplaceService {
 		return edits;
 	}
 
-	private createEdit(match: Match, text: string, resource: URI | null = null): ResourceTextEdit {
-		const fileMatch: FileMatch = match.parent();
+	private createEdit(match: ISearchTreeMatch, text: string, resource: URI | null = null): ResourceTextEdit {
+		const fileMatch: ISearchTreeFileMatch = match.parent();
 		return new ResourceTextEdit(
 			resource ?? fileMatch.resource,
 			{ range: match.range(), text }, undefined, undefined

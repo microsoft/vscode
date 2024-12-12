@@ -34,7 +34,6 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 
 		if (isSafari || isWebkitWebView) {
 			this.installWebKitWriteTextWorkaround();
-			this.installWebKitReadWorkaround();
 		}
 
 		// Keep track of copy operations to reset our set of
@@ -70,7 +69,6 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	private webKitPendingClipboardWritePromise: DeferredPromise<string> | undefined;
-	private webKitPendingClipboardReadPromise: DeferredPromise<string> | undefined;
 
 	// In Safari, it has the following note:
 	//
@@ -107,29 +105,6 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 			});
 		};
 
-
-		this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
-			disposables.add(addDisposableListener(container, 'click', handler));
-			disposables.add(addDisposableListener(container, 'keydown', handler));
-		}, { container: this.layoutService.mainContainer, disposables: this._store }));
-	}
-
-	// Experimental
-	private installWebKitReadWorkaround(): void {
-		const handler = () => {
-			const currentReadPromise = new DeferredPromise<string>();
-
-			// Cancel the previous promise since we just created a new one in response to this new event
-			if (this.webKitPendingClipboardReadPromise && !this.webKitPendingClipboardReadPromise.isSettled) {
-				this.webKitPendingClipboardReadPromise.cancel();
-			}
-			this.webKitPendingClipboardReadPromise = currentReadPromise;
-			getActiveWindow().navigator.clipboard.read().catch(async err => {
-				if (!(err instanceof Error) || err.name !== 'NotAllowedError' || !currentReadPromise.isRejected) {
-					this.logService.error(err);
-				}
-			});
-		};
 
 		this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
 			disposables.add(addDisposableListener(container, 'click', handler));

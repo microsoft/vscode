@@ -1,5 +1,6 @@
 pool:
-  vmImage: "ubuntu-latest"
+  name: 1es-ubuntu-22.04-x64
+  os: linux
 
 trigger:
   branches:

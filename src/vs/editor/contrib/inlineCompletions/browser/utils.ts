@@ -5,9 +5,11 @@
 
 import { Permutation, compareBy } from '../../../../base/common/arrays.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue, ISettableObservable, autorun, transaction } from '../../../../base/common/observable.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, observableValue, ISettableObservable, autorun, transaction, IReader } from '../../../../base/common/observable.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
+import { ContextKeyValue, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { SingleTextEdit, TextEdit } from '../../../common/core/textEdit.js';
@@ -84,4 +86,17 @@ export function convertItemsToStableObservables<T>(items: IObservable<readonly T
 	}));
 
 	return result;
+}
+
+export class ObservableContextKeyService {
+	constructor(
+		private readonly _contextKeyService: IContextKeyService,
+	) {
+	}
+
+	bind<T extends ContextKeyValue>(key: RawContextKey<T>, obs: IObservable<T>): IDisposable;
+	bind<T extends ContextKeyValue>(key: RawContextKey<T>, fn: (reader: IReader) => T): IDisposable;
+	bind<T extends ContextKeyValue>(key: RawContextKey<T>, obs: IObservable<T> | ((reader: IReader) => T)): IDisposable {
+		return bindContextKey(key, this._contextKeyService, obs instanceof Function ? obs : reader => obs.read(reader));
+	}
 }

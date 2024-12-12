@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { NOTEBOOK_EDITOR_FOCUSED } from '../common/notebookContextKeys.js';
+import { IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED } from '../common/notebookContextKeys.js';
 import { localize } from '../../../../nls.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
@@ -12,11 +12,12 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IVisibleEditorPane } from '../../../common/editor.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 
 export class NotebookAccessibilityHelp implements IAccessibleViewImplentation {
 	readonly priority = 105;
 	readonly name = 'notebook';
-	readonly when = NOTEBOOK_EDITOR_FOCUSED;
+	readonly when = ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, IS_COMPOSITE_NOTEBOOK.negate());
 	readonly type: AccessibleViewType = AccessibleViewType.Help;
 	getProvider(accessor: ServicesAccessor) {
 		const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor()

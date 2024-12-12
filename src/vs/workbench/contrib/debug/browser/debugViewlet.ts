@@ -30,10 +30,12 @@ import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, DEBUG_START_COMMAND_
 import { debugConfigure } from './debugIcons.js';
 import { createDisconnectMenuItemAction } from './debugToolBar.js';
 import { WelcomeView } from './welcomeView.js';
-import { BREAKPOINTS_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, getStateLabel, IDebugService, ILaunch, REPL_VIEW_ID, State, VIEWLET_ID } from '../common/debug.js';
+import { BREAKPOINTS_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, getStateLabel, IDebugService, ILaunch, REPL_VIEW_ID, State, VIEWLET_ID, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution } from '../common/debug.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class DebugViewPaneContainer extends ViewPaneContainer {
 
@@ -59,8 +61,9 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@ILogService logService: ILogService,
 	) {
-		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
+		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService, logService);
 
 		// When there are potential updates to the docked debug toolbar we need to update it
 		this._register(this.debugService.onDidChangeState(state => this.onDebugServiceStateChange(state)));
@@ -223,7 +226,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, opts?: { addNew?: boolean }): Promise<void> {
 		const debugService = accessor.get(IDebugService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const configurationManager = debugService.getConfigurationManager();
@@ -247,7 +250,13 @@ registerAction2(class extends Action2 {
 		}
 
 		if (launch) {
-			await launch.openConfigFile({ preserveFocus: false });
+			const { editor } = await launch.openConfigFile({ preserveFocus: false });
+			if (editor && opts?.addNew) {
+				const codeEditor = <ICodeEditor>editor.getControl();
+				if (codeEditor) {
+					await codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID)?.addLaunchConfiguration();
+				}
+			}
 		}
 	}
 });

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../colorPicker.css';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IEditorHoverRenderContext } from '../../../hover/browser/hoverTypes.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../browser/editorBrowser.js';
 import { PositionAffinity } from '../../../../common/model.js';
@@ -20,9 +20,10 @@ import { IContextKey } from '../../../../../platform/contextkey/common/contextke
 import { IRange } from '../../../../common/core/range.js';
 import { DefaultDocumentColorProvider } from '../defaultDocumentColorProvider.js';
 import { IEditorWorkerService } from '../../../../common/services/editorWorker.js';
-import { StandaloneColorPickerHover, StandaloneColorPickerParticipant } from './standaloneColorPickerParticipant.js';
+import { StandaloneColorPickerHover, StandaloneColorPickerParticipant, StandaloneColorPickerRenderedParts } from './standaloneColorPickerParticipant.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { InsertButton } from '../colorPickerParts/colorPickerInsertButton.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
 class StandaloneColorPickerResult {
 	// The color picker result consists of: an array of color results and a boolean indicating if the color was found in the editor
@@ -50,6 +51,9 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 	private readonly _onResult = this._register(new Emitter<StandaloneColorPickerResult>());
 	public readonly onResult = this._onResult.event;
 
+	private readonly _renderedHoverParts: MutableDisposable<StandaloneColorPickerRenderedParts> = this._register(new MutableDisposable());
+	private readonly _renderedStatusBar: MutableDisposable<EditorHoverStatusBar> = this._register(new MutableDisposable());
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _standaloneColorPickerVisible: IContextKey<boolean>,
@@ -58,6 +62,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@IHoverService private readonly _hoverService: IHoverService
 	) {
 		super();
 		this._standaloneColorPickerVisible.set(true);
@@ -166,22 +171,25 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 
 	private _render(colorHover: StandaloneColorPickerHover, foundInEditor: boolean) {
 		const fragment = document.createDocumentFragment();
-		const statusBar = this._register(new EditorHoverStatusBar(this._keybindingService));
+		this._renderedStatusBar.value = this._register(new EditorHoverStatusBar(this._keybindingService, this._hoverService));
 
 		const context: IEditorHoverRenderContext = {
 			fragment,
-			statusBar,
+			statusBar: this._renderedStatusBar.value,
 			onContentsChanged: () => { },
-			hide: () => this.hide()
+			setMinimumDimensions: () => { },
+			hide: () => this.hide(),
+			focus: () => this.focus()
 		};
 
 		this._colorHover = colorHover;
-		const renderedHoverPart = this._standaloneColorPickerParticipant.renderHoverParts(context, [colorHover]);
-		if (!renderedHoverPart) {
+		this._renderedHoverParts.value = this._standaloneColorPickerParticipant.renderHoverParts(context, [colorHover]);
+		if (!this._renderedHoverParts.value) {
+			this._renderedStatusBar.clear();
+			this._renderedHoverParts.clear();
 			return;
 		}
-		this._register(renderedHoverPart.disposables);
-		const colorPicker = renderedHoverPart.colorPicker;
+		const colorPicker = this._renderedHoverParts.value.colorPicker;
 		this._body.classList.add('standalone-colorpicker-body');
 		this._body.style.maxHeight = Math.max(this._editor.getLayoutInfo().height / 4, 250) + 'px';
 		this._body.style.maxWidth = Math.max(this._editor.getLayoutInfo().width * 0.66, 500) + 'px';
