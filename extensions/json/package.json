@@ -74,7 +74,8 @@
           "JSON Lines"
         ],
         "extensions": [
-          ".jsonl"
+          ".jsonl",
+          ".ndjson"
         ],
         "filenames": [],
         "configuration": "./language-configuration.json"
