@@ -12,9 +12,11 @@ import { INativeWorkbenchEnvironmentService } from '../../environment/electron-s
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { isBoolean, isObject } from '../../../../base/common/types.js';
 import { IColorScheme } from '../../../../platform/window/common/window.js';
+import { ILifecycleService, StartupKind } from '../../lifecycle/common/lifecycle.js';
 
 export class NativeHostColorSchemeService extends Disposable implements IHostColorSchemeService {
 
+	// we remember the last color scheme value to restore for reloaded window
 	static readonly STORAGE_KEY = 'HostColorSchemeData';
 
 	declare readonly _serviceBrand: undefined;
@@ -28,14 +30,18 @@ export class NativeHostColorSchemeService extends Disposable implements IHostCol
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		super();
 
 		// register listener with the OS
 		this._register(this.nativeHostService.onDidChangeColorScheme(scheme => this.update(scheme)));
 
-		const initial = this.getStoredValue() ?? environmentService.window.colorScheme;
+		let initial = environmentService.window.colorScheme;
+		if (lifecycleService.startupKind === StartupKind.ReloadedWindow) {
+			initial = this.getStoredValue(initial);
+		}
 		this.dark = initial.dark;
 		this.highContrast = initial.highContrast;
 
@@ -43,7 +49,7 @@ export class NativeHostColorSchemeService extends Disposable implements IHostCol
 		this.nativeHostService.getOSColorScheme().then(scheme => this.update(scheme));
 	}
 
-	private getStoredValue(): IColorScheme | undefined {
+	private getStoredValue(dftl: IColorScheme): IColorScheme {
 		const stored = this.storageService.get(NativeHostColorSchemeService.STORAGE_KEY, StorageScope.APPLICATION);
 		if (stored) {
 			try {
@@ -55,7 +61,7 @@ export class NativeHostColorSchemeService extends Disposable implements IHostCol
 				// ignore
 			}
 		}
-		return undefined;
+		return dftl;
 	}
 
 	private update({ highContrast, dark }: IColorScheme) {

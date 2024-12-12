@@ -36,7 +36,7 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { asText, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -67,12 +67,14 @@ const defaultChat = {
 	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? '',
 	skusDocumentationUrl: product.defaultChatAgent?.skusDocumentationUrl ?? '',
+	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
 	providerId: product.defaultChatAgent?.providerId ?? '',
 	providerName: product.defaultChatAgent?.providerName ?? '',
 	providerScopes: product.defaultChatAgent?.providerScopes ?? [[]],
 	entitlementUrl: product.defaultChatAgent?.entitlementUrl ?? '',
 	entitlementSignupLimitedUrl: product.defaultChatAgent?.entitlementSignupLimitedUrl ?? '',
+	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
 };
 
 enum ChatEntitlement {
@@ -94,25 +96,6 @@ enum ChatEntitlement {
 
 const TRIGGER_SETUP_COMMAND_ID = 'workbench.action.chat.triggerSetup';
 const TRIGGER_SETUP_COMMAND_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for Free...");
-
-export const SetupWelcomeViewKeys = new Set([ChatContextKeys.Setup.triggered.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Setup.signedOut.key, ChatContextKeys.Setup.canSignUp.key]);
-export const SetupWelcomeViewCondition = ContextKeyExpr.and(
-	ContextKeyExpr.has('config.chat.experimental.offerSetup'),
-	ContextKeyExpr.or(
-		ContextKeyExpr.and(
-			ChatContextKeys.Setup.triggered,
-			ChatContextKeys.Setup.installed.negate()
-		),
-		ContextKeyExpr.and(
-			ChatContextKeys.Setup.canSignUp,
-			ChatContextKeys.Setup.installed
-		),
-		ContextKeyExpr.and(
-			ChatContextKeys.Setup.signedOut,
-			ChatContextKeys.Setup.installed
-		)
-	)
-)!;
 
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
@@ -139,7 +122,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	private registerChatWelcome(): void {
 		Registry.as<IChatViewsWelcomeContributionRegistry>(ChatViewsWelcomeExtensions.ChatViewsWelcomeRegistry).register({
 			title: localize('welcomeChat', "Welcome to Copilot"),
-			when: SetupWelcomeViewCondition,
+			when: ChatContextKeys.SetupViewCondition,
 			icon: Codicon.copilotLarge,
 			content: disposables => disposables.add(this.instantiationService.createInstance(ChatSetupWelcomeContent, this.controller.value, this.context)).element,
 		});
@@ -581,7 +564,7 @@ class ChatSetupRequests extends Disposable {
 
 	async signUpLimited(session: AuthenticationSession): Promise<boolean> {
 		const body = {
-			restricted_telemetry: 'disabled',
+			restricted_telemetry: this.telemetryService.telemetryLevel === TelemetryLevel.NONE ? 'disabled' : 'enabled',
 			public_code_suggestions: 'enabled'
 		};
 
@@ -828,7 +811,8 @@ class ChatSetupWelcomeContent extends Disposable {
 		private readonly context: ChatSetupContext,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -840,7 +824,7 @@ class ChatSetupWelcomeContent extends Disposable {
 
 		// Header
 		{
-			const header = localize({ key: 'setupHeader', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0}) is your AI pair programmer.", this.context.state.installed ? 'command:github.copilot.open.walkthrough' : defaultChat.documentationUrl);
+			const header = localize({ key: 'header', comment: ['{Locked="[Copilot]({0})"}'] }, "[Copilot]({0}) is your AI pair programmer.", this.context.state.installed ? 'command:github.copilot.open.walkthrough' : defaultChat.documentationUrl);
 			this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(header, { isTrusted: true }))).element);
 
 			const features = this.element.appendChild($('div.chat-features-container'));
@@ -866,9 +850,9 @@ class ChatSetupWelcomeContent extends Disposable {
 		}
 
 		// Limited SKU
-		const limitedSkuHeader = localize({ key: 'limitedSkuHeader', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) We now offer [Copilot for free]({0}).", defaultChat.skusDocumentationUrl);
-		const limitedSkuHeaderContainer = this.element.appendChild($('p'));
-		limitedSkuHeaderContainer.appendChild(this._register(markdown.render(new MarkdownString(limitedSkuHeader, { isTrusted: true, supportThemeIcons: true }))).element);
+		const free = localize({ key: 'free', comment: ['{Locked="[]({0})"}'] }, "$(sparkle-filled) We now offer [Copilot for free]({0}).", defaultChat.skusDocumentationUrl);
+		const freeContainer = this.element.appendChild($('p'));
+		freeContainer.appendChild(this._register(markdown.render(new MarkdownString(free, { isTrusted: true, supportThemeIcons: true }))).element);
 
 		// Setup Button
 		const actions: IAction[] = [];
@@ -891,34 +875,40 @@ class ChatSetupWelcomeContent extends Disposable {
 		this._register(button.onDidClick(() => this.controller.setup()));
 
 		// Terms
-		const terms = localize({ key: 'termsLabel', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to the [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
+		const terms = localize({ key: 'terms', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "By continuing, you agree to the [Terms]({0}) and [Privacy Policy]({1}).", defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
 		this.element.appendChild($('p')).appendChild(this._register(markdown.render(new MarkdownString(terms, { isTrusted: true }))).element);
 
+		// SKU Settings
+		const settings = localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "Copilot Free and Pro may show [public code]({0}) suggestions and we may use your data for product improvement. You can change these [settings]({1}) at any time.", defaultChat.publicCodeMatchesUrl, defaultChat.manageSettingsUrl);
+		const settingsContainer = this.element.appendChild($('p'));
+		settingsContainer.appendChild(this._register(markdown.render(new MarkdownString(settings, { isTrusted: true }))).element);
+
 		// Update based on model state
-		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(limitedSkuHeaderContainer, button)));
+		this._register(Event.runAndSubscribe(this.controller.onDidChange, () => this.update(freeContainer, settingsContainer, button)));
 	}
 
-	private update(limitedSkuHeaderContainer: HTMLElement, button: Button | ButtonWithDropdown): void {
-		let showLimitedSkuHeader: boolean;
+	private update(freeContainer: HTMLElement, settingsContainer: HTMLElement, button: Button | ButtonWithDropdown): void {
+		const showSettings = this.telemetryService.telemetryLevel !== TelemetryLevel.NONE;
+		let showFree: boolean;
 		let buttonLabel: string;
 
 		switch (this.context.state.entitlement) {
 			case ChatEntitlement.Unknown:
-				showLimitedSkuHeader = true;
+				showFree = true;
 				buttonLabel = this.context.state.registered ? localize('signUp', "Sign in to Use Copilot") : localize('signUpFree', "Sign in to Use Copilot for Free");
 				break;
 			case ChatEntitlement.Unresolved:
-				showLimitedSkuHeader = true;
+				showFree = true;
 				buttonLabel = this.context.state.registered ? localize('startUp', "Use Copilot") : localize('startUpLimited', "Use Copilot for Free");
 				break;
 			case ChatEntitlement.Available:
 			case ChatEntitlement.Limited:
-				showLimitedSkuHeader = true;
+				showFree = true;
 				buttonLabel = localize('startUpLimited', "Use Copilot for Free");
 				break;
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.Unavailable:
-				showLimitedSkuHeader = false;
+				showFree = false;
 				buttonLabel = localize('startUp', "Use Copilot");
 				break;
 		}
@@ -932,7 +922,8 @@ class ChatSetupWelcomeContent extends Disposable {
 				break;
 		}
 
-		setVisibility(showLimitedSkuHeader, limitedSkuHeaderContainer);
+		setVisibility(showFree, freeContainer);
+		setVisibility(showSettings, settingsContainer);
 
 		button.label = buttonLabel;
 		button.enabled = this.controller.step === ChatSetupStep.Initial;

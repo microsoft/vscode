@@ -333,7 +333,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 
 		this._editor.applyFontInfo(lineHTMLNode);
-		this._editor.applyFontInfo(innerLineNumberHTML);
+		this._editor.applyFontInfo(lineNumberHTMLNode);
 
 
 		lineNumberHTMLNode.style.lineHeight = `${this._lineHeight}px`;

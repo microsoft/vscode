@@ -70,6 +70,10 @@ export class InlineEditsViewAndDiffProducer extends Disposable {
 
 			const rangeStartPos = edit.range.getStartPosition();
 			const innerChanges = result.changes.flatMap(c => c.innerChanges!);
+			if (innerChanges.length === 0) {
+				// there are no changes
+				return undefined;
+			}
 
 			function addRangeToPos(pos: Position, range: Range): Range {
 				const start = TextLength.fromPosition(range.getStartPosition());

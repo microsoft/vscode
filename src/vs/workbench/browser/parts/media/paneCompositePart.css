@@ -20,17 +20,21 @@
 	display: none;
 }
 
+.monaco-workbench .pane-composite-part.empty > .title.has-composite-bar > .title-label {
+	border-bottom: none !important;
+}
+
 .monaco-workbench .pane-composite-part > .header-or-footer {
 	padding-left: 4px;
 	padding-right: 4px;
 	background-color: var(--vscode-activityBarTop-background);
 }
 
-.monaco-workbench .pane-composite-part > .header {
+.monaco-workbench .pane-composite-part:not(.empty) > .header {
 	border-bottom: 1px solid var(--vscode-sideBarActivityBarTop-border);
 }
 
-.monaco-workbench .pane-composite-part > .footer {
+.monaco-workbench .pane-composite-part:not(.empty) > .footer {
 	border-top: 1px solid var(--vscode-sideBarActivityBarTop-border);
 }
 
@@ -325,7 +329,7 @@
 	width: 100%;
 }
 
-.monaco-workbench .pane-composite-part .empty-pane-message-area.visible {
+.monaco-workbench .pane-composite-part.empty .empty-pane-message-area {
 	display: flex;
 	align-items: center;
 	align-content: center;

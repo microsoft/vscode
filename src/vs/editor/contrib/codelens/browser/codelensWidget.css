@@ -22,6 +22,8 @@
 	-webkit-user-select: none;
 	white-space: nowrap;
 	vertical-align: sub;
+	display: inline-flex;
+	align-items: center;
 }
 
 .monaco-editor .codelens-decoration > a {
@@ -37,13 +39,14 @@
 	color: var(--vscode-editorLink-activeForeground) !important;
 }
 
-.monaco-editor .codelens-decoration .codicon {
+.monaco-editor .codelens-decoration .codicon[class*='codicon-'] {
 	vertical-align: middle;
 	color: currentColor !important;
 	color: var(--vscode-editorCodeLens-foreground);
 	line-height: var(--vscode-editorCodeLens-lineHeight);
 	font-size: var(--vscode-editorCodeLens-fontSize);
 }
+
 
 .monaco-editor .codelens-decoration > a:hover .codicon::before {
 	cursor: pointer;
