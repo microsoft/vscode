@@ -707,7 +707,7 @@ class ChatSynthesizerSessionController {
 	}
 }
 
-interface IChatSyntheSizerContext {
+interface IChatSynthesizerContext {
 	readonly ignoreCodeBlocks: boolean;
 	insideCodeBlock: boolean;
 }
@@ -774,7 +774,7 @@ class ChatSynthesizerSessions {
 	}
 
 	private async *nextChatResponseChunk(response: IChatResponseModel, token: CancellationToken): AsyncIterable<string> {
-		const context: IChatSyntheSizerContext = {
+		const context: IChatSynthesizerContext = {
 			ignoreCodeBlocks: this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.IgnoreCodeBlocks),
 			insideCodeBlock: false
 		};
@@ -801,7 +801,7 @@ class ChatSynthesizerSessions {
 		} while (!token.isCancellationRequested && !complete);
 	}
 
-	private parseNextChatResponseChunk(response: IChatResponseModel, offset: number, context: IChatSyntheSizerContext): { readonly chunk: string | undefined; readonly offset: number } {
+	private parseNextChatResponseChunk(response: IChatResponseModel, offset: number, context: IChatSynthesizerContext): { readonly chunk: string | undefined; readonly offset: number } {
 		let chunk: string | undefined = undefined;
 
 		const text = response.response.toString();
@@ -825,7 +825,7 @@ class ChatSynthesizerSessions {
 		};
 	}
 
-	private filterCodeBlocks(chunk: string, context: IChatSyntheSizerContext): string {
+	private filterCodeBlocks(chunk: string, context: IChatSynthesizerContext): string {
 		return chunk.split('\n')
 			.filter(line => {
 				if (line.trimStart().startsWith('```')) {
