@@ -137,6 +137,9 @@ export class MarkerList {
 		if (!found) {
 			// after the last change
 			this._nextIdx = fwd ? 0 : this._markers.length - 1;
+		} else if (found && !fwd) {
+			// we went past and have to go one back
+			this._nextIdx -= 1;
 		}
 		if (this._nextIdx < 0) {
 			this._nextIdx = this._markers.length - 1;
