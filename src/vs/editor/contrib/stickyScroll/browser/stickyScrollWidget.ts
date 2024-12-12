@@ -171,8 +171,14 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			return _rebuildFromLine;
 		}
 		const previousState = this._previousState;
-		const indexOfLinesAlreadyRendered = state.startLineNumbers.findIndex(startLineNumber => !previousState.startLineNumbers.includes(startLineNumber));
-		return (indexOfLinesAlreadyRendered === -1) ? 0 : indexOfLinesAlreadyRendered;
+		let indexOfLinesAlreadyRendered = 0;
+		for (let i = 0; i < state.startLineNumbers.length; i++) {
+			if (state.startLineNumbers[i] !== previousState.startLineNumbers[i]) {
+				break;
+			}
+			indexOfLinesAlreadyRendered = i;
+		}
+		return indexOfLinesAlreadyRendered;
 	}
 
 	private _updateWidgetWidth(): void {

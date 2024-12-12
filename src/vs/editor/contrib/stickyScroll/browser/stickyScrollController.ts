@@ -558,11 +558,16 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (arrayVisibleRanges.length !== 0) {
 			const fullVisibleRange = new StickyRange(arrayVisibleRanges[0].startLineNumber, arrayVisibleRanges[arrayVisibleRanges.length - 1].endLineNumber);
 			const candidateRanges = this._stickyLineCandidateProvider.getCandidateStickyLinesIntersecting(fullVisibleRange);
-			for (const range of candidateRanges) {
+			const reverse = true;
+			const finalCandidateRanges = reverse ? candidateRanges.reverse() : candidateRanges;
+			let forwardNestingDepth = 1;
+			let backwardNestingDepth: number | undefined;
+			for (const [index, range] of finalCandidateRanges.entries()) {
 				const start = range.startLineNumber;
 				const end = range.endLineNumber;
-				const depth = range.nestingDepth;
 				if (end - start > 0) {
+					const potentialBackwardNestingDepth = backwardNestingDepth !== undefined ? backwardNestingDepth : Math.min(this._maxStickyLines, finalCandidateRanges.length - index);
+					const depth = reverse ? potentialBackwardNestingDepth : forwardNestingDepth;
 					const topOfElementAtDepth = (depth - 1) * lineHeight;
 					const bottomOfElementAtDepth = depth * lineHeight;
 
@@ -571,16 +576,38 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
 
 					if (topOfElementAtDepth > topOfEndLine && topOfElementAtDepth <= bottomOfEndLine) {
-						startLineNumbers.push(start);
-						endLineNumbers.push(end + 1);
+						if (reverse) {
+							if (backwardNestingDepth === undefined) {
+								backwardNestingDepth = potentialBackwardNestingDepth;
+							}
+							startLineNumbers.unshift(start);
+							endLineNumbers.unshift(end + 1);
+							backwardNestingDepth--;
+						} else {
+							startLineNumbers.push(start);
+							endLineNumbers.push(end + 1);
+							forwardNestingDepth++;
+						}
 						if (topOfElementAtDepth > bottomOfEndLine - lineHeight) {
 							lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
 						}
-						break;
+						if (!reverse) {
+							break;
+						}
 					}
 					else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth <= bottomOfEndLine) {
-						startLineNumbers.push(start);
-						endLineNumbers.push(end + 1);
+						if (reverse) {
+							if (backwardNestingDepth === undefined) {
+								backwardNestingDepth = potentialBackwardNestingDepth;
+							}
+							startLineNumbers.unshift(start);
+							endLineNumbers.unshift(end + 1);
+							backwardNestingDepth--;
+						} else {
+							startLineNumbers.push(start);
+							endLineNumbers.push(end + 1);
+							forwardNestingDepth++;
+						}
 					}
 					if (startLineNumbers.length === maxNumberStickyLines) {
 						break;

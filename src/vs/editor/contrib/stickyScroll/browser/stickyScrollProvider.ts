@@ -19,8 +19,7 @@ import { StickyElement, StickyModel, StickyRange } from './stickyScrollElement.j
 export class StickyLineCandidate {
 	constructor(
 		public readonly startLineNumber: number,
-		public readonly endLineNumber: number,
-		public readonly nestingDepth: number,
+		public readonly endLineNumber: number
 	) { }
 }
 
@@ -177,7 +176,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 				const childEndLine = child.range.endLineNumber;
 				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastLine) {
 					lastLine = childStartLine;
-					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth + 1));
+					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1));
 					this.getCandidateStickyLinesIntersectingFromStickyModel(range, child, result, depth + 1, childStartLine);
 				}
 			} else {
