@@ -943,19 +943,19 @@
         "command": "git.stageSelectedRanges",
         "key": "ctrl+k ctrl+alt+s",
         "mac": "cmd+k cmd+alt+s",
-        "when": "isInDiffEditor"
+        "when": "resourceScheme =~ /^git$|^file$/"
       },
       {
         "command": "git.unstageSelectedRanges",
         "key": "ctrl+k ctrl+n",
         "mac": "cmd+k cmd+n",
-        "when": "isInDiffEditor"
+        "when": "isInDiffEditor && resourceScheme =~ /^git$|^file$/"
       },
       {
         "command": "git.revertSelectedRanges",
         "key": "ctrl+k ctrl+r",
         "mac": "cmd+k cmd+r",
-        "when": "isInDiffEditor"
+        "when": "resourceScheme =~ /^git$|^file$/"
       }
     ],
     "menus": {

@@ -22,7 +22,7 @@ import './inlineEditsView.css';
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineDiffView.js';
 import { applyEditToModifiedRangeMappings, createReindentEdit, getOffsetForPos, maxContentWidthInRange, PathBuilder, Point, StatusBarViewItem } from './utils.js';
 import { IInlineEditsIndicatorState, InlineEditsIndicator } from './inlineEditsIndicatorView.js';
-import { darken, lighten, registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
+import { darken, lighten, registerColor } from '../../../../../../platform/theme/common/colorUtils.js';
 import { diffInserted, diffRemoved } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
 import { Command } from '../../../../../common/languages.js';
@@ -38,13 +38,13 @@ import { Color } from '../../../../../../base/common/color.js';
 
 export const originalBackgroundColor = registerColor(
 	'inlineEdit.originalBackground',
-	transparent(diffRemoved, 0.4),
+	Color.transparent,
 	'',
 	true
 );
 export const modifiedBackgroundColor = registerColor(
 	'inlineEdit.modifiedBackground',
-	transparent(diffInserted, 0.4),
+	Color.transparent,
 	'',
 	true
 );
@@ -77,8 +77,19 @@ export const modifiedChangedTextOverlayColor = registerColor(
 	true
 );
 
-export const border = registerColor(
-	'inlineEdit.border',
+export const originalBorder = registerColor(
+	'inlineEdit.originalBorder',
+	{
+		light: darken(editorLineHighlightBorder, 0.15),
+		dark: lighten(editorLineHighlightBorder, 0.50),
+		hcDark: editorLineHighlightBorder,
+		hcLight: editorLineHighlightBorder
+	},
+	''
+);
+
+export const modifiedBorder = registerColor(
+	'inlineEdit.modifiedBorder',
 	{
 		light: darken(editorLineHighlightBorder, 0.15),
 		dark: lighten(editorLineHighlightBorder, 0.50),
@@ -174,14 +185,14 @@ export class InlineEditsView extends Disposable {
 			const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 			path1.setAttribute('d', pathBuilder1.build());
 			path1.style.fill = 'var(--vscode-inlineEdit-originalBackground, transparent)';
-			path1.style.stroke = 'var(--vscode-inlineEdit-border)';
+			path1.style.stroke = 'var(--vscode-inlineEdit-originalBorder)';
 			path1.style.strokeWidth = '1px';
 
 
 			const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 			path2.setAttribute('d', pathBuilder2.build());
 			path2.style.fill = 'var(--vscode-inlineEdit-modifiedBackground, transparent)';
-			path2.style.stroke = 'var(--vscode-inlineEdit-border)';
+			path2.style.stroke = 'var(--vscode-inlineEdit-modifiedBorder)';
 			path2.style.strokeWidth = '1px';
 
 			const pathModifiedBackground = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -201,11 +212,11 @@ export class InlineEditsView extends Disposable {
 
 				const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
 				stop1.setAttribute('offset', '0%');
-				stop1.setAttribute('style', 'stop-color:var(--vscode-inlineEdit-border);stop-opacity:0');
+				stop1.setAttribute('style', 'stop-color:var(--vscode-inlineEdit-modifiedBorder);stop-opacity:0');
 
 				const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
 				stop2.setAttribute('offset', '100%');
-				stop2.setAttribute('style', 'stop-color:var(--vscode-inlineEdit-border);stop-opacity:1');
+				stop2.setAttribute('style', 'stop-color:var(--vscode-inlineEdit-modifiedBorder);stop-opacity:1');
 
 				linearGradient.appendChild(stop1);
 				linearGradient.appendChild(stop2);
@@ -230,7 +241,7 @@ export class InlineEditsView extends Disposable {
 
 				const path3 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 				path3.setAttribute('d', pathBuilder3.build());
-				path3.style.stroke = 'var(--vscode-inlineEdit-border)';
+				path3.style.stroke = 'var(--vscode-inlineEdit-modifiedBorder)';
 				path3.style.strokeWidth = '1px';
 				elements.push(path3);
 			}

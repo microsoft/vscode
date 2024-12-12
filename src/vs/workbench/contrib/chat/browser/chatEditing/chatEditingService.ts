@@ -22,6 +22,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -61,11 +62,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return this._currentSessionObs;
 	}
 
-	private readonly _onDidCreateEditingSession = this._register(new Emitter<IChatEditingSession>());
-	get onDidCreateEditingSession() {
-		return this._onDidCreateEditingSession.event;
-	}
-
 	private readonly _onDidChangeEditingSession = this._register(new Emitter<void>());
 	public readonly onDidChangeEditingSession = this._onDidChangeEditingSession.event;
 
@@ -94,6 +90,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IWorkbenchAssignmentService private readonly _workbenchAssignmentService: IWorkbenchAssignmentService,
 		@IStorageService storageService: IStorageService,
+		@ILogService logService: ILogService,
 	) {
 		super();
 		this._applyingChatEditsFailedContextKey = applyingChatEditsFailedContextKey.bindTo(contextKeyService);
@@ -163,10 +160,15 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		const sessionIdToRestore = storageService.get(STORAGE_KEY_EDITING_SESSION, StorageScope.WORKSPACE);
 		if (isString(sessionIdToRestore)) {
-			this._restoringEditingSession = this.startOrContinueEditingSession(sessionIdToRestore);
-			this._restoringEditingSession.finally(() => {
-				this._restoringEditingSession = undefined;
-			});
+			if (this._chatService.getOrRestoreSession(sessionIdToRestore)) {
+				this._restoringEditingSession = this.startOrContinueEditingSession(sessionIdToRestore);
+				this._restoringEditingSession.finally(() => {
+					this._restoringEditingSession = undefined;
+				});
+			} else {
+				logService.error(`Edit session session to restore is a non-existing chat session: ${sessionIdToRestore}`);
+			}
+			storageService.remove(STORAGE_KEY_EDITING_SESSION, StorageScope.WORKSPACE);
 		}
 	}
 
@@ -220,7 +222,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}));
 
 		this._currentSessionObs.set(session, undefined);
-		this._onDidCreateEditingSession.fire(session);
 		this._onDidChangeEditingSession.fire();
 		return session;
 	}
@@ -486,14 +487,6 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 }
 
 export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResolver {
-	public static readonly scheme = CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME;
-
-	public static getMultiDiffSourceUri(): URI {
-		return URI.from({
-			scheme: ChatEditingMultiDiffSourceResolver.scheme,
-			path: '',
-		});
-	}
 
 	constructor(
 		private readonly _currentSession: IObservable<ChatEditingSession | null>,
@@ -501,7 +494,7 @@ export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResol
 	) { }
 
 	canHandleUri(uri: URI): boolean {
-		return uri.scheme === ChatEditingMultiDiffSourceResolver.scheme;
+		return uri.scheme === CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME;
 	}
 
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {

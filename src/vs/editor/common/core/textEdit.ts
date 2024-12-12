@@ -8,7 +8,6 @@ import { assert, assertFn, checkAdjacentItems } from '../../../base/common/asser
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { commonPrefixLength, commonSuffixLength, splitLines } from '../../../base/common/strings.js';
 import { ISingleEditOperation } from './editOperation.js';
-import { LineEdit } from './lineEdit.js';
 import { LineRange } from './lineRange.js';
 import { OffsetEdit } from './offsetEdit.js';
 import { Position } from './position.js';
@@ -397,18 +396,5 @@ export class StringText extends AbstractText {
 
 	get length(): TextLength {
 		return this._t.textLength;
-	}
-}
-
-export class BasedTextEdit {
-	constructor(
-		public readonly base: AbstractText,
-		public readonly edit: TextEdit,
-	) {
-	}
-
-	toString() {
-		const lineEdit = LineEdit.fromTextEdit(this.edit, this.base);
-		return lineEdit.humanReadablePatch(this.base.getLines());
 	}
 }

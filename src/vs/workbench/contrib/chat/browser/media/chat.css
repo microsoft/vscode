@@ -1015,6 +1015,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part.compact .chat-attached-context {
 	padding-top: 8px;
+	padding-bottom: 0px;
 	display: flex;
 	gap: 4px;
 	flex-wrap: wrap;
@@ -1473,9 +1474,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.chat-quota-error-secondary-button {
 		margin-top: 6px;
-		font-size: 12px;
 		padding: 0px;
 		border: none;
+	}
+
+	.chat-quota-error-secondary-button,
+	.chat-quota-wait-warning {
+		font-size: 12px;
+	}
+
+	.chat-quota-wait-warning {
+		margin-top: 2px;
 	}
 
 	.chat-quota-error-message {

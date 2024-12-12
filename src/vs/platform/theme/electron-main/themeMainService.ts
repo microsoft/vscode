@@ -12,6 +12,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IStateService } from '../../state/node/state.js';
 import { IPartsSplash } from '../common/themeService.js';
 import { IColorScheme } from '../../window/common/window.js';
+import { ThemeTypeSelector } from '../common/theme.js';
 
 // These default colors match our default themes
 // editor background color ("Dark Modern", etc...)
@@ -26,6 +27,7 @@ const THEME_WINDOW_SPLASH = 'windowSplash';
 
 namespace ThemeSettings {
 	export const DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme';
+	export const DETECT_HC = 'window.autoDetectHighContrast';
 	export const SYSTEM_COLOR_THEME = 'window.systemColorTheme';
 }
 
@@ -82,9 +84,9 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 					electron.nativeTheme.themeSource = 'light';
 					break;
 				case 'auto':
-					switch (this.getBaseTheme()) {
-						case 'vs': electron.nativeTheme.themeSource = 'light'; break;
-						case 'vs-dark': electron.nativeTheme.themeSource = 'dark'; break;
+					switch (this.getPreferredBaseTheme() ?? this.getStoredBaseTheme()) {
+						case ThemeTypeSelector.VS: electron.nativeTheme.themeSource = 'light'; break;
+						case ThemeTypeSelector.VS_DARK: electron.nativeTheme.themeSource = 'dark'; break;
 						default: electron.nativeTheme.themeSource = 'system';
 					}
 					break;
@@ -98,7 +100,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 	getColorScheme(): IColorScheme {
 		if (isWindows) {
-			// high contrast is refelected by the shouldUseInvertedColorScheme property
+			// high contrast is reflected by the shouldUseInvertedColorScheme property
 			if (electron.nativeTheme.shouldUseHighContrastColors) {
 				// shouldUseInvertedColorScheme is dark, !shouldUseInvertedColorScheme is light
 				return { dark: electron.nativeTheme.shouldUseInvertedColorScheme, highContrast: true };
@@ -120,32 +122,44 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		};
 	}
 
-	getBackgroundColor(): string {
+	getPreferredBaseTheme(): ThemeTypeSelector | undefined {
 		const colorScheme = this.getColorScheme();
-		if (colorScheme.highContrast && this.configurationService.getValue('window.autoDetectHighContrast')) {
-			return colorScheme.dark ? DEFAULT_BG_HC_BLACK : DEFAULT_BG_HC_LIGHT;
+		if (this.configurationService.getValue(ThemeSettings.DETECT_HC) && colorScheme.highContrast) {
+			return colorScheme.dark ? ThemeTypeSelector.HC_BLACK : ThemeTypeSelector.HC_LIGHT;
 		}
-
-		let background = this.stateService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
-		if (!background) {
-			switch (this.getBaseTheme()) {
-				case 'vs': background = DEFAULT_BG_LIGHT; break;
-				case 'hc-black': background = DEFAULT_BG_HC_BLACK; break;
-				case 'hc-light': background = DEFAULT_BG_HC_LIGHT; break;
-				default: background = DEFAULT_BG_DARK;
-			}
+		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
+			return colorScheme.dark ? ThemeTypeSelector.VS_DARK : ThemeTypeSelector.VS;
 		}
-
-		return background;
+		return undefined;
 	}
 
-	private getBaseTheme(): 'vs' | 'vs-dark' | 'hc-black' | 'hc-light' {
-		const baseTheme = this.stateService.getItem<string>(THEME_STORAGE_KEY, 'vs-dark').split(' ')[0];
+	getBackgroundColor(): string {
+		const preferred = this.getPreferredBaseTheme();
+		const stored = this.getStoredBaseTheme();
+
+		// If the stored theme has the same base as the preferred, we can return the stored background
+		if (preferred === undefined || preferred === stored) {
+			const storedBackground = this.stateService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
+			if (storedBackground) {
+				return storedBackground;
+			}
+		}
+		// Otherwise we return the default background for the preferred base theme. If there's no preferred, use the stored one.
+		switch (preferred ?? stored) {
+			case ThemeTypeSelector.VS: return DEFAULT_BG_LIGHT;
+			case ThemeTypeSelector.HC_BLACK: return DEFAULT_BG_HC_BLACK;
+			case ThemeTypeSelector.HC_LIGHT: return DEFAULT_BG_HC_LIGHT;
+			default: return DEFAULT_BG_DARK;
+		}
+	}
+
+	private getStoredBaseTheme(): ThemeTypeSelector {
+		const baseTheme = this.stateService.getItem<ThemeTypeSelector>(THEME_STORAGE_KEY, ThemeTypeSelector.VS_DARK).split(' ')[0];
 		switch (baseTheme) {
-			case 'vs': return 'vs';
-			case 'hc-black': return 'hc-black';
-			case 'hc-light': return 'hc-light';
-			default: return 'vs-dark';
+			case ThemeTypeSelector.VS: return ThemeTypeSelector.VS;
+			case ThemeTypeSelector.HC_BLACK: return ThemeTypeSelector.HC_BLACK;
+			case ThemeTypeSelector.HC_LIGHT: return ThemeTypeSelector.HC_LIGHT;
+			default: return ThemeTypeSelector.VS_DARK;
 		}
 	}
 

@@ -742,7 +742,7 @@ export class InlineCompletionsModel extends Disposable {
 			this._jumpedTo.set(true, tx);
 			this.dontRefetchSignal.trigger(tx);
 			this._editor.setPosition(s.inlineEdit.range.getStartPosition(), 'inlineCompletions.jump');
-			this._editor.revealLine(s.inlineEdit.range.startLineNumber);
+			this._editor.revealPosition(s.inlineEdit.range.getStartPosition());
 			this._editor.focus();
 		});
 	}

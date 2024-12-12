@@ -22,7 +22,7 @@ import { isMousePositionWithinElement } from './hoverUtils.js';
 import { ContentHoverWidgetWrapper } from './contentHoverWidgetWrapper.js';
 import './hover.css';
 import { Emitter } from '../../../../base/common/event.js';
-import { isOnColorDecorator } from '../../colorPicker/browser/hoverColorPicker/hoverColorPickerContribution.js';
+import { isOnColorDecorator } from '../../colorPicker/browser/hoverColorPicker/hoverColorPicker.js';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -244,9 +244,15 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			return;
 		}
 		const isPotentialKeyboardShortcut = this._isPotentialKeyboardShortcut(e);
-		const isModifierKeyPressed = this._isModifierKeyPressed(e);
-		if (isPotentialKeyboardShortcut || isModifierKeyPressed) {
+		if (isPotentialKeyboardShortcut) {
 			return;
+		}
+		const isModifierKeyPressed = this._isModifierKeyPressed(e);
+		if (isModifierKeyPressed && this._mouseMoveEvent) {
+			const contentWidget: ContentHoverWidgetWrapper = this._getOrCreateContentWidget();
+			if (contentWidget.showsOrWillShow(this._mouseMoveEvent)) {
+				return;
+			}
 		}
 		this.hideContentHover();
 	}

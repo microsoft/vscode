@@ -11,11 +11,9 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable, textLinkForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IChatResponseViewModel } from '../../common/chatViewModel.js';
@@ -23,6 +21,16 @@ import { IChatWidgetService } from '../chat.js';
 import { IChatContentPart } from './chatContentParts.js';
 
 const $ = dom.$;
+
+/**
+ * Once the sign up button is clicked, and the retry button has been shown, it should be shown every time.
+ */
+let shouldShowRetryButton = false;
+
+/**
+ * Once the 'retry' button is clicked, the wait warning should be shown every time.
+ */
+let shouldShowWaitWarning = false;
 
 export class ChatQuotaExceededPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -34,8 +42,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 		element: IChatResponseViewModel,
 		renderer: MarkdownRenderer,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
-		@ICommandService commandService: ICommandService,
-		@IProductService productService: IProductService,
+		@ICommandService commandService: ICommandService
 	) {
 		super();
 
@@ -54,31 +61,52 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 		button1.label = localize('upgradeToCopilotPro', "Upgrade to Copilot Pro");
 		button1.element.classList.add('chat-quota-error-button');
 
-		let didAddSecondary = false;
-		this._register(button1.onDidClick(async () => {
-			const url = productService.defaultChatAgent?.upgradePlanUrl;
-			await commandService.executeCommand('vscode.open', url ? URI.parse(url) : undefined);
-
-			if (!didAddSecondary) {
-				didAddSecondary = true;
-
-				const button2 = this._register(new Button(messageContainer, {
-					buttonBackground: undefined,
-					buttonForeground: asCssVariable(textLinkForeground)
-				}));
-				button2.element.classList.add('chat-quota-error-secondary-button');
-				button2.label = localize('signedUpClickToContinue', "Signed up? Click to continue!");
-				this._onDidChangeHeight.fire();
-				this._register(button2.onDidClick(() => {
-					const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
-					if (!widget) {
-						return;
-					}
-
-					widget.rerunLastRequest();
-				}));
+		let hasAddedWaitWarning = false;
+		const addWaitWarningIfNeeded = () => {
+			if (!shouldShowWaitWarning || hasAddedWaitWarning) {
+				return;
 			}
+
+			hasAddedWaitWarning = true;
+			dom.append(messageContainer, $('.chat-quota-wait-warning', undefined, localize('waitWarning', "Signing up may take a few minutes to take effect.")));
+		};
+
+		let hasAddedRetryButton = false;
+		const addRetryButtonIfNeeded = () => {
+			if (!shouldShowRetryButton || hasAddedRetryButton) {
+				return;
+			}
+
+			hasAddedRetryButton = true;
+			const button2 = this._register(new Button(messageContainer, {
+				buttonBackground: undefined,
+				buttonForeground: asCssVariable(textLinkForeground)
+			}));
+			button2.element.classList.add('chat-quota-error-secondary-button');
+			button2.label = localize('signedUpClickToContinue', "Signed up? Click to retry.");
+			this._onDidChangeHeight.fire();
+			this._register(button2.onDidClick(() => {
+				const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
+				if (!widget) {
+					return;
+				}
+
+				widget.rerunLastRequest();
+
+				shouldShowWaitWarning = true;
+				addWaitWarningIfNeeded();
+			}));
+		};
+
+		this._register(button1.onDidClick(async () => {
+			await commandService.executeCommand('workbench.action.chat.upgradePlan');
+
+			shouldShowRetryButton = true;
+			addRetryButtonIfNeeded();
 		}));
+
+		addRetryButtonIfNeeded();
+		addWaitWarningIfNeeded();
 	}
 
 	hasSameContent(other: unknown): boolean {
