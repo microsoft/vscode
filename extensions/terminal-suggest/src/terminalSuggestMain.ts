@@ -168,6 +168,37 @@ function createCompletionItem(commandLine: string, cursorPosition: number, prefi
 	};
 }
 
+async function isExecutable(filePath: string): Promise<boolean> {
+	const windowsExtensions = new Set([
+		'ps1',
+		'exe',
+		'bat',
+		'cmd',
+		'sh',
+		'bash',
+		'zsh',
+		'fish',
+		'csh',
+		'ksh',
+	]);
+
+	if (osIsWindows()) {
+		// Check if the file extension matches any Windows-specific executable
+		const ext = path.extname(filePath).toLowerCase().replace('.', '');
+		return windowsExtensions.has(ext);
+	} else {
+		try {
+			// On macOS/Linux, check if the executable bit is set
+			const stats = await fs.stat(filePath);
+			// Check if the file is a regular file and has executable permission
+			return (stats.mode & 0o111) !== 0;
+		} catch (error) {
+			// If the file does not exist or cannot be accessed, it's not executable
+			return false;
+		}
+	}
+}
+
 async function getCommandsInPath(): Promise<Set<string> | undefined> {
 	if (cachedAvailableCommands) {
 		return cachedAvailableCommands;
@@ -176,7 +207,7 @@ async function getCommandsInPath(): Promise<Set<string> | undefined> {
 	if (!paths) {
 		return;
 	}
-
+	const pathSeparator = osIsWindows() ? '\\' : '/';
 	const executables = new Set<string>();
 	for (const path of paths) {
 		try {
@@ -187,7 +218,7 @@ async function getCommandsInPath(): Promise<Set<string> | undefined> {
 			const files = await vscode.workspace.fs.readDirectory(vscode.Uri.file(path));
 
 			for (const [file, fileType] of files) {
-				if (fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory) {
+				if (fileType !== vscode.FileType.Unknown && fileType !== vscode.FileType.Directory && await isExecutable(path + pathSeparator + file)) {
 					executables.add(file);
 				}
 			}
