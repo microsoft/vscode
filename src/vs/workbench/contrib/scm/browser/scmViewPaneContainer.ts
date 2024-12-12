@@ -17,6 +17,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class SCMViewPaneContainer extends ViewPaneContainer {
 
@@ -30,9 +31,10 @@ export class SCMViewPaneContainer extends ViewPaneContainer {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@ILogService logService: ILogService,
 	) {
-		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
+		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService, logService);
 	}
 
 	override create(parent: HTMLElement): void {
