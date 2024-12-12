@@ -237,7 +237,7 @@ export class InputBox extends Widget {
 		this.tooltip = tooltip;
 		if (!this.hover.value) {
 			this.hover.value = this._register(getBaseLayerHoverDelegate().setupDelayedHoverAtMouse(this.input, () => ({
-				content: tooltip,
+				content: this.tooltip,
 				appearance: {
 					compact: true,
 				}
