@@ -180,6 +180,8 @@ async function isExecutable(filePath: string): Promise<boolean> {
 		'fish',
 		'csh',
 		'ksh',
+		'py',
+		'pl'
 	]);
 
 	if (osIsWindows()) {
