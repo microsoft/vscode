@@ -267,7 +267,7 @@ function prepareSnapPackage(arch) {
 			.pipe(rename(function (p) { p.dirname = `usr/share/${product.applicationName}/${p.dirname}`; }));
 
 		const snapcraft = gulp.src('resources/linux/snap/snapcraft.yaml', { base: '.' })
-			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@NAME@@', product.applicationName.toLowerCase()))
 			.pipe(replace('@@VERSION@@', commit.substr(0, 8)))
 			// Possible run-on values https://snapcraft.io/docs/architectures
 			.pipe(replace('@@ARCHITECTURE@@', arch === 'x64' ? 'amd64' : arch))
