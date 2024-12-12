@@ -100,7 +100,15 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	getInputState(): any {
-		return this.variables;
+		return this.variables
+			.map((variable: TDynamicVariable) => {
+				// return underlying `IDynamicVariable` object for file references
+				if (variable instanceof ChatFileReference) {
+					return variable.reference;
+				}
+
+				return variable;
+			});
 	}
 
 	setInputState(s: any): void {
@@ -108,8 +116,14 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 			s = [];
 		}
 
-		this._variables = s.filter(isDynamicVariable);
-		this.updateDecorations();
+		this._variables = [];
+		for (const variable of s) {
+			if (!isDynamicVariable(variable)) {
+				continue;
+			}
+
+			this.addReference(variable);
+		}
 	}
 
 	addReference(ref: IDynamicVariable): void {

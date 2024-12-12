@@ -21,7 +21,7 @@ export class ChatFileReference extends PromptFileReference implements IDynamicVa
 	 * @throws if the `data` reference is no an instance of `URI`.
 	 */
 	constructor(
-		private readonly reference: IDynamicVariable,
+		public readonly reference: IDynamicVariable,
 		@IFileService fileService: IFileService,
 		@IConfigurationService configService: IConfigurationService,
 	) {
@@ -67,6 +67,10 @@ export class ChatFileReference extends PromptFileReference implements IDynamicVa
 
 	public get fullName() {
 		return this.reference.fullName;
+	}
+
+	public get icon() {
+		return this.reference.icon;
 	}
 
 	public get modelDescription() {
