@@ -7,11 +7,14 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { waitForState } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
+import { ChatEditingSessionState, IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../common/languageModelToolsService.js';
@@ -46,6 +49,8 @@ class EditTool implements IToolData, IToolImpl {
 
 	constructor(
 		@IChatService private readonly chatService: IChatService,
+		@IChatEditingService private readonly chatEditingService: IChatEditingService,
+		@ICodeMapperService private readonly codeMapperService: ICodeMapperService
 	) {
 		const codeInstructions = `
 The code change to apply to the file.
@@ -98,6 +103,27 @@ Avoid repeating existing code, instead use comments to represent regions of unch
 			kind: 'markdownContent',
 			content: new MarkdownString(parameters.code + '\n````')
 		});
+
+		if (this.chatEditingService.currentEditingSession?.chatSessionId !== model.sessionId) {
+			throw new Error('This tool must be called from within an editing session');
+		}
+
+		const result = await this.codeMapperService.mapCode({
+			codeBlocks: [{ code: parameters.code, resource: uri, markdownBeforeBlock: undefined }],
+			conversation: []
+		}, {
+			textEdit: (target, edits) => {
+				model.acceptResponseProgress(request, { kind: 'textEdit', uri: target, edits });
+			}
+		}, token);
+
+		if (result?.errorMessage) {
+			// ?
+			throw new Error(result.errorMessage);
+		}
+
+		// Doesn't work because this blocks on the chat response being done
+		await waitForState(this.chatEditingService.currentEditingSession.state, s => s === ChatEditingSessionState.Idle);
 
 		return {
 			content: [{ kind: 'text', value: 'Success' }]
