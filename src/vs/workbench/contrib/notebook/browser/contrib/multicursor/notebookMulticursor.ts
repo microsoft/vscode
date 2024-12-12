@@ -385,6 +385,18 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		}
 	}
 
+	private updateViewModelSelections() {
+		for (const cell of this.trackedCells) {
+			const controller = this.cursorsControllers.get(cell.cellViewModel.uri);
+			if (!controller) {
+				// should not happen
+				return;
+			}
+
+			cell.cellViewModel.setSelections(controller.getSelections());
+		}
+	}
+
 	private updateFinalUndoRedo() {
 		const anchorCellModel = this.anchorCell?.[1].getModel();
 		if (!anchorCellModel) {
@@ -775,16 +787,10 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			if (model) {
 				models.push(model);
 			}
-
-			const controller = this.cursorsControllers.get(cell.cellViewModel.uri);
-			if (!controller) {
-				// should not happen
-				return;
-			}
-			controller.setSelections(new ViewModelEventsCollector(), undefined, cell.cellViewModel.getSelections(), CursorChangeReason.Explicit);
 		}
 
 		await Promise.all(models.map(model => model.undo()));
+		this.updateViewModelSelections();
 		this.updateLazyDecorations();
 	}
 
@@ -795,16 +801,10 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 			if (model) {
 				models.push(model);
 			}
-
-			const controller = this.cursorsControllers.get(cell.cellViewModel.uri);
-			if (!controller) {
-				// should not happen
-				return;
-			}
-			controller.setSelections(new ViewModelEventsCollector(), undefined, cell.cellViewModel.getSelections(), CursorChangeReason.Explicit);
 		}
 
 		await Promise.all(models.map(model => model.redo()));
+		this.updateViewModelSelections();
 		this.updateLazyDecorations();
 	}
 

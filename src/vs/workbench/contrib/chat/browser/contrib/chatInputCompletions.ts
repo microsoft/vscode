@@ -13,8 +13,8 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IWordAtPosition, getWordAtText } from '../../../../../editor/common/core/wordHelper.js';
-import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, Location, SymbolKind, SymbolKinds } from '../../../../../editor/common/languages.js';
-import { isITextModel, ITextModel } from '../../../../../editor/common/model.js';
+import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, DocumentSymbol, Location, SymbolKind, SymbolKinds } from '../../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { IOutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { localize } from '../../../../../nls.js';
@@ -26,12 +26,10 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../common/contributions.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHistoryService } from '../../../../services/history/common/history.js';
 import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
 import { ISearchService } from '../../../../services/search/common/search.js';
-import { getWorkspaceSymbols } from '../../../search/common/search.js';
 import { ChatAgentLocation, IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
@@ -445,7 +443,6 @@ class BuiltinDynamicCompletions extends Disposable {
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOutlineModelService private readonly outlineService: IOutlineModelService,
-		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
@@ -512,7 +509,7 @@ class BuiltinDynamicCompletions extends Disposable {
 
 				const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
 				if (range2) {
-					await this.addSymbolEntries(widget, result, range2, token);
+					this.addSymbolEntries(widget, result, range2, token);
 				}
 
 				return result;
@@ -642,7 +639,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		result.incomplete = true;
 	}
 
-	private async addSymbolEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
+	private addSymbolEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
 
 		const makeSymbolCompletionItem = (symbolItem: { name: string; location: Location; kind: SymbolKind }, pattern: string): CompletionItem => {
 			const text = `${chatVariableLeader}sym:${symbolItem.name}`;
@@ -675,30 +672,17 @@ class BuiltinDynamicCompletions extends Disposable {
 			pattern = info.varWord.word.toLowerCase().slice(1); // remove leading #
 		}
 
-		const symbolsToAdd = [];
-		if (pattern) {
-			const workspaceSymbols = await getWorkspaceSymbols(pattern, token);
-			if (token.isCancellationRequested) {
-				return;
+		const symbolsToAdd: { symbol: DocumentSymbol; uri: URI }[] = [];
+		for (const outlineModel of this.outlineService.getCachedModels()) {
+			if (pattern) {
+				symbolsToAdd.push(...outlineModel.asListOfDocumentSymbols().map(symbol => ({ symbol, uri: outlineModel.uri })));
+			} else {
+				symbolsToAdd.push(...outlineModel.getTopLevelSymbols().map(symbol => ({ symbol, uri: outlineModel.uri })));
 			}
-
-			symbolsToAdd.push(...workspaceSymbols.map(ws => ({ name: ws.symbol.name, location: ws.symbol.location, kind: ws.symbol.kind })));
-		}
-		// no pattern, get top level symbols from all visible editors
-		else {
-			const textEditorModels = this.editorService.visibleTextEditorControls.map(editor => editor.getModel()).filter(model => model !== null && isITextModel(model));
-			const uniqueTextModels = Array.from(new Set(textEditorModels));
-			const editorsTopLevelSymbols = await Promise.all(uniqueTextModels.map(async model => {
-				const outline = await this.outlineService.getOrCreate(model, token);
-				const topLevelSymbols = outline.getTopLevelSymbols();
-				return topLevelSymbols.map(symbol => ({ name: symbol.name, location: { uri: model.uri, range: symbol.range }, kind: symbol.kind }));
-			}));
-
-			symbolsToAdd.push(...editorsTopLevelSymbols.flat());
 		}
 
-		const filteredSymbols = symbolsToAdd.filter(symbol => {
-			switch (symbol.kind) {
+		const symbolsToAddFiltered = symbolsToAdd.filter(fileSymbol => {
+			switch (fileSymbol.symbol.kind) {
 				case SymbolKind.Enum:
 				case SymbolKind.Class:
 				case SymbolKind.Method:
@@ -712,9 +696,11 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 		});
 
-		for (const symbol of filteredSymbols) {
-			result.suggestions.push(makeSymbolCompletionItem(symbol, pattern ?? ''));
+		for (const symbol of symbolsToAddFiltered) {
+			result.suggestions.push(makeSymbolCompletionItem({ ...symbol.symbol, location: { uri: symbol.uri, range: symbol.symbol.range } }, pattern ?? ''));
 		}
+
+		result.incomplete = !!pattern;
 	}
 
 	private cmdAddReference(arg: ReferenceArgument) {

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AsyncIterableObject } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -20,6 +22,7 @@ import { TerminalLocation } from '../../../../../platform/terminal/common/termin
 import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -529,10 +532,38 @@ export function registerChatCodeCompareBlockActions() {
 
 		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
 
-			const instaService = accessor.get(IInstantiationService);
+			const editorService = accessor.get(ICodeEditorService);
 
-			const editor = instaService.createInstance(DefaultChatTextEditor);
-			await editor.preview(context.element, context.edit);
+			const item = context.edit;
+			const response = context.element;
+
+			if (item.state?.applied) {
+				// already applied
+				return false;
+			}
+
+			if (!response.response.value.includes(item)) {
+				// bogous item
+				return false;
+			}
+
+			const firstEdit = item.edits[0]?.[0];
+			if (!firstEdit) {
+				return false;
+			}
+			const textEdits = AsyncIterableObject.fromArray(item.edits);
+
+			const editorToApply = await editorService.openCodeEditor({ resource: item.uri }, null);
+			if (editorToApply) {
+				const inlineChatController = InlineChatController.get(editorToApply);
+				if (inlineChatController) {
+					editorToApply.revealLineInCenterIfOutsideViewport(firstEdit.range.startLineNumber);
+					inlineChatController.reviewEdits(firstEdit.range, textEdits, CancellationToken.None);
+					response.setEditApplied(item, 1);
+					return true;
+				}
+			}
+			return false;
 		}
 	});
 

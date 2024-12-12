@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/71a88711ec184b7dde5240c8f150ad3c2dbbd5f1",
+	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/0b50d9c47145df62c4461c4407698a24e8f1f3c2",
 	"name": "YAML 1.0",
 	"scopeName": "source.yaml.1.0",
 	"comment": "https://yaml.org/spec/1.0/",
@@ -520,8 +520,8 @@
 			"patterns": [
 				{
 					"comment": "https://yaml.org/spec/1.2.2/#8111-block-indentation-indicator",
-					"begin": "(?>(\\|)|(>))(?<chomp>[+-])?+((0)|(1)|(2)|(3)|(4)|(5)|(6)|(7)|(8)|(9))(?(<chomp>)|([+-]))?+",
-					"while": "\\G(?>(?>(?!\\5)|(?!\\6) |(?!\\7) {2}|(?!\\8) {3}|(?!\\9) {4}|(?!\\10) {5}|(?!\\11) {6}|(?!\\12) {7}|(?!\\13) {8}|(?!\\14) {9})| *+($|[^#]))",
+					"begin": "(?>(\\|)|(>))(?<chomp>[+-])?+([0-9])(?(<chomp>)|\\g<chomp>)?+",
+					"while": "\\G(?> {\\4}| *+($|[^#]))",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.flow.block-scalar.literal.yaml"
@@ -534,9 +534,6 @@
 						},
 						"4": {
 							"name": "constant.numeric.indentation-indicator.yaml"
-						},
-						"15": {
-							"name": "storage.modifier.chomping-indicator.yaml"
 						}
 					},
 					"whileCaptures": {
@@ -571,7 +568,6 @@
 					]
 				},
 				{
-					"comment": "https://yaml.org/spec/1.2.2/#rule-c-b-block-header",
 					"//": "Soooooooo many edge cases",
 					"begin": "(?>(\\|)|(>))([+-]?+)",
 					"while": "\\G",
