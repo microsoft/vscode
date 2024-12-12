@@ -76,6 +76,7 @@
 	"npm.exclude": "**/extensions/**",
 	"emmet.excludeLanguages": [],
 	"typescript.preferences.importModuleSpecifier": "relative",
+	"typescript.preferences.importModuleSpecifierEnding": "js",
 	"typescript.preferences.quoteStyle": "single",
 	"json.schemas": [
 		{
