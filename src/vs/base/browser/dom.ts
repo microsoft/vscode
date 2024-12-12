@@ -2189,22 +2189,23 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 	return result;
 }
 
+/** @deprecated This is a duplication of the h function. Needs cleanup. */
 export function svgElem<TTag extends string>
 	(tag: TTag):
 	TagToRecord<TTag> extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-
+/** @deprecated This is a duplication of the h function. Needs cleanup. */
 export function svgElem<TTag extends string, T extends Child[]>
 	(tag: TTag, children: [...T]):
 	(ArrayToObj<T> & TagToRecord<TTag>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-
+/** @deprecated This is a duplication of the h function. Needs cleanup. */
 export function svgElem<TTag extends string>
 	(tag: TTag, attributes: Partial<ElementAttributes<TagToElement<TTag>>>):
 	TagToRecord<TTag> extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-
+/** @deprecated This is a duplication of the h function. Needs cleanup. */
 export function svgElem<TTag extends string, T extends Child[]>
 	(tag: TTag, attributes: Partial<ElementAttributes<TagToElement<TTag>>>, children: [...T]):
 	(ArrayToObj<T> & TagToRecord<TTag>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
-
+/** @deprecated This is a duplication of the h function. Needs cleanup. */
 export function svgElem(tag: string, ...args: [] | [attributes: { $: string } & Partial<ElementAttributes<HTMLElement>> | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {
 	let attributes: { $?: string } & Partial<ElementAttributes<HTMLElement>>;
 	let children: (Record<string, HTMLElement> | HTMLElement)[] | undefined;

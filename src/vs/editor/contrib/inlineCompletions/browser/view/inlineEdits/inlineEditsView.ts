@@ -19,7 +19,7 @@ import { applyEditToModifiedRangeMappings, createReindentEdit } from './utils.js
 import { IInlineEditsIndicatorState, InlineEditsIndicator } from './inlineEditsIndicatorView.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineEditWithChanges } from './inlineEditsViewAndDiffProducer.js';
-import { InlineEditsSideBySideDiff } from './InlineEditsSideBySideDiff.js';
+import { InlineEditsSideBySideDiff } from './inlineEditsSideBySideDiff.js';
 
 export interface IUiState {
 	state: 'collapsed' | 'mixedLines' | 'interleavedLines' | 'sideBySide';

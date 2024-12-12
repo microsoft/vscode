@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { h, svgElem } from '../../../../../../base/browser/dom.js';
 import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Color } from '../../../../../../base/common/color.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, constObservable, derived, autorun, observableFromEvent, derivedOpts } from '../../../../../../base/common/observable.js';
+import { IObservable, constObservable, derived, autorun, derivedOpts, observableValue } from '../../../../../../base/common/observable.js';
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -17,7 +16,6 @@ import { registerColor, darken, lighten } from '../../../../../../platform/theme
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { EmbeddedCodeEditorWidget } from '../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
-import { appendRemoveOnDispose } from '../../../../../browser/widget/diffEditor/utils.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { editorLineHighlightBorder } from '../../../../../common/core/editorColorRegistry.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
@@ -27,7 +25,7 @@ import { Command } from '../../../../../common/languages.js';
 import { ITextModel } from '../../../../../common/model.js';
 import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
 import { InlineEditWithChanges } from './inlineEditsViewAndDiffProducer.js';
-import { PathBuilder, StatusBarViewItem, maxContentWidthInRange, getOffsetForPos, Point } from './utils.js';
+import { StatusBarViewItem, maxContentWidthInRange, getOffsetForPos, Point, n, PathBuilder, mapOutFalsy } from './utils.js';
 
 
 export const originalBackgroundColor = registerColor(
@@ -94,22 +92,6 @@ export const modifiedBorder = registerColor(
 );
 
 export class InlineEditsSideBySideDiff extends Disposable {
-	private readonly _elements = h('div.inline-edits-view', {
-		style: {
-			position: 'absolute',
-			overflow: 'visible',
-			top: '0px',
-			left: '0px',
-		},
-	}, [
-		svgElem('svg@svg', { transform: 'translate(-0.5 -0.5)', style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' }, }, []),
-		h('div.editorContainer@editorContainer', { style: { position: 'absolute' } }, [
-			h('div.preview@editor', { style: {} }),
-			h('div.toolbar@toolbar', { style: {} }),
-		]),
-		svgElem('svg@svg2', { transform: 'translate(-0.5 -0.5)', style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' }, }, []),
-	]);
-
 	private readonly _editorObs = observableCodeEditor(this._editor);
 
 	constructor(
@@ -126,10 +108,15 @@ export class InlineEditsSideBySideDiff extends Disposable {
 	) {
 		super();
 
-		this._register(appendRemoveOnDispose(this._editor.getDomNode()!, this._elements.root));
+		this._register(this._editorObs.createOverlayWidget({
+			domNode: this._overflowView.element,
+			position: constObservable(null),
+			allowEditorOverflow: true,
+			minContentWidthInPx: constObservable(0),
+		}));
 
 		this._register(this._editorObs.createOverlayWidget({
-			domNode: this._elements.root,
+			domNode: this._nonOverflowView.element,
 			position: constObservable(null),
 			allowEditorOverflow: false,
 			minContentWidthInPx: derived(reader => {
@@ -142,126 +129,45 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		this.previewEditor.setModel(this._previewTextModel);
 
 		this._register(autorun(reader => {
+
 			const layoutInfo = this._previewEditorLayoutInfo.read(reader);
 			if (!layoutInfo) {
-				this._elements.svg.replaceChildren();
+				//this._elements.svg.replaceChildren();
 				return;
 			}
 
-			const topEdit = layoutInfo.edit1;
 			const editHeight = layoutInfo.editHeight;
-
 			const width = this._previewEditorWidth.read(reader);
-
-			const pathBuilder1 = new PathBuilder();
-			pathBuilder1.moveTo(layoutInfo.code2);
-			pathBuilder1.lineTo(layoutInfo.codeStart2);
-			pathBuilder1.lineTo(layoutInfo.codeStart1);
-			pathBuilder1.lineTo(layoutInfo.code1);
-
-
-			const pathBuilder2 = new PathBuilder();
-			pathBuilder2.moveTo(layoutInfo.code1);
-			pathBuilder2.lineTo(layoutInfo.edit1);
-			pathBuilder2.lineTo(layoutInfo.edit1.deltaX(width));
-			pathBuilder2.lineTo(layoutInfo.edit2.deltaX(width));
-			pathBuilder2.lineTo(layoutInfo.edit2);
-			if (layoutInfo.edit2.y !== layoutInfo.code2.y) {
-				pathBuilder2.curveTo2(layoutInfo.edit2.deltaX(-20), layoutInfo.code2.deltaX(20), layoutInfo.code2.deltaX(0));
-			}
-			pathBuilder2.lineTo(layoutInfo.code2);
-
-			const pathBuilder4 = new PathBuilder();
-			pathBuilder4.moveTo(layoutInfo.code1);
-			pathBuilder4.lineTo(layoutInfo.code1.deltaX(1000));
-			pathBuilder4.lineTo(layoutInfo.code2.deltaX(1000));
-			pathBuilder4.lineTo(layoutInfo.code2);
-
-			const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-			path1.setAttribute('d', pathBuilder1.build());
-			path1.style.fill = 'var(--vscode-inlineEdit-originalBackground, transparent)';
-			path1.style.stroke = 'var(--vscode-inlineEdit-originalBorder)';
-			path1.style.strokeWidth = '1px';
-
-
-			const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-			path2.setAttribute('d', pathBuilder2.build());
-			path2.style.fill = 'var(--vscode-inlineEdit-modifiedBackground, transparent)';
-			path2.style.stroke = 'var(--vscode-inlineEdit-modifiedBorder)';
-			path2.style.strokeWidth = '1px';
-
-			const pathModifiedBackground = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-			pathModifiedBackground.setAttribute('d', pathBuilder2.build());
-			pathModifiedBackground.style.fill = 'var(--vscode-editor-background, transparent)';
-			pathModifiedBackground.style.strokeWidth = '1px';
-
-
-
-			const elements: SVGElement[] = [];
-			if (layoutInfo.shouldShowShadow) {
-				const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-				const linearGradient = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
-				linearGradient.setAttribute('id', 'gradient');
-				linearGradient.setAttribute('x1', '0%');
-				linearGradient.setAttribute('x2', '100%');
-
-				const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-				stop1.setAttribute('offset', '0%');
-				stop1.setAttribute('style', 'stop-color:var(--vscode-inlineEdit-modifiedBorder);stop-opacity:0');
-
-				const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-				stop2.setAttribute('offset', '100%');
-				stop2.setAttribute('style', 'stop-color:var(--vscode-inlineEdit-modifiedBorder);stop-opacity:1');
-
-				linearGradient.appendChild(stop1);
-				linearGradient.appendChild(stop2);
-				defs.appendChild(linearGradient);
-
-				const width = 6;
-				const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-				rect.setAttribute('x', `${layoutInfo.code1.x - width}`);
-				rect.setAttribute('y', `${layoutInfo.code1.y}`);
-				rect.setAttribute('width', `${width}`);
-				rect.setAttribute('height', `${layoutInfo.code2.y - layoutInfo.code1.y}`);
-				rect.setAttribute('fill', 'url(#gradient)');
-				rect.style.strokeWidth = '0';
-				rect.style.stroke = 'transparent';
-
-				elements.push(defs);
-				elements.push(rect);
-			} else {
-				const pathBuilder3 = new PathBuilder();
-				pathBuilder3.moveTo(layoutInfo.code1);
-				pathBuilder3.lineTo(layoutInfo.code2);
-
-				const path3 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-				path3.setAttribute('d', pathBuilder3.build());
-				path3.style.stroke = 'var(--vscode-inlineEdit-modifiedBorder)';
-				path3.style.strokeWidth = '1px';
-				elements.push(path3);
-			}
-
-			const path4 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-			path4.setAttribute('d', pathBuilder4.build());
-			path4.style.fill = 'var(--vscode-editor-background, transparent)';
-
-			this._elements.svg.replaceChildren(path4, pathModifiedBackground);
-			this._elements.svg2.replaceChildren(path1, path2, ...elements);
-
-			this._elements.editorContainer.style.top = `${topEdit.y}px`;
-			this._elements.editorContainer.style.left = `${topEdit.x}px`;
-
 			this.previewEditor.layout({ height: editHeight, width });
+
+			const topEdit = layoutInfo.edit1;
+			this._editorContainer.element.style.top = `${topEdit.y}px`;
+			this._editorContainer.element.style.left = `${topEdit.x}px`;
 		}));
 
-		const toolbarDropdownVisible = observableFromEvent(this, this._toolbar.onDidChangeDropdownVisibility, (e) => e ?? false);
+		/*const toolbarDropdownVisible = observableFromEvent(this, this._toolbar.onDidChangeDropdownVisibility, (e) => e ?? false);
 
 		this._register(autorun(reader => {
 			this._elements.root.classList.toggle('toolbarDropdownVisible', toolbarDropdownVisible.read(reader));
-		}));
+		}));*/
+
+		this._editorContainerTopLeft.set(this._previewEditorLayoutInfo.map(i => i?.edit1), undefined);
 	}
 
-	protected readonly _toolbar = this._register(this._instantiationService.createInstance(CustomizedMenuWorkbenchToolBar, this._elements.toolbar, MenuId.InlineEditsActions, {
+	private readonly previewRef = n.ref<HTMLDivElement>();
+	private readonly toolbarRef = n.ref<HTMLDivElement>();
+
+	private readonly _editorContainerTopLeft = observableValue<IObservable<Point | undefined> | undefined>(this, undefined);
+
+	private readonly _editorContainer = n.div({
+		class: 'editorContainer',
+		style: { position: 'absolute' },
+	}, [
+		n.div({ class: 'preview', style: {}, ref: this.previewRef }),
+		n.div({ class: 'toolbar', style: {}, ref: this.toolbarRef }),
+	]).keepUpdated(this._store);
+
+	protected readonly _toolbar = this._register(this._instantiationService.createInstance(CustomizedMenuWorkbenchToolBar, this.toolbarRef.element, MenuId.InlineEditsActions, {
 		menuOptions: { renderShortTitle: true },
 		toolbarOptions: {
 			primaryGroup: g => g.startsWith('primary'),
@@ -312,7 +218,7 @@ export class InlineEditsSideBySideDiff extends Disposable {
 
 	public readonly previewEditor = this._register(this._instantiationService.createInstance(
 		EmbeddedCodeEditorWidget,
-		this._elements.editor,
+		this.previewRef.element,
 		{
 			glyphMargin: false,
 			lineNumbers: 'off',
@@ -347,13 +253,8 @@ export class InlineEditsSideBySideDiff extends Disposable {
 
 	private readonly _previewEditorObs = observableCodeEditor(this.previewEditor);
 
-	private readonly _previewEditorRootVisibility = derived(this, reader => !!this._uiState.read(reader) ? 'block' : 'none');
-	private readonly _updatePreviewEditorRootVisibility = derived(reader => {
-		this._elements.root.style.display = this._previewEditorRootVisibility.read(reader);
-	});
-
 	private readonly _updatePreviewEditor = derived(reader => {
-		this._updatePreviewEditorRootVisibility.read(reader);
+		this._editorContainer.readEffect(reader);
 
 		const uiState = this._uiState.read(reader);
 		if (!uiState) {
@@ -465,4 +366,166 @@ export class InlineEditsSideBySideDiff extends Disposable {
 			shouldShowShadow: clipped,
 		};
 	});
+
+	private readonly _shouldOverflow = derived(reader => {
+		const range = this._edit.read(reader)?.originalLineRange;
+		if (!range) {
+			return false;
+		}
+		const top = this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
+		return top > 0;
+	});
+
+
+	private readonly _extendedModifiedPath = derived(reader => {
+		const layoutInfo = this._previewEditorLayoutInfo.read(reader);
+		if (!layoutInfo) { return undefined; }
+		const width = this._previewEditorWidth.read(reader);
+		const extendedModifiedPathBuilder = new PathBuilder()
+			.moveTo(layoutInfo.code1)
+			.lineTo(layoutInfo.edit1)
+			.lineTo(layoutInfo.edit1.deltaX(width))
+			.lineTo(layoutInfo.edit2.deltaX(width))
+			.lineTo(layoutInfo.edit2);
+		if (layoutInfo.edit2.y !== layoutInfo.code2.y) {
+			extendedModifiedPathBuilder.curveTo2(layoutInfo.edit2.deltaX(-20), layoutInfo.code2.deltaX(20), layoutInfo.code2.deltaX(0));
+		}
+		extendedModifiedPathBuilder.lineTo(layoutInfo.code2);
+		return extendedModifiedPathBuilder.build();
+	});
+
+	private readonly _backgroundSvg = n.svg({
+		transform: 'translate(-0.5 -0.5)',
+		style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' },
+	}, [
+		n.svgElem('path', {
+			class: 'extendedModifiedBackgroundCoverUp',
+			d: this._extendedModifiedPath,
+			style: {
+				fill: 'var(--vscode-editor-background, transparent)',
+				strokeWidth: '1px',
+			}
+		}),
+		n.svgElem('path', {
+			class: 'rightOfModifiedBackgroundCoverUp',
+			d: this._previewEditorLayoutInfo.map(layoutInfo => layoutInfo && new PathBuilder()
+				.moveTo(layoutInfo.code1)
+				.lineTo(layoutInfo.code1.deltaX(1000))
+				.lineTo(layoutInfo.code2.deltaX(1000))
+				.lineTo(layoutInfo.code2)
+				.build()
+			),
+			style: {
+				fill: 'var(--vscode-editor-background, transparent)',
+			}
+		}),
+	]).keepUpdated(this._store);
+
+	private readonly _foregroundSvg = n.svg({
+		transform: 'translate(-0.5 -0.5)',
+		style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' },
+	}, derived(reader => {
+		const layoutInfoObs = mapOutFalsy(this._previewEditorLayoutInfo).read(reader);
+		if (!layoutInfoObs) { return undefined; }
+
+		const shadowWidth = 6;
+		return [
+			n.svgElem('path', {
+				class: 'originalOverlay',
+				d: layoutInfoObs.map(layoutInfo => new PathBuilder()
+					.moveTo(layoutInfo.code2)
+					.lineTo(layoutInfo.codeStart2)
+					.lineTo(layoutInfo.codeStart1)
+					.lineTo(layoutInfo.code1)
+					.build()
+				),
+				style: {
+					fill: 'var(--vscode-inlineEdit-originalBackground, transparent)',
+					stroke: 'var(--vscode-inlineEdit-originalBorder)',
+					strokeWidth: '1px',
+				}
+			}),
+
+			n.svgElem('path', {
+				class: 'extendedModifiedOverlay',
+				d: this._extendedModifiedPath,
+				style: {
+					fill: 'var(--vscode-inlineEdit-modifiedBackground, transparent)',
+					stroke: 'var(--vscode-inlineEdit-modifiedBorder)',
+					strokeWidth: '1px',
+				}
+			}),
+
+			...(!layoutInfoObs.map(i => i.shouldShowShadow).read(reader)
+				? [
+					n.svgElem('path', {
+						class: 'middleBorder',
+						d: layoutInfoObs.map(layoutInfo => new PathBuilder()
+							.moveTo(layoutInfo.code1)
+							.lineTo(layoutInfo.code2)
+							.build()
+						),
+						style: {
+							stroke: 'var(--vscode-inlineEdit-modifiedBorder)',
+							strokeWidth: '1px'
+						}
+					})
+				]
+				: [
+					n.svgElem('defs', {}, [
+						n.svgElem('linearGradient', { id: 'gradient', x1: '0%', x2: '100%', }, [
+							n.svgElem('stop', {
+								offset: '0%',
+								style: { stopColor: 'var(--vscode-inlineEdit-modifiedBorder)', stopOpacity: '0', }
+							}),
+							n.svgElem('stop', {
+								offset: '100%',
+								style: { stopColor: 'var(--vscode-inlineEdit-modifiedBorder)', stopOpacity: '1', }
+							})
+						])
+					]),
+					n.svgElem('rect', {
+						class: 'middleBorderWithShadow',
+						x: layoutInfoObs.map(layoutInfo => layoutInfo.code1.x - shadowWidth),
+						y: layoutInfoObs.map(layoutInfo => layoutInfo.code1.y),
+						width: shadowWidth,
+						height: layoutInfoObs.map(layoutInfo => layoutInfo.code2.y - layoutInfo.code1.y),
+						fill: 'url(#gradient)',
+						style: { strokeWidth: '0', stroke: 'transparent', }
+					})
+				]
+			)
+		];
+	})).keepUpdated(this._store);
+
+	private readonly _display = derived(this, reader => !!this._uiState.read(reader) ? 'block' : 'none');
+
+	private readonly _nonOverflowView = n.div({
+		class: 'inline-edits-view',
+		style: {
+			position: 'absolute',
+			overflow: 'visible',
+			top: '0px',
+			left: '0px',
+			zIndex: '0',
+			display: this._display,
+		},
+	}, [
+		this._backgroundSvg,
+		derived(this, reader => this._shouldOverflow.read(reader) ? [] : [this._editorContainer, this._foregroundSvg]),
+	]).keepUpdated(this._store);
+
+	private readonly _overflowView = n.div({
+		class: 'inline-edits-view',
+		style: {
+			position: 'absolute',
+			overflow: 'visible',
+			top: '0px',
+			left: '0px',
+			zIndex: '100',
+			display: this._display,
+		},
+	}, [
+		derived(this, reader => this._shouldOverflow.read(reader) ? [this._editorContainer, this._foregroundSvg] : []),
+	]).keepUpdated(this._store);
 }
