@@ -60,10 +60,10 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 			return;
 		}
 
-		const response = await this._client.execute('preparePasteEdits', {
+		const response = await this._client.interruptGetErr(() => this._client.execute('preparePasteEdits', {
 			file,
 			copiedTextSpan: ranges.map(typeConverters.Range.toTextSpan),
-		}, token);
+		}, token));
 		if (token.isCancellationRequested || response.type !== 'response' || !response.body) {
 			return;
 		}
