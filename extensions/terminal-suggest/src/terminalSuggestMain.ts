@@ -169,8 +169,11 @@ function createCompletionItem(commandLine: string, cursorPosition: number, prefi
 }
 
 async function isExecutable(filePath: string): Promise<boolean> {
+	// Windows doesn't have the concept of an executable bit and running any
+	// file is possible. We considered using $PATHEXT here but since it's mostly
+	// there for legacy reasons and it would be easier and more intuitive to add
+	// a setting if needed instead.
 	if (osIsWindows()) {
-		//TODO: use PATHEXT env variable on windows
 		return true;
 	}
 	try {
