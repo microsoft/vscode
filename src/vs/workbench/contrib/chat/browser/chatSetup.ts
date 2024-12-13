@@ -583,8 +583,8 @@ class ChatSetupRequests extends Disposable {
 		}
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
-			try {
-				if (response.res.statusCode === 422) {
+			if (response.res.statusCode === 422) {
+				try {
 					const responseText = await asText(response);
 					if (responseText) {
 						const responseError: { message: string } = JSON.parse(responseText);
@@ -593,9 +593,9 @@ class ChatSetupRequests extends Disposable {
 							return false;
 						}
 					}
+				} catch (error) {
+					// ignore - handled below
 				}
-			} catch (error) {
-				// ignore - handled below
 			}
 			this.onUnknownSignUpError(`[chat setup] sign-up: unexpected status code ${response.res.statusCode}`);
 			return false;
@@ -654,7 +654,7 @@ class ChatSetupRequests extends Disposable {
 					label: localize('learnMore', "Learn More"),
 					run: () => this.openerService.open(URI.parse(defaultChat.upgradePlanUrl))
 				}
-			],
+			]
 		});
 		this.logService.error(logMessage);
 	}
