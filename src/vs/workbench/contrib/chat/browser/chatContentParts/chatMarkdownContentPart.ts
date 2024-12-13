@@ -76,11 +76,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 		// We release editors in order so that it's more likely that the same editor will be assigned if this element is re-rendered right away, like it often is during progressive rendering
 		const orderedDisposablesList: IDisposable[] = [];
-		let codeBlockIndex = codeBlockStartIndex;
+		let codeBlockIndex = 0;
 		const result = this._register(renderer.render(markdown.content, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text, raw) => {
-				const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || raw?.endsWith('```');
+				const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || raw?.trim().endsWith('```');
 				if ((!text || (text.startsWith('<vscode_codeblock_uri>') && !text.includes('\n'))) && !isCodeBlockComplete && rendererOptions.renderCodeBlockPills) {
 					const hideEmptyCodeblock = $('div');
 					hideEmptyCodeblock.style.display = 'none';

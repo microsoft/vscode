@@ -156,18 +156,18 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName}"`);
 				const invocationMessage = prepared?.invocationMessage ?? defaultMessage;
-				// if (tool.data.id !== 'vscode_editFile') {
-				toolInvocation = new ChatToolInvocation(invocationMessage, prepared?.confirmationMessages);
-				token.onCancellationRequested(() => {
-					toolInvocation!.confirmed.complete(false);
-				});
-				model.acceptResponseProgress(request, toolInvocation);
-				if (prepared?.confirmationMessages) {
-					const userConfirmed = await toolInvocation.confirmed.p;
-					if (!userConfirmed) {
-						throw new CancellationError();
+				if (tool.data.id !== 'vscode_editFile') {
+					toolInvocation = new ChatToolInvocation(invocationMessage, prepared?.confirmationMessages);
+					token.onCancellationRequested(() => {
+						toolInvocation!.confirmed.complete(false);
+					});
+					model.acceptResponseProgress(request, toolInvocation);
+					if (prepared?.confirmationMessages) {
+						const userConfirmed = await toolInvocation.confirmed.p;
+						if (!userConfirmed) {
+							throw new CancellationError();
+						}
 					}
-					// }
 				}
 			} else {
 				const prepared = tool.impl.prepareToolInvocation ?

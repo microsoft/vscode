@@ -69,6 +69,10 @@ export class ChatVariablesService implements IChatVariablesService {
 		const resolvedAttachedContext: IChatRequestVariableEntry[] = [];
 		attachedContextVariables
 			?.forEach((attachment, i) => {
+				if (attachment.value instanceof URI && attachment.value.scheme === 'ccreq') {
+					return;
+				}
+
 				const data = this._resolver.get(attachment.name?.toLowerCase());
 				if (data) {
 					const references: IChatContentReference[] = [];

@@ -36,7 +36,7 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 
 interface EditToolParams {
 	filePath: string;
-	expanation: string;
+	explanation: string;
 	code: string;
 }
 
@@ -69,7 +69,7 @@ Avoid repeating existing code, instead use comments to represent regions of unch
 					type: 'string',
 					description: 'An absolute path to the file to edit',
 				},
-				expanation: {
+				explanation: {
 					type: 'string',
 					description: 'A short explanation of the edit being made. Can be the same as the explanation you showed to the user.',
 				},
@@ -78,7 +78,7 @@ Avoid repeating existing code, instead use comments to represent regions of unch
 					description: codeInstructions
 				}
 			},
-			required: ['filePath', 'expanation', 'code']
+			required: ['filePath', 'explanation', 'code']
 		};
 	}
 
@@ -87,14 +87,19 @@ Avoid repeating existing code, instead use comments to represent regions of unch
 			throw new Error('toolInvocationToken is required for this tool');
 		}
 
+
 		const parameters = invocation.parameters as EditToolParams;
+		if (!parameters.filePath || !parameters.explanation || !parameters.code) {
+			throw new Error(`Invalid tool input: ${JSON.stringify(parameters)}`);
+		}
+
 		const model = this.chatService.getSession(invocation.context?.sessionId) as ChatModel;
 		const request = model.getRequests().at(-1)!;
 
 		const uri = URI.file(parameters.filePath);
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
-			content: new MarkdownString('````\n')
+			content: new MarkdownString('\n````\n')
 		});
 		model.acceptResponseProgress(request, {
 			kind: 'codeblockUri',
@@ -102,7 +107,7 @@ Avoid repeating existing code, instead use comments to represent regions of unch
 		});
 		model.acceptResponseProgress(request, {
 			kind: 'markdownContent',
-			content: new MarkdownString(parameters.code + '\n````')
+			content: new MarkdownString(parameters.code + '\n````\n')
 		});
 
 		if (this.chatEditingService.currentEditingSession?.chatSessionId !== model.sessionId) {
@@ -110,7 +115,7 @@ Avoid repeating existing code, instead use comments to represent regions of unch
 		}
 
 		const result = await this.codeMapperService.mapCode({
-			codeBlocks: [{ code: parameters.code, resource: uri, markdownBeforeBlock: parameters.expanation }],
+			codeBlocks: [{ code: parameters.code, resource: uri, markdownBeforeBlock: parameters.explanation }],
 			conversation: []
 		}, {
 			textEdit: (target, edits) => {
