@@ -245,7 +245,7 @@ function _loadProductIconThemeDocument(fileService: IExtensionResourceLoaderServ
 
 		for (const iconId in contentValue.iconDefinitions) {
 			const definition = contentValue.iconDefinitions[iconId];
-			if (isString(definition.fontCharacter) && definition.fontCharacter.match(fontCharacterRegex)) {
+			if (isString(definition.fontCharacter) && definition.fontCharacter.match(new RegExp(fontCharacterRegex, 'u'))) {
 				const fontId = definition.fontId ?? primaryFontId;
 				const fontDefinition = sanitizedFonts.get(fontId);
 				if (fontDefinition) {

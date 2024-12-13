@@ -424,7 +424,7 @@ export class FileIconThemeLoader {
 					if (definition.fontColor && definition.fontColor.match(fontColorRegex)) {
 						body.push(css.inline`color: ${css.hexColorValue(definition.fontColor)};`);
 					}
-					if (definition.fontCharacter && definition.fontCharacter.match(fontCharacterRegex)) {
+					if (definition.fontCharacter && definition.fontCharacter.match(new RegExp(fontCharacterRegex, 'u'))) {
 						body.push(css.inline`content: ${css.stringValue(definition.fontCharacter)};`);
 					}
 					const fontSize = definition.fontSize ?? (definition.fontId ? fontSizes.get(definition.fontId) : undefined);
