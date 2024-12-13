@@ -1251,7 +1251,20 @@ export class Repository implements Disposable {
 		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
 			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
 
-		if (this.rebaseCommit) {
+		if (this.mergeInProgress) {
+			await this.run(
+				Operation.MergeContinue,
+				async () => {
+					if (opts.all) {
+						const addOpts = opts.all === 'tracked' ? { update: true } : {};
+						await this.repository.add([], addOpts);
+					}
+
+					await this.repository.mergeContinue();
+					await this.commitOperationCleanup(message, indexResources, workingGroupResources);
+				},
+				() => this.commitOperationGetOptimisticResourceGroups(opts));
+		} else if (this.rebaseCommit) {
 			await this.run(
 				Operation.RebaseContinue,
 				async () => {
@@ -2521,7 +2534,7 @@ export class Repository implements Disposable {
 		return head
 			+ (this.workingTreeGroup.resourceStates.length + this.untrackedGroup.resourceStates.length > 0 ? '*' : '')
 			+ (this.indexGroup.resourceStates.length > 0 ? '+' : '')
-			+ (this.mergeGroup.resourceStates.length > 0 ? '!' : '');
+			+ (this.mergeInProgress || !!this.rebaseCommit ? '!' : '');
 	}
 
 	get syncLabel(): string {
