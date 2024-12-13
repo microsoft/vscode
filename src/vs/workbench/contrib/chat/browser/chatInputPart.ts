@@ -1282,7 +1282,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		dom.append(addFilesElement, button.element);
 
-		// REALTED files (after Add Files...)
+		// RELATED files (after Add Files...)
 		for (const [uri, metadata] of chatEditingSession.workingSet) {
 			if (metadata.state !== WorkingSetEntryState.Suggested) {
 				continue;
