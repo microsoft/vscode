@@ -19,6 +19,7 @@ export const enum OperationKind {
 	Commit = 'Commit',
 	Config = 'Config',
 	DeleteBranch = 'DeleteBranch',
+	DeleteBranches = 'DeleteBranches',
 	DeleteRef = 'DeleteRef',
 	DeleteRemoteTag = 'DeleteRemoteTag',
 	DeleteTag = 'DeleteTag',
@@ -72,7 +73,7 @@ export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchO
 	MergeBaseOperation | MoveOperation | PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation | RenameBranchOperation |
 	RemoveOperation | ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RefreshOperation | RevertFilesOperation |
 	RevListOperation | RevParseOperation | SetBranchUpstreamOperation | ShowOperation | StageOperation | StatusOperation | StashOperation |
-	SubmoduleUpdateOperation | SyncOperation | TagOperation;
+	SubmoduleUpdateOperation | SyncOperation | TagOperation | DeleteBranchesOperation;
 
 type BaseOperation = { kind: OperationKind; blocking: boolean; readOnly: boolean; remote: boolean; retry: boolean; showProgress: boolean };
 export type AddOperation = BaseOperation & { kind: OperationKind.Add };
@@ -87,6 +88,7 @@ export type CleanOperation = BaseOperation & { kind: OperationKind.Clean };
 export type CommitOperation = BaseOperation & { kind: OperationKind.Commit };
 export type ConfigOperation = BaseOperation & { kind: OperationKind.Config };
 export type DeleteBranchOperation = BaseOperation & { kind: OperationKind.DeleteBranch };
+export type DeleteBranchesOperation = BaseOperation & { kind: OperationKind.DeleteBranches };
 export type DeleteRefOperation = BaseOperation & { kind: OperationKind.DeleteRef };
 export type DeleteRemoteTagOperation = BaseOperation & { kind: OperationKind.DeleteRemoteTag };
 export type DeleteTagOperation = BaseOperation & { kind: OperationKind.DeleteTag };
@@ -144,6 +146,7 @@ export const Operation = {
 	Commit: { kind: OperationKind.Commit, blocking: true, readOnly: false, remote: false, retry: false, showProgress: true } as CommitOperation,
 	Config: (readOnly: boolean) => ({ kind: OperationKind.Config, blocking: false, readOnly, remote: false, retry: false, showProgress: false } as ConfigOperation),
 	DeleteBranch: { kind: OperationKind.DeleteBranch, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteBranchOperation,
+	DeleteBranches: { kind: OperationKind.DeleteBranches, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteBranchesOperation,
 	DeleteRef: { kind: OperationKind.DeleteRef, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteRefOperation,
 	DeleteRemoteTag: { kind: OperationKind.DeleteRemoteTag, blocking: false, readOnly: false, remote: true, retry: false, showProgress: true } as DeleteRemoteTagOperation,
 	DeleteTag: { kind: OperationKind.DeleteTag, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteTagOperation,

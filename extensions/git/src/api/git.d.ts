@@ -234,6 +234,7 @@ export interface Repository {
 
 	createBranch(name: string, checkout: boolean, ref?: string): Promise<void>;
 	deleteBranch(name: string, force?: boolean): Promise<void>;
+	deleteBranches(name: string, force?: boolean): Promise<void>;
 	getBranch(name: string): Promise<Branch>;
 	getBranches(query: BranchQuery, cancellationToken?: CancellationToken): Promise<Ref[]>;
 	getBranchBase(name: string): Promise<Branch | undefined>;

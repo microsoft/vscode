@@ -2860,6 +2860,54 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.deleteBranches', { repository: true })
+	async deleteBranches(repository: Repository, name: string, force?: boolean): Promise<void> {
+		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
+			const refs = await repository.getRefs();
+			const itemsProcessor = new RefItemsProcessor([
+				new RefProcessor(RefType.Head, BranchDeleteItem),
+				new RefProcessor(RefType.RemoteHead, BranchDeleteItem),
+				new RefProcessor(RefType.Tag, BranchDeleteItem)
+			]);
+
+			return itemsProcessor.processRefs(refs);
+		};
+
+		let selectedItems: BranchDeleteItem[] = [];
+
+		const items = await getQuickPickItems();
+		const placeHolder = l10n.t('Select branches to delete');
+		const choice = await window.showQuickPick(items, {
+			placeHolder, canPickMany: true
+		});
+
+		if (!choice || choice.length === 0) {
+			return;
+		}
+
+		selectedItems = [...selectedItems, ...choice.filter(item => item instanceof BranchDeleteItem).map(item => item as BranchDeleteItem)];
+
+		if (!selectedItems || selectedItems.length === 0) { return; }
+
+		for (const item of selectedItems) {
+			try {
+				await item.run(repository, force);
+			} catch (err) {
+				if (err.gitErrorCode !== GitErrorCodes.BranchNotFullyMerged) {
+					window.showErrorMessage(l10n.t('Failed to delete branch: Git error code: {0}', item.label));
+					continue; // Skip to the next item
+				} else {
+					const message = l10n.t('The branch "{0}" is not fully merged. Delete anyway?', name);
+					const yes = l10n.t('Delete Branch');
+					const pick = await window.showWarningMessage(message, { modal: true }, yes);
+					if (pick === yes) {
+						await item.run(repository, true);
+					}
+				}
+			}
+		}
+	}
+
 	@command('git.renameBranch', { repository: true })
 	async renameBranch(repository: Repository): Promise<void> {
 		const currentBranchName = repository.HEAD && repository.HEAD.name;
