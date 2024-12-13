@@ -23,7 +23,7 @@ import { IModelService } from '../../../../../common/services/model.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineEdit } from '../../model/inlineEdit.js';
 import { InlineCompletionItem } from '../../model/provideInlineCompletions.js';
-import { InlineEditsView } from './inlineEditsView.js';
+import { InlineEditsView } from './view.js';
 import { UniqueUriGenerator } from './utils.js';
 
 export class InlineEditsViewAndDiffProducer extends Disposable {
@@ -70,6 +70,10 @@ export class InlineEditsViewAndDiffProducer extends Disposable {
 
 			const rangeStartPos = edit.range.getStartPosition();
 			const innerChanges = result.changes.flatMap(c => c.innerChanges!);
+			if (innerChanges.length === 0) {
+				// there are no changes
+				return undefined;
+			}
 
 			function addRangeToPos(pos: Position, range: Range): Range {
 				const start = TextLength.fromPosition(range.getStartPosition());

@@ -880,7 +880,7 @@ async function processArtifact(
 				stagingContainerClient
 			);
 
-			await retry(() => releaseService.createRelease(version, filePath, friendlyFileName));
+			await releaseService.createRelease(version, filePath, friendlyFileName);
 		}
 
 		const { product, os, arch, unprocessedType } = match.groups!;

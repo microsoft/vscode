@@ -1516,7 +1516,12 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			return { malicious: [], deprecated: {}, search: [] };
 		}
 
-		const context = await this.requestService.request({ type: 'GET', url: this.extensionsControlUrl }, CancellationToken.None);
+		const context = await this.requestService.request({
+			type: 'GET',
+			url: this.extensionsControlUrl,
+			timeout: 10000 /*10s*/
+		}, CancellationToken.None);
+
 		if (context.res.statusCode !== 200) {
 			throw new Error('Could not get extensions report.');
 		}

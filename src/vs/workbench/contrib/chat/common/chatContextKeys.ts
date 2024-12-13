@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatAgentLocation } from './chatAgents.js';
 
 export namespace ChatContextKeys {
@@ -50,6 +50,25 @@ export namespace ChatContextKeys {
 		triggered: new RawContextKey<boolean>('chatSetupTriggered', false, true), 	// True when chat setup is triggered.
 		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed.
 	};
+
+	export const SetupViewKeys = new Set([ChatContextKeys.Setup.triggered.key, ChatContextKeys.Setup.installed.key, ChatContextKeys.Setup.signedOut.key, ChatContextKeys.Setup.canSignUp.key]);
+	export const SetupViewCondition = ContextKeyExpr.and(
+		ContextKeyExpr.has('config.chat.experimental.offerSetup'),
+		ContextKeyExpr.or(
+			ContextKeyExpr.and(
+				ChatContextKeys.Setup.triggered,
+				ChatContextKeys.Setup.installed.negate()
+			),
+			ContextKeyExpr.and(
+				ChatContextKeys.Setup.canSignUp,
+				ChatContextKeys.Setup.installed
+			),
+			ContextKeyExpr.and(
+				ChatContextKeys.Setup.signedOut,
+				ChatContextKeys.Setup.installed
+			)
+		)
+	)!;
 
 	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
 	export const completionsQuotaExceeded = new RawContextKey<boolean>('completionsQuotaExceeded', false, true);

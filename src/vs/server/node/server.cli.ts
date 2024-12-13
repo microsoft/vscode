@@ -71,6 +71,7 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 		case 'update-extensions':
 		case 'list-extensions':
 		case 'force':
+		case 'do-not-include-pack-dependencies':
 		case 'show-versions':
 		case 'category':
 		case 'verbose':
