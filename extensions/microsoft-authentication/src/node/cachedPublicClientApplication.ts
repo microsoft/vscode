@@ -90,8 +90,23 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 
 	async acquireTokenSilent(request: SilentFlowRequest): Promise<AuthenticationResult> {
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] starting...`);
-		const result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(request));
+		let result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(request));
 		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got result`);
+		// Check expiration of id token and if it's 5min before expiration, force a refresh.
+		// this is what MSAL does for access tokens already so we're just adding it for id tokens since we care about those.
+		const idTokenExpirationInSecs = (result.idTokenClaims as { exp?: number }).exp;
+		if (idTokenExpirationInSecs) {
+			const fiveMinutesBefore = new Date(
+				(idTokenExpirationInSecs - 5 * 60) // subtract 5 minutes
+				* 1000 // convert to milliseconds
+			);
+			if (fiveMinutesBefore < new Date()) {
+				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is expired or about to expire. Forcing refresh...`);
+				result = await this._sequencer.queue(() => this._pca.acquireTokenSilent({ ...request, forceRefresh: true }));
+				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got refreshed result`);
+			}
+		}
+
 		// this._setupRefresh(result);
 		if (result.account && !result.fromCache && this._verifyIfUsingBroker(result)) {
 			this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] firing event due to change`);
