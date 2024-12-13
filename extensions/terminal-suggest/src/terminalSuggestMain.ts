@@ -169,18 +169,18 @@ function createCompletionItem(commandLine: string, cursorPosition: number, prefi
 }
 
 async function isExecutable(filePath: string): Promise<boolean> {
-	if (!osIsWindows()) {
-		try {
-			// On macOS/Linux, check if the executable bit is set
-			const stats = await fs.stat(filePath);
-			// Check if the file is a regular file and has owner executable permission
-			return (stats.mode & 0o100) !== 0;
-		} catch (error) {
-			// If the file does not exist or cannot be accessed, it's not executable
-			return false;
-		}
-	} else {
+	if (osIsWindows()) {
+		//TODO: use PATHEXT env variable on windows
 		return true;
+	}
+	try {
+		// On macOS/Linux, check if the executable bit is set
+		const stats = await fs.stat(filePath);
+		// Check if the file has owner executable permission
+		return (stats.mode & 0o100) !== 0;
+	} catch (error) {
+		// If the file does not exist or cannot be accessed, it's not executable
+		return false;
 	}
 }
 
