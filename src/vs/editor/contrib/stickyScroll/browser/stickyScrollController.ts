@@ -468,7 +468,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._readConfiguration();
 		}
 
-		if (event.hasChanged(EditorOption.lineNumbers) || event.hasChanged(EditorOption.folding) || event.hasChanged(EditorOption.showFoldingControls)) {
+		if (event.hasChanged(EditorOption.lineNumbers)) {
 			this._renderStickyScroll(0);
 		}
 	}

@@ -140,6 +140,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		ContentHoverWidget._applyMaxDimensions(this._hover.contentsDomNode, width, height);
 		ContentHoverWidget._applyMaxDimensions(this._hover.scrollbar.getDomNode(), width, height);
 		ContentHoverWidget._applyMaxDimensions(this._hover.containerDomNode, width, height);
+		this._hover.containerDomNode.style.setProperty('--vscode-hover-maxWidth', typeof width === 'number' ? `${width}px` : width);
 		this._layoutContentWidget();
 	}
 
