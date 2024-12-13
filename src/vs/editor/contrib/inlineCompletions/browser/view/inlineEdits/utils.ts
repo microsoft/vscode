@@ -7,20 +7,21 @@ import { h, isSVGElement } from '../../../../../../base/browser/dom.js';
 import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { numberComparator } from '../../../../../../base/common/arrays.js';
 import { findFirstMin } from '../../../../../../base/common/arraysFind.js';
+import { BugIndicatingError } from '../../../../../../base/common/errors.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { derived, IObservable, IReader } from '../../../../../../base/common/observable.js';
 import { OS } from '../../../../../../base/common/platform.js';
-import { splitLines, getIndentationLength } from '../../../../../../base/common/strings.js';
+import { getIndentationLength, splitLines } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { MenuEntryActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ObservableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
+import { Point } from '../../../../../browser/point.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../common/core/offsetRange.js';
+import { Position } from '../../../../../common/core/position.js';
+import { Range } from '../../../../../common/core/range.js';
 import { SingleTextEdit, TextEdit } from '../../../../../common/core/textEdit.js';
 import { RangeMapping } from '../../../../../common/diff/rangeMapping.js';
-import { Range } from '../../../../../common/core/range.js';
-import { Position } from '../../../../../common/core/position.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 
 export function maxContentWidthInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader): number {
 	editor.layoutInfo.read(reader);
@@ -79,25 +80,6 @@ export class StatusBarViewItem extends MenuEntryActionViewItem {
 
 	protected override updateTooltip(): void {
 		// NOOP, disable tooltip
-	}
-}
-
-export class Point {
-	constructor(
-		public readonly x: number,
-		public readonly y: number,
-	) { }
-
-	public add(other: Point): Point {
-		return new Point(this.x + other.x, this.y + other.y);
-	}
-
-	public deltaX(delta: number): Point {
-		return new Point(this.x + delta, this.y);
-	}
-
-	public deltaY(delta: number): Point {
-		return new Point(this.x, this.y + delta);
 	}
 }
 
