@@ -2465,10 +2465,12 @@ export class Repository implements Disposable {
 		}
 
 		await this.repository.createStash(undefined, true);
-		const result = await runOperation();
-		await this.repository.popStash();
-
-		return result;
+		try {
+			const result = await runOperation();
+			return result;
+		} finally {
+			await this.repository.popStash();
+		}
 	}
 
 	private onFileChange(_uri: Uri): void {
