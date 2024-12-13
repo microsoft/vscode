@@ -7,25 +7,27 @@ import { IAction } from '../../../../../../base/common/actions.js';
 import { Color } from '../../../../../../base/common/color.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, constObservable, derived, autorun, derivedOpts, observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable, derived, derivedOpts, observableValue } from '../../../../../../base/common/observable.js';
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { diffRemoved, diffInserted } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { registerColor, darken, lighten } from '../../../../../../platform/theme/common/colorUtils.js';
+import { diffInserted, diffRemoved } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { darken, lighten, registerColor } from '../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
+import { Point } from '../../../../../browser/point.js';
 import { EmbeddedCodeEditorWidget } from '../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { editorLineHighlightBorder } from '../../../../../common/core/editorColorRegistry.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
 import { OffsetRange } from '../../../../../common/core/offsetRange.js';
+import { Position } from '../../../../../common/core/position.js';
 import { Range } from '../../../../../common/core/range.js';
 import { Command } from '../../../../../common/languages.js';
 import { ITextModel } from '../../../../../common/model.js';
 import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
+import { PathBuilder, StatusBarViewItem, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, n } from './utils.js';
 import { InlineEditWithChanges } from './viewAndDiffProducer.js';
-import { StatusBarViewItem, maxContentWidthInRange, getOffsetForPos, Point, n, PathBuilder, mapOutFalsy } from './utils.js';
 
 
 export const originalBackgroundColor = registerColor(
@@ -290,10 +292,23 @@ export class InlineEditsSideBySideDiff extends Disposable {
 		return edit.modifiedLineRange.contains(cursorPos.lineNumber) ? cursorPos : undefined;
 	});
 
+	private readonly _originalStartPosition = derived(this, (reader) => {
+		const inlineEdit = this._edit.read(reader);
+		return inlineEdit ? new Position(inlineEdit.originalLineRange.startLineNumber, 1) : null;
+	});
+
+	private readonly _originalEndPosition = derived(this, (reader) => {
+		const inlineEdit = this._edit.read(reader);
+		return inlineEdit ? new Position(inlineEdit.originalLineRange.endLineNumberExclusive, 1) : null;
+	});
+
+	private readonly _originalVerticalStartPosition = this._editorObs.observePosition(this._originalStartPosition, this._store).map(p => p?.y);
+	private readonly _originalVerticalEndPosition = this._editorObs.observePosition(this._originalEndPosition, this._store).map(p => p?.y);
+
 	/**
 	 * ![test](./layout.dio.svg)
 	*/
-	private readonly _previewEditorLayoutInfo = derived(this, (reader) => {
+	private readonly _previewEditorLayoutInfo = derived(this, (reader) => {//
 		const inlineEdit = this._edit.read(reader);
 		if (!inlineEdit) {
 			return null;
@@ -328,8 +343,8 @@ export class InlineEditsSideBySideDiff extends Disposable {
 
 		const left = Math.max(editorLayout.contentLeft, previewEditorLeft - horizontalScrollOffset);
 
-		const selectionTop = this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
-		const selectionBottom = this._editor.getTopForLineNumber(range.endLineNumberExclusive) - this._editorObs.scrollTop.read(reader);
+		const selectionTop = this._originalVerticalStartPosition.read(reader) ?? this._editor.getTopForLineNumber(range.startLineNumber) - this._editorObs.scrollTop.read(reader);
+		const selectionBottom = this._originalVerticalEndPosition.read(reader) ?? this._editor.getTopForLineNumber(range.endLineNumberExclusive) - this._editorObs.scrollTop.read(reader);
 
 		const codeLeft = editorLayout.contentLeft;
 

@@ -86,7 +86,7 @@ class SlashCommandCompletions extends Disposable {
 						return {
 							label: withSlash,
 							insertText: c.executeImmediately ? '' : `${withSlash} `,
-							detail: c.detail,
+							documentation: c.detail,
 							range,
 							sortText: c.sortText ?? 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
@@ -126,7 +126,7 @@ class SlashCommandCompletions extends Disposable {
 						return {
 							label: withSlash,
 							insertText: c.executeImmediately ? '' : `${withSlash} `,
-							detail: c.detail,
+							documentation: c.detail,
 							range,
 							filterText: `${chatAgentLeader}${c.command}`,
 							sortText: c.sortText ?? 'z'.repeat(i + 1),
@@ -193,7 +193,7 @@ class AgentCompletions extends Disposable {
 						return {
 							label: withSlash,
 							insertText: `${withSlash} `,
-							detail: c.description,
+							documentation: c.description,
 							range,
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
 						};
@@ -246,7 +246,7 @@ class AgentCompletions extends Disposable {
 							label: isDupe ?
 								{ label: agentLabel, description: agent.description, detail: ` (${agent.publisherDisplayName})` } :
 								agentLabel,
-							detail,
+							documentation: detail,
 							filterText: `${chatAgentLeader}${agent.name}`,
 							insertText: `${agentLabel} `,
 							range,
@@ -265,7 +265,7 @@ class AgentCompletions extends Disposable {
 								label: isDupe ?
 									{ label, description: c.description, detail: isDupe ? ` (${agent.publisherDisplayName})` : undefined } :
 									label,
-								detail: c.description,
+								documentation: c.description,
 								filterText: getFilterText(agent, c.name),
 								commitCharacters: [' '],
 								insertText: label + ' ',
@@ -280,7 +280,7 @@ class AgentCompletions extends Disposable {
 								const label = `${chatSubcommandLeader}${c.name}`;
 								item.label = label;
 								item.insertText = `${label} `;
-								item.detail = c.description;
+								item.documentation = c.description;
 							}
 
 							return item;
@@ -322,7 +322,7 @@ class AgentCompletions extends Disposable {
 							label: { label: withSlash, description: agentLabel, detail: isDupe ? ` (${agent.publisherDisplayName})` : undefined },
 							commitCharacters: [' '],
 							insertText: `${agentLabel} ${withSlash} `,
-							detail: `(${agentLabel}) ${c.description ?? ''}`,
+							documentation: `(${agentLabel}) ${c.description ?? ''}`,
 							range,
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
 							sortText,
@@ -334,7 +334,7 @@ class AgentCompletions extends Disposable {
 							const label = `${chatSubcommandLeader}${c.name}`;
 							item.label = label;
 							item.insertText = `${label} `;
-							item.detail = c.description;
+							item.documentation = c.description;
 						}
 
 						return item;
@@ -464,7 +464,7 @@ class BuiltinDynamicCompletions extends Disposable {
 					result.suggestions.push({
 						label: `${chatVariableLeader}file`,
 						insertText: `${chatVariableLeader}file:`,
-						detail: localize('pickFileLabel', "Pick a file"),
+						documentation: localize('pickFileLabel', "Pick a file"),
 						range,
 						kind: CompletionItemKind.Text,
 						command: { id: SelectAndInsertFileAction.ID, title: SelectAndInsertFileAction.ID, arguments: [{ widget, range: afterRange }] },
@@ -499,7 +499,7 @@ class BuiltinDynamicCompletions extends Disposable {
 					result.suggestions.push({
 						label: `${chatVariableLeader}sym`,
 						insertText: `${chatVariableLeader}sym:`,
-						detail: localize('pickSymbolLabel', "Pick a symbol"),
+						documentation: localize('pickSymbolLabel', "Pick a symbol"),
 						range,
 						kind: CompletionItemKind.Text,
 						command: { id: SelectAndInsertSymAction.ID, title: SelectAndInsertSymAction.ID, arguments: [{ widget, range: afterRangeSym }] },
@@ -798,7 +798,7 @@ class VariableCompletions extends Disposable {
 							label: withLeader,
 							range,
 							insertText: withLeader + ' ',
-							detail: v.description,
+							documentation: v.description,
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
 							sortText: 'z'
 						};
@@ -816,7 +816,7 @@ class VariableCompletions extends Disposable {
 							label: withLeader,
 							range,
 							insertText: withLeader + ' ',
-							detail: t.userDescription,
+							documentation: t.userDescription,
 							kind: CompletionItemKind.Text,
 							sortText: 'z'
 						};
