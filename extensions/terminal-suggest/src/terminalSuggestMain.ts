@@ -174,8 +174,8 @@ async function isExecutable(filePath: string): Promise<boolean> {
 		return true;
 	}
 	try {
-		// On macOS/Linux, check if the executable bit is set
 		const stats = await fs.stat(filePath);
+                 // On macOS/Linux, check if the executable bit is set
 		return (stats.mode & 0o100) !== 0;
 	} catch (error) {
 		// If the file does not exist or cannot be accessed, it's not executable
